@@ -5,6 +5,5 @@ set PATH=%DYNAMO_EXT%\bin\win32;%PATH%
 
 call "%VS90COMNTOOLS%\vsvars32.bat"
 
-rem cmd.exe /c "C:\Program Files\Git\bin\sh.exe" --login -i
-cmd 
+"C:\Program Files\Git\bin\sh.exe" --login -i
 
