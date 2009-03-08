@@ -2,8 +2,12 @@
 
 download() {
     [ -f $DYNAMO_EXT/cache/$1 ] && return
-    scp "$REMOTE_PATH/$1" $DYNAMO_EXT/cache
+    scp "$REMOTE_PATH/$1" /tmp
+    [ ! 0 -eq $? ] && echo "Failed to download $1" && exit 1
+    mv /tmp/$1 "$DYNAMO_EXT/cache"
 }
+
+[ -z $USER ] && echo 'Environment variable $USER not set. Running on windoz?' && exit 1
 
 tmp=`uname -s`
 [ "Linux" == ${tmp:0:5} ] && HOST="linux"
