@@ -22,7 +22,7 @@ tmp=`uname -s`
 
 mkdir -p $DYNAMO_EXT/cache
 
-REMOTE_PATH="$USER@overrated.dyndns.org:packages"
+REMOTE_PATH="$USER@overrated.dyndns.org:/home/chmu/packages"
 PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3"
 PACKAGES_HOST="protobuf-2.0.3"
 PACKAGES_EGGS="protobuf-2.0.3-py2.5.egg"
