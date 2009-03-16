@@ -7,7 +7,11 @@ download() {
     mv /tmp/$1 "$DYNAMO_EXT/cache"
 }
 
-[ -z $USER ] && echo 'Environment variable $USER not set. Running on windoz?' && exit 1
+# Set $USER_OVERRATED to $USER or $USERNAME if *not* set
+USER_OVERRATED=${USER_OVERRATED:-${USER}}
+USER_OVERRATED=${USER_OVERRATED:-${USERNAME}}
+
+#[ -z $USER_OVERRATED ] && echo 'Environment variable $USER_OVERRATED not set.' && exit 1
 
 tmp=`uname -s`
 [ "Linux" == ${tmp:0:5} ] && HOST="linux"
@@ -22,9 +26,9 @@ tmp=`uname -s`
 
 mkdir -p $DYNAMO_EXT/cache
 
-REMOTE_PATH="$USER@overrated.dyndns.org:/home/chmu/packages"
-PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3"
-PACKAGES_HOST="protobuf-2.0.3"
+REMOTE_PATH="$USER_OVERRATED@overrated.dyndns.org:/home/chmu/packages"
+PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3 gtest-1.2.1"
+PACKAGES_HOST="protobuf-2.0.3 gtest-1.2.1"
 PACKAGES_EGGS="protobuf-2.0.3-py2.5.egg"
 
 for p in $PACKAGES_ALL; do

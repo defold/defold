@@ -42,7 +42,7 @@ Steps
 
             # cd
             # mkdir .ssh
-            # scp YOUR_USER_NAME@overrated.dyndns.org:.ssh/id_rsa .
+            # scp YOUR_USER_NAME@overrated.dyndns.org:.ssh/id_rsa .ssh
                 - You can now use overrated.dyndns.org without password! :-)
 
 7. Bootstrap
