@@ -1,5 +1,3 @@
-# Note: $USER must be set on windows!
-
 download() {
     [ -f $DYNAMO_EXT/cache/$1 ] && return
     scp "$REMOTE_PATH/$1" /tmp
