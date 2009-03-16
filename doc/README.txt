@@ -23,7 +23,6 @@ Steps
        - `C:/Python2.5`
        - `C:/Python2.5/Scripts`
    - Set *DYNAMO_EXT* environment variable
-   - Set *USER* to linux username
 
 5. Logout, login from windows
 
@@ -49,7 +48,7 @@ Steps
   - Start Git Bash shell
   - Clone "dynamo"
 
-             # git clone YOUR_USER_NAME@overrated.dyndns.org:/home/chmu/dynamo
+             # git clone ssh://YOUR_USER_NAME@overrated.dyndns.org/repo/dynamo
 
   - Bootstrap/update *DYNAMO_EXT*
       
