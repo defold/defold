@@ -1,0 +1,13 @@
+#! /usr/bin/env python
+
+def build(bld):
+	bld.add_subdirs('test')
+
+	bld.new_task_gen(
+            features = 'cxx cstaticlib',
+            source = 'ddf.cpp ddf_inputstream.cpp private/ddf_private.cpp',
+            target = 'ddf')
+
+def configure(conf):
+        pass
+

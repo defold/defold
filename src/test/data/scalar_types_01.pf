@@ -1,0 +1,7 @@
+Float: 1
+Double: 2
+Int32: 3
+Uint32: 4
+Int64: 5
+Uint64: 6
+String: "astring"

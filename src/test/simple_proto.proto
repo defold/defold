@@ -1,0 +1,36 @@
+package TestDDF;
+
+message Simple 
+{
+    required int32 a = 1;
+}
+
+message ScalarTypes 
+{
+    required float  Float = 1;
+    required double Double = 2;
+    required int32  Int32 = 3;
+    required uint32 Uint32 = 4;
+    required int64  Int64 = 5;
+    required uint64 Uint64 = 6;
+    required string String = 7;
+}
+
+message Simple01
+{
+    required uint32 x = 1;
+    required uint32 y = 2;
+}
+
+message Simple01Repeated
+{
+    repeated Simple01 array = 1;
+}
+
+message Mesh
+{
+    // TODO: Add name here
+    repeated float vertices = 1;
+    required uint32 stride = 2;
+};
+
