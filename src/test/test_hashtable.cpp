@@ -209,7 +209,7 @@ TEST(HashTable, Performance)
     clock_t ht_diff = end_ht - start_ht;
 
     // std::map at least 5 times slower... :-)
-    EXPECT_GE(map_diff, ht_diff*9);
+    EXPECT_GE(map_diff, ht_diff*5);
 }
 
 int main(int argc, char **argv)

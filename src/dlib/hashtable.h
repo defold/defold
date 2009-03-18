@@ -7,11 +7,11 @@
 #include <stdlib.h>
 
 /**
- * Hashtable with memcpy-copy semantics.
+ * Hashtable with memcpy-copy semantics and 16-bit indicies instead of pointers. (NUMA-friendly)
  * Only uint16_t, uint32_t and uint64_t is supported as KEY type.
  */
 template <typename KEY, typename T>
-    class THashTable
+class THashTable
 {
 public:
     struct Entry
@@ -32,7 +32,7 @@ public:
 
     /**
      * Constructor.
-     * @param table_size Hashtable size, ie number of buckets.
+     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
      */
     THashTable(uint32_t table_size)
     {
@@ -81,11 +81,13 @@ public:
 
     /**
      * Set new hashtable capacity. Only valid to run once initially.
-     * @param capacity Capacity
+     * @param capacity Capacity. capacity < 0xffff
      */
     void SetCapacity(uint16_t capacity)
     {
         assert(m_InitialEntries == 0);
+        assert(capacity < 0xffff);
+
         m_InitialEntries = (Entry*) malloc(sizeof(Entry) * capacity);
         m_InitialEntriesNextFree = m_InitialEntries;
         m_InitialEntriesEnd = m_InitialEntries + capacity;
@@ -122,6 +124,7 @@ public:
         // Key already in table?
         if (entry != 0)
         {
+            // TODO: memcpy or similar to enforce memcpy-semantics?
             entry->m_Value = value;
         }
         else
@@ -257,6 +260,10 @@ public:
     }
 
 private:
+    // Forbid assignment operator and copy-constructor
+    THashTable(const THashTable<KEY, T>&);
+    const THashTable<KEY, T>& operator=(const THashTable<KEY, T>&);
+
     Entry* FindEntry(KEY key)
     {
         uint16_t bucket_index = key % m_HashTableSize;
