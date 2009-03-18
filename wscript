@@ -32,7 +32,7 @@ def configure(conf):
         conf.env['CXXFLAGS']='-g -D__STDC_LIMIT_MACROS -Wall'
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
-        conf.env.append_value('CPPPATH', "../src/win32")
+        conf.env.append_value('CPPPATH', "../include/win32")
 
     dynamo_ext = os.getenv('DYNAMO_EXT')
     if not dynamo_ext:
