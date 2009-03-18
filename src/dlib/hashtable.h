@@ -6,12 +6,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-/** 
- * Hashtable with memcpy-copy semantics. 
+/**
+ * Hashtable with memcpy-copy semantics.
  * Only uint16_t, uint32_t and uint64_t is supported as KEY type.
  */
 template <typename KEY, typename T>
-class THashTable
+    class THashTable
 {
 public:
     struct Entry
@@ -21,30 +21,31 @@ public:
         T        m_Value;
     };
 
-    /** 
+    /**
      * Constructor. Create an empty hashtable with zero capacity and zero hashtable (buckets)
      */
-    THashTable() 
+    THashTable()
     {
         memset(this, 0, sizeof(*this));
-        // TODO: A function to set table size!
+        m_FreeEntries = 0xffff;
     }
 
-    /** 
-     * Constructor. 
+    /**
+     * Constructor.
      * @param table_size Hashtable size, ie number of buckets.
      */
     THashTable(uint32_t table_size)
     {
         assert(table_size > 0);
         assert(table_size < 0xffff);
-        
 
         memset(this, 0, sizeof(*this));
 
         m_HashTableSize = table_size;
         m_HashTable = (uint16_t*) malloc(sizeof(uint16_t) * table_size);
         memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
+
+        m_FreeEntries = 0xffff;
     }
 
     ~THashTable()
@@ -55,7 +56,7 @@ public:
         }
     }
 
-    /** 
+    /**
      * Number of entries stored in table. (not the actual hashtable size)
      * @return Number of entries.
      */
@@ -63,8 +64,8 @@ public:
     {
         return m_Count;
     }
-    
-    /** 
+
+    /**
      * Hashtable capacity. Maximum number of entries possible to store in table
      * @return Capcity
      */
@@ -73,7 +74,7 @@ public:
         return m_InitialEntriesEnd - m_InitialEntries;
     }
 
-    /** 
+    /**
      * Set new hashtable capacity. Only valid to run once initially.
      * @param capacity Capacity
      */
@@ -85,7 +86,7 @@ public:
         m_InitialEntriesEnd = m_InitialEntries + capacity;
     }
 
-    /** 
+    /**
      * Check if the table is full
      * @return true if the table is full
      */
@@ -94,7 +95,7 @@ public:
         return m_Count == Capacity();
     }
 
-    /** 
+    /**
      * Check if the table is empty
      * @return true if the table is empty
      */
@@ -102,7 +103,7 @@ public:
     {
         return m_Count == 0;
     }
-    
+
     /**
      * Put key/value pair in hash table. NOTE: The method will "assert" if the hashtable is full.
      * @param key Key
@@ -143,7 +144,7 @@ public:
                 assert(prev_entry->m_Next == 0xffff);
 
                 // Link prev entry to this
-                prev_entry->m_Next = entry - m_InitialEntries; 
+                prev_entry->m_Next = entry - m_InitialEntries;
             }
         }
 
@@ -170,7 +171,27 @@ public:
         }
     }
 
-    /** 
+    /**
+     * Get pointer to value from key. "const" version.
+     * @param key Key
+     * @return Pointer to value. NULL if the key/value pair doesn't exists.
+     */
+    const T* Get(KEY key) const
+    {
+        Entry* entry = FindEntry(key);
+
+        // Key already in table?
+        if (entry != 0)
+        {
+            return &entry->m_Value;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    /**
      * Remove key/value pair. NOTE: Only valid if key exists in table.
      * @param key Key to remove
      */
@@ -209,12 +230,26 @@ public:
         assert(false && "Key not found (erase)");
     }
 
+
     /**
-     * Get pointer to value from key. "const" version.
-     * @param key Key
-     * @return Pointer to value. NULL if the key/value pair doesn't exists.
+     * Verify internal structuty. "assert" if invalid.
      */
-    const T* Get(KEY key) const;
+    void Verify()
+    {
+        uint16_t free_ptr = m_FreeEntries;
+        while (free_ptr != 0xffff)
+        {
+            Entry* e = &m_InitialEntries[free_ptr];
+            // Check that free entry not is in table
+            Entry* found = FindEntry(e->m_Key);
+            if (found && found == e )
+            {
+                printf("Key '%d' in table but also key '%d' in free list.\n", found->m_Key, e->m_Key);
+            }
+            assert( found != e );
+            free_ptr = e->m_Next;
+        }
+    }
 
 private:
     Entry* FindEntry(KEY key)
@@ -253,35 +288,36 @@ private:
         else
         {
             // No, pick an entry from the free list.
-            assert(m_FreeEntries && "No free entries in hashtable");
+            assert(m_FreeEntries != 0xffff && "No free entries in hashtable");
 
-            Entry*ret = m_FreeEntries;
+            Entry*ret = &m_InitialEntries[m_FreeEntries];
 
             // Last free?
             if (ret->m_Next == 0xffff)
             {
-                m_FreeEntries = 0;
+                m_FreeEntries = 0xffff;
             }
             else
             {
-                m_FreeEntries = &m_InitialEntries[ret->m_Next];
+                m_FreeEntries = ret->m_Next;
             }
-            
+
             return ret;
         }
     }
-    
+
     void FreeEntry(Entry* e)
     {
         // Empty list of entries?
-        if (m_FreeEntries)
+        if (m_FreeEntries == 0xffff)
         {
-            m_FreeEntries = e;
+            m_FreeEntries = e - m_InitialEntries;
+            e->m_Next = 0xffff;
         }
         else
         {
-            e->m_Next = (m_FreeEntries - m_InitialEntries);
-            m_FreeEntries = e;
+            e->m_Next = m_FreeEntries;
+            m_FreeEntries = e - m_InitialEntries;
         }
     }
 
@@ -297,8 +333,7 @@ private:
     Entry*    m_InitialEntriesEnd;
 
     // Linked list of free entries.
-    // TODO: Change to uint16_t...
-    Entry*    m_FreeEntries;
+    uint16_t  m_FreeEntries;
 
     // Number of key/value pairs in table
     uint16_t  m_Count;

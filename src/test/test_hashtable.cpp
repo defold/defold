@@ -31,25 +31,59 @@ TEST(HashTable, SimplePut)
 
 TEST(HashTable, SimpleErase)
 {
+    for (int table_size = 1; table_size <= 10; ++table_size)
+    {
+        THashTable<uint32_t, uint32_t> ht(table_size);
+        ht.SetCapacity(2);
+        ht.Put(1, 10);
+        ht.Put(2, 20);
+
+        uint32_t* val;
+        val = ht.Get(1);
+        ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
+        EXPECT_EQ((uint32_t) 10, *val);
+
+        val = ht.Get(2);
+        ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
+        EXPECT_EQ((uint32_t) 20, *val);
+
+        ht.Verify();
+        ht.Erase(1);
+        ht.Verify();
+
+        val = ht.Get(2);
+        ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
+        EXPECT_EQ((uint32_t) 20, *val);
+
+        ht.Erase(2);
+        ht.Verify();
+    }
+}
+
+TEST(HashTable, FillEraseFill)
+{
     THashTable<uint32_t, uint32_t> ht(10);
     ht.SetCapacity(2);
     ht.Put(1, 10);
     ht.Put(2, 20);
+    ASSERT_EQ((uint32_t) 10, *ht.Get(1));
+    ASSERT_EQ((uint32_t) 20, *ht.Get(2));
 
-    uint32_t* val;
-    val = ht.Get(1);
-    ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
-    EXPECT_EQ((uint32_t) 10, *val);
-
-    val = ht.Get(2);
-    ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
-    EXPECT_EQ((uint32_t) 20, *val);
-
+    ht.Verify();
+    ht.Erase(1);
+    ht.Verify();
     ht.Erase(2);
+    ht.Verify();
+    ASSERT_EQ((uintptr_t) 0, (uintptr_t) ht.Get(1));
+    ASSERT_EQ((uintptr_t) 0, (uintptr_t) ht.Get(2));
 
-    val = ht.Get(1);
-    ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
-    EXPECT_EQ((uint32_t) 10, *val);
+    ht.Verify();
+    ht.Put(1, 100);
+    ht.Verify();
+    ht.Put(2, 200);
+    ht.Verify();
+    ASSERT_EQ((uint32_t) 100, *ht.Get(1));
+    ASSERT_EQ((uint32_t) 200, *ht.Get(2));
 }
 
 TEST(HashTable, SimpleFill)
@@ -60,18 +94,18 @@ TEST(HashTable, SimpleFill)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             THashTable<uint32_t, uint32_t> ht(table_size);
-            
+
             ASSERT_TRUE(ht.Empty());
             ht.SetCapacity(count);
             ASSERT_TRUE(ht.Empty());
-            
+
             for (int j = 0; j < count; ++j)
             {
                 ht.Put(j, j * 10);
             }
-            
+
             ASSERT_TRUE(ht.Full());
-            
+
             for (int j = 0; j < count; ++j)
             {
                 uint32_t* v = ht.Get(j);
@@ -82,7 +116,6 @@ TEST(HashTable, SimpleFill)
     }
 }
 
-#if 1
 TEST(HashTable, Exhaustive1)
 {
     const int N = 10;
@@ -91,7 +124,7 @@ TEST(HashTable, Exhaustive1)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            THashTable<uint32_t, uint32_t> ht(table_size);                    
+            THashTable<uint32_t, uint32_t> ht(table_size);
             ht.SetCapacity(count);
 
             ASSERT_TRUE(ht.Empty());
@@ -101,7 +134,7 @@ TEST(HashTable, Exhaustive1)
                 ht.Put(i, i*10);
             }
             ASSERT_TRUE(ht.Full());
-            
+
             int half = count / 2;
             int j = 0;
 
@@ -111,6 +144,7 @@ TEST(HashTable, Exhaustive1)
                 assert(map.find(j) != map.end());
                 map.erase(map.find(j));
                 ht.Erase(j);
+                ht.Verify();
             }
 
             // Test second half
@@ -127,12 +161,27 @@ TEST(HashTable, Exhaustive1)
                 assert(map.find(j) != map.end());
                 map.erase(map.find(j));
                 ht.Erase(j);
+                ht.Verify();
             }
             ASSERT_EQ(0, ht.Size());
+
+            // Fill again
+            for (int i = 0; i < count; ++i)
+            {
+                map[i] = i*100;
+                ht.Put(i, i*100);
+                ht.Verify();
+            }
+
+            for (int i = 0; i < count; ++i)
+            {
+                uint32_t*v = ht.Get(i);
+                ASSERT_TRUE(v != 0);
+                ASSERT_EQ(map[i], *v);
+            }
         }
     }
 }
-#endif
 
 TEST(HashTable, Performance)
 {
