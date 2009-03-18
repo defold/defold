@@ -54,6 +54,11 @@ public:
         {
             free(m_InitialEntries);
         }
+
+        if (m_HashTable)
+        {
+            free(m_HashTable);
+        }
     }
 
     /**
