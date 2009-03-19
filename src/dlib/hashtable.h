@@ -16,9 +16,9 @@ class THashTable
 public:
     struct Entry
     {
-        uint16_t m_Next;
         KEY      m_Key;
         T        m_Value;
+        uint16_t m_Next;
     };
 
     /**
@@ -126,6 +126,7 @@ public:
         {
             // TODO: memcpy or similar to enforce memcpy-semantics?
             entry->m_Value = value;
+            return;
         }
         else
         {
@@ -244,6 +245,7 @@ public:
      */
     void Verify()
     {
+        // Ensure that not items in free list is used
         uint16_t free_ptr = m_FreeEntries;
         while (free_ptr != 0xffff)
         {
@@ -257,6 +259,22 @@ public:
             assert( found != e );
             free_ptr = e->m_Next;
         }
+
+        uint16_t real_count = 0;
+        for (int i = 0; i < m_HashTableSize; ++i)
+        {
+            if (m_HashTable[i] != 0xffff)
+            {
+                uint16_t entry_ptr = m_HashTable[i];
+                while (entry_ptr != 0xffff)
+                {
+                    real_count++;
+                    Entry*e = &m_InitialEntries[entry_ptr];
+                    entry_ptr = e->m_Next;
+                }
+            }
+        }
+        assert(real_count == m_Count);
     }
 
 private:

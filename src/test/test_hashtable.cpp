@@ -88,7 +88,7 @@ TEST(HashTable, FillEraseFill)
 
 TEST(HashTable, SimpleFill)
 {
-    const int N = 10;
+    const int N = 200;
     for (int count = 0; count < N; ++count)
     {
         for (int table_size = 1; table_size <= 2*N; ++table_size)
@@ -178,6 +178,71 @@ TEST(HashTable, Exhaustive1)
                 uint32_t*v = ht.Get(i);
                 ASSERT_TRUE(v != 0);
                 ASSERT_EQ(map[i], *v);
+            }
+        }
+    }
+}
+
+// This was a stupid bug where Put() didn't return in if (entry != 0)...
+TEST(HashTable, TestBug1)
+{
+    std::map<uint32_t, uint32_t> map;
+    THashTable<uint32_t, uint32_t> ht(122);
+    ht.SetCapacity(3);
+    ht.Put(487, 0);
+    ht.Put(487, 0);
+    ASSERT_EQ(1, ht.Size());
+}
+
+TEST(HashTable, Exhaustive2)
+{
+    const int N = 100;
+    for (int count = 1; count < N; ++count)
+    {
+        for (int table_size = 1; table_size <= 2*N; ++table_size)
+        {
+            std::map<uint32_t, uint32_t> map;
+            THashTable<uint32_t, uint32_t> ht(table_size);
+            ht.SetCapacity(count);
+
+            // Fill table
+            while(map.size() < (uint32_t) count)
+            {
+                uint32_t key = rand() & 0x3ff; // keys up to 1023...
+                uint32_t val = rand();
+                map[key] = val;
+                ht.Put(key, val);
+            }
+
+            // Compare and remove
+            std::map<uint32_t, uint32_t>::iterator iter;
+            for( iter = map.begin(); iter != map.end(); ++iter)
+            {
+                uint32_t key = iter->first;
+                ASSERT_NE((void*) 0, ht.Get(key));
+                ASSERT_EQ(iter->second, *ht.Get(key));
+                ht.Erase(key);
+                ht.Verify();
+            }
+
+            map.clear();
+
+            // Fill again but now count/2
+            while(map.size() < (uint32_t) count/2)
+            {
+                uint32_t key = rand() & 0x3ff; // keys up to 1023...
+                uint32_t val = rand();
+                map[key] = val;
+                ht.Put(key, val);
+            }
+
+            // Compare again
+            for( iter = map.begin(); iter != map.end(); ++iter)
+            {
+                uint32_t key = iter->first;
+                ASSERT_NE((void*) 0, ht.Get(key));
+                ASSERT_EQ(iter->second, *ht.Get(key));
+                ht.Verify();
             }
         }
     }
