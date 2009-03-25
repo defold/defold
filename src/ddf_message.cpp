@@ -1,3 +1,4 @@
+#include <string.h>
 #include "ddf_message.h"
 #include "ddf_load.h"
 #include "ddf_util.h"
