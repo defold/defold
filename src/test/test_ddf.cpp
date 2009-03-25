@@ -257,6 +257,8 @@ TEST(NestedArray, Load)
             ASSERT_EQ(pb_nested.array1(i).array2(j).a(), nested->m_array1.m_Data[i].m_array2.m_Data[j].m_a);
         }
     }
+
+    DDFFreeMessage(message);
 }
 
 int main(int argc, char **argv)
