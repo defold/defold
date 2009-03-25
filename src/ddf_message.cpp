@@ -48,6 +48,7 @@ DDFError CDDFMessage::ReadScalarField(CDDFLoadContext* load_context,
         READSCALARFIELD_CASE(DDF_TYPE_UINT32, uint32_t, ReadUInt32);
         READSCALARFIELD_CASE(DDF_TYPE_INT64, int64_t, ReadInt64);
         READSCALARFIELD_CASE(DDF_TYPE_UINT64, uint64_t, ReadUInt64);
+        READSCALARFIELD_CASE(DDF_TYPE_ENUM, uint32_t, ReadUInt32);
             
     default:
         assert(0);

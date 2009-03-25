@@ -12,7 +12,7 @@ int DDFScalarTypeSize(uint32_t type)
     case DDF_TYPE_FLOAT:
     case DDF_TYPE_FIXED32:
     case DDF_TYPE_UINT32:
-    case DDF_TYPE_ENUM: // TODO: Enum are 32-bit? Verify with test.
+    case DDF_TYPE_ENUM:
     case DDF_TYPE_SFIXED32:
     case DDF_TYPE_SINT32:
         return 4;

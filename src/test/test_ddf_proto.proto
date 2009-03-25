@@ -39,9 +39,17 @@ message StringRepeated
 
 message Mesh
 {
-    // TODO: Add name here
-    repeated float vertices = 1;
-    required uint32 stride = 2;
+    enum Primitive
+    {
+        TRIANGLES = 1;
+        QUADS = 2;
+    }
+
+    required string    Name = 1;
+    repeated float     Vertices = 2;
+    repeated uint32    Indices = 3;
+    required uint32    PrimitiveCount = 4;
+    required Primitive PrimitiveType = 5;
 }
 
 message NestedArraySub2

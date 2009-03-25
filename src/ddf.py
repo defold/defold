@@ -40,7 +40,7 @@ type_to_size = { FieldDescriptor.TYPE_DOUBLE : 8,
 #                  FieldDescriptor.TYPE_MESSAGE
 #                  FieldDescriptor.TYPE_BYTES
                  FieldDescriptor.TYPE_UINT32 : 4,
-#                  FieldDescriptor.TYPE_ENUM
+                  FieldDescriptor.TYPE_ENUM : 4,
 #                  FieldDescriptor.TYPE_SFIXED32
 #                  FieldDescriptor.TYPE_SFIXED64
                  FieldDescriptor.TYPE_SINT32 : 4,
@@ -87,6 +87,13 @@ def ToCStruct(pp, message_type):
         pp.Print("%s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
 
     pp.Begin("struct %s", message_type.name)    
+
+    for et in message_type.enum_type:
+        ToCEnum(pp, et)
+
+    for nt in message_type.nested_type:
+        ToCStruct(pp, nt)
+
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
             pp.Begin("struct")
@@ -100,12 +107,6 @@ def ToCStruct(pp, message_type):
             p(DotToNamespace(f.type_name), f.name)
         else:
             p(type_to_ctype[f.type], f.name)
-
-    for et in message_type.enum_type:
-        ToCEnum(pp, et)
-
-    for nt in message_type.nested_type:
-        ToCStruct(pp, nt)
 
     pp.End()
 

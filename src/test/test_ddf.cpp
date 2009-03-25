@@ -40,6 +40,16 @@ static bool LoadFile(const char* file_name)
     }
 }
 
+enum MyEnum
+{
+    MYENUM,
+};
+
+TEST(Misc, TestEnumSize)
+{
+    ASSERT_EQ(sizeof(uint32_t), sizeof(MyEnum));
+}
+
 TEST(Simple, Descriptor)
 {
     // Test descriptor
@@ -251,9 +261,17 @@ TEST(Mesh, Load)
     TestDDF::Mesh mesh;
     for (int i = 0; i < count; ++i)
     {
-        mesh.add_vertices((float) i*10);
+        mesh.add_vertices((float) i*10 + 1);
+        mesh.add_vertices((float) i*10 + 2);
+        mesh.add_vertices((float) i*10 + 3);
+
+        mesh.add_indices(i*3 + 0);
+        mesh.add_indices(i*3 + 1);
+        mesh.add_indices(i*3 + 2);
     }
-    mesh.set_stride(3);
+    mesh.set_primitivecount(count);
+    mesh.set_name("MyMesh");
+    mesh.set_primitivetype(TestDDF::Mesh_Primitive_TRIANGLES);
 
     std::string msg_str = mesh.SerializeAsString();
     const char* msg_buf = msg_str.c_str();
@@ -264,11 +282,14 @@ TEST(Mesh, Load)
     ASSERT_EQ(DDF_ERROR_OK, e);
 
     DUMMY::TestDDF::Mesh* msg = (DUMMY::TestDDF::Mesh*) message;
-    EXPECT_EQ(count, msg->m_vertices.m_Count);
+    EXPECT_EQ(count, msg->m_PrimitiveCount);
+    EXPECT_STREQ(mesh.name().c_str(), msg->m_Name);
+    EXPECT_EQ((uint32_t) mesh.primitivetype(), (uint32_t) msg->m_PrimitiveType);
 
-    for (int i = 0; i < count; ++i)
+    for (int i = 0; i < count * 3; ++i)
     {
-        EXPECT_EQ(mesh.vertices(i), msg->m_vertices.m_Data[i]);
+        EXPECT_EQ(mesh.vertices(i), msg->m_Vertices.m_Data[i]);
+        EXPECT_EQ(mesh.indices(i), msg->m_Indices.m_Data[i]);
     }
 
     DDFFreeMessage(message);
