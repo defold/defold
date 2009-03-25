@@ -23,22 +23,13 @@ def pf_file(self, node):
         self.env['proto_type'] = self.proto_type
 
 def build(bld):
-
-    bld.new_task_gen( source='data/scalar_types_01.pf', 
-                      proto_file = "simple_proto.proto", 
-                      proto_type='TestDDF.ScalarTypes' )
-
-    bld.new_task_gen( source='data/simple_a.pf', 
-                      proto_file = "simple_proto.proto", 
-                      proto_type='TestDDF.Simple' )
-
     bld.new_task_gen(features = 'cxx cprogram',
-                     source = 'simple.cpp simple_proto.proto',
+                     source = 'test_ddf.cpp test_ddf_proto.proto',
                      uselib = 'GTEST PROTOBUF',
                      uselib_local = 'ddf',
                      ddf_namespace = 'DUMMY',
                      proto_gen_cc = True,
                      proto_compile_cc = True,
                      includes = '${blddir}',
-                     target = 'simple')
+                     target = 'test_ddf')
 

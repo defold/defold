@@ -32,5 +32,24 @@ message Mesh
     // TODO: Add name here
     repeated float vertices = 1;
     required uint32 stride = 2;
-};
+}
+
+message NestedArraySub2
+{
+    required uint32 a = 1;
+}
+
+message NestedArraySub1
+{
+    required uint32 b = 1;
+    repeated NestedArraySub2 array2 = 2;
+    required uint32 c = 3;
+}
+
+message NestedArray
+{
+    required uint32 d = 1;
+    repeated NestedArraySub1 array1 = 2;
+    required uint32 e = 3;
+}
 

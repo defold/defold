@@ -23,7 +23,13 @@ struct SDDFDescriptor
     uint32_t             m_Size;
     uint32_t             m_Align;
     SDDFFieldDescriptor* m_Fields;
-    uint8_t              m_FieldCount;
+    uint8_t              m_FieldCount;  // TODO: Where to check < 255...?
+};
+
+struct DDFRepeatedField
+{
+    uintptr_t m_Array;
+    uint32_t  m_ArrayCount;
 };
 
 enum DDFLabel
@@ -63,7 +69,20 @@ enum DDFType
 
 enum DDFError
 {
-    DDF_ERROR_OK = 0, DDF_ERROR_FIELDTYPE_MISMATCH = 1, DDF_ERROR_WIRE_FORMAT = 2,
+    DDF_ERROR_OK = 0, 
+    DDF_ERROR_FIELDTYPE_MISMATCH = 1, 
+    DDF_ERROR_WIRE_FORMAT = 2,
+    DDF_ERROR_INTERNAL_ERROR = 1000,
+};
+
+enum DDFWireType
+{
+    DDF_WIRETYPE_VARINT           = 0,
+    DDF_WIRETYPE_FIXED64          = 1,
+    DDF_WIRETYPE_LENGTH_DELIMITED = 2,
+    DDF_WIRETYPE_START_GROUP      = 3,
+    DDF_WIRETYPE_END_GROUP        = 4,
+    DDF_WIRETYPE_FIXED32          = 5,
 };
 
 /**

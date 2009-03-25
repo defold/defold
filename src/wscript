@@ -5,7 +5,7 @@ def build(bld):
 
 	bld.new_task_gen(
             features = 'cxx cstaticlib',
-            source = 'ddf.cpp ddf_inputstream.cpp private/ddf_private.cpp',
+            source = 'ddf.cpp ddf_load.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ',
             target = 'ddf')
 
 def configure(conf):

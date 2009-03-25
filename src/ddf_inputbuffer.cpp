@@ -1,5 +1,10 @@
 #include <assert.h>
-#include "ddf_inputstream.h"
+#include "ddf_inputbuffer.h"
+
+CDDFInputBuffer::CDDFInputBuffer() :
+    m_Start(0), m_End(0), m_Current(0)
+{
+}
 
 CDDFInputBuffer::CDDFInputBuffer(const char* buffer, uint32_t buffer_size) :
     m_Start(buffer), m_End(buffer + buffer_size), m_Current(buffer)
@@ -25,10 +30,21 @@ bool CDDFInputBuffer::Skip(uint32_t amount)
     return m_Current <= m_End;
 }
 
-void CDDFInputBuffer::Reset()
+bool CDDFInputBuffer::Read(int length, const char** buffer_out)
 {
+    assert(buffer_out);
     assert(m_Current <= m_End);
-    m_Current = m_Start;
+    if (m_Current + length > m_End)
+    {
+        *buffer_out = 0;
+        return false;
+    }
+    else
+    {
+        *buffer_out = m_Current;
+        m_Current += length;
+        return true;
+    }
 }
 
 bool CDDFInputBuffer::ReadVarInt32(uint32_t *value)
@@ -120,11 +136,118 @@ bool CDDFInputBuffer::ReadFixed64(uint64_t *value)
     return true;
 }
 
-// TODO: Return bool....???
-CDDFInputBuffer CDDFInputBuffer::SubBuffer(uint32_t length)
+
+bool CDDFInputBuffer::ReadFloat(float* value)
 {
-    assert(m_Current + length <= m_End);
+    union
+    {
+        float f;
+        uint32_t i;
+    };
+    if (ReadFixed32(&i))
+    {
+        *value = f;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool CDDFInputBuffer::ReadDouble(double* value)
+{
+    union
+    {
+        double f;
+        uint64_t i;
+    };
+    if (ReadFixed64(&i))
+    {
+        *value = f;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool CDDFInputBuffer::ReadInt32(int32_t* value)
+{
+    uint32_t v;
+    if (ReadVarInt32(&v))
+    {
+        *value = (int32_t) v;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool CDDFInputBuffer::ReadUInt32(uint32_t* value)
+{
+    uint32_t v;
+    if (ReadVarInt32(&v))
+    {
+        *value = v;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool CDDFInputBuffer::ReadInt64(int64_t* value)
+{
+    uint64_t v;
+    if (ReadVarInt64(&v))
+    {
+        *value = (int64_t) v;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool CDDFInputBuffer::ReadUInt64(uint64_t* value)
+{
+    uint64_t v;
+    if (ReadVarInt64(&v))
+    {
+        *value = v;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool CDDFInputBuffer::SubBuffer(uint32_t length, CDDFInputBuffer* sub_buffer)
+{
+    if (m_Current + length > m_End)
+    {
+        return false;
+    }
+#if 0
     const char* c = m_Current;
     m_Current += length;
     return CDDFInputBuffer(c, length);
+#else
+    CDDFInputBuffer ret = CDDFInputBuffer(m_Start, m_End - m_Start);
+    // NOTE: Very important to preserve start. Tell() is used to 
+    // uniquely identify repeated fields. See function DDFCalculateRepeated(.)
+    ret.m_Start = m_Start;
+    ret.m_Current = m_Current;
+    ret.m_End = m_Current + length;
+    m_Current += length;
+    *sub_buffer = ret;
+    return true;
+#endif
 }

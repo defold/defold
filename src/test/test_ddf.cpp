@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 
 #include "ddf.h"
-#include "ddf_protocol.h"
 
 /*
  * TODO:
@@ -14,8 +13,8 @@
  */
 
 #define DDF_EXPOSE_DESCRIPTORS
-#include "default/src/test/simple_proto.h"  // TODO: Path-hack!
-#include "default/src/test/simple_proto.pb.h"  // TODO: Path-hack!
+#include "default/src/test/test_ddf_proto.h"  // TODO: Path-hack!
+#include "default/src/test/test_ddf_proto.pb.h"  // TODO: Path-hack!
 //#define TEST_FILES_ROOT "build/default/src/test/data"
 
 #define BUFFER_SIZE_MAX (1024*1024)
@@ -120,7 +119,6 @@ TEST(ScalarTypes, Types)
     }
 }
 
-#if 0 // TODO: Strings not working...
 TEST(ScalarTypes, Load)
 {
 
@@ -153,9 +151,6 @@ TEST(ScalarTypes, Load)
     DDFFreeMessage(message);
 }
 
-#endif
-
-#if 1
 TEST(Simple01Repeated, Load)
 {
     const int count = 10;
@@ -187,7 +182,6 @@ TEST(Simple01Repeated, Load)
 
     DDFFreeMessage(message);
 }
-#endif
 
 TEST(Mesh, Load)
 {
@@ -217,6 +211,52 @@ TEST(Mesh, Load)
     }
 
     DDFFreeMessage(message);
+}
+
+TEST(NestedArray, Load)
+{
+    const int count1 = 2;
+    const int count2 = 2;
+
+    TestDDF::NestedArray pb_nested;
+    pb_nested.set_d(1);
+    pb_nested.set_e(1);
+
+    for (int i = 0; i < count1; ++i)
+    {
+        TestDDF::NestedArraySub1* sub1 = pb_nested.add_array1();
+        sub1->set_b(i*2+0);
+        sub1->set_c(i*2+1);
+        for (int j = 0; j < count2; ++j)
+        {
+            TestDDF::NestedArraySub2* sub2 = sub1->add_array2();
+            sub2->set_a(j*10+0);
+        }
+    }
+
+    std::string pb_msg_str = pb_nested.SerializeAsString();
+    const char* pb_msg_buf = pb_msg_str.c_str();
+    uint32_t pb_msg_buf_size = pb_msg_str.size();
+    void* message;
+
+    DDFError e = DDFLoadMessage((void*) pb_msg_buf, pb_msg_buf_size, &DUMMY::TestDDF_NestedArray_DESCRIPTOR, &message);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    DUMMY::TestDDF::NestedArray* nested = (DUMMY::TestDDF::NestedArray*) message;
+
+    EXPECT_EQ(count1, nested->m_array1.m_Count);
+    ASSERT_EQ(pb_nested.d(), nested->m_d);
+    ASSERT_EQ(pb_nested.e(), nested->m_e);
+
+    for (int i = 0; i < count1; ++i)
+    {
+        EXPECT_EQ(count2, nested->m_array1.m_Data[i].m_array2.m_Count);
+        ASSERT_EQ(pb_nested.array1(i).b(), nested->m_array1.m_Data[i].m_b);
+        ASSERT_EQ(pb_nested.array1(i).c(), nested->m_array1.m_Data[i].m_c);
+        for (int j = 0; j < count2; ++j)
+        {
+            ASSERT_EQ(pb_nested.array1(i).array2(j).a(), nested->m_array1.m_Data[i].m_array2.m_Data[j].m_a);
+        }
+    }
 }
 
 int main(int argc, char **argv)
