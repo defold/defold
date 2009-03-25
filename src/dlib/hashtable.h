@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 /**
- * Hashtable with memcpy-copy semantics and 16-bit indicies instead of pointers. (NUMA-friendly)
+ * Hashtable with chaining for collision resolution, memcpy-copy semantics and 16-bit indicies instead of pointers. (NUMA-friendly)
  * Only uint16_t, uint32_t and uint64_t is supported as KEY type.
  */
 template <typename KEY, typename T>
@@ -116,7 +116,7 @@ public:
      * @param key Key
      * @param value Value
      */
-    void     Put(KEY key, const T& value)
+    void Put(KEY key, const T& value)
     {
         assert(!Full());
         Entry* entry = FindEntry(key);
@@ -219,7 +219,7 @@ public:
             if (e->m_Key == key)
             {
                 --m_Count;
-                // The entry first in list
+                // The entry first in list?
                 if (prev_e == 0)
                 {
                     // Relink
@@ -239,9 +239,8 @@ public:
         assert(false && "Key not found (erase)");
     }
 
-
     /**
-     * Verify internal structuty. "assert" if invalid.
+     * Verify internal structure. "assert" if invalid.
      */
     void Verify()
     {
