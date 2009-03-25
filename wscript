@@ -45,4 +45,6 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('src')
+    bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
+
 

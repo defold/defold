@@ -2,6 +2,7 @@
 
 def build(bld):
     bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
 
 #       bld.new_task_gen(
 #            features = 'cxx cstaticlib',
