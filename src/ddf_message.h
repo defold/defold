@@ -24,6 +24,7 @@ public:
     void     AllocateRepeatedBuffer(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, int element_count);
     void     SetRepeatedBuffer(const SDDFFieldDescriptor* field, void* buffer);
     void     SetString(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len);
+    void     AddString(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len);
 
 private:
     DDFError ReadScalarField(CDDFLoadContext* load_context,

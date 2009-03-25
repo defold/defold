@@ -23,12 +23,15 @@ void* CDDFLoadContext::AllocRepeated(const SDDFFieldDescriptor* field_desc, int 
 {
     // TODO: Align here!
     DDFType type = (DDFType) field_desc->m_Type;
-    assert(type != DDF_TYPE_STRING);
-
+ 
     int element_size = 0;
     if ( field_desc->m_Type == DDF_TYPE_MESSAGE )
     {
         element_size = field_desc->m_MessageDescriptor->m_Size;
+    }
+    else if ( field_desc->m_Type == DDF_TYPE_STRING )
+    {
+        element_size = sizeof(const char*);
     }
     else
     {

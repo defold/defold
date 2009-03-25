@@ -77,7 +77,14 @@ DDFError CDDFMessage::ReadStringField(CDDFLoadContext* load_context,
     const char* str_buf;
     if (input_buffer->Read(length, &str_buf))
     {
-        SetString(load_context, field, str_buf, length);
+        if (field->m_Label == DDF_LABEL_REPEATED) 
+        {
+            AddString(load_context, field, str_buf, length);
+        }
+        else
+        {
+            SetString(load_context, field, str_buf, length);
+        }
         return DDF_ERROR_OK;
     }
     else
@@ -218,6 +225,26 @@ void CDDFMessage::SetString(CDDFLoadContext* load_context, const SDDFFieldDescri
         str_buf[buffer_len] = '\0';
 
         *string_field = str_buf;
+    }
+}
+
+void CDDFMessage::AddString(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len)
+{
+    assert((DDFLabel) field->m_Label == DDF_LABEL_REPEATED);
+    assert(field->m_MessageDescriptor == 0);
+
+    // Always alloc
+    char* str_buf = load_context->AllocString(buffer_len + 1);
+
+    if (!m_DryRun)
+    {
+        DDFRepeatedField* repeated_field = (DDFRepeatedField*) &m_Start[field->m_Offset];
+        uintptr_t dest = repeated_field->m_Array + repeated_field->m_ArrayCount * sizeof(const char*);
+        memcpy(str_buf, buffer, buffer_len);
+        str_buf[buffer_len] = '\0';
+
+        memcpy((void*) dest, &str_buf, sizeof(const char*));
+        repeated_field->m_ArrayCount++;
     }
 }
 

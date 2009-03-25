@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <string>
 #include <gtest/gtest.h>
@@ -178,6 +179,66 @@ TEST(Simple01Repeated, Load)
     {
         EXPECT_EQ(repated.array(i).x(), msg->m_array.m_Data[i].m_x);
         EXPECT_EQ(repated.array(i).y(), msg->m_array.m_Data[i].m_y);
+    }
+
+    DDFFreeMessage(message);
+}
+
+TEST(Simple02Repeated, Load)
+{
+    const int count = 10;
+
+    TestDDF::Simple02Repeated repated;
+    for (int i = 0; i < count; ++i)
+    {
+        repated.add_array(i * 10);
+    }
+
+    std::string msg_str = repated.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple02Repeated_DESCRIPTOR, &message);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+
+    DUMMY::TestDDF::Simple02Repeated* msg = (DUMMY::TestDDF::Simple02Repeated*) message;
+    EXPECT_EQ(count, msg->m_array.m_Count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        EXPECT_EQ(repated.array(i), msg->m_array.m_Data[i]);
+    }
+
+    DDFFreeMessage(message);
+}
+
+TEST(StringRepeated, Load)
+{
+    const int count = 10;
+
+    TestDDF::StringRepeated repated;
+    for (int i = 0; i < count; ++i)
+    {
+        char tmp[32];
+        sprintf(tmp, "%d", i*10);
+        repated.add_array(tmp);
+    }
+
+    std::string msg_str = repated.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_StringRepeated_DESCRIPTOR, &message);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+
+    DUMMY::TestDDF::StringRepeated* msg = (DUMMY::TestDDF::StringRepeated*) message;
+    EXPECT_EQ(count, msg->m_array.m_Count);
+
+    for (int i = 0; i < count; ++i)
+    {
+        EXPECT_STREQ(repated.array(i).c_str(), msg->m_array.m_Data[i]);
     }
 
     DDFFreeMessage(message);

@@ -27,6 +27,16 @@ message Simple01Repeated
     repeated Simple01 array = 1;
 }
 
+message Simple02Repeated
+{
+    repeated uint32 array = 1;
+}
+
+message StringRepeated
+{
+    repeated string array = 1;
+}
+
 message Mesh
 {
     // TODO: Add name here
