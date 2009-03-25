@@ -36,11 +36,13 @@ Task.simple_task_type('proto_b', 'protoc -o${TGT} -I ${SRC[0].src_dir(env)} ${SR
 Task.simple_task_type('proto_gen_cc', 'protoc --cpp_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${SRC}', 
                       color='RED', 
                       before='cc cxx',
+                      after='proto_b',
                       shell=True)
 
 Task.simple_task_type('proto_gen_py', 'protoc --python_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${SRC}', 
                       color='RED', 
                       before='cc cxx',
+                      after='proto_b',
                       shell=True)
 
 @extension('.proto')
