@@ -212,7 +212,7 @@ def Compile(input_file, output_dir, namespace):
 
     f_cpp = open(os.path.join(output_dir, base_name + ".cpp"), "w")
     pp_cpp = PrettyPrinter(f_cpp, 0)
-    pp_cpp.Print('#include "ddf.h"')
+    pp_cpp.Print('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
         pp_cpp.Print('#include "%s"', d.replace(".proto", ".h"))
     pp_cpp.Print('#include "%s.h"' % base_name)

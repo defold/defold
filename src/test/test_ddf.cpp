@@ -3,7 +3,7 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "ddf.h"
+#include "ddf/ddf.h"
 
 /*
  * TODO:
