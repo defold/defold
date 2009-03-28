@@ -2,3 +2,4 @@
 .lock-wscript
 build
 slask
+*.pyc

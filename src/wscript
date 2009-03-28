@@ -8,6 +8,10 @@ def build(bld):
             source = 'ddf.cpp ddf_load.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ',
             target = 'ddf')
 
+        bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
+        bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
+        bld.install_files('${PREFIX}/lib/python', 'ddf.py')
+
 def configure(conf):
         pass
 
