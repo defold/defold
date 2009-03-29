@@ -14,15 +14,15 @@ Steps
 
 2. Install [setup tools 0.6c9](http://pypi.python.org/packages/2.5/s/setuptools/setuptools-0.6c9.win32-py2.5.exe#md5=602d06054ec1165e995ae54ac30884d7) for python 2.5 
 
-3. *DYNAMO_EXT* directory
-  - Create a *DYNAMO\_EXT* directory, eg c:/tmp/dynamo_ext
-  - NOTE: Use **forward** slash for *DYNAMO_EXT*
+3. *DYNAMO_HOME* directory
+  - Create a *DYNAMO\_HOME* directory, eg c:/tmp/dynamo_home
+  - NOTE: Use **forward** slash for *DYNAMO_HOME*
 
 4. Environment variables (My Computer/Properties/Advanced/Environment Variables):
    - Add 2python to *PATH*
        - `C:/Python2.5`
        - `C:/Python2.5/Scripts`
-   - Set *DYNAMO_EXT* environment variable
+   - Set *DYNAMO_HOME* environment variable
 
 5. Logout, login from windows
 
@@ -50,7 +50,7 @@ Steps
 
              # git clone ssh://YOUR_USER_NAME@overrated.dyndns.org/repo/dynamo
 
-  - Bootstrap/update *DYNAMO_EXT*
+  - Bootstrap/update *DYNAMO_HOME*
       
              # sh ./dynamo/bin/update-ext.sh
 

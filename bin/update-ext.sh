@@ -18,14 +18,15 @@ tmp=`uname -s`
 
 [ -z $HOST ] && echo "Unsupported host: $tmp" && exit 1
 
-# Validate DYNAMO_EXT
-[ -z "$DYNAMO_EXT" ] && echo "ERROR: DYNAMO_EXT not set" && exit 1
-[ ! -d "$DYNAMO_EXT" ] && echo "ERROR: DYNAMO_EXT is not a directory" && exit 1
+# Validate DYNAMO_HOME
+[ -z "$DYNAMO_HOME" ] && echo "ERROR: DYNAMO_HOME not set" && exit 1
+[ ! -d "$DYNAMO_HOME" ] && echo "ERROR: DYNAMO_HOME is not a directory" && exit 1
+DYNAMO_EXT=$DYNAMO_HOME/ext
 
 mkdir -p $DYNAMO_EXT/cache
 
 REMOTE_PATH="$USER_OVERRATED@overrated.dyndns.org:/repo/packages"
-PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3 gtest-1.2.1"
+PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3 gtest-1.2.1 collada-blender-0.3.159.1"
 PACKAGES_HOST="protobuf-2.0.3 gtest-1.2.1"
 PACKAGES_EGGS="protobuf-2.0.3-py2.5.egg"
 
