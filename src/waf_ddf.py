@@ -4,6 +4,7 @@ from TaskGen import extension
 Task.simple_task_type('bproto', 'python ${DDF_PY} ${ddf_options} ${SRC} -o ${TGT}',
                       color='PINK', 
                       before='cc cxx',
+                      after='proto_b',
                       shell=True)
 
 @extension('.bproto')
