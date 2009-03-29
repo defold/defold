@@ -34,9 +34,10 @@ def configure(conf):
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
         conf.env.append_value('CPPPATH', "../include/win32")
 
-    dynamo_ext = os.getenv('DYNAMO_EXT')
-    if not dynamo_ext:
-        conf.fatal("DYNAMO_EXT not set")
+    dynamo_home = os.getenv('DYNAMO_HOME')
+    if not dynamo_home:
+        conf.fatal("DYNAMO_HOME not set")
+    dynamo_ext = os.path.join(dynamo_home, "ext")
 
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
