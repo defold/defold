@@ -98,9 +98,17 @@ def ToCStruct(pp, message_type):
         if f.label == FieldDescriptor.LABEL_REPEATED:
             pp.Begin("struct")
             if f.type ==  FieldDescriptor.TYPE_MESSAGE:
-                pp.Print(DotToNamespace(f.type_name)+"* m_Data;")
+                type_name = DotToNamespace(f.type_name)
             else:
-                pp.Print(type_to_ctype[f.type]+"* m_Data;")
+                type_name = type_to_ctype[f.type]
+
+            pp.Print(type_name+"* m_Data;")
+            if f.type == FieldDescriptor.TYPE_STRING:
+                pp.Print("%s operator[](uint32_t i) const { assert(i < m_Count); return m_Data[i]; }", type_name)
+            else:
+                pp.Print("const %s& operator[](uint32_t i) const { assert(i < m_Count); return m_Data[i]; }", type_name)
+                pp.Print("%s& operator[](uint32_t i) { assert(i < m_Count); return m_Data[i]; }", type_name)
+
             pp.Print("uint32_t " + "m_Count;")
             pp.End(" m_%s", f.name)
         elif f.type ==  FieldDescriptor.TYPE_ENUM:
@@ -194,6 +202,7 @@ def Compile(input_file, output_dir, namespace):
     pp_h.Print("")
 
     pp_h.Print('#include <stdint.h>')
+    pp_h.Print('#include <assert.h>')
     for d in file_desc.dependency:
         pp_h.Print('#include "%s"', d.replace(".proto", ".h"))
     pp_h.Print("")
