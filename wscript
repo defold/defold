@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys
-sys.path.append("src")
+sys.path = ["src"] + sys.path
 import waf_ddf
 
 def init():
