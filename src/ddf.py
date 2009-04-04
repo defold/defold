@@ -78,7 +78,7 @@ def ToCStruct(pp, message_type):
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
             pass
-        elif f.type ==  FieldDescriptor.TYPE_ENUM:
+        elif f.type == FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
             max_len = max(len(DotToNamespace(f.type_name)), max_len)
         else:
             max_len = max(len(type_to_ctype[f.type]), max_len)
@@ -111,7 +111,7 @@ def ToCStruct(pp, message_type):
 
             pp.Print("uint32_t " + "m_Count;")
             pp.End(" m_%s", f.name)
-        elif f.type ==  FieldDescriptor.TYPE_ENUM:
+        elif f.type ==  FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
             p(DotToNamespace(f.type_name), f.name)
         else:
             p(type_to_ctype[f.type], f.name)
@@ -131,25 +131,13 @@ def ToCEnum(pp, message_type):
 
     pp.End()
 
-def GetAlignment(message_type):
-    align = 0
-    for f in message_type.field:
-        if f.label == FieldDescriptor.LABEL_REPEATED:
-            align = max(align, DDF_POINTER_SIZE)
-        elif f.type ==  FieldDescriptor.TYPE_MESSAGE:
-            align = max(align, GetAlignment(f.message_type))
-        else:
-            align = max(align, type_to_size[f.type])
-            
-    return align
-
 def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
     pp_h.Print("extern SDDFDescriptor %s_%s_DESCRIPTOR;", namespace, message_type.name)
 
     for nt in message_type.nested_type:
-        ToDescriptor(pp_cpp, nt, namespace_lst + [message_type.name] )
+        ToDescriptor(pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
     
     lst = []
     for f in message_type.field:
@@ -175,8 +163,7 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
 
     pp_cpp.Begin("SDDFDescriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.Print('"%s",', message_type.name)
-    pp_cpp.Print('sizeof(%s::%s),', namespace.replace("-", "::"), message_type.name)
-    pp_cpp.Print('%d,', GetAlignment(message_type))
+    pp_cpp.Print('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFFieldDescriptor),', namespace, message_type.name)
     pp_cpp.End()

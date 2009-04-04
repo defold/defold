@@ -21,7 +21,6 @@ struct SDDFDescriptor
 {
     const char*          m_Name;
     uint32_t             m_Size;
-    uint32_t             m_Align;
     SDDFFieldDescriptor* m_Fields;
     uint8_t              m_FieldCount;  // TODO: Where to check < 255...?
 };

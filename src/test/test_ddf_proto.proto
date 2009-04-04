@@ -16,6 +16,14 @@ message ScalarTypes
     required string String = 7;
 }
 
+message NestedType
+{
+    message TheNestedType
+    {
+        required int32 x = 1;
+    }
+}
+
 message Simple01
 {
     required uint32 x = 1;
@@ -35,6 +43,17 @@ message Simple02Repeated
 message StringRepeated
 {
     repeated string array = 1;
+}
+
+message NestedMessage
+{
+    message Nested
+    {
+        required int32 x = 1;
+    }
+
+    required Nested n1 = 1;
+    required Nested n2 = 2;
 }
 
 message Mesh

@@ -56,7 +56,6 @@ TEST(Simple, Descriptor)
     const SDDFDescriptor& d = DUMMY::TestDDF_Simple_DESCRIPTOR;
     EXPECT_STREQ("Simple", d.m_Name);
     EXPECT_EQ(4, d.m_Size);
-    EXPECT_EQ(4, d.m_Align);
     EXPECT_EQ(1, d.m_FieldCount);
 
     // Test field(s)
@@ -250,6 +249,33 @@ TEST(StringRepeated, Load)
     {
         EXPECT_STREQ(repated.array(i).c_str(), msg->m_array.m_Data[i]);
     }
+
+    DDFFreeMessage(message);
+}
+
+TEST(NestedMessage, Load)
+{
+
+    TestDDF::NestedMessage nested_message;
+    TestDDF::NestedMessage::Nested n1;
+    TestDDF::NestedMessage::Nested n2;
+    n1.set_x(10);
+    n2.set_x(20);
+
+    *nested_message.mutable_n1() = n1;
+    *nested_message.mutable_n2() = n2;
+
+    std::string msg_str = nested_message.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_NestedMessage_DESCRIPTOR, &message);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    DUMMY::TestDDF::NestedMessage* msg = (DUMMY::TestDDF::NestedMessage*) message;
+
+    EXPECT_EQ(n1.x(), msg->m_n1.m_x);
+    EXPECT_EQ(n2.x(), msg->m_n2.m_x);
 
     DDFFreeMessage(message);
 }
