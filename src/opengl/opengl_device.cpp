@@ -102,6 +102,15 @@ void GFXSetViewport(GFXHContext context, int width, int height, float field_of_v
     glViewport(0, 0, width, height);
 }
 
+void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const float* matrix)
+{
+    (void)context;
+
+    glMatrixMode(matrix_mode);
+
+    glLoadMatrix(matrix);
+}
+
 void GFXEnableState(GFXHContext context, GFXRenderState state)
 {
     (void)context;
