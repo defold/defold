@@ -1,6 +1,6 @@
-#include <graphics_device.h>
+#include <assert.h>
+#include "graphics_device.h"
 #include "opengl_device.h"
-#include "assert.h"
 
 
 GFXHDevice GFXCreateDevice(GFXSCreateDeviceParams *params )

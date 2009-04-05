@@ -39,6 +39,7 @@ def configure(conf):
         conf.fatal("DYNAMO_HOME not set")
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
+    conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
 
