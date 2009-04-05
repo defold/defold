@@ -862,3 +862,5 @@ typedef void(*WarningCallback)( uint32, char * );
 
 
 #endif	// __GRAPHICSDEVICE_H__
+
+
