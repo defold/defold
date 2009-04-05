@@ -22,6 +22,7 @@ message NestedType
     {
         required int32 x = 1;
     }
+    required int32 x = 1;
 }
 
 message Simple01
