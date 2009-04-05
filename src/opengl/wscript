@@ -1,8 +1,0 @@
-#! /usr/bin/env python
-
-def build(bld):
-    bld.new_task_gen(features = 'cxx cstaticlib',
-                     source = 'opengl_device.cpp',
-                     includes = ['../../src'],
-                     target = 'graphics')
-
