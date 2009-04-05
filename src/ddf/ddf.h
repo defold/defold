@@ -71,6 +71,7 @@ enum DDFError
     DDF_ERROR_OK = 0, 
     DDF_ERROR_FIELDTYPE_MISMATCH = 1, 
     DDF_ERROR_WIRE_FORMAT = 2,
+    DDF_ERROR_IO_ERROR = 3,
     DDF_ERROR_INTERNAL_ERROR = 1000,
 };
 
@@ -92,6 +93,14 @@ enum DDFWireType
  * @return Pointer to message
  */
 DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDescriptor* desc, void** message);
+
+/**
+ * Load/decode a DDF message from file
+ * @param file_name File name
+ * @param desc DDF descriptor
+ * @return Pointer to message
+ */
+DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* desc, void** message);
 
 void DDFFreeMessage(void* message);
 

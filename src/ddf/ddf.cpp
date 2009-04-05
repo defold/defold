@@ -123,6 +123,41 @@ DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDesc
     return e;    
 }
 
+DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* desc, void** message)
+{
+    FILE* f = fopen(file_name, "rb");
+    if (f)
+    {
+        if (fseek(f, 0, SEEK_END) != 0)
+        {
+            return DDF_ERROR_IO_ERROR;
+        }
+
+        long size = ftell(f);
+
+        if (fseek(f, 0, SEEK_SET) != 0)
+        {
+            return DDF_ERROR_IO_ERROR;
+        }
+
+        void* buffer = malloc(size);
+        if ( fread(buffer, 1, size, f) != size )
+        {
+            free(buffer);
+            return DDF_ERROR_IO_ERROR;
+        }
+
+        DDFError e = DDFLoadMessage(buffer, (uint32_t) size, desc, message);
+        fclose(f);
+        free(buffer);
+        return e;
+    }
+    else
+    {
+        return DDF_ERROR_IO_ERROR;
+    }
+}
+
 void DDFFreeMessage(void* message)
 {
     assert(message);

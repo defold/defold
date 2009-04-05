@@ -1,7 +1,16 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
+#include <iostream>
+#include <fstream>
 #include <gtest/gtest.h>
+
+#ifdef _WIN32
+#include <io.h>
+#include <stdio.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "ddf/ddf.h"
 
@@ -16,29 +25,6 @@
 #define DDF_EXPOSE_DESCRIPTORS
 #include "default/src/test/test_ddf_proto.h"  // TODO: Path-hack!
 #include "default/src/test/test_ddf_proto.pb.h"  // TODO: Path-hack!
-//#define TEST_FILES_ROOT "build/default/src/test/data"
-
-#define BUFFER_SIZE_MAX (1024*1024)
-
-uint32_t g_BufferSize = 0;
-char *g_Buffer[BUFFER_SIZE_MAX];
-
-static bool LoadFile(const char* file_name)
-{
-    FILE* f = fopen(file_name, "rb");
-
-    if (f)
-    {
-        g_BufferSize = fread(g_Buffer, 1, BUFFER_SIZE_MAX, f);
-        fclose(f);
-        return true;
-    }
-    else
-    {
-
-        return false;
-    }
-}
 
 enum MyEnum
 {
@@ -88,6 +74,45 @@ TEST(Simple, Load)
 
         DDFFreeMessage(message);
     }
+}
+
+TEST(Simple, LoadFromFile)
+{
+    int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
+
+    for (int i = 0; i < sizeof(test_values)/sizeof(test_values[0]); ++i)
+    {
+        TestDDF::Simple simple;
+        simple.set_a(test_values[i]);
+
+        const char* file_name = "__TEMPFILE__";
+        {
+            std::fstream output(file_name,  std::ios::out | std::ios::trunc | std::ios::binary);
+            ASSERT_EQ(true, simple.SerializeToOstream(&output));
+        }
+
+        void* message;
+        DDFError e = DDFLoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
+        ASSERT_EQ(DDF_ERROR_OK, e);
+
+        #ifdef _WIN32
+        _unlink(file_name);
+        #else
+        unlink(file_name);
+        #endif
+
+        DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
+        ASSERT_EQ(simple.a(), msg->m_a);
+
+        DDFFreeMessage(message);
+    }
+}
+
+TEST(Simple, LoadFromFile2)
+{
+    void *message;
+    DDFError e = DDFLoadMessageFromFile("DOES_NOT_EXISTS", &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
+    EXPECT_EQ(DDF_ERROR_IO_ERROR, e);
 }
 
 TEST(ScalarTypes, Types)
