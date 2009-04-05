@@ -108,7 +108,7 @@ void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const float* m
 
     glMatrixMode(matrix_mode);
 
-    glLoadMatrix(matrix);
+    glLoadMatrixf(matrix);
 }
 
 void GFXEnableState(GFXHContext context, GFXRenderState state)
