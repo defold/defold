@@ -42,6 +42,7 @@ def configure(conf):
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
+    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
     conf.env['LIB_GTEST'] = 'gtest'
 

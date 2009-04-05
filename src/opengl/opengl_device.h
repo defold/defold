@@ -10,6 +10,15 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #include <OpenGL/glut.h>
+
+#elif defined (_WIN32)
+#include <windows.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <win32/glut.h>
+
+#else
+#error "Platform not supported."
 #endif
 
 typedef void* GFXHContext;
