@@ -7,6 +7,7 @@
 #include <GL/glut.h>
 
 #elif defined (__MACH__)
+
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #include <GLUT/glut.h>
@@ -20,6 +21,9 @@
 #else
 #error "Platform not supported."
 #endif
+
+#include <Cg/cg.h>
+#include <Cg/cgGL.h>
 
 typedef void* GFXHContext;
 typedef void* GFXHDevice;

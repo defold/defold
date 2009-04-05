@@ -77,7 +77,7 @@ void GFXSetViewport(GFXHContext context, int width, int height, float field_of_v
 
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
-
+void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const float* matrix);
 
 
 //        bool ResetDevice ( SCreateDeviceParams *param );
