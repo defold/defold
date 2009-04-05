@@ -1,12 +1,16 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#ifdef __linux__
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <GL/glut.h>
+
+#elif defined (__MACH__)
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
-#include <GLUT/glut.h>
-
-#include <Cg/cg.h>
-#include <Cg/cgGL.h>
+#include <OpenGL/glut.h>
+#endif
 
 typedef void* GFXHContext;
 typedef void* GFXHDevice;
