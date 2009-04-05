@@ -34,6 +34,9 @@ def configure(conf):
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
         conf.env.append_value('CPPPATH', "../include/win32")
 
+    if platform == "darwin":
+        conf.env['CXXFLAGS']=['-framework GLUT -framework GL']
+
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")

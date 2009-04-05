@@ -9,7 +9,7 @@
 #elif defined (__MACH__)
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
-#include <OpenGL/glut.h>
+#include <GLUT/glut.h>
 
 #elif defined (_WIN32)
 #include <windows.h>
