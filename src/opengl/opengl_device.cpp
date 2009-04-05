@@ -2,24 +2,18 @@
 #include "graphics_device.h"
 #include "opengl_device.h"
 
-
-GFXHDevice GFXCreateDevice(GFXSCreateDeviceParams *params )
+GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params )
 {
     assert(params);
 
-    int argc = 0;
-    char** argv = NULL;
-
     glutInitWindowSize(params->m_DisplayWidth, params->m_DisplayHeight);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
-    glutInit(&argc, argv);
+    glutInit(argc, argv);
 
     glutCreateWindow(params->m_AppTitle);
 
-
     return 0;
 }
-
 
 void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
 {
@@ -30,7 +24,6 @@ void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, u
     float b = ((float)blue)/255.0f;
     float a = ((float)alpha)/255.0f;
     glClearColor(r, g, b, a);
-
 
     glClearDepth(depth);
     glClearStencil(stencil);
@@ -48,7 +41,6 @@ void GFXDraw(GFXHContext context, GFXPrimitiveType primitive_type, int32_t first
 
     glDrawArrays(primitive_type, first, count);
 }
-
 
 void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* colours)
 {
@@ -73,10 +65,8 @@ void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* 
 
 }
 
-
 void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* colours)
 {
-
     (void)context;
 
     assert(vertices);
@@ -97,7 +87,6 @@ void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* 
 
 }
 
-
 void GFXSetViewport(GFXHContext context, int width, int height, float field_of_view, float z_near, float z_far)
 {
     (void)context;
@@ -111,7 +100,6 @@ void GFXSetViewport(GFXHContext context, int width, int height, float field_of_v
       z_far);
 
     glViewport(0, 0, width, height);
-
 }
 
 void GFXEnableState(GFXHContext context, GFXRenderState state)

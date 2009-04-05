@@ -65,10 +65,7 @@ struct GFXSCreateDeviceParams
     bool            m_Fullscreen;
 };
 
-
-
-
-GFXHDevice GFXCreateDevice(GFXSCreateDeviceParams *params);
+GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params);
 
 // clear/draw functions
 void GFXFlip();
