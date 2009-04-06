@@ -22,9 +22,6 @@
 #error "Platform not supported."
 #endif
 
-#include <Cg/cg.h>
-#include <Cg/cgGL.h>
-
 typedef void* GFXHContext;
 typedef void* GFXHDevice;
 
