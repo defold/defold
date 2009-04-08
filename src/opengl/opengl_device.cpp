@@ -1,6 +1,19 @@
 #include <assert.h>
+#include <string.h>
 #include "graphics_device.h"
 #include "opengl_device.h"
+#include <vectormath/cpp/vectormath_aos.h>
+
+
+using namespace Vectormath::Aos;
+
+
+GFXHContext_t gcontext;
+
+GFXHContext GFXGetContext()
+{
+    return (GFXHContext)&gcontext;
+}
 
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params )
 {
@@ -17,7 +30,7 @@ GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *param
 
 void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
 {
-    (void)context;
+    assert(context);
 
     float r = ((float)red)/255.0f;
     float g = ((float)green)/255.0f;
@@ -37,15 +50,14 @@ void GFXFlip()
 
 void GFXDraw(GFXHContext context, GFXPrimitiveType primitive_type, int32_t first, int32_t count )
 {
-    (void)context;
+    assert(context);
 
     glDrawArrays(primitive_type, first, count);
 }
 
 void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* colours)
 {
-
-    (void)context;
+    assert(context);
 
     assert(vertices);
     assert(colours);
@@ -67,8 +79,7 @@ void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* 
 
 void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* colours)
 {
-    (void)context;
-
+    assert(context);
     assert(vertices);
     assert(colours);
 
@@ -89,38 +100,51 @@ void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* 
 
 void GFXSetViewport(GFXHContext context, int width, int height, float field_of_view, float z_near, float z_far)
 {
-    (void)context;
+    assert(context);
 
     float aspect_ratio = (float) width / (float) height;
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(field_of_view, aspect_ratio,
-      z_near,
-      z_far);
+    Matrix4 mat;
+    mat = Matrix4::perspective(field_of_view, aspect_ratio, z_near, z_far);
 
+    GFXSetMatrix(context, GFX_MATRIX_TYPE_PROJECTION, &mat);
     glViewport(0, 0, width, height);
 }
 
-void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const float* matrix)
+void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Matrix4* matrix)
 {
-    (void)context;
+    assert(context);
+    assert(matrix);
 
-    glMatrixMode(matrix_mode);
+    GFXHContext_t* context_t = (GFXHContext_t*)context;
 
-    glLoadMatrixf(matrix);
+    if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_PROJECTION)
+    {
+        glMatrixMode(matrix_mode);
+        glLoadMatrixf((float*)matrix);
+    }
+    else if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_VIEW)
+    {
+        context_t->m_ViewMatrix = *matrix;
+    }
+    else if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_WORLD)
+    {
+        glMatrixMode(GL_MODELVIEW);
+        Matrix4 res = context_t->m_ViewMatrix * (*matrix);
+        glLoadMatrixf((float*)&res);
+    }
 }
 
 void GFXEnableState(GFXHContext context, GFXRenderState state)
 {
-    (void)context;
+    assert(context);
 
     glEnable(state);
 }
 
 void GFXDisableState(GFXHContext context, GFXRenderState state)
 {
-    (void)context;
+    assert(context);
 
     glDisable(state);
 }

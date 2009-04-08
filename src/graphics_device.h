@@ -43,7 +43,8 @@ enum GFXRenderState
 
 enum GFXMatrixMode
 {
-    GFX_MATRIX_TYPE_WORLDVIEW   = GFX_DEVICE_MATRIX_TYPE_WORLDVIEW,
+    GFX_MATRIX_TYPE_WORLD       = GFX_DEVICE_MATRIX_TYPE_WORLD,
+    GFX_MATRIX_TYPE_VIEW        = GFX_DEVICE_MATRIX_TYPE_VIEW,
     GFX_MATRIX_TYPE_PROJECTION  = GFX_DEVICE_MATRIX_TYPE_PROJECTION
 };
 
@@ -58,6 +59,8 @@ struct GFXSCreateDeviceParams
     bool            m_Fullscreen;
 };
 
+GFXHContext GFXGetContext();
+
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params);
 
 // clear/draw functions
@@ -70,7 +73,7 @@ void GFXSetViewport(GFXHContext context, int width, int height, float field_of_v
 
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
-void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const float* matrix);
+void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectormath::Aos::Matrix4* matrix);
 
 
 

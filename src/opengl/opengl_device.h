@@ -21,9 +21,14 @@
 #else
 #error "Platform not supported."
 #endif
+#include <vectormath/cpp/vectormath_aos.h>
+
 
 typedef void* GFXHContext;
 typedef void* GFXHDevice;
+
+
+extern GFXHContext g_context;
 
 
 struct GFXHDevice_t
@@ -35,6 +40,7 @@ struct GFXHDevice_t
 struct GFXHContext_t
 {
 
+    Vectormath::Aos::Matrix4 m_ViewMatrix;
 };
 
 
@@ -54,7 +60,8 @@ struct GFXHContext_t
 #define GFX_DEVICE_CLEAR_DEPTHBUFFER            (GL_DEPTH_BUFFER_BIT)
 #define GFX_DEVICE_CLEAR_STENCILBUFFER          (GL_STENCIL_BUFFER_BIT)
 
-#define GFX_DEVICE_MATRIX_TYPE_WORLDVIEW        (GL_MODELVIEW)
+#define GFX_DEVICE_MATRIX_TYPE_WORLD            (123ul)
+#define GFX_DEVICE_MATRIX_TYPE_VIEW             (321ul)
 #define GFX_DEVICE_MATRIX_TYPE_PROJECTION       (GL_PROJECTION)
 
 // Render states
