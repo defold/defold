@@ -76,9 +76,10 @@ void CDDFLoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_num
 uint32_t CDDFLoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
 {
     uint64_t key = ((uint64_t) buffer_pos) << 32 | field_number;
-    assert(m_ArrayCount.find(key) != m_ArrayCount.end());
-//    printf("%u, %u\n", buffer_pos, field_number);
-    return m_ArrayCount[key];
+    if (m_ArrayCount.find(key) != m_ArrayCount.end())
+        return m_ArrayCount[key];
+    else
+        return 0;
 }
 
 
