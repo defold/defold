@@ -21,6 +21,7 @@
 #else
 #error "Platform not supported."
 #endif
+
 #include <vectormath/cpp/vectormath_aos.h>
 
 
