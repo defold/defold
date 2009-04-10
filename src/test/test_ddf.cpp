@@ -394,6 +394,27 @@ TEST(NestedArray, Load)
     DDFFreeMessage(message);
 }
 
+
+TEST(Bytes, Load)
+{
+    TestDDF::Bytes bytes;
+    bytes.set_data((void*) "foo", 3);
+    std::string msg_str = bytes.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Bytes_DESCRIPTOR, &message);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+
+    DUMMY::TestDDF::Bytes* msg = (DUMMY::TestDDF::Bytes*) message;
+    ASSERT_EQ(bytes.data()[0], 'f');
+    ASSERT_EQ(bytes.data()[1], 'o');
+    ASSERT_EQ(bytes.data()[2], 'o');
+
+    DDFFreeMessage(message);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

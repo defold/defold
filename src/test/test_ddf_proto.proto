@@ -91,3 +91,8 @@ message NestedArray
     required uint32 e = 3;
 }
 
+message Bytes
+{
+    required bytes data = 1;
+}
+

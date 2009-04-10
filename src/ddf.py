@@ -78,6 +78,8 @@ def ToCStruct(pp, message_type):
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
             pass
+        elif f.type  == FieldDescriptor.TYPE_BYTES:
+            pass
         elif f.type == FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
             max_len = max(len(DotToNamespace(f.type_name)), max_len)
         else:
@@ -95,10 +97,12 @@ def ToCStruct(pp, message_type):
         ToCStruct(pp, nt)
 
     for f in message_type.field:
-        if f.label == FieldDescriptor.LABEL_REPEATED:
+        if f.label == FieldDescriptor.LABEL_REPEATED or f.type == FieldDescriptor.TYPE_BYTES:
             pp.Begin("struct")
             if f.type ==  FieldDescriptor.TYPE_MESSAGE:
                 type_name = DotToNamespace(f.type_name)
+            elif f.type ==  FieldDescriptor.TYPE_BYTES:
+                type_name = "uint8_t"
             else:
                 type_name = type_to_ctype[f.type]
 

@@ -25,13 +25,13 @@ public:
     void     SetRepeatedBuffer(const SDDFFieldDescriptor* field, void* buffer);
     void     SetString(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len);
     void     AddString(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len);
+    void     SetBytes(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len);
 
 private:
     DDFError ReadScalarField(CDDFLoadContext* load_context,
                              DDFWireType wire_type, 
                              const SDDFFieldDescriptor* field, 
                              CDDFInputBuffer* input_buffer);
-
 
     DDFError ReadStringField(CDDFLoadContext* load_context,
                              DDFWireType wire_type, 
@@ -42,6 +42,11 @@ private:
                               DDFWireType wire_type, 
                               const SDDFFieldDescriptor* field, 
                               CDDFInputBuffer* input_buffer);
+
+    DDFError ReadBytesField(CDDFLoadContext* load_context,
+                            DDFWireType wire_type,
+                            const SDDFFieldDescriptor* field,
+                            CDDFInputBuffer* input_buffer);
 
     const SDDFDescriptor* m_MessageDescriptor;
     char*                 m_Start;

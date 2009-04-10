@@ -94,6 +94,35 @@ DDFError CDDFMessage::ReadStringField(CDDFLoadContext* load_context,
     }
 }
 
+DDFError CDDFMessage::ReadBytesField(CDDFLoadContext* load_context,
+                                     DDFWireType wire_type,
+                                     const SDDFFieldDescriptor* field,
+                                     CDDFInputBuffer* input_buffer)
+{
+    if (wire_type != DDF_WIRETYPE_LENGTH_DELIMITED)
+    {
+        return DDF_ERROR_WIRE_FORMAT;
+    }
+
+    uint32_t length;
+    if (!input_buffer->ReadVarInt32(&length))
+    {
+        return DDF_ERROR_WIRE_FORMAT;
+    }
+
+    const char* str_buf;
+    if (input_buffer->Read(length, &str_buf))
+    {
+        assert (field->m_Label != DDF_LABEL_REPEATED);
+        SetBytes(load_context, field, str_buf, length);
+        return DDF_ERROR_OK;
+    }
+    else
+    {
+        return DDF_ERROR_WIRE_FORMAT;
+    }
+}
+
 DDFError CDDFMessage::ReadMessageField(CDDFLoadContext* load_context,
                                        DDFWireType wire_type, 
                                        const SDDFFieldDescriptor* field, 
@@ -144,6 +173,10 @@ DDFError CDDFMessage::ReadField(CDDFLoadContext* load_context,
     else if ((DDFType) field->m_Type == DDF_TYPE_STRING)
     {
         return ReadStringField(load_context, wire_type, field, input_buffer);
+    }
+    else if ((DDFType) field->m_Type == DDF_TYPE_BYTES)
+    {
+        return ReadBytesField(load_context, wire_type, field, input_buffer);
     }
     else
     {
@@ -246,6 +279,23 @@ void CDDFMessage::AddString(CDDFLoadContext* load_context, const SDDFFieldDescri
 
         memcpy((void*) dest, &str_buf, sizeof(const char*));
         repeated_field->m_ArrayCount++;
+    }
+}
+
+void CDDFMessage::SetBytes(CDDFLoadContext* load_context, const SDDFFieldDescriptor* field, const char* buffer, int buffer_len)
+{
+    assert((DDFType) field->m_Type == DDF_TYPE_BYTES);
+
+    // Always alloc
+    char* bytes_buf = load_context->AllocString(buffer_len);
+
+    if (!m_DryRun)
+    {
+        DDFRepeatedField* repeated_field = (DDFRepeatedField*) &m_Start[field->m_Offset];
+        assert(repeated_field->m_ArrayCount == 0);
+
+        repeated_field->m_Array = (uintptr_t) bytes_buf;
+        repeated_field->m_ArrayCount = buffer_len;
     }
 }
 

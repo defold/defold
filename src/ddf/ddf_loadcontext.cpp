@@ -7,6 +7,10 @@ CDDFLoadContext::CDDFLoadContext(char* buffer, int buffer_size, bool dry_run)
     m_Current = buffer;
     m_End = buffer + buffer_size;
     m_DryRun = dry_run;
+    if (!dry_run)
+    {
+        memset(buffer, 0, buffer_size);
+    }
 }
 
 CDDFMessage CDDFLoadContext::AllocMessage(const SDDFDescriptor* desc)
@@ -58,7 +62,11 @@ void CDDFLoadContext::SetMemoryBuffer(char* buffer, int buffer_size, bool dry_ru
     m_Start = buffer;
     m_Current = buffer;
     m_End = buffer + buffer_size;
-    m_DryRun = dry_run;    
+    m_DryRun = dry_run;
+    if (!dry_run)
+    {
+        memset(buffer, 0, buffer_size);
+    }
 }
 
 int CDDFLoadContext::GetMemoryUsage()
