@@ -44,8 +44,6 @@ struct GFXHContext_t
     Vectormath::Aos::Matrix4 m_ViewMatrix;
 };
 
-
-
 // Primitive types
 #define GFX_DEVICE_PRIMITIVE_POINTLIST           (GL_POINTS)
 #define GFX_DEVICE_PRIMITIVE_LINES               (GL_LINES)
@@ -54,7 +52,6 @@ struct GFXHContext_t
 #define GFX_DEVICE_PRIMITIVE_TRIANGLES           (GL_TRIANGLES)
 #define GFX_DEVICE_PRIMITIVE_TRIANGLE_STRIP      (GL_TRIANGLE_STRIP)
 #define GFX_DEVICE_PRIMITIVE_TRIANGLE_FAN        (GL_TRIANGLE_FAN)
-
 
 // Clear flags
 #define GFX_DEVICE_CLEAR_COLOURUFFER            (GL_COLOR_BUFFER_BIT)
@@ -69,7 +66,13 @@ struct GFXHContext_t
 #define GFX_DEVICE_STATE_DEPTH_TEST             (GL_DEPTH_TEST)
 #define GFX_DEVICE_STATE_ALPHA_TEST             (GL_ALPHA_TEST)
 
-
-
+// Types
+#define GFX_DEVICE_TYPE_BYTE                    (GL_BYTE)
+#define GFX_DEVICE_TYPE_UNSIGNED_BYTE           (GL_UNSIGNED_BYTE)
+#define GFX_DEVICE_TYPE_SHORT                   (GL_SHORT)
+#define GFX_DEVICE_TYPE_UNSIGNED_SHORT          (GL_UNSIGNED_SHORT)
+#define GFX_DEVICE_TYPE_INT                     (GL_INT)
+#define GFX_DEVICE_TYPE_UNSIGNED_INT            (GL_UNSIGNED_INT)
+#define GFX_DEVICE_TYPE_FLOAT                   (GL_FLOAT)
 
 #endif // __GRAPHICS_DEVICE_OPENGL__

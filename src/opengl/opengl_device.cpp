@@ -74,7 +74,6 @@ void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* 
     glVertex2f(vertices[4], vertices[5]);
 
     glEnd();
-
 }
 
 void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* colours)
@@ -95,7 +94,54 @@ void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* 
     glVertex3f(vertices[6], vertices[7], vertices[8]);
 
     glEnd();
+}
 
+void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer)
+{
+    glEnableVertexAttribArray(stream); // TODO: When to disable?
+    glVertexAttribPointer(stream, size, type, false, stride, vertex_buffer);
+}
+
+void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t count, GFXType type, const void* index_buffer)
+{
+    glDrawElements(prim_type, count, type, index_buffer);
+}
+
+static uint32_t GFXCreateProgram(GLenum type, const void* program, uint32_t program_size)
+{
+    glEnable(type);
+    GLuint shader[1];
+    glGenProgramsARB(1, shader);
+    glBindProgramARB(type, shader[0]);
+    glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
+    glDisable(type);
+    return shader[0];
+}
+
+HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_size)
+{
+    return GFXCreateProgram(GL_VERTEX_PROGRAM_ARB, program, program_size);
+}
+
+HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t program_size)
+{
+    return GFXCreateProgram(GL_FRAGMENT_PROGRAM_ARB, program, program_size);
+}
+
+static void GFXSetProgram(GLenum type, uint32_t program)
+{
+    glEnable(type);
+    glBindProgramARB(type, program);
+}
+
+void GFXSetVertexProgram(GFXHContext context, HGFXVertexProgram program)
+{
+    GFXSetProgram(GL_VERTEX_PROGRAM_ARB, program);
+}
+
+void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program)
+{
+    GFXSetProgram(GL_FRAGMENT_PROGRAM_ARB, program);
 }
 
 void GFXSetViewport(GFXHContext context, int width, int height, float field_of_view, float z_near, float z_far)

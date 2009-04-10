@@ -10,8 +10,6 @@
 #include <stdint.h>
 #include "opengl/opengl_device.h"
 
-
-
 // primitive type
 enum GFXPrimitiveType
 {
@@ -23,7 +21,6 @@ enum GFXPrimitiveType
     GFX_PRIMITIVE_TRIANGLE_STRIP    = GFX_DEVICE_PRIMITIVE_TRIANGLE_STRIP,
     GFX_PRIMITIVE_TRIANGLE_FAN      = GFX_DEVICE_PRIMITIVE_TRIANGLE_FAN
 };
-
 
 // buffer clear types
 enum GFXBufferClear
@@ -40,7 +37,6 @@ enum GFXRenderState
     GFX_ALPHA_BLEND                 = GFX_DEVICE_STATE_ALPHA_TEST
 };
 
-
 enum GFXMatrixMode
 {
     GFX_MATRIX_TYPE_WORLD       = GFX_DEVICE_MATRIX_TYPE_WORLD,
@@ -48,7 +44,17 @@ enum GFXMatrixMode
     GFX_MATRIX_TYPE_PROJECTION  = GFX_DEVICE_MATRIX_TYPE_PROJECTION
 };
 
-
+// Types
+enum GFXType
+{
+    GFX_TYPE_BYTE               = GFX_DEVICE_TYPE_BYTE,
+    GFX_TYPE_UNSIGNED_BYTE      = GFX_DEVICE_TYPE_UNSIGNED_BYTE,
+    GFX_TYPE_SHORT              = GFX_DEVICE_TYPE_SHORT,
+    GFX_TYPE_UNSIGNED_SHORT     = GFX_DEVICE_TYPE_UNSIGNED_SHORT,
+    GFX_TYPE_INT                = GFX_DEVICE_TYPE_INT,
+    GFX_TYPE_UNSIGNED_INT       = GFX_DEVICE_TYPE_UNSIGNED_INT,
+    GFX_TYPE_FLOAT              = GFX_DEVICE_TYPE_FLOAT,
+};
 
 // Parameter structure for CreateDevice
 struct GFXSCreateDeviceParams
@@ -59,6 +65,9 @@ struct GFXSCreateDeviceParams
     bool            m_Fullscreen;
 };
 
+typedef uint32_t HGFXVertexProgram;
+typedef uint32_t HGFXFragmentProgram;
+
 GFXHContext GFXGetContext();
 
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params);
@@ -68,6 +77,13 @@ void GFXFlip();
 void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* colours);
 void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* colours);
+void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer);
+void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t count, GFXType type, const void* index_buffer);
+
+HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_size);
+HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t program_size);
+void GFXSetVertexProgram(GFXHContext context, HGFXVertexProgram program);
+void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program);
 
 void GFXSetViewport(GFXHContext context, int width, int height, float field_of_view, float z_near, float z_far);
 
