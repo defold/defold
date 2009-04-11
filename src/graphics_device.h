@@ -78,6 +78,7 @@ void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, u
 void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* colours);
 void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* colours);
 void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer);
+void GFXDisableVertexStream(GFXHContext context, uint16_t stream);
 void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t count, GFXType type, const void* index_buffer);
 
 HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_size);

@@ -98,8 +98,13 @@ void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* 
 
 void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer)
 {
-    glEnableVertexAttribArray(stream); // TODO: When to disable?
+    glEnableVertexAttribArray(stream);
     glVertexAttribPointer(stream, size, type, false, stride, vertex_buffer);
+}
+
+void GFXDisableVertexStream(GFXHContext context, uint16_t stream)
+{
+    glDisableVertexAttribArray(stream);
 }
 
 void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t count, GFXType type, const void* index_buffer)
