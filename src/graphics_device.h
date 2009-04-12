@@ -95,8 +95,8 @@ void GFXDisableState(GFXHContext context, GFXRenderState state);
 void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectormath::Aos::Matrix4* matrix);
 
 GFXHTexture GFXCreateTexture(const char* file);
-void GFXSetTexture(GFXHTexture t);
 void GFXDestroyTexture(GFXHTexture t);
+void GFXSetTexture(GFXHContext context, GFXHTexture t);
 
 
 

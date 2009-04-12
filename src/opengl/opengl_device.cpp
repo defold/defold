@@ -188,8 +188,11 @@ void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Matrix4*
     }
 }
 
-void GFXSetTexture(GFXHTexture t)
+void GFXSetTexture(GFXHContext context, GFXHTexture t)
 {
+    assert(context);
+    assert(t);
+
     GFXHTexture_t* tex_h = (GFXHTexture_t*)t;
     glEnable(GL_TEXTURE_2D);
 
