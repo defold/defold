@@ -1,8 +1,10 @@
-#include <assert.h>
 #include <string.h>
+#include <vectormath/cpp/vectormath_aos.h>
+
+
 #include "graphics_device.h"
 #include "opengl_device.h"
-#include <vectormath/cpp/vectormath_aos.h>
+#include <assert.h>
 
 
 using namespace Vectormath::Aos;
@@ -184,6 +186,57 @@ void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Matrix4*
         Matrix4 res = context_t->m_ViewMatrix * (*matrix);
         glLoadMatrixf((float*)&res);
     }
+}
+
+void GFXSetTexture(GFXHTexture t)
+{
+    GFXHTexture_t* tex_h = (GFXHTexture_t*)t;
+    glEnable(GL_TEXTURE_2D);
+
+    glBindTexture(GL_TEXTURE_2D, tex_h->m_Texture);
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+
+}
+
+
+GFXHTexture GFXCreateTexture(const char* file)
+{
+    GFXHTexture_t* tex = new GFXHTexture_t;
+
+    nv::DirectDrawSurface dds(file);
+//    dds.printInfo();
+
+    glGenTextures( 1, &tex->m_Texture );
+    glBindTexture(GL_TEXTURE_2D, tex->m_Texture);
+
+    int offset = 0;
+    for (int i = 0; i < dds.mipmapCount(); ++i)
+    {
+        dds.mipmap(&tex->m_Image, 0, i);
+
+        int width = tex->m_Image.width();
+        int height = tex->m_Image.height();
+
+        char* pixels = (char*)tex->m_Image.pixels();
+        int size = ((width+3)/4)*((height+3)/4)*8;
+
+        glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (void*)&pixels[offset]);
+
+        offset += size;
+    }
+
+    return (GFXHTexture)tex;
+}
+
+void GFXDestroyTexture(GFXHTexture t)
+{
+    assert(t);
+    GFXHTexture_t* tex = (GFXHTexture_t*)t;
+
+    delete tex;
 }
 
 void GFXEnableState(GFXHContext context, GFXRenderState state)

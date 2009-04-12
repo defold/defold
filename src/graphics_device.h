@@ -5,6 +5,8 @@
 ///////////////////////////////////////////////////////////////////////////////////
 #ifndef __GRAPHICSDEVICE_H__
 #define __GRAPHICSDEVICE_H__
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -91,6 +93,10 @@ void GFXSetViewport(GFXHContext context, int width, int height, float field_of_v
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
 void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectormath::Aos::Matrix4* matrix);
+
+GFXHTexture GFXCreateTexture(const char* file);
+void GFXSetTexture(GFXHTexture t);
+void GFXDestroyTexture(GFXHTexture t);
 
 
 

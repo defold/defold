@@ -1,6 +1,10 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <nvtt/nvtt.h>
+#include <nvimage/Image.h>
+#include <nvimage/DirectDrawSurface.h>
+
 #ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -22,15 +26,23 @@
 #error "Platform not supported."
 #endif
 
+
+
 #include <vectormath/cpp/vectormath_aos.h>
 
 
 typedef void* GFXHContext;
 typedef void* GFXHDevice;
+typedef void* GFXHTexture;
 
 
 extern GFXHContext g_context;
 
+struct GFXHTexture_t
+{
+    GLuint      m_Texture;
+    nv::Image   m_Image;
+};
 
 struct GFXHDevice_t
 {
