@@ -9,6 +9,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/graphics', 'graphics_device.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_device.h')
+    bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_device_defines.h')
 
 def configure(conf):
     pass

@@ -1,16 +1,13 @@
 #include <string.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-
 #include "graphics_device.h"
 #include "opengl_device.h"
 #include <assert.h>
 
-
 using namespace Vectormath::Aos;
 
-
-GFXHContext_t gcontext;
+SGFXHContext gcontext;
 
 GFXHContext GFXGetContext()
 {
@@ -169,7 +166,7 @@ void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Matrix4*
     assert(context);
     assert(matrix);
 
-    GFXHContext_t* context_t = (GFXHContext_t*)context;
+    SGFXHContext* context_t = (SGFXHContext*)context;
 
     if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_PROJECTION)
     {
@@ -193,7 +190,7 @@ void GFXSetTexture(GFXHContext context, GFXHTexture t)
     assert(context);
     assert(t);
 
-    GFXHTexture_t* tex_h = (GFXHTexture_t*)t;
+    SGFXHTexture* tex_h = (SGFXHTexture*)t;
     glEnable(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, tex_h->m_Texture);
@@ -207,7 +204,7 @@ void GFXSetTexture(GFXHContext context, GFXHTexture t)
 
 GFXHTexture GFXCreateTexture(const char* file)
 {
-    GFXHTexture_t* tex = new GFXHTexture_t;
+    SGFXHTexture* tex = new SGFXHTexture;
 
     nv::DirectDrawSurface dds(file);
 //    dds.printInfo();
@@ -237,7 +234,7 @@ GFXHTexture GFXCreateTexture(const char* file)
 void GFXDestroyTexture(GFXHTexture t)
 {
     assert(t);
-    GFXHTexture_t* tex = (GFXHTexture_t*)t;
+    SGFXHTexture* tex = (SGFXHTexture*)t;
 
     delete tex;
 }

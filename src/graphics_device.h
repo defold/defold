@@ -6,11 +6,11 @@
 #ifndef __GRAPHICSDEVICE_H__
 #define __GRAPHICSDEVICE_H__
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "opengl/opengl_device.h"
+#include <vectormath/cpp/vectormath_aos.h>
+#include "opengl/opengl_device_defines.h"
 
 // primitive type
 enum GFXPrimitiveType
@@ -67,9 +67,6 @@ struct GFXSCreateDeviceParams
     bool            m_Fullscreen;
 };
 
-typedef uint32_t HGFXVertexProgram;
-typedef uint32_t HGFXFragmentProgram;
-
 GFXHContext GFXGetContext();
 
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params);
@@ -97,8 +94,6 @@ void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectorma
 GFXHTexture GFXCreateTexture(const char* file);
 void GFXDestroyTexture(GFXHTexture t);
 void GFXSetTexture(GFXHContext context, GFXHTexture t);
-
-
 
 #endif	// __GRAPHICSDEVICE_H__
 
