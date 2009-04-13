@@ -54,47 +54,6 @@ void GFXDraw(GFXHContext context, GFXPrimitiveType primitive_type, int32_t first
     glDrawArrays(primitive_type, first, count);
 }
 
-void GFXDrawTriangle2D(GFXHContext context, const float* vertices, const float* colours)
-{
-    assert(context);
-
-    assert(vertices);
-    assert(colours);
-
-    glBegin(GL_TRIANGLES);
-
-    glColor3f(colours[0], colours[1], colours[2]);
-    glVertex2f(vertices[0], vertices[1]);
-
-    glColor3f(colours[3], colours[4], colours[5]);
-    glVertex2f(vertices[2], vertices[3]);
-
-    glColor3f(colours[6], colours[7], colours[8]);
-    glVertex2f(vertices[4], vertices[5]);
-
-    glEnd();
-}
-
-void GFXDrawTriangle3D(GFXHContext context, const float* vertices, const float* colours)
-{
-    assert(context);
-    assert(vertices);
-    assert(colours);
-
-    glBegin(GL_TRIANGLES);
-
-    glColor3f(colours[0], colours[1], colours[2]);
-    glVertex3f(vertices[0], vertices[1], vertices[2]);
-
-    glColor3f(colours[3], colours[4], colours[5]);
-    glVertex3f(vertices[3], vertices[4], vertices[5]);
-
-    glColor3f(colours[6], colours[7], colours[8]);
-    glVertex3f(vertices[6], vertices[7], vertices[8]);
-
-    glEnd();
-}
-
 void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer)
 {
     glEnableVertexAttribArray(stream);
