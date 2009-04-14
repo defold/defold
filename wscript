@@ -34,6 +34,9 @@ def configure(conf):
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
         conf.env.append_value('CPPPATH', "../include/win32")
 
+    if platform == "linux":
+        conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
+
     if platform == "darwin":
         conf.env['CXXFLAGS']=['-framework GLUT -framework GL']
 

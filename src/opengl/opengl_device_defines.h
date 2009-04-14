@@ -4,6 +4,7 @@
 #ifdef __linux__
 #include <GL/gl.h>
 #include <GL/glu.h>
+#include <GL/glext.h>
 #include <GL/glut.h>
 
 #elif defined (__MACH__)
