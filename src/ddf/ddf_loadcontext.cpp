@@ -1,3 +1,4 @@
+#include <string.h>
 #include "ddf_loadcontext.h"
 #include "ddf_util.h"
 
