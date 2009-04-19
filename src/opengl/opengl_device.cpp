@@ -5,6 +5,18 @@
 #include "opengl_device.h"
 #include <assert.h>
 
+#ifdef __linux__
+#include <GL/glext.h>
+
+#elif defined (__MACH__)
+
+#elif defined (_WIN32)
+#include "glext.h"
+
+#else
+#error "Platform not supported."
+#endif
+
 using namespace Vectormath::Aos;
 
 SGFXHContext gcontext;
