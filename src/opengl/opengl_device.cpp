@@ -11,7 +11,7 @@
 #elif defined (__MACH__)
 
 #elif defined (_WIN32)
-#include "glext.h"
+#include "win32/glext.h"
 
 #else
 #error "Platform not supported."
