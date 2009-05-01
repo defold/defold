@@ -82,6 +82,7 @@ struct GFXSCreateDeviceParams
 GFXHContext GFXGetContext();
 
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params);
+void GFXDestroyDevice();
 
 // clear/draw functions
 void GFXFlip();

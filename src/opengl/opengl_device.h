@@ -5,6 +5,7 @@
 #include <nvimage/Image.h>
 #include <nvimage/DirectDrawSurface.h>
 #include "opengl_device_defines.h"
+#include <sdl/SDL.h>
 
 extern GFXHContext g_context;
 
@@ -15,12 +16,12 @@ struct SGFXHTexture
 
 struct SGFXHDevice
 {
+    SDL_Surface*    m_SDLscreen;
 
 };
 
 struct SGFXHContext
 {
-
     Vectormath::Aos::Matrix4 m_ViewMatrix;
 };
 

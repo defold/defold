@@ -9,6 +9,7 @@
 #include <GL/glext.h>
 
 #elif defined (__MACH__)
+#include <sdl/SDL_opengl.h>
 
 #elif defined (_WIN32)
 #include "win32/glext.h"
@@ -19,6 +20,7 @@
 
 using namespace Vectormath::Aos;
 
+SGFXHDevice gdevice;
 SGFXHContext gcontext;
 
 GFXHContext GFXGetContext()
@@ -29,14 +31,47 @@ GFXHContext GFXGetContext()
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params )
 {
     assert(params);
+//    SGFXHDevice* device_t = (SGFXHDevice*)context;
 
+//
+
+#if 0
     glutInitWindowSize(params->m_DisplayWidth, params->m_DisplayHeight);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
     glutInit(argc, argv);
 
     glutCreateWindow(params->m_AppTitle);
 
+
+#else
+    int ret = SDL_Init(SDL_INIT_VIDEO);
+
+    assert(ret == 0);
+
+    SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 5 );
+    SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 5 );
+    SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 5 );
+    SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 16 );
+    SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+//    gdevice.m_SDLscreen = SDL_SetVideoMode(300, 300, 16, SDL_OPENGL);
+
+    gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE);
+    if (!gdevice.m_SDLscreen )
+    {
+      fprintf(stderr, "Couldn't set 300x300 GL video mode: %s\n", SDL_GetError());
+      SDL_Quit();
+
+      exit(2);
+    }
+    SDL_WM_SetCaption("Gears", "gears");
+
+#endif
     return 0;
+}
+
+void GFXDestroyDevice()
+{
+    SDL_Quit();
 }
 
 void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -56,7 +91,9 @@ void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, u
 
 void GFXFlip()
 {
-    glutSwapBuffers();
+    SDL_GL_SwapBuffers();
+
+//    glutSwapBuffers();
 }
 
 void GFXDraw(GFXHContext context, GFXPrimitiveType primitive_type, int32_t first, int32_t count )

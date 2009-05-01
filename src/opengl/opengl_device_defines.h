@@ -9,8 +9,8 @@
 #elif defined (__MACH__)
 
 #include <OpenGL/gl.h>
-#include <OpenGL/glu.h>
-#include <GLUT/glut.h>
+//#include <OpenGL/glu.h>
+//#include <GLUT/glut.h>
 
 #elif defined (_WIN32)
 #include <windows.h>
@@ -68,4 +68,4 @@ typedef struct SGFXHTexture* GFXHTexture;
 #define GFX_DEVICE_TEXTURE_FORMAT_RGBA_DXT3     (GL_COMPRESSED_RGBA_S3TC_DXT3_EXT)
 #define GFX_DEVICE_TEXTURE_FORMAT_RGBA_DXT5     (GL_COMPRESSED_RGBA_S3TC_DXT5_EXT)
 
-#endif // OPENGL_DEVICE_DEFINES_H 
+#endif // OPENGL_DEVICE_DEFINES_H

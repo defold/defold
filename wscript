@@ -39,8 +39,8 @@ def configure(conf):
     if platform == "linux":
         conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
 
-    if platform == "darwin":
-        conf.env['CXXFLAGS']=['-framework GLUT -framework GL']
+#    if platform == "darwin":
+#        conf.env.append_value('CXXFLAGS','-framework GLUT -framework GL')
 
     if os.getenv('PYTHONPATH'):
         if sys.platform == "win32":
