@@ -408,9 +408,10 @@ TEST(Bytes, Load)
     ASSERT_EQ(DDF_ERROR_OK, e);
 
     DUMMY::TestDDF::Bytes* msg = (DUMMY::TestDDF::Bytes*) message;
-    ASSERT_EQ(bytes.data()[0], 'f');
-    ASSERT_EQ(bytes.data()[1], 'o');
-    ASSERT_EQ(bytes.data()[2], 'o');
+    ASSERT_EQ(3, msg->m_data.m_Count);
+    ASSERT_EQ('f', msg->m_data[0]);
+    ASSERT_EQ('o', msg->m_data[1]);
+    ASSERT_EQ('o', msg->m_data[2]);
 
     DDFFreeMessage(message);
 }

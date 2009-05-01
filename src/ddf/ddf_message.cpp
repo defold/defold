@@ -291,6 +291,8 @@ void CDDFMessage::SetBytes(CDDFLoadContext* load_context, const SDDFFieldDescrip
 
     if (!m_DryRun)
     {
+        memcpy(bytes_buf, buffer, buffer_len);
+
         DDFRepeatedField* repeated_field = (DDFRepeatedField*) &m_Start[field->m_Offset];
         assert(repeated_field->m_ArrayCount == 0);
 

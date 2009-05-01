@@ -41,7 +41,12 @@ def proto_file(self, node):
         task = self.create_task('proto_b')
         task.set_inputs(node)
         out = node.change_ext('.bproto')
+
         self.bld.install_files('${PREFIX}/share/proto', out.abspath(self.env), self.env)
+        import Utils        
+        self.bld.install_files('${PREFIX}/include/' + Utils.g_module.APPNAME, 
+                               out.abspath(self.env).replace(".bproto", ".h"), self.env)
+
         task.set_outputs(out)
         self.allnodes.append(out)
         
