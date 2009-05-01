@@ -8,6 +8,8 @@ blddir = 'build'
 
 import os, sys
 
+import waf_ddf
+
 def init():
     pass
 
@@ -40,6 +42,19 @@ def configure(conf):
     if platform == "darwin":
         conf.env['CXXFLAGS']=['-framework GLUT -framework GL']
 
+    if os.getenv('PYTHONPATH'):
+        if sys.platform == "win32":
+            ddf_search_lst = os.getenv('PYTHONPATH').split(';')
+        else:
+            ddf_search_lst = os.getenv('PYTHONPATH').split(':')
+
+    for d in ddf_search_lst:
+        if os.path.isfile(os.path.join(d, "ddf.py")):
+            conf.env['DDF_PY'] = os.path.abspath(os.path.join(d, "ddf.py"))
+
+    if not conf.env['DDF_PY']:
+        conf.fatal("ddf.py not found in: " + str(ddf_search_lst))
+
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
@@ -48,6 +63,7 @@ def configure(conf):
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
+    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
     conf.env['LIB_GTEST'] = 'gtest'

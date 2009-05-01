@@ -1,0 +1,22 @@
+package GFX;
+
+message TextureImage
+{
+    enum TextureFormat
+    {
+        ALPHA      = 0;
+        RGB        = 1;
+        RGBA       = 2;
+        RGB_DXT1   = 3;
+        RGBA_DXT1  = 4;
+        RGBA_DXT3  = 5;
+        RGBA_DXT5  = 6;
+    }
+
+    required uint32 Width  = 1;
+    required uint32 Height = 2;
+    required TextureFormat Format = 3;
+    repeated uint32 MipMapOffset = 4;
+    repeated uint32 MipMapSize = 5;
+    required bytes Data = 6;
+}

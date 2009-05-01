@@ -58,6 +58,18 @@ enum GFXType
     GFX_TYPE_FLOAT              = GFX_DEVICE_TYPE_FLOAT,
 };
 
+// Texture format
+enum GFXTextureFormat
+{
+    GFX_TEXTURE_FORMAT_ALPHA      = 0,
+    GFX_TEXTURE_FORMAT_RGB        = 1,
+    GFX_TEXTURE_FORMAT_RGBA       = 2,
+    GFX_TEXTURE_FORMAT_RGB_DXT1   = 3,
+    GFX_TEXTURE_FORMAT_RGBA_DXT1  = 4,
+    GFX_TEXTURE_FORMAT_RGBA_DXT3  = 5,
+    GFX_TEXTURE_FORMAT_RGBA_DXT5  = 6
+};
+
 // Parameter structure for CreateDevice
 struct GFXSCreateDeviceParams
 {
@@ -89,7 +101,13 @@ void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
 void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectormath::Aos::Matrix4* matrix);
 
-GFXHTexture GFXCreateTexture(const char* file);
+GFXHTexture GFXCreateTexture(uint32_t width, uint32_t height, GFXTextureFormat texture_format);
+
+void GFXSetTextureData(GFXHTexture texture,
+                       uint16_t mip_map,
+                       uint16_t width, uint16_t height, uint16_t border,
+                       GFXTextureFormat texture_format, const void* data, uint32_t data_size);
+
 void GFXDestroyTexture(GFXHTexture t);
 void GFXSetTexture(GFXHContext context, GFXHTexture t);
 

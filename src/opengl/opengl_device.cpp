@@ -172,34 +172,76 @@ void GFXSetTexture(GFXHContext context, GFXHTexture t)
 
 }
 
-
-GFXHTexture GFXCreateTexture(const char* file)
+GFXHTexture GFXCreateTexture(uint32 width, uint32 height, GFXTextureFormat texture_format)
 {
+    GLuint t;
+    glGenTextures( 1, &t );
+    glBindTexture(GL_TEXTURE_2D, t);
+    glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
     SGFXHTexture* tex = new SGFXHTexture;
+    tex->m_Texture = t;
+    return (GFXHTexture) tex;
+}
 
-    nv::DirectDrawSurface dds(file);
-//    dds.printInfo();
+void GFXSetTextureData(GFXHTexture texture, 
+                       uint16 mip_map, 
+                       uint16_t width, uint16_t height, uint16_t border,
+                       GFXTextureFormat texture_format, const void* data, uint32_t data_size)
+{
+    GLenum gl_format;
+    GLenum gl_type = GL_UNSIGNED_BYTE;
+    GLint internal_format;
 
-    glGenTextures( 1, &tex->m_Texture );
-    glBindTexture(GL_TEXTURE_2D, tex->m_Texture);
-
-    int offset = 0;
-    for (int i = 0; i < dds.mipmapCount(); ++i)
+    switch (texture_format)
     {
-        dds.mipmap(&tex->m_Image, 0, i);
-
-        int width = tex->m_Image.width();
-        int height = tex->m_Image.height();
-
-        char* pixels = (char*)tex->m_Image.pixels();
-        int size = ((width+3)/4)*((height+3)/4)*8;
-
-        glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (void*)&pixels[offset]);
-
-        offset += size;
+    case GFX_TEXTURE_FORMAT_ALPHA:
+        gl_format = GL_ALPHA;
+        internal_format = 1;
+        break;
+    case GFX_TEXTURE_FORMAT_RGB:
+        gl_format = GL_RGB;
+        internal_format = 3;
+        break;
+    case GFX_TEXTURE_FORMAT_RGBA:
+        gl_format = GL_RGBA;
+        internal_format = 4;
+        break;
+    case GFX_TEXTURE_FORMAT_RGB_DXT1:
+        gl_format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+        break;
+    case GFX_TEXTURE_FORMAT_RGBA_DXT1:
+        gl_format = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+        break;
+    case GFX_TEXTURE_FORMAT_RGBA_DXT3:
+        gl_format = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+        break;
+    case GFX_TEXTURE_FORMAT_RGBA_DXT5:
+        gl_format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+        glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, texture_format, width, height, border, data_size, data);
+        break;
+    default:
+        assert(0);
     }
+    switch (texture_format)
+    {
+    case GFX_TEXTURE_FORMAT_ALPHA:
+    case GFX_TEXTURE_FORMAT_RGB:
+    case GFX_TEXTURE_FORMAT_RGBA:
+        glTexImage2D(GL_TEXTURE_2D, mip_map, internal_format, width, height, border, gl_format, gl_type, data);
+        break;
 
-    return (GFXHTexture)tex;
+    case GFX_TEXTURE_FORMAT_RGB_DXT1:
+    case GFX_TEXTURE_FORMAT_RGBA_DXT1:
+    case GFX_TEXTURE_FORMAT_RGBA_DXT3:
+    case GFX_TEXTURE_FORMAT_RGBA_DXT5:
+        glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, gl_format, width, height, border, data_size, data);
+        break;
+    default:
+        assert(0);
+    }
 }
 
 void GFXDestroyTexture(GFXHTexture t)

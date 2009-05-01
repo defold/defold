@@ -11,7 +11,6 @@ extern GFXHContext g_context;
 struct SGFXHTexture
 {
     GLuint      m_Texture;
-    nv::Image   m_Image;
 };
 
 struct SGFXHDevice
