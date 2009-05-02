@@ -26,8 +26,9 @@ DYNAMO_EXT=$DYNAMO_HOME/ext
 mkdir -p $DYNAMO_EXT/cache
 
 REMOTE_PATH="$USER_OVERRATED@overrated.dyndns.org:/repo/packages"
-PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3 gtest-1.2.1 collada-blender-0.3.159.1 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6"
-PACKAGES_HOST="protobuf-2.0.3 gtest-1.2.1 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6"
+PACKAGES_ALL="protobuf-2.0.3 waf-1.5.3 gtest-1.2.1 collada-blender-0.3.159.1 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 
+SDL-1.2.13"
+PACKAGES_HOST="protobuf-2.0.3 gtest-1.2.1 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 SDL-1.2.13"
 PACKAGES_EGGS="protobuf-2.0.3-py2.5.egg pyglet-1.1.3-py2.5.egg"
 
 for p in $PACKAGES_ALL; do
