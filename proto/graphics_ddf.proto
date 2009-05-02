@@ -4,7 +4,7 @@ message TextureImage
 {
     enum TextureFormat
     {
-        ALPHA      = 0;
+        LUMINANCE  = 0;
         RGB        = 1;
         RGBA       = 2;
         RGB_DXT1   = 3;
