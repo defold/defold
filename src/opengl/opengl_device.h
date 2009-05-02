@@ -15,6 +15,12 @@ struct SGFXHDevice
 {
     SDL_Surface*    m_SDLscreen;
 
+    struct
+    {
+        uint32_t    m_DisplayWidth;
+        uint32_t    m_DisplayHeight;
+    };
+
 };
 
 struct SGFXHContext

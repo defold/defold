@@ -40,6 +40,17 @@ GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *param
 
     SDL_WM_SetCaption(params->m_AppTitle, params->m_AppTitle);
 
+    gdevice.m_DisplayWidth = params->m_DisplayWidth;
+    gdevice.m_DisplayHeight = params->m_DisplayHeight;
+
+    if (params->m_PrintDeviceInfo)
+    {
+        printf("GL_RENDERER   = %s\n", (char *) glGetString(GL_RENDERER));
+        printf("GL_VERSION    = %s\n", (char *) glGetString(GL_VERSION));
+        printf("GL_VENDOR     = %s\n", (char *) glGetString(GL_VENDOR));
+        printf("GL_EXTENSIONS = %s\n", (char *) glGetString(GL_EXTENSIONS));
+    }
+
     return (GFXHDevice)&gdevice;
 }
 
@@ -104,6 +115,7 @@ static uint32_t GFXCreateProgram(GLenum type, const void* program, uint32_t prog
     glBindProgramARB(type, shader[0]);
     glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
     glDisable(type);
+
     return shader[0];
 }
 
@@ -137,6 +149,35 @@ void GFXSetViewport(GFXHContext context, int width, int height)
 {
     assert(context);
     glViewport(0, 0, width, height);
+}
+
+static void GFXSetProgramConstantBlock(GFXHContext context, GLenum type, const Vector4* data, int base_register, int num_vectors)
+{
+    assert(context);
+    assert(data);
+    assert(base_register >= 0);
+    assert(num_vectors >= 0);
+
+    const float *f = (const float*)data;
+    int reg = 0;
+    for (int i=0; i<num_vectors; i++, reg+=4)
+        glProgramLocalParameter4fARB(type, base_register+i,  f[0+reg], f[1+reg], f[2+reg], f[3+reg]);
+
+}
+
+void GFXSetFragmentConstant(GFXHContext context, const Vector4* data, int base_register)
+{
+    GFXSetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, 1);
+}
+
+void GFXSetVertexConstantBlock(GFXHContext context, const Vector4* data, int base_register, int num_vectors)
+{
+    GFXSetProgramConstantBlock(context, GL_VERTEX_PROGRAM_ARB, data, base_register, num_vectors);
+}
+
+void GFXSetFragmentConstantBlock(GFXHContext context, const Vector4* data, int base_register, int num_vectors)
+{
+    GFXSetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, num_vectors);
 }
 
 void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Matrix4* matrix)

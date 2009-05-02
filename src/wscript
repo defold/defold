@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 import sys
 
+import os, sys
+import waf_content
+
+
 def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['. opengl'],
@@ -16,11 +20,10 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
 
 
-#    obj = bld.new_task_gen(
-#        features = 'cxx cprogram',
-#        target = 'test_app',
-#        source = "test/test_app.cpp")
-#    obj.find_sources_in_dirs('opengl')
+    obj = bld.new_task_gen(
+        features = 'cxx cprogram',
+        target = 'test_app')
+    obj.find_sources_in_dirs('opengl test')
 
 def configure(conf):
     if sys.platform == "darwin":
@@ -33,7 +36,7 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', '-framework SDL -framework Cocoa -framework OpenGL -lSDLmain')
+        conf.env.append_value('LINKFLAGS', '-framework Cocoa -framework OpenGL -lSDLmain -lSDL')
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', '-lglut -lXext -lX11 -lXi -lGL -lGLU -lSDL')
 

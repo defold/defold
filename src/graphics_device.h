@@ -97,6 +97,7 @@ struct GFXSCreateDeviceParams
     uint32_t        m_DisplayHeight;
     const char*	    m_AppTitle;
     bool            m_Fullscreen;
+    bool            m_PrintDeviceInfo;
 };
 
 GFXHContext GFXGetContext();
@@ -116,6 +117,11 @@ HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_s
 HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t program_size);
 void GFXSetVertexProgram(GFXHContext context, HGFXVertexProgram program);
 void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program);
+
+void GFXSetFragmentConstant(GFXHContext context, const Vectormath::Aos::Vector4* data, int base_register);
+void GFXSetVertexConstantBlock(GFXHContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
+void GFXSetFragmentConstantBlock(GFXHContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
+
 
 void GFXSetViewport(GFXHContext context, int width, int height);
 
