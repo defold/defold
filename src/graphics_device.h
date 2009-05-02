@@ -61,7 +61,7 @@ enum GFXType
 // Texture format
 enum GFXTextureFormat
 {
-    GFX_TEXTURE_FORMAT_ALPHA      = 0,
+    GFX_TEXTURE_FORMAT_LUMINANCE  = 0,
     GFX_TEXTURE_FORMAT_RGB        = 1,
     GFX_TEXTURE_FORMAT_RGBA       = 2,
     GFX_TEXTURE_FORMAT_RGB_DXT1   = 3,

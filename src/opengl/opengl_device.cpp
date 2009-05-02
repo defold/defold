@@ -204,8 +204,8 @@ void GFXSetTextureData(GFXHTexture texture,
 
     switch (texture_format)
     {
-    case GFX_TEXTURE_FORMAT_ALPHA:
-        gl_format = GL_ALPHA;
+    case GFX_TEXTURE_FORMAT_LUMINANCE:
+        gl_format = GL_LUMINANCE;
         internal_format = 1;
         break;
     case GFX_TEXTURE_FORMAT_RGB:
@@ -234,7 +234,7 @@ void GFXSetTextureData(GFXHTexture texture,
     }
     switch (texture_format)
     {
-    case GFX_TEXTURE_FORMAT_ALPHA:
+    case GFX_TEXTURE_FORMAT_LUMINANCE:
     case GFX_TEXTURE_FORMAT_RGB:
     case GFX_TEXTURE_FORMAT_RGBA:
         glTexImage2D(GL_TEXTURE_2D, mip_map, internal_format, width, height, border, gl_format, gl_type, data);
