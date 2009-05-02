@@ -1,9 +1,6 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
-#include <nvtt/nvtt.h>
-#include <nvimage/Image.h>
-#include <nvimage/DirectDrawSurface.h>
 #include "opengl_device_defines.h"
 #include <sdl/SDL.h>
 

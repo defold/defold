@@ -179,7 +179,7 @@ void GFXSetTexture(GFXHContext context, GFXHTexture t)
 
 }
 
-GFXHTexture GFXCreateTexture(uint32 width, uint32 height, GFXTextureFormat texture_format)
+GFXHTexture GFXCreateTexture(uint32_t width, uint32_t height, GFXTextureFormat texture_format)
 {
     GLuint t;
     glGenTextures( 1, &t );
@@ -194,7 +194,7 @@ GFXHTexture GFXCreateTexture(uint32 width, uint32 height, GFXTextureFormat textu
 }
 
 void GFXSetTextureData(GFXHTexture texture,
-                       uint16 mip_map,
+                       uint16_t mip_map,
                        uint16_t width, uint16_t height, uint16_t border,
                        GFXTextureFormat texture_format, const void* data, uint32_t data_size)
 {
