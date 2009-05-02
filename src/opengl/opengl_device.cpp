@@ -31,42 +31,16 @@ GFXHContext GFXGetContext()
 GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *params )
 {
     assert(params);
-//    SGFXHDevice* device_t = (SGFXHDevice*)context;
 
-//
-
-#if 0
-    glutInitWindowSize(params->m_DisplayWidth, params->m_DisplayHeight);
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
-    glutInit(argc, argv);
-
-    glutCreateWindow(params->m_AppTitle);
-
-
-#else
     int ret = SDL_Init(SDL_INIT_VIDEO);
-
     assert(ret == 0);
 
-    SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 5 );
-    SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 5 );
-    SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 5 );
-    SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 16 );
-    SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-//    gdevice.m_SDLscreen = SDL_SetVideoMode(300, 300, 16, SDL_OPENGL);
-
     gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE);
-    if (!gdevice.m_SDLscreen )
-    {
-      fprintf(stderr, "Couldn't set 300x300 GL video mode: %s\n", SDL_GetError());
-      SDL_Quit();
+    assert(gdevice.m_SDLscreen);
 
-      exit(2);
-    }
-    SDL_WM_SetCaption("Gears", "gears");
+    SDL_WM_SetCaption("params->m_AppTitle", "params->m_AppTitle");
 
-#endif
-    return 0;
+    return (GFXHDevice)&gdevice;
 }
 
 void GFXDestroyDevice()
@@ -92,8 +66,6 @@ void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, u
 void GFXFlip()
 {
     SDL_GL_SwapBuffers();
-
-//    glutSwapBuffers();
 }
 
 void GFXDraw(GFXHContext context, GFXPrimitiveType primitive_type, int32_t first, int32_t count )
@@ -223,8 +195,8 @@ GFXHTexture GFXCreateTexture(uint32 width, uint32 height, GFXTextureFormat textu
     return (GFXHTexture) tex;
 }
 
-void GFXSetTextureData(GFXHTexture texture, 
-                       uint16 mip_map, 
+void GFXSetTextureData(GFXHTexture texture,
+                       uint16 mip_map,
                        uint16_t width, uint16_t height, uint16_t border,
                        GFXTextureFormat texture_format, const void* data, uint32_t data_size)
 {
