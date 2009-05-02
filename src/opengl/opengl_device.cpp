@@ -91,6 +91,11 @@ void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t c
     glDrawElements(prim_type, count, type, index_buffer);
 }
 
+void GFXDraw(GFXHContext context, GFXPrimitiveType prim_type, uint32_t first, uint32_t count)
+{
+    glDrawArrays(prim_type, first, count);
+}
+
 static uint32_t GFXCreateProgram(GLenum type, const void* program, uint32_t program_size)
 {
     glEnable(type);
@@ -128,16 +133,9 @@ void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program)
     GFXSetProgram(GL_FRAGMENT_PROGRAM_ARB, program);
 }
 
-void GFXSetViewport(GFXHContext context, int width, int height, float field_of_view, float z_near, float z_far)
+void GFXSetViewport(GFXHContext context, int width, int height)
 {
     assert(context);
-
-    float aspect_ratio = (float) width / (float) height;
-
-    Matrix4 mat;
-    mat = Matrix4::perspective(field_of_view, aspect_ratio, z_near, z_far);
-
-    GFXSetMatrix(context, GFX_MATRIX_TYPE_PROJECTION, &mat);
     glViewport(0, 0, width, height);
 }
 

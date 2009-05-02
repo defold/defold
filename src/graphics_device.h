@@ -90,13 +90,14 @@ void GFXClear(GFXHContext context, uint32_t flags, uint8_t red, uint8_t green, u
 void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer);
 void GFXDisableVertexStream(GFXHContext context, uint16_t stream);
 void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t count, GFXType type, const void* index_buffer);
+void GFXDraw(GFXHContext context, GFXPrimitiveType prim_type, uint32_t first, uint32_t count);
 
 HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_size);
 HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t program_size);
 void GFXSetVertexProgram(GFXHContext context, HGFXVertexProgram program);
 void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program);
 
-void GFXSetViewport(GFXHContext context, int width, int height, float field_of_view, float z_near, float z_far);
+void GFXSetViewport(GFXHContext context, int width, int height);
 
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
