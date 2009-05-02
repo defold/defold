@@ -38,7 +38,7 @@ GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *param
     gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE);
     assert(gdevice.m_SDLscreen);
 
-    SDL_WM_SetCaption("params->m_AppTitle", "params->m_AppTitle");
+    SDL_WM_SetCaption(params->m_AppTitle, params->m_AppTitle);
 
     return (GFXHDevice)&gdevice;
 }
