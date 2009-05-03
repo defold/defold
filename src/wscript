@@ -2,7 +2,7 @@
 import sys
 
 import os, sys
-import waf_content
+import waf_graphics
 
 
 def build(bld):
@@ -18,7 +18,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'ddsc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
-
+    bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
     test_app = bld.new_task_gen(
         features = 'cxx cprogram',
