@@ -22,8 +22,9 @@ def build(bld):
 
     test_app = bld.new_task_gen(
         features = 'cxx cprogram',
+        uselib_local = 'graphics',
         target = 'test_app')
-    test_app.find_sources_in_dirs('opengl test')
+    test_app.find_sources_in_dirs('test')
     test_app.install_path = None
 
 
