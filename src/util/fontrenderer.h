@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <ddf/ddf.h>
-#include "default/proto/graphics_util_ddf.h"
 
 namespace GFXUtil
 {

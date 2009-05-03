@@ -6,6 +6,8 @@ using namespace Vectormath::Aos;
 
 #include <graphics/graphics_device.h>
 
+#include "default/proto/graphics_util_ddf.h"
+
 namespace GFXUtil
 {
 

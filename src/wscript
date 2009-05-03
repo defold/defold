@@ -27,6 +27,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics_util', 'util/fontrenderer.h')
 
     bld.install_files('${PREFIX}/bin', 'ddsc.py')
+    bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
