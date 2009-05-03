@@ -272,3 +272,9 @@ void GFXDisableState(GFXHContext context, GFXRenderState state)
 
     glDisable(state);
 }
+
+void GFXSetBlendFunc(GFXBlendFactor source_factor, GFXBlendFactor destinaton_factor)
+{
+    glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
+}
+

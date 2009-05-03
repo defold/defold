@@ -36,7 +36,8 @@ enum GFXBufferClear
 enum GFXRenderState
 {
     GFX_DEPTH_TEST                  = GFX_DEVICE_STATE_DEPTH_TEST,
-    GFX_ALPHA_BLEND                 = GFX_DEVICE_STATE_ALPHA_TEST
+    GFX_ALPHA_TEST                  = GFX_DEVICE_STATE_ALPHA_TEST,
+    GFX_BLEND                       = GFX_DEVICE_STATE_BLEND,
 };
 
 enum GFXMatrixMode
@@ -70,6 +71,25 @@ enum GFXTextureFormat
     GFX_TEXTURE_FORMAT_RGBA_DXT5  = 6
 };
 
+enum GFXBlendFactor
+{
+    GFX_BLEND_FACTOR_ZERO                     = GFX_DEVICE_BLEND_FACTOR_ZERO,
+    GFX_BLEND_FACTOR_ONE                      = GFX_DEVICE_BLEND_FACTOR_ONE,
+    GFX_BLEND_FACTOR_SRC_COLOR                = GFX_DEVICE_BLEND_FACTOR_SRC_COLOR,
+    GFX_BLEND_FACTOR_ONE_MINUS_SRC_COLOR      = GFX_DEVICE_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+    GFX_BLEND_FACTOR_DST_COLOR                = GFX_DEVICE_BLEND_FACTOR_DST_COLOR,
+    GFX_BLEND_FACTOR_ONE_MINUS_DST_COLOR      = GFX_DEVICE_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+    GFX_BLEND_FACTOR_SRC_ALPHA                = GFX_DEVICE_BLEND_FACTOR_SRC_ALPHA,
+    GFX_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA      = GFX_DEVICE_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+    GFX_BLEND_FACTOR_DST_ALPHA                = GFX_DEVICE_BLEND_FACTOR_DST_ALPHA,
+    GFX_BLEND_FACTOR_ONE_MINUS_DST_ALPHA      = GFX_DEVICE_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+    GFX_BLEND_FACTOR_SRC_ALPHA_SATURATE       = GFX_DEVICE_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+    GFX_BLEND_FACTOR_CONSTANT_COLOR           = GFX_DEVICE_BLEND_FACTOR_CONSTANT_COLOR,
+    GFX_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = GFX_DEVICE_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+    GFX_BLEND_FACTOR_CONSTANT_ALPHA           = GFX_DEVICE_BLEND_FACTOR_CONSTANT_ALPHA,
+    GFX_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = GFX_DEVICE_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+};
+
 // Parameter structure for CreateDevice
 struct GFXSCreateDeviceParams
 {
@@ -101,6 +121,7 @@ void GFXSetViewport(GFXHContext context, int width, int height);
 
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
+void GFXSetBlendFunc(GFXBlendFactor source_factor, GFXBlendFactor destinaton_factor);
 void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectormath::Aos::Matrix4* matrix);
 
 GFXHTexture GFXCreateTexture(uint32_t width, uint32_t height, GFXTextureFormat texture_format);
