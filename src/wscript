@@ -20,10 +20,12 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
 
 
-    obj = bld.new_task_gen(
+    test_app = bld.new_task_gen(
         features = 'cxx cprogram',
         target = 'test_app')
-    obj.find_sources_in_dirs('opengl test')
+    test_app.find_sources_in_dirs('opengl test')
+    test_app.install_path = None
+
 
 def configure(conf):
     if sys.platform == "darwin":
