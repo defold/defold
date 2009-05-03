@@ -128,7 +128,6 @@ void GFXSetViewport(GFXHContext context, int width, int height);
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
 void GFXSetBlendFunc(GFXBlendFactor source_factor, GFXBlendFactor destinaton_factor);
-void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Vectormath::Aos::Matrix4* matrix);
 
 GFXHTexture GFXCreateTexture(uint32_t width, uint32_t height, GFXTextureFormat texture_format);
 

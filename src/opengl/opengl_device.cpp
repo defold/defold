@@ -161,7 +161,9 @@ static void GFXSetProgramConstantBlock(GFXHContext context, GLenum type, const V
     const float *f = (const float*)data;
     int reg = 0;
     for (int i=0; i<num_vectors; i++, reg+=4)
+    {
         glProgramLocalParameter4fARB(type, base_register+i,  f[0+reg], f[1+reg], f[2+reg], f[3+reg]);
+    }
 
 }
 
@@ -178,30 +180,6 @@ void GFXSetVertexConstantBlock(GFXHContext context, const Vector4* data, int bas
 void GFXSetFragmentConstantBlock(GFXHContext context, const Vector4* data, int base_register, int num_vectors)
 {
     GFXSetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, num_vectors);
-}
-
-void GFXSetMatrix(GFXHContext context, GFXMatrixMode matrix_mode, const Matrix4* matrix)
-{
-    assert(context);
-    assert(matrix);
-
-    SGFXHContext* context_t = (SGFXHContext*)context;
-
-    if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_PROJECTION)
-    {
-        glMatrixMode(matrix_mode);
-        glLoadMatrixf((float*)matrix);
-    }
-    else if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_VIEW)
-    {
-        context_t->m_ViewMatrix = *matrix;
-    }
-    else if (matrix_mode == GFX_DEVICE_MATRIX_TYPE_WORLD)
-    {
-        glMatrixMode(GL_MODELVIEW);
-        Matrix4 res = context_t->m_ViewMatrix * (*matrix);
-        glLoadMatrixf((float*)&res);
-    }
 }
 
 void GFXSetTexture(GFXHContext context, GFXHTexture t)
