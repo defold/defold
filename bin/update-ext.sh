@@ -61,3 +61,7 @@ done
 
 popd > /dev/null
 
+echo "Copying src/waf_dynamo.py -> DYNAMO_HOME/ext/lib/python" 
+cp src/waf_dynamo.py $DYNAMO_HOME/ext/lib/python
+
+
