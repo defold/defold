@@ -248,6 +248,61 @@ TEST(HashTable, Exhaustive2)
     }
 }
 
+
+TEST(HashTable, Exhaustive3)
+{
+    const int N = 20;
+    for (int count = 1; count < N; ++count)
+    {
+        for (int table_size = 1; table_size <= 2*N; ++table_size)
+        {
+            std::map<uint32_t, uint32_t> map;
+            THashTable<uint32_t, uint32_t> ht(table_size);
+            ht.SetCapacity(count);
+
+            const uint32_t grow_shrink_iter_count = 20;
+            for (uint32_t grow_shrink_iter = 0; grow_shrink_iter < grow_shrink_iter_count; ++grow_shrink_iter)
+            {
+                uint32_t target_size = uint32_t(rand() % (count + 1));
+                if (grow_shrink_iter == grow_shrink_iter_count/2)
+                {
+                    // Fill completely
+                    target_size = count;
+                }
+
+                while (map.size() != target_size)
+                {
+                    if (map.size() < target_size)
+                    {
+                        uint32_t key = rand() & 0x3ff; // keys up to 1023...
+                        uint32_t val = rand();
+
+                        map[key] = val;
+                        ht.Put(key, val);
+
+                    }
+                    else
+                    {
+                        uint32_t key = map.begin()->first;
+                        map.erase(map.begin());
+                        ht.Erase(key);
+                    }
+                    ASSERT_EQ(map.size(), ht.Size());
+                    ht.Verify();
+                }
+            }
+            // Compare
+            std::map<uint32_t, uint32_t>::iterator iter;
+            for( iter = map.begin(); iter != map.end(); ++iter)
+            {
+                uint32_t key = iter->first;
+                ASSERT_NE((void*) 0, ht.Get(key));
+                ASSERT_EQ(iter->second, *ht.Get(key));
+            }
+        }
+    }
+}
+
 TEST(HashTable, Performance)
 {
     const int N = 0xffff-1;

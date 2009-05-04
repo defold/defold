@@ -286,25 +286,17 @@ private:
         uint16_t bucket_index = key % m_HashTableSize;
         uint16_t bucket = m_HashTable[bucket_index];
 
-        // Empty list?
-        if (bucket == 0xffff)
+        uint16_t entry_ptr = bucket;
+        while (entry_ptr != 0xffff)
         {
-            return 0;
-        }
-        else
-        {
-            uint16_t entry_ptr = bucket;
-            while (entry_ptr != 0xffff)
+            Entry* e = &m_InitialEntries[entry_ptr];
+            if (e->m_Key == key)
             {
-                Entry* e = &m_InitialEntries[entry_ptr];
-                if (e->m_Key == key)
-                {
-                    return e;
-                }
-                entry_ptr = e->m_Next;
+                return e;
             }
-            return 0;
+            entry_ptr = e->m_Next;
         }
+        return 0;
     }
 
     Entry* AllocateEntry()
@@ -320,16 +312,7 @@ private:
             assert(m_FreeEntries != 0xffff && "No free entries in hashtable");
 
             Entry*ret = &m_InitialEntries[m_FreeEntries];
-
-            // Last free?
-            if (ret->m_Next == 0xffff)
-            {
-                m_FreeEntries = 0xffff;
-            }
-            else
-            {
-                m_FreeEntries = ret->m_Next;
-            }
+            m_FreeEntries = ret->m_Next;
 
             return ret;
         }
