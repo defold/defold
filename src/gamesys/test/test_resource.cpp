@@ -4,6 +4,22 @@
 #include "gamesys/resource.h"
 #include "gamesys/test/test_resource_ddf.h"
 
+class ResourceTest : public ::testing::Test
+{
+protected:
+    virtual void SetUp()
+    {
+        factory = Resource::NewFactory(16, ".");
+    }
+
+    virtual void TearDown()
+    {
+        Resource::DeleteFactory(factory);
+    }
+
+    Resource::HFactory factory;
+};
+
 Resource::CreateError DummyCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
 {
     return Resource::CREATE_ERROR_OK;
@@ -14,10 +30,8 @@ Resource::CreateError DummyDestroy(Resource::HFactory factory, void* context, Re
     return Resource::CREATE_ERROR_OK;
 }
 
-TEST(Resource, RegisterType)
+TEST_F(ResourceTest, RegisterType)
 {
-    Resource::HFactory factory = Resource::NewFactory(16, ".");
-
     Resource::FactoryError e;
 
     // Test create/destroy function == 0
@@ -35,14 +49,10 @@ TEST(Resource, RegisterType)
     // Test already registred
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
     ASSERT_EQ(Resource::FACTORY_ERROR_ALREADY_REGISTRED, e);
-
-    Resource::DeleteFactory(factory);
 }
 
-TEST(Resource, NotFound)
+TEST_F(ResourceTest, NotFound)
 {
-    Resource::HFactory factory = Resource::NewFactory(16, ".");
-
     Resource::FactoryError e;
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
     ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
@@ -51,22 +61,16 @@ TEST(Resource, NotFound)
     e = Resource::Get(factory, "DOES_NOT_EXISTS.foo", &resource);
     ASSERT_EQ(Resource::FACTORY_ERROR_RESOURCE_NOT_FOUND, e);
     ASSERT_EQ((void*) 0, resource);
-
-    Resource::DeleteFactory(factory);
 }
 
-TEST(Resource, UnknwonResourceType)
+TEST_F(ResourceTest, UnknwonResourceType)
 {
-    Resource::HFactory factory = Resource::NewFactory(16, ".");
-
     Resource::FactoryError e;
 
     void* resource = (void*) 0;
     e = Resource::Get(factory, "build/default/src/gamesys/test/test.testresourcecont", &resource);
     ASSERT_EQ(Resource::FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE, e);
     ASSERT_EQ((void*) 0, resource);
-
-    Resource::DeleteFactory(factory);
 }
 
 // Loaded version (in-game) of ResourceContainerDesc
@@ -101,9 +105,8 @@ Resource::CreateError TestResourceDestroy(Resource::HFactory factory, void* cont
     return Resource::CREATE_ERROR_OK;
 }
 
-TEST(Resource, GetTestResource)
+TEST_F(ResourceTest, GetTestResource)
 {
-    Resource::HFactory factory = Resource::NewFactory(16, ".");
     Resource::FactoryError e;
 
     e = Resource::RegisterType(factory, "testresourcecont", 0, &TestResourceCreate, &TestResourceDestroy);
@@ -116,8 +119,6 @@ TEST(Resource, GetTestResource)
 
     TestResourceContainer* test_resource_cont = (TestResourceContainer*) resource;
     ASSERT_EQ(HashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
-
-    Resource::DeleteFactory(factory);
 }
 
 int main(int argc, char **argv)
