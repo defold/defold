@@ -9,4 +9,12 @@ def build(bld):
 
     test_hashtable.install_path = None
 
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_dlib.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_dlib')
+
+    test_dlib.install_path = None
 
