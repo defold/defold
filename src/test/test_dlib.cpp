@@ -8,7 +8,7 @@ TEST(dlib, Hash)
     uint64_t h2 = HashBuffer64("foo", 3);
 
     ASSERT_EQ(0xe18f6896, h1);
-    ASSERT_EQ(0x68bf54180bc9f0b5LL, h2);
+    ASSERT_EQ(0xe18f6896a8365dfbLL, h2);
 }
 
 int main(int argc, char **argv)
