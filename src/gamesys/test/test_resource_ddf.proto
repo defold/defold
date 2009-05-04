@@ -1,0 +1,7 @@
+package TestResource;
+
+message ResourceContainerDesc
+{
+    required string Name = 1;
+    repeated string Resources = 2;
+}

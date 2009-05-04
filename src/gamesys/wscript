@@ -1,0 +1,12 @@
+def configure(conf):
+    pass
+
+def build(bld):
+    resource = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = '.',
+                           proto_gen_py = True,
+                           target = 'resource')
+    resource.find_sources_in_dirs('.')
+
+    bld.add_subdirs('test')
+

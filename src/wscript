@@ -1,0 +1,7 @@
+def configure(conf):
+    pass
+
+def build(bld):
+    bld.add_subdirs('gamesys')
+    
+

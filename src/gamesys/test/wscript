@@ -1,0 +1,27 @@
+import Task, TaskGen
+from TaskGen import extension
+
+Task.simple_task_type('testresourcecont', 'protoc --encode=TestResource.ResourceContainerDesc -I ../src/gamesys/test ../src/gamesys/test/test_resource_ddf.proto < ${SRC} > ${TGT}',
+                      color='PINK', 
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.testresourcecont_pb')
+def testresourcecont_file(self, node):
+    obj_ext = '.testresourcecont'
+    task = self.create_task('testresourcecont')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+def build(bld):
+    resources = bld.new_task_gen(source = 'test.testresourcecont_pb')
+    
+    test_resource = bld.new_task_gen(features = 'cxx cprogram',
+                                     uselib = 'GTEST DLIB DDF',
+                                     uselib_local = 'resource',
+                                     proto_gen_py = True,
+                                     target = 'test_resource')
+
+    test_resource.find_sources_in_dirs('.')
+    test_resource.install_path = None

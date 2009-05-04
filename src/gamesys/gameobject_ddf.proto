@@ -1,0 +1,8 @@
+message GameObjectPrototypeDesc
+{
+    required string Name = 1;
+    required string Mesh = 2;
+    required string Material = 3;
+    required string Script = 4;
+    repeated string Resources = 5;
+}
