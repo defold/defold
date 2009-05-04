@@ -18,6 +18,8 @@ def set_options(opt):
     opt.tool_options('compiler_cxx')
 
 def configure(conf):
+    waf_ddf.configure(conf)
+    
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
@@ -39,21 +41,11 @@ def configure(conf):
     if platform == "linux":
         conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
 
-#    if platform == "darwin":
-#        conf.env.append_value('CXXFLAGS','-framework GLUT -framework GL')
-
     if os.getenv('PYTHONPATH'):
         if sys.platform == "win32":
             ddf_search_lst = os.getenv('PYTHONPATH').split(';')
         else:
             ddf_search_lst = os.getenv('PYTHONPATH').split(':')
-
-    for d in ddf_search_lst:
-        if os.path.isfile(os.path.join(d, "ddf.py")):
-            conf.env['DDF_PY'] = os.path.abspath(os.path.join(d, "ddf.py"))
-
-    if not conf.env['DDF_PY']:
-        conf.fatal("ddf.py not found in: " + str(ddf_search_lst))
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
