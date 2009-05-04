@@ -3,11 +3,15 @@
 def build(bld):
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
 
-#       bld.new_task_gen(
-#            features = 'cxx cstaticlib',
-#            source = 'ddf.cpp ddf_inputstream.cpp private/ddf_private.cpp',
-#            target = 'ddf')
+    dlib = bld.new_task_gen(features = 'cxx cstaticlib',
+                            target = 'dlib')
+    dlib.find_sources_in_dirs('dlib')
+
+    dlib = bld.new_task_gen(features = 'cxx cshlib',
+                            target = 'dlib')
+    dlib.find_sources_in_dirs('dlib')
 
 def configure(conf):
     pass
