@@ -4,7 +4,7 @@ def build(bld):
     bld.add_subdirs('ddf')
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
-    bld.install_files('${PREFIX}/lib/python', 'ddf.py')
+    bld.install_files('${PREFIX}/bin', 'ddfc.py')
 
 def configure(conf):
     pass

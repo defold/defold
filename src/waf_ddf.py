@@ -1,7 +1,10 @@
 import Task, TaskGen
 from TaskGen import extension
 
-Task.simple_task_type('bproto', 'python ${DDF_PY} ${ddf_options} ${SRC} -o ${TGT}',
+def configure(conf):
+    conf.find_program('ddfc.py', var='DDFC', mandatory = True)
+
+Task.simple_task_type('bproto', 'python ${DDFC} ${ddf_options} ${SRC} -o ${TGT}',
                       color='PINK', 
                       before='cc cxx',
                       after='proto_b',

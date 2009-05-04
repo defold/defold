@@ -21,13 +21,7 @@ def configure(conf):
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
-    ddf_search_lst = ['src']
-    for d in ddf_search_lst:
-        if os.path.isfile(os.path.join(d, "ddf.py")):
-            conf.env['DDF_PY'] = os.path.abspath(os.path.join(d, "ddf.py"))
-
-    if not conf.env['DDF_PY']:
-        conf.fatal("ddf.py not found in: " + str(ddf_search_lst))
+    conf.find_program('ddfc.py', var='DDFC', path_list = [os.path.abspath('src')], mandatory = True)
 
     if sys.platform == "darwin":
         platform = "darwin"
