@@ -29,9 +29,12 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('src')
     
-import Build
+import Build, Options
 import os, subprocess
 def shutdown():
+    if not Options.commands['build']:
+        return
+
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and t.uselib.find("GTEST") != -1:
             output = t.path
