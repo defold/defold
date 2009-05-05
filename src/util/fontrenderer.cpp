@@ -134,7 +134,7 @@ void FontRendererFlush(HFontRenderer renderer)
 
     GFXSetTexture(context, renderer->m_Texture);
 
-    GFXSetBlendFunc(GFX_BLEND_FACTOR_SRC_ALPHA, GFX_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+    GFXSetBlendFunc(context, GFX_BLEND_FACTOR_SRC_ALPHA, GFX_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     GFXDisableState(context, GFX_DEPTH_TEST);
     GFXEnableState(context, GFX_BLEND);
 
