@@ -22,6 +22,8 @@
  *    a canonical path to hash value. This functionality is used in the GetDescriptor function.
  *
  *  - If GetCanonicalPath exceeds RESOURCE_PATH_MAX PATH_TOO_LONG should be returned.
+ *
+ *  - Handle out of resources. Eg Hashtables full.
  */
 
 namespace Resource
@@ -43,21 +45,26 @@ struct SResourceType
 // m_ResourcePath concatenated with relative path
 const uint32_t RESOURCE_PATH_MAX = 1024;
 
+const uint32_t MAX_RESOURCE_TYPES = 128;
+
 struct SResourceFactory
 {
+    // TODO: Arg... budget. Two hash-maps. Really necessary?
     THashTable<uint64_t, SResourceDescriptor>*   m_Resources;
-    std::vector<SResourceType>                   m_ResourceTypes;
+    THashTable<uintptr_t, uint64_t>*             m_ResourceToHash;
+    SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
+    uint32_t                                     m_ResourceTypesCount;
     char                                         m_ResourcePath[RESOURCE_PATH_MAX];
 };
 
 static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
-    std::vector<SResourceType>::iterator i;
-    for (i = factory->m_ResourceTypes.begin(); i != factory->m_ResourceTypes.end(); ++i)
+    for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
     {
-        if (strcmp(extension, i->m_Extension) == 0)
+        SResourceType* rt = &factory->m_ResourceTypes[i];
+        if (strcmp(extension, rt->m_Extension) == 0)
         {
-            return &(*i);
+            return rt;
         }
     }
     return 0;
@@ -86,9 +93,14 @@ static void GetCanonicalPath(const char* base_dir, const char* relative_dir, cha
 HFactory NewFactory(uint32_t max_resources, const char* resource_path)
 {
     SResourceFactory* factory = new SResourceFactory;
+    factory->m_ResourceTypesCount = 0;
 
-    factory->m_Resources = new THashTable<uint64_t, SResourceDescriptor>((3 *max_resources) / 4);
+    const uint32_t table_size = (3 *max_resources) / 4;
+    factory->m_Resources = new THashTable<uint64_t, SResourceDescriptor>(table_size);
     factory->m_Resources->SetCapacity(max_resources);
+
+    factory->m_ResourceToHash = new THashTable<uintptr_t, uint64_t>(table_size);
+    factory->m_ResourceToHash->SetCapacity(max_resources);
 
     strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
     factory->m_ResourcePath[RESOURCE_PATH_MAX-1] = '\0';
@@ -97,6 +109,7 @@ HFactory NewFactory(uint32_t max_resources, const char* resource_path)
 void DeleteFactory(HFactory factory)
 {
     delete factory->m_Resources;
+    delete factory->m_ResourceToHash;
     delete factory;
 }
 
@@ -106,6 +119,9 @@ FactoryError RegisterType(HFactory factory,
                            FResourceCreate create_function,
                            FResourceDestroy destroy_function)
 {
+    if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
+        return FACTORY_ERROR_OUT_OF_RESOURCES;
+
     // Dots not allowed in extension
     if (strrchr(extension, '.') != 0)
         return FACTORY_ERROR_INVAL;
@@ -114,7 +130,7 @@ FactoryError RegisterType(HFactory factory,
         return FACTORY_ERROR_INVAL;
 
     if (FindResourceType(factory, extension) != 0)
-            return FACTORY_ERROR_ALREADY_REGISTRED;
+        return FACTORY_ERROR_ALREADY_REGISTRED;
 
     SResourceType resource_type;
     resource_type.m_Extension = extension;
@@ -122,7 +138,7 @@ FactoryError RegisterType(HFactory factory,
     resource_type.m_CreateFunction = create_function;
     resource_type.m_DestroyFunction = destroy_function;
 
-    factory->m_ResourceTypes.push_back(resource_type);
+    factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
     return FACTORY_ERROR_OK;
 }
@@ -154,6 +170,15 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
 #endif
 
     uint64_t canonical_path_hash = HashBuffer64(canonical_path, strlen(canonical_path));
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+    if (rd)
+    {
+        assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
+        rd->m_ReferenceCount++;
+        *resource = rd->m_Resource;
+        return FACTORY_ERROR_OK;
+    }
 
     const char* ext = strrchr(name, '.');
     if (ext)
@@ -192,14 +217,18 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
         tmp_resource.m_NameHash = canonical_path_hash;
+        tmp_resource.m_ReferenceCount = 1;
+        tmp_resource.m_ResourceType = (void*) resource_type;
 
         CreateError create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource);
+        assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
         free(buffer);
         fclose(f);
 
         if (create_error == CREATE_ERROR_OK)
         {
             factory->m_Resources->Put(canonical_path_hash, tmp_resource);
+            factory->m_ResourceToHash->Put((uintptr_t) tmp_resource.m_Resource, canonical_path_hash);
             *resource = tmp_resource.m_Resource;
             return FACTORY_ERROR_OK;
         }
@@ -234,6 +263,27 @@ FactoryError GetDescriptor(HFactory factory, const char* name, SResourceDescript
         return FACTORY_ERROR_NOT_LOADED;
     }
 }
+
+void Release(HFactory factory, void* resource)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    assert(rd->m_ReferenceCount > 0);
+    rd->m_ReferenceCount--;
+
+    if (rd->m_ReferenceCount == 0)
+    {
+        SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+        resource_type->m_DestroyFunction(factory, resource_type->m_Context, rd);
+
+        factory->m_ResourceToHash->Erase((uintptr_t) resource);
+        factory->m_Resources->Erase(*resource_hash);
+    }
+}
+
 
 }
 

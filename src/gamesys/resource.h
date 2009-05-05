@@ -33,6 +33,7 @@ namespace Resource
         FACTORY_ERROR_OUT_OF_MEMORY             = 9,
         FACTORY_ERROR_IO_ERROR                  = 10,
         FACTORY_ERROR_NOT_LOADED                = 11,
+        FACTORY_ERROR_OUT_OF_RESOURCES          = 12,
     };
 
     enum Kind
@@ -41,19 +42,30 @@ namespace Resource
         KIND_POINTER,
     };
 
+    /// Resource descriptor
     struct SResourceDescriptor
     {
+        /// Hash of resource name
         uint64_t        m_NameHash;
+
+        /// Resource kind
         Kind            m_ResourceKind;
 
+        /// Union of DDF descriptor and resource name
         union
         {
             SDDFDescriptor*  m_Descriptor;
             const char*      m_ResourceTypeName;
         };
 
+        /// Resource pointer. Must be unique and not NULL.
         void*           m_Resource;
+
+        /// Reference count
         uint32_t        m_ReferenceCount;
+
+        /// For internal use only
+        void*           m_ResourceType; // For internal use.
     };
 
     typedef struct SResourceFactory* HFactory;
@@ -88,7 +100,7 @@ namespace Resource
 
     FactoryError    GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
-    void            Release(HFactory factory, SResourceDescriptor* resource);
+    void            Release(HFactory factory, void* resource);
 }
 
 #endif // RESOURCE_H

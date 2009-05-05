@@ -18,6 +18,7 @@ def build(bld):
     resources = bld.new_task_gen(source = 'test.testresourcecont_pb')
     
     test_resource = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src',
                                      uselib = 'GTEST DLIB DDF',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
