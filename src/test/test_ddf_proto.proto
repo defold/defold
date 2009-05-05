@@ -16,6 +16,12 @@ message ScalarTypes
     required string String = 7;
 }
 
+enum TestEnum
+{
+    TestEnumVal1 = 10;
+    TestEnumVal2 = 20;
+}
+
 message NestedType
 {
     message TheNestedType

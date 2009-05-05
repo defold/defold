@@ -7,6 +7,21 @@
 
 struct SDDFDescriptor;
 
+struct SDDFEnumValueDescriptor
+{
+    const char*     m_Name;
+    int32_t         m_Value;
+};
+
+struct SDDFEnumDescriptor
+{
+    uint16_t                 m_MajorVersion;
+    uint16_t                 m_MinorVersion;
+    const char*              m_Name;
+    SDDFEnumValueDescriptor* m_EnumValues;
+    uint8_t                  m_EnumValueCount;
+};
+
 struct SDDFFieldDescriptor
 {
     const char*     m_Name;
@@ -19,6 +34,8 @@ struct SDDFFieldDescriptor
 
 struct SDDFDescriptor
 {
+    uint16_t             m_MajorVersion;
+    uint16_t             m_MinorVersion;
     const char*          m_Name;
     uint32_t             m_Size;
     SDDFFieldDescriptor* m_Fields;
@@ -68,10 +85,11 @@ enum DDFType
 
 enum DDFError
 {
-    DDF_ERROR_OK = 0, 
-    DDF_ERROR_FIELDTYPE_MISMATCH = 1, 
+    DDF_ERROR_OK = 0,
+    DDF_ERROR_FIELDTYPE_MISMATCH = 1,
     DDF_ERROR_WIRE_FORMAT = 2,
     DDF_ERROR_IO_ERROR = 3,
+    DDF_ERROR_VERSION_MISMATCH = 4,
     DDF_ERROR_INTERNAL_ERROR = 1000,
 };
 
@@ -101,6 +119,23 @@ DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDesc
  * @return Pointer to message
  */
 DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* desc, void** message);
+
+/**
+ * Get enum for value for name. NOTE: Using the function for undefined values is undefined and
+ * considered as a fatal run-time error.
+ * @param desc Enum descriptor
+ * @param name Enum name
+ * @return Enum value
+ */
+int32_t      DDFGetEnumValue(const SDDFEnumDescriptor* desc, const char* name);
+
+/**
+ * Get <b>*first*</b> enum name for value.
+ * @param desc Descriptor
+ * @param value Value to get name for
+ * @return Enum name. NULL if none found.
+ */
+const char*  DDFGetEnumName(const SDDFEnumDescriptor* desc, int32_t value);
 
 void DDFFreeMessage(void* message);
 

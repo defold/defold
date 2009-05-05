@@ -6,6 +6,9 @@ from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
 from google.protobuf.descriptor_pb2 import FieldDescriptorProto
 
+DDF_MAJOR_VERSION=1
+DDF_MINOR_VERSION=0
+
 DDF_POINTER_SIZE = 4
 
 type_to_ctype = { FieldDescriptor.TYPE_DOUBLE : "double",
@@ -166,10 +169,35 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.End()
 
     pp_cpp.Begin("SDDFDescriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
+    pp_cpp.Print('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.Print('"%s",', message_type.name)
     pp_cpp.Print('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFFieldDescriptor),', namespace, message_type.name)
+    pp_cpp.End()
+
+def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
+    namespace = "_".join(namespace_lst)
+
+    pp_h.Print("extern SDDFEnumDescriptor %s_%s_DESCRIPTOR;", namespace, enum_type.name)
+
+    lst = []
+    for f in enum_type.value:
+        tpl = (f.name, f.number)
+        lst.append(tpl)
+
+    pp_cpp.Begin("SDDFEnumValueDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, enum_type.name)
+
+    for name, number in lst:
+        pp_cpp.Print('{ "%s", %d },'  % (name, number))
+
+    pp_cpp.End()
+
+    pp_cpp.Begin("SDDFEnumDescriptor %s_%s_DESCRIPTOR = ", namespace, enum_type.name)
+    pp_cpp.Print('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
+    pp_cpp.Print('"%s",', enum_type.name)
+    pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, enum_type.name)
+    pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFEnumValueDescriptor),', namespace, enum_type.name)
     pp_cpp.End()
 
 def Compile(input_file, output_dir, namespace):
@@ -221,6 +249,9 @@ def Compile(input_file, output_dir, namespace):
         pp_cpp.Begin("namespace %s",  namespace)
 
     pp_h.Print("#ifdef DDF_EXPOSE_DESCRIPTORS")
+
+    for mt in file_desc.enum_type:
+        ToEnumDescriptor(pp_cpp, pp_h, mt, [file_desc.package])
 
     for mt in file_desc.message_type:
         ToDescriptor(pp_cpp, pp_h, mt, [file_desc.package])

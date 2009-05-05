@@ -8,6 +8,7 @@
 #include "ddf_inputbuffer.h"
 #include "ddf_load.h"
 #include "ddf_util.h"
+#include "config.h"
 
 // TODO:
 // Required fields...
@@ -64,7 +65,7 @@ static DDFError DDFCalculateRepeated(CDDFLoadContext* load_context, CDDFInputBuf
                     {
                         return DDF_ERROR_WIRE_FORMAT;
                     }
-                    
+
                     DDFError e = DDFCalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
                     #else
                     CDDFInputBuffer sub_ib = ib;
@@ -89,6 +90,9 @@ DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDesc
     assert(buffer);
     assert(desc);
     assert(out_message);
+
+    if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
+        return DDF_ERROR_VERSION_MISMATCH;
 
     CDDFLoadContext load_context(0, 0, true);
     CDDFMessage dry_message = load_context.AllocMessage(desc);
@@ -120,7 +124,7 @@ DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDesc
         free((void*) message_buffer);
         *out_message = 0;
     }
-    return e;    
+    return e;
 }
 
 DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* desc, void** message)
@@ -156,6 +160,38 @@ DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* des
     {
         return DDF_ERROR_IO_ERROR;
     }
+}
+
+int32_t DDFGetEnumValue(const SDDFEnumDescriptor* desc, const char* name)
+{
+    assert(desc);
+    assert(name);
+
+    uint32_t n = desc->m_EnumValueCount;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        if (strcmp(name, desc->m_EnumValues[i].m_Name) == 0)
+        {
+            return desc->m_EnumValues[i].m_Value;
+        }
+    }
+
+    assert(false);
+    return INT32_MIN;
+}
+
+const char* DDFGetEnumName(const SDDFEnumDescriptor* desc, int32_t value)
+{
+    uint32_t n = desc->m_EnumValueCount;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        if (desc->m_EnumValues[i].m_Value == value)
+        {
+            return desc->m_EnumValues[i].m_Name;
+        }
+    }
+
+    return 0;
 }
 
 void DDFFreeMessage(void* message)

@@ -1,12 +1,15 @@
 #! /usr/bin/env python
 
-VERSION='0.1'
+DDF_MAJOR_VERSION=1
+DDF_MINOR_VERSION=0
+
+VERSION='%d.%d' % (DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
 APPNAME='ddf'
 
 srcdir = '.'
 blddir = 'build'
 
-import os, sys
+import os, sys, re
 sys.path = ["src"] + sys.path
 import waf_ddf, waf_dynamo
 
@@ -18,6 +21,18 @@ def set_options(opt):
     opt.tool_options('compiler_cxx')
 
 def configure(conf):
+    # Replace version number in python file.
+    ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'rb').read()
+    ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, ddfc_py_str)
+    ddfc_py_str = re.sub('DDF_MINOR_VERSION=(\d*)', 'DDF_MINOR_VERSION=%d' % DDF_MINOR_VERSION, ddfc_py_str)
+    if ddfc_py_str != ddfc_py_str_orig:
+        open('src/ddfc.py', 'wb').write(ddfc_py_str)
+
+    # Create config.h with version numbers
+    conf.define('DDF_MAJOR_VERSION', DDF_MAJOR_VERSION)
+    conf.define('DDF_MINOR_VERSION', DDF_MINOR_VERSION)
+    conf.write_config_header('config.h')
+
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
