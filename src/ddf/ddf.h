@@ -121,8 +121,7 @@ DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDesc
 DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* desc, void** message);
 
 /**
- * Get enum for value for name. NOTE: Using the function for undefined values is undefined and
- * considered as a fatal run-time error.
+ * Get enum value for name. NOTE: Using this function for undefined names is considered as a fatal run-time error.
  * @param desc Enum descriptor
  * @param name Enum name
  * @return Enum value
