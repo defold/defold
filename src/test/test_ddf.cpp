@@ -23,8 +23,8 @@
  */
 
 #define DDF_EXPOSE_DESCRIPTORS
-#include "default/src/test/test_ddf_proto.h"  // TODO: Path-hack!
-#include "default/src/test/test_ddf_proto.pb.h"  // TODO: Path-hack!
+#include "test/test_ddf_proto.h"
+#include "test/test_ddf_proto.pb.h"
 
 enum MyEnum
 {

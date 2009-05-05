@@ -8,7 +8,7 @@ blddir = 'build'
 
 import os, sys
 sys.path = ["src"] + sys.path
-import waf_ddf
+import waf_ddf, waf_dynamo
 
 def init():
     pass
@@ -22,6 +22,8 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.find_program('ddfc.py', var='DDFC', path_list = [os.path.abspath('src')], mandatory = True)
+
+    waf_dynamo.configure(conf)
 
     if sys.platform == "darwin":
         platform = "darwin"
@@ -38,21 +40,11 @@ def configure(conf):
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
         conf.env.append_value('CPPPATH', "../src/win32")
 
-
-    dynamo_home = os.getenv('DYNAMO_HOME')
-    if not dynamo_home:
-        conf.fatal("DYNAMO_HOME not set")
-
-    dynamo_ext = os.path.join(dynamo_home, "ext")
-    # TODO: WTF!!
-    conf.env.append_value('CPPPATH', "../src")
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
-    conf.env.append_value('CPPPATH', ".")
-    conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
-
     conf.env['LIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
 
 def build(bld):
     bld.add_subdirs('src')
 
+def shutdown():
+    waf_dynamo.run_gtests()

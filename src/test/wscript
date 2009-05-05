@@ -30,6 +30,6 @@ def build(bld):
                      ddf_namespace = 'DUMMY',
                      proto_gen_cc = True,
                      proto_compile_cc = True,
-                     includes = '${blddir}',
+                     includes = '..',
                      target = 'test_ddf')
 
