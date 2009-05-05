@@ -4,7 +4,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
-#include <graphics/graphics_device.h>
+#include "graphics_device.h"
 
 #include "default/proto/graphics_util_ddf.h"
 
