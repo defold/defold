@@ -1,4 +1,16 @@
-import os, sys
+import os, sys, subprocess
+import Build, Options
+ 
+def run_gtests():
+    if not Options.commands['build']:
+        return
+
+    for t in  Build.bld.all_task_gen:
+        if hasattr(t, 'uselib') and t.uselib.find("GTEST") != -1:
+            output = t.path
+            filename = os.path.join(output.abspath(t.env), t.target)
+            proc = subprocess.Popen(filename)
+            proc.wait()
 
 def configure(conf):
     dynamo_home = os.getenv('DYNAMO_HOME')
@@ -22,12 +34,9 @@ def configure(conf):
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
         conf.env.append_value('LINKFLAGS', '/DEBUG')
 
-    # TODO: WTF!!
-    conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
-    conf.env.append_value('CPPPATH', ".")
 
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
