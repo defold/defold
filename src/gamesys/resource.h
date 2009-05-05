@@ -29,11 +29,11 @@ namespace Resource
         FACTORY_ERROR_ALREADY_REGISTRED         = 5,
         FACTORY_ERROR_INVAL                     = 6,
         FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE     = 7,
-        FACTORY_ERROR_UNKNOWN                   = 8,
-        FACTORY_ERROR_OUT_OF_MEMORY             = 9,
-        FACTORY_ERROR_IO_ERROR                  = 10,
-        FACTORY_ERROR_NOT_LOADED                = 11,
-        FACTORY_ERROR_OUT_OF_RESOURCES          = 12,
+        FACTORY_ERROR_OUT_OF_MEMORY             = 8,
+        FACTORY_ERROR_IO_ERROR                  = 9,
+        FACTORY_ERROR_NOT_LOADED                = 10,
+        FACTORY_ERROR_OUT_OF_RESOURCES          = 11,
+        FACTORY_ERROR_UNKNOWN                   = 1000,
     };
 
     enum Kind
