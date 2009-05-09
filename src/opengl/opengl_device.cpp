@@ -307,3 +307,8 @@ void GFXSetBlendFunc(GFXHContext context, GFXBlendFactor source_factor, GFXBlend
     glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
 }
 
+void GFXSetDepthMask(GFXHContext context, bool mask)
+{
+    assert(context);
+    glDepthMask(mask);
+}

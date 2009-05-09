@@ -130,6 +130,7 @@ void GFXSetViewport(GFXHContext context, int width, int height);
 void GFXEnableState(GFXHContext context, GFXRenderState state);
 void GFXDisableState(GFXHContext context, GFXRenderState state);
 void GFXSetBlendFunc(GFXHContext context, GFXBlendFactor source_factor, GFXBlendFactor destinaton_factor);
+void GFXSetDepthMask(GFXHContext context, bool mask);
 
 GFXHTexture GFXCreateTexture(uint32_t width, uint32_t height, GFXTextureFormat texture_format);
 
