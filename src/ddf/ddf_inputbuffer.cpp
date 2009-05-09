@@ -96,7 +96,7 @@ bool CDDFInputBuffer::ReadVarInt64(uint64_t* value)
 
 bool CDDFInputBuffer::ReadFixed32(uint32_t *value)
 {
-    if (m_End - m_Current <= 4)
+    if (m_End - m_Current < 4)
         return false;
 
     char*p = (char*) value;
@@ -115,7 +115,7 @@ bool CDDFInputBuffer::ReadFixed32(uint32_t *value)
 
 bool CDDFInputBuffer::ReadFixed64(uint64_t *value)
 {
-    if (m_End - m_Current <= 8)
+    if (m_End - m_Current < 8)
         return false;
 
     char*p = (char*) value;
@@ -241,7 +241,7 @@ bool CDDFInputBuffer::SubBuffer(uint32_t length, CDDFInputBuffer* sub_buffer)
     return CDDFInputBuffer(c, length);
 #else
     CDDFInputBuffer ret = CDDFInputBuffer(m_Start, m_End - m_Start);
-    // NOTE: Very important to preserve start. Tell() is used to 
+    // NOTE: Very important to preserve start. Tell() is used to
     // uniquely identify repeated fields. See function DDFCalculateRepeated(.)
     ret.m_Start = m_Start;
     ret.m_Current = m_Current;

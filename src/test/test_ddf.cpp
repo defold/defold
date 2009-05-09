@@ -412,7 +412,6 @@ TEST(NestedArray, Load)
     DDFFreeMessage(message);
 }
 
-
 TEST(Bytes, Load)
 {
     TestDDF::Bytes bytes;
@@ -430,6 +429,44 @@ TEST(Bytes, Load)
     ASSERT_EQ('f', msg->m_data[0]);
     ASSERT_EQ('o', msg->m_data[1]);
     ASSERT_EQ('o', msg->m_data[2]);
+
+    DDFFreeMessage(message);
+}
+
+TEST(Material, Load)
+{
+    TestDDF::MaterialDesc material_desc;
+    material_desc.set_name("Simple");
+    material_desc.set_fragmentprogram("simple");
+    material_desc.set_vertexprogram("simple");
+    TestDDF::MaterialDesc_Parameter* p =  material_desc.add_fragmentparameters();
+    p->set_name("color");
+    p->set_type(TestDDF::MaterialDesc_ParameterType_VECTOR3);
+    p->set_semantic(TestDDF::MaterialDesc_ParameterSemantic_COLOR);
+    p->set_register_(0);
+    p->mutable_value()->set_x(0.2);
+    p->mutable_value()->set_y(0);
+    p->mutable_value()->set_z(0.5);
+    p->mutable_value()->set_w(0);
+
+    std::string msg_str = material_desc.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    DUMMY::TestDDF::MaterialDesc* message;
+
+    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+
+    ASSERT_STREQ(material_desc.name().c_str(), message->m_Name );
+    ASSERT_STREQ(material_desc.vertexprogram().c_str(), message->m_VertexProgram );
+    ASSERT_STREQ(material_desc.fragmentparameters(0).name().c_str(), message->m_FragmentParameters[0].m_Name);
+    ASSERT_EQ((uint32_t) material_desc.fragmentparameters(0).type(), (uint32_t) message->m_FragmentParameters[0].m_Type);
+    ASSERT_EQ((uint32_t) material_desc.fragmentparameters(0).semantic(), (uint32_t) message->m_FragmentParameters[0].m_Semantic);
+    ASSERT_EQ((uint32_t) material_desc.fragmentparameters(0).register_(), (uint32_t) message->m_FragmentParameters[0].m_Register);
+    ASSERT_EQ(material_desc.fragmentparameters(0).value().x(), message->m_FragmentParameters[0].m_Value.m_x);
+    ASSERT_EQ(material_desc.fragmentparameters(0).value().y(), message->m_FragmentParameters[0].m_Value.m_y);
+    ASSERT_EQ(material_desc.fragmentparameters(0).value().z(), message->m_FragmentParameters[0].m_Value.m_z);
+    ASSERT_EQ(material_desc.fragmentparameters(0).value().w(), message->m_FragmentParameters[0].m_Value.m_w);
 
     DDFFreeMessage(message);
 }
