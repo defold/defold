@@ -8,5 +8,5 @@ set PYTHONPATH=%DYNAMO_HOME%/lib/python;%DYNAMO_HOME%/ext/lib/python
 
 call "%VS90COMNTOOLS%\vsvars32.bat"
 
-"C:\Program Files\Git\bin\sh.exe" --login -i
 
+"C:\Program Files\Git\bin\sh.exe" --login -i
