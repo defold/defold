@@ -36,7 +36,7 @@ def configure(conf):
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
-    conf.find_program('ddfc.py', var='DDFC', path_list = [os.path.abspath('src')], mandatory = True)
+    conf.find_file('ddfc.py', var='DDFC', path_list = [os.path.abspath('src')], mandatory = True)
 
     waf_dynamo.configure(conf)
 
