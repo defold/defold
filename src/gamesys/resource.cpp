@@ -221,12 +221,12 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ResourceType = (void*) resource_type;
 
         CreateError create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource);
-        assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
         free(buffer);
         fclose(f);
 
         if (create_error == CREATE_ERROR_OK)
         {
+            assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
             factory->m_Resources->Put(canonical_path_hash, tmp_resource);
             factory->m_ResourceToHash->Put((uintptr_t) tmp_resource.m_Resource, canonical_path_hash);
             *resource = tmp_resource.m_Resource;
