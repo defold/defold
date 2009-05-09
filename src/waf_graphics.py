@@ -3,8 +3,8 @@ import Task, TaskGen
 from TaskGen import extension
 
 def configure(conf):
-    conf.find_program('ddsc.py', var='DDSC', mandatory = True)
-    conf.find_program('fontc.py', var='FONTC', mandatory = True)
+    conf.find_file('ddsc.py', var='DDSC', mandatory = True)
+    conf.find_file('fontc.py', var='FONTC', mandatory = True)
 
 # TODO: Target filename i .fixmejpg.
 # Waf doesn't seems to like when the source and target have identical extensions...
