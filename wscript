@@ -8,7 +8,7 @@ blddir = 'build'
 
 import os, sys
 
-import waf_ddf
+import waf_ddf, waf_dynamo
 
 def init():
     pass
