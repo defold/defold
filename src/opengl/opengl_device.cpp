@@ -88,22 +88,32 @@ void GFXDraw(GFXHContext context, GFXPrimitiveType primitive_type, int32_t first
 
 void GFXSetVertexStream(GFXHContext context, uint16_t stream, uint16_t size, GFXType type, uint16_t stride, const void* vertex_buffer)
 {
+    assert(context);
+    assert(vertex_buffer);
+
     glEnableVertexAttribArray(stream);
     glVertexAttribPointer(stream, size, type, false, stride, vertex_buffer);
 }
 
 void GFXDisableVertexStream(GFXHContext context, uint16_t stream)
 {
+    assert(context);
+
     glDisableVertexAttribArray(stream);
 }
 
 void GFXDrawElements(GFXHContext context, GFXPrimitiveType prim_type, uint32_t count, GFXType type, const void* index_buffer)
 {
+    assert(context);
+    assert(index_buffer);
+
     glDrawElements(prim_type, count, type, index_buffer);
 }
 
 void GFXDraw(GFXHContext context, GFXPrimitiveType prim_type, uint32_t first, uint32_t count)
 {
+    assert(context);
+
     glDrawArrays(prim_type, first, count);
 }
 
@@ -121,19 +131,24 @@ static uint32_t GFXCreateProgram(GLenum type, const void* program, uint32_t prog
 
 HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_size)
 {
+    assert(program);
+
     return GFXCreateProgram(GL_VERTEX_PROGRAM_ARB, program, program_size);
 }
 
 HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t program_size)
 {
+    assert(program);
+
     return GFXCreateProgram(GL_FRAGMENT_PROGRAM_ARB, program, program_size);
 }
 
-void GFXDestroyVertexProgram(HGFXVertexProgram prog)
+void GFXDestroyVertexProgram(HGFXVertexProgram program)
 {
+    assert(program);
 }
 
-void GFXDestroyFragmentProgram(HGFXFragmentProgram prog)
+void GFXDestroyFragmentProgram(HGFXFragmentProgram program)
 {
 }
 
@@ -145,17 +160,22 @@ static void GFXSetProgram(GLenum type, uint32_t program)
 
 void GFXSetVertexProgram(GFXHContext context, HGFXVertexProgram program)
 {
+    assert(context);
+
     GFXSetProgram(GL_VERTEX_PROGRAM_ARB, program);
 }
 
 void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program)
 {
+    assert(context);
+
     GFXSetProgram(GL_FRAGMENT_PROGRAM_ARB, program);
 }
 
 void GFXSetViewport(GFXHContext context, int width, int height)
 {
     assert(context);
+
     glViewport(0, 0, width, height);
 }
 
@@ -177,16 +197,22 @@ static void GFXSetProgramConstantBlock(GFXHContext context, GLenum type, const V
 
 void GFXSetFragmentConstant(GFXHContext context, const Vector4* data, int base_register)
 {
+    assert(context);
+
     GFXSetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, 1);
 }
 
 void GFXSetVertexConstantBlock(GFXHContext context, const Vector4* data, int base_register, int num_vectors)
 {
+    assert(context);
+
     GFXSetProgramConstantBlock(context, GL_VERTEX_PROGRAM_ARB, data, base_register, num_vectors);
 }
 
 void GFXSetFragmentConstantBlock(GFXHContext context, const Vector4* data, int base_register, int num_vectors)
 {
+    assert(context);
+
     GFXSetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, num_vectors);
 }
 
@@ -281,6 +307,7 @@ void GFXSetTextureData(GFXHTexture texture,
 void GFXDestroyTexture(GFXHTexture t)
 {
     assert(t);
+
     SGFXHTexture* tex = (SGFXHTexture*)t;
 
     delete tex;
@@ -310,5 +337,6 @@ void GFXSetBlendFunc(GFXHContext context, GFXBlendFactor source_factor, GFXBlend
 void GFXSetDepthMask(GFXHContext context, bool mask)
 {
     assert(context);
+
     glDepthMask(mask);
 }
