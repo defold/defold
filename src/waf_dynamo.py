@@ -1,5 +1,23 @@
 import os, sys, subprocess
-import Build, Options
+import Build, Options, Utils
+from Configure import conf
+
+def do_find_file(file_name, path_list):
+    for directory in Utils.to_list(path_list):
+        found_file_name = os.path.join(directory,file_name)
+        if os.path.exists(found_file_name):
+            return found_file_name
+
+@conf
+def find_file(self, file_name, path_list, var = None, mandatory = False):
+    ret = do_find_file(file_name, path_list)
+    self.check_message('file', file_name, ret, ret)
+    if var: self.env[var] = ret
+
+    if not ret and mandatory:
+        self.fatal('The file %s could not be found' % file_name)
+
+    return ret
  
 def run_gtests():
     if not Options.commands['build']:
