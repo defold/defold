@@ -115,6 +115,8 @@ void GFXDraw(GFXHContext context, GFXPrimitiveType prim_type, uint32_t first, ui
 
 HGFXVertexProgram GFXCreateVertexProgram(const void* program, uint32_t program_size);
 HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t program_size);
+void GFXDestroyVertexProgram(HGFXVertexProgram prog);
+void GFXDestroyFragmentProgram(HGFXFragmentProgram prog);
 void GFXSetVertexProgram(GFXHContext context, HGFXVertexProgram program);
 void GFXSetFragmentProgram(GFXHContext context, HGFXFragmentProgram program);
 

@@ -129,6 +129,14 @@ HGFXFragmentProgram GFXCreateFragmentProgram(const void* program, uint32_t progr
     return GFXCreateProgram(GL_FRAGMENT_PROGRAM_ARB, program, program_size);
 }
 
+void GFXDestroyVertexProgram(HGFXVertexProgram prog)
+{
+}
+
+void GFXDestroyFragmentProgram(HGFXFragmentProgram prog)
+{
+}
+
 static void GFXSetProgram(GLenum type, uint32_t program)
 {
     glEnable(type);
