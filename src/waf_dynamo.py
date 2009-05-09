@@ -9,7 +9,8 @@ def do_find_file(file_name, path_list):
             return found_file_name
 
 @conf
-def find_file(self, file_name, path_list, var = None, mandatory = False):
+def find_file(self, file_name, path_list = [], var = None, mandatory = False):
+    if not path_list: path_list = os.environ['PATH'].split(os.pathsep)
     ret = do_find_file(file_name, path_list)
     self.check_message('file', file_name, ret, ret)
     if var: self.env[var] = ret
