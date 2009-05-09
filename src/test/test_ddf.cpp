@@ -190,14 +190,14 @@ TEST(Enum, Simple)
     ASSERT_EQ(10, DUMMY::TestDDF::TestEnumVal1);
     ASSERT_EQ(20, DUMMY::TestDDF::TestEnumVal2);
 
-    ASSERT_EQ("TestEnumVal1", DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[0].m_Name);
-    ASSERT_EQ("TestEnumVal2", DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[1].m_Name);
+    ASSERT_STREQ("TestEnumVal1", DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[0].m_Name);
+    ASSERT_STREQ("TestEnumVal2", DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[1].m_Name);
 
     ASSERT_EQ(10, DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[0].m_Value);
     ASSERT_EQ(20, DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[1].m_Value);
 
-    ASSERT_EQ("TestEnumVal1", DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 10));
-    ASSERT_EQ("TestEnumVal2", DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 20));
+    ASSERT_STREQ("TestEnumVal1", DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 10));
+    ASSERT_STREQ("TestEnumVal2", DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 20));
     ASSERT_EQ(0, DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, -1));
 
     ASSERT_EQ(10, DDFGetEnumValue(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, "TestEnumVal1"));
