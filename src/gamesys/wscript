@@ -10,3 +10,5 @@ def build(bld):
 
     bld.add_subdirs('test')
 
+
+    bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
