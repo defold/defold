@@ -4,6 +4,7 @@ def build(bld):
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
 
     dlib = bld.new_task_gen(features = 'cxx cstaticlib',
