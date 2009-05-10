@@ -11,6 +11,7 @@
 
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/log.h>
 
 #include "resource.h"
 
@@ -188,12 +189,16 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         SResourceType* resource_type = FindResourceType(factory, ext);
         if (resource_type == 0)
         {
+            LogError("Unknown resource type: %s", ext);
             return FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE;
         }
 
         FILE* f = fopen(canonical_path, "rb");
         if (f == 0)
+        {
+            LogWarning("Resource not found: %s", canonical_path);
             return FACTORY_ERROR_RESOURCE_NOT_FOUND;
+        }
 
         fseek(f, 0, SEEK_END);
         long file_size = ftell(f);
@@ -202,6 +207,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         void* buffer = malloc(file_size);
         if (buffer == 0)
         {
+            LogError("Out of memory: %s", ext);
             return FACTORY_ERROR_OUT_OF_MEMORY;
             fclose(f);
         }
@@ -234,13 +240,13 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         }
         else
         {
+            LogWarning("Unable ot create resource: %s", canonical_path);
             // TODO: Map CreateError to FactoryError here.
             return FACTORY_ERROR_UNKNOWN;
         }
     }
     else
     {
-
         return FACTORY_ERROR_MISSING_FILE_EXTENSION;
     }
 }
