@@ -14,6 +14,7 @@ namespace GameObject
 
     HInstance              New(Resource::HFactory factory, const char* prototype_name);
     void                   Delete(Resource::HFactory factory, HInstance instance);
+    void                   Update(HInstance instance);
 
     Resource::FactoryError RegisterResourceTypes(Resource::HFactory factory);
 

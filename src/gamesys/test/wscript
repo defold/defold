@@ -26,6 +26,32 @@ def testresourcecont_file(self, node):
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
+    
+Task.simple_task_type('gameobjectdesc', 'protoc --encode=GameObject.GameObjectPrototypeDesc -I ../src/gamesys ../src/gamesys/gameobject_ddf.proto < ${SRC} > ${TGT}',
+                      color='PINK', 
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.go_pb')
+def testresourcecont_file(self, node):
+    obj_ext = '.go'
+    task = self.create_task('gameobjectdesc')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
+                      color='PINK', 
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.py')
+def testresourcecont_file(self, node):
+    obj_ext = '.pyscript'
+    task = self.create_task('pyscript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
 
 def build(bld):
     resources = bld.new_task_gen(source = 'test.cont_pb')
@@ -46,7 +72,7 @@ def build(bld):
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
-                                     source = 'test_gameobject.cpp')
+                                     source = 'test_gameobject.cpp goproto01.go_pb script01.py')
 
     test_gameobject.install_path = None
 

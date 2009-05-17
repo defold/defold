@@ -34,7 +34,6 @@ namespace GameObject
 
         ~Instance()
         {
-            delete m_Prototype;
             Py_DECREF(m_Self);
         }
 
@@ -118,7 +117,7 @@ namespace GameObject
         if (ret != Resource::FACTORY_ERROR_OK)
             return ret;
 
-        ret = Resource::RegisterType(factory, "py", 0, &ScriptCreate, &ScriptDestroy);
+        ret = Resource::RegisterType(factory, "pyscript", 0, &ScriptCreate, &ScriptDestroy);
         if (ret != Resource::FACTORY_ERROR_OK)
             return ret;
 
@@ -141,5 +140,14 @@ namespace GameObject
     {
         Resource::Release(factory, instance->m_Prototype);
         delete instance;
+    }
+
+    void Update(HInstance instance)
+    {
+        Prototype* proto = instance->m_Prototype;
+        PyObject* lst = PyTuple_New(1);
+        PyTuple_SetItem(lst, 0, instance->m_Self);
+        Script::Run(proto->m_Script, instance->m_Self, lst);
+        Py_DECREF(lst);
     }
 }
