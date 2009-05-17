@@ -3,6 +3,7 @@
 #include <dlib/hash.h>
 #include "../resource.h"
 #include "../gameobject.h"
+#include "../script.h"
 
 class GameObjectTest : public ::testing::Test
 {
@@ -24,5 +25,7 @@ protected:
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    Script::Initialize();
+    int ret = RUN_ALL_TESTS();
+    Script::DeInitialize();
 }

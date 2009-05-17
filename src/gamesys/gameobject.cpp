@@ -1,12 +1,13 @@
 #include "gameobject.h"
 #include "gameobject_ddf.h"
+#include "script.h"
 
 namespace GameObject
 {
     struct Prototype
     {
-        const char*  m_Name;
-        PyObject*    m_Script;
+        const char*        m_Name;
+        Script::HScript*   m_Script;
 
         #if 0
         HMesh              m_Mesh;
@@ -55,7 +56,7 @@ namespace GameObject
             return Resource::CREATE_ERROR_UNKNOWN;
         }
 
-        PyObject* script;
+        Script::HScript* script;
         Resource::FactoryError fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
         if (fact_e != Resource::FACTORY_ERROR_OK)
         {
@@ -89,10 +90,10 @@ namespace GameObject
                                        const void* buffer, uint32_t buffer_size,
                                        Resource::SResourceDescriptor* resource)
     {
-        PyObject* script = Py_CompileString((const char*) buffer, "<script>", 0);
+        Script::HScript script = Script::New(buffer);
         if (script)
         {
-            resource->m_Resource = (PyObject*) script;
+            resource->m_Resource = (void*) script;
             return Resource::CREATE_ERROR_OK;
         }
         else
@@ -105,7 +106,8 @@ namespace GameObject
                                         void* context,
                                         Resource::SResourceDescriptor* resource)
     {
-        Py_DECREF((PyObject*) resource->m_Resource);
+
+        Script::Delete((Script::HScript) resource->m_Resource);
         return Resource::CREATE_ERROR_OK;
     }
 
