@@ -3,13 +3,13 @@
 
 namespace Script
 {
-    bool NewEngine()
+    bool Initialize()
     {
         Py_Initialize();
         return true;
     }
 
-    bool DeleteEngine()
+    bool DeInitialize()
     {
         Py_Finalize();
         return true;
