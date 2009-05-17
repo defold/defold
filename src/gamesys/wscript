@@ -7,10 +7,11 @@ def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib pyembed',
                            includes = '.',
                            proto_gen_py = True,
-                           target = 'resource')
+                           target = 'gamesys')
     resource.find_sources_in_dirs('.')
 
     bld.add_subdirs('test')
 
 
     bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
+    bld.install_files('${PREFIX}/include/gamesys', 'script.h')
