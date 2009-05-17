@@ -9,7 +9,7 @@ namespace Script
         return true;
     }
 
-    bool DeInitialize()
+    bool Finalize()
     {
         Py_Finalize();
         return true;
@@ -17,25 +17,32 @@ namespace Script
 
     HScript New(const void* memory)
     {
+        assert(memory);
+
+        char* update_func = "Update";
+
         PyObject* obj = Py_CompileString((const char*)memory, "<script>", Py_file_input);
 
-        PyObject* module = PyImport_ExecCodeModule("Update", obj);
+        PyObject* module = PyImport_ExecCodeModule(update_func, obj);
+        PyObject* func = PyObject_GetAttrString(module, update_func);
         Py_DECREF(obj);
+        Py_DECREF(module);
 
-        return (HScript)module;
+        return (HScript)func;
     }
 
     void Delete(HScript script)
     {
+        assert(script);
+
         Py_DECREF((PyObject*) script);
     }
 
     bool Run(HScript script, PyObject* self, PyObject* args)
     {
-        PyObject* module = (PyObject*)script;
+        assert(script);
 
-        PyObject* func = PyObject_GetAttrString(module, "Update");
-        /* pFunc is a new reference */
+        PyObject* func = (PyObject*)script;
 
         if (func && PyCallable_Check(func))
         {

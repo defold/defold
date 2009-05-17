@@ -27,5 +27,5 @@ int main(int argc, char **argv)
     testing::InitGoogleTest(&argc, argv);
     Script::Initialize();
     int ret = RUN_ALL_TESTS();
-    Script::DeInitialize();
+    Script::Finalize();
 }

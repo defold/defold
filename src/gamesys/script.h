@@ -6,7 +6,7 @@ namespace Script
     typedef void* HScript;
 
     bool    Initialize();
-    bool    DeInitialize();
+    bool    Finalize();
 
     HScript New(const void* memory);
     void    Delete(HScript script);
