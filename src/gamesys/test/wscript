@@ -43,7 +43,7 @@ def build(bld):
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
                                      uselib = 'GTEST DLIB DDF',
-                                     uselib_local = 'resource',
+                                     uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
                                      source = 'test_gameobject.cpp')
