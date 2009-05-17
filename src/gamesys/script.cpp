@@ -44,6 +44,7 @@ namespace Script
         if (ErrorOccured() ) return NULL;
 
         PyObject* glob = PyDict_New();
+        PyDict_SetItemString(glob, "__builtins__", PyEval_GetBuiltins());
 
         PyObject* module = PyEval_EvalCode((PyCodeObject*)obj, glob, glob);
         if (ErrorOccured() ) return NULL;
