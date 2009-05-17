@@ -1,4 +1,6 @@
-import sys
+def Init(self):
+    self["Counter"] = 0
+
 def Update(self):
-    print sys.modules.keys()
-    print "Hello script!"    
+    print "Counter", self["Counter"]
+    self["Counter"] += 1

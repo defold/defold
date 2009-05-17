@@ -133,7 +133,22 @@ namespace GameObject
             return 0;
         }
         Instance* instance = new Instance(proto);
-        return instance;
+
+        PyObject* lst = PyTuple_New(1);
+        Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
+        PyTuple_SetItem(lst, 0, instance->m_Self);
+        bool init_ok = Script::Run(proto->m_Script, "Init", instance->m_Self, lst);
+        Py_DECREF(lst);
+
+        if (init_ok)
+        {
+            return instance;
+        }
+        else
+        {
+            Delete(factory, instance);
+            return 0;
+        }
     }
 
     void Delete(Resource::HFactory factory, HInstance instance)
@@ -146,6 +161,7 @@ namespace GameObject
     {
         Prototype* proto = instance->m_Prototype;
         PyObject* lst = PyTuple_New(1);
+        Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
         PyTuple_SetItem(lst, 0, instance->m_Self);
         Script::Run(proto->m_Script, "Update", instance->m_Self, lst);
         Py_DECREF(lst);
