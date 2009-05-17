@@ -4,27 +4,33 @@
 namespace Script
 {
 
-    void CheckErrors()
+    static bool ErrorOccured()
     {
         if ( PyErr_Occurred() )
         {
             PyErr_Print();
             fflush(stderr);
             fflush(stdout);
+
+            return true;
         }
+
+        return false;
     }
 
     bool Initialize()
     {
         Py_Initialize();
-        CheckErrors();
+
+        if (ErrorOccured() ) return false;
+
         return true;
     }
 
     bool Finalize()
     {
         Py_Finalize();
-        CheckErrors();
+
         return true;
     }
 
@@ -32,14 +38,16 @@ namespace Script
     {
         char* update_func = "Update";
 
+        if (memory == NULL) return NULL;
+
         PyObject* obj = Py_CompileString((const char*)memory, "<script>", Py_file_input);
-        CheckErrors();
+        if (ErrorOccured() ) return NULL;
 
         PyObject* module = PyImport_ExecCodeModule(update_func, obj);
-        CheckErrors();
+        if (ErrorOccured() ) return NULL;
 
         PyObject* func = PyObject_GetAttrString(module, update_func);
-        CheckErrors();
+        if (ErrorOccured() ) return NULL;
 
         Py_DECREF(obj);
         Py_DECREF(module);
@@ -56,10 +64,17 @@ namespace Script
     {
         PyObject* func = (PyObject*)script;
 
-        if (func && PyCallable_Check(func))
+        int ret = PyCallable_Check(func);
+        if (ret == 0)
         {
-            PyObject* pValue = PyObject_CallObject(func, args);
+            printf("Error in PyCallable_Check()\n");
+            return false;
         }
+
+        if (ErrorOccured() ) return false;
+
+        PyObject* pValue = PyObject_CallObject(func, args);
+        if (ErrorOccured() ) return false;
 
         return true;
     }

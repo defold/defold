@@ -47,4 +47,7 @@ def shutdown():
             output = t.path
             filename = os.path.join(output.abspath(t.env), t.target)
             proc = subprocess.Popen(filename)
-            proc.wait()
+            ret = proc.wait()
+            if ret != 0:
+                print("test failed %s" %(t.target) )
+                sys.exit(ret)

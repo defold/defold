@@ -49,3 +49,14 @@ def build(bld):
                                      source = 'test_gameobject.cpp')
 
     test_gameobject.install_path = None
+
+    test_script = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src',
+                                     uselib = 'GTEST DLIB DDF',
+                                     uselib_local = 'gamesys',
+                                     proto_gen_py = True,
+                                     target = 'test_script',
+                                     source = 'test_script.cpp')
+
+    test_script.install_path = None
+    

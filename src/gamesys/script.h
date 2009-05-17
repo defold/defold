@@ -1,6 +1,9 @@
 #ifndef __SCRIPT_H__
 #define __SCRIPT_H__
 
+#include <Python.h>
+
+
 namespace Script
 {
     typedef void* HScript;
