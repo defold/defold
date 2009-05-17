@@ -33,22 +33,22 @@ TEST(gamesys, Script)
     PyObject* pArgs;
 
     bool r1, r2;
-    r1 = Script::Run(s2, pArgs, args);
+    r1 = Script::Run(s2, "Update", pArgs, args);
     ASSERT_EQ((int)r1, 1);
 
-    r2 = Script::Run(s3, pArgs, args);
+    r2 = Script::Run(s3, "Update", pArgs, args);
     ASSERT_EQ((int)r2, 1);
 
-    r1 = Script::Run(s2, pArgs, args);
+    r1 = Script::Run(s2, "Update", pArgs, args);
     ASSERT_EQ((int)r1, 1);
 
-    r2 = Script::Run(s3, pArgs, args);
+    r2 = Script::Run(s3, "Update", pArgs, args);
     ASSERT_EQ((int)r2, 1);
 
-    r2 = Script::Run(s3, pArgs, args);
+    r2 = Script::Run(s3, "Update", pArgs, args);
     ASSERT_EQ((int)r2, 1);
 
-    r1 = Script::Run(s2, pArgs, args);
+    r1 = Script::Run(s2, "Update", pArgs, args);
     ASSERT_EQ((int)r1, 1);
 
 }

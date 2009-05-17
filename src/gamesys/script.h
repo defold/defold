@@ -13,7 +13,7 @@ namespace Script
 
     HScript New(const void* memory);
     void    Delete(HScript script);
-    bool    Run(HScript script, PyObject* self, PyObject* args);
+    bool    Run(HScript script, const char* function_name, PyObject* self, PyObject* args);
 }
 
 #endif //__SCRIPT_H__

@@ -147,7 +147,7 @@ namespace GameObject
         Prototype* proto = instance->m_Prototype;
         PyObject* lst = PyTuple_New(1);
         PyTuple_SetItem(lst, 0, instance->m_Self);
-        Script::Run(proto->m_Script, instance->m_Self, lst);
+        Script::Run(proto->m_Script, "Update", instance->m_Self, lst);
         Py_DECREF(lst);
     }
 }

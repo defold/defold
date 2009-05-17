@@ -61,11 +61,11 @@ namespace Script
         Py_DECREF((PyObject*) script);
     }
 
-    bool Run(HScript script, PyObject* self, PyObject* args)
+    bool Run(HScript script, const char* function_name, PyObject* self, PyObject* args)
     {
         PyObject* glob = (PyObject*)script;
 
-        PyObject* func = PyDict_GetItemString (glob, "Update");
+        PyObject* func = PyDict_GetItemString (glob, function_name);
         if (ErrorOccured() ) return NULL;
 
         int ret = PyCallable_Check(func);
