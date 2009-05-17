@@ -1,3 +1,5 @@
+package GameObject;
+
 message GameObjectPrototypeDesc
 {
     required string Name = 1;

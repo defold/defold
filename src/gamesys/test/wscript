@@ -35,7 +35,17 @@ def build(bld):
                                      uselib = 'GTEST DLIB DDF',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
-                                     target = 'test_resource')
+                                     target = 'test_resource',
+                                     source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb')
 
-    test_resource.find_sources_in_dirs('.')
     test_resource.install_path = None
+
+    test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src',
+                                     uselib = 'GTEST DLIB DDF',
+                                     uselib_local = 'resource',
+                                     proto_gen_py = True,
+                                     target = 'test_gameobject',
+                                     source = 'test_gameobject.cpp')
+
+    test_gameobject.install_path = None

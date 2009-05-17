@@ -2,7 +2,6 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
-#include "gamesys/gameobject_ddf.h"
 
 /*
  * Resource types:
@@ -19,6 +18,7 @@
 
 namespace Resource
 {
+    // TODO: Change to result!
     enum FactoryError
     {
         FACTORY_ERROR_OK                        = 0,

@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 VERSION='0.1'
 APPNAME='gamesys'
 
@@ -13,12 +15,17 @@ def init():
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('compiler_cxx')
+    opt.tool_options('python')
 
 def configure(conf):
     waf_dynamo.configure(conf)
     waf_ddf.configure(conf)
     
     conf.check_tool('compiler_cxx')
+    conf.check_tool('python')
+    conf.check_python_version((2,5))
+    conf.check_python_headers()
+
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
@@ -36,7 +43,7 @@ def shutdown():
         return
 
     for t in  Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and t.uselib.find("GTEST") != -1:
+        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             filename = os.path.join(output.abspath(t.env), t.target)
             proc = subprocess.Popen(filename)
