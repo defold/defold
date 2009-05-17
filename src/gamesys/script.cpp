@@ -43,16 +43,16 @@ namespace Script
         PyObject* obj = Py_CompileString((const char*)memory, "<script>", Py_file_input);
         if (ErrorOccured() ) return NULL;
 
-        PyObject* module = PyImport_ExecCodeModule(update_func, obj);
+        PyObject* glob = PyDict_New();
+
+        PyObject* module = PyEval_EvalCode((PyCodeObject*)obj, glob, glob);
         if (ErrorOccured() ) return NULL;
 
-        PyObject* func = PyObject_GetAttrString(module, update_func);
-        if (ErrorOccured() ) return NULL;
 
         Py_DECREF(obj);
         Py_DECREF(module);
 
-        return (HScript)func;
+        return (HScript)glob;
     }
 
     void Delete(HScript script)
@@ -62,7 +62,10 @@ namespace Script
 
     bool Run(HScript script, PyObject* self, PyObject* args)
     {
-        PyObject* func = (PyObject*)script;
+        PyObject* glob = (PyObject*)script;
+
+        PyObject* func = PyDict_GetItemString (glob, "Update");
+        if (ErrorOccured() ) return NULL;
 
         int ret = PyCallable_Check(func);
         if (ret == 0)
