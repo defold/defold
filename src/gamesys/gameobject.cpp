@@ -1,13 +1,15 @@
 #include "gameobject.h"
 #include "gameobject_ddf.h"
-#include "script.h"
+#include "gameobject_script.h"
+
+#include <Python.h>
 
 namespace GameObject
 {
     struct Prototype
     {
         const char*        m_Name;
-        Script::HScript*   m_Script;
+        HScript*           m_Script;
 
         #if 0
         HMesh              m_Mesh;
@@ -29,7 +31,7 @@ namespace GameObject
         {
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
-            m_Self = PyDict_New();
+            m_Self = PyObject_CallObject((PyObject*) &PythonInstanceType, 0);
         }
 
         ~Instance()
@@ -41,6 +43,16 @@ namespace GameObject
         Prototype*  m_Prototype;
         PyObject*   m_Self;
     };
+
+    void Initialize()
+    {
+        InitializeScript();
+    }
+
+    void Finalize()
+    {
+        FinalizeScript();
+    }
 
     Resource::CreateError PrototypeCreate(Resource::HFactory factory,
                                           void* context,
@@ -55,7 +67,7 @@ namespace GameObject
             return Resource::CREATE_ERROR_UNKNOWN;
         }
 
-        Script::HScript* script;
+        HScript* script;
         Resource::FactoryError fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
         if (fact_e != Resource::FACTORY_ERROR_OK)
         {
@@ -89,7 +101,7 @@ namespace GameObject
                                        const void* buffer, uint32_t buffer_size,
                                        Resource::SResourceDescriptor* resource)
     {
-        Script::HScript script = Script::New(buffer);
+        HScript script = NewScript(buffer);
         if (script)
         {
             resource->m_Resource = (void*) script;
@@ -106,7 +118,7 @@ namespace GameObject
                                         Resource::SResourceDescriptor* resource)
     {
 
-        Script::Delete((Script::HScript) resource->m_Resource);
+        DeleteScript((HScript) resource->m_Resource);
         return Resource::CREATE_ERROR_OK;
     }
 
@@ -137,7 +149,7 @@ namespace GameObject
         PyObject* lst = PyTuple_New(1);
         Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
         PyTuple_SetItem(lst, 0, instance->m_Self);
-        bool init_ok = Script::Run(proto->m_Script, "Init", instance->m_Self, lst);
+        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_Self, lst);
         Py_DECREF(lst);
 
         if (init_ok)
@@ -163,7 +175,7 @@ namespace GameObject
         PyObject* lst = PyTuple_New(1);
         Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
         PyTuple_SetItem(lst, 0, instance->m_Self);
-        Script::Run(proto->m_Script, "Update", instance->m_Self, lst);
+        RunScript(proto->m_Script, "Update", instance->m_Self, lst);
         Py_DECREF(lst);
     }
 }

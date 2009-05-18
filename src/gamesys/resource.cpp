@@ -204,13 +204,14 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         long file_size = ftell(f);
         fseek(f, 0, SEEK_SET);
 
-        void* buffer = malloc(file_size);
+        void* buffer = malloc(file_size+1); // Extra byte for resources expecting null-terminated string...
         if (buffer == 0)
         {
             LogError("Out of memory: %s", ext);
             return FACTORY_ERROR_OUT_OF_MEMORY;
             fclose(f);
         }
+        ((char*) buffer)[file_size] = 0; // Null-terminate. See comment above
 
         if (fread(buffer, 1, file_size, f) != file_size)
         {

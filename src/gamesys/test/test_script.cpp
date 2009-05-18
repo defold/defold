@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
+#include "../gameobject.h"
 
-#include "../script.h"
+#if 0
 
 char script1[] =
 {
@@ -52,11 +53,12 @@ TEST(gamesys, Script)
     ASSERT_EQ((int)r1, 1);
 
 }
+#endif
 
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    Script::Initialize();
+    GameObject::Initialize();
     int ret = RUN_ALL_TESTS();
-    Script::Finalize();
+    GameObject::Finalize();
 }
