@@ -20,10 +20,17 @@ enum LogSeverity
 
 void LogInternal(LogSeverity severity, const char* format, ...);
 
+#ifdef _MSC_VER
+#define LogInfo(format, ...) LogInternal(LOG_SEVERITY_INFO, format, ## );
+#define LogWarning(format, ...) LogInternal(LOG_SEVERITY_WARNING, format, ## );
+#define LogError(format, ...) LogInternal(LOG_SEVERITY_ERROR, format, ## );
+#define LogFatal(format, ...) LogInternal(LOG_SEVERITY_FATAL, format, ## );
+#else
 #define LogInfo(format, args...) LogInternal(LOG_SEVERITY_INFO, format, ## args);
 #define LogWarning(format, args...) LogInternal(LOG_SEVERITY_WARNING, format, ## args);
 #define LogError(format, args...) LogInternal(LOG_SEVERITY_ERROR, format, ## args);
 #define LogFatal(format, args...) LogInternal(LOG_SEVERITY_FATAL, format, ## args);
+#endif
 
 #endif
 
