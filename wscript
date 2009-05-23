@@ -39,15 +39,4 @@ def build(bld):
 import Build, Options
 import os, subprocess
 def shutdown():
-    if not Options.commands['build']:
-        return
-
-    for t in  Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
-            output = t.path
-            filename = os.path.join(output.abspath(t.env), t.target)
-            proc = subprocess.Popen(filename)
-            ret = proc.wait()
-            if ret != 0:
-                print("test failed %s" %(t.target) )
-                sys.exit(ret)
+    waf_dynamo.run_gtests(valgrind = True)
