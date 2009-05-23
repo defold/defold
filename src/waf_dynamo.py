@@ -20,16 +20,21 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
  
-def run_gtests():
+def run_gtests(valgrind = False):
     if not Options.commands['build']:
         return
 
     for t in  Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and t.uselib.find("GTEST") != -1:
+        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             filename = os.path.join(output.abspath(t.env), t.target)
-            proc = subprocess.Popen(filename)
-            proc.wait()
+            if valgrind and sys.platform == 'linux2':
+                filename = "valgrind --leak-check=full --error-exitcode=1 %s" % filename
+            proc = subprocess.Popen(filename, shell = True)
+            ret = proc.wait()
+            if ret != 0:
+                print("test failed %s" %(t.target) )
+                sys.exit(ret)
 
 def configure(conf):
     dynamo_home = os.getenv('DYNAMO_HOME')
