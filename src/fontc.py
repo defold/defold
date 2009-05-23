@@ -3,10 +3,10 @@
 import sys
 from optparse import OptionParser
 import Image, ImageFont, ImageDraw
-import font_pb2
+import graphics_util_ddf_pb2
 
 def Layout(width, characters, image_font):
-    font = font_pb2.Font()
+    font = graphics_util_ddf_pb2.Font()
 
     height = 0
     line_height = 0
