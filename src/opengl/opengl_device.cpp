@@ -40,7 +40,7 @@ PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
 
 #else
 #error "Platform not supported."
-#endif  
+#endif
 
 using namespace Vectormath::Aos;
 
@@ -59,7 +59,11 @@ GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *param
     int ret = SDL_Init(SDL_INIT_VIDEO);
     assert(ret == 0);
 
-    gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE);
+    uint32_t fullscreen = 0;
+    if (params->m_Fullscreen)
+        fullscreen = SDL_FULLSCREEN;
+
+    gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE|fullscreen);
     assert(gdevice.m_SDLscreen);
 
     SDL_WM_SetCaption(params->m_AppTitle, params->m_AppTitle);
