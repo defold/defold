@@ -9,6 +9,14 @@
 
 namespace GameObject
 {
+    struct Instance;
+
+    typedef struct {
+        PyObject_HEAD
+        Instance* m_Instance;
+        PyObject* m_Dict;
+    } PythonInstance;
+
     typedef void* HScript;
 
     extern PyTypeObject PythonInstanceType;

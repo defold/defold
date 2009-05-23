@@ -40,8 +40,9 @@ namespace GameObject
     /**
      * Call update function
      * @param instance Gameobject instance
+     * @return True on success
      */
-    void         Update(HInstance instance);
+    bool         Update(HInstance instance);
 
     /**
      * Register all resource types in resource factory

@@ -25,9 +25,13 @@ TEST_F(GameObjectTest, Test01)
 {
     GameObject::HInstance go = GameObject::New(factory, "goproto01.go");
     ASSERT_NE((void*) 0, (void*) go);
-    GameObject::Update(go);
-    GameObject::Update(go);
-    GameObject::Update(go);
+    bool ret;
+    ret = GameObject::Update(go);
+    ASSERT_TRUE(ret);
+    ret = GameObject::Update(go);
+    ASSERT_TRUE(ret);
+    ret = GameObject::Update(go);
+    ASSERT_TRUE(ret);
     GameObject::Delete(factory, go);
 }
 

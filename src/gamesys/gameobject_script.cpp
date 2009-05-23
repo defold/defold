@@ -1,22 +1,83 @@
 #include <Python.h>
 #include "structmember.h"
 #include "gameobject_script.h"
+#include "gameobject_common.h"
 
 namespace GameObject
 {
-    struct Instance;
-
-    typedef struct {
-        PyObject_HEAD
-        Instance* m_Instance;
-        PyObject* m_Dict;
-    } PythonInstance;
-
     PyObject* PythonInstance_new(PyTypeObject *type, PyObject *args, PyObject *kw)
     {
         PythonInstance* self = (PythonInstance *)type->tp_alloc(type, 0);
         self->m_Dict = PyDict_New(); // TODO: Memory leak here? Test with valgrind.
         return (PyObject*) self;
+    }
+
+    int PythonInstance_SetAttr(PyObject* o, PyObject* name, PyObject* v)
+    {
+        PythonInstance* self  = (PythonInstance*) o;
+
+        if (!PyString_Check(name))
+        {
+            PyErr_SetString(PyExc_TypeError, "attribute name must be string");
+            return -1;
+        }
+        if (strcmp(PyString_AsString(name), "Position") == 0)
+        {
+
+            if (!PySequence_Check(v))
+            {
+                PyErr_SetString(PyExc_TypeError, "value must be a sequence");
+                return -1;
+            }
+
+            if (PySequence_Length(v) != 3)
+            {
+                PyErr_SetString(PyExc_TypeError, "value must be a sequence of length 3");
+                return -1;
+            }
+
+            PyObject* x_obj = PySequence_GetItem(v, 0);
+            PyObject* y_obj = PySequence_GetItem(v, 1);
+            PyObject* z_obj = PySequence_GetItem(v, 2);
+
+            float x = PyFloat_AsDouble(x_obj);
+            float y = PyFloat_AsDouble(y_obj);
+            float z = PyFloat_AsDouble(z_obj);
+
+            Py_DECREF(x_obj);
+            Py_DECREF(y_obj);
+            Py_DECREF(z_obj);
+
+            self->m_Instance->m_Position = Point3(x,y,z);
+            return 0;
+        }
+        else
+        {
+            return PyObject_GenericSetAttr(o, name, v);
+        }
+    }
+
+    PyObject* PythonInstance_GetAttr(PyObject* o, PyObject* name)
+    {
+        PythonInstance* self  = (PythonInstance*) o;
+        if (!PyString_Check(name))
+        {
+            PyErr_SetString(PyExc_TypeError, "attribute name must be string");
+            return 0;
+        }
+
+        if (strcmp(PyString_AsString(name), "Position") == 0)
+        {
+            PyObject* pos = PyTuple_New(3);
+            PyTuple_SetItem(pos, 0, PyFloat_FromDouble(self->m_Instance->m_Position.getX()));
+            PyTuple_SetItem(pos, 1, PyFloat_FromDouble(self->m_Instance->m_Position.getY()));
+            PyTuple_SetItem(pos, 2, PyFloat_FromDouble(self->m_Instance->m_Position.getZ()));
+            return pos;
+        }
+        else
+        {
+            return PyObject_GenericGetAttr(o, name);
+        }
     }
 
     PyTypeObject PythonInstanceType = {
@@ -37,8 +98,8 @@ namespace GameObject
         0,                              /*tp_hash */
         0,                              /*tp_call*/
         0,                              /*tp_str*/
-        &PyObject_GenericGetAttr,       /*tp_getattro*/
-        &PyObject_GenericSetAttr,       /*tp_setattro*/
+        &PythonInstance_GetAttr,        /*tp_getattro*/
+        &PythonInstance_SetAttr,        /*tp_setattro*/
         0,                              /*tp_as_buffer*/
         Py_TPFLAGS_DEFAULT,             /*tp_flags*/
         "GameObject instance",          /* tp_doc */

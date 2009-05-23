@@ -1,49 +1,12 @@
 #include "gameobject.h"
 #include "gameobject_ddf.h"
 #include "gameobject_script.h"
+#include "gameobject_common.h"
 
 #include <Python.h>
 
 namespace GameObject
 {
-    struct Prototype
-    {
-        const char*        m_Name;
-        HScript*           m_Script;
-
-        #if 0
-        HMesh              m_Mesh;
-        HMaterial          m_Material;
-        HScript            m_Script;
-        #endif
-    /*
-        TArray<SResourceDescriptor>  m_Resources;
-        // or
-        TArray<HEffect>    m_Effects;
-        TArray<HAnimation> m_Animations;
-        // ....
-        */
-    };
-
-    struct Instance
-    {
-        Instance(Prototype* prototype)
-        {
-            m_Position = Point3(0,0,0);
-            m_Prototype = prototype;
-            m_Self = PyObject_CallObject((PyObject*) &PythonInstanceType, 0);
-        }
-
-        ~Instance()
-        {
-            Py_DECREF(m_Self);
-        }
-
-        Point3      m_Position;
-        Prototype*  m_Prototype;
-        PyObject*   m_Self;
-    };
-
     void Initialize()
     {
         InitializeScript();
@@ -169,13 +132,14 @@ namespace GameObject
         delete instance;
     }
 
-    void Update(HInstance instance)
+    bool Update(HInstance instance)
     {
         Prototype* proto = instance->m_Prototype;
         PyObject* lst = PyTuple_New(1);
         Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
         PyTuple_SetItem(lst, 0, instance->m_Self);
-        RunScript(proto->m_Script, "Update", instance->m_Self, lst);
+        bool ret = RunScript(proto->m_Script, "Update", instance->m_Self, lst);
         Py_DECREF(lst);
+        return ret;
     }
 }
