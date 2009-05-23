@@ -8,6 +8,7 @@
 #elif defined (__MACH__)
 #include <sys/param.h>
 #elif defined (_WIN32)
+#define snprintf _snprintf
 #endif
 
 #include <dlib/hash.h>
@@ -106,6 +107,8 @@ HFactory NewFactory(uint32_t max_resources, const char* resource_path)
 
     strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
     factory->m_ResourcePath[RESOURCE_PATH_MAX-1] = '\0';
+
+    return factory;
 }
 
 void DeleteFactory(HFactory factory)
