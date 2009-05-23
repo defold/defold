@@ -12,11 +12,35 @@
 #include <sdl/SDL_opengl.h>
 
 #elif defined (_WIN32)
+
+#ifdef GL_GLEXT_PROTOTYPES
+#undef GL_GLEXT_PROTOTYPES
 #include "win32/glext.h"
+#define GL_GLEXT_PROTOTYPES
+#else
+#include "win32/glext.h"
+#endif
+
+// VBO Extension for OGL 1.4.1
+typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
+typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
+typedef void (APIENTRY * PFNGLPROGRAMSTRINGARBPROC) (GLenum, GLenum, GLsizei, const GLvoid *);
+typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat, GLfloat, GLfloat, GLfloat);
+typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
+typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
+typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
+extern PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
+extern PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
+extern PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
+extern PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
+extern PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
+extern PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
+extern PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
+extern PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
 
 #else
 #error "Platform not supported."
-#endif
+#endif  
 
 using namespace Vectormath::Aos;
 
@@ -50,6 +74,18 @@ GFXHDevice GFXCreateDevice(int* argc, char** argv, GFXSCreateDeviceParams *param
         printf("GL_VENDOR     = %s\n", (char *) glGetString(GL_VENDOR));
         printf("GL_EXTENSIONS = %s\n", (char *) glGetString(GL_EXTENSIONS));
     }
+
+
+#if defined (_WIN32)
+	glGenProgramsARB = (PFNGLGENPROGRAMARBPROC) wglGetProcAddress("glGenProgramsARB");
+	glBindProgramARB = (PFNGLBINDPROGRAMARBPROC) wglGetProcAddress("glBindProgramARB");
+	glProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) wglGetProcAddress("glProgramStringARB");
+	glProgramLocalParameter4fARB = (PFNGLVERTEXPARAMFLOAT4ARBPROC) wglGetProcAddress("glProgramLocalParameter4fARB");
+    glEnableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glEnableVertexAttribArray");
+	glDisableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glDisableVertexAttribArray");
+	glVertexAttribPointer = (PFNGLVERTEXATTRIBPTRPROC) wglGetProcAddress("glVertexAttribPointer");
+	glCompressedTexImage2D = (PFNGLTEXPARAM2DPROC) wglGetProcAddress("glCompressedTexImage2D");
+#endif
 
     return (GFXHDevice)&gdevice;
 }

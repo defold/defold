@@ -2,7 +2,7 @@
 import sys
 
 import os, sys
-import waf_graphics
+import waf_graphics, waf_dynamo
 
 
 def build(bld):
@@ -40,6 +40,8 @@ def build(bld):
 
 
 def configure(conf):
+    waf_dynamo.configure(conf)
+
     if sys.platform == "darwin":
         platform = "darwin"
     elif sys.platform == "linux2":
@@ -53,8 +55,13 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', '-framework Cocoa -framework OpenGL -lSDLmain -lSDL')
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', '-lglut -lXext -lX11 -lXi -lGL -lGLU -lSDL')
+    if platform == "win32":
+       conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'SDL.lib', 'SDLmain.lib', 'opengl32.lib'])
 
     conf.env.append_value('CPPPATH', ".")
     conf.env.append_value('CXXDEFINES', "DDF_EXPOSE_DESCRIPTORS")
     
+
+
+
 
