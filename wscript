@@ -6,7 +6,7 @@ APPNAME = 'dlib'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys
+import os, sys, waf_dynamo
 
 def init():
     pass
@@ -48,4 +48,6 @@ def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
+def shutdown():
+    waf_dynamo.run_gtests(valgrind = True)
 
