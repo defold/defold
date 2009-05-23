@@ -39,4 +39,4 @@ def build(bld):
 import Build, Options
 import os, subprocess
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_gtests(valgrind = False)
