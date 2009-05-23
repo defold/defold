@@ -62,4 +62,4 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
-    waf_dynamo.run_gtests()
+    waf_dynamo.run_gtests(valgrind = True)
