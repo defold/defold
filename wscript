@@ -18,13 +18,13 @@ def set_options(opt):
     opt.tool_options('python')
 
 def configure(conf):
-    waf_dynamo.configure(conf)
-    waf_ddf.configure(conf)
-    
     conf.check_tool('compiler_cxx')
     conf.check_tool('python')
     conf.check_python_version((2,5))
     conf.check_python_headers()
+
+    waf_dynamo.configure(conf)
+    waf_ddf.configure(conf)
 
     conf.sub_config('src')
 
