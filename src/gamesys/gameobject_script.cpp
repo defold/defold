@@ -179,7 +179,26 @@ namespace GameObject
 
         if (memory == NULL) return NULL;
 
-        PyObject* obj = Py_CompileString((const char*)memory, "<script>", Py_file_input);
+        // TODO: Budget. Memory allocation. Due to windows line endings...
+        char* normalized_buffer = (char*) malloc(strlen((char*) memory) + 1);
+        char*in = (char*) memory;
+        char*out = normalized_buffer;
+        // Convert to unix line endings
+        while (*in)
+        {
+            char c = *in;
+            if (c != '\r')
+            {
+                *out = *in;
+                out++;
+            }
+            in++;
+        }
+        *out = '\0';
+
+        PyObject* obj = Py_CompileString((const char*)normalized_buffer, "<script>", Py_file_input);
+        free(normalized_buffer);
+
         if (ErrorOccured() ) return NULL;
 
         PyObject* glob = PyDict_New();
