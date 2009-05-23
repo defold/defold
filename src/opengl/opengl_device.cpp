@@ -29,14 +29,14 @@ typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat
 typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
 typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
-extern PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
-extern PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
-extern PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
-extern PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
-extern PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
-extern PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
-extern PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
-extern PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
+PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
+PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
+PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
+PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
+PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
+PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
+PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
+PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
 
 #else
 #error "Platform not supported."
