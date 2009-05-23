@@ -1,3 +1,4 @@
+#include <string.h>
 #include "fontrenderer.h"
 #include <vector>
 
