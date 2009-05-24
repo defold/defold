@@ -24,6 +24,7 @@ namespace GameObject
     const uint32_t MAX_COMPONENT_TYPES = 128;
     struct Collection
     {
+        Collection() {m_ComponentTypeCount = 0;}
         uint32_t               m_ComponentTypeCount;
         ComponentType          m_ComponentTypes[MAX_COMPONENT_TYPES];
         std::vector<Instance*> m_Instances;

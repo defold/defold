@@ -14,3 +14,16 @@ def gameobjectdesc_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
+
+Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
+                      color='PINK', 
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.p')
+def testresourcecont_file(self, node):
+    obj_ext = '.pyscript'
+    task = self.create_task('pyscript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)

@@ -269,6 +269,8 @@ FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     *type = (uint32_t) rd->m_ResourceType; // TODO: Not 64-bit friendly...
+
+    return FACTORY_ERROR_OK;
 }
 
 FactoryError GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
