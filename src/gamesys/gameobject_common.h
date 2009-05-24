@@ -9,7 +9,7 @@ namespace GameObject
     struct Prototype
     {
         const char*        m_Name;
-        HScript*           m_Script;
+        HScript            m_Script;
 
         #if 0
         HMesh              m_Mesh;

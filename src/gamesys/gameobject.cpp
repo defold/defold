@@ -30,7 +30,7 @@ namespace GameObject
             return Resource::CREATE_ERROR_UNKNOWN;
         }
 
-        HScript* script;
+        HScript script;
         Resource::FactoryError fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
         if (fact_e != Resource::FACTORY_ERROR_OK)
         {
