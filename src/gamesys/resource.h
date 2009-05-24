@@ -26,7 +26,7 @@ namespace Resource
         FACTORY_ERROR_DDF_ERROR                 = 2,
         FACTORY_ERROR_RESOURCE_NOT_FOUND        = 3,
         FACTORY_ERROR_MISSING_FILE_EXTENSION    = 4,
-        FACTORY_ERROR_ALREADY_REGISTRED         = 5,
+        FACTORY_ERROR_ALREADY_REGISTERED        = 5,
         FACTORY_ERROR_INVAL                     = 6,
         FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE     = 7,
         FACTORY_ERROR_OUT_OF_MEMORY             = 8,
@@ -97,6 +97,8 @@ namespace Resource
                                  FResourceDestroy destroy_function);
 
     FactoryError    Get(HFactory factory, const char* name, void** resource);
+
+    FactoryError    GetType(HFactory factory, void* resource, uint32_t* type);
 
     FactoryError    GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 

@@ -1,6 +1,7 @@
 #ifndef GAMEOBJECT_COMMON_H
 #define GAMEOBJECT_COMMON_H
 
+#include <vector>
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
@@ -8,21 +9,22 @@ namespace GameObject
 {
     struct Prototype
     {
-        const char*        m_Name;
-        HScript            m_Script;
+        const char*   m_Name;
+        HScript       m_Script;
 
-        #if 0
-        HMesh              m_Mesh;
-        HMaterial          m_Material;
-        HScript            m_Script;
-        #endif
-    /*
-        TArray<SResourceDescriptor>  m_Resources;
-        // or
-        TArray<HEffect>    m_Effects;
-        TArray<HAnimation> m_Animations;
-        // ....
-        */
+        uint32_t      m_ID;
+
+        struct Component
+        {
+            Component(void* resource, uint32_t resource_type) :
+                m_Resource(resource),
+                m_ResourceType(resource_type) {}
+
+            void*    m_Resource;
+            uint32_t m_ResourceType;
+        };
+
+        std::vector<Component> m_Components;
     };
 
     struct Instance
@@ -43,6 +45,7 @@ namespace GameObject
         Point3      m_Position;
         Prototype*  m_Prototype;
         PyObject*   m_Self;
+        uint32_t    m_ID;
     };
 }
 

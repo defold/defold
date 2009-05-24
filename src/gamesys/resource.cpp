@@ -134,7 +134,7 @@ FactoryError RegisterType(HFactory factory,
         return FACTORY_ERROR_INVAL;
 
     if (FindResourceType(factory, extension) != 0)
-        return FACTORY_ERROR_ALREADY_REGISTRED;
+        return FACTORY_ERROR_ALREADY_REGISTERED;
 
     SResourceType resource_type;
     resource_type.m_Extension = extension;
@@ -253,6 +253,22 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
     {
         return FACTORY_ERROR_MISSING_FILE_EXTENSION;
     }
+}
+
+FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
+{
+    assert(type);
+
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    if (!resource_hash)
+    {
+        return FACTORY_ERROR_NOT_LOADED;
+    }
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    assert(rd->m_ReferenceCount > 0);
+    *type = (uint32_t) rd->m_ResourceType; // TODO: Not 64-bit friendly...
 }
 
 FactoryError GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)

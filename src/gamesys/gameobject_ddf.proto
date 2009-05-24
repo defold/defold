@@ -3,8 +3,11 @@ package GameObject;
 message GameObjectPrototypeDesc
 {
     required string Name = 1;
-    required string Mesh = 2;
-    required string Material = 3;
-    required string Script = 4;
-    repeated string Resources = 5;
+    required string Script = 2;
+    repeated string Components = 3;
+}
+
+message MeshComponentDesc
+{
+    required string Mesh = 1;
 }

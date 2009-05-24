@@ -48,7 +48,7 @@ TEST_F(ResourceTest, RegisterType)
 
     // Test already registred
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
-    ASSERT_EQ(Resource::FACTORY_ERROR_ALREADY_REGISTRED, e);
+    ASSERT_EQ(Resource::FACTORY_ERROR_ALREADY_REGISTERED, e);
 }
 
 TEST_F(ResourceTest, NotFound)
