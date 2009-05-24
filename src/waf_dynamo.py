@@ -41,6 +41,8 @@ def configure(conf):
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
 
+    conf.env['DYNAMO_HOME'] = dynamo_home
+
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
     if sys.platform == "darwin":
