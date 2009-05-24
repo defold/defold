@@ -7,10 +7,9 @@
 #include <limits.h>
 #elif defined (__MACH__)
 #include <sys/param.h>
-#elif defined (_WIN32)
-#define snprintf _snprintf
 #endif
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
@@ -76,7 +75,7 @@ static SResourceType* FindResourceType(SResourceFactory* factory, const char* ex
 // TODO: Test this...
 static void GetCanonicalPath(const char* base_dir, const char* relative_dir, char* buf)
 {
-    snprintf(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
+    SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
 
     char* source = buf;
     char* dest = buf;
