@@ -100,6 +100,8 @@ namespace Resource
 
     FactoryError    GetType(HFactory factory, void* resource, uint32_t* type);
 
+    FactoryError    GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
+
     FactoryError    GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
     void            Release(HFactory factory, void* resource);

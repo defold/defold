@@ -271,6 +271,22 @@ FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
     *type = (uint32_t) rd->m_ResourceType; // TODO: Not 64-bit friendly...
 }
 
+FactoryError GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
+{
+    assert(type);
+
+    SResourceType* resource_type = FindResourceType(factory, extension);
+    if (resource_type)
+    {
+        *type = (uint32_t) resource_type; // TODO: Not 64-bit friendly...
+        return FACTORY_ERROR_OK;
+    }
+    else
+    {
+        return FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE;
+    }
+}
+
 FactoryError GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
