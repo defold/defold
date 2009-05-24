@@ -25,6 +25,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_device_defines.h')
 
     bld.install_files('${PREFIX}/include/graphics_util', 'util/fontrenderer.h')
+    bld.install_files('${PREFIX}/include/graphics_util', 'util/debugrenderer.h')
 
     bld.install_files('${PREFIX}/bin', 'ddsc.py')
     bld.install_files('${PREFIX}/bin', 'fontc.py')
@@ -33,7 +34,7 @@ def build(bld):
 
     test_app = bld.new_task_gen(
         features = 'cxx cprogram',
-        uselib_local = 'graphics',
+        uselib_local = 'graphics graphics_util',
         target = 'test_app')
     test_app.find_sources_in_dirs('test')
     test_app.install_path = None

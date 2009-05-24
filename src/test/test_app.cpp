@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ddf/ddf.h>
-#include "graphics_device.h"
 #include <assert.h>
 
+#include "graphics_device.h"
+#include "../util/debugrenderer.h"
 
 #include "sdl/SDL.h"
 #ifndef _WIN32
@@ -164,7 +165,7 @@ static void GameLoop()
 
 
     Matrix4 mat = Matrix4::identity();
-    mat.setTranslation(Vector3(0, 0, 10));
+    mat.setTranslation(Vector3(0, 0, 0));
 
     Matrix4 vp = proj*view;
     GFXSetVertexConstantBlock(context, (const Vector4*)&vp, 0, 4);
@@ -178,10 +179,7 @@ static void GameLoop()
     GFXSetVertexStream(context, 2, 3, GFX_TYPE_FLOAT, 0, (void*) &Normals[0]);
 
 
-
-    GFXDrawElements(context, GFX_PRIMITIVE_TRIANGLES, 3*2, GFX_TYPE_UNSIGNED_INT, (void*) &Indices[0]);
-
-
+    GFXUtil::DebugRendererCube(5, Vector3(0, 0, 0));
 
     GFXFlip();
 
