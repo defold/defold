@@ -88,7 +88,7 @@ TEST(HashTable, FillEraseFill)
 
 TEST(HashTable, SimpleFill)
 {
-    const int N = 200;
+    const int N = 50;
     for (int count = 0; count < N; ++count)
     {
         for (int table_size = 1; table_size <= 2*N; ++table_size)
@@ -196,7 +196,7 @@ TEST(HashTable, TestBug1)
 
 TEST(HashTable, Exhaustive2)
 {
-    const int N = 100;
+    const int N = 30;
     for (int count = 1; count < N; ++count)
     {
         for (int table_size = 1; table_size <= 2*N; ++table_size)
