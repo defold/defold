@@ -29,7 +29,8 @@ def run_gtests(valgrind = False):
             output = t.path
             filename = os.path.join(output.abspath(t.env), t.target)
             if valgrind and sys.platform == 'linux2':
-                filename = "valgrind --leak-check=full --error-exitcode=1 %s" % filename
+                dynamo_home = os.getenv('DYNAMO_HOME')
+                filename = "valgrind --leak-check=full --suppressions=%s/share/valgrind-python.supp --error-exitcode=1 %s" % (dynamo_home, filename)
             proc = subprocess.Popen(filename, shell = True)
             ret = proc.wait()
             if ret != 0:
