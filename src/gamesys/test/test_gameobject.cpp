@@ -5,26 +5,10 @@
 #include "../gameobject.h"
 #include "gamesys/test/test_resource_ddf.h"
 
-Resource::CreateError PhysCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
-{
-    TestResource::PhysComponent* phys_comp;
-    DDFError e = DDFLoadMessage(buffer, buffer_size, &TestResource_PhysComponent_DESCRIPTOR, (void**) &phys_comp);
-    if (e == DDF_ERROR_OK)
-    {
-        resource->m_Resource = (void*) phys_comp;
-        return Resource::CREATE_ERROR_OK;
-    }
-    else
-    {
-        return Resource::CREATE_ERROR_UNKNOWN;
-    }
-}
-
-Resource::CreateError PhysDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
-{
-    DDFFreeMessage((void*) resource->m_Resource);
-    return Resource::CREATE_ERROR_OK;
-}
+/*
+ * TODO:
+ * - Add scripting tests!
+ */
 
 class GameObjectTest : public ::testing::Test
 {
@@ -37,7 +21,7 @@ protected:
 
         // Register dummy physical resource type
         Resource::FactoryError e;
-        e = Resource::RegisterType(factory, "pc", 0, &PhysCreate, &PhysDestroy);
+        e = Resource::RegisterType(factory, "pc", this, &PhysCreate, &PhysDestroy);
         ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
         uint32_t resource_type;
         e = Resource::GetTypeFromExtension(factory, "pc", &resource_type);
@@ -45,6 +29,8 @@ protected:
         GameObject::Result result = GameObject::RegisterComponentType(collection, resource_type, this, &PhysComponentCreate, &PhysComponentDestroy);
         ASSERT_EQ(GameObject::RESULT_OK, result);
 
+        m_PhysCreateCallCount = 0;
+        m_PhysDestroyCallCount = 0;
         m_PhysComponentCreateCallCount = 0;
         m_PhysComponentDestroyCallCount = 0;
         m_MaxPhysComponentCreateCallCount = 1000000;
@@ -54,6 +40,33 @@ protected:
     {
         GameObject::DeleteCollection(collection, factory);
         Resource::DeleteFactory(factory);
+    }
+
+    static Resource::CreateError PhysCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
+    {
+        GameObjectTest* game_object_test = (GameObjectTest*) context;
+        game_object_test->m_PhysCreateCallCount++;
+
+        TestResource::PhysComponent* phys_comp;
+        DDFError e = DDFLoadMessage(buffer, buffer_size, &TestResource_PhysComponent_DESCRIPTOR, (void**) &phys_comp);
+        if (e == DDF_ERROR_OK)
+        {
+            resource->m_Resource = (void*) phys_comp;
+            return Resource::CREATE_ERROR_OK;
+        }
+        else
+        {
+            return Resource::CREATE_ERROR_UNKNOWN;
+        }
+    }
+
+    static Resource::CreateError PhysDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
+    {
+        GameObjectTest* game_object_test = (GameObjectTest*) context;
+        game_object_test->m_PhysDestroyCallCount++;
+
+        DDFFreeMessage((void*) resource->m_Resource);
+        return Resource::CREATE_ERROR_OK;
     }
 
     static GameObject::CreateResult PhysComponentCreate(GameObject::HCollection collection,
@@ -84,6 +97,8 @@ protected:
 
 
     uint32_t m_MaxPhysComponentCreateCallCount;
+    uint32_t m_PhysCreateCallCount;
+    uint32_t m_PhysDestroyCallCount;
     uint32_t m_PhysComponentCreateCallCount;
     uint32_t m_PhysComponentDestroyCallCount;
     GameObject::HCollection collection;
@@ -103,6 +118,8 @@ TEST_F(GameObjectTest, Test01)
     ASSERT_TRUE(ret);
     GameObject::Delete(collection, factory, go);
 
+    ASSERT_EQ(0, m_PhysCreateCallCount);
+    ASSERT_EQ(0, m_PhysDestroyCallCount);
     ASSERT_EQ(0, m_PhysComponentCreateCallCount);
     ASSERT_EQ(0, m_PhysComponentDestroyCallCount);
 }
@@ -112,6 +129,8 @@ TEST_F(GameObjectTest, Test02)
     GameObject::HInstance go = GameObject::New(collection, factory, "goproto02.go");
     ASSERT_NE((void*) 0, (void*) go);
     GameObject::Delete(collection, factory, go);
+    ASSERT_EQ(1, m_PhysCreateCallCount);
+    ASSERT_EQ(1, m_PhysDestroyCallCount);
     ASSERT_EQ(1, m_PhysComponentCreateCallCount);
     ASSERT_EQ(1, m_PhysComponentDestroyCallCount);
 }
@@ -120,6 +139,9 @@ TEST_F(GameObjectTest, TestNonexistingComponent)
 {
     GameObject::HInstance go = GameObject::New(collection, factory, "goproto03.go");
     ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, m_PhysCreateCallCount);
+    ASSERT_EQ(0, m_PhysDestroyCallCount);
+
     ASSERT_EQ(0, m_PhysComponentCreateCallCount);
     ASSERT_EQ(0, m_PhysComponentDestroyCallCount);
 }
@@ -129,6 +151,9 @@ TEST_F(GameObjectTest, TestPartialNonexistingComponent1)
     GameObject::HInstance go = GameObject::New(collection, factory, "goproto04.go");
     ASSERT_EQ((void*) 0, (void*) go);
 
+    // First one exists
+    ASSERT_EQ(1, m_PhysCreateCallCount);
+    ASSERT_EQ(1, m_PhysDestroyCallCount);
     // Even though the first physcomponent exits the prototype creation should fail before creating components
     ASSERT_EQ(0, m_PhysComponentCreateCallCount);
     ASSERT_EQ(0, m_PhysComponentDestroyCallCount);
@@ -141,16 +166,12 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
     GameObject::HInstance go = GameObject::New(collection, factory, "goproto05.go");
     ASSERT_EQ((void*) 0, (void*) go);
 
+    ASSERT_EQ(1, m_PhysCreateCallCount);
+    ASSERT_EQ(1, m_PhysDestroyCallCount);
+
     // One component should get created
     ASSERT_EQ(1, m_PhysComponentCreateCallCount);
     ASSERT_EQ(1, m_PhysComponentDestroyCallCount);
-}
-
-TEST_F(GameObjectTest, TestPhysComp)
-{
-    GameObject::HInstance go = GameObject::New(collection, factory, "goproto02.go");
-    ASSERT_NE((void*) 0, (void*) go);
-    GameObject::Delete(collection, factory, go);
 }
 
 int main(int argc, char **argv)

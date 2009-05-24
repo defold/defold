@@ -154,6 +154,11 @@ namespace GameObject
                                            Resource::SResourceDescriptor* resource)
     {
         Prototype* proto = (Prototype*) resource->m_Resource;
+        for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
+        {
+            Resource::Release(factory, proto->m_Components[i].m_Resource);
+        }
+
         free((void*) proto->m_Name);
         Resource::Release(factory, proto->m_Script);
         delete proto;
