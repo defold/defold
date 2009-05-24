@@ -244,7 +244,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         }
         else
         {
-            LogWarning("Unable ot create resource: %s", canonical_path);
+            LogWarning("Unable to create resource: %s", canonical_path);
             // TODO: Map CreateError to FactoryError here.
             return FACTORY_ERROR_UNKNOWN;
         }

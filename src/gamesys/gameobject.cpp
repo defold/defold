@@ -240,7 +240,7 @@ namespace GameObject
 
         if (!ok)
         {
-            for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
+            for (uint32_t i = 0; i < components_created; ++i)
             {
                 Prototype::Component* component = &proto->m_Components[i];
                 ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
@@ -251,6 +251,7 @@ namespace GameObject
             // We can not call Delete here. Delete call DestroyFunction for every component
             Resource::Release(factory, instance->m_Prototype);
             delete instance;
+            return 0;
         }
 
         PyObject* lst = PyTuple_New(1);

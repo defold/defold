@@ -9,11 +9,6 @@ namespace GameObject
 {
     struct Prototype
     {
-        const char*   m_Name;
-        HScript       m_Script;
-
-        uint32_t      m_ID;
-
         struct Component
         {
             Component(void* resource, uint32_t resource_type) :
@@ -24,6 +19,8 @@ namespace GameObject
             uint32_t m_ResourceType;
         };
 
+        const char*   m_Name;
+        HScript       m_Script;
         std::vector<Component> m_Components;
     };
 

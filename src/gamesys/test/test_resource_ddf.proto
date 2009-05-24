@@ -11,3 +11,10 @@ message ResourceFoo
     required uint32 x = 1;
 }
 
+message PhysComponent
+{
+    required float Mass = 1;
+    required float InertiaTensorX = 2;
+    required float InertiaTensorY = 3;
+    required float InertiaTensorZ = 4;
+}

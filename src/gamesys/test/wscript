@@ -13,6 +13,19 @@ def testresourcecont_file(self, node):
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
+    
+Task.simple_task_type('physcomp', 'protoc --encode=TestResource.PhysComponent -I ../src/gamesys/test ../src/gamesys/test/test_resource_ddf.proto < ${SRC} > ${TGT}',
+                      color='PINK', 
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.pc_pb')
+def testresourcecont_file(self, node):
+    obj_ext = '.pc'
+    task = self.create_task('physcomp')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)    
 
 Task.simple_task_type('resourcefoo', 'protoc --encode=TestResource.ResourceFoo -I ../src/gamesys/test ../src/gamesys/test/test_resource_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK', 
@@ -45,7 +58,7 @@ Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
                       before='cc cxx',
                       shell=True)
 
-@extension('.py')
+@extension('.p')
 def testresourcecont_file(self, node):
     obj_ext = '.pyscript'
     task = self.create_task('pyscript')
@@ -72,8 +85,8 @@ def build(bld):
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
-                                     source = 'test_gameobject.cpp goproto01.go_pb script01.py')
-
+                                     source = 'test_gameobject.cpp test_resource_ddf.proto')
+    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.p'])
     test_gameobject.install_path = None
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',

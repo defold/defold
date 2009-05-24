@@ -1,0 +1,3 @@
+Name: "MyObject01"
+Script: "script01.pyscript"
+Components: "pycomp01.pc"
