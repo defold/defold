@@ -208,7 +208,7 @@ public:
     {
         ARRAY_BUFFER_OVERRUN_CHECK
         assert (m_UserAllocated == 0 && "DecreaseCapacity is an illegal operation on user allocated arrays");
-        assert (Capacity() >= decrease_capacity)
+        assert (Capacity() >= decrease_capacity);
         void **this_ = (void **) this;
         ArrayHelper::SetCapacity(this_, sizeof(T), Capacity() - decrease_capacity);
     }
