@@ -9,6 +9,24 @@ def build(bld):
 
     test_hashtable.install_path = None
 
+    test_array = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_array.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_array')
+
+    test_array.install_path = None
+
+    test_iterator = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_iterator.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_iterator')
+
+    test_iterator.install_path = None
+
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_dlib.cpp',
                                       uselib = 'GTEST',
