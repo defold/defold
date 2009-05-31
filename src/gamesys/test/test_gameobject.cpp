@@ -70,7 +70,7 @@ protected:
     }
 
     static GameObject::CreateResult PhysComponentCreate(GameObject::HCollection collection,
-                                                        uint32_t instance_id,
+                                                        GameObject::HInstance instance,
                                                         void* resource,
                                                         void* context)
     {
@@ -87,7 +87,7 @@ protected:
     }
 
     static GameObject::CreateResult PhysComponentDestroy(GameObject::HCollection collection,
-                                                         uint32_t instance_id,
+                                                         GameObject::HInstance instance,
                                                          void* context)
     {
         GameObjectTest* game_object_test = (GameObjectTest*) context;

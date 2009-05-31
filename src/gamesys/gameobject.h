@@ -28,12 +28,12 @@ namespace GameObject
     };
 
     typedef CreateResult (*ComponentCreate)(HCollection collection,
-                                            uint32_t instance_id,
+                                            HInstance instance,
                                             void* resource,
                                             void* context);
 
     typedef CreateResult (*ComponentDestroy)(HCollection collection,
-                                             uint32_t instance_id,
+                                             HInstance instance,
                                              void* context);
 
     /**

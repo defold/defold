@@ -215,7 +215,6 @@ namespace GameObject
         }
 
         Instance* instance = new Instance(proto);
-        instance->m_ID = (uint32_t) instance; // TODO: Not 64-bit friendly.
 
         uint32_t components_created = 0;
         bool ok = true;
@@ -225,7 +224,7 @@ namespace GameObject
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
             if (component_type)
             {
-                CreateResult create_result =  component_type->m_CreateFunction(collection, instance->m_ID, component->m_Resource, component_type->m_Context);
+                CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, component_type->m_Context);
                 if (create_result == CREATE_RESULT_OK)
                 {
                     components_created++;
@@ -250,7 +249,7 @@ namespace GameObject
                 Prototype::Component* component = &proto->m_Components[i];
                 ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
                 assert(component_type);
-                component_type->m_DestroyFunction(collection, instance->m_ID, component_type->m_Context);
+                component_type->m_DestroyFunction(collection, instance, component_type->m_Context);
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
@@ -285,7 +284,7 @@ namespace GameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
             assert(component_type);
-            component_type->m_DestroyFunction(collection, instance->m_ID, component_type->m_Context);
+            component_type->m_DestroyFunction(collection, instance, component_type->m_Context);
         }
 
         // TODO: O(n)...

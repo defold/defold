@@ -43,7 +43,6 @@ namespace GameObject
         Point3      m_Position;
         Prototype*  m_Prototype;
         PyObject*   m_Self;
-        uint32_t    m_ID;
     };
 }
 
