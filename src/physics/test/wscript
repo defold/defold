@@ -4,7 +4,7 @@ def build(bld):
     test_physics = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_physics.cpp',
                                     uselib = 'GTEST',
-                                    uselib_local = 'physics BulletCollision BulletDynamics LinearMath',
+                                    uselib_local = 'physics BulletDynamics BulletCollision LinearMath',
                                     includes = ['../../src'],
                                     target = 'test_physics')
 
