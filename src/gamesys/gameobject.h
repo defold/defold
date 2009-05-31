@@ -27,6 +27,11 @@ namespace GameObject
         CREATE_RESULT_UNKNOWN_ERROR = 1000,
     };
 
+    struct UpdateContext
+    {
+        float m_DT;
+    };
+
     typedef CreateResult (*ComponentCreate)(HCollection collection,
                                             HInstance instance,
                                             void* resource,
@@ -35,6 +40,10 @@ namespace GameObject
     typedef CreateResult (*ComponentDestroy)(HCollection collection,
                                              HInstance instance,
                                              void* context);
+
+    typedef void (*ComponentsUpdate)(HCollection collection,
+                                     const UpdateContext* update_context,
+                                     void* context);
 
     /**
      * Initialize system
@@ -65,13 +74,15 @@ namespace GameObject
      * @param context User context
      * @param create_function Create function call-back
      * @param destroy_function Destroy function call-back
+     * @param components_update Components update call-back. NULL if not required.
      * @return RESULT_OK on success
      */
     Result       RegisterComponentType(HCollection collection,
                                        uint32_t resource_type,
                                        void* context,
                                        ComponentCreate create_function,
-                                       ComponentDestroy destroy_function);
+                                       ComponentDestroy destroy_function,
+                                       ComponentsUpdate components_update);
 
     /**
      * Create a new gameobject instane
@@ -97,6 +108,14 @@ namespace GameObject
      * @return True on success
      */
     bool         Update(HCollection collection, HInstance instance);
+
+    /**
+     * Update all gameobjects and its components
+     * @param collection Gameobject collection
+     * @param update_context Update context
+     * @return True on success
+     */
+    bool         Update(HCollection collection, const UpdateContext* update_context);
 
     /**
      * Set gameobject instance position

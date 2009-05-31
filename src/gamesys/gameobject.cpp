@@ -19,6 +19,7 @@ namespace GameObject
         void*            m_Context;
         ComponentCreate  m_CreateFunction;
         ComponentDestroy m_DestroyFunction;
+        ComponentsUpdate m_ComponentsUpdate;
     };
 
     const uint32_t MAX_COMPONENT_TYPES = 128;
@@ -71,7 +72,8 @@ namespace GameObject
                                  uint32_t resource_type,
                                  void* context,
                                  ComponentCreate create_function,
-                                 ComponentDestroy destroy_function)
+                                 ComponentDestroy destroy_function,
+                                 ComponentsUpdate components_update)
     {
         if (collection->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
             return RESULT_OUT_OF_RESOURCES;
@@ -84,6 +86,7 @@ namespace GameObject
         component_type.m_Context = context;
         component_type.m_CreateFunction = create_function;
         component_type.m_DestroyFunction = destroy_function;
+        component_type.m_ComponentsUpdate = components_update;
 
         collection->m_ComponentTypes[collection->m_ComponentTypeCount++] = component_type;
 
@@ -313,6 +316,25 @@ namespace GameObject
         bool ret = RunScript(proto->m_Script, "Update", instance->m_Self, lst);
         Py_DECREF(lst);
         return ret;
+    }
+
+    bool Update(HCollection collection, const UpdateContext* update_context)
+    {
+        uint32_t n_objects = collection->m_Instances.size();
+        for (uint32_t i = 0; i < n_objects; ++i)
+        {
+            Update(collection, collection->m_Instances[i]);
+        }
+
+        uint32_t component_types = collection->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            ComponentType* component_type = &collection->m_ComponentTypes[i];
+            if (component_type->m_ComponentsUpdate)
+            {
+                component_type->m_ComponentsUpdate(collection, update_context, component_type->m_Context);
+            }
+        }
     }
 
     void SetPosition(HCollection collection, HInstance instance, Point3 position)

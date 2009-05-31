@@ -26,7 +26,7 @@ protected:
         uint32_t resource_type;
         e = Resource::GetTypeFromExtension(factory, "pc", &resource_type);
         ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
-        GameObject::Result result = GameObject::RegisterComponentType(collection, resource_type, this, &PhysComponentCreate, &PhysComponentDestroy);
+        GameObject::Result result = GameObject::RegisterComponentType(collection, resource_type, this, &PhysComponentCreate, &PhysComponentDestroy, &PhysComponentsUpdate);
         ASSERT_EQ(GameObject::RESULT_OK, result);
 
         m_PhysCreateCallCount = 0;
@@ -34,6 +34,7 @@ protected:
         m_PhysComponentCreateCallCount = 0;
         m_PhysComponentDestroyCallCount = 0;
         m_MaxPhysComponentCreateCallCount = 1000000;
+        m_PhysComponentsUpdateCallCount = 0;
     }
 
     virtual void TearDown()
@@ -96,11 +97,20 @@ protected:
     }
 
 
+    static void PhysComponentsUpdate(GameObject::HCollection collection,
+                                     const GameObject::UpdateContext* update_context,
+                                     void* context)
+    {
+        GameObjectTest* game_object_test = (GameObjectTest*) context;
+        game_object_test->m_PhysComponentsUpdateCallCount++;
+    }
+
     uint32_t m_MaxPhysComponentCreateCallCount;
     uint32_t m_PhysCreateCallCount;
     uint32_t m_PhysDestroyCallCount;
     uint32_t m_PhysComponentCreateCallCount;
     uint32_t m_PhysComponentDestroyCallCount;
+    uint32_t m_PhysComponentsUpdateCallCount;
     GameObject::HCollection collection;
     Resource::HFactory factory;
 };
@@ -124,10 +134,15 @@ TEST_F(GameObjectTest, Test01)
     ASSERT_EQ(0, m_PhysComponentDestroyCallCount);
 }
 
-TEST_F(GameObjectTest, Test02)
+TEST_F(GameObjectTest, TestUpdate)
 {
     GameObject::HInstance go = GameObject::New(collection, factory, "goproto02.go");
     ASSERT_NE((void*) 0, (void*) go);
+    GameObject::UpdateContext update_context;
+    update_context.m_DT = 1.0f / 60.0f;
+    GameObject::Update(collection, &update_context);
+    ASSERT_EQ(1, m_PhysComponentsUpdateCallCount);
+
     GameObject::Delete(collection, factory, go);
     ASSERT_EQ(1, m_PhysCreateCallCount);
     ASSERT_EQ(1, m_PhysDestroyCallCount);
