@@ -99,6 +99,22 @@ namespace GameObject
     bool         Update(HCollection collection, HInstance instance);
 
     /**
+     * Set gameobject instance position
+     * @param collection Gameobject collection
+     * @param instance Gameobject instance
+     * @param position New Position
+     */
+    void         SetPosition(HCollection collection, HInstance instance, Point3 position);
+
+    /**
+     * Get gameobject instance position
+     * @param collection Gameobject collection
+     * @param instance Gameobject instance
+     * @return Position
+     */
+    Point3       GetPosition(HCollection collection, HInstance instance);
+
+    /**
      * Register all resource types in resource factory
      * @param factory Resource factory
      * @return Resource::FactoryError

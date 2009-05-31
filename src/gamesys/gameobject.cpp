@@ -315,4 +315,14 @@ namespace GameObject
         Py_DECREF(lst);
         return ret;
     }
+
+    void SetPosition(HCollection collection, HInstance instance, Point3 position)
+    {
+        instance->m_Position = position;
+    }
+
+    Point3 GetPosition(HCollection collection, HInstance instance)
+    {
+        return instance->m_Position;
+    }
 }
