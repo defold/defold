@@ -1,0 +1,15 @@
+.DS_Store
+.lock-wscript
+build
+*.mesh
+*.material
+*.arbvp
+*.arbfp
+*.model
+*.pyc
+
+
+
+
+
+

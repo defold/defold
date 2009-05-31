@@ -7,7 +7,3 @@ def build(bld):
                            target = 'LinearMath',
                            uselib = 'BULLET' )
     linear_math.find_sources_in_dirs('.')
-
-#    bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
-#    bld.install_files('${PREFIX}/include/gamesys', 'gameobject.h')
-#    bld.install_files('${PREFIX}/share/proto', 'gameobject_ddf.proto')

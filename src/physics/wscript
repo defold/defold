@@ -8,4 +8,6 @@ def build(bld):
                            target = 'physics')
     physics.find_sources_in_dirs('.')
 
+    bld.install_files('${PREFIX}/include/physics', 'physics.h')
+
     bld.add_subdirs('test')
