@@ -1,5 +1,5 @@
 Name: "MyObject01"
-Script: "script01.pyscript"
+Script: "script01.scriptc"
 Components: "pycomp01.pc"
 Components: "pycompDOESNOTEXISTS.pc"
 

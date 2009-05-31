@@ -20,9 +20,9 @@ Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
                       before='cc cxx',
                       shell=True)
 
-@extension('.p')
+@extension('.script')
 def testresourcecont_file(self, node):
-    obj_ext = '.pyscript'
+    obj_ext = '.scriptc'
     task = self.create_task('pyscript')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)

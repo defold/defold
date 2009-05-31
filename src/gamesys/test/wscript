@@ -58,9 +58,9 @@ Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
                       before='cc cxx',
                       shell=True)
 
-@extension('.p')
+@extension('.script')
 def testresourcecont_file(self, node):
-    obj_ext = '.pyscript'
+    obj_ext = '.scriptc'
     task = self.create_task('pyscript')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
@@ -86,7 +86,7 @@ def build(bld):
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
                                      source = 'test_gameobject.cpp test_resource_ddf.proto')
-    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.p'])
+    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script'])
     test_gameobject.install_path = None
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',

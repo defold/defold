@@ -198,7 +198,7 @@ namespace GameObject
         if (ret != Resource::FACTORY_ERROR_OK)
             return ret;
 
-        ret = Resource::RegisterType(factory, "pyscript", 0, &ScriptCreate, &ScriptDestroy);
+        ret = Resource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy);
         if (ret != Resource::FACTORY_ERROR_OK)
             return ret;
 
