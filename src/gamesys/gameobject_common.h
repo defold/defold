@@ -2,6 +2,7 @@
 #define GAMEOBJECT_COMMON_H
 
 #include <vector>
+#include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
