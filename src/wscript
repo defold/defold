@@ -1,0 +1,9 @@
+import sys
+
+def configure(conf):
+    conf.sub_config('bullet')
+    conf.sub_config('physics')
+
+def build(bld):
+    bld.add_subdirs('bullet')
+    bld.add_subdirs('physics')

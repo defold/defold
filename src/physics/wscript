@@ -1,0 +1,11 @@
+def configure(conf):
+    pass
+
+def build(bld):
+    physics = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = '. ../bullet',
+                           #uselib_local = 'BulletCollision BulletDynamics LinearMath',
+                           target = 'physics')
+    physics.find_sources_in_dirs('.')
+
+    bld.add_subdirs('test')
