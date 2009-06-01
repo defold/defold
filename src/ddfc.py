@@ -1,6 +1,7 @@
 from optparse import OptionParser
 
 import sys, os
+import dlib
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
@@ -123,6 +124,11 @@ def ToCStruct(pp, message_type):
         else:
             p(type_to_ctype[f.type], f.name)
     pp.Print('static SDDFDescriptor* m_DDFDescriptor;')
+
+    # TODO: This is not optimal. Hash value is sensitive on googles format string
+    # Also dependent on type invariant values?
+    hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
+    pp.Print('static const uint64_t m_DDFHash = 0x%016XLL;' % dlib.HashBuffer64(hash_string))
     pp.End()
 
 def ToCEnum(pp, message_type):
