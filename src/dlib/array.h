@@ -11,7 +11,8 @@
 class ArrayHelper
 {
     public:
-    static void SetCapacity(uint32_t, uint32_t, uint32_t*, uint32_t*, uint32_t*);
+
+	static void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*);
 };
 
 
@@ -115,7 +116,7 @@ public:
      */
     uint32_t Size() const
     {
-        return m_End - m_Front;
+        return (uint32_t)(m_End - m_Front);
     }
 
     /**
@@ -124,7 +125,7 @@ public:
      */
     uint32_t Capacity() const
     {
-        return m_Back - m_Front;
+        return (uint32_t)(m_Back - m_Front);
     }
 
     /**
@@ -182,7 +183,7 @@ public:
     void SetCapacity(uint32_t new_capacity)
     {
         assert (!(m_State & STATE_USER_ALLOCATED) && "SetCapacity is an illegal operation on user allocated arrays");
-        ArrayHelper::SetCapacity(new_capacity, sizeof(T), (uint32_t*)&m_Front, (uint32_t*)&m_Back, (uint32_t*)&m_End);
+		ArrayHelper::SetCapacity(new_capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End);
     }
 
     /**

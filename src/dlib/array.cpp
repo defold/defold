@@ -1,13 +1,11 @@
 
 #include <string.h>
-#include <stdlib.h>
 #include "array.h"
-#include "iterator.h"
 
 
-void ArrayHelper::SetCapacity(uint32_t new_capacity, uint32_t type_size, uint32_t* ptr_first, uint32_t* ptr_last, uint32_t* ptr_end)
+void ArrayHelper::SetCapacity(uint32_t new_capacity, uint32_t type_size, uintptr_t* ptr_first, uintptr_t* ptr_last, uintptr_t* ptr_end)
 {
-    uint32_t old_capacity = (*ptr_last - *ptr_first)/type_size;
+    uintptr_t old_capacity = (*ptr_last - *ptr_first)/type_size;
     if(new_capacity == old_capacity)
         return;
 
@@ -20,18 +18,18 @@ void ArrayHelper::SetCapacity(uint32_t new_capacity, uint32_t type_size, uint32_
     else
         new_block = 0;
 
-    uint32_t old_size = (*ptr_end - *ptr_first)/type_size;
-    uint32_t new_size = old_size;
+    uintptr_t old_size = (*ptr_end - *ptr_first)/type_size;
+    uintptr_t new_size = old_size;
     new_size = new_size < new_capacity ? new_size : new_capacity;
 
     if(old_capacity)
     {
-        memcpy(new_block, (void *) *ptr_first , type_size*(old_size < new_capacity ? old_size : new_capacity));
+        memcpy(new_block, (void *)*ptr_first, (size_t)((size_t)type_size*(old_size < new_capacity ? old_size : new_capacity)));
         delete[] (uint8_t*) *ptr_first;
     }
 
-    *ptr_first = (uint32_t) new_block;
-    *ptr_end   = (uint32_t) (new_block + (new_size*type_size));
-    *ptr_last  = (uint32_t) (new_block + (new_capacity*type_size));
+    *ptr_first = (uintptr_t) new_block;
+    *ptr_end   = (uintptr_t) (new_block + (new_size*type_size));
+    *ptr_last  = (uintptr_t) (new_block + (new_capacity*type_size));
 }
 
