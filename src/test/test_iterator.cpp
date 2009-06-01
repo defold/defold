@@ -21,6 +21,7 @@ TEST(Iterator, TestOperators)
 { 
     const uint32_t list_size = 10;
     uint32_t list[list_size];
+    memset(&list[0], 0x0, list_size*sizeof(uint32_t));
     Iterator<uint32_t> begin(&list[0], &list[0], &list[list_size]);
     Iterator<uint32_t> end(&list[list_size], &list[0], &list[list_size]);
 
