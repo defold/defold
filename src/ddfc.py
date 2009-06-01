@@ -122,7 +122,7 @@ def ToCStruct(pp, message_type):
             p(DotToNamespace(f.type_name), f.name)
         else:
             p(type_to_ctype[f.type], f.name)
-
+    pp.Print('static SDDFDescriptor* m_DDFDescriptor;')
     pp.End()
 
 def ToCEnum(pp, message_type):
@@ -141,7 +141,8 @@ def ToCEnum(pp, message_type):
 def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
-    pp_h.Print("extern SDDFDescriptor %s_%s_DESCRIPTOR;", namespace, message_type.name)
+    pp_h.Print('extern SDDFDescriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
+    pp_h.Print('SDDFDescriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
 
     for nt in message_type.nested_type:
         ToDescriptor(pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )

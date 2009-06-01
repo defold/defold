@@ -76,6 +76,28 @@ TEST(Simple, Load)
     }
 }
 
+TEST(Simple, LoadWithTemplateFunction)
+{
+    int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
+
+    for (int i = 0; i < sizeof(test_values)/sizeof(test_values[0]); ++i)
+    {
+        TestDDF::Simple simple;
+        simple.set_a(test_values[i]);
+        std::string msg_str = simple.SerializeAsString();
+        const char* msg_buf = msg_str.c_str();
+        uint32_t msg_buf_size = msg_str.size();
+
+        DUMMY::TestDDF::Simple* msg;
+        DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &msg);
+        ASSERT_EQ(DDF_ERROR_OK, e);
+
+        ASSERT_EQ(simple.a(), msg->m_a);
+
+        DDFFreeMessage(msg);
+    }
+}
+
 TEST(Simple, LoadFromFile)
 {
     int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };

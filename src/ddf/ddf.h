@@ -108,9 +108,23 @@ enum DDFWireType
  * @param buffer Input buffer
  * @param buffer_size Input buffer size in bytes
  * @param desc DDF descriptor
- * @return Pointer to message
+ * @param message Pointer to message
+ * @return DDF_ERROR_OK on success
  */
 DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDescriptor* desc, void** message);
+
+/**
+ * Load/decode a DDF message from buffer. Template variant
+ * @param buffer Input buffer
+ * @param buffer_size Input buffer size in bytes
+ * @param message Pointer to message
+ * @return DDF_ERROR_OK on success
+ */
+template <typename T>
+DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, T** message)
+{
+    return DDFLoadMessage(buffer, buffer_size, T::m_DDFDescriptor, (void**) message);
+}
 
 /**
  * Load/decode a DDF message from file
