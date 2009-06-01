@@ -1,11 +1,48 @@
+#include <stdint.h>
 #include "physics.h"
 #include "btBulletDynamicsCommon.h"
 
 namespace Physics
 {
+    class MotionState : public btMotionState
+    {
+    public:
+        MotionState(const btTransform& initial_pos, void* visual_object, SetObjectState set_object_state, void* set_object_state_context)
+        {
+            m_Pos1 = initial_pos;
+            m_VisualObject = visual_object;
+            m_SetObjectState = set_object_state;
+            m_SetObjectStateContext = set_object_state_context;
+        }
+
+        virtual ~MotionState() {
+        }
+
+        virtual void getWorldTransform(btTransform& world_trans) const
+        {
+            world_trans = m_Pos1;
+        }
+
+        virtual void setWorldTransform(const btTransform &worldTrans)
+        {
+            btQuaternion bt_rot = worldTrans.getRotation();
+            btVector3 bt_pos = worldTrans.getOrigin();
+
+            Quat rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
+            Point3 pos = Point3(bt_pos.getX(), bt_pos.getY(), bt_pos.getZ());
+            m_SetObjectState(m_SetObjectStateContext, m_VisualObject, rot, pos);
+        }
+
+    protected:
+        SetObjectState  m_SetObjectState;
+        void*           m_SetObjectStateContext;
+        void*           m_VisualObject;
+        btTransform     m_Pos1;
+    };
+
     struct PhysicsWorld
     {
-        PhysicsWorld(const Point3& world_min, const Point3& world_max);
+        PhysicsWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
         ~PhysicsWorld();
 
         btDefaultCollisionConfiguration*     m_CollisionConfiguration;
@@ -13,9 +50,11 @@ namespace Physics
         btAxisSweep3*                        m_OverlappingPairCache;
         btSequentialImpulseConstraintSolver* m_Solver;
         btDiscreteDynamicsWorld*             m_DynamicsWorld;
+        SetObjectState                       m_SetObjectState;
+        void*                                m_SetObjectStateContext;
     };
 
-    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max)
+    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -31,6 +70,8 @@ namespace Physics
         m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
 
         m_DynamicsWorld->setGravity(btVector3(0,-10,0));
+        m_SetObjectState = set_object_state;
+        m_SetObjectStateContext = set_object_state_context;
     }
 
     PhysicsWorld::~PhysicsWorld()
@@ -42,9 +83,9 @@ namespace Physics
         delete m_CollisionConfiguration;
     }
 
-    HWorld NewWorld(const Point3& world_min, const Point3& world_max)
+    HWorld NewWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context)
     {
-        return new PhysicsWorld(world_min, world_max);
+        return new PhysicsWorld(world_min, world_max, set_object_state, set_object_state_context);
     }
 
     void DeleteWorld(HWorld world)
@@ -58,17 +99,24 @@ namespace Physics
         world->m_DynamicsWorld->stepSimulation(dt, 1);
     }
 
-    HCollisionShape NewBoxShape(HWorld world, const Point3& half_extents)
+    HCollisionShape NewBoxShape(const Vector3& half_extents)
     {
         return new btBoxShape(btVector3(half_extents.getX(), half_extents.getY(), half_extents.getZ()));
     }
 
-    void DeleteShape(HWorld world, HCollisionShape shape)
+    HCollisionShape NewConvexHullShape(const float* vertices, uint32_t vertex_count)
+    {
+        assert(sizeof(btScalar) == sizeof(float));
+        return new btConvexHullShape(vertices, vertex_count);
+    }
+
+    void DeleteCollisionShape(HCollisionShape shape)
     {
         delete shape;
     }
 
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
+                            void* visual_object,
                             const Quat& rotation, const Point3& position,
                             float mass)
     {
@@ -82,7 +130,7 @@ namespace Physics
         if (is_dynamic)
             shape->calculateLocalInertia(mass, local_inertia);
 
-        btDefaultMotionState* motion_state = new btDefaultMotionState(transform);
+        MotionState* motion_state = new MotionState(transform, visual_object, world->m_SetObjectState, world->m_SetObjectStateContext);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
         btRigidBody* body = new btRigidBody(rb_info);
         world->m_DynamicsWorld->addRigidBody(body);
@@ -98,27 +146,13 @@ namespace Physics
         delete rigid_body;
     }
 
-#include <stdio.h>
-    Matrix4 GetTransform(HWorld world, HRigidBody rigid_body)
+    void SetRigidBodyUserData(HRigidBody rigid_body, void* user_data)
     {
-        // TODO: This is ugly slow etc... PLEASE FIX...
-
-        const btMotionState* motion_state = rigid_body->getMotionState();
-
-        btTransform world_trans;
-        motion_state->getWorldTransform(world_trans);
-        Matrix3 rotation;
-        for (int i = 0; i < 3; ++i)
-        {
-            btVector3 c = world_trans.getBasis().getColumn(i);
-            rotation.setCol(i, Vector3(c.getX(), c.getY(), c.getZ()));
-        }
-
-        Vector3 translation = Vector3(world_trans.getOrigin().getX(),
-                                world_trans.getOrigin().getY(),
-                                world_trans.getOrigin().getZ());
-
-        return Matrix4(rotation, translation);
+        rigid_body->setUserPointer(user_data);
     }
 
+    void* GetRigidBodyUserData(HRigidBody rigid_body)
+    {
+        return rigid_body->getUserPointer();
+    }
 }

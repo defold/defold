@@ -1,0 +1,31 @@
+package Physics;
+
+message ConvexShape
+{
+    enum Type
+    {
+        BOX = 1;
+        CAPSULE = 2;
+        HULL = 3;
+    }
+    
+    required Type  ShapeType = 1;
+    
+    /*
+     ShapeType == BOX
+     Data = [min_x, min_y, min_z, max_x, max_y, max_z]
+
+     ShapeType == CAPSULE
+     Data = [radius, height]
+
+     ShapeType == HULL
+     Data = [x0, y0, z0, x1, ...]
+    */
+    repeated float Data = 2;
+}
+
+message RigidBodyDesc
+{
+    required float Mass = 1;
+    required string CollisionShape = 2; 
+}

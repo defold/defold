@@ -13,19 +13,17 @@ namespace Physics
     typedef class btCollisionShape* HCollisionShape;
     typedef class btRigidBody* HRigidBody;
 
-    struct WorldConfiguration
-    {
-        WorldConfiguration()
-        {
-
-        }
-    };
+    typedef void (*SetObjectState)(void* context, void* visual_object, const Quat& rotation, const Point3& position);
 
     /**
      * Create a new physics world
+     * @param world_min World min (AABB)
+     * @param world_max World max (AABB)
+     * @param set_object_state Set object state call-back. Used for updating corresponding visual object state
+     * @param set_object_state_context User context
      * @return HPhysicsWorld
      */
-    HWorld NewWorld(const Point3& world_min, const Point3& world_max);
+    HWorld NewWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
 
     /**
      * Delete a physics world
@@ -42,29 +40,37 @@ namespace Physics
 
     /**
      * Create a new shape
-     * @param world Physics world
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape NewBoxShape(HWorld world, const Point3& half_extents);
+    HCollisionShape NewBoxShape(const Vector3& half_extents);
+
+    /**
+     * Create a new convex hull shape
+     * @param vertices Vertices. x0, y0, z0, x1, ...
+     * @param vertex_count Vertex count
+     * @return Shape
+     */
+    HCollisionShape NewConvexHullShape(const float* vertices, uint32_t vertex_count);
 
     /**
      * Delete a shape
-     * @param world Physics world
      * @param shape Shape
      */
-    void DeleteShape(HWorld world, HCollisionShape shape);
+    void DeleteCollisionShape(HCollisionShape shape);
 
     /**
      * Create a new rigid body
      * @param world Physics world
      * @param shape Shape
+     * @param visual_object Corresponding visual object
      * @param rotation Initial rotation
      * @param position Initial position
      * @param mass Mass. If identical to 0.0f the rigid body is static
      * @return A new rigid body
      */
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
+                            void* visual_object,
                             const Quat& rotation, const Point3& position,
                             float mass);
 
@@ -76,14 +82,18 @@ namespace Physics
     void DeleteRigidBody(HWorld world, HRigidBody rigid_body);
 
     /**
-     * TODO: How to handle synchronize position, orient. with physics world eff...
-     * We will probably remove this function later...
-     * Get rigid body transform.
-     * @param world Physics world
+     * Set rigid body user data
      * @param rigid_body Rigid body
-     * @return Transform
+     * @param user_data User data
      */
-    Matrix4 GetTransform(HWorld world, HRigidBody rigid_body);
+    void SetRigidBodyUserData(HRigidBody rigid_body, void* user_data);
+
+    /**
+     * Set rigid body user data
+     * @param rigid_body Rigid body
+     * @return User data
+     */
+    void* GetRigidBodyUserData(HRigidBody rigid_body);
 }
 
 #endif // PHYSICS_H
