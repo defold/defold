@@ -142,7 +142,6 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
     pp_h.Print('extern SDDFDescriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
-    pp_h.Print('SDDFDescriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
 
     for nt in message_type.nested_type:
         ToDescriptor(pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
@@ -176,6 +175,8 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFFieldDescriptor),', namespace, message_type.name)
     pp_cpp.End()
+    pp_cpp.Print('SDDFDescriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
+    pp_cpp.Print('')
 
 def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
     namespace = "_".join(namespace_lst)
