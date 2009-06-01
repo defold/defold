@@ -25,6 +25,20 @@ struct Iterator
         assert(m_P >= m_Min && m_P <= m_Max);
     }
 
+    // operator +
+    T* operator+(int32_t val)
+    {
+        assert(m_P+val < m_Max);
+        return m_P+val;
+    }
+
+    // operator -
+    T* operator-(int32_t val)
+    {
+        assert(m_P-val >= m_Min);
+        return m_P-val;
+    }
+
     // operator ++
     void operator++(int32_t)
     {
@@ -43,7 +57,7 @@ struct Iterator
     void operator--(int32_t)
     {
         assert(m_P >= m_Min);
-        m_P++;
+        m_P--;
     }
 
     // operator -=
@@ -53,16 +67,28 @@ struct Iterator
         m_P-=val;
     }
 
-    // != operator
+    // != operator ref
     bool operator!=(Iterator<T>& other)
     {
         return m_P != other.m_P;
     }
 
-    // == operator
+    // != operator
+    bool operator!=(T* other)
+    {
+        return *m_P != *other;
+    }
+
+    // == operator ref
     bool operator==(Iterator<T>& other)
     {
         return m_P == other.m_P;
+    }
+
+    // == operator
+    bool operator==(T* other)
+    {
+        return *m_P == *other;
     }
 
     // > operator
