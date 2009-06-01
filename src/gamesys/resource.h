@@ -4,6 +4,11 @@
 #include <ddf/ddf.h>
 
 /*
+ * TODO:
+ * Add function to translate from factory to create result
+ */
+
+/*
  * Resource types:
  *  Resource:               Source-type:    Runtime-type:
  *  Animtion                Edge            Handle
@@ -74,6 +79,7 @@ namespace Resource
     {
         CREATE_ERROR_OK             = 0,
         CREATE_ERROR_OUT_OF_MEMORY  = 1,
+        CREATE_ERROR_FORMAT_ERROR   = 2,
         CREATE_ERROR_UNKNOWN        = 1000,
     };
 

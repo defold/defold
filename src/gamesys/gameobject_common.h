@@ -29,6 +29,7 @@ namespace GameObject
     {
         Instance(Prototype* prototype)
         {
+            m_Rotation = Quat::identity();
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
             m_Self = PyObject_CallObject((PyObject*) &PythonInstanceType, 0);
@@ -40,6 +41,7 @@ namespace GameObject
             Py_DECREF(m_Self);
         }
 
+        Quat        m_Rotation;
         Point3      m_Position;
         Prototype*  m_Prototype;
         PyObject*   m_Self;

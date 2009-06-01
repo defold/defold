@@ -346,4 +346,14 @@ namespace GameObject
     {
         return instance->m_Position;
     }
+
+    void SetRotation(HCollection collection, HInstance instance, Quat rotation)
+    {
+        instance->m_Rotation = rotation;
+    }
+
+    Quat GetRotation(HCollection collection, HInstance instance)
+    {
+        return instance->m_Rotation;
+    }
 }

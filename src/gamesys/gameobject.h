@@ -134,6 +134,22 @@ namespace GameObject
     Point3       GetPosition(HCollection collection, HInstance instance);
 
     /**
+     * Set gameobject instance rotation
+     * @param collection Gameobject collection
+     * @param instance Gameobject instance
+     * @param position New Position
+     */
+    void         SetRotation(HCollection collection, HInstance instance, Quat rotation);
+
+    /**
+     * Get gameobject instance rotation
+     * @param collection Gameobject collection
+     * @param instance Gameobject instance
+     * @return Position
+     */
+    Quat         GetRotation(HCollection collection, HInstance instance);
+
+    /**
      * Register all resource types in resource factory
      * @param factory Resource factory
      * @return Resource::FactoryError
