@@ -5,7 +5,7 @@ if sys.platform == "darwin":
 elif sys.platform == "linux2":
     libname = "libdlib_shared.so"
 elif sys.platform == "win32":
-    libname = "libdlib_shared.dll"
+    libname = "dlib_shared.dll"
 
 dlib = ctypes.cdll.LoadLibrary(os.path.join(os.environ['DYNAMO_HOME'], "lib", libname))
 
