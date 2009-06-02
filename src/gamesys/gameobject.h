@@ -35,11 +35,13 @@ namespace GameObject
     typedef CreateResult (*ComponentCreate)(HCollection collection,
                                             HInstance instance,
                                             void* resource,
-                                            void* context);
+                                            void* context,
+                                            uintptr_t* user_data);
 
     typedef CreateResult (*ComponentDestroy)(HCollection collection,
                                              HInstance instance,
-                                             void* context);
+                                             void* context,
+                                             uintptr_t* user_data);
 
     typedef void (*ComponentsUpdate)(HCollection collection,
                                      const UpdateContext* update_context,
@@ -75,6 +77,7 @@ namespace GameObject
      * @param create_function Create function call-back
      * @param destroy_function Destroy function call-back
      * @param components_update Components update call-back. NULL if not required.
+     * @param component_instance_has_user_data True if the component instance needs user data
      * @return RESULT_OK on success
      */
     Result       RegisterComponentType(HCollection collection,
@@ -82,7 +85,8 @@ namespace GameObject
                                        void* context,
                                        ComponentCreate create_function,
                                        ComponentDestroy destroy_function,
-                                       ComponentsUpdate components_update);
+                                       ComponentsUpdate components_update,
+                                       bool component_instance_has_user_data);
 
     /**
      * Create a new gameobject instane

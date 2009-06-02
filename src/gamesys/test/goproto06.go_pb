@@ -1,0 +1,8 @@
+Name: "MyObject01"
+Script: "script01.scriptc"
+Components: "a01.a"
+Components: "a01.a"
+Components: "b01.b"
+Components: "c01.c"
+Components: "c01.c"
+Components: "c01.c"

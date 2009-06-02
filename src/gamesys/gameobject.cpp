@@ -1,5 +1,6 @@
 #include <Python.h>
 
+#include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include "gameobject.h"
 #include "gameobject_ddf.h"
@@ -20,6 +21,7 @@ namespace GameObject
         ComponentCreate  m_CreateFunction;
         ComponentDestroy m_DestroyFunction;
         ComponentsUpdate m_ComponentsUpdate;
+        uint32_t         m_ComponentInstanceHasUserdata : 1;
     };
 
     const uint32_t MAX_COMPONENT_TYPES = 128;
@@ -73,7 +75,8 @@ namespace GameObject
                                  void* context,
                                  ComponentCreate create_function,
                                  ComponentDestroy destroy_function,
-                                 ComponentsUpdate components_update)
+                                 ComponentsUpdate components_update,
+                                 bool component_instance_has_user_data)
     {
         if (collection->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
             return RESULT_OUT_OF_RESOURCES;
@@ -87,6 +90,7 @@ namespace GameObject
         component_type.m_CreateFunction = create_function;
         component_type.m_DestroyFunction = destroy_function;
         component_type.m_ComponentsUpdate = components_update;
+        component_type.m_ComponentInstanceHasUserdata = (uint32_t) component_instance_has_user_data;
 
         collection->m_ComponentTypes[collection->m_ComponentTypeCount++] = component_type;
 
@@ -217,26 +221,48 @@ namespace GameObject
             return 0;
         }
 
-        Instance* instance = new Instance(proto);
+        // Count number of component userdata fields required
+        uint32_t component_instance_userdata_count = 0;
+        for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
+        {
+            Prototype::Component* component = &proto->m_Components[i];
+            ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+            if (!component_type)
+            {
+                LogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
+                assert(false);
+            }
+            if (component_type->m_ComponentInstanceHasUserdata)
+                component_instance_userdata_count++;
+        }
+
+        uint32_t component_userdata_size = sizeof(((Instance*)0)->m_ComponentInstanceUserData[0]);
+        // NOTE: Allocate actual Instance with *all* component instance user-data accounted
+        void* instance_memory = ::operator new (sizeof(Instance) + component_instance_userdata_count * component_userdata_size);
+        Instance* instance = new(instance_memory) Instance(proto);
+        instance->m_ComponentInstanceUserDataCount = component_instance_userdata_count;
 
         uint32_t components_created = 0;
+        uint32_t next_component_instance_data = 0;
         bool ok = true;
         for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
-            if (component_type)
+            assert(component_type);
+
+            uintptr_t* component_instance_data = 0;
+            if (component_type->m_ComponentInstanceHasUserdata)
             {
-                CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, component_type->m_Context);
-                if (create_result == CREATE_RESULT_OK)
-                {
-                    components_created++;
-                }
-                else
-                {
-                    ok = false;
-                    break;
-                }
+                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                *component_instance_data = 0;
+            }
+            assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+            CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, component_type->m_Context, component_instance_data);
+            if (create_result == CREATE_RESULT_OK)
+            {
+                components_created++;
             }
             else
             {
@@ -247,17 +273,26 @@ namespace GameObject
 
         if (!ok)
         {
+            uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < components_created; ++i)
             {
                 Prototype::Component* component = &proto->m_Components[i];
                 ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
                 assert(component_type);
-                component_type->m_DestroyFunction(collection, instance, component_type->m_Context);
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_ComponentInstanceHasUserdata)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                }
+                assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+                component_type->m_DestroyFunction(collection, instance, component_type->m_Context, component_instance_data);
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
             Resource::Release(factory, instance->m_Prototype);
-            delete instance;
+            operator delete (instance_memory);
             return 0;
         }
 
@@ -281,13 +316,22 @@ namespace GameObject
 
     void Delete(HCollection collection, Resource::HFactory factory, HInstance instance)
     {
+        uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
         for (uint32_t i = 0; i < prototype->m_Components.size(); ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
             assert(component_type);
-            component_type->m_DestroyFunction(collection, instance, component_type->m_Context);
+
+            uintptr_t* component_instance_data = 0;
+            if (component_type->m_ComponentInstanceHasUserdata)
+            {
+                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+            }
+            assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+            component_type->m_DestroyFunction(collection, instance, component_type->m_Context, component_instance_data);
         }
 
         // TODO: O(n)...
@@ -304,7 +348,8 @@ namespace GameObject
         assert(found);
 
         Resource::Release(factory, instance->m_Prototype);
-        delete instance;
+        void* instance_memory = (void*) instance;
+        operator delete (instance_memory);
     }
 
     bool Update(HCollection collection, HInstance instance)

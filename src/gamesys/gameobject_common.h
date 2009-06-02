@@ -25,6 +25,7 @@ namespace GameObject
         std::vector<Component> m_Components;
     };
 
+    // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
     {
         Instance(Prototype* prototype)
@@ -45,6 +46,8 @@ namespace GameObject
         Point3      m_Position;
         Prototype*  m_Prototype;
         PyObject*   m_Self;
+        uint32_t    m_ComponentInstanceUserDataCount;
+        uintptr_t   m_ComponentInstanceUserData[0];
     };
 }
 
