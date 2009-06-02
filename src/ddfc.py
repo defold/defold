@@ -123,12 +123,9 @@ def ToCStruct(pp, message_type):
             p(DotToNamespace(f.type_name), f.name)
         else:
             p(type_to_ctype[f.type], f.name)
+    pp.Print('')
     pp.Print('static SDDFDescriptor* m_DDFDescriptor;')
-
-    # TODO: This is not optimal. Hash value is sensitive on googles format string
-    # Also dependent on type invariant values?
-    hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    pp.Print('static const uint64_t m_DDFHash = 0x%016XLL;' % dlib.HashBuffer64(hash_string))
+    pp.Print('static const uint64_t m_DDFHash;')
     pp.End()
 
 def ToCEnum(pp, message_type):
@@ -181,7 +178,14 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFFieldDescriptor),', namespace, message_type.name)
     pp_cpp.End()
+    
     pp_cpp.Print('SDDFDescriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
+
+    # TODO: This is not optimal. Hash value is sensitive on googles format string
+    # Also dependent on type invariant values?    
+    hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
+    pp_cpp.Print('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.HashBuffer64(hash_string)))
+    
     pp_cpp.Print('')
 
 def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
