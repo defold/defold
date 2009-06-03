@@ -24,6 +24,10 @@ def run_gtests(valgrind = False):
     if not Options.commands['build']:
         return
 
+# TODO: Add something similar to this
+# http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
+# to find leaks and set error code
+
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
@@ -60,6 +64,8 @@ def configure(conf):
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
         conf.env.append_value('LINKFLAGS', '/DEBUG')
+
+    conf.env['CCFLAGS'] = conf.env['CXXFLAGS']
 
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
