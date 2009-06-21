@@ -380,6 +380,8 @@ namespace GameObject
                 component_type->m_ComponentsUpdate(collection, update_context, component_type->m_Context);
             }
         }
+
+        return true;
     }
 
     void SetPosition(HCollection collection, HInstance instance, Point3 position)
