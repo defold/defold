@@ -9,6 +9,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/iterator.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
 
     dlib = bld.new_task_gen(features = 'cxx cstaticlib',

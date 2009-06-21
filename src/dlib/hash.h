@@ -2,6 +2,7 @@
 #define HASH_H
 
 #include <stdint.h>
+#include "shared_library.h"
 
 extern "C"
 {
@@ -12,7 +13,7 @@ extern "C"
  * @param buffer_len Length of buffer
  * @return Hash value
  */
-uint32_t HashBuffer32(const void* buffer, uint32_t buffer_len);
+uint32_t DLLEXPORT HashBuffer32(const void* buffer, uint32_t buffer_len);
 
 /**
  * Calculate 64-bit hash value from buffer
@@ -20,7 +21,7 @@ uint32_t HashBuffer32(const void* buffer, uint32_t buffer_len);
  * @param buffer_len Length of buffer
  * @return Hash value
  */
-uint64_t HashBuffer64(const void* buffer, uint32_t buffer_len);
+uint64_t DLLEXPORT HashBuffer64(const void* buffer, uint32_t buffer_len);
 
 }
 
