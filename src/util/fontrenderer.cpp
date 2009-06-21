@@ -23,7 +23,7 @@ struct SFontRenderer
     Font*                          m_Font;
     std::vector<SFontVertex>       m_Vertices;
     Matrix4                        m_Projection;
-    GFXHTexture                    m_Texture;
+    GFX::HTexture                  m_Texture;
     uint32_t                       m_MaxCharacters;
 };
 
@@ -41,11 +41,11 @@ HFontRenderer FontRendererNew(const char* file_name,
     fr->m_Font = f;
     fr->m_Projection = Matrix4::orthographic( 0, width, height, 0, 10, -10 );
     fr->m_Vertices.reserve(max_characters * 6);
-    fr->m_Texture = GFXCreateTexture(fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, GFX_TEXTURE_FORMAT_LUMINANCE);
+    fr->m_Texture = GFX::CreateTexture(fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, GFX::TEXTURE_FORMAT_LUMINANCE);
     fr->m_MaxCharacters = max_characters;
 
-    GFXSetTextureData(fr->m_Texture, 0, fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, 0,
-                      GFX_TEXTURE_FORMAT_LUMINANCE, &fr->m_Font->m_ImageData[0], fr->m_Font->m_ImageData.m_Count);
+    GFX::SetTextureData(fr->m_Texture, 0, fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, 0,
+                      GFX::TEXTURE_FORMAT_LUMINANCE, &fr->m_Font->m_ImageData[0], fr->m_Font->m_ImageData.m_Count);
     return fr;
 }
 
@@ -118,33 +118,33 @@ void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t
 
 void FontRendererFlush(HFontRenderer renderer)
 {
-    GFXHContext context = GFXGetContext();
+    GFX::HContext context = GFX::GetContext();
     Matrix4 ident = Matrix4::identity();
 
-    GFXSetVertexConstantBlock(context, (const Vector4*)&renderer->m_Projection, 0, 4);
-    GFXSetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
+    GFX::SetVertexConstantBlock(context, (const Vector4*)&renderer->m_Projection, 0, 4);
+    GFX::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
 
 
-    GFXSetVertexStream(context, 0, 3, GFX_TYPE_FLOAT,
+    GFX::SetVertexStream(context, 0, 3, GFX::TYPE_FLOAT,
                        sizeof(SFontVertex),
                        (void*) &renderer->m_Vertices[0].m_Position[0]);
 
-    GFXSetVertexStream(context, 1, 2, GFX_TYPE_FLOAT,
+    GFX::SetVertexStream(context, 1, 2, GFX::TYPE_FLOAT,
                        sizeof(SFontVertex),
                        (void*) &renderer->m_Vertices[0].m_UV[0]);
 
-    GFXSetTexture(context, renderer->m_Texture);
+    GFX::SetTexture(context, renderer->m_Texture);
 
-    GFXSetBlendFunc(context, GFX_BLEND_FACTOR_SRC_ALPHA, GFX_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-    GFXDisableState(context, GFX_DEPTH_TEST);
-    GFXEnableState(context, GFX_BLEND);
+    GFX::SetBlendFunc(context, GFX::BLEND_FACTOR_SRC_ALPHA, GFX::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+    GFX::DisableState(context, GFX::DEPTH_TEST);
+    GFX::EnableState(context, GFX::BLEND);
 
-    GFXDraw(context, GFX_PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.size());
+    GFX::Draw(context, GFX::PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.size());
 
-    GFXEnableState(context, GFX_DEPTH_TEST);
-    GFXDisableState(context, GFX_BLEND);
+    GFX::EnableState(context, GFX::DEPTH_TEST);
+    GFX::DisableState(context, GFX::BLEND);
 
-    GFXDisableVertexStream(context, 1);
+    GFX::DisableVertexStream(context, 1);
 
     renderer->m_Vertices.clear();
 }
