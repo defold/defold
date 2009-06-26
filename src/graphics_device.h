@@ -12,7 +12,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include "opengl/opengl_device_defines.h"
 
-namespace GFX
+namespace Graphics
 {
     // primitive type
     enum PrimitiveType

@@ -1,4 +1,4 @@
-package GFX;
+package Graphics;
 
 message TextureImage
 {

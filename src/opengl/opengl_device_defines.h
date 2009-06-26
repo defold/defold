@@ -22,7 +22,7 @@
 #error "Platform not supported."
 #endif
 
-namespace GFX
+namespace Graphics
 {
     typedef uint32_t            HVertexProgram;
     typedef uint32_t            HFragmentProgram;

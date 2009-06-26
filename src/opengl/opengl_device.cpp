@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include "graphics_device.h"
+#include "../graphics_device.h"
 #include "opengl_device.h"
 
 #ifdef __linux__
@@ -46,7 +46,7 @@ PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
 
 using namespace Vectormath::Aos;
 
-namespace GFX
+namespace Graphics
 {
 
     Device gdevice;

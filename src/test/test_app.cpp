@@ -30,8 +30,8 @@ const int Indices[] = {0, 1, 2, 1,3,2, 4, 5, 6}; //{2, 0, 2, 0, 1, 0, 3, 2, 3, 1
 
 using namespace Vectormath::Aos;
 
-GFX::HVertexProgram m_VertexProgram;
-GFX::HFragmentProgram m_FragmentProgram;
+Graphics::HVertexProgram m_VertexProgram;
+Graphics::HFragmentProgram m_FragmentProgram;
 
 
 
@@ -73,20 +73,20 @@ void LoadPrograms()
     f = fopen("build/default/src/test/simple.arbvp", "rb");
     assert(f);
     size = fread(buf, 1, sizeof(buf), f);
-    m_VertexProgram = GFX::CreateVertexProgram(buf, size);
+    m_VertexProgram = Graphics::CreateVertexProgram(buf, size);
     fclose(f);
 
     f = fopen("build/default/src/test/simple.arbfp", "rb");
     assert(f);
     size = fread(buf, 1, sizeof(buf), f);
-    m_FragmentProgram = GFX::CreateFragmentProgram(buf, size);
+    m_FragmentProgram = Graphics::CreateFragmentProgram(buf, size);
     fclose(f);
 }
 
 int main(int argc, char *argv[])
 {
-    GFX::HDevice device;
-    GFX::CreateDeviceParams params;
+    Graphics::HDevice device;
+    Graphics::CreateDeviceParams params;
 
     params.m_DisplayWidth = 800;
     params.m_DisplayHeight = 600;
@@ -94,15 +94,15 @@ int main(int argc, char *argv[])
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = false;
 
-    device = GFX::CreateDevice(&argc, argv, &params);
+    device = Graphics::CreateDevice(&argc, argv, &params);
 
-    GFX::HContext context = GFX::GetContext();
+    Graphics::HContext context = Graphics::GetContext();
 
 
-    GFX::EnableState(context, GFX::DEPTH_TEST);
+    Graphics::EnableState(context, Graphics::DEPTH_TEST);
 
 //    float ar = (float)params.m_DisplayWidth / (float)params.m_DisplayHeight;
-    GFX::SetViewport(context, params.m_DisplayWidth, params.m_DisplayHeight);
+    Graphics::SetViewport(context, params.m_DisplayWidth, params.m_DisplayHeight);
 
     // run once to initialise
     GetDt();
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 
         GameLoop();
     }
-    GFX::DestroyDevice();
+    Graphics::DestroyDevice();
     return 0;
 }
 
@@ -146,13 +146,13 @@ static void GameLoop()
 {
 //    float dt = GetDt();
 
-    GFX::HContext context = GFX::GetContext();
-    GFX::Clear(context, GFX::CLEAR_COLOUR_BUFFER|GFX::CLEAR_DEPTH_BUFFER,
+    Graphics::HContext context = Graphics::GetContext();
+    Graphics::Clear(context, Graphics::CLEAR_COLOUR_BUFFER|Graphics::CLEAR_DEPTH_BUFFER,
             125, 80, 160, 0, 1.0, 0);
 
 
-    GFX::SetVertexProgram(context, m_VertexProgram);
-    GFX::SetFragmentProgram(context, m_FragmentProgram);
+    Graphics::SetVertexProgram(context, m_VertexProgram);
+    Graphics::SetFragmentProgram(context, m_FragmentProgram);
 
     Matrix4 proj = Matrix4::perspective(0.5, 1.333333, 0.1f, 500.0f);
 
@@ -168,20 +168,20 @@ static void GameLoop()
     mat.setTranslation(Vector3(0, 0, 0));
 
     Matrix4 vp = proj*view;
-    GFX::SetVertexConstantBlock(context, (const Vector4*)&vp, 0, 4);
-    GFX::SetVertexConstantBlock(context, (const Vector4*)&mat, 4, 4);
+    Graphics::SetVertexConstantBlock(context, (const Vector4*)&vp, 0, 4);
+    Graphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 4, 4);
 
     Vector4 v(0.0, 0.0, 1.0, 0.0);
-    GFX::SetFragmentConstant(context, &v, 0);
+    Graphics::SetFragmentConstant(context, &v, 0);
 
-    GFX::SetVertexStream(context, 0, 3, GFX::TYPE_FLOAT, 0, (void*) &Vertices[0]);
-    GFX::SetVertexStream(context, 1, 2, GFX::TYPE_FLOAT, 0, (void*) &UVs[0]);
-    GFX::SetVertexStream(context, 2, 3, GFX::TYPE_FLOAT, 0, (void*) &Normals[0]);
+    Graphics::SetVertexStream(context, 0, 3, Graphics::TYPE_FLOAT, 0, (void*) &Vertices[0]);
+    Graphics::SetVertexStream(context, 1, 2, Graphics::TYPE_FLOAT, 0, (void*) &UVs[0]);
+    Graphics::SetVertexStream(context, 2, 3, Graphics::TYPE_FLOAT, 0, (void*) &Normals[0]);
 
 
     GFXUtil::DebugRendererCube(5, Vector3(0, 0, 0));
 
-    GFX::Flip();
+    Graphics::Flip();
 
 }
 

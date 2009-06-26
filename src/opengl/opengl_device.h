@@ -4,7 +4,7 @@
 #include "opengl_device_defines.h"
 #include <sdl/SDL.h>
 
-namespace GFX
+namespace Graphics
 {
     struct Texture
     {
