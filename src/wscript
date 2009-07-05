@@ -18,7 +18,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/', 'vertexprogram_defines.h')
 
     bld.install_files('${PREFIX}/bin', 'ddsc.py')
-    bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
