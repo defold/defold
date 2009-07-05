@@ -184,7 +184,7 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?    
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    pp_cpp.Print('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.HashBuffer64(hash_string)))
+    pp_cpp.Print('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
     
     pp_cpp.Print('')
 
