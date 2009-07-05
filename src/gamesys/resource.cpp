@@ -52,8 +52,8 @@ const uint32_t MAX_RESOURCE_TYPES = 128;
 struct SResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
-    THashTable<uint64_t, SResourceDescriptor>*   m_Resources;
-    THashTable<uintptr_t, uint64_t>*             m_ResourceToHash;
+    dmHashTable<uint64_t, SResourceDescriptor>*   m_Resources;
+    dmHashTable<uintptr_t, uint64_t>*             m_ResourceToHash;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
     char                                         m_ResourcePath[RESOURCE_PATH_MAX];
@@ -75,7 +75,7 @@ static SResourceType* FindResourceType(SResourceFactory* factory, const char* ex
 // TODO: Test this...
 static void GetCanonicalPath(const char* base_dir, const char* relative_dir, char* buf)
 {
-    SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
+    DM_SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
 
     char* source = buf;
     char* dest = buf;
@@ -98,10 +98,10 @@ HFactory NewFactory(uint32_t max_resources, const char* resource_path)
     factory->m_ResourceTypesCount = 0;
 
     const uint32_t table_size = (3 *max_resources) / 4;
-    factory->m_Resources = new THashTable<uint64_t, SResourceDescriptor>(table_size);
+    factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>(table_size);
     factory->m_Resources->SetCapacity(max_resources);
 
-    factory->m_ResourceToHash = new THashTable<uintptr_t, uint64_t>(table_size);
+    factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>(table_size);
     factory->m_ResourceToHash->SetCapacity(max_resources);
 
     strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
@@ -173,7 +173,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
     }
 #endif
 
-    uint64_t canonical_path_hash = HashBuffer64(canonical_path, strlen(canonical_path));
+    uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
     if (rd)
@@ -192,14 +192,14 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         SResourceType* resource_type = FindResourceType(factory, ext);
         if (resource_type == 0)
         {
-            LogError("Unknown resource type: %s", ext);
+            dmLogError("Unknown resource type: %s", ext);
             return FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE;
         }
 
         FILE* f = fopen(canonical_path, "rb");
         if (f == 0)
         {
-            LogWarning("Resource not found: %s", canonical_path);
+            dmLogWarning("Resource not found: %s", canonical_path);
             return FACTORY_ERROR_RESOURCE_NOT_FOUND;
         }
 
@@ -210,7 +210,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         void* buffer = malloc(file_size+1); // Extra byte for resources expecting null-terminated string...
         if (buffer == 0)
         {
-            LogError("Out of memory: %s", ext);
+            dmLogError("Out of memory: %s", ext);
             return FACTORY_ERROR_OUT_OF_MEMORY;
             fclose(f);
         }
@@ -244,7 +244,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         }
         else
         {
-            LogWarning("Unable to create resource: %s", canonical_path);
+            dmLogWarning("Unable to create resource: %s", canonical_path);
             // TODO: Map CreateError to FactoryError here.
             return FACTORY_ERROR_UNKNOWN;
         }
@@ -294,7 +294,7 @@ FactoryError GetDescriptor(HFactory factory, const char* name, SResourceDescript
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_ResourcePath, name, canonical_path);
 
-    uint64_t canonical_path_hash = HashBuffer64(canonical_path, strlen(canonical_path));
+    uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
     if (tmp_descriptor)

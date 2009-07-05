@@ -143,7 +143,7 @@ Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
     if (e == DDF_ERROR_OK)
     {
         TestResourceContainer* resource_cont = new TestResourceContainer();
-        resource_cont->m_NameHash = HashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
+        resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
         resource->m_Resource = (void*) resource_cont;
 
         for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
@@ -225,7 +225,7 @@ TEST_F(GetResourceTest, GetTestResource)
     ASSERT_EQ(123, test_resource_cont->m_Resources[0]->m_x);
     ASSERT_EQ(456, test_resource_cont->m_Resources[1]->m_x);
 
-    ASSERT_EQ(HashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
+    ASSERT_EQ(dmHashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
 }
 
 TEST_F(GetResourceTest, GetReference1)

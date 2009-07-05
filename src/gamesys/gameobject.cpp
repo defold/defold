@@ -229,7 +229,7 @@ namespace GameObject
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
             if (!component_type)
             {
-                LogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
+                dmLogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
                 assert(false);
             }
             if (component_type->m_ComponentInstanceHasUserdata)
