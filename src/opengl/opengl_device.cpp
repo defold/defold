@@ -46,7 +46,7 @@ PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
 
 using namespace Vectormath::Aos;
 
-namespace Graphics
+namespace dmGraphics
 {
 
     Device gdevice;

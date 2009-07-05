@@ -23,7 +23,7 @@ struct SFontRenderer
     Font*                          m_Font;
     std::vector<SFontVertex>       m_Vertices;
     Matrix4                        m_Projection;
-    Graphics::HTexture                  m_Texture;
+    dmGraphics::HTexture                  m_Texture;
     uint32_t                       m_MaxCharacters;
 };
 
@@ -41,11 +41,11 @@ HFontRenderer FontRendererNew(const char* file_name,
     fr->m_Font = f;
     fr->m_Projection = Matrix4::orthographic( 0, width, height, 0, 10, -10 );
     fr->m_Vertices.reserve(max_characters * 6);
-    fr->m_Texture = Graphics::CreateTexture(fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, Graphics::TEXTURE_FORMAT_LUMINANCE);
+    fr->m_Texture = dmGraphics::CreateTexture(fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, dmGraphics::TEXTURE_FORMAT_LUMINANCE);
     fr->m_MaxCharacters = max_characters;
 
-    Graphics::SetTextureData(fr->m_Texture, 0, fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, 0,
-                      Graphics::TEXTURE_FORMAT_LUMINANCE, &fr->m_Font->m_ImageData[0], fr->m_Font->m_ImageData.m_Count);
+    dmGraphics::SetTextureData(fr->m_Texture, 0, fr->m_Font->m_ImageWidth, fr->m_Font->m_ImageHeight, 0,
+                      dmGraphics::TEXTURE_FORMAT_LUMINANCE, &fr->m_Font->m_ImageData[0], fr->m_Font->m_ImageData.m_Count);
     return fr;
 }
 
@@ -118,33 +118,33 @@ void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t
 
 void FontRendererFlush(HFontRenderer renderer)
 {
-    Graphics::HContext context = Graphics::GetContext();
+    dmGraphics::HContext context = dmGraphics::GetContext();
     Matrix4 ident = Matrix4::identity();
 
-    Graphics::SetVertexConstantBlock(context, (const Vector4*)&renderer->m_Projection, 0, 4);
-    Graphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
+    dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&renderer->m_Projection, 0, 4);
+    dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
 
 
-    Graphics::SetVertexStream(context, 0, 3, Graphics::TYPE_FLOAT,
+    dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT,
                        sizeof(SFontVertex),
                        (void*) &renderer->m_Vertices[0].m_Position[0]);
 
-    Graphics::SetVertexStream(context, 1, 2, Graphics::TYPE_FLOAT,
+    dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT,
                        sizeof(SFontVertex),
                        (void*) &renderer->m_Vertices[0].m_UV[0]);
 
-    Graphics::SetTexture(context, renderer->m_Texture);
+    dmGraphics::SetTexture(context, renderer->m_Texture);
 
-    Graphics::SetBlendFunc(context, Graphics::BLEND_FACTOR_SRC_ALPHA, Graphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-    Graphics::DisableState(context, Graphics::DEPTH_TEST);
-    Graphics::EnableState(context, Graphics::BLEND);
+    dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+    dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
+    dmGraphics::EnableState(context, dmGraphics::BLEND);
 
-    Graphics::Draw(context, Graphics::PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.size());
+    dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.size());
 
-    Graphics::EnableState(context, Graphics::DEPTH_TEST);
-    Graphics::DisableState(context, Graphics::BLEND);
+    dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
+    dmGraphics::DisableState(context, dmGraphics::BLEND);
 
-    Graphics::DisableVertexStream(context, 1);
+    dmGraphics::DisableVertexStream(context, 1);
 
     renderer->m_Vertices.clear();
 }
