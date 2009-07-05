@@ -98,11 +98,11 @@ HFactory NewFactory(uint32_t max_resources, const char* resource_path)
     factory->m_ResourceTypesCount = 0;
 
     const uint32_t table_size = (3 *max_resources) / 4;
-    factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>(table_size);
-    factory->m_Resources->SetCapacity(max_resources);
+    factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>();
+    factory->m_Resources->SetCapacity(table_size, max_resources);
 
-    factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>(table_size);
-    factory->m_ResourceToHash->SetCapacity(max_resources);
+    factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
+    factory->m_ResourceToHash->SetCapacity(table_size, max_resources);
 
     strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
     factory->m_ResourcePath[RESOURCE_PATH_MAX-1] = '\0';
