@@ -20,8 +20,8 @@ TEST(dmHashTable, EmtpyConstructor)
 
 TEST(dmHashTable, SimplePut)
 {
-    dmHashTable<uint32_t, uint32_t> ht(10);
-    ht.SetCapacity(10);
+    dmHashTable<uint32_t, uint32_t> ht;
+    ht.SetCapacity(10, 10);
     ht.Put(12, 23);
 
     uint32_t* val = ht.Get(12);
@@ -29,12 +29,24 @@ TEST(dmHashTable, SimplePut)
     EXPECT_EQ((uint32_t) 23, *val);
 }
 
+TEST(dmHashTable, SimplePutUserAllocated)
+{
+    uint8_t *data = new uint8_t[(sizeof(uint16_t)*10) + (sizeof(dmHashTable<uint32_t, uint32_t>::Entry)*10)];
+    dmHashTable<uint32_t, uint32_t> ht(data, 10, 10);
+    ht.Put(12, 23);
+
+    uint32_t* val = ht.Get(12);
+    ASSERT_NE((uintptr_t) 0, (uintptr_t) val);
+    EXPECT_EQ((uint32_t) 23, *val);
+    delete []data;
+}
+
 TEST(dmHashTable, SimpleErase)
 {
     for (int table_size = 1; table_size <= 10; ++table_size)
     {
-        dmHashTable<uint32_t, uint32_t> ht(table_size);
-        ht.SetCapacity(2);
+        dmHashTable<uint32_t, uint32_t> ht;
+        ht.SetCapacity(table_size, 2);
         ht.Put(1, 10);
         ht.Put(2, 20);
 
@@ -62,8 +74,8 @@ TEST(dmHashTable, SimpleErase)
 
 TEST(dmHashTable, FillEraseFill)
 {
-    dmHashTable<uint32_t, uint32_t> ht(10);
-    ht.SetCapacity(2);
+    dmHashTable<uint32_t, uint32_t> ht;
+    ht.SetCapacity(10, 2);
     ht.Put(1, 10);
     ht.Put(2, 20);
     ASSERT_EQ((uint32_t) 10, *ht.Get(1));
@@ -93,10 +105,10 @@ TEST(dmHashTable, SimpleFill)
     {
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
-            dmHashTable<uint32_t, uint32_t> ht(table_size);
+            dmHashTable<uint32_t, uint32_t> ht;
 
             ASSERT_TRUE(ht.Empty());
-            ht.SetCapacity(count);
+            ht.SetCapacity(table_size, count);
             ASSERT_TRUE(ht.Empty());
 
             for (int j = 0; j < count; ++j)
@@ -124,8 +136,8 @@ TEST(dmHashTable, Exhaustive1)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            dmHashTable<uint32_t, uint32_t> ht(table_size);
-            ht.SetCapacity(count);
+            dmHashTable<uint32_t, uint32_t> ht;
+            ht.SetCapacity(table_size, count);
 
             ASSERT_TRUE(ht.Empty());
             for (int i = 0; i < count; ++i)
@@ -187,8 +199,8 @@ TEST(dmHashTable, Exhaustive1)
 TEST(dmHashTable, TestBug1)
 {
     std::map<uint32_t, uint32_t> map;
-    dmHashTable<uint32_t, uint32_t> ht(122);
-    ht.SetCapacity(3);
+    dmHashTable<uint32_t, uint32_t> ht;
+    ht.SetCapacity(122, 3);
     ht.Put(487, 0);
     ht.Put(487, 0);
     ASSERT_EQ(1, ht.Size());
@@ -202,8 +214,8 @@ TEST(dmHashTable, Exhaustive2)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            dmHashTable<uint32_t, uint32_t> ht(table_size);
-            ht.SetCapacity(count);
+            dmHashTable<uint32_t, uint32_t> ht;
+            ht.SetCapacity(table_size, count);
 
             // Fill table
             while(map.size() < (uint32_t) count)
@@ -257,8 +269,8 @@ TEST(dmHashTable, Exhaustive3)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            dmHashTable<uint32_t, uint32_t> ht(table_size);
-            ht.SetCapacity(count);
+            dmHashTable<uint32_t, uint32_t> ht;
+            ht.SetCapacity(table_size, count);
 
             const uint32_t grow_shrink_iter_count = 20;
             for (uint32_t grow_shrink_iter = 0; grow_shrink_iter < grow_shrink_iter_count; ++grow_shrink_iter)
@@ -308,8 +320,8 @@ TEST(dmHashTable, Performance)
     const int N = 0xffff-1;
 
     std::map<uint32_t, uint32_t> map;
-    dmHashTable<uint32_t, uint32_t> ht((N*2)/3);
-    ht.SetCapacity(N);
+    dmHashTable<uint32_t, uint32_t> ht;
+    ht.SetCapacity((N*2)/3, N);
 
     clock_t start_map = clock();
     for (int i = 0; i < N; ++i)

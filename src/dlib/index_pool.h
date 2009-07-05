@@ -1,99 +1,147 @@
-#ifndef DM_INDEX_ARRAY_H
-#define DM_INDEX_ARRAY_H
+#ifndef DM_INDEX_POOL_H
+#define DM_INDEX_POOL_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 
+
+/**
+ * Index pool class.
+ * The contained type must be a integer type.
+ * All operations are O(1).
+ */
+template <typename T>
 class dmIndexPool
 {
-	typedef	unsigned short INDEX;
-	static const INDEX INVALID_SLOT = 0xffff;
+    enum STATE_FLAGS
+    {
+        STATE_DEFAULT           = 0x0, 
+        STATE_USER_ALLOCATED    = 0x1
+    };
 
 public:
-	dmIndexPool()
-	{
-		m_Pool = NULL;
-	}
+    /**
+     * Creates an empty index pool.
+     */
+    dmIndexPool()
+    {
+        m_Pool = NULL;
+        m_State = STATE_DEFAULT;
+        m_Capacity = 0;
+        m_Size = 0;
+        m_FirstFree = 0;
+    }
 
-	~dmIndexPool()
-	{
-		assert(m_Pool == NULL);
-	}
+    /**
+     * Creates an index pool with user allocated memory.
+     * @param user_allocated Pointer to user allocated continous data-block
+     * @param size Number of valid elements.
+     */
+    dmIndexPool(T *user_allocated, T size)
+    {
+        m_Pool = user_allocated;
+        m_Capacity = size;
+        m_State = STATE_USER_ALLOCATED;
+        m_Size = 0;
+        m_FirstFree = 0;
+        for (T i=0; i < size; i++)
+            m_Pool[i] = i;
+    }
 
+    /**
+     * Destructor. 
+     * @note If user allocated, memory is not free'd
+     */
+    ~dmIndexPool()
+    {
+        if(!(m_State & STATE_USER_ALLOCATED))
+        {
+            assert(m_Pool != NULL);
+            free(m_Pool);
+        }
+    }
 
-	/**
-	 * fn - Create()
-	 * Creates an index pool given a number of elements
-	 * Warning! Does currently allocate memory dynamically.
-	 */
-	void Create(INDEX size)
-	{
-		assert(m_Pool == NULL);
-		assert(size != USHRT_MAX);
-		m_Capacity = size;
+    /**
+     * Pool size
+     * @return Returns used number of elements of the pool
+     */
+    T Size() const
+    {
+        return m_Size;
+    }
 
-		m_Pool = (INDEX*)malloc(sizeof(INDEX) * size);
+    /**
+     * Total capacity
+     * @return Returns total capacity of the index pool
+     */
+    T Capacity() const
+    {
+        return m_Capacity;
+    }
 
-		for (INDEX i=0; i<size; i++)
-			m_Pool[i] = i+1;
-		m_Pool[size-1] = INVALID_SLOT;
+    /**
+     * Remaining valid elements count
+     * @return Returns the number of remaining indices valid for use.
+     */
+    uint32_t Remaining() const
+    {
+        return m_Capacity - m_Size;
+    }
 
-		m_FirstFree = 0;
+    /**
+     * Set index pool capacity. Only valid to run once initially.
+     * @param capacity Capacity.
+     */
+    void SetCapacity(T capacity)
+    {
+        assert(m_Pool == 0);
+        m_Pool = (T*) malloc(sizeof(T)*capacity);
+        m_Capacity = capacity;
+        for (T i=0; i < capacity; i++)
+            m_Pool[i] = i;
+    }
 
+    /**
+     * Push a node into pool.
+     * @note Index must have been retreived using Pop!
+     * @param unique index to push back into pool.
+     */
+    void Push(T node)
+    {
+        assert(m_Pool);
+        assert(m_Size != 0);
+        m_Pool[node] = m_FirstFree;
+        m_FirstFree = node;
+        m_Size--;
+    }
 
-		m_Allocated = 0;
-	}
-
-	/**
-	 * fn - Destroy()
-	 * Destroys an existing index pool
-	 * Does not check if pool is empty
-	 */
-	void Destroy()
-	{
-		assert(m_Pool);
-
-		free(m_Pool);
-		m_Pool = NULL;
-	}
-
-	/**
-	 * fn - Alloc()
-	 * Allocates an index from pool
-	 */
-	INDEX Alloc()
-	{
-		assert(m_Pool);
-		assert(m_Allocated < m_Capacity);
-
-		m_Allocated++;
-
-		INDEX node = m_FirstFree;
-		m_FirstFree = m_Pool[m_FirstFree];
-
-		return node;
-	}
-
-	/**
-	 * fn - Free()
-	 * Frees an index in pool
-	 */
-	void Free(INDEX node)
-	{
-		assert(m_Pool);
-
-		m_Pool[node] = m_FirstFree;
-		m_FirstFree = node;
-		m_Allocated--;
-	}
+    /**
+     * Pop a node from pool.
+     * @return Returns a unique index from pool
+     */
+    T Pop()
+    {
+        assert(m_Pool);
+        assert(m_Size < m_Capacity);
+        m_Size++;
+        T node = m_FirstFree;
+        m_FirstFree = m_Pool[m_Size];
+        return node;
+    }
 
 private:
-	INDEX*	m_Pool;
-	INDEX	m_FirstFree;
-	INDEX	m_Capacity;
-	int		m_Allocated;
+    T*	 m_Pool;
+    T	 m_FirstFree;
+    T	 m_Capacity;
+    T    m_Size;
+    uint16_t m_State : 1;
 };
 
+class dmIndexPool8  : public dmIndexPool<uint8_t> {};
 
-#endif // DM_INDEX_ARRAY_H
+class dmIndexPool16 : public dmIndexPool<uint16_t> {};
+
+class dmIndexPool32 : public dmIndexPool<uint32_t> {};
+
+#endif // DM_INDEX_POOL_H

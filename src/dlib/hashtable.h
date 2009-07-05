@@ -13,6 +13,12 @@
 template <typename KEY, typename T>
 class dmHashTable
 {
+    enum STATE_FLAGS
+    {
+        STATE_DEFAULT           = 0x0, 
+        STATE_USER_ALLOCATED    = 0x1
+    };
+
 public:
     struct Entry
     {
@@ -31,33 +37,47 @@ public:
     }
 
     /**
-     * Constructor.
+     * Creates a hashtable array with user allocated memory. User allocated arrays can not change capacity.
+     * @param user_allocated Pointer to user allocated continous data-block ((table_size*sizeof(uint16_t)) + (capacity*sizeof(dmHashTable::Entry))
      * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
+     * @param capacity Capacity. capacity < 0xffff
      */
-    dmHashTable(uint32_t table_size)
+    dmHashTable(void *user_allocated, uint16_t table_size, uint16_t capacity)
     {
-        assert(table_size > 0);
         assert(table_size < 0xffff);
-
+        assert(capacity < 0xffff);
         memset(this, 0, sizeof(*this));
+        m_FreeEntries = 0xffff;
 
         m_HashTableSize = table_size;
-        m_HashTable = (uint16_t*) malloc(sizeof(uint16_t) * table_size);
+        m_HashTable = (uint16_t*) user_allocated;
         memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
 
-        m_FreeEntries = 0xffff;
+        m_InitialEntries = (Entry*) (m_HashTable + table_size);
+        m_InitialEntriesNextFree = m_InitialEntries;
+        m_InitialEntriesEnd = m_InitialEntries + capacity;
+        m_State = STATE_USER_ALLOCATED;
     }
 
+
+
+    /**
+     * Destructor. 
+     * @note If user allocated, memory is not free'd
+     */
     ~dmHashTable()
     {
-        if (m_InitialEntries)
+        if(!(m_State & STATE_USER_ALLOCATED))
         {
-            free(m_InitialEntries);
-        }
+            if (m_InitialEntries)
+            {
+                free(m_InitialEntries);
+            }
 
-        if (m_HashTable)
-        {
-            free(m_HashTable);
+            if (m_HashTable)
+            {
+                free(m_HashTable);
+            }
         }
     }
 
@@ -80,13 +100,21 @@ public:
     }
 
     /**
-     * Set new hashtable capacity. Only valid to run once initially.
+     * Set hashtable capacity. Only valid to run once initially.
+     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
      * @param capacity Capacity. capacity < 0xffff
      */
-    void SetCapacity(uint16_t capacity)
+    void SetCapacity(uint16_t table_size, uint16_t capacity)
     {
         assert(m_InitialEntries == 0);
+        assert(m_HashTable == 0);
+        assert(table_size > 0);
+        assert(table_size < 0xffff);
         assert(capacity < 0xffff);
+
+        m_HashTableSize = table_size;
+        m_HashTable = (uint16_t*) malloc(sizeof(uint16_t) * table_size);
+        memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
 
         m_InitialEntries = (Entry*) malloc(sizeof(Entry) * capacity);
         m_InitialEntriesNextFree = m_InitialEntries;
@@ -349,6 +377,9 @@ private:
 
     // Number of key/value pairs in table
     uint16_t  m_Count;
+
+    // state flags/info
+    uint16_t m_State : 1;
 };
 
 template <typename T>

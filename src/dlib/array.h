@@ -16,7 +16,7 @@ class dmArrayHelper
 
 
 /**
- * dmArray class with basic bound-checking.
+ * Array class with basic bound-checking.
  * The contained type must be a value type and conform to memcpy-semantics.
  * Except for SetSize(.) and SetCapacity(.) all operations are O(1).
  */
@@ -110,7 +110,7 @@ public:
     }
 
     /**
-     * dmArray size
+     * Array size
      * @return Returns size of the array
      */
     uint32_t Size() const
@@ -186,7 +186,7 @@ public:
     }
 
     /**
-     * Increase capacity. This is equivalent of calling SetCapacity(Capacity() + offset_capacity).
+     * Offset capacity. This is equivalent of calling SetCapacity(Capacity() + offset_capacity).
      * @note Offsetting capacity will result in a new memory allocation.
      * @param offset_capacity The amount to adjust capacity of array with.
      */
