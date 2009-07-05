@@ -1,4 +1,4 @@
-package Graphics;
+package dmGraphics;
 
 message TextureImage
 {
