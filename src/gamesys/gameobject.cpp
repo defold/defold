@@ -107,7 +107,7 @@ namespace GameObject
         DDFError e = DDFLoadMessage(buffer, buffer_size, &GameObject_GameObjectPrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
         if ( e != DDF_ERROR_OK )
         {
-            return Resource::CREATE_ERROR_UNKNOWN;
+            return Resource::CREATE_RESULT_UNKNOWN;
         }
 
         Prototype* proto = new Prototype();
@@ -119,7 +119,7 @@ namespace GameObject
             void* component;
             Resource::FactoryError fact_e = Resource::Get(factory, component_name, (void**) &component);
 
-            if (fact_e != Resource::FACTORY_ERROR_OK)
+            if (fact_e != Resource::FACTORY_RESULT_OK)
             {
                 // Error, release created
                 for (uint32_t j = 0; j < proto->m_Components.size(); ++j)
@@ -128,23 +128,23 @@ namespace GameObject
                 }
                 delete proto;
                 DDFFreeMessage(proto_desc);
-                return Resource::CREATE_ERROR_UNKNOWN;
+                return Resource::CREATE_RESULT_UNKNOWN;
             }
             else
             {
                 uint32_t resource_type;
                 fact_e = Resource::GetType(factory, component, &resource_type);
-                assert(fact_e == Resource::FACTORY_ERROR_OK);
+                assert(fact_e == Resource::FACTORY_RESULT_OK);
                 proto->m_Components.push_back(Prototype::Component(component, resource_type));
             }
         }
 
         HScript script;
         Resource::FactoryError fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
-        if (fact_e != Resource::FACTORY_ERROR_OK)
+        if (fact_e != Resource::FACTORY_RESULT_OK)
         {
             DDFFreeMessage(proto_desc);
-            return Resource::CREATE_ERROR_UNKNOWN;
+            return Resource::CREATE_RESULT_UNKNOWN;
         }
 
         proto->m_Name = strdup(proto_desc->m_Name);
@@ -153,7 +153,7 @@ namespace GameObject
         resource->m_Resource = (void*) proto;
 
         DDFFreeMessage(proto_desc);
-        return Resource::CREATE_ERROR_OK;
+        return Resource::CREATE_RESULT_OK;
     }
 
     Resource::CreateError PrototypeDestroy(Resource::HFactory factory,
@@ -169,7 +169,7 @@ namespace GameObject
         free((void*) proto->m_Name);
         Resource::Release(factory, proto->m_Script);
         delete proto;
-        return Resource::CREATE_ERROR_OK;
+        return Resource::CREATE_RESULT_OK;
     }
 
     Resource::CreateError ScriptCreate(Resource::HFactory factory,
@@ -181,11 +181,11 @@ namespace GameObject
         if (script)
         {
             resource->m_Resource = (void*) script;
-            return Resource::CREATE_ERROR_OK;
+            return Resource::CREATE_RESULT_OK;
         }
         else
         {
-            return Resource::CREATE_ERROR_UNKNOWN;
+            return Resource::CREATE_RESULT_UNKNOWN;
         }
     }
 
@@ -195,18 +195,18 @@ namespace GameObject
     {
 
         DeleteScript((HScript) resource->m_Resource);
-        return Resource::CREATE_ERROR_OK;
+        return Resource::CREATE_RESULT_OK;
     }
 
     Resource::FactoryError RegisterResourceTypes(Resource::HFactory factory)
     {
         Resource::FactoryError ret;
         ret = Resource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy);
-        if (ret != Resource::FACTORY_ERROR_OK)
+        if (ret != Resource::FACTORY_RESULT_OK)
             return ret;
 
         ret = Resource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy);
-        if (ret != Resource::FACTORY_ERROR_OK)
+        if (ret != Resource::FACTORY_RESULT_OK)
             return ret;
 
         return ret;
@@ -216,7 +216,7 @@ namespace GameObject
     {
         Prototype* proto;
         Resource::FactoryError error = Resource::Get(factory, prototype_name, (void**)&proto);
-        if (error != Resource::FACTORY_ERROR_OK)
+        if (error != Resource::FACTORY_RESULT_OK)
         {
             return 0;
         }

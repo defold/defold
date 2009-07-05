@@ -124,17 +124,17 @@ FactoryError RegisterType(HFactory factory,
                            FResourceDestroy destroy_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
-        return FACTORY_ERROR_OUT_OF_RESOURCES;
+        return FACTORY_RESULT_OUT_OF_RESOURCES;
 
     // Dots not allowed in extension
     if (strrchr(extension, '.') != 0)
-        return FACTORY_ERROR_INVAL;
+        return FACTORY_RESULT_INVAL;
 
     if (create_function == 0 || destroy_function == 0)
-        return FACTORY_ERROR_INVAL;
+        return FACTORY_RESULT_INVAL;
 
     if (FindResourceType(factory, extension) != 0)
-        return FACTORY_ERROR_ALREADY_REGISTERED;
+        return FACTORY_RESULT_ALREADY_REGISTERED;
 
     SResourceType resource_type;
     resource_type.m_Extension = extension;
@@ -144,7 +144,7 @@ FactoryError RegisterType(HFactory factory,
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
-    return FACTORY_ERROR_OK;
+    return FACTORY_RESULT_OK;
 }
 
 FactoryError Get(HFactory factory, const char* name, void** resource)
@@ -169,7 +169,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
 
     if (canonical_path_p == 0)
     {
-        return FACTORY_ERROR_RESOURCE_NOT_FOUND;
+        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
     }
 #endif
 
@@ -181,7 +181,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
         rd->m_ReferenceCount++;
         *resource = rd->m_Resource;
-        return FACTORY_ERROR_OK;
+        return FACTORY_RESULT_OK;
     }
 
     const char* ext = strrchr(name, '.');
@@ -193,14 +193,14 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         if (resource_type == 0)
         {
             dmLogError("Unknown resource type: %s", ext);
-            return FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE;
+            return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
         }
 
         FILE* f = fopen(canonical_path, "rb");
         if (f == 0)
         {
             dmLogWarning("Resource not found: %s", canonical_path);
-            return FACTORY_ERROR_RESOURCE_NOT_FOUND;
+            return FACTORY_RESULT_RESOURCE_NOT_FOUND;
         }
 
         fseek(f, 0, SEEK_END);
@@ -211,7 +211,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         if (buffer == 0)
         {
             dmLogError("Out of memory: %s", ext);
-            return FACTORY_ERROR_OUT_OF_MEMORY;
+            return FACTORY_RESULT_OUT_OF_MEMORY;
             fclose(f);
         }
         ((char*) buffer)[file_size] = 0; // Null-terminate. See comment above
@@ -220,7 +220,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         {
             free(buffer);
             fclose(f);
-            return FACTORY_ERROR_IO_ERROR;
+            return FACTORY_RESULT_IO_ERROR;
         }
 
         // TODO: We should *NOT* allocate SResource dynamically...
@@ -234,24 +234,24 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         free(buffer);
         fclose(f);
 
-        if (create_error == CREATE_ERROR_OK)
+        if (create_error == CREATE_RESULT_OK)
         {
             assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
             factory->m_Resources->Put(canonical_path_hash, tmp_resource);
             factory->m_ResourceToHash->Put((uintptr_t) tmp_resource.m_Resource, canonical_path_hash);
             *resource = tmp_resource.m_Resource;
-            return FACTORY_ERROR_OK;
+            return FACTORY_RESULT_OK;
         }
         else
         {
             dmLogWarning("Unable to create resource: %s", canonical_path);
             // TODO: Map CreateError to FactoryError here.
-            return FACTORY_ERROR_UNKNOWN;
+            return FACTORY_RESULT_UNKNOWN;
         }
     }
     else
     {
-        return FACTORY_ERROR_MISSING_FILE_EXTENSION;
+        return FACTORY_RESULT_MISSING_FILE_EXTENSION;
     }
 }
 
@@ -262,7 +262,7 @@ FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     if (!resource_hash)
     {
-        return FACTORY_ERROR_NOT_LOADED;
+        return FACTORY_RESULT_NOT_LOADED;
     }
 
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
@@ -270,7 +270,7 @@ FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
     assert(rd->m_ReferenceCount > 0);
     *type = (uint32_t) rd->m_ResourceType; // TODO: Not 64-bit friendly...
 
-    return FACTORY_ERROR_OK;
+    return FACTORY_RESULT_OK;
 }
 
 FactoryError GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
@@ -281,11 +281,11 @@ FactoryError GetTypeFromExtension(HFactory factory, const char* extension, uint3
     if (resource_type)
     {
         *type = (uint32_t) resource_type; // TODO: Not 64-bit friendly...
-        return FACTORY_ERROR_OK;
+        return FACTORY_RESULT_OK;
     }
     else
     {
-        return FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE;
+        return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
     }
 }
 
@@ -300,11 +300,11 @@ FactoryError GetDescriptor(HFactory factory, const char* name, SResourceDescript
     if (tmp_descriptor)
     {
         *descriptor = *tmp_descriptor;
-        return FACTORY_ERROR_OK;
+        return FACTORY_RESULT_OK;
     }
     else
     {
-        return FACTORY_ERROR_NOT_LOADED;
+        return FACTORY_RESULT_NOT_LOADED;
     }
 }
 

@@ -23,36 +23,36 @@ protected:
         // Register dummy physical resource type
         Resource::FactoryError e;
         e = Resource::RegisterType(factory, "pc", this, PhysCreate, PhysDestroy);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         e = Resource::RegisterType(factory, "a", this, ACreate, ADestroy);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         e = Resource::RegisterType(factory, "b", this, BCreate, BDestroy);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         e = Resource::RegisterType(factory, "c", this, CCreate, CDestroy);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
 
         uint32_t resource_type;
 
         e = Resource::GetTypeFromExtension(factory, "pc", &resource_type);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         GameObject::Result result = GameObject::RegisterComponentType(collection, resource_type, this, PhysComponentCreate, PhysComponentDestroy, PhysComponentsUpdate, false);
         ASSERT_EQ(GameObject::RESULT_OK, result);
 
         // A has component_user_data
         e = Resource::GetTypeFromExtension(factory, "a", &resource_type);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         result = GameObject::RegisterComponentType(collection, resource_type, this, AComponentCreate, AComponentDestroy, AComponentsUpdate, true);
         ASSERT_EQ(GameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
         e = Resource::GetTypeFromExtension(factory, "b", &resource_type);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         result = GameObject::RegisterComponentType(collection, resource_type, this, BComponentCreate, BComponentDestroy, BComponentsUpdate, false);
         ASSERT_EQ(GameObject::RESULT_OK, result);
 
         // C has component_user_data
         e = Resource::GetTypeFromExtension(factory, "c", &resource_type);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         result = GameObject::RegisterComponentType(collection, resource_type, this, CComponentCreate, CComponentDestroy, CComponentsUpdate, true);
         ASSERT_EQ(GameObject::RESULT_OK, result);
 
@@ -116,11 +116,11 @@ Resource::CreateError GenericDDFCreate(Resource::HFactory factory, void* context
     if (e == DDF_ERROR_OK)
     {
         resource->m_Resource = (void*) obj;
-        return Resource::CREATE_ERROR_OK;
+        return Resource::CREATE_RESULT_OK;
     }
     else
     {
-        return Resource::CREATE_ERROR_UNKNOWN;
+        return Resource::CREATE_RESULT_UNKNOWN;
     }
 }
 
@@ -131,7 +131,7 @@ Resource::CreateError GenericDDFDestory(Resource::HFactory factory, void* contex
     game_object_test->m_DestroyCountMap[T::m_DDFHash]++;
 
     DDFFreeMessage((void*) resource->m_Resource);
-    return Resource::CREATE_ERROR_OK;
+    return Resource::CREATE_RESULT_OK;
 }
 
 template <typename T, int add_to_user_data>

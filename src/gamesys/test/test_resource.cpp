@@ -22,12 +22,12 @@ protected:
 
 Resource::CreateError DummyCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
 {
-    return Resource::CREATE_ERROR_OK;
+    return Resource::CREATE_RESULT_OK;
 }
 
 Resource::CreateError DummyDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
 {
-    return Resource::CREATE_ERROR_OK;
+    return Resource::CREATE_RESULT_OK;
 }
 
 TEST_F(ResourceTest, RegisterType)
@@ -36,30 +36,30 @@ TEST_F(ResourceTest, RegisterType)
 
     // Test create/destroy function == 0
     e = Resource::RegisterType(factory, "foo", 0, 0, 0);
-    ASSERT_EQ(Resource::FACTORY_ERROR_INVAL, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_INVAL, e);
 
     // Test dot in extension
     e = Resource::RegisterType(factory, ".foo", 0, &DummyCreate, &DummyDestroy);
-    ASSERT_EQ(Resource::FACTORY_ERROR_INVAL, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_INVAL, e);
 
     // Test "ok"
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
 
     // Test already registred
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
-    ASSERT_EQ(Resource::FACTORY_ERROR_ALREADY_REGISTERED, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_ALREADY_REGISTERED, e);
 }
 
 TEST_F(ResourceTest, NotFound)
 {
     Resource::FactoryError e;
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
 
     void* resource = (void*) 0xdeadbeef;
     e = Resource::Get(factory, "DOES_NOT_EXISTS.foo", &resource);
-    ASSERT_EQ(Resource::FACTORY_ERROR_RESOURCE_NOT_FOUND, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_RESOURCE_NOT_FOUND, e);
     ASSERT_EQ((void*) 0, resource);
 }
 
@@ -69,7 +69,7 @@ TEST_F(ResourceTest, UnknwonResourceType)
 
     void* resource = (void*) 0;
     e = Resource::Get(factory, "build/default/src/gamesys/test/test.testresourcecont", &resource);
-    ASSERT_EQ(Resource::FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE, e);
     ASSERT_EQ((void*) 0, resource);
 }
 
@@ -109,10 +109,10 @@ protected:
 
         Resource::FactoryError e;
         e = Resource::RegisterType(m_Factory, "cont", this, &ResourceContainerCreate, &ResourceContainerDestroy);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
 
         e = Resource::RegisterType(m_Factory, "foo", this, &FooResourceCreate, &FooResourceDestroy);
-        ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+        ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     }
 
     virtual void TearDown()
@@ -150,15 +150,15 @@ Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
         {
             TestResource::ResourceFoo* sub_resource;
             Resource::FactoryError factoy_e = Resource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
-            assert( factoy_e == Resource::FACTORY_ERROR_OK );
+            assert( factoy_e == Resource::FACTORY_RESULT_OK );
             resource_cont->m_Resources.push_back(sub_resource);
         }
         DDFFreeMessage(resource_container_desc);
-        return Resource::CREATE_ERROR_OK;
+        return Resource::CREATE_RESULT_OK;
     }
     else
     {
-        return Resource::CREATE_ERROR_UNKNOWN;
+        return Resource::CREATE_RESULT_UNKNOWN;
     }
 }
 
@@ -175,7 +175,7 @@ Resource::CreateError ResourceContainerDestroy(Resource::HFactory factory, void*
         Resource::Release(factory, *i);
     }
     delete resource_cont;
-    return Resource::CREATE_ERROR_OK;
+    return Resource::CREATE_RESULT_OK;
 }
 
 Resource::CreateError FooResourceCreate(Resource::HFactory factory,
@@ -193,11 +193,11 @@ Resource::CreateError FooResourceCreate(Resource::HFactory factory,
     {
         resource->m_Resource = (void*) resource_foo;
         resource->m_ResourceKind = Resource::KIND_DDF_DATA;
-        return Resource::CREATE_ERROR_OK;
+        return Resource::CREATE_RESULT_OK;
     }
     else
     {
-        return Resource::CREATE_ERROR_UNKNOWN;
+        return Resource::CREATE_RESULT_UNKNOWN;
     }
 }
 
@@ -207,7 +207,7 @@ Resource::CreateError FooResourceDestroy(Resource::HFactory factory, void* conte
     self->m_FooResourceDestroyCallCount++;
 
     DDFFreeMessage(resource->m_Resource);
-    return Resource::CREATE_ERROR_OK;
+    return Resource::CREATE_RESULT_OK;
 }
 
 TEST_F(GetResourceTest, GetTestResource)
@@ -216,7 +216,7 @@ TEST_F(GetResourceTest, GetTestResource)
 
     TestResourceContainer* test_resource_cont = 0;
     e = Resource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_NE((void*) 0, test_resource_cont);
     ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
     ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
@@ -234,7 +234,7 @@ TEST_F(GetResourceTest, GetReference1)
 
     Resource::SResourceDescriptor descriptor;
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
-    ASSERT_EQ(Resource::FACTORY_ERROR_NOT_LOADED, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_NOT_LOADED, e);
 }
 
 TEST_F(GetResourceTest, GetReference2)
@@ -243,14 +243,14 @@ TEST_F(GetResourceTest, GetReference2)
 
     void* resource = (void*) 0;
     e = Resource::Get(m_Factory, m_ResourceName, &resource);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_NE((void*) 0, resource);
     ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
     ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
 
     Resource::SResourceDescriptor descriptor;
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
     ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
 
@@ -263,7 +263,7 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
 
     TestResourceContainer* resource1 = 0;
     e = Resource::Get(m_Factory, m_ResourceName, (void**) &resource1);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     const uint32_t sub_resource_count = resource1->m_Resources.size();
     ASSERT_EQ(2, sub_resource_count); //NOTE: Hard coded for two resources in test.cont
     ASSERT_NE((void*) 0, resource1);
@@ -274,12 +274,12 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
 
     Resource::SResourceDescriptor descriptor1;
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_EQ(1, descriptor1.m_ReferenceCount);
 
     TestResourceContainer* resource2 = 0;
     e = Resource::Get(m_Factory, m_ResourceName, (void**) &resource2);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_NE((void*) 0, resource2);
     ASSERT_EQ(resource1, resource2);
     ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
@@ -289,7 +289,7 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
 
     Resource::SResourceDescriptor descriptor2;
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor2);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_EQ(2, descriptor2.m_ReferenceCount);
 
     // Release
@@ -301,7 +301,7 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
 
     // Check reference count equal to 1
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
-    ASSERT_EQ(Resource::FACTORY_ERROR_OK, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
     ASSERT_EQ(1, descriptor1.m_ReferenceCount);
 
     // Release again
@@ -313,7 +313,7 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
 
     // Make sure resource gets unloaded
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
-    ASSERT_EQ(Resource::FACTORY_ERROR_NOT_LOADED, e);
+    ASSERT_EQ(Resource::FACTORY_RESULT_NOT_LOADED, e);
 }
 
 int main(int argc, char **argv)

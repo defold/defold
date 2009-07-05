@@ -11,7 +11,7 @@
 /*
  * Resource types:
  *  Resource:               Source-type:    Runtime-type:
- *  Animtion                Edge            Handle
+ *  Animation               Edge            Handle
  *  Texture                 DDF             Handle
  *  Material                DDF             Pointer
  *  Program                 Native          Handle
@@ -23,22 +23,21 @@
 
 namespace Resource
 {
-    // TODO: Change to result!
     enum FactoryError
     {
-        FACTORY_ERROR_OK                        = 0,
-        FACTORY_ERROR_INVALID_DATA              = 1,
-        FACTORY_ERROR_DDF_ERROR                 = 2,
-        FACTORY_ERROR_RESOURCE_NOT_FOUND        = 3,
-        FACTORY_ERROR_MISSING_FILE_EXTENSION    = 4,
-        FACTORY_ERROR_ALREADY_REGISTERED        = 5,
-        FACTORY_ERROR_INVAL                     = 6,
-        FACTORY_ERROR_UNKNOWN_RESOURCE_TYPE     = 7,
-        FACTORY_ERROR_OUT_OF_MEMORY             = 8,
-        FACTORY_ERROR_IO_ERROR                  = 9,
-        FACTORY_ERROR_NOT_LOADED                = 10,
-        FACTORY_ERROR_OUT_OF_RESOURCES          = 11,
-        FACTORY_ERROR_UNKNOWN                   = 1000,
+        FACTORY_RESULT_OK                        = 0,
+        FACTORY_RESULT_INVALID_DATA              = -1,
+        FACTORY_RESULT_DDF_ERROR                 = -2,
+        FACTORY_RESULT_RESOURCE_NOT_FOUND        = -3,
+        FACTORY_RESULT_MISSING_FILE_EXTENSION    = -4,
+        FACTORY_RESULT_ALREADY_REGISTERED        = -5,
+        FACTORY_RESULT_INVAL                     = -6,
+        FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE     = -7,
+        FACTORY_RESULT_OUT_OF_MEMORY             = -8,
+        FACTORY_RESULT_IO_ERROR                  = -9,
+        FACTORY_RESULT_NOT_LOADED                = -10,
+        FACTORY_RESULT_OUT_OF_RESOURCES          = -11,
+        FACTORY_RESULT_UNKNOWN                   = -1000,
     };
 
     enum Kind
@@ -77,10 +76,10 @@ namespace Resource
 
     enum CreateError
     {
-        CREATE_ERROR_OK             = 0,
-        CREATE_ERROR_OUT_OF_MEMORY  = 1,
-        CREATE_ERROR_FORMAT_ERROR   = 2,
-        CREATE_ERROR_UNKNOWN        = 1000,
+        CREATE_RESULT_OK             = 0,
+        CREATE_RESULT_OUT_OF_MEMORY  = -1,
+        CREATE_RESULT_FORMAT_ERROR   = -2,
+        CREATE_RESULT_UNKNOWN        = -1000,
     };
 
     typedef CreateError (*FResourceCreate)(HFactory factory,
