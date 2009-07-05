@@ -1,6 +1,6 @@
 
-#ifndef DLIB_ITERATOR_H
-#define DLIB_ITERATOR_H
+#ifndef DM_ITERATOR_H
+#define DM_ITERATOR_H
 
 #include <stdint.h>
 #include <assert.h>
@@ -9,7 +9,7 @@
  * Iterator class with bound checking.
  */
 template <typename T>
-struct Iterator
+struct dmIterator
 {
     /**
      * Creates an iterator with initial value and range.
@@ -17,7 +17,7 @@ struct Iterator
      * @param min Minimum value
      * @param max Maximum value
      */
-    Iterator(T* p, T* min, T* max) :
+    dmIterator(T* p, T* min, T* max) :
     m_P(p),
     m_Min(min),
     m_Max(max)
@@ -68,7 +68,7 @@ struct Iterator
     }
 
     // != operator ref
-    bool operator!=(Iterator<T>& other)
+    bool operator!=(dmIterator<T>& other)
     {
         return m_P != other.m_P;
     }
@@ -80,7 +80,7 @@ struct Iterator
     }
 
     // == operator ref
-    bool operator==(Iterator<T>& other)
+    bool operator==(dmIterator<T>& other)
     {
         return m_P == other.m_P;
     }
@@ -92,25 +92,25 @@ struct Iterator
     }
 
     // > operator
-    bool operator> (Iterator<T>& other)
+    bool operator> (dmIterator<T>& other)
     {
         return m_P > other.m_P;
     }
 
     // >= operator
-    bool operator>=(Iterator<T>& other)
+    bool operator>=(dmIterator<T>& other)
     {
         return m_P >= other.m_P;
     }
 
     // < operator
-    bool operator<(Iterator<T>& other)
+    bool operator<(dmIterator<T>& other)
     {
         return m_P < other.m_P;
     }
 
     // <= operator
-    bool operator<=(Iterator<T>& other)
+    bool operator<=(dmIterator<T>& other)
     {
         return m_P <= other.m_P;
     }
@@ -126,4 +126,4 @@ struct Iterator
     T* m_Max;
 };
 
-#endif // DLIB_ITERATOR_H
+#endif // DM_ITERATOR_H

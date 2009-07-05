@@ -1,13 +1,13 @@
-#ifndef __DSTRINGS_H__
-#define __DSTRINGS_H__
+#ifndef DM_DSTRINGS_H
+#define DM_DSTRINGS_H
 
 #include <stdio.h>
 
 #if defined(_WIN32)
-#define SNPRINTF _snprintf
+#define DM_SNPRINTF _snprintf
 #else
-#define SNPRINTF snprintf
+#define DM_SNPRINTF snprintf
 #endif
 
 
-#endif //__DSTRINGS_H__
+#endif //DM_DSTRINGS_H

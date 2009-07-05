@@ -1,22 +1,22 @@
-#ifndef __INDEX_ARRAY_H__
-#define __INDEX_ARRAY_H__
+#ifndef DM_INDEX_ARRAY_H
+#define DM_INDEX_ARRAY_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 
-class IndexPool
+class dmIndexPool
 {
 	typedef	unsigned short INDEX;
 	static const INDEX INVALID_SLOT = 0xffff;
 
 public:
-	IndexPool()
+	dmIndexPool()
 	{
 		m_Pool = NULL;
 	}
 
-	~IndexPool()
+	~dmIndexPool()
 	{
 		assert(m_Pool == NULL);
 	}
@@ -96,4 +96,4 @@ private:
 };
 
 
-#endif // __INDEX_ARRAY_H__
+#endif // DM_INDEX_ARRAY_H

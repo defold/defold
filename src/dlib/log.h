@@ -1,39 +1,39 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef DM_LOG_H
+#define DM_LOG_H
 
-enum LogSeverity
+enum dmLogSeverity
 {
-    LOG_SEVERITY_INFO    = 0,
-    LOG_SEVERITY_WARNING = 1,
-    LOG_SEVERITY_ERROR   = 2,
-    LOG_SEVERITY_FATAL   = 3,
+    DM_LOG_SEVERITY_INFO    = 0,
+    DM_LOG_SEVERITY_WARNING = 1,
+    DM_LOG_SEVERITY_ERROR   = 2,
+    DM_LOG_SEVERITY_FATAL   = 3,
 };
 
-#ifdef LOG_DISABLE
+#ifdef DM_LOG_DISABLE
 
-#define LogInfo(format, args...) do {} while(0);
-#define LogWarning(format, args...) do {} while(0);
-#define LogError(format, args...) do {} while(0);
-#define LogFatal(format, args...) do {} while(0);
+#define dmLogInfo(format, args...) do {} while(0);
+#define dmLogWarning(format, args...) do {} while(0);
+#define dmLogError(format, args...) do {} while(0);
+#define dmLogFatal(format, args...) do {} while(0);
 
 #else
 
-void LogInternal(LogSeverity severity, const char* format, ...);
+void dmLogInternal(dmLogSeverity severity, const char* format, ...);
 
 #ifdef _MSC_VER
-#define LogInfo(format, ... ) LogInternal(LOG_SEVERITY_INFO, format, __VA_ARGS__ );
-#define LogWarning(format, ... ) LogInternal(LOG_SEVERITY_WARNING, format, __VA_ARGS__ );
-#define LogError(format, ... ) LogInternal(LOG_SEVERITY_ERROR, format, __VA_ARGS__ );
-#define LogFatal(format, ... ) LogInternal(LOG_SEVERITY_FATAL, format, __VA_ARGS__ );
+#define dmLogInfo(format, ... ) dmLogInternal(DM_LOG_SEVERITY_INFO, format, __VA_ARGS__ );
+#define dmLogWarning(format, ... ) dmLogInternal(DM_LOG_SEVERITY_WARNING, format, __VA_ARGS__ );
+#define dmLogError(format, ... ) dmLogInternal(DM_LOG_SEVERITY_ERROR, format, __VA_ARGS__ );
+#define dmLogFatal(format, ... ) dmLogInternal(DM_LOG_SEVERITY_FATAL, format, __VA_ARGS__ );
 #else
-#define LogInfo(format, args...) LogInternal(LOG_SEVERITY_INFO, format, ## args);
-#define LogWarning(format, args...) LogInternal(LOG_SEVERITY_WARNING, format, ## args);
-#define LogError(format, args...) LogInternal(LOG_SEVERITY_ERROR, format, ## args);
-#define LogFatal(format, args...) LogInternal(LOG_SEVERITY_FATAL, format, ## args);
+#define dmLogInfo(format, args...) dmLogInternal(DM_LOG_SEVERITY_INFO, format, ## args);
+#define dmLogWarning(format, args...) dmLogInternal(DM_LOG_SEVERITY_WARNING, format, ## args);
+#define dmLogError(format, args...) dmLogInternal(DM_LOG_SEVERITY_ERROR, format, ## args);
+#define dmLogFatal(format, args...) dmLogInternal(DM_LOG_SEVERITY_FATAL, format, ## args);
 #endif
 
 #endif
 
-void LogSetlevel(LogSeverity severity);
+void dmLogSetlevel(dmLogSeverity severity);
 
-#endif // LOG_H
+#endif // DM_LOG_H

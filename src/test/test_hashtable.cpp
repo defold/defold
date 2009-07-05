@@ -8,9 +8,9 @@
 
 #include "dlib/hashtable.h"
 
-TEST(HashTable, EmtpyConstructor)
+TEST(dmHashTable, EmtpyConstructor)
 {
-    THashTable32<int> ht;
+    dmHashTable32<int> ht;
 
     EXPECT_EQ(0, ht.Size());
     EXPECT_EQ(0, ht.Capacity());
@@ -18,9 +18,9 @@ TEST(HashTable, EmtpyConstructor)
     EXPECT_EQ(true, ht.Empty());
 }
 
-TEST(HashTable, SimplePut)
+TEST(dmHashTable, SimplePut)
 {
-    THashTable<uint32_t, uint32_t> ht(10);
+    dmHashTable<uint32_t, uint32_t> ht(10);
     ht.SetCapacity(10);
     ht.Put(12, 23);
 
@@ -29,11 +29,11 @@ TEST(HashTable, SimplePut)
     EXPECT_EQ((uint32_t) 23, *val);
 }
 
-TEST(HashTable, SimpleErase)
+TEST(dmHashTable, SimpleErase)
 {
     for (int table_size = 1; table_size <= 10; ++table_size)
     {
-        THashTable<uint32_t, uint32_t> ht(table_size);
+        dmHashTable<uint32_t, uint32_t> ht(table_size);
         ht.SetCapacity(2);
         ht.Put(1, 10);
         ht.Put(2, 20);
@@ -60,9 +60,9 @@ TEST(HashTable, SimpleErase)
     }
 }
 
-TEST(HashTable, FillEraseFill)
+TEST(dmHashTable, FillEraseFill)
 {
-    THashTable<uint32_t, uint32_t> ht(10);
+    dmHashTable<uint32_t, uint32_t> ht(10);
     ht.SetCapacity(2);
     ht.Put(1, 10);
     ht.Put(2, 20);
@@ -86,14 +86,14 @@ TEST(HashTable, FillEraseFill)
     ASSERT_EQ((uint32_t) 200, *ht.Get(2));
 }
 
-TEST(HashTable, SimpleFill)
+TEST(dmHashTable, SimpleFill)
 {
     const int N = 50;
     for (int count = 0; count < N; ++count)
     {
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
-            THashTable<uint32_t, uint32_t> ht(table_size);
+            dmHashTable<uint32_t, uint32_t> ht(table_size);
 
             ASSERT_TRUE(ht.Empty());
             ht.SetCapacity(count);
@@ -116,7 +116,7 @@ TEST(HashTable, SimpleFill)
     }
 }
 
-TEST(HashTable, Exhaustive1)
+TEST(dmHashTable, Exhaustive1)
 {
     const int N = 10;
     for (int count = 1; count < N; ++count)
@@ -124,7 +124,7 @@ TEST(HashTable, Exhaustive1)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            THashTable<uint32_t, uint32_t> ht(table_size);
+            dmHashTable<uint32_t, uint32_t> ht(table_size);
             ht.SetCapacity(count);
 
             ASSERT_TRUE(ht.Empty());
@@ -184,17 +184,17 @@ TEST(HashTable, Exhaustive1)
 }
 
 // This was a stupid bug where Put() didn't return in if (entry != 0)...
-TEST(HashTable, TestBug1)
+TEST(dmHashTable, TestBug1)
 {
     std::map<uint32_t, uint32_t> map;
-    THashTable<uint32_t, uint32_t> ht(122);
+    dmHashTable<uint32_t, uint32_t> ht(122);
     ht.SetCapacity(3);
     ht.Put(487, 0);
     ht.Put(487, 0);
     ASSERT_EQ(1, ht.Size());
 }
 
-TEST(HashTable, Exhaustive2)
+TEST(dmHashTable, Exhaustive2)
 {
     const int N = 30;
     for (int count = 1; count < N; ++count)
@@ -202,7 +202,7 @@ TEST(HashTable, Exhaustive2)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            THashTable<uint32_t, uint32_t> ht(table_size);
+            dmHashTable<uint32_t, uint32_t> ht(table_size);
             ht.SetCapacity(count);
 
             // Fill table
@@ -249,7 +249,7 @@ TEST(HashTable, Exhaustive2)
 }
 
 
-TEST(HashTable, Exhaustive3)
+TEST(dmHashTable, Exhaustive3)
 {
     const int N = 20;
     for (int count = 1; count < N; ++count)
@@ -257,7 +257,7 @@ TEST(HashTable, Exhaustive3)
         for (int table_size = 1; table_size <= 2*N; ++table_size)
         {
             std::map<uint32_t, uint32_t> map;
-            THashTable<uint32_t, uint32_t> ht(table_size);
+            dmHashTable<uint32_t, uint32_t> ht(table_size);
             ht.SetCapacity(count);
 
             const uint32_t grow_shrink_iter_count = 20;
@@ -303,12 +303,12 @@ TEST(HashTable, Exhaustive3)
     }
 }
 
-TEST(HashTable, Performance)
+TEST(dmHashTable, Performance)
 {
     const int N = 0xffff-1;
 
     std::map<uint32_t, uint32_t> map;
-    THashTable<uint32_t, uint32_t> ht((N*2)/3);
+    dmHashTable<uint32_t, uint32_t> ht((N*2)/3);
     ht.SetCapacity(N);
 
     clock_t start_map = clock();

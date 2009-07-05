@@ -7,11 +7,11 @@
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
 
-TEST(Array, Dynamic_int32)
+TEST(dmArray, Dynamic_int32)
 {
     assert(array_size > array_size_test_offset);
 
-    Array<int32_t> ar;
+    dmArray<int32_t> ar;
     ar.SetCapacity(array_size);
     for(uint32_t i = 0; i < array_size; i++)
         ar.Push(i);
@@ -69,12 +69,12 @@ TEST(Array, Dynamic_int32)
 }
 
 
-TEST(Array, Static_int32)
+TEST(dmArray, Static_int32)
 {
     assert(array_size > array_size_test_offset);
 
     int32_t array_data[array_size];
-    Array<int32_t> ar(array_data, 0, array_size);
+    dmArray<int32_t> ar(array_data, 0, array_size);
     for(uint32_t i = 0; i < array_size; i++)
         ar.Push(i);
 

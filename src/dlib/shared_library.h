@@ -1,13 +1,13 @@
-#ifndef __SHARED_LIBRARY_H__
-#define __SHARED_LIBRARY_H__
+#ifndef DM_SHARED_LIBRARY_H
+#define DM_SHARED_LIBRARY_H
 
 /**
  * macro for shared library exports
  */
 #ifdef _MSC_VER
-#define DLLEXPORT __declspec(dllexport)
+#define DM_DLLEXPORT __declspec(dllexport)
 #else
-#define DLLEXPORT
+#define DM_DLLEXPORT
 #endif
 
-#endif // __SHARED_LIBRARY_H__
+#endif // DM_SHARED_LIBRARY_H

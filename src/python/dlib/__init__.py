@@ -9,15 +9,15 @@ elif sys.platform == "win32":
 
 dlib = ctypes.cdll.LoadLibrary(os.path.join(os.environ['DYNAMO_HOME'], "lib", libname))
 
-dlib.HashBuffer32.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
-dlib.HashBuffer32.restype = ctypes.c_uint32
+dlib.dmHashBuffer32.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+dlib.dmHashBuffer32.restype = ctypes.c_uint32
 
-dlib.HashBuffer64.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
-dlib.HashBuffer64.restype = ctypes.c_uint64
+dlib.dmHashBuffer64.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+dlib.dmHashBuffer64.restype = ctypes.c_uint64
 
-def HashBuffer32(buf):
-    return dlib.HashBuffer32(buf, len(buf)) 
+def dmHashBuffer32(buf):
+    return dlib.dmHashBuffer32(buf, len(buf)) 
 
-def HashBuffer64(buf):
-    return dlib.HashBuffer64(buf, len(buf))
+def dmHashBuffer64(buf):
+    return dlib.dmHashBuffer64(buf, len(buf))
  

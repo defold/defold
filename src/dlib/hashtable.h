@@ -1,5 +1,5 @@
-#ifndef HASHTABLE_H
-#define HASHTABLE_H
+#ifndef DM_HASHTABLE_H
+#define DM_HASHTABLE_H
 
 #include <assert.h>
 #include <stdint.h>
@@ -11,7 +11,7 @@
  * Only uint16_t, uint32_t and uint64_t is supported as KEY type.
  */
 template <typename KEY, typename T>
-class THashTable
+class dmHashTable
 {
 public:
     struct Entry
@@ -24,7 +24,7 @@ public:
     /**
      * Constructor. Create an empty hashtable with zero capacity and zero hashtable (buckets)
      */
-    THashTable()
+    dmHashTable()
     {
         memset(this, 0, sizeof(*this));
         m_FreeEntries = 0xffff;
@@ -34,7 +34,7 @@ public:
      * Constructor.
      * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
      */
-    THashTable(uint32_t table_size)
+    dmHashTable(uint32_t table_size)
     {
         assert(table_size > 0);
         assert(table_size < 0xffff);
@@ -48,7 +48,7 @@ public:
         m_FreeEntries = 0xffff;
     }
 
-    ~THashTable()
+    ~dmHashTable()
     {
         if (m_InitialEntries)
         {
@@ -278,8 +278,8 @@ public:
 
 private:
     // Forbid assignment operator and copy-constructor
-    THashTable(const THashTable<KEY, T>&);
-    const THashTable<KEY, T>& operator=(const THashTable<KEY, T>&);
+    dmHashTable(const dmHashTable<KEY, T>&);
+    const dmHashTable<KEY, T>& operator=(const dmHashTable<KEY, T>&);
 
     Entry* FindEntry(KEY key)
     {
@@ -352,13 +352,13 @@ private:
 };
 
 template <typename T>
-class THashTable16 : public THashTable<uint16_t, T> {};
+class dmHashTable16 : public dmHashTable<uint16_t, T> {};
 
 template <typename T>
-class THashTable32 : public THashTable<uint32_t, T> {};
+class dmHashTable32 : public dmHashTable<uint32_t, T> {};
 
 template <typename T>
-class THashTable64 : public THashTable<uint64_t, T> {};
+class dmHashTable64 : public dmHashTable<uint64_t, T> {};
 
-#endif // HASHTABLE_H
+#endif // DM_HASHTABLE_H
 

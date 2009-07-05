@@ -3,7 +3,7 @@
 #include "array.h"
 
 
-void ArrayHelper::SetCapacity(uint32_t new_capacity, uint32_t type_size, uintptr_t* ptr_first, uintptr_t* ptr_last, uintptr_t* ptr_end)
+void dmArrayHelper::SetCapacity(uint32_t new_capacity, uint32_t type_size, uintptr_t* ptr_first, uintptr_t* ptr_last, uintptr_t* ptr_end)
 {
     uintptr_t old_capacity = (*ptr_last - *ptr_first)/type_size;
     if(new_capacity == old_capacity)

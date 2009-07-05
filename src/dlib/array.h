@@ -1,28 +1,27 @@
 
-#ifndef DLIB_ARRAY_H
-#define DLIB_ARRAY_H
+#ifndef DM_ARRAY_H
+#define DM_ARRAY_H
 #include <stdint.h>
 #include <assert.h>
 
 
 /**
- * Array class helper functions. (private)
+ * dmArray class helper functions. (private)
  */
-class ArrayHelper
+class dmArrayHelper
 {
     public:
-
 	static void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*);
 };
 
 
 /**
- * Array class with basic bound-checking.
+ * dmArray class with basic bound-checking.
  * The contained type must be a value type and conform to memcpy-semantics.
  * Except for SetSize(.) and SetCapacity(.) all operations are O(1).
  */
 template <typename T>
-class Array
+class dmArray
 {
     enum STATE_FLAGS
     {
@@ -34,7 +33,7 @@ public:
     /**
      * Creates an empty array.
      */
-    Array()
+    dmArray()
     {
         m_Front = 0;
         m_End = 0;
@@ -48,7 +47,7 @@ public:
      * @param size Initial number of valid elements.
      * @param capacity Max capacity
      */
-    Array(T *user_allocated, uint32_t size, uint32_t capacity)
+    dmArray(T *user_allocated, uint32_t size, uint32_t capacity)
     {
         assert(user_allocated != 0);
         assert(size  < capacity);
@@ -62,7 +61,7 @@ public:
      * Destructor. 
      * @note If user allocated, memory is not free'd
      */
-    ~Array()
+    ~dmArray()
     {
         if (!(m_State & STATE_USER_ALLOCATED) && m_Front)
         {
@@ -111,7 +110,7 @@ public:
     }
 
     /**
-     * Array size
+     * dmArray size
      * @return Returns size of the array
      */
     uint32_t Size() const
@@ -183,7 +182,7 @@ public:
     void SetCapacity(uint32_t new_capacity)
     {
         assert (!(m_State & STATE_USER_ALLOCATED) && "SetCapacity is an illegal operation on user allocated arrays");
-		ArrayHelper::SetCapacity(new_capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End);
+		dmArrayHelper::SetCapacity(new_capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End);
     }
 
     /**
@@ -261,12 +260,12 @@ private:
     uint16_t m_State : 1;
 
     // Simply to forbid usage of these methods..
-    Array(const Array<T>&) {}
-    void operator=(const Array<T>&  ) { }
-    void operator==(const Array<T>& ) { }
+    dmArray(const dmArray<T>&) {}
+    void operator=(const dmArray<T>&  ) { }
+    void operator==(const dmArray<T>& ) { }
 };
 
 
 
 
-#endif // DLIB_ARRAY_H
+#endif // DM_ARRAY_H
