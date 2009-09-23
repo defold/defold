@@ -5,8 +5,8 @@ import Task
 import TaskGen
 from TaskGen import extension
 
-Task.simple_task_type('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}", 
-                      color='PINK', 
+Task.simple_task_type('proto_encode', "protoc -I ${proto_include} --encode=${proto_type} ${proto_file} < ${SRC} > ${TGT}",
+                      color='PINK',
                       before='cc cxx')
 
 @extension('.pf')
@@ -30,6 +30,11 @@ def build(bld):
                      ddf_namespace = 'DUMMY',
                      proto_gen_cc = True,
                      proto_compile_cc = True,
+                     proto_java_package = 'com.dynamo.format.proto',
+                     proto_java_classname = 'TestDDF',
+                     java_package='com.dynamo.format.test',
+                     # NOTE: default/... is hardcoded. How to solve?
+                     classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar' + os.pathsep + 'default/src/java',
                      includes = '..',
                      target = 'test_ddf')
 

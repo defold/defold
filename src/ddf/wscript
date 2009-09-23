@@ -7,7 +7,8 @@ def build(bld):
             features = 'cxx cstaticlib',
             includes = '../..',
             source = 'ddf.cpp ddf_load.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ',
-            target = 'ddf')
+            target = 'ddf',
+            install_path='${PREFIX}/lib')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
 

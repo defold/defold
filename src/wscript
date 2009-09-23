@@ -1,8 +1,37 @@
 #! /usr/bin/env python
+import os, Task
+
+def set_options(opt):
+    pass
 
 def build(bld):
+    bld.new_task_gen(features='javac seq',
+                     classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar',
+                     source_root='java',
+                     destfile='ddf.jar')
+
+    bld.new_task_gen(features='jar seq',
+                     basedir='java',
+                     destfile='ddf.jar')
+
+    bld.install_files('${PREFIX}/share/java', 'ddf.jar')
+
+    bld.add_group()
+
     bld.add_subdirs('ddf')
     bld.add_subdirs('test')
+
+    bld.add_group()
+
+    cp = os.pathsep.join([bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar',
+                          bld.env['DYNAMO_HOME'] + '/ext/share/java/junit-4.6.jar',
+                          'default/src/java',
+                          'default/src/test/generated'])
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=cp,
+                     source_root='java_test')
+
     bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
     bld.install_files('${PREFIX}/bin', 'ddfc.py')
 

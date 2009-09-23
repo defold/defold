@@ -1,5 +1,8 @@
 package TestDDF;
 
+option java_package = "com.dynamo.format.proto";
+option java_outer_classname = "TestDDF";
+
 message Simple 
 {
     required int32 a = 1;
@@ -96,6 +99,7 @@ message NestedArray
     repeated NestedArraySub1 array1 = 2;
     required uint32 e = 3;
 }
+
 
 message Bytes
 {

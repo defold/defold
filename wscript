@@ -34,6 +34,8 @@ def configure(conf):
     conf.write_config_header('config.h')
 
     conf.check_tool('compiler_cxx')
+    conf.check_tool('java')
+
     conf.sub_config('src')
 
     conf.find_file('ddfc.py', var='DDFC', path_list = [os.path.abspath('src')], mandatory = True)
@@ -50,7 +52,7 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "linux" or platform == "darwin":
-        conf.env['CXXFLAGS']='-g -D__STDC_LIMIT_MACROS'
+        conf.env['CXXFLAGS']=['-g', '-D', '__STDC_LIMIT_MACROS']
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
         conf.env.append_value('CPPPATH', "../src/win32")
@@ -62,4 +64,21 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
+    import Options, Build
+
     waf_dynamo.run_gtests(valgrind = True)
+
+    if Options.commands['build']:
+        dynamo_home = Build.bld.get_env()['DYNAMO_HOME']
+        cp = os.pathsep.join([dynamo_home + '/ext/share/java/protobuf-java-2.0.3.jar',
+                              dynamo_home + '/ext/share/java/junit-4.6.jar',
+                              'build/default/src/java_test',
+                              'build/default/src/test/generated',
+                              'build/default/src/java'])
+        cmd = """
+%s -cp %s org.junit.runner.JUnitCore com.dynamo.format.test.FormatLoaderTest
+""" % (Build.bld.get_env()['JAVA'][0], cp)
+        ret = os.system(cmd)
+        if ret != 0:
+            sys.exit(ret)
+

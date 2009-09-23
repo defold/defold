@@ -17,7 +17,7 @@ type_to_ctype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_INT64 : "int64_t",
                   FieldDescriptor.TYPE_UINT64 : "uint64_t",
                   FieldDescriptor.TYPE_INT32 : "int32_t",
-#                  FieldDescriptor.TYPE_FIXED64 
+#                  FieldDescriptor.TYPE_FIXED64
 #                  FieldDescriptor.TYPE_FIXED32
                   #FieldDescriptor.TYPE_BOOL : "bool",
                   FieldDescriptor.TYPE_STRING : "const char*",
@@ -31,14 +31,52 @@ type_to_ctype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_SINT32 : "int32_t",
                   FieldDescriptor.TYPE_SINT64 : "int64_t" }
 
+type_to_javatype = { FieldDescriptor.TYPE_DOUBLE : "double",
+                  FieldDescriptor.TYPE_FLOAT : "float",
+                  FieldDescriptor.TYPE_INT64 : "long",
+                  FieldDescriptor.TYPE_UINT64 : "long",
+                  FieldDescriptor.TYPE_INT32 : "int",
+#                  FieldDescriptor.TYPE_FIXED64
+#                  FieldDescriptor.TYPE_FIXED32
+                  #FieldDescriptor.TYPE_BOOL : "bool",
+                  FieldDescriptor.TYPE_STRING : "String",
+#                  FieldDescriptor.TYPE_GROUP
+#                  FieldDescriptor.TYPE_MESSAGE
+#                  FieldDescriptor.TYPE_BYTES
+                  FieldDescriptor.TYPE_UINT32 : "int",
+#                  FieldDescriptor.TYPE_ENUM
+#                  FieldDescriptor.TYPE_SFIXED32
+#                  FieldDescriptor.TYPE_SFIXED64
+                  FieldDescriptor.TYPE_SINT32 : "int",
+                  FieldDescriptor.TYPE_SINT64 : "long" }
+
+type_to_boxedjavatype = { FieldDescriptor.TYPE_DOUBLE : "Double",
+                  FieldDescriptor.TYPE_FLOAT : "Float",
+                  FieldDescriptor.TYPE_INT64 : "Long",
+                  FieldDescriptor.TYPE_UINT64 : "Long",
+                  FieldDescriptor.TYPE_INT32 : "Integer",
+#                  FieldDescriptor.TYPE_FIXED64
+#                  FieldDescriptor.TYPE_FIXED32
+                  #FieldDescriptor.TYPE_BOOL : "bool",
+                  FieldDescriptor.TYPE_STRING : "String",
+#                  FieldDescriptor.TYPE_GROUP
+#                  FieldDescriptor.TYPE_MESSAGE
+#                  FieldDescriptor.TYPE_BYTES
+                  FieldDescriptor.TYPE_UINT32 : "Integer",
+#                  FieldDescriptor.TYPE_ENUM
+#                  FieldDescriptor.TYPE_SFIXED32
+#                  FieldDescriptor.TYPE_SFIXED64
+                  FieldDescriptor.TYPE_SINT32 : "Integer",
+                  FieldDescriptor.TYPE_SINT64 : "Long" }
+
 type_to_size = { FieldDescriptor.TYPE_DOUBLE : 8,
                  FieldDescriptor.TYPE_FLOAT : 4,
                  FieldDescriptor.TYPE_INT64 : 8,
                  FieldDescriptor.TYPE_UINT64 : 8,
                  FieldDescriptor.TYPE_INT32 : 4,
-#                  FieldDescriptor.TYPE_FIXED64 
+#                  FieldDescriptor.TYPE_FIXED64
 #                  FieldDescriptor.TYPE_FIXED32
-                  #FieldDescriptor.TYPE_BOOL : "bool",    
+                  #FieldDescriptor.TYPE_BOOL : "bool",
                  FieldDescriptor.TYPE_STRING : DDF_POINTER_SIZE,
 #                  FieldDescriptor.TYPE_GROUP
 #                  FieldDescriptor.TYPE_MESSAGE
@@ -92,7 +130,7 @@ def ToCStruct(pp, message_type):
     def p(t, n):
         pp.Print("%s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
 
-    pp.Begin("struct %s", message_type.name)    
+    pp.Begin("struct %s", message_type.name)
 
     for et in message_type.enum_type:
         ToCEnum(pp, et)
@@ -148,7 +186,7 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
 
     for nt in message_type.nested_type:
         ToDescriptor(pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
-    
+
     lst = []
     for f in message_type.field:
         tpl = (f.name, f.number, f.type, f.label)
@@ -163,12 +201,12 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
         tpl += ("DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, f.name), )
 
         lst.append(tpl)
-    
+
     pp_cpp.Begin("SDDFFieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
 
     for name, number, type, label, msg_desc, offset in lst:
         pp_cpp.Print('{ "%s", %d, %d, %d, %s, %s },'  % (name, number, type, label, msg_desc, offset))
-        
+
     pp_cpp.End()
 
     pp_cpp.Begin("SDDFDescriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
@@ -178,14 +216,14 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFFieldDescriptor),', namespace, message_type.name)
     pp_cpp.End()
-    
+
     pp_cpp.Print('SDDFDescriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
 
     # TODO: This is not optimal. Hash value is sensitive on googles format string
-    # Also dependent on type invariant values?    
+    # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
     pp_cpp.Print('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
-    
+
     pp_cpp.Print('')
 
 def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
@@ -212,7 +250,118 @@ def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFEnumValueDescriptor),', namespace, enum_type.name)
     pp_cpp.End()
 
-def Compile(input_file, output_dir, namespace):
+def DotToJavaPackage(str, proto_package, java_package):
+    if str.startswith("."):
+        str = str[1:]
+    tmp = str.replace(proto_package, java_package)
+    if True:
+        # Strip qualifying package name from classes in "this" package
+        # TODO: This should work with referring types too?
+        return tmp.replace(java_package + '.', "")
+    else:
+        return tmp
+
+def ToJavaEnum(pp, message_type):
+    lst = []
+    for f in message_type.value:
+        lst.append(("public static final int %s_%s" % (message_type.name, f.name), f.number))
+
+    max_len = reduce(lambda y,x: max(len(x[0]), y), lst, 0)
+    #pp.Begin("enum %s",  message_type.name)
+
+    for t,n in lst:
+        pp.Print("%s%s= %d;", t, (max_len-len(t) + 1) * " ",n)
+    pp.Print("")
+    #pp.End()
+
+def ToJavaClass(pp, message_type, proto_package, java_package):
+    # Calculate maximum lenght of "type"
+    max_len = 0
+    for f in message_type.field:
+        if f.label == FieldDescriptor.LABEL_REPEATED:
+            if f.type ==  FieldDescriptor.TYPE_MESSAGE:
+                tn = DotToJavaPackage(f.type_name, proto_package, java_package)
+            elif f.type == FieldDescriptor.TYPE_BYTES:
+                assert False
+            else:
+                tn = type_to_boxedjavatype[f.type]
+            max_len = max(len('List<%s>' % tn), max_len)
+        elif f.type  == FieldDescriptor.TYPE_BYTES:
+            max_len = max(len("byte[]"), max_len)
+        elif f.type == FieldDescriptor.TYPE_ENUM:
+            max_len = max(len("int"), max_len)
+        elif f.type == FieldDescriptor.TYPE_MESSAGE:
+            max_len = max(len(DotToJavaPackage(f.type_name, proto_package, java_package)), max_len)
+        else:
+            max_len = max(len(type_to_javatype[f.type]), max_len)
+
+    def p(t, n):
+        pp.Print("public %s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
+
+    pp.Begin("public static final class %s", message_type.name)
+
+    for et in message_type.enum_type:
+        ToJavaEnum(pp, et)
+
+    for nt in message_type.nested_type:
+        ToJavaClass(pp, nt, proto_package, java_package)
+
+    for f in message_type.field:
+        if f.label == FieldDescriptor.LABEL_REPEATED:
+            if f.type ==  FieldDescriptor.TYPE_MESSAGE:
+                type_name = DotToJavaPackage(f.type_name, proto_package, java_package)
+            elif f.type ==  FieldDescriptor.TYPE_BYTES:
+                type_name = "Byte"
+            else:
+                type_name = type_to_boxedjavatype[f.type]
+
+            pp.Print('@ComponentType(type = %s.class)' % type_name)
+            p('List<%s>' % (type_name), f.name)
+        elif f.type == FieldDescriptor.TYPE_BYTES:
+            p('byte[]', f.name)
+        elif f.type == FieldDescriptor.TYPE_ENUM:
+            p("int", f.name)
+        elif f.type == FieldDescriptor.TYPE_MESSAGE:
+            p(DotToJavaPackage(f.type_name, proto_package, java_package), f.name)
+        else:
+            p(type_to_javatype[f.type], f.name)
+#    pp.Print('')
+#    pp.Print('static SDDFDescriptor* m_DDFDescriptor;')
+#    pp.Print('static const uint64_t m_DDFHash;')
+    pp.End()
+
+def CompileJava(input_file, options):
+    fds = FileDescriptorSet()
+    fds.ParseFromString(open(input_file, "rb").read())
+
+    file_desc = fds.file[0]
+
+    path = os.path.join(options.java_out, options.java_package.replace('.', '/'))
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    f_java = open(os.path.join(path, options.java_classname + '.java'), 'w')
+    pp_java = PrettyPrinter(f_java, 0)
+
+    if options.java_package != '':
+        pp_java.Print("package %s;",  options.java_package)
+    pp_java.Print("")
+    pp_java.Print("import java.util.List;")
+    pp_java.Print("import com.dynamo.format.annotations.ComponentType;")
+
+    pp_java.Print("")
+    pp_java.Begin("public final class %s", options.java_classname)
+
+    for mt in file_desc.enum_type:
+        ToJavaEnum(pp_java, mt)
+
+    for mt in file_desc.message_type:
+        ToJavaClass(pp_java, mt, file_desc.package, options.java_package + "." + options.java_classname)
+
+    pp_java.End("")
+
+def Compile(input_file, output_dir, options):
+    namespace = options.namespace
     base_name = os.path.basename(input_file)
 
     if base_name.rfind(".") != -1:
@@ -221,12 +370,11 @@ def Compile(input_file, output_dir, namespace):
     fds = FileDescriptorSet()
     fds.ParseFromString(open(input_file, "rb").read())
 
-    stream = sys.stdout
     file_desc = fds.file[0]
 
     f_h = open(os.path.join(output_dir, base_name + ".h"), "w")
     pp_h = PrettyPrinter(f_h, 0)
-        
+
     guard_name = base_name.upper() + "_H"
     pp_h.Print('#ifndef %s', guard_name)
     pp_h.Print('#define %s', guard_name)
@@ -269,10 +417,10 @@ def Compile(input_file, output_dir, namespace):
         ToDescriptor(pp_cpp, pp_h, mt, [file_desc.package])
 
     pp_h.Print("#endif")
-        
+
     if namespace:
         pp_h.End()
-        
+
     if namespace:
         pp_cpp.End()
 
@@ -286,6 +434,9 @@ if __name__ == '__main__':
     parser = OptionParser(usage = usage)
     parser.add_option("-o", dest="output_file", help="Output file (.cpp)", metavar="FILE")
     parser.add_option("--ns", dest="namespace", help="Namespace", metavar="NAMESPACE")
+    parser.add_option("--java_package", default=None, dest="java_package", help="Java packge name", metavar="JAVA_PACKAGE")
+    parser.add_option("--java_classname", default=None, dest="java_classname", help="Java class name", metavar="JAVA_CLASSNAME")
+    parser.add_option("--java_out", default=None, dest="java_out", help="Java output directory")
     (options, args) = parser.parse_args()
 
     if not options.output_file:
@@ -294,5 +445,14 @@ if __name__ == '__main__':
     if len(args) == 0:
         parser.error("No input file specified")
 
+    if options.java_out and options.java_package == None:
+        parser.error("No java package specified")
+
+    if options.java_out and options.java_classname == None:
+        parser.error("No java class name specified")
+
     output_dir = os.path.dirname(options.output_file)
-    Compile(args[0], output_dir, options.namespace)
+    Compile(args[0], output_dir, options)
+
+    if options.java_out:
+        CompileJava(args[0], options)
