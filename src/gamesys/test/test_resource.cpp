@@ -226,6 +226,7 @@ TEST_F(GetResourceTest, GetTestResource)
     ASSERT_EQ(456, test_resource_cont->m_Resources[1]->m_x);
 
     ASSERT_EQ(dmHashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
+    Resource::Release(m_Factory, test_resource_cont);
 }
 
 TEST_F(GetResourceTest, GetReference1)
@@ -255,6 +256,7 @@ TEST_F(GetResourceTest, GetReference2)
     ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
 
     ASSERT_EQ(1, descriptor.m_ReferenceCount);
+    Resource::Release(m_Factory, resource);
 }
 
 TEST_F(GetResourceTest, ReferenceCountSimple)
