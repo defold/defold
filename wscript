@@ -33,7 +33,7 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "linux" or platform == "darwin":
-        conf.env['CXXFLAGS']='-g -D__STDC_LIMIT_MACROS -Wall'
+        conf.env['CXXFLAGS']=['-g', '-D__STDC_LIMIT_MACROS', '-Wall']
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DGL_GLEXT_PROTOTYPES']
         conf.env.append_value('CPPPATH', "../include/win32")
