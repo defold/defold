@@ -11,7 +11,7 @@ TEST(dmArray, Dynamic_int32)
 {
     assert(array_size > array_size_test_offset);
 
-    dmArray<int32_t> ar;
+    dmArray<uint32_t> ar;
     ar.SetCapacity(array_size);
     for(uint32_t i = 0; i < array_size; i++)
         ar.Push(i);
@@ -30,7 +30,7 @@ TEST(dmArray, Dynamic_int32)
     EXPECT_EQ(array_size-3, ar[ ar.Size()-1]);
     EXPECT_EQ(array_size-2, ar.Size());
     EXPECT_EQ(false, ar.Full());
-    EXPECT_EQ(1, ar.Remaining());
+    EXPECT_EQ((uint32_t) 1, ar.Remaining());
 
     ar.OffsetCapacity(1);
     EXPECT_EQ(array_size, ar.Capacity());
@@ -45,26 +45,26 @@ TEST(dmArray, Dynamic_int32)
     EXPECT_EQ((array_size/2)-1, ar[(array_size/2)-1]);
 
     const uint32_t const_ref_front = ar[0];
-    EXPECT_EQ(0, const_ref_front);
+    EXPECT_EQ((uint32_t) 0, const_ref_front);
     const uint32_t const_ref_back = ar[ar.Size()-1];
     EXPECT_EQ((array_size/2)-1, const_ref_back);
     
     uint32_t ref_front = ar[0];
-    EXPECT_EQ(0, ref_front);
+    EXPECT_EQ((uint32_t) 0, ref_front);
     uint32_t ref_back = ar[ar.Size()-1];
     EXPECT_EQ((array_size/2)-1, ref_back);
 
-    EXPECT_EQ(0, ar.Front());
+    EXPECT_EQ((uint32_t) 0, ar.Front());
     EXPECT_EQ((array_size/2)-1, ar.Back());
     EXPECT_EQ(const_ref_front, ar.Front());
     EXPECT_EQ(const_ref_back, ar.Back());
 
-    int32_t &ref_adr = ar[0];
+    uint32_t &ref_adr = ar[0];
     ar.EraseSwapRef(ref_adr);
     EXPECT_EQ((array_size/2)-1, ar[0]);
 
     ar.SetCapacity(0);
-    EXPECT_EQ(0, ar.Size());
+    EXPECT_EQ((uint32_t) 0, ar.Size());
     EXPECT_EQ(true, ar.Empty());
 }
 
@@ -73,8 +73,8 @@ TEST(dmArray, Static_int32)
 {
     assert(array_size > array_size_test_offset);
 
-    int32_t array_data[array_size];
-    dmArray<int32_t> ar(array_data, 0, array_size);
+    uint32_t array_data[array_size];
+    dmArray<uint32_t> ar(array_data, 0, array_size);
     for(uint32_t i = 0; i < array_size; i++)
         ar.Push(i);
 
@@ -88,27 +88,27 @@ TEST(dmArray, Static_int32)
     EXPECT_EQ(array_size-3, ar[ ar.Size()-1]);
     EXPECT_EQ(array_size-2, ar.Size());
     EXPECT_EQ(false, ar.Full());
-    EXPECT_EQ(2, ar.Remaining());
+    EXPECT_EQ((uint32_t) 2, ar.Remaining());
 
     ar.SetSize(array_size/2);
     EXPECT_EQ(array_size/2, ar.Size());
 
     const uint32_t const_ref_front = ar[0];
-    EXPECT_EQ(0, const_ref_front);
+    EXPECT_EQ((uint32_t) 0, const_ref_front);
     const uint32_t const_ref_back = ar[ar.Size()-1];
     EXPECT_EQ((array_size/2)-1, const_ref_back);
     
     uint32_t ref_front = ar[0];
-    EXPECT_EQ(0, ref_front);
+    EXPECT_EQ((uint32_t) 0, ref_front);
     uint32_t ref_back = ar[ar.Size()-1];
     EXPECT_EQ((array_size/2)-1, ref_back);
 
-    EXPECT_EQ(0, ar.Front());
+    EXPECT_EQ((uint32_t) 0, ar.Front());
     EXPECT_EQ((array_size/2)-1, ar.Back());
     EXPECT_EQ(const_ref_front, ar.Front());
     EXPECT_EQ(const_ref_back, ar.Back());
 
-    int32_t &ref_adr = ar[0];
+    uint32_t &ref_adr = ar[0];
     ar.EraseSwapRef(ref_adr);
     EXPECT_EQ((array_size/2)-1, ar[0]);
 
