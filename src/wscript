@@ -1,5 +1,8 @@
 import sys
 
+def set_options(opt):
+    pass
+
 def configure(conf):
     conf.sub_config('bullet')
     conf.sub_config('physics')
