@@ -5,9 +5,11 @@ def configure(conf):
 
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib pyembed',
-                           includes = '.',
-                           proto_gen_py = True,
-                           target = 'gamesys')
+                                includes = '.',
+                                proto_gen_py = True,
+                                target = 'gamesys',
+                                install_path='${PREFIX}/lib')
+    
     resource.find_sources_in_dirs('.')
 
     bld.add_subdirs('test')
