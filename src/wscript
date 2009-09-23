@@ -3,19 +3,23 @@
 import os, sys
 import waf_graphics, waf_dynamo
 
+def set_options(opt):
+    pass
 
 def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['.'],
                            proto_gen_py = True,
-                           target = 'render')
+                           target = 'render',
+                           install_path='${PREFIX}/lib')
     obj.find_sources_in_dirs('. ../proto')
     obj.source.append('../proto/render_ddf.proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = '.',
                            proto_gen_py = True,
-                           target = 'render_debug')
+                           target = 'render_debug',
+                           install_path='${PREFIX}/lib')
     obj.find_sources_in_dirs('debug')
 
     bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
@@ -46,9 +50,9 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', '-framework Cocoa -framework OpenGL -lSDLmain -lSDL')
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-lSDLmain', '-lSDL'])
     if platform == "linux":
-        conf.env.append_value('LINKFLAGS', '-lglut -lXext -lX11 -lXi -lGL -lGLU -lSDL')
+        conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lSDL'])
     if platform == "win32":
        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'SDL.lib', 'SDLmain.lib', 'opengl32.lib'])
 
