@@ -10,7 +10,7 @@ TEST(dmIndexPool32, EmptyConstructor)
 {
     dmIndexPool32 pool;
     pool.SetCapacity(pool_size);
-    EXPECT_EQ(0, pool.Size());
+    EXPECT_EQ((uint32_t) 0, pool.Size());
     EXPECT_EQ(pool_size, pool.Capacity());
     EXPECT_EQ(pool_size, pool.Remaining());
 }
@@ -31,7 +31,7 @@ TEST(dmIndexPool32, Fill)
     for(uint32_t i = 0; i < pool_size; i++)
         pool.Push(val_array[i]);
 
-    EXPECT_EQ(0, pool.Size());
+    EXPECT_EQ((uint32_t) 0, pool.Size());
     EXPECT_EQ(pool_size, pool.Capacity());
     EXPECT_EQ(pool_size, pool.Remaining());
 }
@@ -74,7 +74,7 @@ TEST(dmIndexPool32, SimpleTest)
     EXPECT_EQ(max_val, max_val_check);
     EXPECT_EQ(pool_size, pool.Size());
     EXPECT_EQ(pool_size, pool.Capacity());
-    EXPECT_EQ(0, pool.Remaining());
+    EXPECT_EQ((uint32_t) 0, pool.Remaining());
 }
 
 int main(int argc, char **argv)

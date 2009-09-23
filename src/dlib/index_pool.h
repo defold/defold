@@ -30,7 +30,6 @@ public:
         m_State = STATE_DEFAULT;
         m_Capacity = 0;
         m_Size = 0;
-        m_FirstFree = 0;
     }
 
     /**
@@ -44,7 +43,6 @@ public:
         m_Capacity = size;
         m_State = STATE_USER_ALLOCATED;
         m_Size = 0;
-        m_FirstFree = 0;
         for (T i=0; i < size; i++)
             m_Pool[i] = i;
     }
@@ -110,10 +108,8 @@ public:
     void Push(T node)
     {
         assert(m_Pool);
-        assert(m_Size != 0);
-        m_Pool[node] = m_FirstFree;
-        m_FirstFree = node;
-        m_Size--;
+        assert(m_Size != 0 && m_Size <= m_Capacity);
+	m_Pool[--m_Size] = node;
     }
 
     /**
@@ -124,15 +120,11 @@ public:
     {
         assert(m_Pool);
         assert(m_Size < m_Capacity);
-        m_Size++;
-        T node = m_FirstFree;
-        m_FirstFree = m_Pool[m_Size];
-        return node;
+        return m_Pool[m_Size++];
     }
 
 private:
     T*	 m_Pool;
-    T	 m_FirstFree;
     T	 m_Capacity;
     T    m_Size;
     uint16_t m_State : 1;
