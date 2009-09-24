@@ -6,9 +6,15 @@ import Utils
 def configure(conf):
     conf.find_file('ddfc.py', var='DDFC', mandatory = True)
 
-Task.simple_task_type('bproto', 'python ${DDFC} ${ddf_options} ${SRC} \
+Task.simple_task_type('bproto_java', 'python ${DDFC} ${ddf_options} ${SRC} \
  --java_package=${JAVA_PACKAGE} --java_out=${TGT[0].dir(env)}/generated --java_classname=${JAVA_CLASSNAME} \
  -o ${TGT}',
+                      color='PINK',
+                      before='cc cxx javac',
+                      after='proto_b',
+                      shell=True)
+
+Task.simple_task_type('bproto', 'python ${DDFC} ${ddf_options} ${SRC} -o ${TGT}',
                       color='PINK',
                       before='cc cxx javac',
                       after='proto_b',
@@ -20,11 +26,11 @@ def bproto_file(self, node):
 
         obj_ext = '.cpp'
 
-        protoc = self.create_task('bproto')
-        protoc.set_inputs(node)
-        out = node.change_ext(obj_ext)
-
         if self.java_package:
+            protoc = self.create_task('bproto_java')
+            protoc.set_inputs(node)
+            out = node.change_ext(obj_ext)
+            
             self.env['JAVA_PACKAGE'] = self.java_package
             self.env['JAVA_CLASSNAME'] = self.proto_java_classname
 
@@ -43,6 +49,9 @@ def bproto_file(self, node):
 
             protoc.set_outputs([out, java_node])
         else:
+            protoc = self.create_task('bproto')
+            protoc.set_inputs(node)
+            out = node.change_ext(obj_ext)
             protoc.set_outputs([out])
 
         self.allnodes.append(out) 
