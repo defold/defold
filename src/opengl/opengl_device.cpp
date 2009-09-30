@@ -61,7 +61,7 @@ namespace dmGraphics
     {
         assert(params);
 
-        int ret = SDL_Init(SDL_INIT_VIDEO);
+        int ret = SDL_InitSubSystem(SDL_INIT_VIDEO);
         assert(ret == 0);
 
         uint32_t fullscreen = 0;
@@ -101,7 +101,7 @@ namespace dmGraphics
 
     void DestroyDevice()
     {
-        SDL_Quit();
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
