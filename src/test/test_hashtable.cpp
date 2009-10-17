@@ -340,8 +340,8 @@ TEST(dmHashTable, Performance)
     clock_t map_diff = end_map - start_map;
     clock_t ht_diff = end_ht - start_ht;
 
-    // std::map at least 5 times slower... :-)
-    EXPECT_GE(map_diff, ht_diff*5);
+    // std::map at least 3 times slower... :-)
+    EXPECT_GE(map_diff, ht_diff*3);
 }
 
 int main(int argc, char **argv)
