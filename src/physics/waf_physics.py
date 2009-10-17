@@ -28,4 +28,4 @@ def gameobjectdesc_file(self, node):
     task.set_outputs(out)
 
 def configure(conf):
-    conf.env['LIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath']
+    conf.env['STATICLIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath']
