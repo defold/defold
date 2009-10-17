@@ -13,7 +13,7 @@ if sys.platform == "win32":
 else:
     NULL = ">/dev/null"
 
-Task.simple_task_type('dds', 'nvcompress -fast ${SRC} ${TGT} %s' % NULL,
+Task.simple_task_type('dds', 'nvcompress -bc3 -fast ${SRC} ${TGT} %s' % NULL,
                       color='PINK', 
                       after='proto_gen_py',
                       before='cc cxx',
@@ -21,6 +21,15 @@ Task.simple_task_type('dds', 'nvcompress -fast ${SRC} ${TGT} %s' % NULL,
 
 @extension('.jpg')
 def jpg_file(self, node):
+    obj_ext = '.dds'
+    dds = self.create_task('dds')
+    dds.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    dds.set_outputs(out)
+    self.allnodes.append(out)
+
+@extension('.png')
+def png_file(self, node):
     obj_ext = '.dds'
     dds = self.create_task('dds')
     dds.set_inputs(node)
