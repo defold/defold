@@ -8,8 +8,13 @@ namespace dmThread
     {
         pthread_attr_t attr;
         assert(pthread_attr_init(&attr) == 0);
-        
-        assert(pthread_attr_setstacksize(&attr, stack_size));
+
+        // NOTE: At least on OSX the stack-size must be a multiple of page size
+        stack_size /= 4096;
+        stack_size += 1;
+        stack_size *= 4096;
+
+        assert(pthread_attr_setstacksize(&attr, stack_size) == 0);
         
         pthread_t thread;
         
@@ -28,7 +33,7 @@ namespace dmThread
 #elif defined(_WIN32)
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg)
     {
-        uint32_t thread_id;
+        DWORD thread_id;
         HANDLE thread = CreateThread(NULL, stack_size, 
                                      (LPTHREAD_START_ROUTINE) thread_start, 
                                      arg, 0, &thread_id);
