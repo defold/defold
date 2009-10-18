@@ -32,8 +32,8 @@ TEST(Thread, Basic1)
     dmThread::Join(t1);
     dmThread::Join(t2);
 
-    ASSERT_EQ(10, arr[0]);
-    ASSERT_EQ(20, arr[1]);
+    ASSERT_EQ((uint32_t) 10, arr[0]);
+    ASSERT_EQ((uint32_t) 20, arr[1]);
 }
 
 int main(int argc, char **argv)
