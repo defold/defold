@@ -76,10 +76,9 @@ def shutdown():
                               'build/default/src/test/generated',
                               'build/default/src/java'])
         cmd = """
-%s -cp %s org.junit.runner.JUnitCore com.dynamo.format.test.FormatLoaderTest
+"%s" -cp %s org.junit.runner.JUnitCore com.dynamo.format.test.FormatLoaderTest
 """ % (Build.bld.get_env()['JAVA'][0], cp)
-        ret = os.system('"%s"' % cmd)
-        print cmd
+        ret = os.system('%s' % cmd)
         if ret != 0:
             sys.exit(ret)
 
