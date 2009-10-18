@@ -45,7 +45,7 @@ namespace dmThread
     void Join(Thread thread)
     {
         uint32_t ret = WaitForSingleObject(thread, INFINITE);
-        assert(ret);
+        assert(ret == WAIT_OBJECT_0);
     }
 
 #else
