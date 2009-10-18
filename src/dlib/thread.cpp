@@ -1,8 +1,6 @@
 #include <assert.h>
 #include "thread.h"
 
-#include <stdio.h> // TODO: remove
-
 namespace dmThread
 {
 #if defined(__linux__) || defined(__MACH__)
@@ -28,14 +26,15 @@ namespace dmThread
     }
 
 #elif defined(_WIN32)
-    // TODO: Win32 here
-
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg)
     {
         uint32_t thread_id;
-        HANDLE thread = CreateThread(NULL, 0, &Thread, (void*) 0, 0, &thread_id);
+        HANDLE thread = CreateThread(NULL, stack_size, 
+                                     (LPTHREAD_START_ROUTINE) thread_start, 
+                                     arg, 0, &thread_id);
         assert(thread);
 
+        return thread;
     }
 
     void Join(Thread thread)
