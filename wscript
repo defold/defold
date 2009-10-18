@@ -53,27 +53,6 @@ def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
-    import Build
-    import os
-    cwd = os.getcwd()
-    sources = set()
-    for t in  Build.bld.all_task_gen:
-        #print dir(t.path)
-        p = t.path.abspath()
-        if type(t.source) == str:
-            sources.add(t.source)
-        else:
-            for s in t.source:
-                s = os.path.join(p, s)
-                s = s.replace(cwd, '')
-                if s[0] == '/' or s[0] == '\\':
-                    s = s[1:]
-                sources.add(s)
-    if Build.bld:
-        tmp = ' '.join( [ '-I %s' % x for x in Build.bld.all_envs.items()[0][1]['CPPPATH'] ])
-        for s in sources:
-            print 'g++ %s -c %s' % (tmp, s)
-
 def shutdown():
     waf_dynamo.run_gtests(valgrind = True)
 
