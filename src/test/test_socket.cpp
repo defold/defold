@@ -187,10 +187,10 @@ TEST(Socket, ClientServer1)
 
 int main(int argc, char **argv)
 {
-    dmSocket::Setup();
+    dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
-    dmSocket::Shutdown();
+    dmSocket::Finalize();
     return ret;
 }
 

@@ -122,8 +122,8 @@ namespace dmSocket
 #endif
     };
 
-    Result Setup();
-    Result Shutdown();
+    Result Initialize();
+    Result Finalize();
     Result New(Type type, Protocol protocol, Socket* socket);
     Result SetReuseAddress(Socket socket, bool reuse);
     Result Delete(Socket socket);

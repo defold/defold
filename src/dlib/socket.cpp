@@ -85,7 +85,7 @@ namespace dmSocket
     }
     #undef DM_SOCKET_HNATIVE_TO_RESULT_CASE
 
-    Result Setup()
+    Result Initialize()
     {
 #ifdef _WIN32
         WORD version_requested = MAKEWORD(2, 2);
@@ -104,7 +104,7 @@ namespace dmSocket
 #endif
     }
 
-    Result Shutdown()
+    Result Finalize()
     {
 #ifdef _WIN32
         WSACleanup();
