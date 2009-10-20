@@ -121,14 +121,26 @@ namespace dmSocket
         }
         else
         {
-            int on = 1;
-#ifdef _WIN32
-            setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, sizeof(on));
-#else
-            setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-#endif
-
             *socket = s;
+            return RESULT_OK;
+        }
+    }
+
+    Result SetReuseAddress(Socket socket, bool reuse)
+    {
+        int on = (int) reuse;
+        int ret;
+#ifdef _WIN32
+        ret = setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, sizeof(on));
+#else
+        ret = setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+#endif
+        if (ret < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
             return RESULT_OK;
         }
     }

@@ -117,6 +117,9 @@ static void ServerThread1(void* arg)
     dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
+    r = dmSocket::SetReuseAddress(socket, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
     const int port = g_ServerThread1Port;
 
     r = dmSocket::Bind(socket, dmSocket::AddressFromIPString("0.0.0.0"), port);

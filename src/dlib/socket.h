@@ -125,6 +125,7 @@ namespace dmSocket
     Result Setup();
     Result Shutdown();
     Result New(Type type, Protocol protocol, Socket* socket);
+    Result SetReuseAddress(Socket socket, bool reuse);
     Result Delete(Socket socket);
     Result Accept(Socket socket, Address* address, Socket* accept_socket);
     Result Bind(Socket socket, Address address, int port);
