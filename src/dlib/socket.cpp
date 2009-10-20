@@ -121,6 +121,13 @@ namespace dmSocket
         }
         else
         {
+            int on = 1;
+#ifdef _WIN32
+            setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, sizeof(on));
+#else
+            setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+#endif
+
             *socket = s;
             return RESULT_OK;
         }

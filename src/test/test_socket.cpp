@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 #include "../dlib/socket.h"
+#include "../dlib/thread.h"
+#include "../dlib/time.h"
 
 TEST(Socket, Basic1)
 {
@@ -106,6 +108,79 @@ TEST(Socket, ServerSocket3)
     r = dmSocket::Delete(socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
+
+bool g_ServerThread1Running = false;
+int  g_ServerThread1Port = 9002;
+static void ServerThread1(void* arg)
+{
+    dmSocket::Socket socket;
+    dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    const int port = g_ServerThread1Port;
+
+    r = dmSocket::Bind(socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Listen(socket, 1000);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    dmSocket::Address address;
+    dmSocket::Socket client_socket;
+    g_ServerThread1Running = true;
+    r = dmSocket::Accept(socket, &address, &client_socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    int value = 1234;
+    int sent_bytes;
+    r = dmSocket::Send(client_socket, &value, sizeof(value), &sent_bytes);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ((int) sizeof(value), sent_bytes);
+
+    r = dmSocket::Delete(client_socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Delete(socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+}
+
+TEST(Socket, ClientServer1)
+{
+    dmThread::Thread thread = dmThread::New(&ServerThread1, 0x80000, 0);
+
+    dmSocket::Socket socket;
+    dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
+    ASSERT_EQ(r, dmSocket::RESULT_OK);
+
+    dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
+
+    for (int i = 0; i < 100; ++i)
+    {
+        if (g_ServerThread1Running)
+            break;
+
+        dmSleep(10);
+    }
+    dmSleep(50); // Make sure that we are in "accept"
+
+    ASSERT_EQ(true, g_ServerThread1Running);
+
+    r = dmSocket::Connect(socket, local_address, g_ServerThread1Port);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    int value;
+    int received_bytes;
+    r = dmSocket::Receive(socket, &value, sizeof(value), &received_bytes);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ((int) sizeof(received_bytes), received_bytes);
+    ASSERT_EQ(1234, value);
+
+    r = dmSocket::Delete(socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    dmThread::Join(thread);
+}
+
 
 int main(int argc, char **argv)
 {
