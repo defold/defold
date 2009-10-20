@@ -21,7 +21,8 @@ def build(bld):
     dlib.find_sources_in_dirs('dlib')
 
     dlib = bld.new_task_gen(features = 'cxx cshlib',
-                            target = 'dlib_shared')
+                            target = 'dlib_shared',
+                            uselib = 'PLATFORM_SOCKET')
     dlib.find_sources_in_dirs('dlib')
 
 def configure(conf):
