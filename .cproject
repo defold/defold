@@ -28,13 +28,22 @@
 </inputType>
 </tool>
 <tool id="cdt.managedbuild.tool.gnu.assembler.macosx.base.1130896428" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.macosx.base">
+<option id="gnu.both.asm.option.include.paths.1237322538" superClass="gnu.both.asm.option.include.paths" valueType="includePath">
+<listOptionValue builtIn="false" value="/Users/chmu/tmp/dynamo-home/ext/include/"/>
+</option>
 <inputType id="cdt.managedbuild.tool.gnu.assembler.input.205069540" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
 </tool>
 <tool id="cdt.managedbuild.tool.gnu.archiver.macosx.base.1654904703" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.macosx.base"/>
 <tool id="cdt.managedbuild.tool.gnu.cpp.compiler.macosx.base.1206800176" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.macosx.base">
+<option id="gnu.cpp.compiler.option.include.paths.74308162" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
+<listOptionValue builtIn="false" value="/Users/chmu/tmp/dynamo-home/ext/include/"/>
+</option>
 <inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.16339166" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 </tool>
 <tool id="cdt.managedbuild.tool.gnu.c.compiler.macosx.base.968308616" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.macosx.base">
+<option id="gnu.c.compiler.option.include.paths.2137735044" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
+<listOptionValue builtIn="false" value="/Users/chmu/tmp/dynamo-home/ext/include/"/>
+</option>
 <inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1572264555" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 </tool>
 </toolChain>
@@ -291,6 +300,8 @@
 </profile>
 </scannerConfigBuildInfo>
 </storageModule>
+<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 </cconfiguration>
 </storageModule>
 <storageModule moduleId="cdtBuildSystem" version="4.0.0">

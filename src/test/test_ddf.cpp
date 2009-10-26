@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include <gtest/gtest.h>
 
 #ifdef _WIN32
@@ -12,7 +13,7 @@
 #include <unistd.h>
 #endif
 
-#include "ddf/ddf.h"
+#include "../ddf/ddf.h"
 
 /*
  * TODO:
@@ -30,6 +31,18 @@ enum MyEnum
 {
     MYENUM,
 };
+
+static bool DDFStringSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
+{
+    std::string* str = (std::string*) context;
+    str->insert(str->size(), (const char*) buffer, buffer_size);
+    return true;
+}
+
+static DDFError DDFSaveToString(const void* message, const SDDFDescriptor* desc, std::string& str)
+{
+    return DDFSaveMessage(message, desc, &str, DDFStringSaveFunction);
+}
 
 TEST(Misc, TestEnumSize)
 {
@@ -53,7 +66,7 @@ TEST(Simple, Descriptor)
     EXPECT_EQ(0, f1.m_Offset);
 }
 
-TEST(Simple, Load)
+TEST(Simple, LoadSave)
 {
     int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
 
@@ -62,6 +75,7 @@ TEST(Simple, Load)
         TestDDF::Simple simple;
         simple.set_a(test_values[i]);
         std::string msg_str = simple.SerializeAsString();
+
         const char* msg_buf = msg_str.c_str();
         uint32_t msg_buf_size = msg_str.size();
         void* message;
@@ -71,6 +85,11 @@ TEST(Simple, Load)
 
         DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
         ASSERT_EQ(simple.a(), msg->m_a);
+
+        std::string msg_str2;
+        e = DDFSaveToString(message, &DUMMY::TestDDF_Simple_DESCRIPTOR, msg_str2);
+        ASSERT_EQ(DDF_ERROR_OK, e);
+        EXPECT_EQ(msg_str, msg_str2);
 
         DDFFreeMessage(message);
     }
@@ -203,6 +222,11 @@ TEST(ScalarTypes, Load)
     EXPECT_EQ(scalar_types.int64(), msg->m_Int64);
     EXPECT_EQ(scalar_types.uint64(), msg->m_Uint64);
     EXPECT_STREQ(scalar_types.string().c_str(), msg->m_String);
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
 
     DDFFreeMessage(message);
 }

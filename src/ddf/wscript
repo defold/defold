@@ -6,7 +6,7 @@ def build(bld):
     bld.new_task_gen(
             features = 'cxx cstaticlib',
             includes = '../..',
-            source = 'ddf.cpp ddf_load.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ',
+            source = 'ddf.cpp ddf_load.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
             target = 'ddf',
             install_path='${PREFIX}/lib')
 
