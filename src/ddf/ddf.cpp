@@ -7,6 +7,7 @@
 #include "ddf.h"
 #include "ddf_inputbuffer.h"
 #include "ddf_load.h"
+#include "ddf_save.h"
 #include "ddf_util.h"
 #include "config.h"
 
@@ -160,6 +161,27 @@ DDFError DDFLoadMessageFromFile(const char* file_name, const SDDFDescriptor* des
     {
         return DDF_ERROR_IO_ERROR;
     }
+}
+
+DDFError DDFSaveMessage(const void* message, const SDDFDescriptor* desc, void* context, DDFSaveFunction save_function)
+{
+    return DDFDoSaveMessage(message, desc, context, save_function);
+}
+
+static bool DDFFileSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
+{
+    size_t nwritten = fwrite(buffer, 1, buffer_size, (FILE*) context);
+    return nwritten == buffer_size;
+}
+
+DDFError DDFSaveMessageToFile(const void* message, const SDDFDescriptor* desc, const char* file_name)
+{
+    FILE* file = fopen(file_name, "wb");
+    if (!file)
+        return DDF_ERROR_IO_ERROR;
+    DDFError ret = DDFSaveMessage(message, desc, file, &DDFFileSaveFunction);
+    fclose(file);
+    return ret;
 }
 
 int32_t DDFGetEnumValue(const SDDFEnumDescriptor* desc, const char* name)

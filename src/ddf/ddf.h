@@ -114,6 +114,34 @@ enum DDFWireType
 DDFError DDFLoadMessage(const void* buffer, uint32_t buffer_size, const SDDFDescriptor* desc, void** message);
 
 /**
+ * Save function call-back
+ * @param context Save context
+ * @param buffer Buffer to write
+ * @param buffer_size Buffer size
+ * @return true on success
+ */
+typedef bool (*DDFSaveFunction)(void* context, const void* buffer, uint32_t buffer_size);
+
+/**
+ * Save message
+ * @param message Message
+ * @param desc DDF descriptor
+ * @param context Save context
+ * @param save_function Save function
+ * @return DDF_ERROR_OK on success
+ */
+DDFError DDFSaveMessage(const void* message, const SDDFDescriptor* desc, void* context, DDFSaveFunction save_function);
+
+/**
+ * Save message to file
+ * @param message Message
+ * @param desc DDF descriptor
+ * @param file_name File name
+ * @return DDF_ERROR_OK on success
+ */
+DDFError DDFSaveMessageToFile(const void* message, const SDDFDescriptor* desc, const char* file_name);
+
+/**
  * Load/decode a DDF message from buffer. Template variant
  * @param buffer Input buffer
  * @param buffer_size Input buffer size in bytes
