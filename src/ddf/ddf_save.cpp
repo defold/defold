@@ -37,6 +37,10 @@ DDFError DDFDoSaveMessage(const void* message_, const SDDFDescriptor* desc, void
         {
             element_size = sizeof(const char*);
         }
+        else if ( field_desc->m_Type == DDF_TYPE_BYTES )
+        {
+            element_size = sizeof(DDFRepeatedField);
+        }
         else
         {
             element_size = DDFScalarTypeSize(type);
@@ -109,14 +113,21 @@ DDFError DDFDoSaveMessage(const void* message_, const SDDFDescriptor* desc, void
                 break;
 
                 case DDF_TYPE_BYTES:
-                    assert(false);
-                    break;
+                {
+                    DDFRepeatedField* bytes_repeated = (DDFRepeatedField*) data;
+                    write_result = output_stream.WriteTag(field_desc->m_Number, DDF_WIRETYPE_LENGTH_DELIMITED) &&
+                                   output_stream.WriteVarInt32(bytes_repeated->m_ArrayCount) &&
+                                   output_stream.Write((const void*) bytes_repeated->m_Array, bytes_repeated->m_ArrayCount);
+                    if (!write_result)
+                        return DDF_ERROR_IO_ERROR;
+                }
+                break;
 
                 case DDF_TYPE_UINT32:
                     DDF_SAVEMESSAGE_CASE(uint32_t, DDF_WIRETYPE_VARINT, WriteVarInt32)
 
                 case DDF_TYPE_ENUM:
-                    assert(false);
+                    DDF_SAVEMESSAGE_CASE(uint32_t, DDF_WIRETYPE_VARINT, WriteVarInt32)
                     break;
 
                 case DDF_TYPE_SFIXED32:

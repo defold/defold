@@ -313,6 +313,12 @@ TEST(Simple02Repeated, Load)
         EXPECT_EQ(repated.array(i), msg->m_array.m_Data[i]);
     }
 
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_Simple02Repeated_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
+
+
     DDFFreeMessage(message);
 }
 
@@ -344,6 +350,11 @@ TEST(StringRepeated, Load)
         EXPECT_STREQ(repated.array(i).c_str(), msg->m_array.m_Data[i]);
     }
 
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_StringRepeated_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
+
     DDFFreeMessage(message);
 }
 
@@ -370,6 +381,11 @@ TEST(NestedMessage, Load)
 
     EXPECT_EQ(n1.x(), msg->m_n1.m_x);
     EXPECT_EQ(n2.x(), msg->m_n2.m_x);
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_NestedMessage_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
 
     DDFFreeMessage(message);
 }
@@ -411,6 +427,11 @@ TEST(Mesh, Load)
         EXPECT_EQ(mesh.vertices(i), msg->m_Vertices.m_Data[i]);
         EXPECT_EQ(mesh.indices(i), msg->m_Indices.m_Data[i]);
     }
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_Mesh_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
 
     DDFFreeMessage(message);
 }
@@ -460,6 +481,11 @@ TEST(NestedArray, Load)
         }
     }
 
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_NestedArray_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(pb_msg_str, msg_str2);
+
     DDFFreeMessage(message);
 }
 
@@ -480,6 +506,11 @@ TEST(Bytes, Load)
     ASSERT_EQ('f', msg->m_data[0]);
     ASSERT_EQ('o', msg->m_data[1]);
     ASSERT_EQ('o', msg->m_data[2]);
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_Bytes_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
 
     DDFFreeMessage(message);
 }
