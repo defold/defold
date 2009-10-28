@@ -252,7 +252,7 @@ TEST(Enum, Simple)
 
 TEST(Simple01Repeated, Load)
 {
-    const int count = 10;
+    const int count = 2;
 
     TestDDF::Simple01Repeated repated;
     for (int i = 0; i < count; ++i)
@@ -278,6 +278,11 @@ TEST(Simple01Repeated, Load)
         EXPECT_EQ(repated.array(i).x(), msg->m_array.m_Data[i].m_x);
         EXPECT_EQ(repated.array(i).y(), msg->m_array.m_Data[i].m_y);
     }
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, msg_str2);
+    ASSERT_EQ(DDF_ERROR_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
 
     DDFFreeMessage(message);
 }
