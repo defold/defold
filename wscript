@@ -47,7 +47,9 @@ def configure(conf):
     if sys.platform == "linux2":
         conf.env['LIB_THREAD'] = 'pthread'
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-
+    elif platform == "darwin":
+        conf.env['LIB_THREAD'] = ''
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
     else:
         conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
