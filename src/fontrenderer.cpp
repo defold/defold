@@ -32,9 +32,9 @@ namespace dmRender
 
     {
         Font* f;
-        DDFError e = DDFLoadMessageFromFile(file_name,
-                                            &dmRender_Font_DESCRIPTOR, (void**) &f);
-        assert( e == DDF_ERROR_OK );
+        dmDDF::Result e = dmDDF::LoadMessageFromFile(file_name,
+                                                     &dmRender_Font_DESCRIPTOR, (void**) &f);
+        assert( e == dmDDF::RESULT_OK );
 
         SFontRenderer* fr = new SFontRenderer();
         fr->m_Font = f;
