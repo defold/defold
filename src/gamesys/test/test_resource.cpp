@@ -139,8 +139,8 @@ Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
     self->m_ResourceContainerCreateCallCount++;
 
     TestResource::ResourceContainerDesc* resource_container_desc;
-    DDFError e = DDFLoadMessage(buffer, buffer_size, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
-    if (e == DDF_ERROR_OK)
+    dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
+    if (e == dmDDF::RESULT_OK)
     {
         TestResourceContainer* resource_cont = new TestResourceContainer();
         resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
@@ -153,7 +153,7 @@ Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
             assert( factoy_e == Resource::FACTORY_RESULT_OK );
             resource_cont->m_Resources.push_back(sub_resource);
         }
-        DDFFreeMessage(resource_container_desc);
+        dmDDF::FreeMessage(resource_container_desc);
         return Resource::CREATE_RESULT_OK;
     }
     else
@@ -188,8 +188,8 @@ Resource::CreateError FooResourceCreate(Resource::HFactory factory,
 
     TestResource::ResourceFoo* resource_foo;
 
-    DDFError e = DDFLoadMessage(buffer, buffer_size, &TestResource_ResourceFoo_DESCRIPTOR, (void**) &resource_foo);
-    if (e == DDF_ERROR_OK)
+    dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceFoo_DESCRIPTOR, (void**) &resource_foo);
+    if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) resource_foo;
         resource->m_ResourceKind = Resource::KIND_DDF_DATA;
@@ -206,7 +206,7 @@ Resource::CreateError FooResourceDestroy(Resource::HFactory factory, void* conte
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_FooResourceDestroyCallCount++;
 
-    DDFFreeMessage(resource->m_Resource);
+    dmDDF::FreeMessage(resource->m_Resource);
     return Resource::CREATE_RESULT_OK;
 }
 

@@ -58,8 +58,8 @@ namespace Resource
         /// Union of DDF descriptor and resource name
         union
         {
-            SDDFDescriptor*  m_Descriptor;
-            const char*      m_ResourceTypeName;
+            dmDDF::Descriptor* m_Descriptor;
+            const char*        m_ResourceTypeName;
         };
 
         /// Resource pointer. Must be unique and not NULL.

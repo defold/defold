@@ -104,8 +104,8 @@ namespace GameObject
     {
         GameObjectPrototypeDesc* proto_desc;
 
-        DDFError e = DDFLoadMessage(buffer, buffer_size, &GameObject_GameObjectPrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
-        if ( e != DDF_ERROR_OK )
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &GameObject_GameObjectPrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+        if ( e != dmDDF::RESULT_OK )
         {
             return Resource::CREATE_RESULT_UNKNOWN;
         }
@@ -127,7 +127,7 @@ namespace GameObject
                     Resource::Release(factory, proto->m_Components[j].m_Resource);
                 }
                 delete proto;
-                DDFFreeMessage(proto_desc);
+                dmDDF::FreeMessage(proto_desc);
                 return Resource::CREATE_RESULT_UNKNOWN;
             }
             else
@@ -143,7 +143,7 @@ namespace GameObject
         Resource::FactoryError fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
         if (fact_e != Resource::FACTORY_RESULT_OK)
         {
-            DDFFreeMessage(proto_desc);
+            dmDDF::FreeMessage(proto_desc);
             return Resource::CREATE_RESULT_UNKNOWN;
         }
 
@@ -152,7 +152,7 @@ namespace GameObject
 
         resource->m_Resource = (void*) proto;
 
-        DDFFreeMessage(proto_desc);
+        dmDDF::FreeMessage(proto_desc);
         return Resource::CREATE_RESULT_OK;
     }
 

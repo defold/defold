@@ -112,8 +112,8 @@ Resource::CreateError GenericDDFCreate(Resource::HFactory factory, void* context
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;
 
     T* obj;
-    DDFError e = DDFLoadMessage<T>(buffer, buffer_size, &obj);
-    if (e == DDF_ERROR_OK)
+    dmDDF::Result e = dmDDF::LoadMessage<T>(buffer, buffer_size, &obj);
+    if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
         return Resource::CREATE_RESULT_OK;
@@ -130,7 +130,7 @@ Resource::CreateError GenericDDFDestory(Resource::HFactory factory, void* contex
     GameObjectTest* game_object_test = (GameObjectTest*) context;
     game_object_test->m_DestroyCountMap[T::m_DDFHash]++;
 
-    DDFFreeMessage((void*) resource->m_Resource);
+    dmDDF::FreeMessage((void*) resource->m_Resource);
     return Resource::CREATE_RESULT_OK;
 }
 
