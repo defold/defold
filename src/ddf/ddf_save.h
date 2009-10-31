@@ -3,6 +3,9 @@
 
 #include "ddf.h"
 
-DDFError DDFDoSaveMessage(const void* message, const SDDFDescriptor* desc, void* context, DDFSaveFunction save_function);
+namespace dmDDF
+{
+    Result DoSaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function);
+}
 
 #endif // DDF_SAVE_H

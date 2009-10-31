@@ -6,10 +6,13 @@
 #include "ddf_message.h"
 #include "ddf_loadcontext.h"
 
-DDFError DDFSkipField(CDDFInputBuffer* input_buffer, uint32_t type);
+namespace dmDDF
+{
 
-DDFError DDFDoLoadMessage(CDDFLoadContext* load_context, CDDFInputBuffer* input_buffer, 
-                          const SDDFDescriptor* desc, CDDFMessage* message);
+    Result SkipField(InputBuffer* input_buffer, uint32_t type);
 
+    Result DoLoadMessage(LoadContext* load_context, InputBuffer* input_buffer,
+                              const Descriptor* desc, Message* message);
+}
 
 #endif // DDF_LOAD_H 

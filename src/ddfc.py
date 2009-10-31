@@ -162,7 +162,7 @@ def ToCStruct(pp, message_type):
         else:
             p(type_to_ctype[f.type], f.name)
     pp.Print('')
-    pp.Print('static SDDFDescriptor* m_DDFDescriptor;')
+    pp.Print('static dmDDF::Descriptor* m_DDFDescriptor;')
     pp.Print('static const uint64_t m_DDFHash;')
     pp.End()
 
@@ -182,7 +182,7 @@ def ToCEnum(pp, message_type):
 def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
-    pp_h.Print('extern SDDFDescriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
+    pp_h.Print('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
     for nt in message_type.nested_type:
         ToDescriptor(pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
@@ -202,22 +202,22 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
 
         lst.append(tpl)
 
-    pp_cpp.Begin("SDDFFieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
+    pp_cpp.Begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
 
     for name, number, type, label, msg_desc, offset in lst:
         pp_cpp.Print('{ "%s", %d, %d, %d, %s, %s },'  % (name, number, type, label, msg_desc, offset))
 
     pp_cpp.End()
 
-    pp_cpp.Begin("SDDFDescriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
+    pp_cpp.Begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.Print('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.Print('"%s",', message_type.name)
     pp_cpp.Print('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
-    pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFFieldDescriptor),', namespace, message_type.name)
+    pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
     pp_cpp.End()
 
-    pp_cpp.Print('SDDFDescriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
+    pp_cpp.Print('dmDDF::Descriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
 
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
@@ -229,25 +229,25 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
 def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
-    pp_h.Print("extern SDDFEnumDescriptor %s_%s_DESCRIPTOR;", namespace, enum_type.name)
+    pp_h.Print("extern dmDDF::EnumDescriptor %s_%s_DESCRIPTOR;", namespace, enum_type.name)
 
     lst = []
     for f in enum_type.value:
         tpl = (f.name, f.number)
         lst.append(tpl)
 
-    pp_cpp.Begin("SDDFEnumValueDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, enum_type.name)
+    pp_cpp.Begin("dmDDF::EnumValueDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, enum_type.name)
 
     for name, number in lst:
         pp_cpp.Print('{ "%s", %d },'  % (name, number))
 
     pp_cpp.End()
 
-    pp_cpp.Begin("SDDFEnumDescriptor %s_%s_DESCRIPTOR = ", namespace, enum_type.name)
+    pp_cpp.Begin("dmDDF::EnumDescriptor %s_%s_DESCRIPTOR = ", namespace, enum_type.name)
     pp_cpp.Print('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.Print('"%s",', enum_type.name)
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, enum_type.name)
-    pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(SDDFEnumValueDescriptor),', namespace, enum_type.name)
+    pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::EnumValueDescriptor),', namespace, enum_type.name)
     pp_cpp.End()
 
 def DotToJavaPackage(str, proto_package, java_package):

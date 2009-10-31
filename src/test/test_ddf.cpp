@@ -39,9 +39,9 @@ static bool DDFStringSaveFunction(void* context, const void* buffer, uint32_t bu
     return true;
 }
 
-static DDFError DDFSaveToString(const void* message, const SDDFDescriptor* desc, std::string& str)
+static dmDDF::Result DDFSaveToString(const void* message, const dmDDF::Descriptor* desc, std::string& str)
 {
-    return DDFSaveMessage(message, desc, &str, DDFStringSaveFunction);
+    return SaveMessage(message, desc, &str, DDFStringSaveFunction);
 }
 
 TEST(Misc, TestEnumSize)
@@ -52,16 +52,16 @@ TEST(Misc, TestEnumSize)
 TEST(Simple, Descriptor)
 {
     // Test descriptor
-    const SDDFDescriptor& d = DUMMY::TestDDF_Simple_DESCRIPTOR;
+    const dmDDF::Descriptor& d = DUMMY::TestDDF_Simple_DESCRIPTOR;
     EXPECT_STREQ("Simple", d.m_Name);
     EXPECT_EQ(4, d.m_Size);
     EXPECT_EQ(1, d.m_FieldCount);
 
     // Test field(s)
-    const SDDFFieldDescriptor& f1 = d.m_Fields[0];
+    const dmDDF::FieldDescriptor& f1 = d.m_Fields[0];
     EXPECT_STREQ("a", f1.m_Name);
     EXPECT_EQ(1, f1.m_Number);
-    EXPECT_EQ(DDF_TYPE_INT32, f1.m_Type);
+    EXPECT_EQ(dmDDF::TYPE_INT32, f1.m_Type);
     EXPECT_EQ(0, f1.m_MessageDescriptor);
     EXPECT_EQ(0, f1.m_Offset);
 }
@@ -80,18 +80,18 @@ TEST(Simple, LoadSave)
         uint32_t msg_buf_size = msg_str.size();
         void* message;
 
-        DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
-        ASSERT_EQ(DDF_ERROR_OK, e);
+        dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
 
         DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
         ASSERT_EQ(simple.a(), msg->m_a);
 
         std::string msg_str2;
         e = DDFSaveToString(message, &DUMMY::TestDDF_Simple_DESCRIPTOR, msg_str2);
-        ASSERT_EQ(DDF_ERROR_OK, e);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
         EXPECT_EQ(msg_str, msg_str2);
 
-        DDFFreeMessage(message);
+        dmDDF::FreeMessage(message);
     }
 }
 
@@ -108,12 +108,12 @@ TEST(Simple, LoadWithTemplateFunction)
         uint32_t msg_buf_size = msg_str.size();
 
         DUMMY::TestDDF::Simple* msg;
-        DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &msg);
-        ASSERT_EQ(DDF_ERROR_OK, e);
+        dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &msg);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
 
         ASSERT_EQ(simple.a(), msg->m_a);
 
-        DDFFreeMessage(msg);
+        dmDDF::FreeMessage(msg);
     }
 }
 
@@ -133,8 +133,8 @@ TEST(Simple, LoadFromFile)
         }
 
         void* message;
-        DDFError e = DDFLoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
-        ASSERT_EQ(DDF_ERROR_OK, e);
+        dmDDF::Result e = dmDDF::LoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
+        ASSERT_EQ(dmDDF::RESULT_OK, e);
 
         #ifdef _WIN32
         _unlink(file_name);
@@ -145,21 +145,21 @@ TEST(Simple, LoadFromFile)
         DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
         ASSERT_EQ(simple.a(), msg->m_a);
 
-        DDFFreeMessage(message);
+        dmDDF::FreeMessage(message);
     }
 }
 
 TEST(Simple, LoadFromFile2)
 {
     void *message;
-    DDFError e = DDFLoadMessageFromFile("DOES_NOT_EXISTS", &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
-    EXPECT_EQ(DDF_ERROR_IO_ERROR, e);
+    dmDDF::Result e = dmDDF::LoadMessageFromFile("DOES_NOT_EXISTS", &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
+    EXPECT_EQ(dmDDF::RESULT_IO_ERROR, e);
 }
 
 TEST(ScalarTypes, Types)
 {
     // Test descriptor
-    const SDDFDescriptor& d = DUMMY::TestDDF_ScalarTypes_DESCRIPTOR;
+    const dmDDF::Descriptor& d = DUMMY::TestDDF_ScalarTypes_DESCRIPTOR;
     EXPECT_STREQ("ScalarTypes", d.m_Name);
     EXPECT_EQ(7, d.m_FieldCount);
 
@@ -175,20 +175,20 @@ TEST(ScalarTypes, Types)
         "String",
     };
 
-    enum DDFType types[] =
+    enum dmDDF::Type types[] =
     {
-        DDF_TYPE_FLOAT,
-        DDF_TYPE_DOUBLE,
-        DDF_TYPE_INT32,
-        DDF_TYPE_UINT32,
-        DDF_TYPE_INT64,
-        DDF_TYPE_UINT64,
-        DDF_TYPE_STRING,
+        dmDDF::TYPE_FLOAT,
+        dmDDF::TYPE_DOUBLE,
+        dmDDF::TYPE_INT32,
+        dmDDF::TYPE_UINT32,
+        dmDDF::TYPE_INT64,
+        dmDDF::TYPE_UINT64,
+        dmDDF::TYPE_STRING,
     };
 
     for (int i = 0; i < d.m_FieldCount; ++i)
     {
-        const SDDFFieldDescriptor* f = &d.m_Fields[i];
+        const dmDDF::FieldDescriptor* f = &d.m_Fields[i];
         EXPECT_STREQ(names[i], f->m_Name);
         EXPECT_EQ(i+1, f->m_Number);
         EXPECT_EQ(types[i], f->m_Type);
@@ -211,8 +211,8 @@ TEST(ScalarTypes, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::ScalarTypes* msg = (DUMMY::TestDDF::ScalarTypes*) message;
     EXPECT_EQ(scalar_types.float_(), msg->m_Float);
@@ -225,10 +225,10 @@ TEST(ScalarTypes, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(Enum, Simple)
@@ -242,12 +242,12 @@ TEST(Enum, Simple)
     ASSERT_EQ(10, DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[0].m_Value);
     ASSERT_EQ(20, DUMMY::TestDDF_TestEnum_DESCRIPTOR.m_EnumValues[1].m_Value);
 
-    ASSERT_STREQ("TestEnumVal1", DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 10));
-    ASSERT_STREQ("TestEnumVal2", DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 20));
-    ASSERT_EQ(0, DDFGetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, -1));
+    ASSERT_STREQ("TestEnumVal1", GetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 10));
+    ASSERT_STREQ("TestEnumVal2", GetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, 20));
+    ASSERT_EQ(0, GetEnumName(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, -1));
 
-    ASSERT_EQ(10, DDFGetEnumValue(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, "TestEnumVal1"));
-    ASSERT_EQ(20, DDFGetEnumValue(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, "TestEnumVal2"));
+    ASSERT_EQ(10, GetEnumValue(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, "TestEnumVal1"));
+    ASSERT_EQ(20, GetEnumValue(&DUMMY::TestDDF_TestEnum_DESCRIPTOR, "TestEnumVal2"));
 }
 
 TEST(Simple01Repeated, Load)
@@ -267,8 +267,8 @@ TEST(Simple01Repeated, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Simple01Repeated* msg = (DUMMY::TestDDF::Simple01Repeated*) message;
     EXPECT_EQ(count, msg->m_array.m_Count);
@@ -281,10 +281,10 @@ TEST(Simple01Repeated, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(Simple02Repeated, Load)
@@ -302,8 +302,8 @@ TEST(Simple02Repeated, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple02Repeated_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Simple02Repeated_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Simple02Repeated* msg = (DUMMY::TestDDF::Simple02Repeated*) message;
     EXPECT_EQ(count, msg->m_array.m_Count);
@@ -315,11 +315,11 @@ TEST(Simple02Repeated, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Simple02Repeated_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(StringRepeated, Load)
@@ -339,8 +339,8 @@ TEST(StringRepeated, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_StringRepeated_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_StringRepeated_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::StringRepeated* msg = (DUMMY::TestDDF::StringRepeated*) message;
     EXPECT_EQ(count, msg->m_array.m_Count);
@@ -352,10 +352,10 @@ TEST(StringRepeated, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_StringRepeated_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(NestedMessage, Load)
@@ -375,8 +375,8 @@ TEST(NestedMessage, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_NestedMessage_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_NestedMessage_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     DUMMY::TestDDF::NestedMessage* msg = (DUMMY::TestDDF::NestedMessage*) message;
 
     EXPECT_EQ(n1.x(), msg->m_n1.m_x);
@@ -384,10 +384,10 @@ TEST(NestedMessage, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_NestedMessage_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(Mesh, Load)
@@ -414,8 +414,8 @@ TEST(Mesh, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Mesh_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Mesh_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Mesh* msg = (DUMMY::TestDDF::Mesh*) message;
     EXPECT_EQ(count, msg->m_PrimitiveCount);
@@ -430,10 +430,10 @@ TEST(Mesh, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Mesh_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(NestedArray, Load)
@@ -462,8 +462,8 @@ TEST(NestedArray, Load)
     uint32_t pb_msg_buf_size = pb_msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) pb_msg_buf, pb_msg_buf_size, &DUMMY::TestDDF_NestedArray_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) pb_msg_buf, pb_msg_buf_size, &DUMMY::TestDDF_NestedArray_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     DUMMY::TestDDF::NestedArray* nested = (DUMMY::TestDDF::NestedArray*) message;
 
     EXPECT_EQ(count1, nested->m_array1.m_Count);
@@ -483,10 +483,10 @@ TEST(NestedArray, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_NestedArray_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(pb_msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(Bytes, Load)
@@ -498,8 +498,8 @@ TEST(Bytes, Load)
     uint32_t msg_buf_size = msg_str.size();
     void* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Bytes_DESCRIPTOR, &message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_Bytes_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Bytes* msg = (DUMMY::TestDDF::Bytes*) message;
     ASSERT_EQ(3, msg->m_data.m_Count);
@@ -509,10 +509,10 @@ TEST(Bytes, Load)
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Bytes_DESCRIPTOR, msg_str2);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
     EXPECT_EQ(msg_str, msg_str2);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 TEST(Material, Load)
@@ -536,8 +536,8 @@ TEST(Material, Load)
     uint32_t msg_buf_size = msg_str.size();
     DUMMY::TestDDF::MaterialDesc* message;
 
-    DDFError e = DDFLoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, (void**)&message);
-    ASSERT_EQ(DDF_ERROR_OK, e);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     ASSERT_STREQ(material_desc.name().c_str(), message->m_Name );
     ASSERT_STREQ(material_desc.vertexprogram().c_str(), message->m_VertexProgram );
@@ -550,7 +550,7 @@ TEST(Material, Load)
     ASSERT_EQ(material_desc.fragmentparameters(0).value().z(), message->m_FragmentParameters[0].m_Value.m_z);
     ASSERT_EQ(material_desc.fragmentparameters(0).value().w(), message->m_FragmentParameters[0].m_Value.m_w);
 
-    DDFFreeMessage(message);
+    dmDDF::FreeMessage(message);
 }
 
 int main(int argc, char **argv)

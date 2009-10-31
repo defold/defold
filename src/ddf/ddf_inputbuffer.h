@@ -3,38 +3,41 @@
 
 #include <stdint.h>
 
-const int DDF_WIRE_MAXVARINTBYTES = 10;
-
-class CDDFInputBuffer
+namespace dmDDF
 {
-public:
-    CDDFInputBuffer();
-    CDDFInputBuffer(const char* buffer, uint32_t buffer_size);
+    const int WIRE_MAXVARINTBYTES = 10;
 
-    uint32_t            Tell();
-    void                Seek(uint32_t pos);
-    bool                Skip(uint32_t amount);
-    bool                SubBuffer(uint32_t length, CDDFInputBuffer* sub_buffer);
-    bool                Eof();
+    class InputBuffer
+    {
+    public:
+        InputBuffer();
+        InputBuffer(const char* buffer, uint32_t buffer_size);
 
-    bool                Read(int length, const char** buffer_out);
+        uint32_t            Tell();
+        void                Seek(uint32_t pos);
+        bool                Skip(uint32_t amount);
+        bool                SubBuffer(uint32_t length, InputBuffer* sub_buffer);
+        bool                Eof();
 
-    bool                ReadVarInt32(uint32_t* value);
-    bool                ReadVarInt64(uint64_t* value);
-    bool                ReadFixed32(uint32_t* value);
-    bool                ReadFixed64(uint64_t* value);
+        bool                Read(int length, const char** buffer_out);
 
-    bool                ReadFloat(float* value);
-    bool                ReadDouble(double* value);
-    bool                ReadInt32(int32_t* value);
-    bool                ReadUInt32(uint32_t* value);
-    bool                ReadInt64(int64_t* value);
-    bool                ReadUInt64(uint64_t* value);
+        bool                ReadVarInt32(uint32_t* value);
+        bool                ReadVarInt64(uint64_t* value);
+        bool                ReadFixed32(uint32_t* value);
+        bool                ReadFixed64(uint64_t* value);
 
-private:
-    const char* m_Start;
-    const char* m_End;
-    const char* m_Current;
-};
+        bool                ReadFloat(float* value);
+        bool                ReadDouble(double* value);
+        bool                ReadInt32(int32_t* value);
+        bool                ReadUInt32(uint32_t* value);
+        bool                ReadInt64(int64_t* value);
+        bool                ReadUInt64(uint64_t* value);
+
+    private:
+        const char* m_Start;
+        const char* m_End;
+        const char* m_Current;
+    };
+}
 
 #endif // DDFINPUTSTREAM_H

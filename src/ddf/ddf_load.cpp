@@ -1,111 +1,115 @@
 #include "ddf_load.h"
 #include "ddf_util.h"
 
-DDFError DDFSkipField(CDDFInputBuffer* input_buffer, uint32_t type)
-{
-    switch (type)
-    {
-    case DDF_WIRETYPE_VARINT:
-    {
-        uint64_t slask;
-        if (input_buffer->ReadVarInt64(&slask))
-            return DDF_ERROR_OK;
-        else
-            return DDF_ERROR_WIRE_FORMAT;
-    }
-    break;
-    case DDF_WIRETYPE_FIXED32:
-    {
-        uint32_t slask;
-        if (input_buffer->ReadFixed32(&slask))
-            return DDF_ERROR_OK;
-        else
-            return DDF_ERROR_WIRE_FORMAT;
-    }
-    break;
-
-    case DDF_WIRETYPE_FIXED64:
-    {
-        uint64_t slask;
-        if (input_buffer->ReadFixed64(&slask))
-            return DDF_ERROR_OK;
-        else
-            return DDF_ERROR_WIRE_FORMAT;
-    }
-    break;
-
-    case DDF_WIRETYPE_LENGTH_DELIMITED:
-    {
-        uint32_t length;
-        if (!input_buffer->ReadVarInt32(&length))
-            return DDF_ERROR_WIRE_FORMAT;
-        if (input_buffer->Skip(length))
-            return DDF_ERROR_OK;
-        else
-            return DDF_ERROR_WIRE_FORMAT;
-    }
-    break;
-
-    default:
-        return DDF_ERROR_WIRE_FORMAT;
-    }
-}
-
-DDFError DDFDoLoadMessage(CDDFLoadContext* load_context, CDDFInputBuffer* input_buffer, 
-                          const SDDFDescriptor* desc, CDDFMessage* message)
+namespace dmDDF
 {
 
-    for (int i = 0; i < desc->m_FieldCount; ++i)
+    Result SkipField(InputBuffer* input_buffer, uint32_t type)
     {
-        const SDDFFieldDescriptor* f = &desc->m_Fields[i];
-        if (f->m_Label == DDF_LABEL_REPEATED)
+        switch (type)
         {
-            // TODO: Verify buffer_pos!!!! Correct to use Tell()?
-            uint32_t buffer_pos = input_buffer->Tell(); 
-            message->AllocateRepeatedBuffer(load_context, f, load_context->GetArrayCount(buffer_pos, f->m_Number));
+        case WIRETYPE_VARINT:
+        {
+            uint64_t slask;
+            if (input_buffer->ReadVarInt64(&slask))
+                return RESULT_OK;
+            else
+                return RESULT_WIRE_FORMAT_ERROR;
+        }
+        break;
+        case WIRETYPE_FIXED32:
+        {
+            uint32_t slask;
+            if (input_buffer->ReadFixed32(&slask))
+                return RESULT_OK;
+            else
+                return RESULT_WIRE_FORMAT_ERROR;
+        }
+        break;
+
+        case WIRETYPE_FIXED64:
+        {
+            uint64_t slask;
+            if (input_buffer->ReadFixed64(&slask))
+                return RESULT_OK;
+            else
+                return RESULT_WIRE_FORMAT_ERROR;
+        }
+        break;
+
+        case WIRETYPE_LENGTH_DELIMITED:
+        {
+            uint32_t length;
+            if (!input_buffer->ReadVarInt32(&length))
+                return RESULT_WIRE_FORMAT_ERROR;
+            if (input_buffer->Skip(length))
+                return RESULT_OK;
+            else
+                return RESULT_WIRE_FORMAT_ERROR;
+        }
+        break;
+
+        default:
+            return RESULT_WIRE_FORMAT_ERROR;
         }
     }
 
-    while (!input_buffer->Eof())
+    Result DoLoadMessage(LoadContext* load_context, InputBuffer* input_buffer,
+                              const Descriptor* desc, Message* message)
     {
-        uint32_t tag;
-        if (input_buffer->ReadVarInt32(&tag))
+
+        for (int i = 0; i < desc->m_FieldCount; ++i)
         {
-            uint32_t key = tag >> 3;
-            uint32_t type = tag & 0x7;
-            
-            if (key == 0)
+            const FieldDescriptor* f = &desc->m_Fields[i];
+            if (f->m_Label == LABEL_REPEATED)
             {
-                return DDF_ERROR_WIRE_FORMAT;
+                // TODO: Verify buffer_pos!!!! Correct to use Tell()?
+                uint32_t buffer_pos = input_buffer->Tell();
+                message->AllocateRepeatedBuffer(load_context, f, load_context->GetArrayCount(buffer_pos, f->m_Number));
             }
-            
-            const SDDFFieldDescriptor* field = DDFFindField(desc, key);
-            
-            if (!field)
+        }
+
+        while (!input_buffer->Eof())
+        {
+            uint32_t tag;
+            if (input_buffer->ReadVarInt32(&tag))
             {
-                // TODO: FIELD NOT FOUND. HOW TO HANDLE?!?!
-                DDFError e = DDFSkipField(input_buffer, type);
-                if (e != DDF_ERROR_OK)
+                uint32_t key = tag >> 3;
+                uint32_t type = tag & 0x7;
+
+                if (key == 0)
                 {
-                    return e;
+                    return RESULT_WIRE_FORMAT_ERROR;
                 }
-                continue;
+
+                const FieldDescriptor* field = FindField(desc, key);
+
+                if (!field)
+                {
+                    // TODO: FIELD NOT FOUND. HOW TO HANDLE?!?!
+                    Result e = SkipField(input_buffer, type);
+                    if (e != RESULT_OK)
+                    {
+                        return e;
+                    }
+                    continue;
+                }
+                else
+                {
+                    Result e;
+                    e = message->ReadField(load_context, (WireType) type, field, input_buffer);
+                    if (e != RESULT_OK)
+                    {
+                        return e;
+                    }
+                }
             }
             else
             {
-                DDFError e;
-                e = message->ReadField(load_context, (DDFWireType) type, field, input_buffer);
-                if (e != DDF_ERROR_OK)
-                {
-                    return e;
-                }
+                return RESULT_WIRE_FORMAT_ERROR;
             }
         }
-        else
-        {
-            return DDF_ERROR_WIRE_FORMAT;
-        }
-    }
 
-    return DDF_ERROR_OK;
+        return RESULT_OK;
+    }
 }
