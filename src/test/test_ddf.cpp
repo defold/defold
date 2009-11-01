@@ -553,6 +553,21 @@ TEST(Material, Load)
     dmDDF::FreeMessage(message);
 }
 
+TEST(MissingRequired, Load)
+{
+    TestDDF::MissingRequiredTemplate missing_req_temp;
+    missing_req_temp.set_a(10);
+
+    std::string msg_str = missing_req_temp.SerializeAsString();
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    void* message;
+
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_MissingRequired_DESCRIPTOR, &message);
+    ASSERT_EQ(dmDDF::RESULT_MISSING_REQUIRED, e);
+    ASSERT_EQ(0, message);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

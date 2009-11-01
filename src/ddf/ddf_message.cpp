@@ -165,9 +165,9 @@ namespace dmDDF
     }
 
     Result Message::ReadField(LoadContext* load_context,
-                                    WireType wire_type,
-                                    const FieldDescriptor* field,
-                                    InputBuffer* input_buffer)
+                              WireType wire_type,
+                              const FieldDescriptor* field,
+                              InputBuffer* input_buffer)
     {
         if ((Type) field->m_Type == TYPE_MESSAGE)
         {

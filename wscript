@@ -57,6 +57,7 @@ def configure(conf):
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
         conf.env.append_value('CPPPATH', "../src/win32")
 
+    conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['LIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
 

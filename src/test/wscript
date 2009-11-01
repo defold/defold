@@ -25,7 +25,7 @@ def pf_file(self, node):
 def build(bld):
     bld.new_task_gen(features = 'cxx cprogram',
                      source = 'test_ddf.cpp test_ddf_proto.proto',
-                     uselib = 'GTEST PROTOBUF',
+                     uselib = 'GTEST PROTOBUF DLIB',
                      uselib_local = 'ddf',
                      ddf_namespace = 'DUMMY',
                      proto_gen_cc = True,

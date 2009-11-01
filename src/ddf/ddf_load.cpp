@@ -1,3 +1,4 @@
+#include <dlib/log.h>
 #include "ddf_load.h"
 #include "ddf_util.h"
 
@@ -55,8 +56,10 @@ namespace dmDDF
     }
 
     Result DoLoadMessage(LoadContext* load_context, InputBuffer* input_buffer,
-                              const Descriptor* desc, Message* message)
+                         const Descriptor* desc, Message* message)
     {
+        uint8_t read_fields[DDF_MAX_FIELDS];
+        memset(read_fields, 0, sizeof(read_fields));
 
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
@@ -82,7 +85,8 @@ namespace dmDDF
                     return RESULT_WIRE_FORMAT_ERROR;
                 }
 
-                const FieldDescriptor* field = FindField(desc, key);
+                uint32_t field_index;
+                const FieldDescriptor* field = FindField(desc, key, &field_index);
 
                 if (!field)
                 {
@@ -96,6 +100,9 @@ namespace dmDDF
                 }
                 else
                 {
+                    assert(field_index < DDF_MAX_FIELDS);
+                    read_fields[field_index] = 1;
+
                     Result e;
                     e = message->ReadField(load_context, (WireType) type, field, input_buffer);
                     if (e != RESULT_OK)
@@ -107,6 +114,17 @@ namespace dmDDF
             else
             {
                 return RESULT_WIRE_FORMAT_ERROR;
+            }
+        }
+
+        // Check for missing required fields
+        for (int i = 0; i < desc->m_FieldCount; ++i)
+        {
+            const FieldDescriptor* f = &desc->m_Fields[i];
+            if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
+            {
+                dmLogError("Missing field: %s", f->m_Name);
+                return RESULT_MISSING_REQUIRED;
             }
         }
 

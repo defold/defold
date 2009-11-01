@@ -146,5 +146,17 @@ message MaterialDesc
     repeated Parameter FragmentParameters = 5;
 }
 
+message MissingRequiredTemplate
+{
+	required int32 a = 1;
+}
+
+message MissingRequired
+{
+	required int32 a = 1;
+	required int32 b = 2;
+}
+
+
 
 

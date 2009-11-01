@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
+#define DDF_MAX_FIELDS (128)
 
 namespace dmDDF
 {
@@ -92,6 +93,7 @@ namespace dmDDF
         RESULT_WIRE_FORMAT_ERROR = 2,
         RESULT_IO_ERROR = 3,
         RESULT_VERSION_MISMATCH = 4,
+        RESULT_MISSING_REQUIRED = 5,
         RESULT_INTERNAL_ERROR = 1000,
     };
 

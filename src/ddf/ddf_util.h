@@ -21,13 +21,17 @@ namespace dmDDF
         return index;
     }
 
-    static inline const FieldDescriptor* FindField(const Descriptor* desc, uint32_t key)
+    static inline const FieldDescriptor* FindField(const Descriptor* desc, uint32_t key, uint32_t* index)
     {
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* f = &desc->m_Fields[i];
             if (f->m_Number == key)
+            {
+                if (index)
+                    *index = i;
                 return f;
+            }
         }
         return 0;
     }

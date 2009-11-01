@@ -34,7 +34,7 @@ namespace dmDDF
                 if (key == 0)
                     return RESULT_WIRE_FORMAT_ERROR;
 
-                const FieldDescriptor* field = FindField(desc, key);
+                const FieldDescriptor* field = FindField(desc, key, 0);
 
                 if (field == 0)
                 {
