@@ -1,3 +1,4 @@
+#include <string.h>
 #include <dlib/log.h>
 #include "ddf_load.h"
 #include "ddf_util.h"
