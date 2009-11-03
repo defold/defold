@@ -202,12 +202,12 @@ namespace dmEvent
 
 		uint32_t write_offset = socket->m_QueueWritePos;
 		uint32_t header_offset = socket->m_QueueHeader;
-		uint32_t tail_offset = socket->m_QueueTail;
-		uint32_t eventdata_capacity = socket->m_QueueCapacity;
+		//uint32_t tail_offset = socket->m_QueueTail;
+		//uint32_t eventdata_capacity = socket->m_QueueCapacity;
 		uint8_t *segment = &socket->m_Queue[header_offset];
 		Event *event_object = (Event *) segment;
 
-		uint32_t offset_base = header_offset;
+		//uint32_t offset_base = header_offset;
 		uint32_t offset = event_object->m_Next;
 
 		// dispatch loop
