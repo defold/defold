@@ -14,4 +14,6 @@ message Font
     required uint32 ImageWidth = 3;
     required uint32 ImageHeight = 4;
     required bytes ImageData = 2;
+    required string VertexProgram = 5;
+    required string FragmentProgram = 6;
 }
