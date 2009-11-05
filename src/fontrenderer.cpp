@@ -188,9 +188,13 @@ namespace dmRender
         dmGraphics::HContext context = dmGraphics::GetContext();
         Matrix4 ident = Matrix4::identity();
 
+        if (renderer->m_Font->m_VertexProgram)
+            dmGraphics::SetVertexProgram(context, renderer->m_Font->m_VertexProgram);
+        if (renderer->m_Font->m_FragmentProgram)
+            dmGraphics::SetFragmentProgram(context, renderer->m_Font->m_FragmentProgram);
+
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&renderer->m_Projection, 0, 4);
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
-
 
         dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT,
                            sizeof(SFontVertex),
