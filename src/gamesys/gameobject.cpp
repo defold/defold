@@ -97,7 +97,7 @@ namespace GameObject
         return RESULT_OK;
     }
 
-    Resource::CreateError PrototypeCreate(Resource::HFactory factory,
+    Resource::CreateResult PrototypeCreate(Resource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
                                           Resource::SResourceDescriptor* resource)
@@ -117,7 +117,7 @@ namespace GameObject
         {
             const char* component_name = proto_desc->m_Components[i];
             void* component;
-            Resource::FactoryError fact_e = Resource::Get(factory, component_name, (void**) &component);
+            Resource::FactoryResult fact_e = Resource::Get(factory, component_name, (void**) &component);
 
             if (fact_e != Resource::FACTORY_RESULT_OK)
             {
@@ -140,7 +140,7 @@ namespace GameObject
         }
 
         HScript script;
-        Resource::FactoryError fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
+        Resource::FactoryResult fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
         if (fact_e != Resource::FACTORY_RESULT_OK)
         {
             dmDDF::FreeMessage(proto_desc);
@@ -156,7 +156,7 @@ namespace GameObject
         return Resource::CREATE_RESULT_OK;
     }
 
-    Resource::CreateError PrototypeDestroy(Resource::HFactory factory,
+    Resource::CreateResult PrototypeDestroy(Resource::HFactory factory,
                                            void* context,
                                            Resource::SResourceDescriptor* resource)
     {
@@ -172,7 +172,7 @@ namespace GameObject
         return Resource::CREATE_RESULT_OK;
     }
 
-    Resource::CreateError ScriptCreate(Resource::HFactory factory,
+    Resource::CreateResult ScriptCreate(Resource::HFactory factory,
                                        void* context,
                                        const void* buffer, uint32_t buffer_size,
                                        Resource::SResourceDescriptor* resource)
@@ -189,7 +189,7 @@ namespace GameObject
         }
     }
 
-    Resource::CreateError ScriptDestroy(Resource::HFactory factory,
+    Resource::CreateResult ScriptDestroy(Resource::HFactory factory,
                                         void* context,
                                         Resource::SResourceDescriptor* resource)
     {
@@ -198,9 +198,9 @@ namespace GameObject
         return Resource::CREATE_RESULT_OK;
     }
 
-    Resource::FactoryError RegisterResourceTypes(Resource::HFactory factory)
+    Resource::FactoryResult RegisterResourceTypes(Resource::HFactory factory)
     {
-        Resource::FactoryError ret;
+        Resource::FactoryResult ret;
         ret = Resource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy);
         if (ret != Resource::FACTORY_RESULT_OK)
             return ret;
@@ -215,7 +215,7 @@ namespace GameObject
     HInstance New(HCollection collection, Resource::HFactory factory, const char* prototype_name)
     {
         Prototype* proto;
-        Resource::FactoryError error = Resource::Get(factory, prototype_name, (void**)&proto);
+        Resource::FactoryResult error = Resource::Get(factory, prototype_name, (void**)&proto);
         if (error != Resource::FACTORY_RESULT_OK)
         {
             return 0;

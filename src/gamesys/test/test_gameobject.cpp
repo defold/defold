@@ -21,7 +21,7 @@ protected:
         GameObject::RegisterResourceTypes(factory);
 
         // Register dummy physical resource type
-        Resource::FactoryError e;
+        Resource::FactoryResult e;
         e = Resource::RegisterType(factory, "pc", this, PhysCreate, PhysDestroy);
         ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
         e = Resource::RegisterType(factory, "a", this, ACreate, ADestroy);
@@ -106,7 +106,7 @@ public:
 };
 
 template <typename T>
-Resource::CreateError GenericDDFCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
+Resource::CreateResult GenericDDFCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;
@@ -125,7 +125,7 @@ Resource::CreateError GenericDDFCreate(Resource::HFactory factory, void* context
 }
 
 template <typename T>
-Resource::CreateError GenericDDFDestory(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
+Resource::CreateResult GenericDDFDestory(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
     game_object_test->m_DestroyCountMap[T::m_DDFHash]++;

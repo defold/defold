@@ -23,7 +23,7 @@
 
 namespace Resource
 {
-    enum FactoryError
+    enum FactoryResult
     {
         FACTORY_RESULT_OK                        = 0,
         FACTORY_RESULT_INVALID_DATA              = -1,
@@ -74,7 +74,7 @@ namespace Resource
 
     typedef struct SResourceFactory* HFactory;
 
-    enum CreateError
+    enum CreateResult
     {
         CREATE_RESULT_OK             = 0,
         CREATE_RESULT_OUT_OF_MEMORY  = -1,
@@ -82,12 +82,12 @@ namespace Resource
         CREATE_RESULT_UNKNOWN        = -1000,
     };
 
-    typedef CreateError (*FResourceCreate)(HFactory factory,
+    typedef CreateResult (*FResourceCreate)(HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
                                            SResourceDescriptor* resource);
 
-    typedef CreateError (*FResourceDestroy)(HFactory factory,
+    typedef CreateResult (*FResourceDestroy)(HFactory factory,
                                             void* context,
                                             SResourceDescriptor* resource);
 
@@ -95,19 +95,19 @@ namespace Resource
 
     void            DeleteFactory(HFactory factory);
 
-    FactoryError    RegisterType(HFactory factory,
+    FactoryResult    RegisterType(HFactory factory,
                                  const char* extension,
                                  void* context,
                                  FResourceCreate create_function,
                                  FResourceDestroy destroy_function);
 
-    FactoryError    Get(HFactory factory, const char* name, void** resource);
+    FactoryResult    Get(HFactory factory, const char* name, void** resource);
 
-    FactoryError    GetType(HFactory factory, void* resource, uint32_t* type);
+    FactoryResult    GetType(HFactory factory, void* resource, uint32_t* type);
 
-    FactoryError    GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
+    FactoryResult    GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
 
-    FactoryError    GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+    FactoryResult    GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
     void            Release(HFactory factory, void* resource);
 }

@@ -156,9 +156,9 @@ namespace GameObject
     /**
      * Register all resource types in resource factory
      * @param factory Resource factory
-     * @return Resource::FactoryError
+     * @return Resource::FactoryResult
      */
-    Resource::FactoryError RegisterResourceTypes(Resource::HFactory factory);
+    Resource::FactoryResult RegisterResourceTypes(Resource::HFactory factory);
 }
 
 #endif // GAMEOBJECT_H

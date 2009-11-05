@@ -20,19 +20,19 @@ protected:
     Resource::HFactory factory;
 };
 
-Resource::CreateError DummyCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
+Resource::CreateResult DummyCreate(Resource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, Resource::SResourceDescriptor* resource)
 {
     return Resource::CREATE_RESULT_OK;
 }
 
-Resource::CreateError DummyDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
+Resource::CreateResult DummyDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
 {
     return Resource::CREATE_RESULT_OK;
 }
 
 TEST_F(ResourceTest, RegisterType)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
 
     // Test create/destroy function == 0
     e = Resource::RegisterType(factory, "foo", 0, 0, 0);
@@ -53,7 +53,7 @@ TEST_F(ResourceTest, RegisterType)
 
 TEST_F(ResourceTest, NotFound)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
     e = Resource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
     ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
 
@@ -65,7 +65,7 @@ TEST_F(ResourceTest, NotFound)
 
 TEST_F(ResourceTest, UnknwonResourceType)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
 
     void* resource = (void*) 0;
     e = Resource::Get(factory, "build/default/src/gamesys/test/test.testresourcecont", &resource);
@@ -80,19 +80,19 @@ struct TestResourceContainer
     std::vector<TestResource::ResourceFoo*> m_Resources;
 };
 
-Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
+Resource::CreateResult ResourceContainerCreate(Resource::HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
                                               Resource::SResourceDescriptor* resource);
 
-Resource::CreateError ResourceContainerDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource);
+Resource::CreateResult ResourceContainerDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource);
 
-Resource::CreateError FooResourceCreate(Resource::HFactory factory,
+Resource::CreateResult FooResourceCreate(Resource::HFactory factory,
                                         void* context,
                                         const void* buffer, uint32_t buffer_size,
                                         Resource::SResourceDescriptor* resource);
 
-Resource::CreateError FooResourceDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource);
+Resource::CreateResult FooResourceDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource);
 
 class GetResourceTest : public ::testing::Test
 {
@@ -107,7 +107,7 @@ protected:
         m_Factory = Resource::NewFactory(16, "build/default/src/gamesys/test/");
         m_ResourceName = "test.cont";
 
-        Resource::FactoryError e;
+        Resource::FactoryResult e;
         e = Resource::RegisterType(m_Factory, "cont", this, &ResourceContainerCreate, &ResourceContainerDestroy);
         ASSERT_EQ(Resource::FACTORY_RESULT_OK, e);
 
@@ -130,7 +130,7 @@ public:
     const char*        m_ResourceName;
 };
 
-Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
+Resource::CreateResult ResourceContainerCreate(Resource::HFactory factory,
                                          void* context,
                                          const void* buffer, uint32_t buffer_size,
                                          Resource::SResourceDescriptor* resource)
@@ -149,7 +149,7 @@ Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
         for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
         {
             TestResource::ResourceFoo* sub_resource;
-            Resource::FactoryError factoy_e = Resource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
+            Resource::FactoryResult factoy_e = Resource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
             assert( factoy_e == Resource::FACTORY_RESULT_OK );
             resource_cont->m_Resources.push_back(sub_resource);
         }
@@ -162,7 +162,7 @@ Resource::CreateError ResourceContainerCreate(Resource::HFactory factory,
     }
 }
 
-Resource::CreateError ResourceContainerDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
+Resource::CreateResult ResourceContainerDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
 {
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_ResourceContainerDestroyCallCount++;
@@ -178,7 +178,7 @@ Resource::CreateError ResourceContainerDestroy(Resource::HFactory factory, void*
     return Resource::CREATE_RESULT_OK;
 }
 
-Resource::CreateError FooResourceCreate(Resource::HFactory factory,
+Resource::CreateResult FooResourceCreate(Resource::HFactory factory,
                                         void* context,
                                         const void* buffer, uint32_t buffer_size,
                                         Resource::SResourceDescriptor* resource)
@@ -201,7 +201,7 @@ Resource::CreateError FooResourceCreate(Resource::HFactory factory,
     }
 }
 
-Resource::CreateError FooResourceDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
+Resource::CreateResult FooResourceDestroy(Resource::HFactory factory, void* context, Resource::SResourceDescriptor* resource)
 {
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_FooResourceDestroyCallCount++;
@@ -212,7 +212,7 @@ Resource::CreateError FooResourceDestroy(Resource::HFactory factory, void* conte
 
 TEST_F(GetResourceTest, GetTestResource)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
 
     TestResourceContainer* test_resource_cont = 0;
     e = Resource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
@@ -231,7 +231,7 @@ TEST_F(GetResourceTest, GetTestResource)
 
 TEST_F(GetResourceTest, GetReference1)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
 
     Resource::SResourceDescriptor descriptor;
     e = Resource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
@@ -240,7 +240,7 @@ TEST_F(GetResourceTest, GetReference1)
 
 TEST_F(GetResourceTest, GetReference2)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
 
     void* resource = (void*) 0;
     e = Resource::Get(m_Factory, m_ResourceName, &resource);
@@ -261,7 +261,7 @@ TEST_F(GetResourceTest, GetReference2)
 
 TEST_F(GetResourceTest, ReferenceCountSimple)
 {
-    Resource::FactoryError e;
+    Resource::FactoryResult e;
 
     TestResourceContainer* resource1 = 0;
     e = Resource::Get(m_Factory, m_ResourceName, (void**) &resource1);

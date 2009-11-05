@@ -117,7 +117,7 @@ void DeleteFactory(HFactory factory)
     delete factory;
 }
 
-FactoryError RegisterType(HFactory factory,
+FactoryResult RegisterType(HFactory factory,
                            const char* extension,
                            void* context,
                            FResourceCreate create_function,
@@ -147,7 +147,7 @@ FactoryError RegisterType(HFactory factory,
     return FACTORY_RESULT_OK;
 }
 
-FactoryError Get(HFactory factory, const char* name, void** resource)
+FactoryResult Get(HFactory factory, const char* name, void** resource)
 {
     assert(name);
     assert(resource);
@@ -230,7 +230,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
 
-        CreateError create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource);
+        CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource);
         free(buffer);
         fclose(f);
 
@@ -245,7 +245,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
         else
         {
             dmLogWarning("Unable to create resource: %s", canonical_path);
-            // TODO: Map CreateError to FactoryError here.
+            // TODO: Map CreateResult to FactoryResult here.
             return FACTORY_RESULT_UNKNOWN;
         }
     }
@@ -255,7 +255,7 @@ FactoryError Get(HFactory factory, const char* name, void** resource)
     }
 }
 
-FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
+FactoryResult GetType(HFactory factory, void* resource, uint32_t* type)
 {
     assert(type);
 
@@ -273,7 +273,7 @@ FactoryError GetType(HFactory factory, void* resource, uint32_t* type)
     return FACTORY_RESULT_OK;
 }
 
-FactoryError GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
+FactoryResult GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
 {
     assert(type);
 
@@ -289,7 +289,7 @@ FactoryError GetTypeFromExtension(HFactory factory, const char* extension, uint3
     }
 }
 
-FactoryError GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
+FactoryResult GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_ResourcePath, name, canonical_path);
