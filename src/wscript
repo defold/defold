@@ -28,6 +28,8 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')
 
+    bld.install_files('${PREFIX}/share/proto', '../proto/render_ddf.proto')
+
 # need to sort out shader include dirs before we can reenable this one
 #    test_app = bld.new_task_gen(
 #        features = 'cxx cprogram',

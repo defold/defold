@@ -24,8 +24,10 @@ namespace dmRender
             dmGraphics::DestroyTexture(m_Texture);
         }
 
-        Font*                m_Font;
-        dmGraphics::HTexture m_Texture;
+        ImageFont*                   m_Font;
+        dmGraphics::HTexture         m_Texture;
+        dmGraphics::HVertexProgram   m_VertexProgram;
+        dmGraphics::HFragmentProgram m_FragmentProgram;
     };
 
     struct SFontRenderer
@@ -40,18 +42,28 @@ namespace dmRender
         uint32_t                  m_MaxCharacters;
     };
 
-    HFont NewFont(const void* font,
-                  uint32_t font_size)
+    HImageFont NewImageFont(const void* font, uint32_t font_size)
     {
-        Font* f;
-        dmDDF::Result e = dmDDF::LoadMessage<Font>(font, font_size, &f);
+        ImageFont* f;
+        dmDDF::Result e = dmDDF::LoadMessage<ImageFont>(font, font_size, &f);
         if (e != dmDDF::RESULT_OK)
         {
             return 0;
         }
+        return f;
+    }
 
+    void DeleteImageFont(HImageFont font)
+    {
+        dmDDF::FreeMessage(font);
+    }
+
+    HFont NewFont(HImageFont image_font)
+    {
         SFont*ret = new SFont();
-        ret->m_Font = f;
+        ret->m_VertexProgram = 0;
+        ret->m_FragmentProgram = 0;
+        ret->m_Font = (dmRender::ImageFont*) image_font;
         ret->m_Texture = dmGraphics::CreateTexture(ret->m_Font->m_ImageWidth,
                                                    ret->m_Font->m_ImageHeight,
                                                    dmGraphics::TEXTURE_FORMAT_LUMINANCE);
@@ -60,6 +72,31 @@ namespace dmRender
                                    dmGraphics::TEXTURE_FORMAT_LUMINANCE, &ret->m_Font->m_ImageData[0], ret->m_Font->m_ImageData.m_Count);
 
         return ret;
+    }
+
+    HImageFont GetImageFont(HFont font)
+    {
+        return font->m_Font;
+    }
+
+    void SetVertexProgram(HFont font, dmGraphics::HVertexProgram program)
+    {
+        font->m_VertexProgram = program;
+    }
+
+    dmGraphics::HVertexProgram GetVertexProgram(HFont font)
+    {
+        return font->m_VertexProgram;
+    }
+
+    void SetFragmentProgram(HFont font, dmGraphics::HFragmentProgram program)
+    {
+        font->m_FragmentProgram = program;
+    }
+
+    dmGraphics::HFragmentProgram GetFragmentProgram(HFont font)
+    {
+        return font->m_FragmentProgram;
     }
 
     void DeleteFont(HFont font)
@@ -99,7 +136,7 @@ namespace dmRender
         {
             char c = string[i];
 
-            Font::Glyph g = renderer->m_Font->m_Font->m_Glyphs[c];
+            ImageFont::Glyph g = renderer->m_Font->m_Font->m_Glyphs[c];
 
             SFontVertex v1, v2, v3, v4;
 

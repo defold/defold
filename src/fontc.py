@@ -6,7 +6,7 @@ import Image, ImageFont, ImageDraw
 import render_ddf_pb2
 
 def Layout(width, characters, image_font):
-    font = render_ddf_pb2.Font()
+    font = render_ddf_pb2.ImageFont()
 
     height = 0
     line_height = 0
@@ -33,13 +33,11 @@ def Layout(width, characters, image_font):
     font.ImageHeight = height
     return font
         
-def Compile(font_name, font_size, output_file, vertex_program, fragment_program):
+def Compile(font_name, font_size, output_file):
     characters = "".join([ chr(x) for x in range(255) ])
 
     image_font = ImageFont.truetype(font_name, font_size)
     font = Layout(1024, characters, image_font)
-    font.VertexProgram = vertex_program
-    font.FragmentProgram = fragment_program
     image = Image.new("RGBA", (font.ImageWidth, font.ImageHeight))
     draw = ImageDraw.Draw(image)
 
@@ -59,8 +57,6 @@ usage = "usage: %prog [options] font.ttf"
 parser = OptionParser(usage)
 parser.add_option("-o", dest="output_file", help="Output file", metavar="OUTPUT")
 parser.add_option("-s", dest="size", help="Size", metavar="SIZE")
-parser.add_option("--vp", dest="vertex_program", help="Vertex program", metavar="VERTEXPROGRAM")
-parser.add_option("--fp", dest="fragment_program", help="Fragment program", metavar="FRAGMENTPROGRAM")
 
 (options, args) = parser.parse_args()
 if not options.output_file:
@@ -69,13 +65,7 @@ if not options.output_file:
 if not options.size:
     parser.error("Size not specified (-s)")
 
-if not options.vertex_program:
-    parser.error("Vertex program not specified (--vp)")
-
-if not options.fragment_program:
-    parser.error("Fragment program not specified (--fp)")
-
-Compile(args[0], int(options.size), options.output_file, options.vertex_program, options.fragment_program)
+Compile(args[0], int(options.size), options.output_file)
 
 
 

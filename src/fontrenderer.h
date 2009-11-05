@@ -7,17 +7,71 @@
 namespace dmRender
 {
     /**
+     * Image font handle
+     */
+    typedef void* HImageFont;
+
+    /**
+     * Create a new image font
+     * @param font Font buffer (ddf format)
+     * @param font_size Font buffer size
+     * @return HFont on success. NULL on failure
+     */
+    HImageFont NewImageFont(const void* font, uint32_t font_size);
+
+    /**
+     * Delete a image font
+     * @param font Image font handle
+     */
+    void DeleteImageFont(HImageFont font);
+
+
+    /**
      * Font handle
      */
     typedef struct SFont* HFont;
 
     /**
      * Create a new font
-     * @param font Font buffer (ddf format)
-     * @param font_size Font buffer size
-     * @return HFont on success. NULL on failure
+     * @param image_font Image font
+     * @return Font handle on success. NULL on failure.
      */
-    HFont NewFont(const void* font, uint32_t font_size);
+    HFont NewFont(HImageFont image_font);
+
+    /**
+     * Get image font for font
+     * @param font Font handle
+     * @return HImageFont handle
+     */
+    HImageFont GetImageFont(HFont font);
+
+    /**
+     * Set font vertex program
+     * @param font Font handle
+     * @param program Vertex program handle
+     */
+    void SetVertexProgram(HFont font, dmGraphics::HVertexProgram program);
+
+    /**
+     * Get font vertex program
+     * @param font Font handle
+     * @return Vertex program
+     */
+    dmGraphics::HVertexProgram GetVertexProgram(HFont font);
+
+    /**
+     * Get font fragment program
+     * @param font Font handle
+     * @return Fragment program
+     */
+    dmGraphics::HFragmentProgram GetFragmentProgram(HFont font);
+
+    /**
+     * Set font fragment program
+     * @param font Font handle
+     * @param program Fragment program handle
+     */
+    void SetFragmentProgram(HFont font, dmGraphics::HFragmentProgram program);
 
     /**
      * Delete a font
