@@ -4,7 +4,6 @@ from TaskGen import extension
 
 def configure(conf):
     conf.find_file('ddsc.py', var='DDSC', mandatory = True)
-    conf.find_file('fontc.py', var='FONTC', mandatory = True)
 
 # TODO: Target filename i .fixmejpg.
 # Waf doesn't seems to like when the source and target have identical extensions...
@@ -52,24 +51,6 @@ def dds_file(self, node):
     texture.set_outputs(out)
     # Hackish... configure?
     #self.env["DDSC"] = os.path.join(os.environ["DYNAMO_HOME"], "bin", "ddsc.py")
-
-# TODO: Move ttf compilation to render?
-Task.simple_task_type('ttf', 'python ${FONTC} -s ${size} --vp ${vertex_program} --fp ${fragment_program} -o ${TGT} ${SRC}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
-                      shell=True)
-
-@extension('.ttf')
-def ttf_file(self, node):
-    obj_ext = '.font'
-    font = self.create_task('ttf')
-    self.env['size'] = str(self.size)
-    self.env['vertex_program'] = str(self.vertex_program)
-    self.env['fragment_program'] = str(self.fragment_program)
-    font.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    font.set_outputs(out)
 
 Task.simple_task_type('vertexprogram', 'cgc -quiet -profile arbvp1 -o ${TGT} ${SRC} ',
                       color='PINK', 
