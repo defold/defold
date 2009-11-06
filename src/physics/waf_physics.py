@@ -1,7 +1,7 @@
 import Task, TaskGen
 from TaskGen import extension
 
-Task.simple_task_type('convexshape', 'protoc --encode=Physics.ConvexShape -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('convexshape', 'protoc --encode=dmPhysics.ConvexShape -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK', 
                       before='cc cxx',
                       shell=True)
@@ -14,7 +14,7 @@ def gameobjectdesc_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('rigidbody', 'protoc --encode=Physics.RigidBodyDesc -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('rigidbody', 'protoc --encode=dmPhysics.RigidBodyDesc -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK', 
                       before='cc cxx',
                       shell=True)
