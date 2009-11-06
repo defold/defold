@@ -28,7 +28,7 @@
  *  - Handle out of resources. Eg Hashtables full.
  */
 
-namespace Resource
+namespace dmResource
 {
 
 struct SResourceType

@@ -8,7 +8,7 @@
  * Add function to translate from factory to create result
  */
 
-namespace Resource
+namespace dmResource
 {
     /**
      * Factory result

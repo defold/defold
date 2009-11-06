@@ -3,7 +3,7 @@
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 
-namespace GameObject
+namespace dmGameObject
 {
     PyObject* PythonInstance_new(PyTypeObject *type, PyObject *args, PyObject *kw)
     {

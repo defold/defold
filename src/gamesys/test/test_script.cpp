@@ -58,7 +58,7 @@ TEST(gamesys, Script)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    GameObject::Initialize();
+    dmGameObject::Initialize();
     int ret = RUN_ALL_TESTS();
-    GameObject::Finalize();
+    dmGameObject::Finalize();
 }

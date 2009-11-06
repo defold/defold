@@ -7,7 +7,7 @@
  * Private header for GameObject
  */
 
-namespace GameObject
+namespace dmGameObject
 {
     struct Instance;
 

@@ -6,7 +6,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
-namespace GameObject
+namespace dmGameObject
 {
     struct Prototype
     {

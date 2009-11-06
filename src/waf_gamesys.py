@@ -1,7 +1,7 @@
 import Task, TaskGen
 from TaskGen import extension
 
-Task.simple_task_type('gameobjectdesc', 'protoc --encode=GameObject.GameObjectPrototypeDesc -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.GameObjectPrototypeDesc -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK', 
                       before='cc cxx',
                       shell=True)

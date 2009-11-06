@@ -8,7 +8,7 @@
 
 using namespace Vectormath::Aos;
 
-namespace GameObject
+namespace dmGameObject
 {
     /// Instance handle
     typedef struct Instance* HInstance;
@@ -99,7 +99,7 @@ namespace GameObject
      * Deletes a gameobject collection
      * @param collection
      */
-    void DeleteCollection(HCollection collection, Resource::HFactory factory);
+    void DeleteCollection(HCollection collection, dmResource::HFactory factory);
 
     /**
      * Register a new component type
@@ -127,7 +127,7 @@ namespace GameObject
      * @param prototype_name Prototype file name
      * @return New gameobject instance. NULL if any error occured
      */
-    HInstance New(HCollection collection, Resource::HFactory factory, const char* prototype_name);
+    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name);
 
     /**
      * Delete gameobject instance
@@ -135,7 +135,7 @@ namespace GameObject
      * @param factory Resource factory. Must be identical to factory used with New
      * @param instance Gameobject instance
      */
-    void Delete(HCollection collection, Resource::HFactory factory, HInstance instance);
+    void Delete(HCollection collection, dmResource::HFactory factory, HInstance instance);
 
     /**
      * Call update function
@@ -188,9 +188,9 @@ namespace GameObject
     /**
      * Register all resource types in resource factory
      * @param factory Resource factory
-     * @return Resource::FactoryResult
+     * @return dmResource::FactoryResult
      */
-    Resource::FactoryResult RegisterResourceTypes(Resource::HFactory factory);
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory);
 }
 
 #endif // GAMEOBJECT_H

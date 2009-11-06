@@ -7,7 +7,7 @@
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 
-namespace GameObject
+namespace dmGameObject
 {
     struct ComponentType
     {
@@ -48,7 +48,7 @@ namespace GameObject
         return new Collection();
     }
 
-    void DeleteCollection(HCollection collection, Resource::HFactory factory)
+    void DeleteCollection(HCollection collection, dmResource::HFactory factory)
     {
         for (uint32_t i = 0; collection->m_Instances.size(); ++i)
         {
@@ -97,17 +97,17 @@ namespace GameObject
         return RESULT_OK;
     }
 
-    Resource::CreateResult PrototypeCreate(Resource::HFactory factory,
+    dmResource::CreateResult PrototypeCreate(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
-                                          Resource::SResourceDescriptor* resource)
+                                          dmResource::SResourceDescriptor* resource)
     {
         GameObjectPrototypeDesc* proto_desc;
 
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &GameObject_GameObjectPrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObject_GameObjectPrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
         if ( e != dmDDF::RESULT_OK )
         {
-            return Resource::CREATE_RESULT_UNKNOWN;
+            return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
         Prototype* proto = new Prototype();
@@ -117,34 +117,34 @@ namespace GameObject
         {
             const char* component_name = proto_desc->m_Components[i];
             void* component;
-            Resource::FactoryResult fact_e = Resource::Get(factory, component_name, (void**) &component);
+            dmResource::FactoryResult fact_e = dmResource::Get(factory, component_name, (void**) &component);
 
-            if (fact_e != Resource::FACTORY_RESULT_OK)
+            if (fact_e != dmResource::FACTORY_RESULT_OK)
             {
                 // Error, release created
                 for (uint32_t j = 0; j < proto->m_Components.size(); ++j)
                 {
-                    Resource::Release(factory, proto->m_Components[j].m_Resource);
+                    dmResource::Release(factory, proto->m_Components[j].m_Resource);
                 }
                 delete proto;
                 dmDDF::FreeMessage(proto_desc);
-                return Resource::CREATE_RESULT_UNKNOWN;
+                return dmResource::CREATE_RESULT_UNKNOWN;
             }
             else
             {
                 uint32_t resource_type;
-                fact_e = Resource::GetType(factory, component, &resource_type);
-                assert(fact_e == Resource::FACTORY_RESULT_OK);
+                fact_e = dmResource::GetType(factory, component, &resource_type);
+                assert(fact_e == dmResource::FACTORY_RESULT_OK);
                 proto->m_Components.push_back(Prototype::Component(component, resource_type));
             }
         }
 
         HScript script;
-        Resource::FactoryResult fact_e = Resource::Get(factory, proto_desc->m_Script, (void**) &script);
-        if (fact_e != Resource::FACTORY_RESULT_OK)
+        dmResource::FactoryResult fact_e = dmResource::Get(factory, proto_desc->m_Script, (void**) &script);
+        if (fact_e != dmResource::FACTORY_RESULT_OK)
         {
             dmDDF::FreeMessage(proto_desc);
-            return Resource::CREATE_RESULT_UNKNOWN;
+            return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
         proto->m_Name = strdup(proto_desc->m_Name);
@@ -153,70 +153,70 @@ namespace GameObject
         resource->m_Resource = (void*) proto;
 
         dmDDF::FreeMessage(proto_desc);
-        return Resource::CREATE_RESULT_OK;
+        return dmResource::CREATE_RESULT_OK;
     }
 
-    Resource::CreateResult PrototypeDestroy(Resource::HFactory factory,
+    dmResource::CreateResult PrototypeDestroy(dmResource::HFactory factory,
                                            void* context,
-                                           Resource::SResourceDescriptor* resource)
+                                           dmResource::SResourceDescriptor* resource)
     {
         Prototype* proto = (Prototype*) resource->m_Resource;
         for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
         {
-            Resource::Release(factory, proto->m_Components[i].m_Resource);
+            dmResource::Release(factory, proto->m_Components[i].m_Resource);
         }
 
         free((void*) proto->m_Name);
-        Resource::Release(factory, proto->m_Script);
+        dmResource::Release(factory, proto->m_Script);
         delete proto;
-        return Resource::CREATE_RESULT_OK;
+        return dmResource::CREATE_RESULT_OK;
     }
 
-    Resource::CreateResult ScriptCreate(Resource::HFactory factory,
+    dmResource::CreateResult ScriptCreate(dmResource::HFactory factory,
                                        void* context,
                                        const void* buffer, uint32_t buffer_size,
-                                       Resource::SResourceDescriptor* resource)
+                                       dmResource::SResourceDescriptor* resource)
     {
         HScript script = NewScript(buffer);
         if (script)
         {
             resource->m_Resource = (void*) script;
-            return Resource::CREATE_RESULT_OK;
+            return dmResource::CREATE_RESULT_OK;
         }
         else
         {
-            return Resource::CREATE_RESULT_UNKNOWN;
+            return dmResource::CREATE_RESULT_UNKNOWN;
         }
     }
 
-    Resource::CreateResult ScriptDestroy(Resource::HFactory factory,
+    dmResource::CreateResult ScriptDestroy(dmResource::HFactory factory,
                                         void* context,
-                                        Resource::SResourceDescriptor* resource)
+                                        dmResource::SResourceDescriptor* resource)
     {
 
         DeleteScript((HScript) resource->m_Resource);
-        return Resource::CREATE_RESULT_OK;
+        return dmResource::CREATE_RESULT_OK;
     }
 
-    Resource::FactoryResult RegisterResourceTypes(Resource::HFactory factory)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
     {
-        Resource::FactoryResult ret;
-        ret = Resource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy);
-        if (ret != Resource::FACTORY_RESULT_OK)
+        dmResource::FactoryResult ret;
+        ret = dmResource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy);
+        if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = Resource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy);
-        if (ret != Resource::FACTORY_RESULT_OK)
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy);
+        if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
         return ret;
     }
 
-    HInstance New(HCollection collection, Resource::HFactory factory, const char* prototype_name)
+    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name)
     {
         Prototype* proto;
-        Resource::FactoryResult error = Resource::Get(factory, prototype_name, (void**)&proto);
-        if (error != Resource::FACTORY_RESULT_OK)
+        dmResource::FactoryResult error = dmResource::Get(factory, prototype_name, (void**)&proto);
+        if (error != dmResource::FACTORY_RESULT_OK)
         {
             return 0;
         }
@@ -291,7 +291,7 @@ namespace GameObject
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
-            Resource::Release(factory, instance->m_Prototype);
+            dmResource::Release(factory, instance->m_Prototype);
             operator delete (instance_memory);
             return 0;
         }
@@ -314,7 +314,7 @@ namespace GameObject
         }
     }
 
-    void Delete(HCollection collection, Resource::HFactory factory, HInstance instance)
+    void Delete(HCollection collection, dmResource::HFactory factory, HInstance instance)
     {
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
@@ -347,7 +347,7 @@ namespace GameObject
         }
         assert(found);
 
-        Resource::Release(factory, instance->m_Prototype);
+        dmResource::Release(factory, instance->m_Prototype);
         void* instance_memory = (void*) instance;
         operator delete (instance_memory);
     }
