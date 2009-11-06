@@ -81,16 +81,16 @@ struct TestResourceContainer
 };
 
 dmResource::CreateResult ResourceContainerCreate(dmResource::HFactory factory,
-                                              void* context,
-                                              const void* buffer, uint32_t buffer_size,
-                                              dmResource::SResourceDescriptor* resource);
+                                                 void* context,
+                                                 const void* buffer, uint32_t buffer_size,
+                                                 dmResource::SResourceDescriptor* resource);
 
 dmResource::CreateResult ResourceContainerDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
 dmResource::CreateResult FooResourceCreate(dmResource::HFactory factory,
-                                        void* context,
-                                        const void* buffer, uint32_t buffer_size,
-                                        dmResource::SResourceDescriptor* resource);
+                                           void* context,
+                                           const void* buffer, uint32_t buffer_size,
+                                           dmResource::SResourceDescriptor* resource);
 
 dmResource::CreateResult FooResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
@@ -131,9 +131,9 @@ public:
 };
 
 dmResource::CreateResult ResourceContainerCreate(dmResource::HFactory factory,
-                                         void* context,
-                                         const void* buffer, uint32_t buffer_size,
-                                         dmResource::SResourceDescriptor* resource)
+                                                 void* context,
+                                                 const void* buffer, uint32_t buffer_size,
+                                                 dmResource::SResourceDescriptor* resource)
 {
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_ResourceContainerCreateCallCount++;
@@ -179,9 +179,9 @@ dmResource::CreateResult ResourceContainerDestroy(dmResource::HFactory factory, 
 }
 
 dmResource::CreateResult FooResourceCreate(dmResource::HFactory factory,
-                                        void* context,
-                                        const void* buffer, uint32_t buffer_size,
-                                        dmResource::SResourceDescriptor* resource)
+                                           void* context,
+                                           const void* buffer, uint32_t buffer_size,
+                                           dmResource::SResourceDescriptor* resource)
 {
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_FooResourceCreateCallCount++;

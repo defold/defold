@@ -136,10 +136,10 @@ dmResource::CreateResult GenericDDFDestory(dmResource::HFactory factory, void* c
 
 template <typename T, int add_to_user_data>
 static dmGameObject::CreateResult GenericComponentCreate(dmGameObject::HCollection collection,
-                                                       dmGameObject::HInstance instance,
-                                                       void* resource,
-                                                       void* context,
-                                                       uintptr_t* user_data)
+                                                         dmGameObject::HInstance instance,
+                                                         void* resource,
+                                                         void* context,
+                                                         uintptr_t* user_data)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
 
@@ -172,9 +172,9 @@ static void GenericComponentsUpdate(dmGameObject::HCollection collection,
 
 template <typename T>
 static dmGameObject::CreateResult GenericComponentDestroy(dmGameObject::HCollection collection,
-                                                       dmGameObject::HInstance instance,
-                                                       void* context,
-                                                       uintptr_t* user_data)
+                                                          dmGameObject::HInstance instance,
+                                                          void* context,
+                                                          uintptr_t* user_data)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
     if (user_data)

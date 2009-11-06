@@ -98,9 +98,9 @@ namespace dmGameObject
     }
 
     dmResource::CreateResult PrototypeCreate(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource)
+                                             void* context,
+                                             const void* buffer, uint32_t buffer_size,
+                                             dmResource::SResourceDescriptor* resource)
     {
         GameObjectPrototypeDesc* proto_desc;
 
@@ -157,8 +157,8 @@ namespace dmGameObject
     }
 
     dmResource::CreateResult PrototypeDestroy(dmResource::HFactory factory,
-                                           void* context,
-                                           dmResource::SResourceDescriptor* resource)
+                                              void* context,
+                                              dmResource::SResourceDescriptor* resource)
     {
         Prototype* proto = (Prototype*) resource->m_Resource;
         for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
@@ -173,9 +173,9 @@ namespace dmGameObject
     }
 
     dmResource::CreateResult ScriptCreate(dmResource::HFactory factory,
-                                       void* context,
-                                       const void* buffer, uint32_t buffer_size,
-                                       dmResource::SResourceDescriptor* resource)
+                                          void* context,
+                                          const void* buffer, uint32_t buffer_size,
+                                          dmResource::SResourceDescriptor* resource)
     {
         HScript script = NewScript(buffer);
         if (script)
@@ -190,8 +190,8 @@ namespace dmGameObject
     }
 
     dmResource::CreateResult ScriptDestroy(dmResource::HFactory factory,
-                                        void* context,
-                                        dmResource::SResourceDescriptor* resource)
+                                           void* context,
+                                           dmResource::SResourceDescriptor* resource)
     {
 
         DeleteScript((HScript) resource->m_Resource);
