@@ -6,8 +6,3 @@ message GameObjectPrototypeDesc
     required string Script = 2;
     repeated string Components = 3;
 }
-
-message MeshComponentDesc
-{
-    required string Mesh = 1;
-}

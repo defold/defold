@@ -10,21 +10,30 @@ using namespace Vectormath::Aos;
 
 namespace GameObject
 {
+    /// Instance handle
     typedef struct Instance* HInstance;
+
+    /// Collection handle
     typedef struct Collection* HCollection;
 
+    /**
+     * Result enum
+     */
     enum Result
     {
-        RESULT_OK = 0,
-        RESULT_OUT_OF_RESOURCES = 1,
-        RESULT_ALREADY_REGISTERED = 2,
-        RESULT_UNKNOWN_ERROR = 1000,
+        RESULT_OK = 0,                //!< RESULT_OK
+        RESULT_OUT_OF_RESOURCES = 1,  //!< RESULT_OUT_OF_RESOURCES
+        RESULT_ALREADY_REGISTERED = 2,//!< RESULT_ALREADY_REGISTERED
+        RESULT_UNKNOWN_ERROR = 1000,  //!< RESULT_UNKNOWN_ERROR
     };
 
+    /**
+     * Create result enum
+     */
     enum CreateResult
     {
-        CREATE_RESULT_OK = 0,
-        CREATE_RESULT_UNKNOWN_ERROR = 1000,
+        CREATE_RESULT_OK = 0,              //!< CREATE_RESULT_OK
+        CREATE_RESULT_UNKNOWN_ERROR = 1000,//!< CREATE_RESULT_UNKNOWN_ERROR
     };
 
     struct UpdateContext
@@ -32,17 +41,40 @@ namespace GameObject
         float m_DT;
     };
 
+    /**
+     * Component create function
+     * @param collection Collection handle
+     * @param instance Game object instance
+     * @param resource Component resource
+     * @param context User context
+     * @param user_data User data storage pointer
+     * @return CREATE_RESULT_OK on success
+     */
     typedef CreateResult (*ComponentCreate)(HCollection collection,
                                             HInstance instance,
                                             void* resource,
                                             void* context,
                                             uintptr_t* user_data);
 
+    /**
+     * Component destroy function
+     * @param collection Collection handle
+     * @param instance Game object instance
+     * @param context User context
+     * @param user_data User data storage pointer
+     * @return CREATE_RESULT_OK on success
+     */
     typedef CreateResult (*ComponentDestroy)(HCollection collection,
                                              HInstance instance,
                                              void* context,
                                              uintptr_t* user_data);
 
+    /**
+     * Component update function. Updates all component of this type for all game objects
+     * @param collection Collection handle
+     * @param update_context Update context
+     * @param context User context
+     */
     typedef void (*ComponentsUpdate)(HCollection collection,
                                      const UpdateContext* update_context,
                                      void* context);
@@ -50,24 +82,24 @@ namespace GameObject
     /**
      * Initialize system
      */
-    void         Initialize();
+    void Initialize();
 
     /**
      * Finalize system
      */
-    void         Finalize();
+    void Finalize();
 
     /**
      * Creates a new gameobject collection
      * @return HCollection
      */
-    HCollection  NewCollection();
+    HCollection NewCollection();
 
     /**
      * Deletes a gameobject collection
      * @param collection
      */
-    void         DeleteCollection(HCollection collection, Resource::HFactory factory);
+    void DeleteCollection(HCollection collection, Resource::HFactory factory);
 
     /**
      * Register a new component type
@@ -80,13 +112,13 @@ namespace GameObject
      * @param component_instance_has_user_data True if the component instance needs user data
      * @return RESULT_OK on success
      */
-    Result       RegisterComponentType(HCollection collection,
-                                       uint32_t resource_type,
-                                       void* context,
-                                       ComponentCreate create_function,
-                                       ComponentDestroy destroy_function,
-                                       ComponentsUpdate components_update,
-                                       bool component_instance_has_user_data);
+    Result RegisterComponentType(HCollection collection,
+                                 uint32_t resource_type,
+                                 void* context,
+                                 ComponentCreate create_function,
+                                 ComponentDestroy destroy_function,
+                                 ComponentsUpdate components_update,
+                                 bool component_instance_has_user_data);
 
     /**
      * Create a new gameobject instane
@@ -95,7 +127,7 @@ namespace GameObject
      * @param prototype_name Prototype file name
      * @return New gameobject instance. NULL if any error occured
      */
-    HInstance    New(HCollection collection, Resource::HFactory factory, const char* prototype_name);
+    HInstance New(HCollection collection, Resource::HFactory factory, const char* prototype_name);
 
     /**
      * Delete gameobject instance
@@ -103,7 +135,7 @@ namespace GameObject
      * @param factory Resource factory. Must be identical to factory used with New
      * @param instance Gameobject instance
      */
-    void         Delete(HCollection collection, Resource::HFactory factory, HInstance instance);
+    void Delete(HCollection collection, Resource::HFactory factory, HInstance instance);
 
     /**
      * Call update function
@@ -111,7 +143,7 @@ namespace GameObject
      * @param instance Gameobject instance
      * @return True on success
      */
-    bool         Update(HCollection collection, HInstance instance);
+    bool Update(HCollection collection, HInstance instance);
 
     /**
      * Update all gameobjects and its components
@@ -119,7 +151,7 @@ namespace GameObject
      * @param update_context Update context
      * @return True on success
      */
-    bool         Update(HCollection collection, const UpdateContext* update_context);
+    bool Update(HCollection collection, const UpdateContext* update_context);
 
     /**
      * Set gameobject instance position
@@ -127,7 +159,7 @@ namespace GameObject
      * @param instance Gameobject instance
      * @param position New Position
      */
-    void         SetPosition(HCollection collection, HInstance instance, Point3 position);
+    void SetPosition(HCollection collection, HInstance instance, Point3 position);
 
     /**
      * Get gameobject instance position
@@ -135,7 +167,7 @@ namespace GameObject
      * @param instance Gameobject instance
      * @return Position
      */
-    Point3       GetPosition(HCollection collection, HInstance instance);
+    Point3 GetPosition(HCollection collection, HInstance instance);
 
     /**
      * Set gameobject instance rotation
@@ -143,7 +175,7 @@ namespace GameObject
      * @param instance Gameobject instance
      * @param position New Position
      */
-    void         SetRotation(HCollection collection, HInstance instance, Quat rotation);
+    void SetRotation(HCollection collection, HInstance instance, Quat rotation);
 
     /**
      * Get gameobject instance rotation
@@ -151,7 +183,7 @@ namespace GameObject
      * @param instance Gameobject instance
      * @return Position
      */
-    Quat         GetRotation(HCollection collection, HInstance instance);
+    Quat GetRotation(HCollection collection, HInstance instance);
 
     /**
      * Register all resource types in resource factory
