@@ -7,7 +7,7 @@ using namespace Vectormath::Aos;
 class btCollisionShape;
 class btRigidBody;
 
-namespace Physics
+namespace dmPhysics
 {
     typedef struct PhysicsWorld* HWorld;
     typedef class btCollisionShape* HCollisionShape;

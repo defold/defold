@@ -2,7 +2,7 @@
 #include "physics.h"
 #include "btBulletDynamicsCommon.h"
 
-namespace Physics
+namespace dmPhysics
 {
     class MotionState : public btMotionState
     {

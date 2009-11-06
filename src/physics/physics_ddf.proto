@@ -1,4 +1,4 @@
-package Physics;
+package dmPhysics;
 
 message ConvexShape
 {
