@@ -22,9 +22,9 @@ namespace GameObject
     enum Result
     {
         RESULT_OK = 0,                //!< RESULT_OK
-        RESULT_OUT_OF_RESOURCES = 1,  //!< RESULT_OUT_OF_RESOURCES
-        RESULT_ALREADY_REGISTERED = 2,//!< RESULT_ALREADY_REGISTERED
-        RESULT_UNKNOWN_ERROR = 1000,  //!< RESULT_UNKNOWN_ERROR
+        RESULT_OUT_OF_RESOURCES = -1,  //!< RESULT_OUT_OF_RESOURCES
+        RESULT_ALREADY_REGISTERED = -2,//!< RESULT_ALREADY_REGISTERED
+        RESULT_UNKNOWN_ERROR = -1000,  //!< RESULT_UNKNOWN_ERROR
     };
 
     /**
@@ -33,7 +33,7 @@ namespace GameObject
     enum CreateResult
     {
         CREATE_RESULT_OK = 0,              //!< CREATE_RESULT_OK
-        CREATE_RESULT_UNKNOWN_ERROR = 1000,//!< CREATE_RESULT_UNKNOWN_ERROR
+        CREATE_RESULT_UNKNOWN_ERROR = -1000,//!< CREATE_RESULT_UNKNOWN_ERROR
     };
 
     struct UpdateContext
