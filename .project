@@ -5,6 +5,11 @@
 	<projects>
 	</projects>
 	<buildSpec>
+<buildCommand>
+<name>org.eclipse.jdt.core.javabuilder</name>
+<arguments>
+</arguments>
+</buildCommand>
 		<buildCommand>
 			<name>org.python.pydev.PyDevBuilder</name>
 			<arguments>
@@ -84,5 +89,6 @@
 		<nature>org.eclipse.cdt.core.ccnature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.python.pydev.pythonNature</nature>
+		<nature>org.eclipse.jdt.core.javanature</nature>
 	</natures>
 </projectDescription>
