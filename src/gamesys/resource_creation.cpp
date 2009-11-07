@@ -2,8 +2,8 @@
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <stdint.h>
-#include <gamesys/resource.h>
-#include <gamesys/physics_ddf.h>
+#include "resource.h"
+#include "../proto/physics_ddf.h"
 #include <graphics/graphics_device.h>
 #include <graphics/graphics_ddf.h>
 #include <physics/physics.h>

@@ -2,7 +2,7 @@
 #define RESOURCE_CREATION_H
 
 #include <physics/physics.h>
-#include <gamesys/resource.h>
+#include "resource.h"
 
 struct RigidBodyPrototype
 {
