@@ -1,0 +1,18 @@
+#ifndef RESOURCE_CREATION_H
+#define RESOURCE_CREATION_H
+
+#include <physics/physics.h>
+#include <gamesys/resource.h>
+
+struct RigidBodyPrototype
+{
+    dmPhysics::HCollisionShape m_CollisionShape;
+    float                      m_Mass;
+};
+
+namespace dmGameSystem
+{
+    dmResource::FactoryResult RegisterResources(dmResource::HFactory factory);
+}
+
+#endif // RESOURCE_CREATION_H
