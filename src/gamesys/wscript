@@ -9,12 +9,12 @@ def build(bld):
                                 proto_gen_py = True,
                                 target = 'gamesys',
                                 install_path='${PREFIX}/lib')
-    
-    resource.find_sources_in_dirs('.')
+
+    resource.find_sources_in_dirs(['.', '../../proto'])
 
     bld.add_subdirs('test')
 
-
     bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
     bld.install_files('${PREFIX}/include/gamesys', 'gameobject.h')
-    bld.install_files('${PREFIX}/share/proto', 'gameobject_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
