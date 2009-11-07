@@ -14,8 +14,6 @@ def build(bld):
                            install_path='${PREFIX}/lib')
 
     obj.find_sources_in_dirs('opengl ../proto')
-    obj.source.append('../proto/graphics_ddf.proto')
-
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_device.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_device_defines.h')
