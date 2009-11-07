@@ -1,6 +1,7 @@
 package com.dynamo.format.internal;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +29,7 @@ public class FormatLoader
             Object value;
             if (field_value instanceof List<?>)
             {
-                value = createList(obj, message_f, (List<?>) field_value, f
-                        .getAnnotation(ComponentType.class).type());
+                value = createList(obj, message_f, (List<?>) field_value, f.getAnnotation(ComponentType.class).type());
             }
             else if (field_value instanceof Message)
             {
@@ -48,8 +48,8 @@ public class FormatLoader
         }
     }
 
-    private static Object createList(Object obj, FieldDescriptor field_desc,
-            List<?> from_list, Class<?> elem_class) throws Exception
+    private static Object createList(Object obj, FieldDescriptor field_desc, List<?> from_list, Class<?> elem_class)
+            throws Exception
     {
 
         ArrayList<Object> list = new ArrayList<Object>();
@@ -74,12 +74,11 @@ public class FormatLoader
         return list;
     }
 
-    public static <T> T load(Readable input, Descriptor desciptor, Class<T> format_class)
-            throws IOException
+    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> format_class) throws IOException
     {
         DynamicMessage.Builder b = DynamicMessage.newBuilder(desciptor);
         TextFormat.merge(input, b);
-        
+
         try
         {
             T ret = format_class.newInstance();
@@ -92,4 +91,23 @@ public class FormatLoader
             throw new RuntimeException(e);
         }
     }
+
+    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> format_class) throws IOException
+    {
+        DynamicMessage.Builder b = DynamicMessage.newBuilder(desciptor);
+        b.mergeFrom(input);
+
+        try
+        {
+            T ret = format_class.newInstance();
+            FormatLoader.merge(ret, b.build());
+
+            return ret;
+        } catch (Throwable e)
+        {
+            // TODO: Checked exception?
+            throw new RuntimeException(e);
+        }
+    }
+
 }

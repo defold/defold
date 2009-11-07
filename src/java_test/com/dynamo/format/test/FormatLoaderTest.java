@@ -1,12 +1,15 @@
 package com.dynamo.format.test;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 import com.dynamo.format.Format;
 import com.dynamo.format.proto.TestDDF.Bytes;
@@ -45,7 +48,7 @@ public class FormatLoaderTest
         w.write(TextFormat.printToString(m));
         w.close();
 
-        return Format.load(new FileReader(f), descriptor, klass);
+        return Format.loadTextFormat(new FileReader(f), descriptor, klass);
     }
 
     @Test
@@ -73,7 +76,6 @@ public class FormatLoaderTest
         assertEquals(m1.getString(), m2.m_String);
         
         genericCompare(m1, m2, ScalarTypes.getDescriptor());
-
     }
     
     @Test

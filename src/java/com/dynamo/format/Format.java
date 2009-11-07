@@ -1,6 +1,9 @@
 package com.dynamo.format;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Writer;
 
 import com.dynamo.format.internal.FormatLoader;
 import com.dynamo.format.internal.MessageBuilder;
@@ -24,7 +27,21 @@ public class Format
     }
 
     /**
-     * Load message from readable
+     * Load message from input stream
+     * @param <T> Object type
+     * @param input Input {@link InputStream}
+     * @param desciptor Protocol descriptor {@link Descriptor}
+     * @param format_class Object type class
+     * @return New instance of type T
+     * @throws IOException
+     */
+    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> format_class) throws IOException
+    {
+        return FormatLoader.load(input, desciptor, format_class);
+    }
+
+    /**
+     * Load message in text format from readable
      * 
      * @param <T> Object type
      * @param input Input {@link Readable}
@@ -33,9 +50,34 @@ public class Format
      * @return New instance of type T
      * @throws IOException
      */
-    public static <T> T load(Readable input, Descriptor desciptor, Class<T> format_class) throws IOException
+    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> format_class) throws IOException
     {
-        return FormatLoader.load(input, desciptor, format_class);
+        return FormatLoader.loadTextFormat(input, desciptor, format_class);
+    }
+
+    /**
+     * Save message
+     * @param obj Object to save
+     * @param descriptor Message descriptor {@link Descriptor}
+     * @param output Output stream {@link OutputStream}
+     * @throws IOException
+     */
+    public static void save(Object obj, Descriptor descriptor, OutputStream output) throws IOException
+    {
+        Message msg = MessageBuilder.build(obj, descriptor);
+        msg.writeTo(output);
+    }
+
+    /**
+     * Save message in text format
+     * @param obj Object to save
+     * @param descriptor Message descriptor {@link Descriptor}
+     * @param writer Writer {@link Writer}
+     * @throws IOException
+     */
+    public static void saveTextFormat(Object obj, Descriptor descriptor, Writer writer) throws IOException
+    {
+        writer.write(printToString(obj, descriptor));
     }
 
 }
