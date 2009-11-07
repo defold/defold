@@ -2,8 +2,9 @@
 
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
+#include <ddf/ddf.h>
 #include "gameobject.h"
-#include "gameobject_ddf.h"
+#include "../proto/gameobject_ddf.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 

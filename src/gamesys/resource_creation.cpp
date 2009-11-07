@@ -52,7 +52,7 @@ namespace dmGameSystem
                                            dmResource::SResourceDescriptor* resource)
     {
         dmGraphics::TextureImage* image;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGraphics_TextureImage_DESCRIPTOR, (void**)(&image));
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&image));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
