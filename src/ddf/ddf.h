@@ -180,8 +180,12 @@ namespace dmDDF
      * @param value Value to get name for
      * @return Enum name. NULL if none found.
      */
-    const char*  GetEnumName(const EnumDescriptor* desc, int32_t value);
+    const char* GetEnumName(const EnumDescriptor* desc, int32_t value);
 
+    /**
+     * Free message
+     * @param message Message
+     */
     void FreeMessage(void* message);
 }
 

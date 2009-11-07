@@ -12,7 +12,6 @@
 #include "config.h"
 
 // TODO:
-// Required fields...
 // Glšm inte att hantera messages som inte Šr repeated....
 
 namespace dmDDF

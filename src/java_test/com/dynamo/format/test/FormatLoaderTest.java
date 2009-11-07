@@ -3,8 +3,8 @@ package com.dynamo.format.test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -32,9 +32,17 @@ public class FormatLoaderTest
 {
     private static void genericCompare(Message msg, Object obj, Descriptor descriptor) throws Throwable
     {
+        // Test text format
         String msg_string = Format.printToString(obj, descriptor);
         DynamicMessage.Builder b = DynamicMessage.newBuilder(descriptor);
         TextFormat.merge(msg_string, b);
+        assertEquals(msg, b.build());
+
+        // Test wire format
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        Format.save(obj, descriptor, os);
+        b = DynamicMessage.newBuilder(descriptor);
+        b.mergeFrom(os.toByteArray());
         assertEquals(msg, b.build());
     }
 
@@ -62,9 +70,9 @@ public class FormatLoaderTest
         b.setInt64(Long.MAX_VALUE);
         b.setUint64(Long.MAX_VALUE);
         b.setString("foo");
-        
+
         ScalarTypes m1 = b.build();
-        
+
         TestDDF.ScalarTypes m2 = saveLoad(m1, ScalarTypes.getDescriptor(), TestDDF.ScalarTypes.class);
 
         assertEquals(m1.getFloat(), m2.m_Float, 0.0);
@@ -74,10 +82,10 @@ public class FormatLoaderTest
         assertEquals(m1.getInt64(), m2.m_Int64);
         assertEquals(m1.getUint64(), m2.m_Uint64);
         assertEquals(m1.getString(), m2.m_String);
-        
+
         genericCompare(m1, m2, ScalarTypes.getDescriptor());
     }
-    
+
     @Test
     public final void testSimple01Repeated() throws Throwable
     {
@@ -95,7 +103,7 @@ public class FormatLoaderTest
         assertEquals(20, m2.m_array.get(0).m_y);
         assertEquals(100, m2.m_array.get(1).m_x);
         assertEquals(200, m2.m_array.get(1).m_y);
-        
+
         genericCompare(m1, m2, Simple01Repeated.getDescriptor());
     }
 
@@ -113,7 +121,7 @@ public class FormatLoaderTest
         assertEquals(10, m2.m_array.get(0).intValue());
         assertEquals(20, m2.m_array.get(1).intValue());
         assertEquals(30, m2.m_array.get(2).intValue());
-        
+
         genericCompare(m1, m2, Simple02Repeated.getDescriptor());
     }
 
@@ -128,7 +136,7 @@ public class FormatLoaderTest
                 StringRepeated.getDescriptor(), TestDDF.StringRepeated.class);
         assertEquals("foo", m2.m_array.get(0));
         assertEquals("bar", m2.m_array.get(1));
-        
+
         genericCompare(m1, m2, StringRepeated.getDescriptor());
     }
 
@@ -143,7 +151,7 @@ public class FormatLoaderTest
                 TestDDF.NestedMessage.class);
         assertEquals(m2.m_n1.m_x, 10);
         assertEquals(m2.m_n2.m_x, 20);
-        
+
         genericCompare(m1, m2, NestedMessage.getDescriptor());
     }
 
@@ -157,15 +165,15 @@ public class FormatLoaderTest
         b_sub1.addArray2(NestedArraySub2.newBuilder().setA(20));
         b_sub1.setB(100);
         b_sub1.setC(200);
-        
+
         b.setD(300);
         b.setE(400);
         b.addArray1(b_sub1);
-        
+
         NestedArray m1 = b.build();
-        
+
         TestDDF.NestedArray m2 = saveLoad(m1, NestedArray.getDescriptor(), TestDDF.NestedArray.class);
-        
+
         assertEquals(300, m2.m_d);
         assertEquals(400, m2.m_e);
         assertEquals(100, m2.m_array1.get(0).m_b);
@@ -174,20 +182,20 @@ public class FormatLoaderTest
         assertEquals(2, m2.m_array1.get(0).m_array2.size());
         assertEquals(10, m2.m_array1.get(0).m_array2.get(0).m_a);
         assertEquals(20, m2.m_array1.get(0).m_array2.get(1).m_a);
-        
+
         genericCompare(m1, m2, NestedArray.getDescriptor());
     }
-    
+
     @Test
     public final void testBytes() throws Throwable
     {
         Bytes.Builder b = Bytes.newBuilder();
         b.setData(ByteString.copyFrom(new byte[] { Byte.MAX_VALUE, Byte.MIN_VALUE }));
         Bytes m1 = b.build();
-        
+
         TestDDF.Bytes m2 = saveLoad(m1, Bytes.getDescriptor(), TestDDF.Bytes.class);
         assertArrayEquals(m1.getData().toByteArray(), m2.m_data);
-        
+
         genericCompare(m1, m2, Bytes.getDescriptor());
     }
 }
