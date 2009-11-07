@@ -124,7 +124,7 @@ namespace dmDDF
             const FieldDescriptor* f = &desc->m_Fields[i];
             if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
             {
-                dmLogError("Missing field: %s", f->m_Name);
+                dmLogWarning("Missing required field %s.%s", desc->m_Name, f->m_Name);
                 return RESULT_MISSING_REQUIRED;
             }
         }
