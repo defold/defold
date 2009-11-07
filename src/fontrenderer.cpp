@@ -68,6 +68,7 @@ namespace dmRender
                                                    ret->m_Font->m_ImageHeight,
                                                    dmGraphics::TEXTURE_FORMAT_LUMINANCE);
 
+        // TODO: Texture data is duplicated in memory. (m_Texture + m_Font->m_ImageData)
         dmGraphics::SetTextureData(ret->m_Texture, 0, ret->m_Font->m_ImageWidth, ret->m_Font->m_ImageHeight, 0,
                                    dmGraphics::TEXTURE_FORMAT_LUMINANCE, &ret->m_Font->m_ImageData[0], ret->m_Font->m_ImageData.m_Count);
 
