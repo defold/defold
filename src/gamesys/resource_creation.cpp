@@ -137,7 +137,7 @@ namespace dmGameSystem
                                                dmResource::SResourceDescriptor* resource)
     {
         dmPhysics::ConvexShape* convex_shape;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmPhysics_ConvexShape_DESCRIPTOR, (void**) &convex_shape);
+        dmDDF::Result e = dmDDF::LoadMessage<dmPhysics::ConvexShape>(buffer, buffer_size, &convex_shape);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -179,7 +179,7 @@ namespace dmGameSystem
                                              dmResource::SResourceDescriptor* resource)
     {
         dmPhysics::RigidBodyDesc* rigid_body_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmPhysics_RigidBodyDesc_DESCRIPTOR, (void**) &rigid_body_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmPhysics::RigidBodyDesc>(buffer, buffer_size, &rigid_body_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
