@@ -2,6 +2,7 @@
 #define DM_DDF_H
 
 #include <stdint.h>
+#include <dlib/array.h>
 
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
 #define DDF_MAX_FIELDS (128)
@@ -137,6 +138,15 @@ namespace dmDDF
     Result SaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function);
 
     /**
+     * Save messge to array
+     * @param message Message
+     * @param desc DDF descriptor
+     * @param buffer Buffer to save to
+     * @return RESULT_OK on success
+     */
+    Result SaveMessageToArray(const void* message, const Descriptor* desc, dmArray<uint8_t>& array);
+
+    /**
      * Save message to file
      * @param message Message
      * @param desc DDF descriptor
@@ -144,6 +154,15 @@ namespace dmDDF
      * @return RESULT_OK on success
      */
     Result SaveMessageToFile(const void* message, const Descriptor* desc, const char* file_name);
+
+    /**
+     * Calculates capacity needed for a message
+     * @param message Message
+     * @param desc DDF descriptor
+     * @param size Returned size
+     * @return RESULT_OK on success
+     */
+    Result SaveMessageSize(const void* message, const Descriptor* desc, uint32_t* size);
 
     /**
      * Load/decode a DDF message from buffer. Template variant

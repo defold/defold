@@ -185,6 +185,48 @@ namespace dmDDF
         return ret;
     }
 
+    static bool SaveMessageSizeFunction(void* context, const void* buffer, uint32_t buffer_size)
+    {
+        uint32_t* count = (uint32_t*) context;
+        *count = *count + buffer_size;
+        return true;
+    }
+
+    Result SaveMessageSize(const void* message, const Descriptor* desc, uint32_t* size)
+    {
+        uint32_t calc_size = 0;
+        Result e = SaveMessage(message, desc, &calc_size, &SaveMessageSizeFunction);
+        if (e == RESULT_OK)
+        {
+            *size = calc_size;
+        }
+        else
+        {
+            *size = 0;
+        }
+
+        return e;
+    }
+
+    static bool SaveArrayFunction(void* context, const void* buffer, uint32_t buffer_size)
+    {
+        dmArray<uint8_t>* array = (dmArray<uint8_t>*) context;
+        if (array->Remaining() < buffer_size)
+        {
+            array->OffsetCapacity(buffer_size + 1024);
+        }
+
+        array->PushArray((uint8_t*) buffer, buffer_size);
+        return true;
+    }
+
+    Result SaveMessageToArray(const void* message, const Descriptor* desc, dmArray<uint8_t>& array)
+    {
+        array.SetSize(0);
+        Result ret = SaveMessage(message, desc, &array, &SaveArrayFunction);
+        return ret;
+    }
+
     int32_t GetEnumValue(const EnumDescriptor* desc, const char* name)
     {
         assert(desc);
