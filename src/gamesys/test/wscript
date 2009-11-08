@@ -50,7 +50,7 @@ def build(bld):
     
     test_resource = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DLIB DDF',
+                                     uselib = 'GTEST DDF DLIB',
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      target = 'test_resource',
@@ -60,7 +60,7 @@ def build(bld):
 
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DLIB DDF',
+                                     uselib = 'GTEST DDF DLIB',
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
@@ -70,7 +70,7 @@ def build(bld):
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DLIB DDF',
+                                     uselib = 'GTEST DDF DLIB',
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      target = 'test_script',
