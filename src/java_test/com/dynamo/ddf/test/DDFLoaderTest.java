@@ -1,4 +1,4 @@
-package com.dynamo.format.test;
+package com.dynamo.ddf.test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -12,23 +12,23 @@ import java.io.IOException;
 import org.junit.Test;
 
 import com.dynamo.ddf.DDF;
-import com.dynamo.format.proto.TestDDF.Bytes;
-import com.dynamo.format.proto.TestDDF.NestedArray;
-import com.dynamo.format.proto.TestDDF.NestedArraySub1;
-import com.dynamo.format.proto.TestDDF.NestedArraySub2;
-import com.dynamo.format.proto.TestDDF.NestedMessage;
-import com.dynamo.format.proto.TestDDF.ScalarTypes;
-import com.dynamo.format.proto.TestDDF.Simple01;
-import com.dynamo.format.proto.TestDDF.Simple01Repeated;
-import com.dynamo.format.proto.TestDDF.Simple02Repeated;
-import com.dynamo.format.proto.TestDDF.StringRepeated;
+import com.dynamo.ddf.proto.TestDDF.Bytes;
+import com.dynamo.ddf.proto.TestDDF.NestedArray;
+import com.dynamo.ddf.proto.TestDDF.NestedArraySub1;
+import com.dynamo.ddf.proto.TestDDF.NestedArraySub2;
+import com.dynamo.ddf.proto.TestDDF.NestedMessage;
+import com.dynamo.ddf.proto.TestDDF.ScalarTypes;
+import com.dynamo.ddf.proto.TestDDF.Simple01;
+import com.dynamo.ddf.proto.TestDDF.Simple01Repeated;
+import com.dynamo.ddf.proto.TestDDF.Simple02Repeated;
+import com.dynamo.ddf.proto.TestDDF.StringRepeated;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.Descriptors.Descriptor;
 
-public class FormatLoaderTest
+public class DDFLoaderTest
 {
     private static void genericCompare(Message msg, Object obj, Descriptor descriptor) throws Throwable
     {
@@ -89,7 +89,7 @@ public class FormatLoaderTest
     @Test
     public final void testSimple01Repeated() throws Throwable
     {
-        Simple01Repeated.Builder b = com.dynamo.format.proto.TestDDF.Simple01Repeated
+        Simple01Repeated.Builder b = com.dynamo.ddf.proto.TestDDF.Simple01Repeated
                 .newBuilder();
         b.addArray(Simple01.newBuilder().setX(10).setY(20).build());
         b.addArray(Simple01.newBuilder().setX(100).setY(200).build());

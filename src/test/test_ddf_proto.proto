@@ -1,6 +1,6 @@
 package TestDDF;
 
-option java_package = "com.dynamo.format.proto";
+option java_package = "com.dynamo.ddf.proto";
 option java_outer_classname = "TestDDF";
 
 message Simple 
