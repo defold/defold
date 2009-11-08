@@ -14,7 +14,7 @@ import com.google.protobuf.TextFormat;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 
-public class FormatLoader
+public class DDFLoader
 {
 
     private static void merge(Object obj, Message from) throws Exception
@@ -34,7 +34,7 @@ public class FormatLoader
             else if (field_value instanceof Message)
             {
                 value = f.getType().newInstance();
-                FormatLoader.merge(value, (Message) field_value);
+                DDFLoader.merge(value, (Message) field_value);
             }
             else if (field_value instanceof ByteString)
             {
@@ -58,7 +58,7 @@ public class FormatLoader
             if (field_o instanceof Message)
             {
                 Object o = elem_class.newInstance();
-                FormatLoader.merge(o, (Message) field_o);
+                DDFLoader.merge(o, (Message) field_o);
                 list.add(o);
             }
             else if (field_o instanceof List<?>)
@@ -74,15 +74,15 @@ public class FormatLoader
         return list;
     }
 
-    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> format_class) throws IOException
+    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> ddf_class) throws IOException
     {
         DynamicMessage.Builder b = DynamicMessage.newBuilder(desciptor);
         TextFormat.merge(input, b);
 
         try
         {
-            T ret = format_class.newInstance();
-            FormatLoader.merge(ret, b.build());
+            T ret = ddf_class.newInstance();
+            DDFLoader.merge(ret, b.build());
 
             return ret;
         } catch (Throwable e)
@@ -92,15 +92,15 @@ public class FormatLoader
         }
     }
 
-    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> format_class) throws IOException
+    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> ddf_class) throws IOException
     {
         DynamicMessage.Builder b = DynamicMessage.newBuilder(desciptor);
         b.mergeFrom(input);
 
         try
         {
-            T ret = format_class.newInstance();
-            FormatLoader.merge(ret, b.build());
+            T ret = ddf_class.newInstance();
+            DDFLoader.merge(ret, b.build());
 
             return ret;
         } catch (Throwable e)

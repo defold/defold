@@ -5,7 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Writer;
 
-import com.dynamo.ddf.internal.FormatLoader;
+import com.dynamo.ddf.internal.DDFLoader;
 import com.dynamo.ddf.internal.MessageBuilder;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -15,7 +15,7 @@ public class DDF
 {
     /**
      * Returns a string representation of the message.
-     * 
+     *
      * @param object Object to print
      * @param descriptor Type descriptor
      * @return String representation
@@ -31,28 +31,28 @@ public class DDF
      * @param <T> Object type
      * @param input Input {@link InputStream}
      * @param desciptor Protocol descriptor {@link Descriptor}
-     * @param format_class Object type class
+     * @param ddf_class Object type class
      * @return New instance of type T
      * @throws IOException
      */
-    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> format_class) throws IOException
+    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> ddf_class) throws IOException
     {
-        return FormatLoader.load(input, desciptor, format_class);
+        return DDFLoader.load(input, desciptor, ddf_class);
     }
 
     /**
      * Load message in text format from readable
-     * 
+     *
      * @param <T> Object type
      * @param input Input {@link Readable}
      * @param desciptor Protocol descriptor {@link Descriptor}
-     * @param format_class Object type class
+     * @param ddf_class Object type class
      * @return New instance of type T
      * @throws IOException
      */
-    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> format_class) throws IOException
+    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> ddf_class) throws IOException
     {
-        return FormatLoader.loadTextFormat(input, desciptor, format_class);
+        return DDFLoader.loadTextFormat(input, desciptor, ddf_class);
     }
 
     /**
