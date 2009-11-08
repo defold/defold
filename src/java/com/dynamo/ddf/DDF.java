@@ -1,17 +1,17 @@
-package com.dynamo.format;
+package com.dynamo.ddf;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Writer;
 
-import com.dynamo.format.internal.FormatLoader;
-import com.dynamo.format.internal.MessageBuilder;
+import com.dynamo.ddf.internal.FormatLoader;
+import com.dynamo.ddf.internal.MessageBuilder;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.Descriptors.Descriptor;
 
-public class Format
+public class DDF
 {
     /**
      * Returns a string representation of the message.

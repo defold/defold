@@ -1,4 +1,4 @@
-package com.dynamo.format.internal;
+package com.dynamo.ddf.internal;
 
 import java.lang.reflect.Field;
 import java.util.List;

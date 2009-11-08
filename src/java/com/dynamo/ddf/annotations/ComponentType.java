@@ -1,4 +1,4 @@
-package com.dynamo.format.annotations;
+package com.dynamo.ddf.annotations;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

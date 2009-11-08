@@ -1,4 +1,4 @@
-package com.dynamo.format.internal;
+package com.dynamo.ddf.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -6,7 +6,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dynamo.format.annotations.ComponentType;
+import com.dynamo.ddf.annotations.ComponentType;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;

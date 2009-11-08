@@ -347,7 +347,7 @@ def CompileJava(input_file, options):
         pp_java.Print("package %s;",  options.java_package)
     pp_java.Print("")
     pp_java.Print("import java.util.List;")
-    pp_java.Print("import com.dynamo.format.annotations.ComponentType;")
+    pp_java.Print("import com.dynamo.ddf.annotations.ComponentType;")
 
     pp_java.Print("")
     pp_java.Begin("public final class %s", options.java_classname)

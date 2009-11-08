@@ -11,7 +11,7 @@ import java.io.IOException;
 
 import org.junit.Test;
 
-import com.dynamo.format.Format;
+import com.dynamo.ddf.DDF;
 import com.dynamo.format.proto.TestDDF.Bytes;
 import com.dynamo.format.proto.TestDDF.NestedArray;
 import com.dynamo.format.proto.TestDDF.NestedArraySub1;
@@ -33,14 +33,14 @@ public class FormatLoaderTest
     private static void genericCompare(Message msg, Object obj, Descriptor descriptor) throws Throwable
     {
         // Test text format
-        String msg_string = Format.printToString(obj, descriptor);
+        String msg_string = DDF.printToString(obj, descriptor);
         DynamicMessage.Builder b = DynamicMessage.newBuilder(descriptor);
         TextFormat.merge(msg_string, b);
         assertEquals(msg, b.build());
 
         // Test wire format
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        Format.save(obj, descriptor, os);
+        DDF.save(obj, descriptor, os);
         b = DynamicMessage.newBuilder(descriptor);
         b.mergeFrom(os.toByteArray());
         assertEquals(msg, b.build());
@@ -56,7 +56,7 @@ public class FormatLoaderTest
         w.write(TextFormat.printToString(m));
         w.close();
 
-        return Format.loadTextFormat(new FileReader(f), descriptor, klass);
+        return DDF.loadTextFormat(new FileReader(f), descriptor, klass);
     }
 
     @Test
