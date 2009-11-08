@@ -245,6 +245,19 @@ public:
     }
 
     /**
+     * Adds n new elements at the end of the array.
+     * @param x Elements
+     * @param count Elemen count
+     * @note PushArray will fail if capacity is exceeded.
+     */
+    void PushArray(const T* x, uint32_t count)
+    {
+        assert ( Capacity() - Size() >= count );
+        memcpy(m_End, x, sizeof(T) * count);
+        m_End += count;
+    }
+
+    /**
      * Removes the last element in the array.
      * @note Pop will fail if size is 0.
      */

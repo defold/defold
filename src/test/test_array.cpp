@@ -116,6 +116,28 @@ TEST(dmArray, Static_int32)
     EXPECT_EQ(true, ar.Empty());
 }
 
+TEST(dmArray, PushArray)
+{
+    const uint32_t n = 512;
+    uint32_t tmp[n];
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        tmp[i] = i;
+    }
+
+    dmArray<uint32_t> a;
+    a.SetCapacity(16);
+    a.Push(1111);
+    a.PushArray(tmp, 15);
+    ASSERT_EQ((uint32_t) 16, a.Capacity());
+    ASSERT_EQ((uint32_t) 16, a.Size());
+    ASSERT_EQ((uint32_t) 0, a.Remaining());
+
+    for (uint32_t i = 1; i < 16; ++i)
+    {
+        ASSERT_EQ(i-1, a[i]);
+    }
+}
 
 int main(int argc, char **argv)
 {
