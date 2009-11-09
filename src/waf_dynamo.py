@@ -60,7 +60,8 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "linux" or platform == "darwin":
-        conf.env['CXXFLAGS']=['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS']
+        conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
+        conf.env.append_value('LINKFLAGS', ['-m32'])
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
         conf.env.append_value('LINKFLAGS', '/DEBUG')
