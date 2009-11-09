@@ -18,6 +18,7 @@ def set_options(opt):
     opt.tool_options('compiler_cxx')
 
 def configure(conf):
+    waf_dynamo.configure(conf)
     waf_ddf.configure(conf)
     
     conf.check_tool('compiler_cxx')
@@ -31,12 +32,6 @@ def configure(conf):
         platform = "win32"
     else:
         conf.fatal("Unable to determine platform")
-
-    if platform == "linux" or platform == "darwin":
-        conf.env['CXXFLAGS']=['-g', '-D__STDC_LIMIT_MACROS', '-Wall']
-    else:
-        conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DGL_GLEXT_PROTOTYPES']
-        conf.env.append_value('CPPPATH', "../include/win32")
 
     if platform == "linux":
         conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
