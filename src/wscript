@@ -25,7 +25,6 @@ def build(bld):
 
 
 def configure(conf):
-    waf_dynamo.configure(conf)
 
     if sys.platform == "darwin":
         platform = "darwin"
@@ -44,7 +43,7 @@ def configure(conf):
        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'SDL.lib', 'SDLmain.lib', 'opengl32.lib'])
 
     conf.env.append_value('CPPPATH', ".")
-    conf.env.append_value('CXXDEFINES', "DDF_EXPOSE_DESCRIPTORS")
+
     
 
 
