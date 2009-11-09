@@ -144,8 +144,8 @@ def proto_file(self, node):
             self.env['JAVA_OUT'] = '%s/generated' % outdir
             if not os.path.exists(self.env['JAVA_OUT']):
                 os.makedirs(self.env['JAVA_OUT'])
-            java_out = self.path.exclusive_build_node('generated/%s/%s.java' % (package_dir, self.proto_java_classname))
 
+            java_out = node.parent.exclusive_build_node('generated/%s/%s.java' % (package_dir, self.proto_java_classname))
             task.set_outputs(java_out)
 
             compile_java_file(self, java_out, '%s/generated' % outdir)
