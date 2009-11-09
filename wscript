@@ -19,6 +19,8 @@ def configure(conf):
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
+    waf_dynamo.configure(conf)
+
     if sys.platform == "darwin":
         platform = "darwin"
     elif sys.platform == "linux2":
@@ -28,11 +30,7 @@ def configure(conf):
     else:
         conf.fatal("Unable to determine platform")
 
-    if platform == "linux" or platform == "darwin":
-        conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-Wall', '-m32'])
-        conf.env.append_value('LINKFLAGS', ['-m32'])
-    else:
-        conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
+    if platform == "win32":
         conf.env.append_value('CPPPATH', "../include/win32")
 
     dynamo_home = os.getenv('DYNAMO_HOME')
