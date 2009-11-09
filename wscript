@@ -51,10 +51,7 @@ def configure(conf):
     else:
         conf.fatal("Unable to determine platform")
 
-    if platform == "linux" or platform == "darwin":
-        conf.env['CXXFLAGS']=['-g', '-D', '__STDC_LIMIT_MACROS']
-    else:
-        conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS']
+    if platform == 'win32':
         conf.env.append_value('CPPPATH', "../src/win32")
 
     conf.env['STATICLIB_DLIB'] = 'dlib'

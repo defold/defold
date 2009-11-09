@@ -23,7 +23,10 @@
  *   - FŠlt som fattar
  */
 
+#ifndef DDF_EXPOSE_DESCRIPTORS
 #define DDF_EXPOSE_DESCRIPTORS
+#endif
+
 #include "test/test_ddf_proto.h"
 #include "test/test_ddf_proto.pb.h"
 
