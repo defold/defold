@@ -37,7 +37,7 @@ def bproto_file(self, node):
             java_class_file = 'generated/%s/%s.java' % (self.java_package.replace('.', '/'), self.proto_java_classname)
             # find_or_declare(.) is not sufficient here as the
             # package directory in build path may not be present in source dir
-            java_node = self.path.exclusive_build_node(java_class_file)
+            java_node = node.parent.exclusive_build_node(java_class_file)
 
             outdir = os.path.dirname(out.abspath(self.env))
             # Set variables for javac
