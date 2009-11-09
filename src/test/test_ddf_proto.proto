@@ -1,6 +1,8 @@
 package TestDDF;
 
 option java_package = "com.dynamo.ddf.proto";
+// NOTE: This is not a comment, ie has effect. We should probably add an user defined options for this
+// option ddf_java_package = "com.dynamo.ddf.test";
 option java_outer_classname = "TestDDF";
 
 message Simple 

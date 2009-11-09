@@ -1,4 +1,4 @@
-import os
+import os, re
 import Task, TaskGen
 from TaskGen import extension
 import Utils
@@ -26,22 +26,22 @@ def bproto_file(self, node):
 
         obj_ext = '.cpp'
 
-        if self.java_package:
+        if hasattr(node, 'java_package'):
             protoc = self.create_task('bproto_java')
             protoc.set_inputs(node)
             out = node.change_ext(obj_ext)
             
-            self.env['JAVA_PACKAGE'] = self.java_package
-            self.env['JAVA_CLASSNAME'] = self.proto_java_classname
+            protoc.env['JAVA_PACKAGE'] = node.java_package
+            protoc.env['JAVA_CLASSNAME'] = node.proto_java_classname
 
-            java_class_file = 'generated/%s/%s.java' % (self.java_package.replace('.', '/'), self.proto_java_classname)
+            java_class_file = 'generated/%s/%s.java' % (node.java_package.replace('.', '/'), node.proto_java_classname)
             # find_or_declare(.) is not sufficient here as the
             # package directory in build path may not be present in source dir
             java_node = node.parent.exclusive_build_node(java_class_file)
 
             outdir = os.path.dirname(out.abspath(self.env))
             # Set variables for javac
-            self.env['OUTDIR'] = '%s/generated' % outdir
+            protoc.env['OUTDIR'] = '%s/generated' % outdir
 
             if self.env['CLASSPATH'] == []:
                 self.env['CLASSPATH'] = ''
@@ -59,9 +59,9 @@ def bproto_file(self, node):
         # An explicit node is create below
 
         if hasattr(self, "ddf_namespace"):
-            self.env['ddf_options'] = '--ns %s' % self.ddf_namespace
+            protoc.env['ddf_options'] = '--ns %s' % self.ddf_namespace
 
-        if self.java_package:
+        if hasattr(node, 'java_package'):
             java_node_out = java_node.change_ext('.class')
             javac = self.create_task('javac')
             javac.set_inputs(java_node)
@@ -93,6 +93,7 @@ Task.simple_task_type('proto_gen_java', 'protoc --java_out=${JAVA_OUT} -I ${SRC[
 
 def compile_java_file(self, java_node, outdir):
     # Set variables for javac
+    # TODO: self.env problem here (global)?
     self.env['OUTDIR'] = outdir
     java_node_out = java_node.change_ext('.class')
     javac = self.create_task('javac')
@@ -107,7 +108,7 @@ def proto_file(self, node):
 
         if self.install_path:
             self.bld.install_files('${PREFIX}/share/proto', out.abspath(self.env), self.env)
-        import Utils
+
         if self.install_path:
             self.bld.install_files('${PREFIX}/include/' + Utils.g_module.APPNAME,
                                    out.abspath(self.env).replace(".bproto", ".h"), self.env)
@@ -122,31 +123,53 @@ def proto_file(self, node):
         if hasattr(self, "proto_gen_cc") and self.proto_gen_cc:
             task = self.create_task('proto_gen_cc')
             task.set_inputs(node)
-            out = node.change_ext('.pb.cc')
-            task.set_outputs(out)
+            cc_out = node.change_ext('.pb.cc')
+            task.set_outputs(cc_out)
             if hasattr(self, "proto_compile_cc") and self.proto_compile_cc:
-                self.allnodes.append(out)
+                self.allnodes.append(cc_out)
 
         if hasattr(self, "proto_gen_py") and self.proto_gen_py:
             task = self.create_task('proto_gen_py')
             task.set_inputs(node)
-            out = node.change_ext('_pb2.py')
+            py_out = node.change_ext('_pb2.py')
             if self.install_path:
-                self.bld.install_files('${PREFIX}/lib/python', out.abspath(self.env), self.env)
-            task.set_outputs(out)
+                self.bld.install_files('${PREFIX}/lib/python', py_out.abspath(self.env), self.env)
+            task.set_outputs(py_out)
 
-        if hasattr(self, "proto_java_classname") and self.proto_java_classname:
+        if hasattr(self, "proto_gen_java") and self.proto_gen_java:
             task = self.create_task('proto_gen_java')
             task.set_inputs(node)
-            package_dir = self.proto_java_package.replace('.', '/')
+
+            proto_text = open(node.abspath(), 'rb').read()
+            package_name = re.findall('\W*option\W+java_package\W*=\W*"(.*)"', proto_text)
+            ddf_package_name = re.findall('\W*option\W+ddf_java_package\W*=\W*"(.*)"', proto_text)
+            java_outer_classname = re.findall('\W*option\W+java_outer_classname\W*=\W*"(.*)"', proto_text)
+
+            if not package_name:
+                raise Utils.WafError("No 'package_name' found in: %s" % node.abspath())
+
+            if not ddf_package_name:
+                raise Utils.WafError("No 'ddf_package_name' found in: %s" % node.abspath())
+
+            if not java_outer_classname:
+                raise Utils.WafError("No 'java_outer_classname' found in: %s" % node.abspath())
+
+            package_name = package_name[0]
+            ddf_package_name = ddf_package_name[0]
+            java_outer_classname = java_outer_classname[0]
+
+            package_dir = package_name.replace('.', '/')
+            out.java_package = ddf_package_name
+            out.proto_java_classname = java_outer_classname
 
             outdir = os.path.dirname(out.abspath(self.env))
-            self.env['JAVA_OUT'] = '%s/generated' % outdir
-            if not os.path.exists(self.env['JAVA_OUT']):
-                os.makedirs(self.env['JAVA_OUT'])
+            java_out_dir = '%s/generated' % outdir
+            task.env['JAVA_OUT'] = '%s/generated' % outdir
+            if not os.path.exists(java_out_dir):
+                os.makedirs(java_out_dir)
 
-            java_out = node.parent.exclusive_build_node('generated/%s/%s.java' % (package_dir, self.proto_java_classname))
+            java_out = node.parent.exclusive_build_node('generated/%s/%s.java' % (package_dir, out.proto_java_classname))
             task.set_outputs(java_out)
 
-            compile_java_file(self, java_out, '%s/generated' % outdir)
+            compile_java_file(self, java_out, java_out_dir)
 
