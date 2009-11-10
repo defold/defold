@@ -31,7 +31,7 @@ public class MessageBuilder
         case ENUM:
             // TODO: CALL getNumber()?
             throw new RuntimeException("TODO");
-                        
+
         case BYTE_STRING:
             return ByteString.copyFrom((byte[]) object);
 
@@ -77,8 +77,10 @@ public class MessageBuilder
         }
     }
 
-    public final static Message build(Object object, Descriptor message_descriptor)
+    public final static Message build(Object object)
     {
+        Descriptor message_descriptor = DDFUtil.getDescriptor(object.getClass());
+
         try
         {
             return buildMessage(object, message_descriptor);

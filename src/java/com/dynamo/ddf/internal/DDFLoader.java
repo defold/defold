@@ -74,9 +74,11 @@ public class DDFLoader
         return list;
     }
 
-    public static <T> T loadTextFormat(Readable input, Descriptor desciptor, Class<T> ddf_class) throws IOException
+    public static <T> T loadTextFormat(Readable input, Class<T> ddf_class) throws IOException
     {
-        DynamicMessage.Builder b = DynamicMessage.newBuilder(desciptor);
+        Descriptor descriptor = DDFUtil.getDescriptor(ddf_class);
+
+        DynamicMessage.Builder b = DynamicMessage.newBuilder(descriptor);
         TextFormat.merge(input, b);
 
         try
@@ -92,9 +94,11 @@ public class DDFLoader
         }
     }
 
-    public static <T> T load(InputStream input, Descriptor desciptor, Class<T> ddf_class) throws IOException
+    public static <T> T load(InputStream input, Class<T> ddf_class) throws IOException
     {
-        DynamicMessage.Builder b = DynamicMessage.newBuilder(desciptor);
+        Descriptor descriptor = DDFUtil.getDescriptor(ddf_class);
+
+        DynamicMessage.Builder b = DynamicMessage.newBuilder(descriptor);
         b.mergeFrom(input);
 
         try

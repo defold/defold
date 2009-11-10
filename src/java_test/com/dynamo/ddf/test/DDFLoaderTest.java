@@ -34,14 +34,14 @@ public class DDFLoaderTest
     private static void genericCompare(Message msg, Object obj, Descriptor descriptor) throws Throwable
     {
         // Test text format
-        String msg_string = DDF.printToString(obj, descriptor);
+        String msg_string = DDF.printToString(obj);
         DynamicMessage.Builder b = DynamicMessage.newBuilder(descriptor);
         TextFormat.merge(msg_string, b);
         assertEquals(msg, b.build());
 
         // Test wire format, ddf -> proto
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        DDF.save(obj, descriptor, os);
+        DDF.save(obj, os);
         b = DynamicMessage.newBuilder(descriptor);
         b.mergeFrom(os.toByteArray());
         assertEquals(msg, b.build());
@@ -49,8 +49,8 @@ public class DDFLoaderTest
         // Test wire format, proto -> ddf
         os = new ByteArrayOutputStream();
         msg.writeTo(os);
-        Object obj2 = DDF.load(new ByteArrayInputStream(os.toByteArray()), descriptor, obj.getClass());
-        String msg_string2 = DDF.printToString(obj2, descriptor);
+        Object obj2 = DDF.load(new ByteArrayInputStream(os.toByteArray()), obj.getClass());
+        String msg_string2 = DDF.printToString(obj2);
         DynamicMessage.Builder b2 = DynamicMessage.newBuilder(descriptor);
         TextFormat.merge(msg_string2, b2);
         assertEquals(msg, b2.build());
@@ -66,7 +66,7 @@ public class DDFLoaderTest
         w.write(TextFormat.printToString(m));
         w.close();
 
-        return DDF.loadTextFormat(new FileReader(f), descriptor, klass);
+        return DDF.loadTextFormat(new FileReader(f), klass);
     }
 
     @Test

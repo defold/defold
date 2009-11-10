@@ -274,7 +274,7 @@ def ToJavaEnum(pp, message_type):
     pp.Print("")
     #pp.End()
 
-def ToJavaClass(pp, message_type, proto_package, java_package):
+def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_package):
     # Calculate maximum lenght of "type"
     max_len = 0
     for f in message_type.field:
@@ -298,13 +298,14 @@ def ToJavaClass(pp, message_type, proto_package, java_package):
     def p(t, n):
         pp.Print("public %s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
 
+    pp.Print('@ProtoClassName(name = "%s")' % qualified_proto_package)
     pp.Begin("public static final class %s", message_type.name)
 
     for et in message_type.enum_type:
         ToJavaEnum(pp, et)
 
     for nt in message_type.nested_type:
-        ToJavaClass(pp, nt, proto_package, java_package)
+        ToJavaClass(pp, nt, proto_package, java_package, qualified_proto_package + "$" + nt.name)
 
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
@@ -348,6 +349,7 @@ def CompileJava(input_file, options):
     pp_java.Print("")
     pp_java.Print("import java.util.List;")
     pp_java.Print("import com.dynamo.ddf.annotations.ComponentType;")
+    pp_java.Print("import com.dynamo.ddf.annotations.ProtoClassName;")
 
     pp_java.Print("")
     pp_java.Begin("public final class %s", options.java_classname)
@@ -356,7 +358,9 @@ def CompileJava(input_file, options):
         ToJavaEnum(pp_java, mt)
 
     for mt in file_desc.message_type:
-        ToJavaClass(pp_java, mt, file_desc.package, options.java_package + "." + options.java_classname)
+        ToJavaClass(pp_java, mt, file_desc.package,
+                    options.java_package + "." + options.java_classname,
+                    file_desc.options.java_package + "." + file_desc.options.java_outer_classname + "$" + mt.name)
 
     pp_java.End("")
 
