@@ -3,6 +3,7 @@ package com.dynamo.ddf.test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
@@ -38,12 +39,21 @@ public class DDFLoaderTest
         TextFormat.merge(msg_string, b);
         assertEquals(msg, b.build());
 
-        // Test wire format
+        // Test wire format, ddf -> proto
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         DDF.save(obj, descriptor, os);
         b = DynamicMessage.newBuilder(descriptor);
         b.mergeFrom(os.toByteArray());
         assertEquals(msg, b.build());
+
+        // Test wire format, proto -> ddf
+        os = new ByteArrayOutputStream();
+        msg.writeTo(os);
+        Object obj2 = DDF.load(new ByteArrayInputStream(os.toByteArray()), descriptor, obj.getClass());
+        String msg_string2 = DDF.printToString(obj2, descriptor);
+        DynamicMessage.Builder b2 = DynamicMessage.newBuilder(descriptor);
+        TextFormat.merge(msg_string2, b2);
+        assertEquals(msg, b2.build());
     }
 
     private <T> T saveLoad(Message m, Descriptor descriptor, Class<T> klass)
