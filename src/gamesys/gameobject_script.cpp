@@ -175,8 +175,6 @@ namespace dmGameObject
 
     HScript NewScript(const void* memory)
     {
-        char* update_func = "Update";
-
         if (memory == NULL) return NULL;
 
         // TODO: Budget. Memory allocation. Due to windows line endings...
@@ -235,7 +233,7 @@ namespace dmGameObject
 
         if (ErrorOccured() ) return false;
 
-        PyObject* pValue = PyObject_CallObject(func, args);
+        //PyObject* pValue = PyObject_CallObject(func, args);
         if (ErrorOccured() ) return false;
 
         return true;

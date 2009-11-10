@@ -223,10 +223,10 @@ TEST_F(GameObjectTest, Test01)
     ASSERT_TRUE(ret);
     dmGameObject::Delete(collection, factory, go);
 
-    ASSERT_EQ(0, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(0, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(0, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(0, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 }
 
 TEST_F(GameObjectTest, TestUpdate)
@@ -236,24 +236,24 @@ TEST_F(GameObjectTest, TestUpdate)
     dmGameObject::UpdateContext update_context;
     update_context.m_DT = 1.0f / 60.0f;
     dmGameObject::Update(collection, &update_context);
-    ASSERT_EQ(1, m_ComponentUpdateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestResource::PhysComponent::m_DDFHash]);
 
     dmGameObject::Delete(collection, factory, go);
-    ASSERT_EQ(1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(1, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(1, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(1, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 }
 
 TEST_F(GameObjectTest, TestNonexistingComponent)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto03.go");
     ASSERT_EQ((void*) 0, (void*) go);
-    ASSERT_EQ(0, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(0, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 
-    ASSERT_EQ(0, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(0, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 }
 
 TEST_F(GameObjectTest, TestPartialNonexistingComponent1)
@@ -262,11 +262,11 @@ TEST_F(GameObjectTest, TestPartialNonexistingComponent1)
     ASSERT_EQ((void*) 0, (void*) go);
 
     // First one exists
-    ASSERT_EQ(1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(1, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
     // Even though the first physcomponent exits the prototype creation should fail before creating components
-    ASSERT_EQ(0, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(0, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 }
 
 TEST_F(GameObjectTest, TestPartialFailingComponent)
@@ -276,12 +276,12 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto05.go");
     ASSERT_EQ((void*) 0, (void*) go);
 
-    ASSERT_EQ(1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(1, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 
     // One component should get created
-    ASSERT_EQ(1, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
-    ASSERT_EQ(1, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
 }
 
 TEST_F(GameObjectTest, TestComponentUserdata)
@@ -304,4 +304,5 @@ int main(int argc, char **argv)
     dmGameObject::Initialize();
     int ret = RUN_ALL_TESTS();
     dmGameObject::Finalize();
+    return ret;
 }

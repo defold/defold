@@ -61,4 +61,5 @@ int main(int argc, char **argv)
     dmGameObject::Initialize();
     int ret = RUN_ALL_TESTS();
     dmGameObject::Finalize();
+    return ret;
 }

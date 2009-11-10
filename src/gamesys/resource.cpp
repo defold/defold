@@ -216,7 +216,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         }
         ((char*) buffer)[file_size] = 0; // Null-terminate. See comment above
 
-        if (fread(buffer, 1, file_size, f) != file_size)
+        if (fread(buffer, 1, file_size, f) != (size_t) file_size)
         {
             free(buffer);
             fclose(f);

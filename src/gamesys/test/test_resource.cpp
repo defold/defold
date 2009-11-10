@@ -218,12 +218,12 @@ TEST_F(GetResourceTest, GetTestResource)
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
     ASSERT_NE((void*) 0, test_resource_cont);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
     ASSERT_EQ(test_resource_cont->m_Resources.size(), m_FooResourceCreateCallCount);
-    ASSERT_EQ(0, m_FooResourceDestroyCallCount);
-    ASSERT_EQ(123, test_resource_cont->m_Resources[0]->m_x);
-    ASSERT_EQ(456, test_resource_cont->m_Resources[1]->m_x);
+    ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
+    ASSERT_EQ((uint32_t) 123, test_resource_cont->m_Resources[0]->m_x);
+    ASSERT_EQ((uint32_t) 456, test_resource_cont->m_Resources[1]->m_x);
 
     ASSERT_EQ(dmHashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
     dmResource::Release(m_Factory, test_resource_cont);
@@ -246,16 +246,16 @@ TEST_F(GetResourceTest, GetReference2)
     e = dmResource::Get(m_Factory, m_ResourceName, &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
     ASSERT_NE((void*) 0, resource);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
 
     dmResource::SResourceDescriptor descriptor;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
 
-    ASSERT_EQ(1, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
     dmResource::Release(m_Factory, resource);
 }
 
@@ -267,49 +267,49 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource1);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
     const uint32_t sub_resource_count = resource1->m_Resources.size();
-    ASSERT_EQ(2, sub_resource_count); //NOTE: Hard coded for two resources in test.cont
+    ASSERT_EQ((uint32_t) 2, sub_resource_count); //NOTE: Hard coded for two resources in test.cont
     ASSERT_NE((void*) 0, resource1);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
     ASSERT_EQ(sub_resource_count, m_FooResourceCreateCallCount);
-    ASSERT_EQ(0, m_FooResourceDestroyCallCount);
+    ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
 
     dmResource::SResourceDescriptor descriptor1;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-    ASSERT_EQ(1, descriptor1.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor1.m_ReferenceCount);
 
     TestResourceContainer* resource2 = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource2);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
     ASSERT_NE((void*) 0, resource2);
     ASSERT_EQ(resource1, resource2);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
     ASSERT_EQ(sub_resource_count, m_FooResourceCreateCallCount);
-    ASSERT_EQ(0, m_FooResourceDestroyCallCount);
+    ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
 
     dmResource::SResourceDescriptor descriptor2;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor2);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-    ASSERT_EQ(2, descriptor2.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor2.m_ReferenceCount);
 
     // Release
     dmResource::Release(m_Factory, resource1);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(0, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
     ASSERT_EQ(sub_resource_count, m_FooResourceCreateCallCount);
-    ASSERT_EQ(0, m_FooResourceDestroyCallCount);
+    ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
 
     // Check reference count equal to 1
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-    ASSERT_EQ(1, descriptor1.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor1.m_ReferenceCount);
 
     // Release again
     dmResource::Release(m_Factory, resource2);
-    ASSERT_EQ(1, m_ResourceContainerCreateCallCount);
-    ASSERT_EQ(1, m_ResourceContainerDestroyCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerDestroyCallCount);
     ASSERT_EQ(sub_resource_count, m_FooResourceCreateCallCount);
     ASSERT_EQ(sub_resource_count, m_FooResourceDestroyCallCount);
 

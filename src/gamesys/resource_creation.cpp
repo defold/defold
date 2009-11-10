@@ -64,7 +64,7 @@ namespace dmGameSystem
 
         int w = image->m_Width;
         int h = image->m_Height;
-        for (int i = 0; i < image->m_MipMapOffset.m_Count; ++i)
+        for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
         {
             dmGraphics::SetTextureData(texture, i, w, h, 0, format, &image->m_Data[image->m_MipMapOffset[i]], image->m_MipMapSize[i]);
             w >>= 1;
@@ -146,13 +146,13 @@ namespace dmGameSystem
         if (convex_shape->m_ShapeType != dmPhysics::ConvexShape::BOX)
         {
             dmLogError("Only box shapes are currently supported");
-            dmResource::CREATE_RESULT_FORMAT_ERROR;
+            return dmResource::CREATE_RESULT_FORMAT_ERROR;
         }
 
         if (convex_shape->m_Data.m_Count != 6)
         {
             dmLogError("Invalid box shape");
-            dmResource::CREATE_RESULT_FORMAT_ERROR;
+            return dmResource::CREATE_RESULT_FORMAT_ERROR;
         }
 
         Point3 point_min(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]);
@@ -317,5 +317,7 @@ namespace dmGameSystem
 
         e = dmResource::RegisterType(factory, "font", 0, &FontCreate, &FontDestroy);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
+
+        return dmResource::FACTORY_RESULT_OK;
     }
 }
