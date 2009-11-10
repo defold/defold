@@ -147,7 +147,7 @@ namespace dmDDF
             }
 
             void* buffer = malloc(size);
-            if ( fread(buffer, 1, size, f) != size )
+            if ( fread(buffer, 1, size, f) != (size_t) size )
             {
                 free(buffer);
                 return RESULT_IO_ERROR;
