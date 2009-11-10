@@ -24,12 +24,11 @@ Task.simple_task_type('bproto', 'python ${DDFC} ${ddf_options} ${SRC} -o ${TGT}'
 def bproto_file(self, node):
         Utils.def_attrs(self, java_package=None, classpath='.')
 
-        obj_ext = '.cpp'
-
         if hasattr(node, 'java_package'):
             protoc = self.create_task('bproto_java')
             protoc.set_inputs(node)
-            out = node.change_ext(obj_ext)
+            out = node.change_ext('.cpp')
+            h_out = node.change_ext('.h')
             
             protoc.env['JAVA_PACKAGE'] = node.java_package
             protoc.env['JAVA_CLASSNAME'] = node.proto_java_classname
@@ -47,12 +46,13 @@ def bproto_file(self, node):
                 self.env['CLASSPATH'] = ''
             self.env['CLASSPATH'] = self.env['CLASSPATH'] + os.pathsep + "." + os.pathsep + self.classpath
 
-            protoc.set_outputs([out, java_node])
+            protoc.set_outputs([out, h_out, java_node])
         else:
             protoc = self.create_task('bproto')
             protoc.set_inputs(node)
-            out = node.change_ext(obj_ext)
-            protoc.set_outputs([out])
+            out = node.change_ext('.cpp')
+            h_out = node.change_ext('.h')
+            protoc.set_outputs([out, h_out])
 
         self.allnodes.append(out) 
         # TODO: Appending java_node doesn't work. Missing "extension-featre" in built-in tool?
@@ -124,7 +124,8 @@ def proto_file(self, node):
             task = self.create_task('proto_gen_cc')
             task.set_inputs(node)
             cc_out = node.change_ext('.pb.cc')
-            task.set_outputs(cc_out)
+            h_out = node.change_ext('.pb.h')
+            task.set_outputs([cc_out, h_out])
             if hasattr(self, "proto_compile_cc") and self.proto_compile_cc:
                 self.allnodes.append(cc_out)
 
