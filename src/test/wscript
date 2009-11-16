@@ -23,16 +23,18 @@ def pf_file(self, node):
         self.env['proto_type'] = self.proto_type
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cprogram',
-                     source = 'test_ddf.cpp test_ddf_proto.proto',
-                     uselib = 'GTEST PROTOBUF DLIB',
-                     uselib_local = 'ddf',
-                     ddf_namespace = 'DUMMY',
-                     proto_gen_cc = True,
-                     proto_compile_cc = True,
-                     proto_gen_java = True,
-                     # NOTE: default/... is hardcoded. How to solve?
-                     classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar' + os.pathsep + 'default/src/java',
-                     includes = '..',
-                     target = 'test_ddf')
+    test_ddf = bld.new_task_gen(features = 'cxx cprogram ddf',
+                                source = 'test_ddf.cpp test_ddf_proto.proto',
+                                uselib = 'GTEST PROTOBUF DLIB',
+                                uselib_local = 'ddf',
+                                ddf_namespace = 'DUMMY',
+                                proto_gen_cc = True,
+                                proto_compile_cc = True,
+                                proto_gen_java = True,
+                                ddf_jar = 'test_ddf.jar',
+                                # NOTE: default/... is hardcoded. How to solve?
+                                classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar' + os.pathsep + 'default/src/java',
+                                includes = '..',
+                                target = 'test_ddf')
+    test_ddf.install_path = None
 

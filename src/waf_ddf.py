@@ -1,7 +1,36 @@
 import os, re
 import Task, TaskGen
-from TaskGen import extension
+from TaskGen import extension, feature, after, before
 import Utils
+
+Task.simple_task_type('ddf_jar', '${JAR} ${JARCREATE} ${TGT} ${OPTIONS}',
+                      color='PINK',
+                      after='javac',
+                      shell=True)
+
+@feature('ddf')
+@before('apply_core')
+def apply_ddf(self):
+    self.ddf_javaclass_dirs = set()
+    self.ddf_javaclass_inputs = []
+
+@feature('ddf')
+@after('apply_core')
+def apply_ddf_jar(self):
+    if not hasattr(self, 'ddf_jar'):
+        return
+
+    options = [ '-C %s .' % x for x in self.ddf_javaclass_dirs ]
+    options = " ".join(options)
+
+    tsk = self.create_task('ddf_jar')
+    tsk.set_inputs(self.ddf_javaclass_inputs)
+    out = self.path.find_or_declare(self.ddf_jar)
+    tsk.set_outputs(out)
+    tsk.env.OPTIONS = options
+
+    if self.install_path:
+        self.bld.install_files('${PREFIX}/share/java', out.abspath(self.env), self.env)
 
 def configure(conf):
     conf.find_file('ddfc.py', var='DDFC', mandatory = True)
@@ -38,6 +67,9 @@ def bproto_file(self, node):
             # package directory in build path may not be present in source dir
             java_node = node.parent.exclusive_build_node(java_class_file)
 
+            self.ddf_javaclass_dirs.add(node.parent.find_dir('generated').abspath(self.env))
+            self.ddf_javaclass_inputs.append(java_node.change_ext('.class'))
+
             outdir = os.path.dirname(out.abspath(self.env))
             # Set variables for javac
             protoc.env['OUTDIR'] = '%s/generated' % outdir
@@ -67,6 +99,7 @@ def bproto_file(self, node):
             javac.set_inputs(java_node)
             javac.set_outputs(java_node_out)
 
+
 Task.simple_task_type('proto_b', 'protoc -o${TGT} -I ${SRC[0].src_dir(env)} ${SRC}',
                       color='PINK',
                       before='cc cxx',
@@ -89,7 +122,6 @@ Task.simple_task_type('proto_gen_java', 'protoc --java_out=${JAVA_OUT} -I ${SRC[
                       before='cc cxx',
                       after='proto_b',
                       shell=True)
-
 
 def compile_java_file(self, java_node, outdir):
     # Set variables for javac
@@ -171,6 +203,9 @@ def proto_file(self, node):
 
             java_out = node.parent.exclusive_build_node('generated/%s/%s.java' % (package_dir, out.proto_java_classname))
             task.set_outputs(java_out)
+
+            self.ddf_javaclass_dirs.add(node.parent.find_dir('generated').abspath(self.env))
+            self.ddf_javaclass_inputs.append(java_out.change_ext('.class'))
 
             compile_java_file(self, java_out, java_out_dir)
 
