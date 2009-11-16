@@ -3,10 +3,10 @@ import Task, TaskGen
 from TaskGen import extension, feature, after, before
 import Utils
 
-Task.simple_task_type('ddf_jar', '${JAR} ${JARCREATE} ${TGT} ${OPTIONS}',
+Task.simple_task_type('ddf_jar', '${JAR} ${JARCREATE} ${TGT} ${DDF_JAR_OPTIONS}',
                       color='PINK',
                       after='javac',
-                      shell=True)
+                      shell=False)
 
 @feature('ddf')
 @before('apply_core')
@@ -20,14 +20,17 @@ def apply_ddf_jar(self):
     if not hasattr(self, 'ddf_jar'):
         return
 
-    options = [ '-C %s .' % x for x in self.ddf_javaclass_dirs ]
-    options = " ".join(options)
+    options = []
+    for d in self.ddf_javaclass_dirs:
+        options.append('-C')
+        options.append(d)
+        options.append('.')
 
     tsk = self.create_task('ddf_jar')
     tsk.set_inputs(self.ddf_javaclass_inputs)
     out = self.path.find_or_declare(self.ddf_jar)
     tsk.set_outputs(out)
-    tsk.env.OPTIONS = options
+    tsk.env.DDF_JAR_OPTIONS = options
 
     if self.install_path:
         self.bld.install_files('${PREFIX}/share/java', out.abspath(self.env), self.env)
