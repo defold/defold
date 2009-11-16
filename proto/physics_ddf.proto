@@ -1,5 +1,9 @@
 package dmPhysics;
 
+option java_package = "com.dynamo.physics.proto";
+option java_outer_classname = "Physics";
+// option ddf_java_package = "com.dynamo.physics.ddf";
+
 message ConvexShape
 {
     enum Type

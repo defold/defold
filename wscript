@@ -19,6 +19,8 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('compiler_cxx')
+    conf.check_tool('java')
+
     conf.check_tool('python')
     conf.check_python_version((2,5))
     conf.check_python_headers()

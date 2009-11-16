@@ -1,13 +1,18 @@
 #! /usr/bin/env python
+import os
 
 def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib pyembed',
+    resource = bld.new_task_gen(features = 'cxx cstaticlib pyembed ddf',
                                 includes = '.',
                                 proto_gen_py = True,
+                                proto_gen_java = True,
+                                # NOTE: default/... is hardcoded. How to solve?
+                                classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                 target = 'gamesys',
+                                ddf_jar = 'gamesys.jar',
                                 install_path='${PREFIX}/lib')
 
     resource.find_sources_in_dirs(['.', '../../proto'])

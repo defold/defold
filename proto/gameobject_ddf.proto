@@ -1,5 +1,9 @@
 package dmGameObject;
 
+option java_package = "com.dynamo.gamesys.proto";
+option java_outer_classname = "GameObject";
+// option ddf_java_package = "com.dynamo.gamesys.ddf";
+
 message GameObjectPrototypeDesc
 {
     required string Name = 1;
