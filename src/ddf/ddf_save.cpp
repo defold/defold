@@ -58,7 +58,7 @@ namespace dmDDF
                 data_start = (const uint8_t *) repeated->m_Array;
             }
 
-            for (int j = 0; j < count; ++j)
+            for (uint32_t j = 0; j < count; ++j)
             {
                 const uint8_t* data = data_start + j * element_size;
 
