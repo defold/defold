@@ -10,3 +10,23 @@ message GameObjectPrototypeDesc
     required string Script = 2;
     repeated string Components = 3;
 }
+
+message Vector4
+{
+	required float X = 1;
+	required float Y = 2;
+	required float Z = 3;
+	required float W = 4;
+}
+
+message GameObjectInstanceDesc
+{
+    required string  Prototype = 1;
+    required Vector4 Position  = 2;
+    required Vector4 Rotation  = 3;
+}
+
+message LevelDesc
+{
+	repeated GameObjectInstanceDesc Instances = 1;
+}
