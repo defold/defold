@@ -116,7 +116,7 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
-            const char* component_name = proto_desc->m_Components[i];
+            const char* component_name = proto_desc->m_Components[i].m_Name;
             void* component;
             dmResource::FactoryResult fact_e = dmResource::Get(factory, component_name, (void**) &component);
 

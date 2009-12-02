@@ -1,5 +1,15 @@
 Name: "MyObject01"
 Script: "script01.scriptc"
-Components: "pycomp01.pc"
-Components: "pycompDOESNOTEXISTS.pc"
+Components
+{
+	Name: "pycomp01.pc"
+	Position: { X: 0 Y: 0 Z: 0 W: 0 } 
+	Rotation: { X: 0 Y: 0 Z: 0 W: 1 } 
+}
+Components
+{
+	Name: "pycompDOESNOTEXISTS.pc"
+	Position: { X: 0 Y: 0 Z: 0 W: 0 } 
+	Rotation: { X: 0 Y: 0 Z: 0 W: 1 } 
+}
 
