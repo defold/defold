@@ -7,12 +7,12 @@ def set_options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib pyembed',
                            includes = ['.'],
                            proto_gen_py = True,
                            target = 'render',
                            install_path='${PREFIX}/lib')
-    obj.find_sources_in_dirs('. ../proto')
+    obj.find_sources_in_dirs('. ../proto model')
     obj.source.append('../proto/render_ddf.proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
@@ -24,6 +24,9 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
     bld.install_files('${PREFIX}/include/render_debug', 'debug/debugrenderer.h')
+    bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
+    bld.install_files('${PREFIX}/include/render', 'rendercontext.h')
+    bld.install_files('${PREFIX}/include/render', 'material.h')
 
     bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')
