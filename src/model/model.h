@@ -62,10 +62,9 @@ namespace Model
 
     /**
      * Destroy a model
-     * @param world model world
      * @param model model to destroy
      */
-    void DeleteModel(HWorld world, HModel model);
+    void DeleteModel(HModel model);
 
     /**
      * Set model mesh
@@ -87,6 +86,27 @@ namespace Model
      * @param material material
      */
     void SetMaterial(HModel model, SMaterial* material);
+
+    /**
+     * Get mesh from model
+     * @param model Model
+     * @return Mesh associated with model
+     */
+    Render::Mesh* GetMesh(HModel model);
+
+    /**
+     * Get texture0 from model
+     * @param model Model
+     * @return Texture0 associated with model
+     */
+    dmGraphics::HTexture GetTexture0(HModel model);
+
+    /**
+     * Get material from model
+     * @param model Model
+     * @return Material associated with model
+     */
+    SMaterial* GetMaterial(HModel model);
 
     /**
      * Add model to world

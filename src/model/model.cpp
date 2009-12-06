@@ -1,18 +1,26 @@
 #include <vector>
+#include <dlib/log.h>
 #include <graphics/graphics_device.h>
-
 #include "model.h"
 
 namespace Model
 {
     struct SModel
     {
+        SModel()
+        {
+            memset(this, 0x0, sizeof(*this));
+            m_Deleted = false;
+        }
+
         Render::Mesh*           m_Mesh;
         SMaterial*              m_Material;
         dmGraphics::HTexture    m_Texture0;
 
         void*                   m_GameObject;
         void*                   m_Collection;
+
+        bool                    m_Deleted;
     };
 
     class ModelWorld
@@ -51,10 +59,10 @@ namespace Model
         return (HModel)model;
     }
 
-    void DeleteModel(HWorld world, HModel model)
+    void DeleteModel(HModel model)
     {
-        // TODO:: delete model properly!
-
+        // TODO: iterate list deferred?
+        model->m_Deleted = true;
     }
 
     void SetMesh(HModel model, Render::Mesh* mesh)
@@ -70,6 +78,21 @@ namespace Model
     void SetMaterial(HModel model, SMaterial* material)
     {
         model->m_Material = material;
+    }
+
+    Render::Mesh* GetMesh(HModel model)
+    {
+        return model->m_Mesh;
+    }
+
+    dmGraphics::HTexture GetTexture0(HModel model)
+    {
+        return model->m_Texture0;
+    }
+
+    SMaterial* GetMaterial(HModel model)
+    {
+        return model->m_Material;
     }
 
     void AddModel(HWorld world, HModel model)
@@ -154,6 +177,9 @@ namespace Model
         {
             SModel* model = (SModel*)world->m_ModelList[i];
 
+            if (model->m_Deleted)
+                continue;
+
             Quat rot;
             Point3 pos;
 
@@ -166,6 +192,17 @@ namespace Model
 
     void DeleteWorld(HWorld world)
     {
+        for (size_t i=0; i<world->m_ModelList.size(); i++)
+        {
+            SModel* model = (SModel*)world->m_ModelList[i];
+
+            if (model->m_Deleted == false)
+                dmLogInternal(DM_LOG_SEVERITY_WARNING, "Model not marked for delete\n");
+
+            delete model;
+
+        }
+
         delete world;
     }
 }
