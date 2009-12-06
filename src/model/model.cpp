@@ -1,3 +1,4 @@
+#include <string.h>
 #include <vector>
 #include <dlib/log.h>
 #include <graphics/graphics_device.h>
