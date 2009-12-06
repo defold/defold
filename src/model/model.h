@@ -3,7 +3,7 @@
 
 #include <vectormath/cpp/vectormath_aos.h>
 #include <ddf/ddf.h>
-#include "default/proto/mesh_ddf.h"
+#include "render/mesh_ddf.h"
 #include "../rendercontext.h"
 #include "../material.h"
 

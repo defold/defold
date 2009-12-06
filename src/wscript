@@ -8,12 +8,12 @@ def set_options(opt):
 
 def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['.'],
+                           includes = ['.', '../build/default/proto'],
                            proto_gen_py = True,
                            target = 'render',
                            install_path='${PREFIX}/lib')
-    obj.find_sources_in_dirs('. ../proto model')
-    obj.source.append('../proto/render_ddf.proto')
+    obj.find_sources_in_dirs('. ../proto/render model')
+    #obj.source.append('../proto/render_ddf.proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = '.',
@@ -31,7 +31,10 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')
 
-    bld.install_files('${PREFIX}/share/proto', '../proto/render_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/render/material_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/render/mesh_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/render/model_ddf.proto')
 
 # need to sort out shader include dirs before we can reenable this one
 #    test_app = bld.new_task_gen(
@@ -44,27 +47,7 @@ def build(bld):
 
 
 def configure(conf):
-    waf_dynamo.configure(conf)
-
-    if sys.platform == "darwin":
-        platform = "darwin"
-    elif sys.platform == "linux2":
-        platform = "linux"
-    elif sys.platform == "win32":
-        platform = "win32"
-    else:
-        conf.fatal("Unable to determine platform")
-
-    if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-lSDLmain', '-lSDL'])
-    if platform == "linux":
-        conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lSDL'])
-    if platform == "win32":
-       conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'SDL.lib', 'SDLmain.lib', 'opengl32.lib'])
-
-    conf.env.append_value('CPPPATH', ".")
-    conf.env.append_value('CXXDEFINES', "DDF_EXPOSE_DESCRIPTORS")
-    
+    pass
 
 
 

@@ -4,7 +4,7 @@
 
 #include "graphics/graphics_device.h"
 #include "fontrenderer.h"
-#include "default/proto/render_ddf.h"
+#include "render/render_ddf.h"
 
 using namespace Vectormath::Aos;
 
