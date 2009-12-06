@@ -3,7 +3,7 @@
 #include <graphics/graphics_device.h>
 #include "model.h"
 
-namespace Model
+namespace dmModel
 {
     struct SModel
     {

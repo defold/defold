@@ -8,7 +8,7 @@
 #include "../material.h"
 
 
-namespace Model
+namespace dmModel
 {
     using namespace Vectormath::Aos;
 
