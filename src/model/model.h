@@ -2,11 +2,7 @@
 #define __MODEL_H__
 
 #include <vectormath/cpp/vectormath_aos.h>
-
-#include "Python.h"
-
 #include <ddf/ddf.h>
-#include <gamesys/gameobject.h>
 #include "default/proto/mesh_ddf.h"
 #include "../rendercontext.h"
 #include "../material.h"
@@ -14,19 +10,25 @@
 
 namespace Model
 {
+    using namespace Vectormath::Aos;
+
+
     typedef struct SModel* HModel;
     typedef class ModelWorld* HWorld;
+    typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
+
 
     /**
      * Create a new model world
      * @param max_models number of models in world
-     * @return
+     * @param set_object_model callback fn to update model orientation from gameobject
+     * @return new model world handle
      */
-    HWorld NewWorld(uint32_t max_models);
+    HWorld NewWorld(uint32_t max_models, SetObjectModel set_object_model);
 
     /**
      * Destroy model world
-     * @param
+     * @param handle to world to destroy
      */
     void DeleteWorld(HWorld);
 
@@ -45,7 +47,7 @@ namespace Model
 
     /**
      * Create a new model
-     * @return newly created model
+     * @return new model handle
      */
     HModel NewModel();
 
@@ -56,7 +58,7 @@ namespace Model
      * @param collection game object collection
      * @return newly created model
      */
-    HModel NewModel(HModel prototype, dmGameObject::HInstance gameobject, dmGameObject::HCollection collection);
+    HModel NewModel(HModel prototype, void* gameobject, void* collection);
 
     /**
      * Destroy a model

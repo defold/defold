@@ -7,7 +7,7 @@ def set_options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib pyembed',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['.'],
                            proto_gen_py = True,
                            target = 'render',

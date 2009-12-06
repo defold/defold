@@ -1,10 +1,7 @@
-#define _VECTORMATH_DEBUG
 #include <vector>
 #include <graphics/graphics_device.h>
 
 #include "model.h"
-
-using namespace Vectormath::Aos;
 
 namespace Model
 {
@@ -14,8 +11,8 @@ namespace Model
         SMaterial*              m_Material;
         dmGraphics::HTexture    m_Texture0;
 
-        dmGameObject::HInstance   m_GameObject;
-        dmGameObject::HCollection m_Collection;
+        void*                   m_GameObject;
+        void*                   m_Collection;
     };
 
     class ModelWorld
@@ -33,6 +30,7 @@ namespace Model
 
         std::vector<SModel*>    m_ModelList;
         RenderContext           m_RenderContext;
+        SetObjectModel          m_SetGameobjectModel;
 
     };
 
@@ -42,7 +40,7 @@ namespace Model
         return (HModel)model;
     }
 
-    HModel NewModel(HModel prototype, dmGameObject::HInstance gameobject, dmGameObject::HCollection collection)
+    HModel NewModel(HModel prototype, void* gameobject, void* collection)
     {
         SModel* model = NewModel();
 
@@ -136,10 +134,11 @@ namespace Model
     }
 
 
-    HWorld NewWorld(uint32_t max_models)
+    HWorld NewWorld(uint32_t max_models, SetObjectModel set_object_model)
     {
         ModelWorld* world = new ModelWorld;
         world->m_ModelList.reserve(max_models);
+        world->m_SetGameobjectModel = set_object_model;
 
         return (HWorld)world;
     }
@@ -151,13 +150,14 @@ namespace Model
 
     void RenderWorld(HWorld world)
     {
-        for (int i=0; i<world->m_ModelList.size(); i++)
+        for (size_t i=0; i<world->m_ModelList.size(); i++)
         {
             SModel* model = (SModel*)world->m_ModelList[i];
-            dmGameObject::HInstance go = (dmGameObject::HInstance) model->m_GameObject;
-            dmGameObject::HCollection collection = (dmGameObject::HCollection) model->m_Collection;
-            Point3 pos = dmGameObject::GetPosition(collection, go);
-            Quat rot = dmGameObject::GetRotation(collection, go);
+
+            Quat rot;
+            Point3 pos;
+
+            world->m_SetGameobjectModel(model->m_Collection, model->m_GameObject, &rot, &pos);
 
             RenderModel(model, &world->m_RenderContext, rot, pos);
         }
