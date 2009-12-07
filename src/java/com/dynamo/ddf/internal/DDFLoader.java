@@ -8,6 +8,7 @@ import java.util.List;
 
 import com.dynamo.ddf.annotations.ComponentType;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -39,6 +40,10 @@ public class DDFLoader
             else if (field_value instanceof ByteString)
             {
                 value = ((ByteString) field_value).toByteArray();
+            }
+            else if (field_value instanceof Descriptors.EnumValueDescriptor)
+            {
+                value = ((Descriptors.EnumValueDescriptor) field_value).getNumber();
             }
             else
             {

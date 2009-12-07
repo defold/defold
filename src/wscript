@@ -9,7 +9,8 @@ def build(bld):
                      classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar',
                      source_root='java',
                      destfile='ddf.jar')
-
+    bld.env["JAVACFLAGS"] = '-g'
+    
     bld.new_task_gen(features='jar seq',
                      basedir='java',
                      destfile='ddf.jar')
