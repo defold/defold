@@ -19,7 +19,7 @@ create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource
 create_simple_protoc_task('physcomp', '.pc_pb', '.pc', 'TestResource.PhysComponent', before='cc cxx')
 create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
 
-Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.GameObjectPrototypeDesc -I ../proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ../proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK', 
                       before='cc cxx',
                       shell=True)

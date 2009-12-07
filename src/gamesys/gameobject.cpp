@@ -103,9 +103,9 @@ namespace dmGameObject
                                              const void* buffer, uint32_t buffer_size,
                                              dmResource::SResourceDescriptor* resource)
     {
-        GameObjectPrototypeDesc* proto_desc;
+        PrototypeDesc* proto_desc;
 
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObject_GameObjectPrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObject_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
