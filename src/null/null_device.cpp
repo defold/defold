@@ -67,13 +67,13 @@ namespace dmGraphics
     HVertexProgram CreateVertexProgram(const void* program, uint32_t program_size)
     {
         assert(program);
-        return 0x0;
+        return 1;
     }
 
     HFragmentProgram CreateFragmentProgram(const void* program, uint32_t program_size)
     {
         assert(program);
-        return 0x0;
+        return 2;
     }
 
     void DestroyVertexProgram(HVertexProgram program)
