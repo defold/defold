@@ -229,6 +229,18 @@ public:
     }
 
     /**
+     * Get pointer to first entry in table
+     * @return Pointer to first entry. NULL if the table is empty.
+     */
+    Entry* GetFirstEntry()
+    {
+        if(Empty())
+            return 0;
+        return m_InitialEntries;
+
+    }
+
+    /**
      * Remove key/value pair. NOTE: Only valid if key exists in table.
      * @param key Key to remove
      */
