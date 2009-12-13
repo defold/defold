@@ -6,7 +6,7 @@
 
 struct SMaterial
 {
-    static const int MAX_CONSTANTS = 8;
+    static const uint32_t MAX_CONSTANTS = 8;
 
     dmGraphics::HFragmentProgram m_FragmentProgram;
     dmGraphics::HVertexProgram   m_VertexProgram;
