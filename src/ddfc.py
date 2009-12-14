@@ -295,8 +295,11 @@ def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_p
         else:
             max_len = max(len(type_to_javatype[f.type]), max_len)
 
-    def p(t, n):
-        pp.Print("public %s%sm_%s;", t, (max_len-len(t) + 1) * " ",n)
+    def p(t, n, assign = None):
+        if assign:
+            pp.Print("public %s%sm_%s = %s;", t, (max_len-len(t) + 1) * " ", n, assign)
+        else:
+            pp.Print("public %s%sm_%s;", t, (max_len-len(t) + 1) * " ", n)
 
     pp.Print('@ProtoClassName(name = "%s")' % qualified_proto_package)
     pp.Begin("public static final class %s", message_type.name)
@@ -317,7 +320,7 @@ def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_p
                 type_name = type_to_boxedjavatype[f.type]
 
             pp.Print('@ComponentType(type = %s.class)' % type_name)
-            p('List<%s>' % (type_name), f.name)
+            p('List<%s>' % (type_name), f.name, 'new ArrayList<%s>()' % type_name)
         elif f.type == FieldDescriptor.TYPE_BYTES:
             p('byte[]', f.name)
         elif f.type == FieldDescriptor.TYPE_ENUM:
@@ -348,6 +351,7 @@ def CompileJava(input_file, options):
         pp_java.Print("package %s;",  options.java_package)
     pp_java.Print("")
     pp_java.Print("import java.util.List;")
+    pp_java.Print("import java.util.ArrayList;")
     pp_java.Print("import com.dynamo.ddf.annotations.ComponentType;")
     pp_java.Print("import com.dynamo.ddf.annotations.ProtoClassName;")
 
