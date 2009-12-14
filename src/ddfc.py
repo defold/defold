@@ -326,7 +326,8 @@ def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_p
         elif f.type == FieldDescriptor.TYPE_ENUM:
             p("int", f.name)
         elif f.type == FieldDescriptor.TYPE_MESSAGE:
-            p(DotToJavaPackage(f.type_name, proto_package, java_package), f.name)
+            java_type_name = DotToJavaPackage(f.type_name, proto_package, java_package)
+            p(java_type_name, f.name, 'new %s()' % java_type_name)
         else:
             p(type_to_javatype[f.type], f.name)
 #    pp.Print('')
