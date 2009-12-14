@@ -29,8 +29,9 @@ message PrototypeDesc
 message InstanceDesc
 {
     required string  Prototype = 1;
-    required Vector4 Position  = 2;
-    required Vector4 Rotation  = 3;
+    required string  Name      = 2;
+    required Vector4 Position  = 3;
+    required Vector4 Rotation  = 4;
 }
 
 message LevelDesc
