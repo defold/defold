@@ -1,7 +1,6 @@
 #ifndef GAMEOBJECT_H
 #define GAMEOBJECT_H
 
-#include "Python.h"
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "resource.h"
