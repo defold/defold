@@ -1,5 +1,9 @@
 package Render;
 
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "Model";
+// option ddf_java_package = "com.dynamo.render.ddf";
+
 message ModelDesc
 {
     required string Name = 1;

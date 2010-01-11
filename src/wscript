@@ -7,11 +7,15 @@ def set_options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                            includes = ['.', '../build/default/proto'],
                            proto_gen_py = True,
+                           proto_gen_java = True,
+                           classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                            target = 'render',
+                           ddf_jar = 'render.jar',
                            install_path='${PREFIX}/lib')
+
     obj.find_sources_in_dirs('. ../proto/render model')
     #obj.source.append('../proto/render_ddf.proto')
 
