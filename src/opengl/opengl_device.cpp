@@ -68,7 +68,10 @@ namespace dmGraphics
         if (params->m_Fullscreen)
             fullscreen = SDL_FULLSCREEN;
 
-        gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE|fullscreen);
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+        SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 1);
+
+        gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 16, SDL_OPENGL|SDL_RESIZABLE|fullscreen|SDL_DOUBLEBUF);
         assert(gdevice.m_SDLscreen);
 
         SDL_WM_SetCaption(params->m_AppTitle, params->m_AppTitle);

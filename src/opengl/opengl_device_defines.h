@@ -35,7 +35,7 @@ namespace dmGraphics
 #define GFXDEVICE_PRIMITIVE_POINTLIST                   (GL_POINTS)
 #define GFXDEVICE_PRIMITIVE_LINES                       (GL_LINES)
 #define GFXDEVICE_PRIMITIVE_LINE_LOOP                   (GL_LINE_LOOP)
-#define GFXDEVICE_PRIMITIVE_LINE_STRIP                  (-1ul)
+#define GFXDEVICE_PRIMITIVE_LINE_STRIP                  (GL_LINE_STRIP)
 #define GFXDEVICE_PRIMITIVE_TRIANGLES                   (GL_TRIANGLES)
 #define GFXDEVICE_PRIMITIVE_TRIANGLE_STRIP              (GL_TRIANGLE_STRIP)
 #define GFXDEVICE_PRIMITIVE_TRIANGLE_FAN                (GL_TRIANGLE_FAN)
