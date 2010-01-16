@@ -109,10 +109,11 @@ namespace dmGameObject
         {0,0}
     };
 
-    static const luaL_reg ScriptInstance_meta[] = {
-      {"__gc",       ScriptInstance_gc},
-      {"__tostring", ScriptInstance_tostring},
-      {0, 0}
+    static const luaL_reg ScriptInstance_meta[] =
+    {
+        {"__gc",       ScriptInstance_gc},
+        {"__tostring", ScriptInstance_tostring},
+        {0, 0}
     };
 
     void InitializeScript()
@@ -127,16 +128,16 @@ namespace dmGameObject
         luaopen_debug(L);
 
         luaL_openlib(L, SCRIPTINSTANCE, ScriptInstance_methods, 0);   // create methods table, add it to the globals
-        luaL_newmetatable(L, SCRIPTINSTANCE);                // create metatable for Image, add it to the Lua registry
-        luaL_openlib(L, 0, ScriptInstance_meta, 0);          // fill metatable
+        luaL_newmetatable(L, SCRIPTINSTANCE);                         // create metatable for Image, add it to the Lua registry
+        luaL_openlib(L, 0, ScriptInstance_meta, 0);                   // fill metatable
 
         lua_pushliteral(L, "__index");
         lua_pushcfunction(L, ScriptInstance_index);
-        lua_rawset(L, -3);                          // metatable.__index = methods
+        lua_rawset(L, -3);
 
         lua_pushliteral(L, "__newindex");
         lua_pushcfunction(L, ScriptInstance_newindex);
-        lua_rawset(L, -3);                          // metatable.__index = methods
+        lua_rawset(L, -3);
 
         lua_pushliteral(L, "__metatable");
         lua_pushvalue(L, -3);                       // dup methods table
