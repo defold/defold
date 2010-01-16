@@ -21,11 +21,13 @@ def build(bld):
 
     dlib = bld.new_task_gen(features = 'cxx cstaticlib',
                             target = 'dlib',
+                            defines= 'VALGRIND',
                             install_path = '${PREFIX}/lib')
     dlib.find_sources_in_dirs('dlib')
 
     dlib = bld.new_task_gen(features = 'cxx cshlib',
                             target = 'dlib_shared',
+                            defines= 'VALGRIND',
                             uselib = 'PLATFORM_SOCKET')
     dlib.find_sources_in_dirs('dlib')
 
