@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <string.h>
 #include <dlib/log.h>
 #include "gameobject_script.h"
 #include "gameobject_common.h"
@@ -196,7 +197,10 @@ bail:
 
     void DeleteScript(HScript script)
     {
-        free((void*) script);
+        lua_State* L = g_LuaState;
+        lua_pushnil(L);
+        lua_rawseti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
+        delete script;
     }
 
     HScriptInstance NewScriptInstance(HInstance instance)
