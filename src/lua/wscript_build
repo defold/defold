@@ -1,13 +1,29 @@
 #! /usr/bin/env python
 import os
 
-lua = bld.new_task_gen(features = 'cc cxx cstaticlib',
-                       includes = '.',
-                       target = 'lua',
-                       defines = 'LUA_ANSI',
-                       install_path='${PREFIX}/lib')
+lua_lib = bld.new_task_gen(features = 'cc cxx cstaticlib',
+                           includes = '.',
+                           target = 'lua',
+                           defines = 'LUA_ANSI',
+                           install_path='${PREFIX}/lib')
 
-lua.find_sources_in_dirs(['.'])
+lua_lib.source = ['lapi.c', 'lcode.c', 'ldebug.c', 'ldo.c', 'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c', 'lmem.c', 'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c', 'lzio.c', 'lauxlib.c', 'lbaselib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c', 'loslib.c', 'ltablib.c', 'lstrlib.c', 'loadlib.c', 'linit.c'] 
+
+lua = bld.new_task_gen(features = 'cc cxx cprogram',
+                       includes = '.',
+                       source = 'lua.c',
+                       target = 'lua',
+                       uselib_local = 'lua',
+                       defines = 'LUA_ANSI',
+                       install_path='${PREFIX}/bin')
+
+luac = bld.new_task_gen(features = 'cc cxx cprogram',
+                        includes = '.',
+                        source = 'luac.c print.c',
+                        target = 'luac',
+                        uselib_local = 'lua',
+                        defines = 'LUA_ANSI',
+                        install_path='${PREFIX}/bin')
 
 #    bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
 #    bld.install_files('${PREFIX}/include/gamesys', 'gameobject.h')
