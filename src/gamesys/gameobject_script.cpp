@@ -1,6 +1,9 @@
 #include <assert.h>
 #include <string.h>
 #include <dlib/log.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
+#include <dlib/event.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
@@ -154,39 +157,6 @@ namespace dmGameObject
         }
     }
 
-    struct Event
-    {
-        //HInstance m
-    };
-
-#include <ddf/ddf.h>
-    void TableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer)
-    {
-        luaL_checktype(L, -1, LUA_TTABLE);
-
-        for (uint32_t i = 0; i < descriptor->m_FieldCount; ++i)
-        {
-            const dmDDF::FieldDescriptor* f = &descriptor->m_Fields[i];
-            lua_pushstring(L, f->m_Name);
-            lua_gettable(L, -2);
-
-            switch (f->m_Type)
-            {
-                case dmDDF::TYPE_INT32:
-                    int32_t x = luaL_checkint(L, -1);
-                    *((int32_t*) &buffer[f->m_Offset]) = x;
-                    break;
-            }
-
-            lua_pop(L, 1);
-        }
-
-        /*
-            Post("game", "player_position", {} )
-            Post("game", "spawn", { proto = "prototypes/test_script.go"} )
-        */
-    }
-
     static int ScriptInstance_newindex(lua_State *L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
@@ -231,6 +201,104 @@ namespace dmGameObject
         {0, 0}
     };
 
+    extern dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors;
+    extern uint32_t g_ScriptSocket;
+    extern uint32_t g_ScriptEventID;
+
+    static void PullDDFValue(lua_State* L, int index, const dmDDF::Descriptor* d,
+                             char* message, char* buffer, char* buffer_last)
+    {
+        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+        {
+            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
+
+            lua_pushstring(L, f->m_Name);
+            lua_rawget(L, index);
+
+            switch (f->m_Type)
+            {
+                case dmDDF::TYPE_INT32:
+                {
+                    *((int32_t *) &message[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
+                }
+                break;
+
+                case dmDDF::TYPE_UINT32:
+                {
+                    *((uint32_t *) &message[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
+                }
+                break;
+
+                case dmDDF::TYPE_FLOAT:
+                {
+                    *((float *) &message[f->m_Offset]) = (float) luaL_checknumber(L, -1);
+                }
+                break;
+
+                case dmDDF::TYPE_STRING:
+                {
+                    const char* s = luaL_checkstring(L, -1);
+                    int size = strlen(s) + 1;
+                    if (buffer + size > buffer_last)
+                    {
+                        luaL_error(L, "Event data doesn't fit (payload max: %d)", SCRIPT_EVENT_MAX);
+                    }
+                    else
+                    {
+                        memcpy(buffer, s, size);
+                        // NOTE: We store offset here an relocate later...
+                        *((const char**) &message[f->m_Offset]) = (const char*) (buffer - message);
+                    }
+                    buffer += size;
+                }
+                break;
+
+                default:
+                {
+                    luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+                }
+                break;
+            }
+            lua_pop(L, 1);
+        }
+
+    }
+
+    int Script_post(lua_State* L)
+    {
+        const char* type_name = luaL_checkstring(L, 1);
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
+        const dmDDF::Descriptor** d_tmp = g_Descriptors->Get(h);
+        if (d_tmp == 0)
+        {
+            luaL_error(L, "Unknown ddf type: %s", type_name);
+        }
+        const dmDDF::Descriptor* d = *d_tmp;
+
+        uint32_t size = sizeof(ScriptEventData) + d->m_Size;
+        if (size > SCRIPT_EVENT_MAX)
+        {
+            luaL_error(L, "sizeof(%s) > %d", type_name, d->m_Size);
+        }
+
+        char buf[SCRIPT_EVENT_MAX];
+        ScriptEventData* script_event_data = (ScriptEventData*) buf;
+        script_event_data->m_Sender = 0;
+        script_event_data->m_DDFDescriptor = d;
+
+        char* p = buf + sizeof(ScriptEventData);
+        char* current_p = p + size;
+        char* last_p = current_p + SCRIPT_EVENT_MAX - size;
+
+        PullDDFValue(L, 2, d, p, current_p, last_p);
+
+        dmEvent::Post(g_ScriptSocket, g_ScriptEventID, buf);
+
+        return 0;
+    }
+
     void InitializeScript()
     {
         lua_State *L = lua_open();
@@ -258,6 +326,10 @@ namespace dmGameObject
         lua_pushvalue(L, -3);                       // dup methods table
         lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
         lua_pop(L, 1);                              // drop metatable
+
+        lua_pushliteral(L, "post");
+        lua_pushcfunction(L, Script_post);
+        lua_rawset(L, LUA_GLOBALSINDEX);
     }
 
     void FinalizeScript()

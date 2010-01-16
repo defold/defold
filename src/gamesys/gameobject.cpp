@@ -1,5 +1,7 @@
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
+#include <dlib/event.h>
+#include <dlib/hash.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "../proto/gameobject_ddf.h"
@@ -32,14 +34,42 @@ namespace dmGameObject
         std::vector<Instance*> m_Instances;
     };
 
+    dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
+    uint32_t g_ScriptSocket = 0;
+    uint32_t g_ScriptEventID = 0;
+
     void Initialize()
     {
+        g_Descriptors = new dmHashTable64<const dmDDF::Descriptor*>();
+        g_Descriptors->SetCapacity(17, 128);
+
+        g_ScriptEventID = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_NAME));
+        dmEvent::Register(g_ScriptEventID, SCRIPT_EVENT_MAX);
+        g_ScriptSocket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME));
+        dmEvent::CreateSocket(g_ScriptSocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
         InitializeScript();
     }
 
     void Finalize()
     {
         FinalizeScript();
+        dmEvent::Unregister(g_ScriptEventID);
+        dmEvent::DestroySocket(g_ScriptSocket);
+        delete g_Descriptors;
+    }
+
+    Result RegisterDDFType(const dmDDF::Descriptor* descriptor)
+    {
+        if (g_Descriptors->Full())
+        {
+            dmLogWarning("Unable to register ddf type. Out of resources.");
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        else
+        {
+            g_Descriptors->Put(dmHashBuffer64(descriptor->m_Name, strlen(descriptor->m_Name)), descriptor);
+            return RESULT_OK;
+        }
     }
 
     HCollection  NewCollection()

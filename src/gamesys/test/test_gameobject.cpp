@@ -2,6 +2,7 @@
 
 #include <map>
 #include <dlib/hash.h>
+#include <dlib/event.h>
 #include "../resource.h"
 #include "../gameobject.h"
 #include "gamesys/test/test_resource_ddf.h"
@@ -296,6 +297,17 @@ TEST_F(GameObjectTest, TestComponentUserdata)
     ASSERT_EQ(30, m_ComponentUserDataAcc[TestResource::CResource::m_DDFHash]);
 }
 
+void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
+{
+    dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
+    TestResource::Spawn* s = (TestResource::Spawn*) script_event_data->m_DDFData;
+    // NOTE: We relocate the string here (from offset to pointer)
+    s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
+    bool* dispatch_result = (bool*) user_ptr;
+
+    *dispatch_result = s->m_X == 1.0 && s->m_Y == 2.0 && s->m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
+}
+
 TEST_F(GameObjectTest, TestScript01)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto01.go");
@@ -313,6 +325,13 @@ TEST_F(GameObjectTest, TestScript01)
     update_context.m_DDFGlobalDataDescriptor = TestResource::GlobalData::m_DDFDescriptor;
 
     ASSERT_TRUE(dmGameObject::Update(collection, go, &update_context));
+
+    uint32_t socket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME));
+    bool dispatch_result = false;
+    dmEvent::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
+
+    ASSERT_TRUE(dispatch_result);
+
     dmGameObject::Delete(collection, factory, go);
 }
 
@@ -337,6 +356,7 @@ int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
     dmGameObject::Initialize();
+    dmGameObject::RegisterDDFType(TestResource::Spawn::m_DDFDescriptor);
     int ret = RUN_ALL_TESTS();
     dmGameObject::Finalize();
     return ret;

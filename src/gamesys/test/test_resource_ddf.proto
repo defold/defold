@@ -48,3 +48,11 @@ message GlobalData
 	required string StringValue = 3;
 	required Vec VecValue = 4;
 }
+
+message Spawn
+{
+	required string Prototype = 1;
+	required float X = 2;
+	required float Y = 3;
+	required float Z = 4;
+}

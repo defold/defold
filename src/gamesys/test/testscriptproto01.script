@@ -8,7 +8,8 @@ function Init(self)
 	assert (self.Counter == 0)
 	
 	self.Counter = self.Counter +  1
-	assert (self.Counter == 1)		
+	assert (self.Counter == 1)
+	tmp = "1";
 end
 
 function Update(self)
@@ -29,7 +30,8 @@ function Update(self)
 	assert(self.VecValue[0] == 1.0)
 	assert(self.VecValue[1] == 2.0)
 	assert(self.VecValue[2] == 3.0)
-
+	
+	post("Spawn", {Prototype = "test", X=1, Y=2, Z=3})
 end
 
 functions = { Init = Init, Update = Update }

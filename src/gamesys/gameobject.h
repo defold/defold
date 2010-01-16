@@ -36,11 +36,33 @@ namespace dmGameObject
         CREATE_RESULT_UNKNOWN_ERROR = -1000,//!< CREATE_RESULT_UNKNOWN_ERROR
     };
 
+    /**
+     * Update context
+     */
     struct UpdateContext
     {
+        /// DDF descriptor for global data
         dmDDF::Descriptor* m_DDFGlobalDataDescriptor;
+        /// Global read-only data
         void*              m_GlobalData;
+        /// Time step
         float              m_DT;
+    };
+
+    #define DMGAMEOBJECT_SCRIPT_EVENT_NAME "script_event"
+    #define DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME "script"
+
+    /**
+     * Game script event data
+     */
+    struct ScriptEventData
+    {
+        /// Sender instance
+        HInstance                m_Sender;
+        /// Pay-load DDF descriptor
+        const dmDDF::Descriptor* m_DDFDescriptor;
+        /// Pay-load (DDF)
+        uint8_t                  m_DDFData[0];
     };
 
     /**
@@ -90,6 +112,13 @@ namespace dmGameObject
      * Finalize system
      */
     void Finalize();
+
+    /**
+     * Register DDF type
+     * @param descriptor Descriptor
+     * @return RESULT_OK on success
+     */
+    Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
     /**
      * Creates a new gameobject collection
