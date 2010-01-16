@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <string.h>
 #include <dlib/log.h>
+#include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 
@@ -40,6 +41,61 @@ namespace dmGameObject
         return 1;
     }
 
+    static void PushDDFValue(lua_State* L, const dmDDF::FieldDescriptor* f, char* data)
+    {
+        switch (f->m_Type)
+        {
+            case dmDDF::TYPE_INT32:
+            {
+                lua_pushinteger(L, (int) *((int32_t*) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_UINT32:
+            {
+                lua_pushinteger(L, (int) *((uint32_t*) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_FLOAT:
+            {
+                lua_pushnumber(L, (lua_Number) *((float*) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_STRING:
+            {
+                lua_pushstring(L, *((const char**) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_MESSAGE:
+            {
+                const dmDDF::Descriptor* d = f->m_MessageDescriptor;
+
+                lua_newtable(L);
+                for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+                {
+                    const dmDDF::FieldDescriptor* f2 = &d->m_Fields[i];
+                    uint32_t t = f2->m_Type;
+                    if (t != dmDDF::TYPE_INT32 && t != dmDDF::TYPE_UINT32 && t != dmDDF::TYPE_FLOAT)
+                    {
+                        luaL_error(L, "Unsupported type %d in message in field %s", f2->m_Type, f->m_Name);
+                    }
+
+                    PushDDFValue(L, &d->m_Fields[i], &data[f->m_Offset]);
+                    lua_rawseti(L, -2, i);
+                }
+            }
+            break;
+
+            default:
+            {
+                luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+            }
+        }
+    }
+
     static int ScriptInstance_index(lua_State *L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
@@ -61,15 +117,74 @@ namespace dmGameObject
 
             lua_pushnumber(L, pos.getZ());
             lua_rawseti(L, -2, 2);
+            return 1;
         }
-        else
+
+        // Try to find value in globals in update context
+        lua_pushstring(L, "__update_context__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        UpdateContext* update_context = (UpdateContext*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        if (update_context)
+        {
+            if (update_context->m_GlobalData != 0)
+            {
+                assert(update_context->m_DDFGlobalDataDescriptor);
+
+                const dmDDF::Descriptor* d = update_context->m_DDFGlobalDataDescriptor;
+                for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+                {
+                    const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
+                    if (strcmp(f->m_Name, key) == 0)
+                    {
+                        PushDDFValue(L, f, (char*) update_context->m_GlobalData);
+                        return 1;
+                    }
+                }
+            }
+        }
+
+        // Try to find value in instance data
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
             lua_pushvalue(L, 2);
             lua_gettable(L, -2);
+            return 1;
+        }
+    }
+
+    struct Event
+    {
+        //HInstance m
+    };
+
+#include <ddf/ddf.h>
+    void TableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer)
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+
+        for (uint32_t i = 0; i < descriptor->m_FieldCount; ++i)
+        {
+            const dmDDF::FieldDescriptor* f = &descriptor->m_Fields[i];
+            lua_pushstring(L, f->m_Name);
+            lua_gettable(L, -2);
+
+            switch (f->m_Type)
+            {
+                case dmDDF::TYPE_INT32:
+                    int32_t x = luaL_checkint(L, -1);
+                    *((int32_t*) &buffer[f->m_Offset]) = x;
+                    break;
+            }
+
+            lua_pop(L, 1);
         }
 
-        return 1;
+        /*
+            Post("game", "player_position", {} )
+            Post("game", "spawn", { proto = "prototypes/test_script.go"} )
+        */
     }
 
     static int ScriptInstance_newindex(lua_State *L)
@@ -246,12 +361,16 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-    bool RunScript(HScript script, const char* function_name, HScriptInstance script_instance)
+    bool RunScript(HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
     {
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
         (void) top;
         int ret;
+
+        lua_pushstring(L, "__update_context__");
+        lua_pushlightuserdata(L, (void*) update_context);
+        lua_rawset(L, LUA_GLOBALSINDEX);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
 
@@ -272,11 +391,18 @@ bail:
             goto bail;
         }
 
+        lua_pushstring(L, "__update_context__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
         return true;
 bail:
+        lua_pushstring(L, "__update_context__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
         assert(top == lua_gettop(L));
         return false;
     }

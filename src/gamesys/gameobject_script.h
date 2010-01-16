@@ -8,6 +8,7 @@
 namespace dmGameObject
 {
     struct Instance;
+    struct UpdateContext;
     typedef Instance* HInstance;
 
     struct ScriptInstance
@@ -33,7 +34,7 @@ namespace dmGameObject
     HScriptInstance NewScriptInstance(HInstance instance);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    bool    RunScript(HScript script, const char* function_name, HScriptInstance script_instance);
+    bool    RunScript(HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

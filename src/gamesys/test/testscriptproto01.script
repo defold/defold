@@ -21,6 +21,15 @@ function Update(self)
 	
 	p = self.Position
 	assert(p[1] == 123.0)
+	
+	assert(self.UIntValue == 12345)
+	assert(self.IntValue == -123)
+	assert(self.StringValue == "string_value")
+
+	assert(self.VecValue[0] == 1.0)
+	assert(self.VecValue[1] == 2.0)
+	assert(self.VecValue[2] == 3.0)
+
 end
 
 functions = { Init = Init, Update = Update }

@@ -1,6 +1,7 @@
 #ifndef GAMEOBJECT_H
 #define GAMEOBJECT_H
 
+#include <ddf/ddf.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "resource.h"
@@ -37,7 +38,9 @@ namespace dmGameObject
 
     struct UpdateContext
     {
-        float m_DT;
+        dmDDF::Descriptor* m_DDFGlobalDataDescriptor;
+        void*              m_GlobalData;
+        float              m_DT;
     };
 
     /**
@@ -140,9 +143,10 @@ namespace dmGameObject
      * Call update function
      * @param collection Gameobject collection
      * @param instance Gameobject instance
+     * @param update_context Update context
      * @return True on success
      */
-    bool Update(HCollection collection, HInstance instance);
+    bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context);
 
     /**
      * Update all gameobjects and its components

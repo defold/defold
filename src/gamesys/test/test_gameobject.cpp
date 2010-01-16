@@ -11,6 +11,10 @@ class GameObjectTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
+        update_context.m_DT = 1.0f / 60.0f;
+        update_context.m_GlobalData = 0;
+        update_context.m_DDFGlobalDataDescriptor = 0;
+
         factory = dmResource::NewFactory(16, "build/default/src/gamesys/test");
         collection = dmGameObject::NewCollection();
         dmGameObject::RegisterResourceTypes(factory);
@@ -96,6 +100,7 @@ public:
 
     std::map<uint64_t, int>      m_ComponentUserDataAcc;
 
+    dmGameObject::UpdateContext update_context;
     dmGameObject::HCollection collection;
     dmResource::HFactory factory;
 };
@@ -210,11 +215,11 @@ TEST_F(GameObjectTest, Test01)
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto01.go");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret;
-    ret = dmGameObject::Update(collection, go);
+    ret = dmGameObject::Update(collection, go, &update_context);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::Update(collection, go);
+    ret = dmGameObject::Update(collection, go, &update_context);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::Update(collection, go);
+    ret = dmGameObject::Update(collection, go, &update_context);
     ASSERT_TRUE(ret);
     dmGameObject::Delete(collection, factory, go);
 
@@ -228,8 +233,6 @@ TEST_F(GameObjectTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto02.go");
     ASSERT_NE((void*) 0, (void*) go);
-    dmGameObject::UpdateContext update_context;
-    update_context.m_DT = 1.0f / 60.0f;
     dmGameObject::Update(collection, &update_context);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestResource::PhysComponent::m_DDFHash]);
 
@@ -298,7 +301,18 @@ TEST_F(GameObjectTest, TestScript01)
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto01.go");
     ASSERT_NE((void*) 0, (void*) go);
 
-    ASSERT_TRUE(dmGameObject::Update(collection, go));
+    TestResource::GlobalData global_data;
+    global_data.m_UIntValue = 12345;
+    global_data.m_IntValue = -123;
+    global_data.m_StringValue = "string_value";
+    global_data.m_VecValue.m_X = 1.0f;
+    global_data.m_VecValue.m_Y = 2.0f;
+    global_data.m_VecValue.m_Z = 3.0f;
+
+    update_context.m_GlobalData = &global_data;
+    update_context.m_DDFGlobalDataDescriptor = TestResource::GlobalData::m_DDFDescriptor;
+
+    ASSERT_TRUE(dmGameObject::Update(collection, go, &update_context));
     dmGameObject::Delete(collection, factory, go);
 }
 
@@ -315,7 +329,7 @@ TEST_F(GameObjectTest, TestFailingScript03)
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto03.go");
     ASSERT_NE((void*) 0, (void*) go);
 
-    ASSERT_FALSE(dmGameObject::Update(collection, go));
+    ASSERT_FALSE(dmGameObject::Update(collection, go, &update_context));
     dmGameObject::Delete(collection, factory, go);
 }
 

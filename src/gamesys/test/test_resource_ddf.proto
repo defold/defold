@@ -33,3 +33,18 @@ message CResource
 {
     required uint32 C = 1;
 }
+
+message Vec
+{
+    required float X = 1;
+    required float Y = 2;
+    required float Z = 3;
+}
+
+message GlobalData
+{
+	required uint32 UIntValue = 1;
+	required int32 IntValue = 2;
+	required string StringValue = 3;
+	required Vec VecValue = 4;
+}

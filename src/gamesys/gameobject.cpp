@@ -296,7 +296,7 @@ namespace dmGameObject
         }
         collection->m_Instances.push_back(instance);
 
-        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance);
+        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance, 0);
 
         if (init_ok)
         {
@@ -349,10 +349,10 @@ namespace dmGameObject
         operator delete (instance_memory);
     }
 
-    bool Update(HCollection collection, HInstance instance)
+    bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context)
     {
         Prototype* proto = instance->m_Prototype;
-        bool ret = RunScript(proto->m_Script, "Update", instance->m_ScriptInstance);
+        bool ret = RunScript(proto->m_Script, "Update", instance->m_ScriptInstance, update_context);
         return ret;
     }
 
@@ -361,7 +361,7 @@ namespace dmGameObject
         uint32_t n_objects = collection->m_Instances.size();
         for (uint32_t i = 0; i < n_objects; ++i)
         {
-            Update(collection, collection->m_Instances[i]);
+            Update(collection, collection->m_Instances[i], update_context);
         }
 
         uint32_t component_types = collection->m_ComponentTypeCount;
