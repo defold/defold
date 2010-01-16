@@ -20,8 +20,8 @@ namespace dmGameObject
             uint32_t m_ResourceType;
         };
 
-        const char*   m_Name;
-        HScript       m_Script;
+        const char*            m_Name;
+        HScript                m_Script;
         std::vector<Component> m_Components;
     };
 
@@ -33,21 +33,20 @@ namespace dmGameObject
             m_Rotation = Quat::identity();
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
-            m_Self = PyObject_CallObject((PyObject*) &PythonInstanceType, 0);
-            ((PythonInstance*) m_Self)->m_Instance = this;
+            m_ScriptInstance = NewScriptInstance(this);
         }
 
         ~Instance()
         {
-            Py_DECREF(m_Self);
+            DeleteScriptInstance(m_ScriptInstance);
         }
 
-        Quat        m_Rotation;
-        Point3      m_Position;
-        Prototype*  m_Prototype;
-        PyObject*   m_Self;
-        uint32_t    m_ComponentInstanceUserDataCount;
-        uintptr_t   m_ComponentInstanceUserData[0];
+        Quat            m_Rotation;
+        Point3          m_Position;
+        Prototype*      m_Prototype;
+        HScriptInstance m_ScriptInstance;
+        uint32_t        m_ComponentInstanceUserDataCount;
+        uintptr_t       m_ComponentInstanceUserData[0];
     };
 }
 

@@ -5,7 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib pyembed ddf',
+    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                 includes = '.',
                                 proto_gen_py = True,
                                 proto_gen_java = True,

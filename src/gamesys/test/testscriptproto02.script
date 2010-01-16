@@ -1,7 +1,9 @@
 function Init(self)
+	assert(false)
 end
 
 function Update(self)
 end
 
 functions = { Init = Init, Update = Update }
+

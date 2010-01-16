@@ -1,8 +1,6 @@
 #ifndef __GAMEOBJECTSCRIPT_H__
 #define __GAMEOBJECTSCRIPT_H__
 
-#include <Python.h>
-
 /**
  * Private header for GameObject
  */
@@ -10,23 +8,32 @@
 namespace dmGameObject
 {
     struct Instance;
+    typedef Instance* HInstance;
 
-    typedef struct {
-        PyObject_HEAD
+    struct ScriptInstance
+    {
         Instance* m_Instance;
-        PyObject* m_Dict;
-    } PythonInstance;
+        int       m_InstanceReference;
+        int       m_ScriptDataReference;
+    };
+    typedef ScriptInstance* HScriptInstance;
 
-    typedef void* HScript;
-
-    extern PyTypeObject PythonInstanceType;
+    struct Script
+    {
+        int m_FunctionsReference;
+    };
+    typedef Script* HScript;
 
     void    InitializeScript();
     void    FinalizeScript();
 
     HScript NewScript(const void* memory);
     void    DeleteScript(HScript script);
-    bool    RunScript(HScript script, const char* function_name, PyObject* self, PyObject* args);
+
+    HScriptInstance NewScriptInstance(HInstance instance);
+    void            DeleteScriptInstance(HScriptInstance script_instance);
+
+    bool    RunScript(HScript script, const char* function_name, HScriptInstance script_instance);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

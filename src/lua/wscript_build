@@ -1,0 +1,17 @@
+#! /usr/bin/env python
+import os
+
+lua = bld.new_task_gen(features = 'cc cxx cstaticlib',
+                       includes = '.',
+                       target = 'lua',
+                       defines = 'LUA_ANSI',
+                       install_path='${PREFIX}/lib')
+
+lua.find_sources_in_dirs(['.'])
+
+#    bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
+#    bld.install_files('${PREFIX}/include/gamesys', 'gameobject.h')
+#    bld.install_files('${PREFIX}/include/gamesys', 'gameobject_registration.h')
+#    bld.install_files('${PREFIX}/include/gamesys', 'resource_creation.h')
+#    bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')
+#    bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')

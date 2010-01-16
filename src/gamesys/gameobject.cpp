@@ -1,5 +1,3 @@
-#include <Python.h>
-
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <ddf/ddf.h>
@@ -296,16 +294,12 @@ namespace dmGameObject
             operator delete (instance_memory);
             return 0;
         }
+        collection->m_Instances.push_back(instance);
 
-        PyObject* lst = PyTuple_New(1);
-        Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
-        PyTuple_SetItem(lst, 0, instance->m_Self);
-        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_Self, lst);
-        Py_DECREF(lst);
+        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance);
 
         if (init_ok)
         {
-            collection->m_Instances.push_back(instance);
             return instance;
         }
         else
@@ -349,6 +343,8 @@ namespace dmGameObject
         assert(found);
 
         dmResource::Release(factory, instance->m_Prototype);
+
+        instance->~Instance();
         void* instance_memory = (void*) instance;
         operator delete (instance_memory);
     }
@@ -356,11 +352,7 @@ namespace dmGameObject
     bool Update(HCollection collection, HInstance instance)
     {
         Prototype* proto = instance->m_Prototype;
-        PyObject* lst = PyTuple_New(1);
-        Py_INCREF(instance->m_Self); //NOTE: PyTuple_SetItem steals a reference
-        PyTuple_SetItem(lst, 0, instance->m_Self);
-        bool ret = RunScript(proto->m_Script, "Update", instance->m_Self, lst);
-        Py_DECREF(lst);
+        bool ret = RunScript(proto->m_Script, "Update", instance->m_ScriptInstance);
         return ret;
     }
 

@@ -32,7 +32,7 @@ def testresourcecont_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
+Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
                       color='PINK', 
                       before='cc cxx',
                       shell=True)
@@ -40,7 +40,7 @@ Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
 @extension('.script')
 def testresourcecont_file(self, node):
     obj_ext = '.scriptc'
-    task = self.create_task('pyscript')
+    task = self.create_task('luascript')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
@@ -51,7 +51,7 @@ def build(bld):
     test_resource = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
                                      uselib = 'GTEST DDF DLIB',
-                                     uselib_local = 'gamesys',
+                                     uselib_local = 'gamesys lua',
                                      proto_gen_py = True,
                                      target = 'test_resource',
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb')
@@ -61,7 +61,7 @@ def build(bld):
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
                                      uselib = 'GTEST DDF DLIB',
-                                     uselib_local = 'gamesys',
+                                     uselib_local = 'gamesys lua',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
                                      source = 'test_gameobject.cpp test_resource_ddf.proto')
@@ -71,7 +71,7 @@ def build(bld):
     test_script = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
                                      uselib = 'GTEST DDF DLIB',
-                                     uselib_local = 'gamesys',
+                                     uselib_local = 'gamesys lua',
                                      proto_gen_py = True,
                                      target = 'test_script',
                                      source = 'test_script.cpp')

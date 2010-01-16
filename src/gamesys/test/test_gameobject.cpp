@@ -6,11 +6,6 @@
 #include "../gameobject.h"
 #include "gamesys/test/test_resource_ddf.h"
 
-/*
- * TODO:
- * - Add scripting tests!
- */
-
 class GameObjectTest : public ::testing::Test
 {
 protected:
@@ -296,6 +291,32 @@ TEST_F(GameObjectTest, TestComponentUserdata)
     ASSERT_EQ(0, m_ComponentUserDataAcc[TestResource::BResource::m_DDFHash]);
     // Three c:s
     ASSERT_EQ(30, m_ComponentUserDataAcc[TestResource::CResource::m_DDFHash]);
+}
+
+TEST_F(GameObjectTest, TestScript01)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto01.go");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_TRUE(dmGameObject::Update(collection, go));
+    dmGameObject::Delete(collection, factory, go);
+}
+
+TEST_F(GameObjectTest, TestFailingScript02)
+{
+    // Test init failure
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto02.go");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(GameObjectTest, TestFailingScript03)
+{
+    // Test update failure
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto03.go");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_FALSE(dmGameObject::Update(collection, go));
+    dmGameObject::Delete(collection, factory, go);
 }
 
 int main(int argc, char **argv)

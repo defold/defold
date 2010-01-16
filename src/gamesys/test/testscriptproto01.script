@@ -1,0 +1,27 @@
+function Init(self)
+	local p = self.Position
+	assert( p[0] == 0 )
+	assert( p[1] == 0 )
+	assert( p[2] == 0 )
+	
+	self.Counter = 0
+	assert (self.Counter == 0)
+	
+	self.Counter = self.Counter +  1
+	assert (self.Counter == 1)		
+end
+
+function Update(self)
+	assert (self.Counter == 1)		
+
+	local p = self.Position
+	
+	p[1] = 123.0
+	self.Position = p
+	
+	p = self.Position
+	assert(p[1] == 123.0)
+end
+
+functions = { Init = Init, Update = Update }
+

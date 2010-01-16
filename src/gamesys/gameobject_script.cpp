@@ -1,241 +1,278 @@
-#include <Python.h>
-#include "structmember.h"
+#include <assert.h>
+#include <dlib/log.h>
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 
+extern "C"
+{
+#include "../lua/lua.h"
+#include "../lua/lauxlib.h"
+#include "../lua/lualib.h"
+}
+
 namespace dmGameObject
 {
-    PyObject* PythonInstance_new(PyTypeObject *type, PyObject *args, PyObject *kw)
+    #define SCRIPTINSTANCE "ScriptInstance"
+
+    lua_State* g_LuaState = 0;
+
+    static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        PythonInstance* self = (PythonInstance *)type->tp_alloc(type, 0);
-        self->m_Dict = PyDict_New(); // TODO: Memory leak here? Test with valgrind.
-        return (PyObject*) self;
+        ScriptInstance* i;
+        luaL_checktype(L, index, LUA_TUSERDATA);
+        i = (ScriptInstance*)luaL_checkudata(L, index, SCRIPTINSTANCE);
+        if (i == NULL) luaL_typerror(L, index, SCRIPTINSTANCE);
+        return i;
     }
 
-    int PythonInstance_SetAttr(PyObject* o, PyObject* name, PyObject* v)
+    static int ScriptInstance_gc (lua_State *L)
     {
-        PythonInstance* self  = (PythonInstance*) o;
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        (void) i;
+        assert(i);
+        return 0;
+    }
 
-        if (!PyString_Check(name))
+    static int ScriptInstance_tostring (lua_State *L)
+    {
+        lua_pushfstring(L, "GameObject: %p", lua_touserdata(L, 1));
+        return 1;
+    }
+
+    static int ScriptInstance_index(lua_State *L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        (void) i;
+        assert(i);
+
+        const char* key = luaL_checkstring(L, 2);
+        if (strcmp(key, "Position") == 0)
         {
-            PyErr_SetString(PyExc_TypeError, "attribute name must be string");
-            return -1;
-        }
-        if (strcmp(PyString_AsString(name), "Position") == 0)
-        {
+            lua_newtable(L);
 
-            if (!PySequence_Check(v))
-            {
-                PyErr_SetString(PyExc_TypeError, "value must be a sequence");
-                return -1;
-            }
+            Point3& pos = i->m_Instance->m_Position;
 
-            if (PySequence_Length(v) != 3)
-            {
-                PyErr_SetString(PyExc_TypeError, "value must be a sequence of length 3");
-                return -1;
-            }
+            lua_pushnumber(L, pos.getX());
+            lua_rawseti(L, -2, 0);
 
-            PyObject* x_obj = PySequence_GetItem(v, 0);
-            PyObject* y_obj = PySequence_GetItem(v, 1);
-            PyObject* z_obj = PySequence_GetItem(v, 2);
+            lua_pushnumber(L, pos.getY());
+            lua_rawseti(L, -2, 1);
 
-            float x = PyFloat_AsDouble(x_obj);
-            float y = PyFloat_AsDouble(y_obj);
-            float z = PyFloat_AsDouble(z_obj);
-
-            Py_DECREF(x_obj);
-            Py_DECREF(y_obj);
-            Py_DECREF(z_obj);
-
-            self->m_Instance->m_Position = Point3(x,y,z);
-            return 0;
+            lua_pushnumber(L, pos.getZ());
+            lua_rawseti(L, -2, 2);
         }
         else
         {
-            return PyObject_GenericSetAttr(o, name, v);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
+            lua_pushvalue(L, 2);
+            lua_gettable(L, -2);
         }
+
+        return 1;
     }
 
-    PyObject* PythonInstance_GetAttr(PyObject* o, PyObject* name)
+    static int ScriptInstance_newindex(lua_State *L)
     {
-        PythonInstance* self  = (PythonInstance*) o;
-        if (!PyString_Check(name))
-        {
-            PyErr_SetString(PyExc_TypeError, "attribute name must be string");
-            return 0;
-        }
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        (void) i;
+        assert(i);
 
-        if (strcmp(PyString_AsString(name), "Position") == 0)
+        const char* key = luaL_checkstring(L, 2);
+        if (strcmp(key, "Position") == 0)
         {
-            PyObject* pos = PyTuple_New(3);
-            PyTuple_SetItem(pos, 0, PyFloat_FromDouble(self->m_Instance->m_Position.getX()));
-            PyTuple_SetItem(pos, 1, PyFloat_FromDouble(self->m_Instance->m_Position.getY()));
-            PyTuple_SetItem(pos, 2, PyFloat_FromDouble(self->m_Instance->m_Position.getZ()));
-            return pos;
+            luaL_checktype(L, 3, LUA_TTABLE);
+            lua_rawgeti(L, 3, 0);
+            lua_rawgeti(L, 3, 1);
+            lua_rawgeti(L, 3, 2);
+
+            float x = luaL_checknumber(L, -3);
+            float y = luaL_checknumber(L, -2);
+            float z = luaL_checknumber(L, -1);
+
+            i->m_Instance->m_Position = Point3(x, y, z);
         }
         else
         {
-            return PyObject_GenericGetAttr(o, name);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
+            lua_pushvalue(L, 2);
+            lua_pushvalue(L, 3);
+            lua_settable(L, -3);
         }
+
+        return 1;
     }
 
-    PyTypeObject PythonInstanceType = {
-        PyObject_HEAD_INIT(NULL)
-        0,                              /*ob_size*/
-        "gameobject.Instance",          /*tp_name*/
-        sizeof(PythonInstance),         /*tp_basicsize*/
-        0,                              /*tp_itemsize*/
-        0,                              /*tp_dealloc*/
-        0,                              /*tp_print*/
-        0,                              /*tp_getattr*/
-        0,                              /*tp_setattr*/
-        0,                              /*tp_compare*/
-        0,                              /*tp_repr*/
-        0,                              /*tp_as_number*/
-        0,                              /*tp_as_sequence*/
-        0,                              /*tp_as_mapping*/
-        0,                              /*tp_hash */
-        0,                              /*tp_call*/
-        0,                              /*tp_str*/
-        &PythonInstance_GetAttr,        /*tp_getattro*/
-        &PythonInstance_SetAttr,        /*tp_setattro*/
-        0,                              /*tp_as_buffer*/
-        Py_TPFLAGS_DEFAULT,             /*tp_flags*/
-        "GameObject instance",          /* tp_doc */
-        0,                              /* tp_traverse */
-        0,                              /* tp_clear */
-        0,                              /* tp_richcompare */
-        0,                              /* tp_weaklistoffset */
-        0,                              /* tp_iter */
-        0,                              /* tp_iternext */
-        0,                              /* tp_methods */
-        0,                              /* tp_members */
-        0,                              /* tp_getset */
-        0,                              /* tp_base */
-        0,                              /* tp_dict */
-        0,                              /* tp_descr_get */
-        0,                              /* tp_descr_set */
-        offsetof(PythonInstance, m_Dict),  /* tp_dictoffset */
-        0,                              /* tp_init */
-        0,                              /* tp_alloc */
-        PythonInstance_new,             /* tp_new */
-        0,                              /* tp_free */
-    };
-
-    static PyMethodDef python_instance_methods[] = {
-        {NULL}  /* Sentinel */
-    };
-
-    // TODO: Currently not used.
-    char g_LastErrorString[1024] = { '\0' };
-
-    static bool ErrorOccured()
+    static const luaL_reg ScriptInstance_methods[] =
     {
-        PyObject* err = PyErr_Occurred();
-        if (err)
-        {
-            PyErr_Print();
-            fflush(stderr);
-            fflush(stdout);
+        //{"test", ScriptInstance_Test},
+        {0,0}
+    };
 
-            PyObject* err_str_obj = PyObject_Str(err);
-            char* err_str = PyString_AsString(err_str_obj);
-            strncpy(g_LastErrorString, err_str, sizeof(g_LastErrorString));
-            g_LastErrorString[sizeof(g_LastErrorString)-1] = '\0';
-            Py_DECREF(err_str_obj);
-
-            return true;
-        }
-
-        return false;
-    }
+    static const luaL_reg ScriptInstance_meta[] = {
+      {"__gc",       ScriptInstance_gc},
+      {"__tostring", ScriptInstance_tostring},
+      {0, 0}
+    };
 
     void InitializeScript()
     {
-        Py_Initialize();
+        lua_State *L = lua_open();
+        g_LuaState = L;
 
-        PyObject* m;
+        luaopen_base(L);
+        luaopen_table(L);
+        luaopen_string(L);
+        luaopen_math(L);
+        luaopen_debug(L);
 
-        //PythonInstanceType.tp_new = PyType_GenericNew;
-        if (PyType_Ready(&PythonInstanceType) < 0)
-            return;
+        luaL_openlib(L, SCRIPTINSTANCE, ScriptInstance_methods, 0);   // create methods table, add it to the globals
+        luaL_newmetatable(L, SCRIPTINSTANCE);                // create metatable for Image, add it to the Lua registry
+        luaL_openlib(L, 0, ScriptInstance_meta, 0);          // fill metatable
 
-        m = Py_InitModule3("gameobject", python_instance_methods,
-                           "GameObject module.");
+        lua_pushliteral(L, "__index");
+        lua_pushcfunction(L, ScriptInstance_index);
+        lua_rawset(L, -3);                          // metatable.__index = methods
 
-        Py_INCREF(&PythonInstanceType);
-        PyModule_AddObject(m, "Instance", (PyObject *)&PythonInstanceType);
+        lua_pushliteral(L, "__newindex");
+        lua_pushcfunction(L, ScriptInstance_newindex);
+        lua_rawset(L, -3);                          // metatable.__index = methods
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushvalue(L, -3);                       // dup methods table
+        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
+        lua_pop(L, 1);                              // drop metatable
     }
 
     void FinalizeScript()
     {
-        Py_Finalize();
+        lua_close(g_LuaState);
     }
 
     HScript NewScript(const void* memory)
     {
-        if (memory == NULL) return NULL;
+        lua_State* L = g_LuaState;
 
-        // TODO: Budget. Memory allocation. Due to windows line endings...
-        char* normalized_buffer = (char*) malloc(strlen((char*) memory) + 1);
-        char*in = (char*) memory;
-        char*out = normalized_buffer;
-        // Convert to unix line endings
-        while (*in)
+        int top = lua_gettop(L);
+        (void) top;
+
+        int functions;
+        Script* script;
+
+        int ret = luaL_loadstring(L, (const char*) memory);
+        if (ret != 0)
         {
-            char c = *in;
-            if (c != '\r')
-            {
-                *out = *in;
-                out++;
-            }
-            in++;
+            dmLogError("Error running script: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+            goto bail;
         }
-        *out = '\0';
 
-        PyObject* obj = Py_CompileString((const char*)normalized_buffer, "<script>", Py_file_input);
-        free(normalized_buffer);
+        ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+        if (ret != 0)
+        {
+            dmLogError("Error running script: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+            goto bail;
+        }
 
-        if (ErrorOccured() ) return NULL;
+        lua_getglobal(L, "functions");
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            dmLogError("No function table found in script");
+            lua_pop(L, -1);
+            goto bail;
+        }
 
-        PyObject* glob = PyDict_New();
-        PyDict_SetItemString(glob, "__builtins__", PyEval_GetBuiltins());
+        functions = luaL_ref( L, LUA_REGISTRYINDEX );
+        assert(top == lua_gettop(L));
 
-        PyObject* module = PyEval_EvalCode((PyCodeObject*)obj, glob, glob);
-        if (ErrorOccured() ) return NULL;
+        script = new Script();
+        script->m_FunctionsReference = functions;
 
-
-        Py_DECREF(obj);
-        Py_DECREF(module);
-
-        return (HScript)glob;
+        return script;
+bail:
+    assert(top == lua_gettop(L));
+        return 0;
     }
 
     void DeleteScript(HScript script)
     {
-        Py_DECREF((PyObject*) script);
+        free((void*) script);
     }
 
-    bool RunScript(HScript script, const char* function_name, PyObject* self, PyObject* args)
+    HScriptInstance NewScriptInstance(HInstance instance)
     {
-        PyObject* glob = (PyObject*)script;
+        lua_State* L = g_LuaState;
 
-        PyObject* func = PyDict_GetItemString (glob, function_name);
-        if (ErrorOccured() ) return NULL;
+        int top = lua_gettop(L);
+        (void) top;
 
-        int ret = PyCallable_Check(func);
-        if (ret == 0)
+        lua_getglobal(L, "__instances__");
+
+        ScriptInstance* i = (ScriptInstance *)lua_newuserdata(L, sizeof(ScriptInstance));
+
+        lua_pushvalue(L, -1);
+        i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+
+        lua_newtable(L);
+        i->m_ScriptDataReference = luaL_ref( L, LUA_REGISTRYINDEX );
+
+        i->m_Instance = instance;
+        luaL_getmetatable(L, SCRIPTINSTANCE);
+        lua_setmetatable(L, -2);
+
+        lua_pop(L, 1);
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+
+        return i;
+    }
+
+    void DeleteScriptInstance(HScriptInstance script_instance)
+    {
+        lua_State* L = g_LuaState;
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        lua_pushnil(L);
+        lua_rawseti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+        assert(top == lua_gettop(L));
+    }
+
+    bool RunScript(HScript script, const char* function_name, HScriptInstance script_instance)
+    {
+        lua_State* L = g_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+        int ret;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
+
+        lua_getfield(L, -1, function_name);
+        if (lua_type(L, -1) != LUA_TFUNCTION)
         {
-            printf("Error in PyCallable_Check()\n");
-            return false;
+            dmLogError("No '%s' function found", function_name);
+            lua_pop(L, 2);
+            goto bail;
         }
 
-        if (ErrorOccured() ) return false;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        ret = lua_pcall(L, 1, LUA_MULTRET, 0);
+        if (ret != 0)
+        {
+            dmLogError("Error running script: %s", lua_tostring(L,-1));
+            lua_pop(L, 2);
+            goto bail;
+        }
 
-        //PyObject* pValue = PyObject_CallObject(func, args);
-        if (ErrorOccured() ) return false;
+        lua_pop(L, 1);
 
+        assert(top == lua_gettop(L));
         return true;
+bail:
+        assert(top == lua_gettop(L));
+        return false;
     }
 }
