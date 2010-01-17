@@ -1,8 +1,8 @@
 function Init(self)
 	local p = self.Position
-	assert( p[0] == 0 )
-	assert( p[1] == 0 )
-	assert( p[2] == 0 )
+	assert( p.X == 0 )
+	assert( p.Y == 0 )
+	assert( p.Z == 0 )
 	
 	self.Counter = 0
 	assert (self.Counter == 0)
@@ -17,19 +17,19 @@ function Update(self)
 
 	local p = self.Position
 	
-	p[1] = 123.0
+	p.Y = 123.0
 	self.Position = p
 	
 	p = self.Position
-	assert(p[1] == 123.0)
+	assert(p.Y == 123.0)
 	
 	assert(self.UIntValue == 12345)
 	assert(self.IntValue == -123)
 	assert(self.StringValue == "string_value")
 
-	assert(self.VecValue[0] == 1.0)
-	assert(self.VecValue[1] == 2.0)
-	assert(self.VecValue[2] == 3.0)
+	assert(self.VecValue.X == 1.0)
+	assert(self.VecValue.Y == 2.0)
+	assert(self.VecValue.Z == 3.0)
 	
 	post("Spawn", {Prototype = "test", X=1, Y=2, Z=3})
 end

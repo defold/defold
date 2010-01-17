@@ -86,8 +86,9 @@ namespace dmGameObject
                         luaL_error(L, "Unsupported type %d in message in field %s", f2->m_Type, f->m_Name);
                     }
 
+                    lua_pushstring(L, f2->m_Name);
                     PushDDFValue(L, &d->m_Fields[i], &data[f->m_Offset]);
-                    lua_rawseti(L, -2, i);
+                    lua_rawset(L, -3);
                 }
             }
             break;
@@ -112,14 +113,17 @@ namespace dmGameObject
 
             Point3& pos = i->m_Instance->m_Position;
 
+            lua_pushliteral(L, "X");
             lua_pushnumber(L, pos.getX());
-            lua_rawseti(L, -2, 0);
+            lua_rawset(L, -3);
 
+            lua_pushliteral(L, "Y");
             lua_pushnumber(L, pos.getY());
-            lua_rawseti(L, -2, 1);
+            lua_rawset(L, -3);
 
+            lua_pushliteral(L, "Z");
             lua_pushnumber(L, pos.getZ());
-            lua_rawseti(L, -2, 2);
+            lua_rawset(L, -3);
             return 1;
         }
 
@@ -167,9 +171,12 @@ namespace dmGameObject
         if (strcmp(key, "Position") == 0)
         {
             luaL_checktype(L, 3, LUA_TTABLE);
-            lua_rawgeti(L, 3, 0);
-            lua_rawgeti(L, 3, 1);
-            lua_rawgeti(L, 3, 2);
+            lua_pushliteral(L, "X");
+            lua_rawget(L, 3);
+            lua_pushliteral(L, "Y");
+            lua_rawget(L, 3);
+            lua_pushliteral(L, "Z");
+            lua_rawget(L, 3);
 
             float x = luaL_checknumber(L, -3);
             float y = luaL_checknumber(L, -2);
