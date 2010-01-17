@@ -109,8 +109,11 @@ namespace dmRender
      * @param string String to render
      * @param x0 X
      * @param y0 Y
+     * @param red Red color component
+     * @param green Green color component
+     * @param blue Blue color component
      */
-    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0);
+    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue);
 
     /**
      * Flush drawn characters
