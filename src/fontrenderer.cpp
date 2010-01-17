@@ -1,8 +1,10 @@
 #include <string.h>
-#include <vector>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include "graphics/graphics_device.h"
+#include <dlib/log.h>
+#include <dlib/array.h>
+#include <graphics/graphics_device.h>
+
 #include "fontrenderer.h"
 #include "render/render_ddf.h"
 
@@ -14,6 +16,7 @@ namespace dmRender
     {
         float m_Position[3];
         float m_UV[2];
+        float m_Colour[3];
     };
 
     struct SFont
@@ -37,7 +40,7 @@ namespace dmRender
         }
 
         SFont*                    m_Font;
-        std::vector<SFontVertex>  m_Vertices;
+        dmArray<SFontVertex>      m_Vertices;
         Matrix4                   m_Projection;
         uint32_t                  m_MaxCharacters;
     };
@@ -110,9 +113,9 @@ namespace dmRender
                                   uint32_t max_characters)
     {
         SFontRenderer* fr = new SFontRenderer();
+        fr->m_Vertices.SetCapacity(max_characters*6);
         fr->m_Font = font;
         fr->m_Projection = Matrix4::orthographic( 0, width, height, 0, 10, -10 );
-        fr->m_Vertices.reserve(max_characters * 6);
         fr->m_MaxCharacters = max_characters;
         return fr;
     }
@@ -122,10 +125,11 @@ namespace dmRender
         delete renderer;
     }
 
-    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0)
+    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue)
     {
-        if (renderer->m_Vertices.size() * 6 >= renderer->m_MaxCharacters)
+        if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters)
         {
+            dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", renderer->m_MaxCharacters);
             return;
         }
 
@@ -172,13 +176,20 @@ namespace dmRender
             v4.m_UV[0] = (g.m_X) * im_recip;
             v4.m_UV[1] = (g.m_Y + g.m_Height) * ih_recip;
 
-            renderer->m_Vertices.push_back(v1);
-            renderer->m_Vertices.push_back(v2);
-            renderer->m_Vertices.push_back(v3);
 
-            renderer->m_Vertices.push_back(v3);
-            renderer->m_Vertices.push_back(v4);
-            renderer->m_Vertices.push_back(v1);
+            v1.m_Colour[0] = red; v1.m_Colour[1] = green; v1.m_Colour[2] = blue;
+            v2.m_Colour[0] = red; v2.m_Colour[1] = green; v2.m_Colour[2] = blue;
+            v3.m_Colour[0] = red; v3.m_Colour[1] = green; v3.m_Colour[2] = blue;
+            v4.m_Colour[0] = red; v4.m_Colour[1] = green; v4.m_Colour[2] = blue;
+
+
+            renderer->m_Vertices.Push(v1);
+            renderer->m_Vertices.Push(v2);
+            renderer->m_Vertices.Push(v3);
+
+            renderer->m_Vertices.Push(v3);
+            renderer->m_Vertices.Push(v4);
+            renderer->m_Vertices.Push(v1);
 
             x += g.m_Width;
         }
@@ -205,20 +216,26 @@ namespace dmRender
                            sizeof(SFontVertex),
                            (void*) &renderer->m_Vertices[0].m_UV[0]);
 
+        dmGraphics::SetVertexStream(context, 2, 3, dmGraphics::TYPE_FLOAT,
+                           sizeof(SFontVertex),
+                           (void*) &renderer->m_Vertices[0].m_Colour[0]);
+
         dmGraphics::SetTexture(context, renderer->m_Font->m_Texture);
 
         dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
         dmGraphics::EnableState(context, dmGraphics::BLEND);
 
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.size());
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.Size());
 
         dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
         dmGraphics::DisableState(context, dmGraphics::BLEND);
 
+        dmGraphics::DisableVertexStream(context, 0);
         dmGraphics::DisableVertexStream(context, 1);
+        dmGraphics::DisableVertexStream(context, 2);
 
-        renderer->m_Vertices.clear();
+        renderer->m_Vertices.SetSize(0);
     }
 
 }
