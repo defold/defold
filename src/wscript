@@ -29,6 +29,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
     bld.install_files('${PREFIX}/include/render_debug', 'debug/debugrenderer.h')
     bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
+    bld.install_files('${PREFIX}/include/render', 'render.h')
     bld.install_files('${PREFIX}/include/render', 'rendercontext.h')
     bld.install_files('${PREFIX}/include/render', 'material.h')
 
