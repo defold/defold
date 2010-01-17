@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <ddf/ddf.h>
-#include <graphics/opengl/opengl_device_defines.h>
+#include <graphics/graphics_device.h>
 
 namespace dmRender
 {
