@@ -52,7 +52,5 @@ message GlobalData
 message Spawn
 {
 	required string Prototype = 1;
-	required float X = 2;
-	required float Y = 3;
-	required float Z = 4;
+	required Vec Pos = 2;
 }

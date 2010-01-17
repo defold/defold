@@ -212,16 +212,12 @@ namespace dmGameObject
     extern uint32_t g_ScriptSocket;
     extern uint32_t g_ScriptEventID;
 
-    static void PullDDFValue(lua_State* L, int index, const dmDDF::Descriptor* d,
-                             char* message, char* buffer, char* buffer_last)
+    static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
+                             char* message, char** buffer, char** buffer_last);
+
+    static void PullDDFValue(lua_State* L, const dmDDF::FieldDescriptor* f,
+                             char* message, char** buffer, char** buffer_last)
     {
-        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
-        {
-            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
-
-            lua_pushstring(L, f->m_Name);
-            lua_rawget(L, index);
-
             switch (f->m_Type)
             {
                 case dmDDF::TYPE_INT32:
@@ -246,17 +242,24 @@ namespace dmGameObject
                 {
                     const char* s = luaL_checkstring(L, -1);
                     int size = strlen(s) + 1;
-                    if (buffer + size > buffer_last)
+                    if (*buffer + size > *buffer_last)
                     {
                         luaL_error(L, "Event data doesn't fit (payload max: %d)", SCRIPT_EVENT_MAX);
                     }
                     else
                     {
-                        memcpy(buffer, s, size);
+                        memcpy(*buffer, s, size);
                         // NOTE: We store offset here an relocate later...
-                        *((const char**) &message[f->m_Offset]) = (const char*) (buffer - message);
+                        *((const char**) &message[f->m_Offset]) = (const char*) (*buffer - message);
                     }
-                    buffer += size;
+                    *buffer += size;
+                }
+                break;
+
+                case dmDDF::TYPE_MESSAGE:
+                {
+                    const dmDDF::Descriptor* d = f->m_MessageDescriptor;
+                    PullDDFTable(L, d, &message[f->m_Offset], buffer, buffer_last);
                 }
                 break;
 
@@ -266,13 +269,28 @@ namespace dmGameObject
                 }
                 break;
             }
+    }
+
+    static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
+                             char* message, char** buffer, char** buffer_last)
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+
+        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+        {
+            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
+
+            lua_pushstring(L, f->m_Name);
+            lua_rawget(L, -2);
+            PullDDFValue(L, f, message, buffer, buffer_last);
             lua_pop(L, 1);
         }
-
     }
 
     int Script_post(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         const char* type_name = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TTABLE);
 
@@ -299,7 +317,11 @@ namespace dmGameObject
         char* current_p = p + size;
         char* last_p = current_p + SCRIPT_EVENT_MAX - size;
 
-        PullDDFValue(L, 2, d, p, current_p, last_p);
+        lua_pushvalue(L, 2);
+        PullDDFTable(L, d, p, &current_p, &last_p);
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
 
         dmEvent::Post(g_ScriptSocket, g_ScriptEventID, buf);
 

@@ -305,7 +305,7 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
     bool* dispatch_result = (bool*) user_ptr;
 
-    *dispatch_result = s->m_X == 1.0 && s->m_Y == 2.0 && s->m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
+    *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
 
 TEST_F(GameObjectTest, TestScript01)
