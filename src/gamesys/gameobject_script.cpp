@@ -282,6 +282,10 @@ namespace dmGameObject
 
             lua_pushstring(L, f->m_Name);
             lua_rawget(L, -2);
+            if (lua_isnil(L, -1))
+            {
+                luaL_error(L, "Field %s not specified in table", f->m_Name);
+            }
             PullDDFValue(L, f, message, buffer, buffer_last);
             lua_pop(L, 1);
         }
