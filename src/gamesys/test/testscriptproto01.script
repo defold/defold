@@ -31,7 +31,7 @@ function Update(self)
 	assert(self.VecValue.Y == 2.0)
 	assert(self.VecValue.Z == 3.0)
 	
-	post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
+	Post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
 end
 
 functions = { Init = Init, Update = Update }

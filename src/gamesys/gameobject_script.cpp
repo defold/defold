@@ -287,7 +287,7 @@ namespace dmGameObject
         }
     }
 
-    int Script_post(lua_State* L)
+    int Script_Post(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -356,8 +356,8 @@ namespace dmGameObject
         lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
         lua_pop(L, 1);                              // drop metatable
 
-        lua_pushliteral(L, "post");
-        lua_pushcfunction(L, Script_post);
+        lua_pushliteral(L, "Post");
+        lua_pushcfunction(L, Script_Post);
         lua_rawset(L, LUA_GLOBALSINDEX);
     }
 
