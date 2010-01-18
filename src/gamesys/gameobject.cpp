@@ -61,6 +61,7 @@ namespace dmGameObject
         FinalizeScript();
         dmEvent::Unregister(g_ScriptEventID);
         dmEvent::DestroySocket(g_ScriptSocket);
+        dmEvent::DestroySocket(g_ScriptReplySocket);
         delete g_Descriptors;
     }
 
