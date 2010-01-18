@@ -5,6 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "resource.h"
+//#include "gameobject_script.h"
 
 using namespace Vectormath::Aos;
 
@@ -12,6 +13,9 @@ namespace dmGameObject
 {
     /// Instance handle
     typedef struct Instance* HInstance;
+
+    /// Instance handle
+    typedef struct ScriptInstance* HScriptInstance;
 
     /// Collection handle
     typedef struct Collection* HCollection;
@@ -51,14 +55,15 @@ namespace dmGameObject
 
     #define DMGAMEOBJECT_SCRIPT_EVENT_NAME "script_event"
     #define DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME "script"
+    #define DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME "script_reply"
 
     /**
      * Game script event data
      */
     struct ScriptEventData
     {
-        /// Sender instance
-        HInstance                m_Sender;
+        /// Senderscript instance
+        HScriptInstance          m_ScriptInstance;
         /// Pay-load DDF descriptor
         const dmDDF::Descriptor* m_DDFDescriptor;
         /// Pay-load (DDF)
@@ -169,7 +174,7 @@ namespace dmGameObject
     void Delete(HCollection collection, dmResource::HFactory factory, HInstance instance);
 
     /**
-     * Call update function
+     * Call update function. Does *NOT* dispatch script events
      * @param collection Gameobject collection
      * @param instance Gameobject instance
      * @param update_context Update context
@@ -178,7 +183,7 @@ namespace dmGameObject
     bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context);
 
     /**
-     * Update all gameobjects and its components
+     * Update all gameobjects and its components and dispatches all event to script
      * @param collection Gameobject collection
      * @param update_context Update context
      * @return True on success

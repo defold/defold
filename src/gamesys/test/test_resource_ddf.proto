@@ -54,3 +54,14 @@ message Spawn
 	required string Prototype = 1;
 	required Vec Pos = 2;
 }
+
+message SpawnResult
+{
+	required int32 Status = 1;
+}
+
+message LuaDDFBufferOverflow
+{
+	required uint32 UIntValue = 1;
+	required string StringValue = 3;
+}

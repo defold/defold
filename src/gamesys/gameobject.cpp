@@ -36,6 +36,7 @@ namespace dmGameObject
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
     uint32_t g_ScriptSocket = 0;
+    uint32_t g_ScriptReplySocket = 0;
     uint32_t g_ScriptEventID = 0;
 
     void Initialize()
@@ -45,8 +46,13 @@ namespace dmGameObject
 
         g_ScriptEventID = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_NAME));
         dmEvent::Register(g_ScriptEventID, SCRIPT_EVENT_MAX);
+
         g_ScriptSocket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME));
         dmEvent::CreateSocket(g_ScriptSocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+        g_ScriptReplySocket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME));
+        dmEvent::CreateSocket(g_ScriptReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
         InitializeScript();
     }
 
@@ -388,6 +394,8 @@ namespace dmGameObject
 
     bool Update(HCollection collection, const UpdateContext* update_context)
     {
+        bool ret = DispatchScriptEvents(update_context);
+
         uint32_t n_objects = collection->m_Instances.size();
         for (uint32_t i = 0; i < n_objects; ++i)
         {
@@ -404,7 +412,7 @@ namespace dmGameObject
             }
         }
 
-        return true;
+        return ret;
     }
 
     void SetPosition(HCollection collection, HInstance instance, Point3 position)

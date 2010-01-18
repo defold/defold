@@ -7,6 +7,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
+#include "luasupport.h"
 
 extern "C"
 {
@@ -42,62 +43,6 @@ namespace dmGameObject
     {
         lua_pushfstring(L, "GameObject: %p", lua_touserdata(L, 1));
         return 1;
-    }
-
-    static void PushDDFValue(lua_State* L, const dmDDF::FieldDescriptor* f, char* data)
-    {
-        switch (f->m_Type)
-        {
-            case dmDDF::TYPE_INT32:
-            {
-                lua_pushinteger(L, (int) *((int32_t*) &data[f->m_Offset]));
-            }
-            break;
-
-            case dmDDF::TYPE_UINT32:
-            {
-                lua_pushinteger(L, (int) *((uint32_t*) &data[f->m_Offset]));
-            }
-            break;
-
-            case dmDDF::TYPE_FLOAT:
-            {
-                lua_pushnumber(L, (lua_Number) *((float*) &data[f->m_Offset]));
-            }
-            break;
-
-            case dmDDF::TYPE_STRING:
-            {
-                lua_pushstring(L, *((const char**) &data[f->m_Offset]));
-            }
-            break;
-
-            case dmDDF::TYPE_MESSAGE:
-            {
-                const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-
-                lua_newtable(L);
-                for (uint32_t i = 0; i < d->m_FieldCount; ++i)
-                {
-                    const dmDDF::FieldDescriptor* f2 = &d->m_Fields[i];
-                    uint32_t t = f2->m_Type;
-                    if (t != dmDDF::TYPE_INT32 && t != dmDDF::TYPE_UINT32 && t != dmDDF::TYPE_FLOAT)
-                    {
-                        luaL_error(L, "Unsupported type %d in message in field %s", f2->m_Type, f->m_Name);
-                    }
-
-                    lua_pushstring(L, f2->m_Name);
-                    PushDDFValue(L, &d->m_Fields[i], &data[f->m_Offset]);
-                    lua_rawset(L, -3);
-                }
-            }
-            break;
-
-            default:
-            {
-                luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
-            }
-        }
     }
 
     static int ScriptInstance_index(lua_State *L)
@@ -145,7 +90,7 @@ namespace dmGameObject
                     const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
                     if (strcmp(f->m_Name, key) == 0)
                     {
-                        PushDDFValue(L, f, (char*) update_context->m_GlobalData);
+                        DDFToLuaValue(L, f, (char*) update_context->m_GlobalData);
                         return 1;
                     }
                 }
@@ -210,6 +155,7 @@ namespace dmGameObject
 
     extern dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors;
     extern uint32_t g_ScriptSocket;
+    extern uint32_t g_ScriptReplySocket;
     extern uint32_t g_ScriptEventID;
 
     static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
@@ -314,15 +260,17 @@ namespace dmGameObject
 
         char buf[SCRIPT_EVENT_MAX];
         ScriptEventData* script_event_data = (ScriptEventData*) buf;
-        script_event_data->m_Sender = 0;
         script_event_data->m_DDFDescriptor = d;
 
-        char* p = buf + sizeof(ScriptEventData);
-        char* current_p = p + size;
-        char* last_p = current_p + SCRIPT_EVENT_MAX - size;
+        lua_pushstring(L, "__scriptinstance__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        script_event_data->m_ScriptInstance = (HScriptInstance) lua_touserdata(L, -1);
+        assert(script_event_data->m_ScriptInstance);
+        lua_pop(L, 1);
 
+        char* p = buf + sizeof(ScriptEventData);
         lua_pushvalue(L, 2);
-        PullDDFTable(L, d, p, &current_p, &last_p);
+        LuaTableToDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
@@ -424,7 +372,7 @@ bail:
         delete script;
     }
 
-    HScriptInstance NewScriptInstance(HInstance instance)
+    HScriptInstance NewScriptInstance(HScript script, HInstance instance)
     {
         lua_State* L = g_LuaState;
 
@@ -434,6 +382,7 @@ bail:
         lua_getglobal(L, "__instances__");
 
         ScriptInstance* i = (ScriptInstance *)lua_newuserdata(L, sizeof(ScriptInstance));
+        i->m_Script = script;
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
@@ -473,8 +422,12 @@ bail:
         (void) top;
         int ret;
 
-        lua_pushstring(L, "__update_context__");
+        lua_pushliteral(L, "__update_context__");
         lua_pushlightuserdata(L, (void*) update_context);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "__scriptinstance__");
+        lua_pushlightuserdata(L, (void*) script_instance);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
@@ -496,7 +449,7 @@ bail:
             goto bail;
         }
 
-        lua_pushstring(L, "__update_context__");
+        lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -505,10 +458,89 @@ bail:
         assert(top == lua_gettop(L));
         return true;
 bail:
-        lua_pushstring(L, "__update_context__");
+        lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
         assert(top == lua_gettop(L));
         return false;
+    }
+
+    struct DispatchScriptEventsContext
+    {
+        const UpdateContext* m_UpdateContext;
+        bool m_Success;
+    };
+
+    static void DispatchScriptEventsFunction(dmEvent::Event *event_object, void* user_ptr)
+    {
+        DispatchScriptEventsContext* context = (DispatchScriptEventsContext*) user_ptr;
+        const UpdateContext* update_context = context->m_UpdateContext;
+
+        dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
+
+        assert(script_event_data->m_DDFDescriptor);
+        assert(script_event_data->m_DDFData);
+        assert(script_event_data->m_ScriptInstance);
+
+        lua_State* L = g_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+        int ret;
+
+        lua_pushliteral(L, "__update_context__");
+        lua_pushlightuserdata(L, (void*) update_context);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_ScriptInstance->m_Script->m_FunctionsReference);
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            dmLogError("Invalid 'SenderFunctionsReference' (%d) in event", script_event_data->m_ScriptInstance->m_Script->m_FunctionsReference);
+            return;
+        }
+
+        const char* function_name = "OnEvent";
+        lua_getfield(L, -1, function_name);
+        if (lua_type(L, -1) != LUA_TFUNCTION)
+        {
+            dmLogError("No '%s' function found", function_name);
+            lua_pop(L, 2);
+            goto bail;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_ScriptInstance->m_InstanceReference);
+        // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
+        // lua_cpcall?
+        lua_pushstring(L, script_event_data->m_DDFDescriptor->m_Name);
+        DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+
+        ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        if (ret != 0)
+        {
+            dmLogError("Error running script: %s", lua_tostring(L,-1));
+            lua_pop(L, 2);
+            goto bail;
+        }
+
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return;
+bail:
+        context->m_Success = false;
+        lua_pushliteral(L, "__update_context__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+        assert(top == lua_gettop(L));
+        return;
+    }
+
+    bool DispatchScriptEvents(const UpdateContext* update_context)
+    {
+        DispatchScriptEventsContext ctx;
+        ctx.m_UpdateContext = update_context;
+        ctx.m_Success = true;
+        (void) dmEvent::Dispatch(g_ScriptReplySocket, &DispatchScriptEventsFunction, (void*) &ctx);
+
+        return ctx.m_Success;
     }
 }

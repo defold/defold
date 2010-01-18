@@ -78,5 +78,15 @@ def build(bld):
 
     test_script.install_path = None
 
+    test_luasupport = bld.new_task_gen(features = 'cxx cprogram',
+                                       includes = '../../../src',
+                                       uselib = 'GTEST DDF DLIB',
+                                       uselib_local = 'gamesys lua',
+                                       proto_gen_py = True,
+                                       target = 'test_luasupport',
+                                       source = 'test_luasupport.cpp test_resource_ddf.proto')
+
+    test_luasupport.install_path = None
+
 
     

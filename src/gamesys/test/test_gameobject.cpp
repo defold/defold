@@ -305,6 +305,20 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
     bool* dispatch_result = (bool*) user_ptr;
 
+    uint32_t event_id = dmHashBuffer32("spawn_result", sizeof("spawn_result"));
+
+    uint8_t reply_buf[sizeof(dmGameObject::ScriptEventData) + sizeof(TestResource::SpawnResult)];
+
+    TestResource::SpawnResult* result = (TestResource::SpawnResult*) (reply_buf + sizeof(dmGameObject::ScriptEventData));
+    result->m_Status = 1010;
+
+    dmGameObject::ScriptEventData* reply_script_event = (dmGameObject::ScriptEventData*) reply_buf;
+    reply_script_event->m_ScriptInstance = script_event_data->m_ScriptInstance;
+    reply_script_event->m_DDFDescriptor = TestResource::SpawnResult::m_DDFDescriptor;
+
+    uint32_t reply_socket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME));
+    dmEvent::Post(reply_socket, event_id, reply_buf);
+
     *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
 
@@ -332,6 +346,8 @@ TEST_F(GameObjectTest, TestScript01)
 
     ASSERT_TRUE(dispatch_result);
 
+    ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
+
     dmGameObject::Delete(collection, factory, go);
 }
 
@@ -355,6 +371,10 @@ TEST_F(GameObjectTest, TestFailingScript03)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
+
+    uint32_t event_id = dmHashBuffer32("spawn_result", sizeof("spawn_result"));
+    dmEvent::Register(event_id, 256);
+
     dmGameObject::Initialize();
     dmGameObject::RegisterDDFType(TestResource::Spawn::m_DDFDescriptor);
     int ret = RUN_ALL_TESTS();

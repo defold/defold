@@ -38,7 +38,7 @@ namespace dmGameObject
             m_Rotation = Quat::identity();
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
-            m_ScriptInstance = NewScriptInstance(this);
+            m_ScriptInstance = NewScriptInstance(prototype->m_Script, this);
         }
 
         ~Instance()
