@@ -344,6 +344,37 @@ TEST(dmHashTable, Performance)
     EXPECT_GE(map_diff, ht_diff*3);
 }
 
+void IterateCallback(int* context, int* value)
+{
+    *context += *value;
+}
+
+TEST(dmHashTable, Iterate)
+{
+    for (uint32_t table_size = 1; table_size < 27; ++table_size)
+    {
+        for (uint32_t capacity = 1; capacity < 100; ++capacity)
+        {
+            dmHashTable<uint32_t, int> ht;
+            ht.SetCapacity(table_size, capacity);
+
+            int sum = 0;
+
+            for (uint32_t i = 0; i < capacity; ++i)
+            {
+                int x = rand();
+                ht.Put(i, x);
+                sum += x;
+            }
+            int context = 0;
+            ht.Iterate(IterateCallback, &context);
+            ASSERT_EQ(sum, context);
+
+
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -59,8 +59,6 @@ public:
         m_State = STATE_USER_ALLOCATED;
     }
 
-
-
     /**
      * Destructor. 
      * @note If user allocated, memory is not free'd
@@ -277,6 +275,29 @@ public:
             prev_e = e;
         }
         assert(false && "Key not found (erase)");
+    }
+
+    /**
+     * Iterate over all entries in table
+     * @param call_back Call-back called for every entry
+     * @param context Context
+     */
+    template <typename CONTEXT>
+    void Iterate(void (*call_back)(CONTEXT *context, T* value), CONTEXT* context)
+    {
+        for (int i = 0; i < m_HashTableSize; ++i)
+        {
+            if (m_HashTable[i] != 0xffff)
+            {
+                uint16_t entry_ptr = m_HashTable[i];
+                while (entry_ptr != 0xffff)
+                {
+                    Entry*e = &m_InitialEntries[entry_ptr];
+                    call_back(context, &e->m_Value);
+                    entry_ptr = e->m_Next;
+                }
+            }
+        }
     }
 
     /**
