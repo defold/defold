@@ -163,7 +163,7 @@ namespace dmGameObject
      * @param prototype_name Prototype file name
      * @return New gameobject instance. NULL if any error occured
      */
-    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name);
+    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name, const UpdateContext* update_context);
 
     /**
      * Delete gameobject instance

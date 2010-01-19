@@ -248,7 +248,7 @@ namespace dmGameObject
         return ret;
     }
 
-    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name)
+    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name, const UpdateContext* update_context)
     {
         Prototype* proto;
         dmResource::FactoryResult error = dmResource::Get(factory, prototype_name, (void**)&proto);
@@ -333,7 +333,7 @@ namespace dmGameObject
         }
         collection->m_Instances.push_back(instance);
 
-        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance, 0);
+        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
 
         if (init_ok)
         {

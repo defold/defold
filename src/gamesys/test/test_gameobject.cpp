@@ -213,7 +213,7 @@ dmGameObject::ComponentsUpdate GameObjectTest::CComponentsUpdate = GenericCompon
 
 TEST_F(GameObjectTest, Test01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto01.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto01.go", 0x0);
     ASSERT_NE((void*) 0, (void*) go);
     bool ret;
     ret = dmGameObject::Update(collection, go, &update_context);
@@ -232,7 +232,7 @@ TEST_F(GameObjectTest, Test01)
 
 TEST_F(GameObjectTest, TestUpdate)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto02.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto02.go", 0x0);
     ASSERT_NE((void*) 0, (void*) go);
     dmGameObject::Update(collection, &update_context);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestResource::PhysComponent::m_DDFHash]);
@@ -246,7 +246,7 @@ TEST_F(GameObjectTest, TestUpdate)
 
 TEST_F(GameObjectTest, TestNonexistingComponent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto03.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto03.go", 0x0);
     ASSERT_EQ((void*) 0, (void*) go);
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestResource::PhysComponent::m_DDFHash]);
@@ -257,7 +257,7 @@ TEST_F(GameObjectTest, TestNonexistingComponent)
 
 TEST_F(GameObjectTest, TestPartialNonexistingComponent1)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto04.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto04.go", 0x0);
     ASSERT_EQ((void*) 0, (void*) go);
 
     // First one exists
@@ -272,7 +272,7 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
 {
     // Only succeed creating the first component
     m_MaxComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash] = 1;
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto05.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto05.go", 0x0);
     ASSERT_EQ((void*) 0, (void*) go);
 
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestResource::PhysComponent::m_DDFHash]);
@@ -285,7 +285,7 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
 
 TEST_F(GameObjectTest, TestComponentUserdata)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto06.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto06.go", 0x0);
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Delete(collection, factory, go);
@@ -324,7 +324,7 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
 
 TEST_F(GameObjectTest, TestScript01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto01.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto01.go", 0x0);
     ASSERT_NE((void*) 0, (void*) go);
 
     TestResource::GlobalData global_data;
@@ -354,14 +354,14 @@ TEST_F(GameObjectTest, TestScript01)
 TEST_F(GameObjectTest, TestFailingScript02)
 {
     // Test init failure
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto02.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto02.go", 0x0);
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
 TEST_F(GameObjectTest, TestFailingScript03)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto03.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "testscriptproto03.go", 0x0);
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_FALSE(dmGameObject::Update(collection, go, &update_context));
