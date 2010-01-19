@@ -306,7 +306,11 @@ void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_has
     if ((uint32_t) resource_type == context->m_Type)
     {
         struct stat file_stat;
-        stat(*file_name, &file_stat);
+        if (stat(*file_name, &file_stat) != 0)
+	{
+            context->m_Result = FACTORY_RESULT_RESOURCE_NOT_FOUND;
+            return;
+	}
         // TODO: Fix better resolution on this.
         uint32_t mtime = (uint32_t) file_stat.st_mtime;
 
