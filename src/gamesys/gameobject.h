@@ -192,35 +192,31 @@ namespace dmGameObject
 
     /**
      * Set gameobject instance position
-     * @param collection Gameobject collection
      * @param instance Gameobject instance
      * @param position New Position
      */
-    void SetPosition(HCollection collection, HInstance instance, Point3 position);
+    void SetPosition(HInstance instance, Point3 position);
 
     /**
      * Get gameobject instance position
-     * @param collection Gameobject collection
      * @param instance Gameobject instance
      * @return Position
      */
-    Point3 GetPosition(HCollection collection, HInstance instance);
+    Point3 GetPosition(HInstance instance);
 
     /**
      * Set gameobject instance rotation
-     * @param collection Gameobject collection
      * @param instance Gameobject instance
      * @param position New Position
      */
-    void SetRotation(HCollection collection, HInstance instance, Quat rotation);
+    void SetRotation(HInstance instance, Quat rotation);
 
     /**
      * Get gameobject instance rotation
-     * @param collection Gameobject collection
      * @param instance Gameobject instance
      * @return Position
      */
-    Quat GetRotation(HCollection collection, HInstance instance);
+    Quat GetRotation(HInstance instance);
 
     /**
      * Register all resource types in resource factory

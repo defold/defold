@@ -20,7 +20,7 @@ namespace dmGameSystem
         RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*) resource;
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        Point3 position = dmGameObject::GetPosition(collection, instance);
+        Point3 position = dmGameObject::GetPosition(instance);
         Quat rotation = Quat::identity();
         rotation = Quat::rotationZ(0.4f); // TODO: <--- HAXXOR JUST FOR FUN...
 

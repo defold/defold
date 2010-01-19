@@ -416,22 +416,22 @@ namespace dmGameObject
         return ret;
     }
 
-    void SetPosition(HCollection collection, HInstance instance, Point3 position)
+    void SetPosition(HInstance instance, Point3 position)
     {
         instance->m_Position = position;
     }
 
-    Point3 GetPosition(HCollection collection, HInstance instance)
+    Point3 GetPosition(HInstance instance)
     {
         return instance->m_Position;
     }
 
-    void SetRotation(HCollection collection, HInstance instance, Quat rotation)
+    void SetRotation(HInstance instance, Quat rotation)
     {
         instance->m_Rotation = rotation;
     }
 
-    Quat GetRotation(HCollection collection, HInstance instance)
+    Quat GetRotation(HInstance instance)
     {
         return instance->m_Rotation;
     }
