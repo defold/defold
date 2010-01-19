@@ -283,7 +283,7 @@ public:
      * @param context Context
      */
     template <typename CONTEXT>
-    void Iterate(void (*call_back)(CONTEXT *context, T* value), CONTEXT* context)
+    void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context)
     {
         for (int i = 0; i < m_HashTableSize; ++i)
         {
@@ -293,7 +293,7 @@ public:
                 while (entry_ptr != 0xffff)
                 {
                     Entry*e = &m_InitialEntries[entry_ptr];
-                    call_back(context, &e->m_Value);
+                    call_back(context, &e->m_Key, &e->m_Value);
                     entry_ptr = e->m_Next;
                 }
             }

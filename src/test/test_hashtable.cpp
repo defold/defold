@@ -344,7 +344,7 @@ TEST(dmHashTable, Performance)
     EXPECT_GE(map_diff, ht_diff*3);
 }
 
-void IterateCallback(int* context, int* value)
+void IterateCallback(int* context, const uint32_t* key, int* value)
 {
     *context += *value;
 }
