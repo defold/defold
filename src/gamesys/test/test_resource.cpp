@@ -2,6 +2,7 @@
 
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
+#include <dlib/time.h>
 #include "gamesys/resource.h"
 #include "gamesys/test/test_resource_ddf.h"
 
@@ -385,7 +386,7 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    sleep(1); // TODO: Currently seconds time resolution in modification time
+    dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     f = fopen(file_name, "wb");
     ASSERT_NE((FILE*) 0, f);
