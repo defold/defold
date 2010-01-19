@@ -237,11 +237,11 @@ namespace dmGameObject
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
     {
         dmResource::FactoryResult ret;
-        ret = dmResource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy);
+        ret = dmResource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy);
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 

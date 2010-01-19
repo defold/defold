@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <time.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #ifdef __linux__
 #include <limits.h>
@@ -37,10 +41,11 @@ struct SResourceType
     {
         memset(this, 0, sizeof(*this));
     }
-    const char*      m_Extension;
-    void*            m_Context;
-    FResourceCreate  m_CreateFunction;
-    FResourceDestroy m_DestroyFunction;
+    const char*       m_Extension;
+    void*             m_Context;
+    FResourceCreate   m_CreateFunction;
+    FResourceDestroy  m_DestroyFunction;
+    FResourceRecreate m_RecreateFunction;
 };
 
 // This is both used for m_ResourcePath in SResourceFactory and the total resource path, ie
@@ -52,8 +57,11 @@ const uint32_t MAX_RESOURCE_TYPES = 128;
 struct SResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
-    dmHashTable<uint64_t, SResourceDescriptor>*   m_Resources;
-    dmHashTable<uintptr_t, uint64_t>*             m_ResourceToHash;
+    dmHashTable<uint64_t, SResourceDescriptor>*  m_Resources;
+    dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
+    // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
+    // Used for reloading of resources
+    dmHashTable<uint64_t, const char*>*          m_ResourceHashToFilename;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
     char                                         m_ResourcePath[RESOURCE_PATH_MAX];
@@ -92,7 +100,7 @@ static void GetCanonicalPath(const char* base_dir, const char* relative_dir, cha
     *dest = '\0';
 }
 
-HFactory NewFactory(uint32_t max_resources, const char* resource_path)
+HFactory NewFactory(uint32_t max_resources, const char* resource_path, uint32_t flags)
 {
     SResourceFactory* factory = new SResourceFactory;
     factory->m_ResourceTypesCount = 0;
@@ -107,6 +115,16 @@ HFactory NewFactory(uint32_t max_resources, const char* resource_path)
     strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
     factory->m_ResourcePath[RESOURCE_PATH_MAX-1] = '\0';
 
+    if (flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
+    {
+        factory->m_ResourceHashToFilename = new dmHashTable<uint64_t, const char*>();
+        factory->m_ResourceHashToFilename->SetCapacity(table_size, max_resources);
+    }
+    else
+    {
+        factory->m_ResourceHashToFilename = 0;
+    }
+
     return factory;
 }
 
@@ -114,6 +132,7 @@ void DeleteFactory(HFactory factory)
 {
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
+    delete factory->m_ResourceHashToFilename;
     delete factory;
 }
 
@@ -121,7 +140,8 @@ FactoryResult RegisterType(HFactory factory,
                            const char* extension,
                            void* context,
                            FResourceCreate create_function,
-                           FResourceDestroy destroy_function)
+                           FResourceDestroy destroy_function,
+                           FResourceRecreate recreate_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
         return FACTORY_RESULT_OUT_OF_RESOURCES;
@@ -141,6 +161,7 @@ FactoryResult RegisterType(HFactory factory,
     resource_type.m_Context = context;
     resource_type.m_CreateFunction = create_function;
     resource_type.m_DestroyFunction = destroy_function;
+    resource_type.m_RecreateFunction = recreate_function;
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
@@ -203,6 +224,11 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
             return FACTORY_RESULT_RESOURCE_NOT_FOUND;
         }
 
+        struct stat file_stat;
+        stat(canonical_path, &file_stat);
+        // TODO: Fix better resolution on this.
+        uint32_t mtime = (uint32_t) file_stat.st_mtime;
+
         fseek(f, 0, SEEK_END);
         long file_size = ftell(f);
         fseek(f, 0, SEEK_SET);
@@ -210,7 +236,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         void* buffer = malloc(file_size+1); // Extra byte for resources expecting null-terminated string...
         if (buffer == 0)
         {
-            dmLogError("Out of memory: %s", ext);
+            dmLogError("Out of memory: %s", canonical_path);
             return FACTORY_RESULT_OUT_OF_MEMORY;
             fclose(f);
         }
@@ -229,6 +255,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         tmp_resource.m_NameHash = canonical_path_hash;
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
+        tmp_resource.m_ModificationTime = mtime;
 
         CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource);
         free(buffer);
@@ -239,6 +266,10 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
             assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
             factory->m_Resources->Put(canonical_path_hash, tmp_resource);
             factory->m_ResourceToHash->Put((uintptr_t) tmp_resource.m_Resource, canonical_path_hash);
+            if (factory->m_ResourceHashToFilename)
+            {
+                factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
+            }
             *resource = tmp_resource.m_Resource;
             return FACTORY_RESULT_OK;
         }
@@ -253,6 +284,86 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
     {
         return FACTORY_RESULT_MISSING_FILE_EXTENSION;
     }
+}
+
+struct ReloadTypeContext
+{
+    HFactory      m_Factory;
+    uint32_t      m_Type;
+    FactoryResult m_Result;
+};
+
+void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_hash, const char** file_name)
+{
+    if (context->m_Result != FACTORY_RESULT_OK)
+        return;
+
+    SResourceDescriptor* rd = context->m_Factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+
+    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    // TODO: Not 64-bit friendly
+    if ((uint32_t) resource_type == context->m_Type)
+    {
+        struct stat file_stat;
+        stat(*file_name, &file_stat);
+        // TODO: Fix better resolution on this.
+        uint32_t mtime = (uint32_t) file_stat.st_mtime;
+
+        if (mtime == rd->m_ModificationTime)
+            return;
+
+        FILE* f = fopen(*file_name, "rb");
+        if (f == 0)
+        {
+            dmLogWarning("Resource not found: %s", *file_name);
+            context->m_Result = FACTORY_RESULT_RESOURCE_NOT_FOUND;
+            return;
+        }
+
+        fseek(f, 0, SEEK_END);
+        long file_size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        void* buffer = malloc(file_size+1); // Extra byte for resources expecting null-terminated string...
+        if (buffer == 0)
+        {
+            dmLogError("Out of memory: %s", *file_name);
+            context->m_Result = FACTORY_RESULT_OUT_OF_MEMORY;
+            fclose(f);
+            return;
+        }
+        ((char*) buffer)[file_size] = 0; // Null-terminate. See comment in Get()
+
+        if (fread(buffer, 1, file_size, f) != (size_t) file_size)
+        {
+            free(buffer);
+            fclose(f);
+            context->m_Result = FACTORY_RESULT_IO_ERROR;
+            return;
+        }
+
+        // TODO: We should *NOT* allocate SResource dynamically...
+        CreateResult create_result = resource_type->m_RecreateFunction(context->m_Factory, resource_type->m_Context, buffer, file_size, rd);
+        free(buffer);
+        fclose(f);
+
+        if (create_result != CREATE_RESULT_OK)
+        {
+            context->m_Result = FACTORY_RESULT_UNKNOWN;
+        }
+    }
+}
+
+FactoryResult ReloadType(HFactory factory, uint32_t type)
+{
+    ReloadTypeContext context;
+    context.m_Factory = factory;
+    context.m_Type = type;
+    context.m_Result = FACTORY_RESULT_OK;
+    factory->m_ResourceHashToFilename->Iterate(&ReloadTypeCallback, &context);
+
+    return context.m_Result;
 }
 
 FactoryResult GetType(HFactory factory, void* resource, uint32_t* type)
@@ -325,6 +436,12 @@ void Release(HFactory factory, void* resource)
 
         factory->m_ResourceToHash->Erase((uintptr_t) resource);
         factory->m_Resources->Erase(*resource_hash);
+        if (factory->m_ResourceHashToFilename)
+        {
+            const char** s = factory->m_ResourceHashToFilename->Get(*resource_hash);
+            assert(s);
+            free((void*) *s);
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <dlib/hash.h>
+#include <dlib/dstrings.h>
 #include "gamesys/resource.h"
 #include "gamesys/test/test_resource_ddf.h"
 
@@ -9,7 +10,7 @@ class ResourceTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        factory = dmResource::NewFactory(16, ".");
+        factory = dmResource::NewFactory(16, ".", RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
     }
 
     virtual void TearDown()
@@ -35,26 +36,26 @@ TEST_F(ResourceTest, RegisterType)
     dmResource::FactoryResult e;
 
     // Test create/destroy function == 0
-    e = dmResource::RegisterType(factory, "foo", 0, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0);
     ASSERT_EQ(dmResource::FACTORY_RESULT_INVAL, e);
 
     // Test dot in extension
-    e = dmResource::RegisterType(factory, ".foo", 0, &DummyCreate, &DummyDestroy);
+    e = dmResource::RegisterType(factory, ".foo", 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::FACTORY_RESULT_INVAL, e);
 
     // Test "ok"
-    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
+    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
     // Test already registred
-    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
+    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::FACTORY_RESULT_ALREADY_REGISTERED, e);
 }
 
 TEST_F(ResourceTest, NotFound)
 {
     dmResource::FactoryResult e;
-    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy);
+    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
     void* resource = (void*) 0xdeadbeef;
@@ -104,14 +105,14 @@ protected:
         m_FooResourceCreateCallCount = 0;
         m_FooResourceDestroyCallCount = 0;
 
-        m_Factory = dmResource::NewFactory(16, "build/default/src/gamesys/test/");
+        m_Factory = dmResource::NewFactory(16, "build/default/src/gamesys/test/", RESOURCE_FACTORY_FLAGS_EMPTY);
         m_ResourceName = "test.cont";
 
         dmResource::FactoryResult e;
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerCreate, &ResourceContainerDestroy);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-        e = dmResource::RegisterType(m_Factory, "foo", this, &FooResourceCreate, &FooResourceDestroy);
+        e = dmResource::RegisterType(m_Factory, "foo", this, &FooResourceCreate, &FooResourceDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
     }
 
@@ -316,6 +317,91 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
     // Make sure resource gets unloaded
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
     ASSERT_EQ(dmResource::FACTORY_RESULT_NOT_LOADED, e);
+}
+
+dmResource::CreateResult RecreateResourceCreate(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource)
+{
+    int* recreate_resource = new int(atoi((const char*) buffer));
+
+    resource->m_Resource = (void*) recreate_resource;
+    resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
+    return dmResource::CREATE_RESULT_OK;
+}
+
+dmResource::CreateResult RecreateResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+{
+    int* recreate_resource = (int*) resource->m_Resource;
+    delete recreate_resource;
+    return dmResource::CREATE_RESULT_OK;
+}
+
+dmResource::CreateResult RecreateResourceRecreate(dmResource::HFactory factory,
+                                                  void* context,
+                                                  const void* buffer, uint32_t buffer_size,
+                                                  dmResource::SResourceDescriptor* resource)
+{
+    int* recreate_resource = (int*) resource->m_Resource;
+    assert(recreate_resource);
+
+    *recreate_resource = atoi((const char*) buffer);
+
+    return dmResource::CREATE_RESULT_OK;
+}
+
+TEST(RecreateTest, RecreateTest)
+{
+    const char* tmp_dir = 0;
+#if defined(_MSC_VER)
+    tmp_dir = "/";
+#else
+    tmp_dir = "/tmp";
+#endif
+
+    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+
+    dmResource::FactoryResult e;
+    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    uint32_t type;
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    char file_name[512];
+    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, "__testrecreate__.foo");
+
+    FILE* f;
+
+    f = fopen(file_name, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "123");
+    fclose(f);
+
+    int* resource;
+    dmResource::FactoryResult fr = dmResource::Get(factory, "__testrecreate__.foo", (void**) &resource);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    ASSERT_EQ(123, *resource);
+
+    sleep(1); // TODO: Currently seconds time resolution in modification time
+
+    f = fopen(file_name, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "456");
+    fclose(f);
+
+    fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    ASSERT_EQ(456, *resource);
+
+    unlink(file_name);
+    fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+
+    dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
 }
 
 int main(int argc, char **argv)

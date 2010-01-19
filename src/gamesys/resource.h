@@ -10,6 +10,13 @@
 
 namespace dmResource
 {
+
+    /**
+     * Factory flags
+     */
+    #define RESOURCE_FACTORY_FLAGS_EMPTY            (0)    //!< FACTORY_FLAGS_EMPTY
+    #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0) //!< FACTORY_FLAGS_RELOAD_SUPPORT
+
     /**
      * Factory result
      */
@@ -62,7 +69,8 @@ namespace dmResource
         uint32_t m_ReferenceCount;
 
         /// For internal use only
-        void*    m_ResourceType; // For internal use.
+        void*    m_ResourceType;        // For internal use.
+        uint32_t m_ModificationTime;    // File modification time. For internal use.
     };
 
     /**
@@ -107,12 +115,27 @@ namespace dmResource
                                             SResourceDescriptor* resource);
 
     /**
+     * Resource recreate function. Recreate resource in-place.
+     * @param factory Factory handle
+     * @param context User context
+     * @param buffer Buffer
+     * @param buffer_size Buffer size
+     * @param resource Resource descriptor
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*FResourceRecreate)(HFactory factory,
+                                              void* context,
+                                              const void* buffer, uint32_t buffer_size,
+                                              SResourceDescriptor* resource);
+
+    /**
      * Create a new factory
      * @param max_resources Max resources created simultaneously
      * @param resource_path Resource root path
+     * @param flags Factory flags
      * @return Factory handle
      */
-    HFactory NewFactory(uint32_t max_resources, const char* resource_path);
+    HFactory NewFactory(uint32_t max_resources, const char* resource_path, uint32_t flags);
 
     /**
      * Delete a factory
@@ -127,13 +150,15 @@ namespace dmResource
      * @param context User context
      * @param create_function Create function pointer
      * @param destroy_function Destroy function pointer
+     * @param recreate_function Recreate function pointer. Optional, 0 if recrete is not supported.
      * @return FACTORY_RESULT_OK on success
      */
     FactoryResult RegisterType(HFactory factory,
                                const char* extension,
                                void* context,
                                FResourceCreate create_function,
-                               FResourceDestroy destroy_function);
+                               FResourceDestroy destroy_function,
+                               FResourceRecreate recreate_function);
 
     /**
      * Get a resource from factory
@@ -143,6 +168,14 @@ namespace dmResource
      * @return FACTORY_RESULT_OK on success
      */
     FactoryResult Get(HFactory factory, const char* name, void** resource);
+
+    /**
+     * Reload all resource of specified type
+     * @param factory Resource factory
+     * @param type Resource type
+     * @return FACTORY_RESULT_OK on success
+     */
+    FactoryResult ReloadType(HFactory factory, uint32_t type);
 
     /**
      * Get type for resource

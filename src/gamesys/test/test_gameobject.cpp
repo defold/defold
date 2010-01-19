@@ -16,19 +16,19 @@ protected:
         update_context.m_GlobalData = 0;
         update_context.m_DDFGlobalDataDescriptor = 0;
 
-        factory = dmResource::NewFactory(16, "build/default/src/gamesys/test");
+        factory = dmResource::NewFactory(16, "build/default/src/gamesys/test", RESOURCE_FACTORY_FLAGS_EMPTY);
         collection = dmGameObject::NewCollection();
         dmGameObject::RegisterResourceTypes(factory);
 
         // Register dummy physical resource type
         dmResource::FactoryResult e;
-        e = dmResource::RegisterType(factory, "pc", this, PhysCreate, PhysDestroy);
+        e = dmResource::RegisterType(factory, "pc", this, PhysCreate, PhysDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "a", this, ACreate, ADestroy);
+        e = dmResource::RegisterType(factory, "a", this, ACreate, ADestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "b", this, BCreate, BDestroy);
+        e = dmResource::RegisterType(factory, "b", this, BCreate, BDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "c", this, CCreate, CDestroy);
+        e = dmResource::RegisterType(factory, "c", this, CCreate, CDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
         uint32_t resource_type;

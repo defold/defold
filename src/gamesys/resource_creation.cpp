@@ -297,25 +297,25 @@ namespace dmGameSystem
     dmResource::FactoryResult RegisterResources(dmResource::HFactory factory)
     {
         dmResource::FactoryResult e;
-        e = dmResource::RegisterType(factory, "texture", 0, &TextureCreate, &TextureDestroy);
+        e = dmResource::RegisterType(factory, "texture", 0, &TextureCreate, &TextureDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "arbvp", 0, &VertexProgramCreate, &VertexProgramDestroy);
+        e = dmResource::RegisterType(factory, "arbvp", 0, &VertexProgramCreate, &VertexProgramDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "arbfp", 0, &FragmentProgramCreate, &FragmentProgramDestroy);
+        e = dmResource::RegisterType(factory, "arbfp", 0, &FragmentProgramCreate, &FragmentProgramDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "convexshape", 0, &ConvexShapeCreate, &ConvexShapeDestroy);
+        e = dmResource::RegisterType(factory, "convexshape", 0, &ConvexShapeCreate, &ConvexShapeDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "rigidbody", 0, &RigidBodyCreate, &RigidBodyDestroy);
+        e = dmResource::RegisterType(factory, "rigidbody", 0, &RigidBodyCreate, &RigidBodyDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "imagefont", 0, &ImageFontCreate, &ImageFontDestroy);
+        e = dmResource::RegisterType(factory, "imagefont", 0, &ImageFontCreate, &ImageFontDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "font", 0, &FontCreate, &FontDestroy);
+        e = dmResource::RegisterType(factory, "font", 0, &FontCreate, &FontDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
         return dmResource::FACTORY_RESULT_OK;
