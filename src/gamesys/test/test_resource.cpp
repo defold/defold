@@ -356,7 +356,7 @@ TEST(RecreateTest, RecreateTest)
 {
     const char* tmp_dir = 0;
 #if defined(_MSC_VER)
-    tmp_dir = "/";
+    tmp_dir = ".";
 #else
     tmp_dir = "/tmp";
 #endif
