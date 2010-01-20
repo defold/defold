@@ -116,12 +116,26 @@ namespace dmGameObject
         if (strcmp(key, "Position") == 0)
         {
             luaL_checktype(L, 3, LUA_TTABLE);
-            lua_pushliteral(L, "X");
-            lua_rawget(L, 3);
-            lua_pushliteral(L, "Y");
-            lua_rawget(L, 3);
-            lua_pushliteral(L, "Z");
-            lua_rawget(L, 3);
+
+            lua_getfield(L, 3, "X");
+            if (lua_isnil(L, -1))
+            {
+                // X not present, assume { x, y, z }
+                lua_pop(L, 1);
+                lua_rawgeti(L, 3, 1);
+                lua_rawgeti(L, 3, 2);
+                lua_rawgeti(L, 3, 3);
+            }
+            else
+            {
+                // X present, assume { X = x, ... }
+                lua_pushliteral(L, "X");
+                lua_rawget(L, 3);
+                lua_pushliteral(L, "Y");
+                lua_rawget(L, 3);
+                lua_pushliteral(L, "Z");
+                lua_rawget(L, 3);
+            }
 
             float x = luaL_checknumber(L, -3);
             float y = luaL_checknumber(L, -2);
@@ -318,15 +332,12 @@ namespace dmGameObject
         lua_close(g_LuaState);
     }
 
-    HScript NewScript(const void* memory)
+    static int DoLoadScript(lua_State* L, const void* memory)
     {
-        lua_State* L = g_LuaState;
-
         int top = lua_gettop(L);
         (void) top;
 
         int functions;
-        Script* script;
 
         int ret = luaL_loadstring(L, (const char*) memory);
         if (ret != 0)
@@ -348,20 +359,50 @@ namespace dmGameObject
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             dmLogError("No function table found in script");
-            lua_pop(L, -1);
+            lua_pop(L, 1);
             goto bail;
         }
 
         functions = luaL_ref( L, LUA_REGISTRYINDEX );
         assert(top == lua_gettop(L));
 
-        script = new Script();
-        script->m_FunctionsReference = functions;
-
-        return script;
+        return functions;
 bail:
-    assert(top == lua_gettop(L));
-        return 0;
+        assert(top == lua_gettop(L));
+        return -1;
+    }
+
+    HScript NewScript(const void* memory)
+    {
+        lua_State* L = g_LuaState;
+
+        int functions = DoLoadScript(L, memory);
+        if (functions != -1)
+        {
+            HScript script = new Script();
+            script->m_FunctionsReference = functions;
+            return script;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    bool ReloadScript(HScript script, const void* memory)
+    {
+        lua_State* L = g_LuaState;
+
+        int functions = DoLoadScript(L, memory);
+        if (functions != -1)
+        {
+            script->m_FunctionsReference = functions;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 
     void DeleteScript(HScript script)

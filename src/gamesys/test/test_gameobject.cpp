@@ -3,9 +3,12 @@
 #include <map>
 #include <dlib/hash.h>
 #include <dlib/event.h>
+#include <dlib/dstrings.h>
+#include <dlib/time.h>
 #include "../resource.h"
 #include "../gameobject.h"
 #include "gamesys/test/test_resource_ddf.h"
+#include "gamesys/gameobject_ddf.h"
 
 class GameObjectTest : public ::testing::Test
 {
@@ -366,6 +369,95 @@ TEST_F(GameObjectTest, TestFailingScript03)
 
     ASSERT_FALSE(dmGameObject::Update(collection, go, &update_context));
     dmGameObject::Delete(collection, factory, go);
+}
+
+static void CreateFile(const char* file_name, const char* contents)
+{
+    FILE* f;
+    f = fopen(file_name, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "%s", contents);
+    fclose(f);
+}
+
+TEST(ScriptTest, TestReloadScript)
+{
+    const char* tmp_dir = 0;
+#if defined(_MSC_VER)
+    tmp_dir = ".";
+#else
+    tmp_dir = "/tmp";
+#endif
+
+    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+    dmGameObject::HCollection collection = dmGameObject::NewCollection();
+    dmGameObject::RegisterResourceTypes(factory);
+
+    uint32_t type;
+    dmResource::FactoryResult e = dmResource::GetTypeFromExtension(factory, "scriptc", &type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    char script_file_name[512];
+    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "%s/%s", tmp_dir, "__test__.scriptc");
+
+    char go_file_name[512];
+    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", tmp_dir, "__go__.go");
+
+    dmGameObject::PrototypeDesc prototype;
+    memset(&prototype, 0, sizeof(prototype));
+    prototype.m_Name = "foo";
+    prototype.m_Script = "__test__.scriptc";
+
+    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObject::PrototypeDesc::m_DDFDescriptor, go_file_name);
+    ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
+
+    CreateFile(script_file_name,
+               "function Init(self)\n"
+               "end\n"
+               "function Update(self)\n"
+                   "self.Position = {1,2,3}\n"
+               "end\n"
+               "functions = { Init = Init, Update = Update }\n");
+
+    dmGameObject::HInstance go;
+    go = dmGameObject::New(collection, factory, "__go__.go", 0x0);
+    ASSERT_NE((dmGameObject::HInstance) 0, go);
+
+    dmGameObject::Update(collection, 0);
+    Point3 p1 = dmGameObject::GetPosition(go);
+    ASSERT_EQ(1, p1.getX());
+    ASSERT_EQ(2, p1.getY());
+    ASSERT_EQ(3, p1.getZ());
+
+    dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
+
+    CreateFile(script_file_name,
+               "function Init(self)\n"
+               "end\n"
+               "function Update(self)\n"
+                   "self.Position = {10,20,30}\n"
+               "end\n"
+               "functions = { Init = Init, Update = Update }\n");
+
+
+    dmResource::FactoryResult fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+
+    dmGameObject::Update(collection, 0);
+    Point3 p2 = dmGameObject::GetPosition(go);
+    ASSERT_EQ(10, p2.getX());
+    ASSERT_EQ(20, p2.getY());
+    ASSERT_EQ(30, p2.getZ());
+
+    unlink(script_file_name);
+    fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+
+    unlink(go_file_name);
+
+    dmGameObject::Delete(collection, factory, go);
+    dmGameObject::DeleteCollection(collection, factory);
+    dmResource::DeleteFactory(factory);
 }
 
 int main(int argc, char **argv)

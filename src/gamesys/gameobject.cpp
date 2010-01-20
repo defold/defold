@@ -234,6 +234,22 @@ namespace dmGameObject
         return dmResource::CREATE_RESULT_OK;
     }
 
+    dmResource::CreateResult ScriptRecreate(dmResource::HFactory factory,
+                                            void* context,
+                                            const void* buffer, uint32_t buffer_size,
+                                            dmResource::SResourceDescriptor* resource)
+    {
+        HScript script = (HScript) resource->m_Resource;
+        if (ReloadScript(script, buffer))
+        {
+            return dmResource::CREATE_RESULT_OK;
+        }
+        else
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+    }
+
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
     {
         dmResource::FactoryResult ret;
@@ -241,7 +257,7 @@ namespace dmGameObject
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy, 0);
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy, &ScriptRecreate);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
