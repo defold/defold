@@ -8,7 +8,7 @@
 #include "../resource.h"
 #include "../gameobject.h"
 #include "gamesys/test/test_resource_ddf.h"
-#include "gamesys/gameobject_ddf.h"
+#include "../proto/gameobject_ddf.h"
 
 class GameObjectTest : public ::testing::Test
 {

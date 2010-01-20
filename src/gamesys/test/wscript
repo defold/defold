@@ -59,7 +59,7 @@ def build(bld):
     test_resource.install_path = None
 
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src',
+                                     includes = '../../../src .',
                                      uselib = 'GTEST DDF DLIB',
                                      uselib_local = 'gamesys lua',
                                      proto_gen_py = True,
