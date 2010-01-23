@@ -25,10 +25,12 @@ namespace dmGameObject
      */
     enum Result
     {
-        RESULT_OK = 0,                //!< RESULT_OK
-        RESULT_OUT_OF_RESOURCES = -1,  //!< RESULT_OUT_OF_RESOURCES
-        RESULT_ALREADY_REGISTERED = -2,//!< RESULT_ALREADY_REGISTERED
-        RESULT_UNKNOWN_ERROR = -1000,  //!< RESULT_UNKNOWN_ERROR
+        RESULT_OK = 0,                      //!< RESULT_OK
+        RESULT_OUT_OF_RESOURCES = -1,       //!< RESULT_OUT_OF_RESOURCES
+        RESULT_ALREADY_REGISTERED = -2,     //!< RESULT_ALREADY_REGISTERED
+        RESULT_IDENTIFIER_IN_USE = -3,      //!< RESULT_IDENTIFIER_IN_USE
+        RESULT_IDENTIFIER_ALREADY_SET = -4, //!< RESULT_IDENTIFIER_ALREADY_SET
+        RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
     /**
@@ -127,9 +129,10 @@ namespace dmGameObject
 
     /**
      * Creates a new gameobject collection
+     * @param max_instances Max instances in this collection
      * @return HCollection
      */
-    HCollection NewCollection();
+    HCollection NewCollection(uint32_t max_instances);
 
     /**
      * Deletes a gameobject collection
@@ -161,6 +164,7 @@ namespace dmGameObject
      * @param collection Gameobject collection
      * @param factory Resource factory
      * @param prototype_name Prototype file name
+     * @param update_context Update context
      * @return New gameobject instance. NULL if any error occured
      */
     HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name, const UpdateContext* update_context);
@@ -172,6 +176,15 @@ namespace dmGameObject
      * @param instance Gameobject instance
      */
     void Delete(HCollection collection, dmResource::HFactory factory, HInstance instance);
+
+    /**
+     * Set instance identifier. Must be unique within the collection.
+     * @param collection Collection
+     * @param instance Instance
+     * @param identifier Identifier
+     * @return RESULT_OK on success
+     */
+    Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
      * Call update function. Does *NOT* dispatch script events

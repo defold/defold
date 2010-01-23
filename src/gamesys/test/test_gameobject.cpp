@@ -20,7 +20,7 @@ protected:
         update_context.m_DDFGlobalDataDescriptor = 0;
 
         factory = dmResource::NewFactory(16, "build/default/src/gamesys/test", RESOURCE_FACTORY_FLAGS_EMPTY);
-        collection = dmGameObject::NewCollection();
+        collection = dmGameObject::NewCollection(1024);
         dmGameObject::RegisterResourceTypes(factory);
 
         // Register dummy physical resource type
@@ -390,7 +390,7 @@ TEST(ScriptTest, TestReloadScript)
 #endif
 
     dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
-    dmGameObject::HCollection collection = dmGameObject::NewCollection();
+    dmGameObject::HCollection collection = dmGameObject::NewCollection(1024);
     dmGameObject::RegisterResourceTypes(factory);
 
     uint32_t type;

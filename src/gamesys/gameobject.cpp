@@ -2,6 +2,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/event.h>
 #include <dlib/hash.h>
+#include <dlib/array.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "../proto/gameobject_ddf.h"
@@ -28,11 +29,19 @@ namespace dmGameObject
     const uint32_t MAX_COMPONENT_TYPES = 128;
     struct Collection
     {
-        Collection() {m_ComponentTypeCount = 0;}
-        uint32_t               m_ComponentTypeCount;
-        ComponentType          m_ComponentTypes[MAX_COMPONENT_TYPES];
-        std::vector<Instance*> m_Instances;
+        Collection(uint32_t max_instances)
+        {
+            m_ComponentTypeCount = 0;
+            m_Instances.SetCapacity(max_instances);
+            m_IDToInstance.SetCapacity(max_instances/3, max_instances);
+        }
+        uint32_t                 m_ComponentTypeCount;
+        ComponentType            m_ComponentTypes[MAX_COMPONENT_TYPES];
+        dmArray<Instance*>       m_Instances;
+        dmHashTable32<Instance*> m_IDToInstance;
     };
+
+    const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer32("__unnamed__", strlen("__unnamed__"));
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
     uint32_t g_ScriptSocket = 0;
@@ -79,14 +88,14 @@ namespace dmGameObject
         }
     }
 
-    HCollection  NewCollection()
+    HCollection  NewCollection(uint32_t max_instances)
     {
-        return new Collection();
+        return new Collection(max_instances);
     }
 
     void DeleteCollection(HCollection collection, dmResource::HFactory factory)
     {
-        for (uint32_t i = 0; collection->m_Instances.size(); ++i)
+        for (uint32_t i = 0; collection->m_Instances.Size(); ++i)
         {
             Delete(collection, factory, collection->m_Instances[i]);
         }
@@ -273,6 +282,12 @@ namespace dmGameObject
             return 0;
         }
 
+        if (collection->m_Instances.Remaining() == 0)
+        {
+            dmLogWarning("Unable to create instance. Out of resoruces");
+            return 0;
+        }
+
         // Count number of component userdata fields required
         uint32_t component_instance_userdata_count = 0;
         for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
@@ -347,7 +362,7 @@ namespace dmGameObject
             operator delete (instance_memory);
             return 0;
         }
-        collection->m_Instances.push_back(instance);
+        collection->m_Instances.Push(instance);
 
         bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
 
@@ -384,22 +399,39 @@ namespace dmGameObject
 
         // TODO: O(n)...
         bool found = false;
-        for (uint32_t i = 0; collection->m_Instances.size(); ++i)
+        for (uint32_t i = 0; collection->m_Instances.Size(); ++i)
         {
             if (collection->m_Instances[i] == instance)
             {
-                collection->m_Instances.erase(collection->m_Instances.begin() + i);
+                collection->m_Instances.EraseSwap(i);
                 found = true;
                 break;
             }
         }
         assert(found);
+        if (instance->m_Identifier != UNNAMED_IDENTIFIER)
+            collection->m_IDToInstance.Erase(instance->m_Identifier);
 
         dmResource::Release(factory, instance->m_Prototype);
 
         instance->~Instance();
         void* instance_memory = (void*) instance;
         operator delete (instance_memory);
+    }
+
+    Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier)
+    {
+        uint32_t id = dmHashBuffer32(identifier, strlen(identifier));
+        if (collection->m_IDToInstance.Get(id))
+            return RESULT_IDENTIFIER_IN_USE;
+
+        if (instance->m_Identifier != UNNAMED_IDENTIFIER)
+            return RESULT_IDENTIFIER_ALREADY_SET;
+
+        instance->m_Identifier = id;
+        collection->m_IDToInstance.Put(id, instance);
+
+        return RESULT_OK;
     }
 
     bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context)
@@ -413,7 +445,7 @@ namespace dmGameObject
     {
         bool ret = DispatchScriptEvents(update_context);
 
-        uint32_t n_objects = collection->m_Instances.size();
+        uint32_t n_objects = collection->m_Instances.Size();
         for (uint32_t i = 0; i < n_objects; ++i)
         {
             Update(collection, collection->m_Instances[i], update_context);

@@ -13,6 +13,8 @@ namespace dmGameObject
     // TODO: Configurable?
     const uint32_t SCRIPT_EVENT_SOCKET_BUFFER_SIZE = 0x8000;
 
+    extern const uint32_t UNNAMED_IDENTIFIER;
+
     struct Prototype
     {
         struct Component
@@ -39,6 +41,7 @@ namespace dmGameObject
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
             m_ScriptInstance = NewScriptInstance(prototype->m_Script, this);
+            m_Identifier = UNNAMED_IDENTIFIER;
         }
 
         ~Instance()
@@ -50,6 +53,7 @@ namespace dmGameObject
         Point3          m_Position;
         Prototype*      m_Prototype;
         HScriptInstance m_ScriptInstance;
+        uint32_t        m_Identifier;
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
     };
