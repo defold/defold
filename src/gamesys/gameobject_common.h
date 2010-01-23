@@ -17,12 +17,16 @@ namespace dmGameObject
     {
         struct Component
         {
-            Component(void* resource, uint32_t resource_type) :
+            Component(void* resource, uint32_t resource_type, const char* name) :
                 m_Resource(resource),
-                m_ResourceType(resource_type) {}
+                m_ResourceType(resource_type)
+            {
+                m_NameHash = dmHashBuffer32(name, strlen(name));
+            }
 
             void*    m_Resource;
             uint32_t m_ResourceType;
+            uint32_t m_NameHash;
         };
 
         const char*            m_Name;

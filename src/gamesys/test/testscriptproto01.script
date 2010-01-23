@@ -34,8 +34,8 @@ function Update(self)
 	Post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
 end
 
-function OnEvent(self, type, event)
-	assert(type == "SpawnResult")
+function OnEvent(self, event_hash, event)
+	assert(event_hash == Hash("SpawnResult"))
 	assert(event.Status == 1010)
 end
 

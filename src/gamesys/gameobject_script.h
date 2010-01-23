@@ -35,8 +35,8 @@ namespace dmGameObject
     HScriptInstance NewScriptInstance(HScript script, HInstance instance);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    bool    RunScript(HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
-    bool    DispatchScriptEvents(const UpdateContext* update_context);
+    bool    RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
+    bool    DispatchScriptEventsFunction(dmEvent::Event *event_object, const UpdateContext* m_UpdateContext);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

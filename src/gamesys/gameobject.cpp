@@ -23,6 +23,7 @@ namespace dmGameObject
         ComponentCreate  m_CreateFunction;
         ComponentDestroy m_DestroyFunction;
         ComponentsUpdate m_ComponentsUpdate;
+        ComponentOnEvent m_ComponentOnEvent;
         uint32_t         m_ComponentInstanceHasUserdata : 1;
     };
 
@@ -44,23 +45,25 @@ namespace dmGameObject
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer32("__unnamed__", strlen("__unnamed__"));
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
-    uint32_t g_ScriptSocket = 0;
-    uint32_t g_ScriptReplySocket = 0;
-    uint32_t g_ScriptEventID = 0;
+    uint32_t g_Socket = 0;
+    uint32_t g_ReplySocket = 0;
+    uint32_t g_EventID = 0;
 
     void Initialize()
     {
+        assert(g_Descriptors == 0);
+
         g_Descriptors = new dmHashTable64<const dmDDF::Descriptor*>();
         g_Descriptors->SetCapacity(17, 128);
 
-        g_ScriptEventID = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_NAME));
-        dmEvent::Register(g_ScriptEventID, SCRIPT_EVENT_MAX);
+        g_EventID = dmHashString32(DMGAMEOBJECT_EVENT_NAME);
+        dmEvent::Register(g_EventID, SCRIPT_EVENT_MAX);
 
-        g_ScriptSocket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME));
-        dmEvent::CreateSocket(g_ScriptSocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        g_Socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
+        dmEvent::CreateSocket(g_Socket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
-        g_ScriptReplySocket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME));
-        dmEvent::CreateSocket(g_ScriptReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        g_ReplySocket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
+        dmEvent::CreateSocket(g_ReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
         InitializeScript();
     }
@@ -68,10 +71,15 @@ namespace dmGameObject
     void Finalize()
     {
         FinalizeScript();
-        dmEvent::Unregister(g_ScriptEventID);
-        dmEvent::DestroySocket(g_ScriptSocket);
-        dmEvent::DestroySocket(g_ScriptReplySocket);
+        dmEvent::Unregister(g_EventID);
+        dmEvent::DestroySocket(g_Socket);
+        dmEvent::DestroySocket(g_ReplySocket);
         delete g_Descriptors;
+
+        g_EventID = 0xffffffff;
+        g_Socket = 0xffffffff;
+        g_ReplySocket = 0xffffffff;
+        g_Descriptors = 0;
     }
 
     Result RegisterDDFType(const dmDDF::Descriptor* descriptor)
@@ -121,6 +129,7 @@ namespace dmGameObject
                                  ComponentCreate create_function,
                                  ComponentDestroy destroy_function,
                                  ComponentsUpdate components_update,
+                                 ComponentOnEvent component_on_event,
                                  bool component_instance_has_user_data)
     {
         if (collection->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
@@ -135,6 +144,7 @@ namespace dmGameObject
         component_type.m_CreateFunction = create_function;
         component_type.m_DestroyFunction = destroy_function;
         component_type.m_ComponentsUpdate = components_update;
+        component_type.m_ComponentOnEvent = component_on_event;
         component_type.m_ComponentInstanceHasUserdata = (uint32_t) component_instance_has_user_data;
 
         collection->m_ComponentTypes[collection->m_ComponentTypeCount++] = component_type;
@@ -180,7 +190,7 @@ namespace dmGameObject
                 uint32_t resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.push_back(Prototype::Component(component, resource_type));
+                proto->m_Components.push_back(Prototype::Component(component, resource_type, component_name));
             }
         }
 
@@ -364,7 +374,7 @@ namespace dmGameObject
         }
         collection->m_Instances.Push(instance);
 
-        bool init_ok = RunScript(proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
+        bool init_ok = RunScript(collection, proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
 
         if (init_ok)
         {
@@ -439,21 +449,136 @@ namespace dmGameObject
         return instance->m_Identifier;
     }
 
+    HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier)
+    {
+        Instance** instance = collection->m_IDToInstance.Get(identifier);
+        if (instance)
+            return *instance;
+        else
+            return 0;
+    }
+
+    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event)
+    {
+        uint32_t event_hash = dmHashString32(event);
+        uint32_t component_index = 0xffffffff;
+
+        // Send to component or script?
+        if (component_name != 0)
+        {
+            uint32_t component_name_hash = dmHashString32(component_name);
+            Prototype* p = instance->m_Prototype;
+            for (uint32_t i = 0; i < p->m_Components.size(); ++i)
+            {
+                if (p->m_Components[i].m_NameHash == component_name_hash)
+                {
+                    component_index = i;
+                    break;
+                }
+            }
+            if (component_index == 0xffffffff)
+            {
+                return RESULT_COMPONENT_NOT_FOUND;
+            }
+        }
+
+        ScriptEventData e;
+        e.m_Component = component_index & 0xff;
+        e.m_DDFDescriptor = 0;
+        e.m_EventHash = event_hash;
+        e.m_Instance = instance;
+
+        dmEvent::Post(g_ReplySocket, g_EventID, &e);
+
+        return RESULT_OK;
+    }
+
     bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context)
     {
         Prototype* proto = instance->m_Prototype;
-        bool ret = RunScript(proto->m_Script, "Update", instance->m_ScriptInstance, update_context);
+        bool ret = RunScript(collection, proto->m_Script, "Update", instance->m_ScriptInstance, update_context);
         return ret;
+    }
+
+    struct DispatchEventsContext
+    {
+        HCollection m_Collection;
+        const UpdateContext* m_UpdateContext;
+        bool m_Success;
+    };
+
+    void DispatchEventsFunction(dmEvent::Event *event_object, void* user_ptr)
+    {
+        DispatchEventsContext* context = (DispatchEventsContext*) user_ptr;
+
+        dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
+        assert(script_event_data->m_Instance);
+
+        if (script_event_data->m_Component == 0xff)
+        {
+            bool ret = DispatchScriptEventsFunction(event_object, context->m_UpdateContext);
+            if (!ret)
+                context->m_Success = false;
+        }
+        else
+        {
+            Instance* instance = script_event_data->m_Instance;
+            Prototype* prototype = instance->m_Prototype;
+            uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
+            ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
+            assert(component_type);
+
+            if (component_type->m_ComponentOnEvent)
+            {
+
+                // TODO: Not optimal way to find index of component instance data
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
+                {
+                    ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
+                    assert(component_type);
+                    if (ct->m_ComponentInstanceHasUserdata)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_ComponentInstanceHasUserdata)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                }
+                component_type->m_ComponentOnEvent(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+            }
+            else
+            {
+                // TODO User-friendly error message here...
+                dmLogWarning("Component type is missing OnEvent function");
+            }
+        }
+    }
+
+    bool DispatchEvents(HCollection collection, const UpdateContext* update_context)
+    {
+        DispatchEventsContext ctx;
+        ctx.m_Collection = collection;
+        ctx.m_UpdateContext = update_context;
+        ctx.m_Success = true;
+        (void) dmEvent::Dispatch(g_ReplySocket, &DispatchEventsFunction, (void*) &ctx);
+
+        return ctx.m_Success;
     }
 
     bool Update(HCollection collection, const UpdateContext* update_context)
     {
-        bool ret = DispatchScriptEvents(update_context);
+        bool ret = DispatchEvents(collection, update_context);
 
         uint32_t n_objects = collection->m_Instances.Size();
         for (uint32_t i = 0; i < n_objects; ++i)
         {
-            Update(collection, collection->m_Instances[i], update_context);
+            bool update_ret = Update(collection, collection->m_Instances[i], update_context);
+            if (!update_ret)
+                ret = false;
         }
 
         uint32_t component_types = collection->m_ComponentTypeCount;

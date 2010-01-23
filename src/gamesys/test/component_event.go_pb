@@ -1,0 +1,8 @@
+Name: "ComponentEvent"
+Script: "component_event.scriptc"
+Components
+{
+	Name: "event_target.et"
+	Position: { X: 0 Y: 0 Z: 0 W: 0 } 
+	Rotation: { X: 0 Y: 0 Z: 0 W: 1 } 
+}

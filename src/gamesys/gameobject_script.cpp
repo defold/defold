@@ -4,6 +4,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/event.h>
+#include <dlib/dstrings.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
@@ -154,6 +155,48 @@ namespace dmGameObject
         return 1;
     }
 
+    void SetScriptIntProperty(HInstance instance, const char* key, int32_t value)
+    {
+        lua_State*L = g_LuaState;
+
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstance->m_ScriptDataReference);
+        lua_pushstring(L, key);
+        lua_pushinteger(L, value);
+        lua_settable(L, -3);
+
+        assert(top + 1 == lua_gettop(L));
+    }
+
+    void SetScriptFloatProperty(HInstance instance, const char* key, float value)
+    {
+        lua_State*L = g_LuaState;
+
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstance->m_ScriptDataReference);
+        lua_pushstring(L, key);
+        lua_pushnumber(L, value);
+        lua_settable(L, -3);
+
+        assert(top + 1 == lua_gettop(L));
+    }
+
+    void SetScriptStringProperty(HInstance instance, const char* key, const char* value)
+    {
+        lua_State*L = g_LuaState;
+
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstance->m_ScriptDataReference);
+        lua_pushstring(L, key);
+        lua_pushstring(L, value);
+        lua_settable(L, -3);
+
+        assert(top + 1 == lua_gettop(L));
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         //{"test", ScriptInstance_Test},
@@ -168,9 +211,9 @@ namespace dmGameObject
     };
 
     extern dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors;
-    extern uint32_t g_ScriptSocket;
-    extern uint32_t g_ScriptReplySocket;
-    extern uint32_t g_ScriptEventID;
+    extern uint32_t g_Socket;
+    extern uint32_t g_ReplySocket;
+    extern uint32_t g_EventID;
 
     static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
                              char* message, char** buffer, char** buffer_last);
@@ -251,6 +294,52 @@ namespace dmGameObject
         }
     }
 
+    int Script_Hash(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        const char* str = luaL_checkstring(L, 1);
+        char buf[9];
+        DM_SNPRINTF(buf, sizeof(buf), "%X", dmHashString32(str));
+        lua_pushstring(L, buf);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    int Script_PostNamedTo(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        const char* instance_name = luaL_checkstring(L, 1);
+        const char* component_name = luaL_checkstring(L, 2);
+        const char* event_name = luaL_checkstring(L, 3);
+
+        lua_pushstring(L, "__collection__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        HCollection collection = (HCollection) lua_touserdata(L, -1);
+        assert(collection);
+        lua_pop(L, 1);
+
+        HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(instance_name));
+        if (instance)
+        {
+            dmGameObject::Result r = dmGameObject::PostNamedEvent(instance, component_name, event_name);
+            if (r != dmGameObject::RESULT_OK)
+            {
+                // TODO: Translate r to string
+                luaL_error(L, "Error sending event '%s' to %s/%s", event_name, instance_name, component_name);
+            }
+        }
+        else
+        {
+            luaL_error(L, "Error sending event. Unknown instance: %s", instance_name);
+        }
+        assert(top == lua_gettop(L));
+
+        return 0;
+    }
+
     int Script_Post(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -276,10 +365,10 @@ namespace dmGameObject
         ScriptEventData* script_event_data = (ScriptEventData*) buf;
         script_event_data->m_DDFDescriptor = d;
 
-        lua_pushstring(L, "__scriptinstance__");
+        lua_pushstring(L, "__instance__");
         lua_rawget(L, LUA_GLOBALSINDEX);
-        script_event_data->m_ScriptInstance = (HScriptInstance) lua_touserdata(L, -1);
-        assert(script_event_data->m_ScriptInstance);
+        script_event_data->m_Instance = (HInstance) lua_touserdata(L, -1);
+        assert(script_event_data->m_Instance);
         lua_pop(L, 1);
 
         char* p = buf + sizeof(ScriptEventData);
@@ -289,7 +378,7 @@ namespace dmGameObject
 
         assert(top == lua_gettop(L));
 
-        dmEvent::Post(g_ScriptSocket, g_ScriptEventID, buf);
+        dmEvent::Post(g_Socket, g_EventID, buf);
 
         return 0;
     }
@@ -325,11 +414,20 @@ namespace dmGameObject
         lua_pushliteral(L, "Post");
         lua_pushcfunction(L, Script_Post);
         lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "PostNamedTo");
+        lua_pushcfunction(L, Script_PostNamedTo);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "Hash");
+        lua_pushcfunction(L, Script_Hash);
+        lua_rawset(L, LUA_GLOBALSINDEX);
     }
 
     void FinalizeScript()
     {
         lua_close(g_LuaState);
+        g_LuaState = 0;
     }
 
     static int DoLoadScript(lua_State* L, const void* memory)
@@ -456,19 +554,23 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-    bool RunScript(HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
+    bool RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
     {
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
         (void) top;
         int ret;
 
+        lua_pushliteral(L, "__collection__");
+        lua_pushlightuserdata(L, (void*) collection);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_pushliteral(L, "__update_context__");
         lua_pushlightuserdata(L, (void*) update_context);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "__scriptinstance__");
-        lua_pushlightuserdata(L, (void*) script_instance);
+        lua_pushliteral(L, "__instance__");
+        lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
@@ -506,22 +608,13 @@ bail:
         return false;
     }
 
-    struct DispatchScriptEventsContext
+    bool DispatchScriptEventsFunction(dmEvent::Event *event_object, const UpdateContext* update_context)
     {
-        const UpdateContext* m_UpdateContext;
-        bool m_Success;
-    };
-
-    static void DispatchScriptEventsFunction(dmEvent::Event *event_object, void* user_ptr)
-    {
-        DispatchScriptEventsContext* context = (DispatchScriptEventsContext*) user_ptr;
-        const UpdateContext* update_context = context->m_UpdateContext;
-
         dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
 
-        assert(script_event_data->m_DDFDescriptor);
-        assert(script_event_data->m_DDFData);
-        assert(script_event_data->m_ScriptInstance);
+        //assert(script_event_data->m_DDFDescriptor);
+        //assert(script_event_data->m_DDFData);
+        assert(script_event_data->m_Instance);
 
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
@@ -532,11 +625,11 @@ bail:
         lua_pushlightuserdata(L, (void*) update_context);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_ScriptInstance->m_Script->m_FunctionsReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_Instance->m_ScriptInstance->m_Script->m_FunctionsReference);
         if (lua_type(L, -1) != LUA_TTABLE)
         {
-            dmLogError("Invalid 'SenderFunctionsReference' (%d) in event", script_event_data->m_ScriptInstance->m_Script->m_FunctionsReference);
-            return;
+            dmLogError("Invalid 'SenderFunctionsReference' (%d) in event", script_event_data->m_Instance->m_ScriptInstance->m_Script->m_FunctionsReference);
+            return false;
         }
 
         const char* function_name = "OnEvent";
@@ -548,11 +641,23 @@ bail:
             goto bail;
         }
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_ScriptInstance->m_InstanceReference);
-        // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
-        // lua_cpcall?
-        lua_pushstring(L, script_event_data->m_DDFDescriptor->m_Name);
-        DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_Instance->m_ScriptInstance->m_InstanceReference);
+
+        char buf[9];
+        DM_SNPRINTF(buf, sizeof(buf), "%X", script_event_data->m_EventHash);
+        lua_pushstring(L, buf);
+
+        if (script_event_data->m_DDFDescriptor)
+        {
+            // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
+            // lua_cpcall?
+            DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+        }
+        else
+        {
+            // Named event
+            lua_newtable(L);
+        }
 
         ret = lua_pcall(L, 3, LUA_MULTRET, 0);
         if (ret != 0)
@@ -565,23 +670,13 @@ bail:
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
-        return;
+        return true;
 bail:
-        context->m_Success = false;
         lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
         assert(top == lua_gettop(L));
-        return;
+        return false;
     }
 
-    bool DispatchScriptEvents(const UpdateContext* update_context)
-    {
-        DispatchScriptEventsContext ctx;
-        ctx.m_UpdateContext = update_context;
-        ctx.m_Success = true;
-        (void) dmEvent::Dispatch(g_ScriptReplySocket, &DispatchScriptEventsFunction, (void*) &ctx);
-
-        return ctx.m_Success;
-    }
 }

@@ -30,6 +30,7 @@ namespace dmGameObject
         RESULT_ALREADY_REGISTERED = -2,     //!< RESULT_ALREADY_REGISTERED
         RESULT_IDENTIFIER_IN_USE = -3,      //!< RESULT_IDENTIFIER_IN_USE
         RESULT_IDENTIFIER_ALREADY_SET = -4, //!< RESULT_IDENTIFIER_ALREADY_SET
+        RESULT_COMPONENT_NOT_FOUND = -5,    //!< RESULT_COMPONENT_NOT_FOUND
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -57,20 +58,28 @@ namespace dmGameObject
 
     extern const uint32_t UNNAMED_IDENTIFIER;
 
-    #define DMGAMEOBJECT_SCRIPT_EVENT_NAME "script_event"
-    #define DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME "script"
-    #define DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME "script_reply"
+    #define DMGAMEOBJECT_EVENT_NAME "script_event"
+    #define DMGAMEOBJECT_EVENT_SOCKET_NAME "script"
+    #define DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME "script_reply"
 
     /**
      * Game script event data
      */
     struct ScriptEventData
     {
-        /// Senderscript instance
-        HScriptInstance          m_ScriptInstance;
-        /// Pay-load DDF descriptor
+        /// Subject
+        HInstance m_Instance;
+
+        /// Subject instance component. Set to 0xff to target scripts
+        uint8_t   m_Component;
+        uint8_t   m_Pad[3];
+
+        /// Eventhash
+        uint32_t  m_EventHash;
+
+        /// Pay-load DDF descriptor. NULL if not present
         const dmDDF::Descriptor* m_DDFDescriptor;
-        /// Pay-load (DDF)
+        /// Pay-load (DDF). Optional. Requires non-NULL m_DDFDescriptor
         uint8_t                  m_DDFData[0];
     };
 
@@ -113,6 +122,18 @@ namespace dmGameObject
                                      void* context);
 
     /**
+     * Component on-event function. Called when event is sent to this component
+     * @param collection Collection handle
+     * @param instance Instance handle
+     * @param context User context
+     * @param user_data User data storage pointer
+     */
+    typedef void (*ComponentOnEvent)(HCollection collection,
+                                     HInstance instance,
+                                     const ScriptEventData* event_data,
+                                     void* context,
+                                     uintptr_t* user_data);
+    /**
      * Initialize system
      */
     void Initialize();
@@ -150,6 +171,7 @@ namespace dmGameObject
      * @param create_function Create function call-back
      * @param destroy_function Destroy function call-back
      * @param components_update Components update call-back. NULL if not required.
+     * @param component_on_event. Component on-event call-back. NULL if not required.
      * @param component_instance_has_user_data True if the component instance needs user data
      * @return RESULT_OK on success
      */
@@ -159,6 +181,7 @@ namespace dmGameObject
                                  ComponentCreate create_function,
                                  ComponentDestroy destroy_function,
                                  ComponentsUpdate components_update,
+                                 ComponentOnEvent component_on_event,
                                  bool component_instance_has_user_data);
 
     /**
@@ -194,6 +217,47 @@ namespace dmGameObject
      * @return Identifer. dmGameObject::UNNAMED_IDENTIFIER if not set.
      */
     uint32_t GetIdentifier(HInstance instance);
+
+    /**
+     * Get instance from identifier
+     * @param collection Collection
+     * @param identifier Identifier
+     * @return Instance. NULL if instance isn't found.
+     */
+    HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier);
+
+    /**
+     * Post named event to component instance
+     * @param instance Instance
+     * @param component_name Component name. NULL if for sending to script
+     * @param event Named event
+     * @return RESULT_OK on success
+     */
+    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event);
+
+    /**
+     * Set integer property in instance script
+     * @param instance Instnce
+     * @param key Key
+     * @param value Value
+     */
+    void SetScriptIntProperty(HInstance instance, const char* key, int32_t value);
+
+    /**
+     * Set float property in instance script
+     * @param instance Instnce
+     * @param key Key
+     * @param value Value
+     */
+    void SetScriptFloatProperty(HInstance instance, const char* key, float value);
+
+    /**
+     * Set string property in instance script
+     * @param instance Instnce
+     * @param key Key
+     * @param value Value
+     */
+    void SetScriptStringProperty(HInstance instance, const char* key, const char* value);
 
     /**
      * Call update function. Does *NOT* dispatch script events

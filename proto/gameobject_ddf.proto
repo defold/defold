@@ -26,12 +26,27 @@ message PrototypeDesc
     repeated ComponentDesc Components = 3;
 }
 
+message Property
+{
+	enum PropertyType
+	{
+		INTEGER = 1;
+		FLOAT = 2;
+		STRING = 3;
+	}
+	
+	required PropertyType Type = 1;
+	required string Key = 2;
+	required string Value = 3; 
+}
+
 message InstanceDesc
 {
     required string  Prototype = 1;
     required string  Name      = 2;
     required Vector4 Position  = 3;
     required Vector4 Rotation  = 4;
+    repeated Property ScriptProperties = 5;
 }
 
 message LevelDesc

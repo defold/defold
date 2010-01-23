@@ -18,6 +18,7 @@ create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestResource.CResource', 
 create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='cc cxx')
 create_simple_protoc_task('physcomp', '.pc_pb', '.pc', 'TestResource.PhysComponent', before='cc cxx')
 create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
+create_simple_protoc_task('event_target', '.et_pb', '.et', 'TestResource.EventTarget', before='cc cxx')
 
 Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ../proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK', 
@@ -65,7 +66,7 @@ def build(bld):
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
                                      source = 'test_gameobject.cpp test_resource_ddf.proto')
-    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
+    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.et_pb'])
     test_gameobject.install_path = None
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',

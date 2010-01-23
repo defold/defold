@@ -15,6 +15,11 @@ class GameObjectTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
+        dmGameObject::Initialize();
+        dmGameObject::RegisterDDFType(TestResource::Spawn::m_DDFDescriptor);
+
+        m_EventTargetCounter = 0;
+
         update_context.m_DT = 1.0f / 60.0f;
         update_context.m_GlobalData = 0;
         update_context.m_DDFGlobalDataDescriptor = 0;
@@ -33,30 +38,38 @@ protected:
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         e = dmResource::RegisterType(factory, "c", this, CCreate, CDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        e = dmResource::RegisterType(factory, "et", this, EventTargetCreate, EventTargetDestroy, 0);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
         uint32_t resource_type;
 
         e = dmResource::GetTypeFromExtension(factory, "pc", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, resource_type, this, PhysComponentCreate, PhysComponentDestroy, PhysComponentsUpdate, false);
+        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, resource_type, this, PhysComponentCreate, PhysComponentDestroy, PhysComponentsUpdate, 0, false);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // A has component_user_data
         e = dmResource::GetTypeFromExtension(factory, "a", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, AComponentCreate, AComponentDestroy, AComponentsUpdate, true);
+        result = dmGameObject::RegisterComponentType(collection, resource_type, this, AComponentCreate, AComponentDestroy, AComponentsUpdate, 0, true);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
         e = dmResource::GetTypeFromExtension(factory, "b", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, BComponentCreate, BComponentDestroy, BComponentsUpdate, false);
+        result = dmGameObject::RegisterComponentType(collection, resource_type, this, BComponentCreate, BComponentDestroy, BComponentsUpdate, 0, false);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // C has component_user_data
         e = dmResource::GetTypeFromExtension(factory, "c", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, CComponentCreate, CComponentDestroy, CComponentsUpdate, true);
+        result = dmGameObject::RegisterComponentType(collection, resource_type, this, CComponentCreate, CComponentDestroy, CComponentsUpdate, 0, true);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
+
+        // EventTargetComponent
+        e = dmResource::GetTypeFromExtension(factory, "et", &resource_type);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+        result = dmGameObject::RegisterComponentType(collection, resource_type, this, EventTargetComponentCreate, EventTargetComponentDestroy, EventTargetComponentsUpdate, &EventTargetOnEvent, true);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         m_MaxComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash] = 1000000;
@@ -66,7 +79,16 @@ protected:
     {
         dmGameObject::DeleteCollection(collection, factory);
         dmResource::DeleteFactory(factory);
+        dmGameObject::Finalize();
     }
+
+    uint32_t m_EventTargetCounter;
+
+    static void EventTargetOnEvent(dmGameObject::HCollection collection,
+                                   dmGameObject::HInstance instance,
+                                   const dmGameObject::ScriptEventData* event_data,
+                                   void* context,
+                                   uintptr_t* user_data);
 
     static dmResource::FResourceCreate    PhysCreate;
     static dmResource::FResourceDestroy   PhysDestroy;
@@ -92,6 +114,11 @@ protected:
     static dmGameObject::ComponentDestroy CComponentDestroy;
     static dmGameObject::ComponentsUpdate CComponentsUpdate;
 
+    static dmResource::FResourceCreate    EventTargetCreate;
+    static dmResource::FResourceDestroy   EventTargetDestroy;
+    static dmGameObject::ComponentCreate  EventTargetComponentCreate;
+    static dmGameObject::ComponentDestroy EventTargetComponentDestroy;
+    static dmGameObject::ComponentsUpdate EventTargetComponentsUpdate;
 public:
 
     std::map<uint64_t, uint32_t> m_CreateCountMap;
@@ -213,6 +240,12 @@ dmResource::FResourceDestroy GameObjectTest::CDestroy            = GenericDDFDes
 dmGameObject::ComponentCreate GameObjectTest::CComponentCreate   = GenericComponentCreate<TestResource::CResource, 10>;
 dmGameObject::ComponentDestroy GameObjectTest::CComponentDestroy = GenericComponentDestroy<TestResource::CResource>;
 dmGameObject::ComponentsUpdate GameObjectTest::CComponentsUpdate = GenericComponentsUpdate<TestResource::CResource>;
+
+dmResource::FResourceCreate GameObjectTest::EventTargetCreate              = GenericDDFCreate<TestResource::EventTarget>;
+dmResource::FResourceDestroy GameObjectTest::EventTargetDestroy            = GenericDDFDestory<TestResource::EventTarget>;
+dmGameObject::ComponentCreate GameObjectTest::EventTargetComponentCreate   = GenericComponentCreate<TestResource::EventTarget, -1>;
+dmGameObject::ComponentDestroy GameObjectTest::EventTargetComponentDestroy = GenericComponentDestroy<TestResource::EventTarget>;
+dmGameObject::ComponentsUpdate GameObjectTest::EventTargetComponentsUpdate = GenericComponentsUpdate<TestResource::EventTarget>;
 
 TEST_F(GameObjectTest, Test01)
 {
@@ -339,6 +372,76 @@ TEST_F(GameObjectTest, TestComponentUserdata)
     ASSERT_EQ(30, m_ComponentUserDataAcc[TestResource::CResource::m_DDFHash]);
 }
 
+void GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
+                                        dmGameObject::HInstance instance,
+                                        const dmGameObject::ScriptEventData* event_data,
+                                        void* context,
+                                        uintptr_t* user_data)
+{
+    GameObjectTest* self = (GameObjectTest*) context;
+
+    if (event_data->m_EventHash == dmHashString32("inc"))
+    {
+        self->m_EventTargetCounter++;
+        if (self->m_EventTargetCounter == 2)
+        {
+            dmGameObject::PostNamedEvent(instance, 0, "test_event");
+        }
+    }
+    else if (event_data->m_EventHash == dmHashString32("dec"))
+    {
+        self->m_EventTargetCounter--;
+    }
+    else
+    {
+        assert(0);
+    }
+}
+
+TEST_F(GameObjectTest, TestComponentEvent)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "component_event.go", 0x0);
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::Result r;
+
+    ASSERT_EQ(0U, m_EventTargetCounter);
+
+    r = dmGameObject::PostNamedEvent(go, "does_not_exists", "inc");
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, r);
+
+    r = dmGameObject::PostNamedEvent(go, "event_target.et", "inc");
+    ASSERT_EQ(dmGameObject::RESULT_OK, r);
+
+    ASSERT_TRUE(dmGameObject::Update(collection, 0));
+    ASSERT_EQ(1U, m_EventTargetCounter);
+
+    r = dmGameObject::PostNamedEvent(go, "event_target.et", "inc");
+    ASSERT_EQ(dmGameObject::RESULT_OK, r);
+    ASSERT_TRUE(dmGameObject::Update(collection, 0));
+    ASSERT_EQ(2U, m_EventTargetCounter);
+
+    ASSERT_TRUE(dmGameObject::Update(collection, 0));
+
+    dmGameObject::Delete(collection, factory, go);
+}
+
+TEST_F(GameObjectTest, TestScriptProperty)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, factory, "script_property.go", 0x0);
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::Result r;
+
+    dmGameObject::SetScriptIntProperty(go, "MyIntProp", 1010);
+    dmGameObject::SetScriptFloatProperty(go, "MyFloatProp", 1.0);
+    dmGameObject::SetScriptStringProperty(go, "MyStringProp", "a string prop");
+
+    ASSERT_TRUE(dmGameObject::Update(collection, 0));
+
+    dmGameObject::Delete(collection, factory, go);
+}
+
 void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
 {
     dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
@@ -347,7 +450,7 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
     bool* dispatch_result = (bool*) user_ptr;
 
-    uint32_t event_id = dmHashBuffer32("spawn_result", sizeof("spawn_result"));
+    uint32_t event_id = dmHashString32("spawn_result");
 
     uint8_t reply_buf[sizeof(dmGameObject::ScriptEventData) + sizeof(TestResource::SpawnResult)];
 
@@ -355,10 +458,12 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
     result->m_Status = 1010;
 
     dmGameObject::ScriptEventData* reply_script_event = (dmGameObject::ScriptEventData*) reply_buf;
-    reply_script_event->m_ScriptInstance = script_event_data->m_ScriptInstance;
+    reply_script_event->m_EventHash = dmHashString32(TestResource::SpawnResult::m_DDFDescriptor->m_Name);
+    reply_script_event->m_Component = 0xff;
+    reply_script_event->m_Instance = script_event_data->m_Instance;
     reply_script_event->m_DDFDescriptor = TestResource::SpawnResult::m_DDFDescriptor;
 
-    uint32_t reply_socket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME));
+    uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
     dmEvent::Post(reply_socket, event_id, reply_buf);
 
     *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
@@ -382,7 +487,7 @@ TEST_F(GameObjectTest, TestScript01)
 
     ASSERT_TRUE(dmGameObject::Update(collection, go, &update_context));
 
-    uint32_t socket = dmHashBuffer32(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME, sizeof(DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME));
+    uint32_t socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
     bool dispatch_result = false;
     dmEvent::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
 
@@ -421,6 +526,9 @@ static void CreateFile(const char* file_name, const char* contents)
 
 TEST(ScriptTest, TestReloadScript)
 {
+    dmGameObject::Initialize();
+    dmGameObject::RegisterDDFType(TestResource::Spawn::m_DDFDescriptor);
+
     const char* tmp_dir = 0;
 #if defined(_MSC_VER)
     tmp_dir = ".";
@@ -497,18 +605,16 @@ TEST(ScriptTest, TestReloadScript)
     dmGameObject::Delete(collection, factory, go);
     dmGameObject::DeleteCollection(collection, factory);
     dmResource::DeleteFactory(factory);
+    dmGameObject::Finalize();
 }
 
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
 
-    uint32_t event_id = dmHashBuffer32("spawn_result", sizeof("spawn_result"));
+    uint32_t event_id = dmHashString32("spawn_result");
     dmEvent::Register(event_id, 256);
 
-    dmGameObject::Initialize();
-    dmGameObject::RegisterDDFType(TestResource::Spawn::m_DDFDescriptor);
     int ret = RUN_ALL_TESTS();
-    dmGameObject::Finalize();
     return ret;
 }

@@ -1,0 +1,12 @@
+function Init(self)
+end
+
+function Update(self)
+end
+
+function OnEvent(self, event_hash, event)
+	assert(event_hash == Hash("test_event"))
+end
+
+functions = { Init = Init, Update = Update, OnEvent = OnEvent }
+

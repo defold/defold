@@ -1,0 +1,16 @@
+function Init(self)
+end
+
+function Update(self)
+	-- TODO: Move checks to Init instead.
+	-- Does not currently work. (Init is called from dmGameObject::New)
+	assert(self.MyIntProp == 1010)
+	assert(self.MyFloatProp == 1.0)
+	assert(self.MyStringProp == "a string prop")
+end
+
+function OnEvent(self, event_hash, event)
+end
+
+functions = { Init = Init, Update = Update, OnEvent = OnEvent }
+
