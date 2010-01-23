@@ -13,8 +13,6 @@ namespace dmGameObject
     // TODO: Configurable?
     const uint32_t SCRIPT_EVENT_SOCKET_BUFFER_SIZE = 0x8000;
 
-    extern const uint32_t UNNAMED_IDENTIFIER;
-
     struct Prototype
     {
         struct Component

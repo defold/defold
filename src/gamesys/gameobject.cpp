@@ -434,6 +434,11 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
+    uint32_t GetIdentifier(HInstance instance)
+    {
+        return instance->m_Identifier;
+    }
+
     bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context)
     {
         Prototype* proto = instance->m_Prototype;

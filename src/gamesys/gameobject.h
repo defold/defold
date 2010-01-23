@@ -55,6 +55,8 @@ namespace dmGameObject
         float              m_DT;
     };
 
+    extern const uint32_t UNNAMED_IDENTIFIER;
+
     #define DMGAMEOBJECT_SCRIPT_EVENT_NAME "script_event"
     #define DMGAMEOBJECT_SCRIPT_EVENT_SOCKET_NAME "script"
     #define DMGAMEOBJECT_SCRIPT_REPLY_EVENT_SOCKET_NAME "script_reply"
@@ -185,6 +187,13 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
+
+    /**
+     * Get instance identifier
+     * @param instance Instance
+     * @return Identifer. dmGameObject::UNNAMED_IDENTIFIER if not set.
+     */
+    uint32_t GetIdentifier(HInstance instance);
 
     /**
      * Call update function. Does *NOT* dispatch script events
