@@ -23,6 +23,20 @@ uint32_t DM_DLLEXPORT dmHashBuffer32(const void* buffer, uint32_t buffer_len);
  */
 uint64_t DM_DLLEXPORT dmHashBuffer64(const void* buffer, uint32_t buffer_len);
 
+/**
+ * Calculate 32-bit hash value from string
+ * @param string String
+ * @return Hash value
+ */
+uint32_t DM_DLLEXPORT dmHashString32(const char* string);
+
+/**
+ * Calculate 64-bit hash value from string
+ * @param string String
+ * @return Hash value
+ */
+uint64_t DM_DLLEXPORT dmHashString64(const char* string);
+
 }
 
 #endif // DM_HASH_H
