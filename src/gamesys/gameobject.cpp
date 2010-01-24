@@ -1,3 +1,4 @@
+#include <new>
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/event.h>
@@ -166,7 +167,7 @@ namespace dmGameObject
         }
 
         Prototype* proto = new Prototype();
-        proto->m_Components.reserve(proto_desc->m_Components.m_Count);
+        proto->m_Components.SetCapacity(proto_desc->m_Components.m_Count);
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
@@ -177,7 +178,7 @@ namespace dmGameObject
             if (fact_e != dmResource::FACTORY_RESULT_OK)
             {
                 // Error, release created
-                for (uint32_t j = 0; j < proto->m_Components.size(); ++j)
+                for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
                 {
                     dmResource::Release(factory, proto->m_Components[j].m_Resource);
                 }
@@ -190,7 +191,7 @@ namespace dmGameObject
                 uint32_t resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.push_back(Prototype::Component(component, resource_type, component_name));
+                proto->m_Components.Push(Prototype::Component(component, resource_type, component_name));
             }
         }
 
@@ -216,7 +217,7 @@ namespace dmGameObject
                                               dmResource::SResourceDescriptor* resource)
     {
         Prototype* proto = (Prototype*) resource->m_Resource;
-        for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
+        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             dmResource::Release(factory, proto->m_Components[i].m_Resource);
         }
@@ -300,7 +301,7 @@ namespace dmGameObject
 
         // Count number of component userdata fields required
         uint32_t component_instance_userdata_count = 0;
-        for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
+        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
@@ -322,7 +323,7 @@ namespace dmGameObject
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
         bool ok = true;
-        for (uint32_t i = 0; i < proto->m_Components.size(); ++i)
+        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
@@ -391,7 +392,7 @@ namespace dmGameObject
     {
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
-        for (uint32_t i = 0; i < prototype->m_Components.size(); ++i)
+        for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
@@ -468,7 +469,7 @@ namespace dmGameObject
         {
             uint32_t component_name_hash = dmHashString32(component_name);
             Prototype* p = instance->m_Prototype;
-            for (uint32_t i = 0; i < p->m_Components.size(); ++i)
+            for (uint32_t i = 0; i < p->m_Components.Size(); ++i)
             {
                 if (p->m_Components[i].m_NameHash == component_name_hash)
                 {

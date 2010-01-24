@@ -1,10 +1,10 @@
 #ifndef GAMEOBJECT_COMMON_H
 #define GAMEOBJECT_COMMON_H
 
-#include <vector>
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
+#include <dlib/array.h>
 
 namespace dmGameObject
 {
@@ -31,7 +31,7 @@ namespace dmGameObject
 
         const char*            m_Name;
         HScript                m_Script;
-        std::vector<Component> m_Components;
+        dmArray<Component>     m_Components;
     };
 
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
