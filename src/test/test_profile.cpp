@@ -7,6 +7,8 @@
 #include "dlib/profile.h"
 #include "dlib/time.h"
 
+#if not defined(_WIN32)
+
 void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)
 {
     std::vector<dmProfile::Sample>* samples = (std::vector<dmProfile::Sample>*) context;
@@ -149,6 +151,10 @@ TEST(dlib, ProfileOverflow2)
 
     dmProfile::Finalize();
 }
+
+#else
+#warning "Fix this platform!"
+#endif
 
 int main(int argc, char **argv)
 {
