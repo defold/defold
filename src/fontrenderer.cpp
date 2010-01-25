@@ -197,6 +197,9 @@ namespace dmRender
 
     void FontRendererFlush(HFontRenderer renderer)
     {
+        if (renderer->m_Vertices.Size() == 0)
+            return;
+
         dmGraphics::HContext context = dmGraphics::GetContext();
         Matrix4 ident = Matrix4::identity();
 
