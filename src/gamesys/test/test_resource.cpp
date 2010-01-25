@@ -51,6 +51,19 @@ TEST_F(ResourceTest, RegisterType)
     // Test already registred
     e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::FACTORY_RESULT_ALREADY_REGISTERED, e);
+
+    // Test get type/extension from type/extension
+    uint32_t type;
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    const char* ext;
+    e = dmResource::GetExtensionFromType(factory, type, &ext);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+    ASSERT_STREQ("foo", ext);
+
+    e = dmResource::GetTypeFromExtension(factory, "noext", &type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE, e);
 }
 
 TEST_F(ResourceTest, NotFound)
@@ -65,7 +78,7 @@ TEST_F(ResourceTest, NotFound)
     ASSERT_EQ((void*) 0, resource);
 }
 
-TEST_F(ResourceTest, UnknwonResourceType)
+TEST_F(ResourceTest, UnknownResourceType)
 {
     dmResource::FactoryResult e;
 

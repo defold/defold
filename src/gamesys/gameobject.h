@@ -166,6 +166,7 @@ namespace dmGameObject
     /**
      * Register a new component type
      * @param collection Gameobject collection
+     * @param name Descriptive name
      * @param resource_type Resource type, resource factory type
      * @param context User context
      * @param create_function Create function call-back
@@ -176,6 +177,7 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result RegisterComponentType(HCollection collection,
+                                 const char* name,
                                  uint32_t resource_type,
                                  void* context,
                                  ComponentCreate create_function,

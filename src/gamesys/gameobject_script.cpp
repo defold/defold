@@ -5,6 +5,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/event.h>
 #include <dlib/dstrings.h>
+#include <dlib/profile.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
@@ -556,6 +557,7 @@ bail:
 
     bool RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
     {
+        DM_PROFILE(Script, "RunScript");
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
         (void) top;

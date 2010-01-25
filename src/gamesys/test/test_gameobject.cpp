@@ -45,31 +45,31 @@ protected:
 
         e = dmResource::GetTypeFromExtension(factory, "pc", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, resource_type, this, PhysComponentCreate, PhysComponentDestroy, PhysComponentsUpdate, 0, false);
+        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, "pc", resource_type, this, PhysComponentCreate, PhysComponentDestroy, PhysComponentsUpdate, 0, false);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // A has component_user_data
         e = dmResource::GetTypeFromExtension(factory, "a", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, AComponentCreate, AComponentDestroy, AComponentsUpdate, 0, true);
+        result = dmGameObject::RegisterComponentType(collection, "a", resource_type, this, AComponentCreate, AComponentDestroy, AComponentsUpdate, 0, true);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
         e = dmResource::GetTypeFromExtension(factory, "b", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, BComponentCreate, BComponentDestroy, BComponentsUpdate, 0, false);
+        result = dmGameObject::RegisterComponentType(collection, "b", resource_type, this, BComponentCreate, BComponentDestroy, BComponentsUpdate, 0, false);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // C has component_user_data
         e = dmResource::GetTypeFromExtension(factory, "c", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, CComponentCreate, CComponentDestroy, CComponentsUpdate, 0, true);
+        result = dmGameObject::RegisterComponentType(collection, "c", resource_type, this, CComponentCreate, CComponentDestroy, CComponentsUpdate, 0, true);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // EventTargetComponent
         e = dmResource::GetTypeFromExtension(factory, "et", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, resource_type, this, EventTargetComponentCreate, EventTargetComponentDestroy, EventTargetComponentsUpdate, &EventTargetOnEvent, true);
+        result = dmGameObject::RegisterComponentType(collection, "et", resource_type, this, EventTargetComponentCreate, EventTargetComponentDestroy, EventTargetComponentsUpdate, &EventTargetOnEvent, true);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         m_MaxComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash] = 1000000;
@@ -430,8 +430,6 @@ TEST_F(GameObjectTest, TestScriptProperty)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, factory, "script_property.go", 0x0);
     ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::Result r;
 
     dmGameObject::SetScriptIntProperty(go, "MyIntProp", 1010);
     dmGameObject::SetScriptFloatProperty(go, "MyFloatProp", 1.0);

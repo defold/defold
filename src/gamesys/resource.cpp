@@ -403,6 +403,23 @@ FactoryResult GetTypeFromExtension(HFactory factory, const char* extension, uint
     }
 }
 
+FactoryResult GetExtensionFromType(HFactory factory, uint32_t type, const char** extension)
+{
+    for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
+    {
+        SResourceType* rt = &factory->m_ResourceTypes[i];
+
+        if (((uintptr_t) rt) == type)
+        {
+            *extension = rt->m_Extension;
+            return FACTORY_RESULT_OK;
+        }
+    }
+
+    *extension = 0;
+    return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
+}
+
 FactoryResult GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];

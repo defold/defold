@@ -4,6 +4,7 @@
 #include <dlib/event.h>
 #include <dlib/hash.h>
 #include <dlib/array.h>
+#include <dlib/profile.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "../proto/gameobject_ddf.h"
@@ -20,6 +21,7 @@ namespace dmGameObject
         }
 
         uint32_t         m_ResourceType;
+        const char*      m_Name;
         void*            m_Context;
         ComponentCreate  m_CreateFunction;
         ComponentDestroy m_DestroyFunction;
@@ -125,6 +127,7 @@ namespace dmGameObject
     }
 
     Result RegisterComponentType(HCollection collection,
+                                 const char* name,
                                  uint32_t resource_type,
                                  void* context,
                                  ComponentCreate create_function,
@@ -141,6 +144,7 @@ namespace dmGameObject
 
         ComponentType component_type;
         component_type.m_ResourceType = resource_type;
+        component_type.m_Name = name;
         component_type.m_Context = context;
         component_type.m_CreateFunction = create_function;
         component_type.m_DestroyFunction = destroy_function;
@@ -572,6 +576,7 @@ namespace dmGameObject
 
     bool Update(HCollection collection, const UpdateContext* update_context)
     {
+        DM_PROFILE(GameObject, "Update");
         bool ret = DispatchEvents(collection, update_context);
 
         uint32_t n_objects = collection->m_Instances.Size();
@@ -586,6 +591,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < component_types; ++i)
         {
             ComponentType* component_type = &collection->m_ComponentTypes[i];
+            DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_ComponentsUpdate)
             {
                 component_type->m_ComponentsUpdate(collection, update_context, component_type->m_Context);

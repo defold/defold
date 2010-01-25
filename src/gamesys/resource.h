@@ -196,6 +196,15 @@ namespace dmResource
     FactoryResult GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
 
     /**
+     * Get extension from type
+     * @param factory Factory handle
+     * @param type Resource type
+     * @param extension Returned extension
+     * @return FACTORY_RESULT_OK on success
+     */
+    FactoryResult GetExtensionFromType(HFactory factory, uint32_t type, const char** extension);
+
+    /**
      * Get resource descriptor from resource (name)
      * @param factory Factory handle
      * @param name Resource name
