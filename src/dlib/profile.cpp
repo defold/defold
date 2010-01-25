@@ -33,10 +33,13 @@ namespace dmProfile
         g_Samples.SetSize(0);
         g_Depth = 0;
 
+#if not defined(_WIN32)
         timeval tv;
         gettimeofday(&tv, 0);
-
         g_BeginTime = tv.tv_sec * 1000000 + tv.tv_usec;
+#else
+        g_BeginTime = 0;
+#endif
     }
 
     void End()
