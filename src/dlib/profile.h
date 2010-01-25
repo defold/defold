@@ -2,7 +2,9 @@
 #define DM_PROFIE_H
 
 #include <stdint.h>
+#if not defined(_WIN32)
 #include <sys/time.h>
+#endif
 #include <dlib/array.h>
 #include <dlib/log.h>
 
@@ -130,6 +132,7 @@ namespace dmProfile
         Scope*      m_Scope;
         inline ProfileScope(Scope* scope, const char* name)
         {
+#if not defined(_WIN32)
             if (scope == 0 || g_Samples.Full() || g_Depth > 16)
             {
                 m_Sample = 0;
@@ -149,10 +152,12 @@ namespace dmProfile
             gettimeofday(&tv, 0);
 
             m_Start = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
         }
 
         inline ~ProfileScope()
         {
+#if not defined(_WIN32)
             if (!m_Sample)
                 return;
 
@@ -174,6 +179,7 @@ namespace dmProfile
             m_Sample->m_Start = m_Start - g_BeginTime;
             m_Sample->m_Elapsed = diff;
             m_Sample->m_Depth = g_Depth;
+#endif
         }
     };
 
