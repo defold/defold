@@ -1,5 +1,6 @@
 #include <string.h>
 #include <assert.h>
+#include <dlib/profile.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "../graphics_device.h"
@@ -130,6 +131,7 @@ namespace dmGraphics
     void Draw(HContext context, PrimitiveType primitive_type, int32_t first, int32_t count )
     {
         assert(context);
+        DM_PROFILE(Graphics, "Draw");
 
         glDrawArrays(primitive_type, first, count);
     }
@@ -154,6 +156,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(index_buffer);
+        DM_PROFILE(Graphics, "DrawElements");
 
         glDrawElements(prim_type, count, type, index_buffer);
     }
@@ -161,7 +164,7 @@ namespace dmGraphics
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context);
-
+        DM_PROFILE(Graphics, "Draw");
         glDrawArrays(prim_type, first, count);
     }
 
