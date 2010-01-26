@@ -122,12 +122,14 @@ TEST(dlib, ProfileOverflow1)
 {
     dmProfile::Initialize(4, 2);
     {
+        dmProfile::Begin();
         {
             { DM_PROFILE(X, "a") }
             { DM_PROFILE(X, "b") }
             { DM_PROFILE(X, "c") }
             { DM_PROFILE(X, "d") }
         }
+        dmProfile::End();
     }
 
     std::vector<dmProfile::Sample> samples;
@@ -141,12 +143,14 @@ TEST(dlib, ProfileOverflow2)
 {
     dmProfile::Initialize(0, 0);
     {
+        dmProfile::Begin();
         {
             { DM_PROFILE(X, "a") }
             { DM_PROFILE(X, "b") }
             { DM_PROFILE(X, "c") }
             { DM_PROFILE(X, "d") }
         }
+        dmProfile::End();
     }
 
     dmProfile::Finalize();

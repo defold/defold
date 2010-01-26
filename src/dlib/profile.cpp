@@ -44,8 +44,7 @@ namespace dmProfile
 
     void End()
     {
-        g_Samples.SetSize(0);
-        g_Depth = 0;
+        g_Depth = 0xffffffff;
     }
 
     Scope* AllocateScope(const char* name)
