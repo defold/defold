@@ -153,7 +153,6 @@ TEST(dlib, ProfileOverflow2)
 }
 
 #else
-#warning "Fix this platform!"
 #endif
 
 int main(int argc, char **argv)
