@@ -81,3 +81,12 @@ def build(bld):
 
     test_dlib.install_path = None
 
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_event.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_event')
+
+    test_dlib.install_path = None
+
