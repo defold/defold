@@ -7,13 +7,16 @@ namespace dmProfile
     dmArray<Scope> g_Scopes;
     uint32_t g_Depth = 0;
     uint32_t g_BeginTime = 0;
+    uint64_t g_TicksPerSecond = 1000000;
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples)
     {
         g_Scopes.SetCapacity(max_scopes);
         g_Scopes.SetSize(0);
         g_Samples.SetCapacity(max_samples);
-
+#if defined(_WIN32)
+        QueryPerformanceFrequency((LARGE_INTEGER *) &g_TicksPerSecond);
+#endif
     }
 
     void Finalize()
@@ -33,12 +36,14 @@ namespace dmProfile
         g_Samples.SetSize(0);
         g_Depth = 0;
 
-#if not defined(_WIN32)
+#if defined(_WIN32)
+        uint64_t pcnt;
+        QueryPerformanceCounter((LARGE_INTEGER *) &pcnt);
+        g_BeginTime = (uint32_t) pcnt;
+#else
         timeval tv;
         gettimeofday(&tv, 0);
         g_BeginTime = tv.tv_sec * 1000000 + tv.tv_usec;
-#else
-        g_BeginTime = 0;
 #endif
     }
 
@@ -75,7 +80,7 @@ namespace dmProfile
 
     uint64_t GetTicksPerSecond()
     {
-        return 1000000;
+        return g_TicksPerSecond;
     }
 
     void IterateScopes(void* context, void (*call_back)(void* context, const Scope* sample))

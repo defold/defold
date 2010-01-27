@@ -2,7 +2,9 @@
 #define DM_PROFIE_H
 
 #include <stdint.h>
-#if not defined(_WIN32)
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <sys/time.h>
 #endif
 #include <dlib/array.h>
@@ -123,6 +125,8 @@ namespace dmProfile
     extern uint32_t g_Depth;
     /// Internal, do not use.
     extern uint32_t g_BeginTime;
+    /// Internal, do not use.
+    extern uint64_t g_TicksPerSecond;
 
     /// Internal, do not use.
     struct ProfileScope
@@ -132,7 +136,6 @@ namespace dmProfile
         Scope*      m_Scope;
         inline ProfileScope(Scope* scope, const char* name)
         {
-#if not defined(_WIN32)
             if (scope == 0 || g_Samples.Full() || g_Depth > 16)
             {
                 m_Sample = 0;
@@ -148,16 +151,18 @@ namespace dmProfile
             g_Depth++;
             m_Sample->m_Name = name;
             m_Sample->m_Scope = m_Scope;
+
+#if defined(_WIN32)
+            QueryPerformanceCounter((LARGE_INTEGER *)&m_Start);
+#else
             timeval tv;
             gettimeofday(&tv, 0);
-
             m_Start = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
         }
 
         inline ~ProfileScope()
         {
-#if not defined(_WIN32)
             if (!m_Sample)
                 return;
 
@@ -169,6 +174,16 @@ namespace dmProfile
             {
                 --g_Depth;
             }
+#if defined(_WIN32)
+            uint64_t end;
+            QueryPerformanceCounter((LARGE_INTEGER *) &end);
+            uint64_t diff = end - m_Start;
+            m_Scope->m_Elapsed += (uint32_t) diff;
+            m_Scope->m_Samples++;
+            m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
+            m_Sample->m_Elapsed = diff;
+            m_Sample->m_Depth = g_Depth;
+#else
             timeval tv;
             gettimeofday(&tv, 0);
 
