@@ -113,7 +113,17 @@ namespace dmModel
 
         dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(context, dmGraphics::BLEND);
+
         dmGraphics::SetFragmentProgram(context, model->m_Material->m_FragmentProgram);
+
+        SMaterial* material = model->m_Material;
+        for (uint32_t i=0; i<SMaterial::MAX_CONSTANTS; i++)
+        {
+            if (material->m_FragmentConstantMask & (1 << i) )
+                dmGraphics::SetFragmentConstant(context, &model->m_Material->m_FragmentConstant[i], i);
+        }
+
+
 
         dmGraphics::SetVertexProgram(context, model->m_Material->m_VertexProgram);
 
@@ -126,6 +136,12 @@ namespace dmModel
         texturmatrix = Matrix4::identity();
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&texturmatrix, 8, 4);
 
+
+        for (uint32_t i=0; i<SMaterial::MAX_CONSTANTS; i++)
+        {
+            if (material->m_VertexConstantMask & (1 << i) )
+                dmGraphics::SetVertexConstantBlock(context, &model->m_Material->m_VertexConstant[i], i, 1);
+        }
 
 
         dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Positions[0]);
