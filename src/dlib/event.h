@@ -2,7 +2,7 @@
 #ifndef DM_EVENT_H
 #define DM_EVENT_H
 
-#include "stdint.h"
+#include <stdint.h>
 
 namespace dmEvent
 {

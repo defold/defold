@@ -1,13 +1,9 @@
 
-#include <string.h>
+//#include <string.h>
 #include <assert.h>
-#include "hashtable.h"
 #include "event.h"
 #include "atomic.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <windows.h>
+#include "hashtable.h"
 
 namespace dmEvent
 {
@@ -145,7 +141,7 @@ namespace dmEvent
 		SEventSocket *socket = 	m_Sockets.Get(socket_id);
 		if(!socket)
 		{
-			assert(false && "Invalid socket parameter 0x%x", socket_id);
+			assert(false && "Invalid socket parameter");
 			return 0;
 		}
 
@@ -175,3 +171,4 @@ namespace dmEvent
 	}
 
 };
+
