@@ -5,16 +5,17 @@
 #include "event.h"
 #include "atomic.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <windows.h>
+
 namespace dmEvent
 {
 
 	struct SEventSocket
 	{
-		uint8_t			*m_Queue;				//! Datablock containing the event (all inclusive)
-		uint32_t		m_QueueCapacity;		//! Capacity in bytes of m_Queue
-		uint32_atomic_t	m_QueueWritePos;		//! Current offset to event writepos
-		uint32_atomic_t	m_QueueHeader;			//! Current offset to head of queue
-		uint32_atomic_t	m_QueueTail;			//! Current offset to tail of queue
+		Event *m_Header;
+		Event *m_Tail;
 	};
 
 	struct SEventInfo
@@ -24,8 +25,8 @@ namespace dmEvent
 	};
 
 
-	dmHashTable<uint32_t, SEventInfo>	m_RegisteredEvents; //(512);
-	dmHashTable<uint32_t, SEventSocket>	m_Sockets; //(32);
+	dmHashTable<uint32_t, SEventInfo>	m_RegisteredEvents;
+	dmHashTable<uint32_t, SEventSocket>	m_Sockets;
 
 
 	void Register(uint32_t event_id, uint32_t event_data_bytesize)
@@ -34,7 +35,7 @@ namespace dmEvent
 		if(!hash_initialized)
 		{
 			hash_initialized = true;
-			m_RegisteredEvents.SetCapacity(512, 4096);
+			m_RegisteredEvents.SetCapacity(512,4096);
 		}
 		if(!m_RegisteredEvents.Empty() && m_RegisteredEvents.Get(event_id))
 			return;
@@ -60,27 +61,13 @@ namespace dmEvent
 			hash_initialized = true;
 			m_Sockets.SetCapacity(32, 1024);
 		}
-
 		if(m_Sockets.Get(socket_id))
 			return 2;
 
 		SEventSocket socket;
-
-		buffer_byte_size += sizeof(Event);
-
-		socket.m_Queue = new uint8_t[buffer_byte_size];
-		if(!socket.m_Queue)
-			return 0;
-		socket.m_QueueCapacity = buffer_byte_size;
-
-		Event *header = (Event *) socket.m_Queue;
-		memset(header, 0, sizeof(Event));
-		header->m_Next = 0xffffffff;
-		socket.m_QueueWritePos = sizeof(Event);
-		socket.m_QueueHeader = 0;
-		socket.m_QueueTail = 0;
-
-        m_Sockets.Put(socket_id, socket);
+		socket.m_Header = 0;
+		socket.m_Tail = 0;
+		m_Sockets.Put(socket_id, socket);
 		return 1;
 	}
 
@@ -90,8 +77,8 @@ namespace dmEvent
 		SEventSocket *socket = m_Sockets.Get(socket_id);
 		if(!socket)
 			return false;
-
-		delete[] socket->m_Queue;
+	
+		assert(socket->m_Header == 0 && "Destroying socket with nondispatched events, memory leak..");
 		m_Sockets.Erase(socket_id);
 		return true;
 	}
@@ -114,80 +101,42 @@ namespace dmEvent
 			return;
 		}
 
-		// get a valid bufferpointer to store eventdata to
 		uint32_t data_size = sizeof(Event) + event_info->m_DataSize;
-		uint32_t eventdata_capacity = socket->m_QueueCapacity;
-		assert((data_size <= eventdata_capacity) && "Eventdata is larger than eventdata buffersize");
-		volatile uint32_t offset = dmAtomicAdd32(&socket->m_QueueWritePos, data_size) % eventdata_capacity;
+		Event *new_event = (Event *) new uint8_t[data_size];
+		new_event->m_ID = event_id;
+		new_event->m_DataSize = event_info->m_DataSize;
+		new_event->m_Next = 0;
+		memcpy(&new_event->m_Data[0], event_data, event_info->m_DataSize);
 
-		// check dataqueue wrap - if databuffer end is intersecting our segment, use next segment
-        uint32_t fence = socket->m_QueueHeader;
-        if((offset + data_size) > eventdata_capacity)
+
+		// mutex lock
+
+		if(!socket->m_Header)
 		{
-			if(fence >= offset)
-			{
-				assert(false && "buffer overrun");
-			}
-
-			// insert dummy "fence wrap" object
-			uint8_t *segment = &socket->m_Queue[offset];
-			Event *event_object = (Event *) segment;
-			event_object->m_ID = 0xffffffff;
-			event_object->m_DataSize = data_size - sizeof(Event);
-			event_object->m_Next = 0xffffffff;
-
-			uint32_t current_tail_offset = dmAtomicStore32(&socket->m_QueueTail, offset);
-			uint8_t *prev_segment = &socket->m_Queue[current_tail_offset];
-			Event *prev_event_object = (Event *) prev_segment;
-			prev_event_object->m_Next = offset;
-
-			offset = dmAtomicAdd32(&socket->m_QueueWritePos, data_size) % eventdata_capacity;
-
-			if((offset + data_size) > fence)
-			{
-				assert(false && "buffer overrun");
-			}
+			socket->m_Header = new_event;
+			socket->m_Tail = new_event;
 		}
 		else
 		{
-			// check buffer overrun
-			if((offset <= fence) && ((offset+data_size) > fence))
-			{
-				assert(false && "buffer overrun");
-			}
+			socket->m_Tail->m_Next = new_event;
+			socket->m_Tail = new_event;
 		}
 
-
-		// set up data in segment
-		uint8_t *segment = &socket->m_Queue[offset];
-		Event *event_object = (Event *) segment;
-		event_object->m_ID = event_id;
-		event_object->m_DataSize = data_size - sizeof(Event);
-		event_object->m_Next = 0xffffffff;
-		if(event_data)
-		{
-			memcpy(segment + sizeof(Event), event_data, data_size - sizeof(Event));
-		}
-
-		// swap current tail with this segment and set current tail->next to this (single-link list)
-		uint32_t current_tail_offset = dmAtomicStore32(&socket->m_QueueTail, offset);
-		uint8_t *prev_segment = &socket->m_Queue[current_tail_offset];
-		Event *prev_event_object = (Event *) prev_segment;
-		prev_event_object->m_Next = offset;
+		// mutex unlock
 	}
 
 
 	void Broadcast(uint32_t event_id, void *event_data)
 	{
-		// get event and validate id
-		SEventInfo *event_info = m_RegisteredEvents.Get(event_id);
-		if(!event_info)
-			return;
-
 		assert(false && "Not implemented yet");
 		// .. loop through sockets, getting id
 		// PostEvent(socket_id, event_id, event_data);
 		// ..
+
+		// get event and validate id
+		SEventInfo *event_info = m_RegisteredEvents.Get(event_id);
+		if(!event_info)
+			return;
 	}
 
 
@@ -196,46 +145,33 @@ namespace dmEvent
 		SEventSocket *socket = 	m_Sockets.Get(socket_id);
 		if(!socket)
 		{
-			assert(false && "Invalid socket parameter");
+			assert(false && "Invalid socket parameter 0x%x", socket_id);
 			return 0;
 		}
 
-		uint32_t write_offset = socket->m_QueueWritePos;
-		uint32_t header_offset = socket->m_QueueHeader;
-		//uint32_t tail_offset = socket->m_QueueTail;
-		//uint32_t eventdata_capacity = socket->m_QueueCapacity;
-		uint8_t *segment = &socket->m_Queue[header_offset];
-		Event *event_object = (Event *) segment;
-
-		//uint32_t offset_base = header_offset;
-		uint32_t offset = event_object->m_Next;
-
-		// dispatch loop
+		if(!socket->m_Header)
+			return 0;
 		uint32_t dispatch_count = 0;
-		while(offset != 0xffffffff && offset != write_offset )
+
+		// mutex lock
+
+		Event *event_object = socket->m_Header;
+		Event *last_event_object = socket->m_Tail;
+		socket->m_Header = 0;
+		socket->m_Tail = 0;
+
+		// mutex unlock
+
+		while(event_object)
 		{
-			segment = &socket->m_Queue[offset];
-			event_object = (Event *) segment;
-
-			if(event_object->m_ID != 0xffffffff)
-				dispatch_function(event_object, user_ptr);
-            else
-                dispatch_count--;
-
-            header_offset = offset;
-			offset = event_object->m_Next;
-			dispatch_count ++;
+			dispatch_function(event_object, user_ptr);
+			uint8_t *old_object = (uint8_t *) event_object;
+			event_object = event_object->m_Next;
+			delete[] old_object;
+			dispatch_count++;
 		}
-
-		dmAtomicStore32(&socket->m_QueueHeader, header_offset);
 
 		return dispatch_count;
 	}
-
-
-
-
-
-
 
 };

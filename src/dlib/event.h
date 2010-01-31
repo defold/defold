@@ -2,7 +2,7 @@
 #ifndef DM_EVENT_H
 #define DM_EVENT_H
 
-#include <stdint.h>
+#include "stdint.h"
 
 namespace dmEvent
 {
@@ -17,7 +17,7 @@ namespace dmEvent
 		public:
         uint32_t m_ID;						//! Unique ID of event
         uint32_t m_DataSize;				//! Size of userdata in bytes 
-		uint32_t m_Next;					//! Offset to next event in queue
+		class Event *m_Next;				//! Ptr to next event (or 0 if last)
 		uint8_t  m_Data[0];					//! userdata
     };
 
