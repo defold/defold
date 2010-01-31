@@ -83,10 +83,11 @@ namespace dmResource
      */
     enum CreateResult
     {
-        CREATE_RESULT_OK             = 0,    //!< CREATE_RESULT_OK
-        CREATE_RESULT_OUT_OF_MEMORY  = -1,   //!< CREATE_RESULT_OUT_OF_MEMORY
-        CREATE_RESULT_FORMAT_ERROR   = -2,   //!< CREATE_RESULT_FORMAT_ERROR
-        CREATE_RESULT_UNKNOWN        = -1000,//!< CREATE_RESULT_UNKNOWN
+        CREATE_RESULT_OK                = 0,    //!< CREATE_RESULT_OK
+        CREATE_RESULT_OUT_OF_MEMORY     = -1,   //!< CREATE_RESULT_OUT_OF_MEMORY
+        CREATE_RESULT_FORMAT_ERROR      = -2,   //!< CREATE_RESULT_FORMAT_ERROR
+        CREATE_RESULT_CONSTANT_ERROR    = -3,   //!< CREATE_RESULT_CONSTANT_ERROR
+        CREATE_RESULT_UNKNOWN           = -1000,//!< CREATE_RESULT_UNKNOWN
     };
 
     /**
