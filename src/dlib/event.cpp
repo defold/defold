@@ -78,7 +78,7 @@ namespace dmEvent
 		if(!socket)
 			return false;
 	
-		assert(socket->m_Header == 0 && "Destroying socket with nondispatched events, memory leak..");
+		//assert(socket->m_Header == 0 && "Destroying socket with nondispatched events, memory leak..");
 		m_Sockets.Erase(socket_id);
 		return true;
 	}
