@@ -469,7 +469,7 @@ namespace dmGameObject
         uint32_t component_index = 0xffffffff;
 
         // Send to component or script?
-        if (component_name != 0)
+        if (component_name != 0 && *component_name != '\0')
         {
             uint32_t component_name_hash = dmHashString32(component_name);
             Prototype* p = instance->m_Prototype;
