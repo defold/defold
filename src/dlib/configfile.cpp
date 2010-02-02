@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <setjmp.h>
 #include <string.h>
-#include <ctype.h> // TODO: Windows
+#include <ctype.h>
 #include "hash.h"
 #include "log.h"
 
