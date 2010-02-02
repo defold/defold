@@ -90,3 +90,12 @@ def build(bld):
 
     test_dlib.install_path = None
 
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_configfile.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_configfile')
+
+    test_dlib.install_path = None
+
