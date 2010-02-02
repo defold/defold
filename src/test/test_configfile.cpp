@@ -40,7 +40,9 @@ TEST(ConfigFile, Test)
     ASSERT_STREQ("456", dmConfigFile::GetString(config, "sub.bar", 0));
     ASSERT_EQ(456, dmConfigFile::GetInt(config, "sub.bar", 0));
     ASSERT_STREQ("foo_bar", dmConfigFile::GetString(config, "sub.value", 0));
-    ASSERT_EQ(-1, dmConfigFile::GetInt(config, "sub.bad_int", -1));
+    ASSERT_STREQ("", dmConfigFile::GetString(config, "sub.bad_int1", 0));
+    ASSERT_EQ(-1, dmConfigFile::GetInt(config, "sub.bad_int1", -1));
+    ASSERT_EQ(-1, dmConfigFile::GetInt(config, "sub.bad_int2", -1));
 
     ASSERT_STREQ("missing_value", dmConfigFile::GetString(config, "missing_key", "missing_value"));
     ASSERT_EQ(1122, dmConfigFile::GetInt(config, "missing_int_key", 1122));
