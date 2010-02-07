@@ -16,7 +16,7 @@ namespace dmRender
     {
         float m_Position[3];
         float m_UV[2];
-        float m_Colour[3];
+        float m_Colour[4];
     };
 
     struct SFont
@@ -125,7 +125,7 @@ namespace dmRender
         delete renderer;
     }
 
-    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue)
+    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue, float alpha)
     {
         if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters)
         {
@@ -177,10 +177,10 @@ namespace dmRender
             v4.m_UV[1] = (g.m_Y + g.m_Height) * ih_recip;
 
 
-            v1.m_Colour[0] = red; v1.m_Colour[1] = green; v1.m_Colour[2] = blue;
-            v2.m_Colour[0] = red; v2.m_Colour[1] = green; v2.m_Colour[2] = blue;
-            v3.m_Colour[0] = red; v3.m_Colour[1] = green; v3.m_Colour[2] = blue;
-            v4.m_Colour[0] = red; v4.m_Colour[1] = green; v4.m_Colour[2] = blue;
+            v1.m_Colour[0] = red; v1.m_Colour[1] = green; v1.m_Colour[2] = blue; v1.m_Colour[3] = alpha;
+            v2.m_Colour[0] = red; v2.m_Colour[1] = green; v2.m_Colour[2] = blue; v2.m_Colour[3] = alpha;
+            v3.m_Colour[0] = red; v3.m_Colour[1] = green; v3.m_Colour[2] = blue; v3.m_Colour[3] = alpha;
+            v4.m_Colour[0] = red; v4.m_Colour[1] = green; v4.m_Colour[2] = blue; v4.m_Colour[3] = alpha;
 
 
             renderer->m_Vertices.Push(v1);
@@ -219,7 +219,7 @@ namespace dmRender
                            sizeof(SFontVertex),
                            (void*) &renderer->m_Vertices[0].m_UV[0]);
 
-        dmGraphics::SetVertexStream(context, 2, 3, dmGraphics::TYPE_FLOAT,
+        dmGraphics::SetVertexStream(context, 2, 4, dmGraphics::TYPE_FLOAT,
                            sizeof(SFontVertex),
                            (void*) &renderer->m_Vertices[0].m_Colour[0]);
 
