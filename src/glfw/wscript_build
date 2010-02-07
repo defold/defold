@@ -1,0 +1,22 @@
+import sys
+dmglfw = bld.new_task_gen(features = 'cc cstaticlib',
+                          includes = '. lib lib/macosx',
+                          target = 'dmglfw',
+                          install_path='${PREFIX}/lib')
+
+
+if sys.platform == 'darwin':
+    dmglfw.find_sources_in_dirs('lib lib/macosx')
+elif sys.platform == 'linux2':
+    dmglfw.find_sources_in_dirs('lib lib/x11')
+elif sys.platform == 'win32':
+    dmglfw.find_sources_in_dirs('lib lib/win32')
+
+for e in 'triangle particles pong3d wave'.split():
+
+    bld.new_task_gen(features = 'cc cprogram',
+                     includes = '. include',
+                     target = e,
+                     source = 'examples/%s.c' % e,
+                     uselib_local = 'dmglfw',
+                     install_path = None)

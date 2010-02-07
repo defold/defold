@@ -15,12 +15,14 @@ def init():
 
 def set_options(opt):
     opt.sub_options('src')
+    opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
 
 def configure(conf):
     waf_dynamo.configure(conf)
     waf_ddf.configure(conf)
     
+    conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
@@ -47,6 +49,13 @@ def configure(conf):
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
     dynamo_ext = os.path.join(dynamo_home, "ext")
+
+    if platform == "darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL'])
+    if platform == "linux":
+        conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
+    if platform == "win32":
+        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'opengl32.lib'])
 
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
