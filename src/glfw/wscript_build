@@ -13,11 +13,12 @@ elif sys.platform == 'win32':
     dmglfw.find_sources_in_dirs('lib lib/win32')
     dmglfw.includes = '. lib lib/win32'
 
-for e in 'triangle particles pong3d wave'.split():
+if sys.platform != 'win32':
+    for e in 'triangle particles pong3d wave'.split():
 
-    bld.new_task_gen(features = 'cc cprogram',
-                     includes = '. include',
-                     target = e,
-                     source = 'examples/%s.c' % e,
-                     uselib_local = 'dmglfw',
-                     install_path = None)
+        bld.new_task_gen(features = 'cc cprogram',
+                         includes = '. include',
+                         target = e,
+                         source = 'examples/%s.c' % e,
+                         uselib_local = 'dmglfw',
+                         install_path = None)
