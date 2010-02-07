@@ -8,7 +8,7 @@ if sys.platform == 'darwin':
     dmglfw.includes = '. lib lib/macosx'
 elif sys.platform == 'linux2':
     dmglfw.find_sources_in_dirs('lib lib/x11')
-    dmglfw.includes = '. lib lib/linux'
+    dmglfw.includes = '. lib lib/x11'
 elif sys.platform == 'win32':
     dmglfw.find_sources_in_dirs('lib lib/win32')
     dmglfw.includes = '. lib lib/win32'
