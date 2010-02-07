@@ -25,9 +25,7 @@ luac = bld.new_task_gen(features = 'cc cxx cprogram',
                         defines = 'LUA_ANSI',
                         install_path='${PREFIX}/bin')
 
-#    bld.install_files('${PREFIX}/include/gamesys', 'resource.h')
-#    bld.install_files('${PREFIX}/include/gamesys', 'gameobject.h')
-#    bld.install_files('${PREFIX}/include/gamesys', 'gameobject_registration.h')
-#    bld.install_files('${PREFIX}/include/gamesys', 'resource_creation.h')
-#    bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')
-#    bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
+bld.install_files('${PREFIX}/include/lua', 'lua.h')
+bld.install_files('${PREFIX}/include/lua', 'lauxlib.h')
+bld.install_files('${PREFIX}/include/lua', 'lualib.h')
+bld.install_files('${PREFIX}/include/lua', 'luaconf.h')

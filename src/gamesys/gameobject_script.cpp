@@ -153,6 +153,8 @@ namespace dmGameObject
             lua_settable(L, -3);
         }
 
+        // TODO: Check top...
+
         return 1;
     }
 
