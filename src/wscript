@@ -18,6 +18,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/event.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
 
     dlib = bld.new_task_gen(features = 'cxx cstaticlib',

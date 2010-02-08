@@ -320,5 +320,22 @@ namespace dmConfigFile
         }
         return ret;
     }
+
+    float GetFloat(HConfig config, const char* key, float default_value)
+    {
+        const char* tmp = GetString(config, key, 0);
+        if (tmp == 0)
+            return default_value;
+        int l = strlen(tmp);
+        char* end = 0;
+        float ret = strtof(tmp, &end);
+        if (end != (tmp + l) || end == tmp)
+        {
+            dmLogWarning("Unable to convert '%s' to float", tmp);
+            return default_value;
+        }
+        return ret;
+    }
+
 }
 
