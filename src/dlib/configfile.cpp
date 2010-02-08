@@ -328,7 +328,7 @@ namespace dmConfigFile
             return default_value;
         int l = strlen(tmp);
         char* end = 0;
-        float ret = strtof(tmp, &end);
+        float ret = (float) strtod(tmp, &end);
         if (end != (tmp + l) || end == tmp)
         {
             dmLogWarning("Unable to convert '%s' to float", tmp);
