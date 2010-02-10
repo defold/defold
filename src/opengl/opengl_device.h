@@ -1,6 +1,7 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <vectormath/cpp/vectormath_aos.h>
 #include "opengl_device_defines.h"
 #include <sdl/SDL.h>
 
@@ -22,6 +23,7 @@ namespace dmGraphics
         };
 
     };
+
 
     struct Context
     {

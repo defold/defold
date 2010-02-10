@@ -12,7 +12,7 @@ def build(bld):
                            target = 'graphics',
                            install_path='${PREFIX}/lib')
 
-    obj.find_sources_in_dirs('opengl ../proto')
+    obj.find_sources_in_dirs('. opengl ../proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['. null'],
@@ -20,13 +20,14 @@ def build(bld):
                            target = 'graphics_null',
                            install_path='${PREFIX}/lib')
 
-    obj.find_sources_in_dirs('null ../proto')
+    obj.find_sources_in_dirs('. null ../proto')
 
     bld.add_subdirs('glfw')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_device.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_device_defines.h')
     bld.install_files('${PREFIX}/include/graphics/', 'vertexprogram_defines.h')
+    bld.install_files('${PREFIX}/include/graphics/', 'material.h')
 
     bld.install_files('${PREFIX}/include/graphics/null', 'null/null_device_defines.h')
 

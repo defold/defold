@@ -12,6 +12,9 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include "opengl/opengl_device_defines.h"
 
+using namespace Vectormath::Aos;
+
+
 namespace dmGraphics
 {
     // primitive type
@@ -42,13 +45,6 @@ namespace dmGraphics
         BLEND                                   = GFXDEVICE_STATE_BLEND,
     };
 
-    enum MatrixMode
-    {
-        MATRIX_TYPE_WORLD                       = GFXDEVICE_MATRIX_TYPE_WORLD,
-        MATRIX_TYPE_VIEW                        = GFXDEVICE_MATRIX_TYPE_VIEW,
-        MATRIX_TYPE_PROJECTION                  = GFXDEVICE_MATRIX_TYPE_PROJECTION
-    };
-
     // Types
     enum Type
     {
@@ -73,6 +69,7 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_DXT5                = 6
     };
 
+    // Blend factor
     enum BlendFactor
     {
         BLEND_FACTOR_ZERO                       = GFXDEVICE_BLEND_FACTOR_ZERO,
@@ -91,6 +88,7 @@ namespace dmGraphics
         BLEND_FACTOR_CONSTANT_ALPHA             = GFXDEVICE_BLEND_FACTOR_CONSTANT_ALPHA,
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = GFXDEVICE_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
     };
+
 
     // Parameter structure for CreateDevice
     struct CreateDeviceParams
@@ -122,9 +120,9 @@ namespace dmGraphics
     void SetVertexProgram(HContext context, HVertexProgram program);
     void SetFragmentProgram(HContext context, HFragmentProgram program);
 
-    void SetFragmentConstant(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
-    void SetVertexConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
-    void SetFragmentConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
+    void SetFragmentConstant(HContext context, const Vector4* data, int base_register);
+    void SetVertexConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors);
+    void SetFragmentConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors);
 
 
     void SetViewport(HContext context, int width, int height);
@@ -135,7 +133,6 @@ namespace dmGraphics
     void SetDepthMask(HContext context, bool mask);
 
     HTexture CreateTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
-
     void SetTextureData(HTexture texture,
                            uint16_t mip_map,
                            uint16_t width, uint16_t height, uint16_t border,
