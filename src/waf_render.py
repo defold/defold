@@ -13,7 +13,7 @@ Task.simple_task_type('ttf', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
-                      shell=True)
+                      shell=False)
 
 @extension('.ttf')
 def ttf_file(self, node):
