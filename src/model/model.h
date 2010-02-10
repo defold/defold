@@ -3,9 +3,9 @@
 
 #include <vectormath/cpp/vectormath_aos.h>
 #include <ddf/ddf.h>
+#include <graphics/material.h>
 #include "render/mesh_ddf.h"
 #include "../rendercontext.h"
-#include "../material.h"
 
 
 namespace dmModel
@@ -85,7 +85,7 @@ namespace dmModel
      * @param model model
      * @param material material
      */
-    void SetMaterial(HModel model, SMaterial* material);
+    void SetMaterial(HModel model, dmGraphics::HMaterial material);
 
     /**
      * Get mesh from model
@@ -106,7 +106,7 @@ namespace dmModel
      * @param model Model
      * @return Material associated with model
      */
-    SMaterial* GetMaterial(HModel model);
+    dmGraphics::HMaterial GetMaterial(HModel model);
 
     /**
      * Add model to world

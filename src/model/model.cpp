@@ -15,7 +15,7 @@ namespace dmModel
         }
 
         Render::Mesh*           m_Mesh;
-        SMaterial*              m_Material;
+        dmGraphics::HMaterial   m_Material;
         dmGraphics::HTexture    m_Texture0;
 
         void*                   m_GameObject;
@@ -76,7 +76,7 @@ namespace dmModel
         model->m_Texture0 = texture;
     }
 
-    void SetMaterial(HModel model, SMaterial* material)
+    void SetMaterial(HModel model, dmGraphics::HMaterial material)
     {
         model->m_Material = material;
     }
@@ -91,7 +91,7 @@ namespace dmModel
         return model->m_Texture0;
     }
 
-    SMaterial* GetMaterial(HModel model)
+    dmGraphics::HMaterial GetMaterial(HModel model)
     {
         return model->m_Material;
     }
@@ -114,18 +114,20 @@ namespace dmModel
         dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(context, dmGraphics::BLEND);
 
-        dmGraphics::SetFragmentProgram(context, model->m_Material->m_FragmentProgram);
+        dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(model->m_Material) );
 
-        SMaterial* material = model->m_Material;
-        for (uint32_t i=0; i<SMaterial::MAX_CONSTANTS; i++)
+        for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
-            if (material->m_FragmentConstantMask & (1 << i) )
-                dmGraphics::SetFragmentConstant(context, &model->m_Material->m_FragmentConstant[i], i);
+            uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(model->m_Material);
+            if (mask & (1 << i) )
+            {
+                Vector4 v = dmGraphics::GetMaterialFragmentProgramConstant(model->m_Material, i);
+                dmGraphics::SetFragmentConstant(context, &v, i);
+            }
         }
 
 
-
-        dmGraphics::SetVertexProgram(context, model->m_Material->m_VertexProgram);
+        dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(model->m_Material) );
 
         Matrix4 m(rotation, Vector3(position));
 
@@ -137,10 +139,14 @@ namespace dmModel
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&texturmatrix, 8, 4);
 
 
-        for (uint32_t i=0; i<SMaterial::MAX_CONSTANTS; i++)
+        for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
-            if (material->m_VertexConstantMask & (1 << i) )
-                dmGraphics::SetVertexConstantBlock(context, &model->m_Material->m_VertexConstant[i], i, 1);
+            uint32_t mask = dmGraphics::GetMaterialVertexConstantMask(model->m_Material);
+            if (mask & (1 << i) )
+            {
+                Vector4 v = dmGraphics::GetMaterialVertexProgramConstant(model->m_Material, i);
+                dmGraphics::SetVertexConstantBlock(context, &v, i, 1);
+            }
         }
 
 
