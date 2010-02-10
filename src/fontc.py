@@ -23,6 +23,9 @@ def Layout(width, characters, image_font):
         g.Y = y0
         g.Width = w
         g.Height = h
+        g.YOffset = 0
+        g.LeftBearing = 0
+        g.RightBearing = 0
 
         x0 += w
 

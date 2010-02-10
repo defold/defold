@@ -141,24 +141,34 @@ namespace dmRender
         {
             char c = string[i];
 
-            ImageFont::Glyph g = renderer->m_Font->m_Font->m_Glyphs[c];
+            const ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
+
+            int kearning = 0;
+#if 0
+            // TODO: Bearing-info from Fontc.java seems to be incorrect
+            if (i != 0)
+            {
+                const ImageFont::Glyph& last_g = renderer->m_Font->m_Font->m_Glyphs[string[i-1]];
+                kearning = last_g.m_RightBearing + g.m_LeftBearing;
+            }
+#endif
 
             SFontVertex v1, v2, v3, v4;
 
             v1.m_Position[0] = x;
-            v1.m_Position[1] = y;
+            v1.m_Position[1] = y + g.m_YOffset;
             v1.m_Position[2] = 0;
 
             v2.m_Position[0] = x + g.m_Width;
-            v2.m_Position[1] = y;
+            v2.m_Position[1] = y + g.m_YOffset;
             v2.m_Position[2] = 0;
 
             v3.m_Position[0] = x + g.m_Width;
-            v3.m_Position[1] = y + g.m_Height;
+            v3.m_Position[1] = y + g.m_Height + g.m_YOffset;
             v3.m_Position[2] = 0;
 
             v4.m_Position[0] = x;
-            v4.m_Position[1] = y + g.m_Height;
+            v4.m_Position[1] = y + g.m_Height + g.m_YOffset;
             v4.m_Position[2] = 0;
 
             float im_recip = 1.0f / renderer->m_Font->m_Font->m_ImageWidth;
@@ -191,7 +201,7 @@ namespace dmRender
             renderer->m_Vertices.Push(v4);
             renderer->m_Vertices.Push(v1);
 
-            x += g.m_Width;
+            x += g.m_Width + kearning;
         }
     }
 

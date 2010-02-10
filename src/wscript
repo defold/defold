@@ -26,6 +26,21 @@ def build(bld):
                            install_path='${PREFIX}/lib')
     obj.find_sources_in_dirs('debug')
 
+    classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar',
+                 bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                 'default/proto/render/generated']
+
+    bld.add_group()
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=os.pathsep.join(classpath),
+                     source_root='java')
+    bld.env["JAVACFLAGS"] = '-g'
+
+    bld.new_task_gen(features='jar seq',
+                     basedir='java',
+                     destfile='fontc.jar')
+
     bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
     bld.install_files('${PREFIX}/include/render_debug', 'debug/debugrenderer.h')
     bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
@@ -34,6 +49,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/render', 'material.h')
 
     bld.install_files('${PREFIX}/bin', 'fontc.py')
+    bld.install_files('${PREFIX}/share/java', 'fontc.jar')
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')
 
     bld.install_files('${PREFIX}/share/proto', '../proto/render/material_ddf.proto')
