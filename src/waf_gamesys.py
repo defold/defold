@@ -2,7 +2,7 @@ import Task, TaskGen
 from TaskGen import extension
 
 def ProtoCTask(name, message_type, proto_file, input_ext, output_ext, append_to_all = False, include = '../proto'):
-    Task.simple_task_type(name, 'protoc --encode=%s -I %s %s < ${SRC} > ${TGT}' % (message_type, include, proto_file),
+    Task.simple_task_type(name, 'protoc --encode=%s -I ${DYNAMO_HOME}/share/proto -I %s -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (message_type, include, proto_file),
                           color='PINK',
                           after='proto_gen_py',
                           before='cc cxx',
@@ -17,9 +17,9 @@ def ProtoCTask(name, message_type, proto_file, input_ext, output_ext, append_to_
         if append_to_all:
             self.allnodes.append(out)
         t.set_outputs(out)
-        
+
 Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
-                      color='PINK', 
+                      color='PINK',
                       before='cc cxx',
                       shell=True)
 
@@ -33,7 +33,7 @@ def gameobjectdesc_file(self, node):
 
 
 Task.simple_task_type('pyscript', 'cat < ${SRC} > ${TGT}',
-                      color='PINK', 
+                      color='PINK',
                       before='cc cxx',
                       shell=True)
 

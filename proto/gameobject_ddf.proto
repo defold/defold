@@ -1,8 +1,10 @@
 package dmGameObject;
 
+import "ddf_extensions.proto";
+
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "GameObject";
-// option ddf_java_package = "com.dynamo.gamesys.ddf";
+option (ddf_java_package) = "com.dynamo.gamesys.ddf";
 
 message Vector4
 {
@@ -34,10 +36,10 @@ message Property
 		FLOAT = 2;
 		STRING = 3;
 	}
-	
+
 	required PropertyType Type = 1;
 	required string Key = 2;
-	required string Value = 3; 
+	required string Value = 3;
 }
 
 message InstanceDesc

@@ -1,8 +1,10 @@
 package dmPhysics;
 
+import "ddf_extensions.proto";
+
 option java_package = "com.dynamo.physics.proto";
 option java_outer_classname = "Physics";
-// option ddf_java_package = "com.dynamo.physics.ddf";
+option (ddf_java_package) = "com.dynamo.physics.ddf";
 
 message ConvexShape
 {
@@ -12,9 +14,9 @@ message ConvexShape
         CAPSULE = 2;
         HULL = 3;
     }
-    
+
     required Type  ShapeType = 1;
-    
+
     /*
      ShapeType == BOX
      Data = [min_x, min_y, min_z, max_x, max_y, max_z]
@@ -31,5 +33,5 @@ message ConvexShape
 message RigidBodyDesc
 {
     required float Mass = 1;
-    required string CollisionShape = 2; 
+    required string CollisionShape = 2;
 }
