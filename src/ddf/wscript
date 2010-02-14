@@ -38,7 +38,7 @@ def build(bld):
 
     bld.new_task_gen(
             features = 'cxx cstaticlib ddf',
-            includes = '../..',
+            includes = '../.. ..',
             source = 'ddf_extensions.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
             proto_gen_cc = True,
             proto_compile_cc = True,
