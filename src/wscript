@@ -48,6 +48,8 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'ddfc.py', chmod=493)
     bld.install_files('${PREFIX}/bin', 'ddfc_cxx', chmod=493)
     bld.install_files('${PREFIX}/bin', 'ddfc_java', chmod=493)
+    bld.install_files('${PREFIX}/bin', 'ddfc_cxx.bat')
+    bld.install_files('${PREFIX}/bin', 'ddfc_java.bat')
     bld.install_files('${PREFIX}/share/proto', 'ddf/ddf_extensions.proto')
 
 def configure(conf):
