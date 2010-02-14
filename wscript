@@ -58,7 +58,7 @@ def configure(conf):
         conf.env.append_value('CPPPATH', "../src/win32")
 
     conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['LIB_PROTOBUF'] = 'protobuf'
+    conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
     if sys.platform == 'linux2':
         conf.env['LIB_PTHREAD'] = 'pthread'

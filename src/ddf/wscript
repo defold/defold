@@ -9,7 +9,10 @@ def build(bld):
     if sys.platform == 'win32':
         copy = 'copy'
 
-    bld.new_task_gen(rule='%s %s/%s ${TGT}' % (copy, proto_include_path, 'google/protobuf/compiler/plugin.proto'),
+    copy_rule = '%s %s/%s ${TGT}' % (copy, proto_include_path, 'google/protobuf/compiler/plugin.proto')
+    # Copy on windows doesn't like /...
+    copy_rule = copy_rule.replace('/', os.sep)
+    bld.new_task_gen(rule= copy_rule,
                      target='plugin.proto',
                      name='copy_plugin.proto',
                      shell=True)

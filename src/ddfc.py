@@ -3,6 +3,11 @@
 from optparse import OptionParser
 
 import sys, os
+if sys.platform == 'win32':
+    import msvcrt
+    msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+    msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+
 from cStringIO import StringIO
 import dlib
 
