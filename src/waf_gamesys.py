@@ -18,7 +18,7 @@ def ProtoCTask(name, message_type, proto_file, input_ext, output_ext, append_to_
             self.allnodes.append(out)
         t.set_outputs(out)
 
-Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ${DYNAMO_HOME}/share/proto ${DYNAMO_HOME}/share/proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK',
                       before='cc cxx',
                       shell=True)
