@@ -36,6 +36,7 @@ namespace dmGameObject
     static int ScriptInstance_gc (lua_State *L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
+        memset(i, 0, sizeof(*i));
         (void) i;
         assert(i);
         return 0;
@@ -509,8 +510,7 @@ bail:
     void DeleteScript(HScript script)
     {
         lua_State* L = g_LuaState;
-        lua_pushnil(L);
-        lua_rawseti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
+        luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
         delete script;
     }
 
@@ -551,8 +551,8 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
-        lua_pushnil(L);
-        lua_rawseti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         assert(top == lua_gettop(L));
     }
