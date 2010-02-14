@@ -60,6 +60,8 @@ def configure(conf):
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['LIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
+    if sys.platform == 'linux2':
+        conf.env['LIB_PTHREAD'] = 'pthread'
 
 def build(bld):
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
