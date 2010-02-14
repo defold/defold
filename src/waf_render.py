@@ -18,7 +18,7 @@ Task.simple_task_type('ttf', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.
 @extension('.ttf')
 def ttf_file(self, node):
 
-    classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.0.3.jar',
+    classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/render.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/fontc.jar']

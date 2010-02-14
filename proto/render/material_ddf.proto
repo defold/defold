@@ -1,8 +1,10 @@
 package Render;
 
+import "ddf_extensions.proto";
+
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Material";
-// option ddf_java_package = "com.dynamo.render.ddf";
+option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message MaterialDesc
 {
@@ -36,7 +38,7 @@ message MaterialDesc
         required uint32 Register = 4;
         required Vector4 Value = 5;
     }
-    
+
     required string Name = 1;
     required string VertexProgram = 2;
     required string FragmentProgram = 3;

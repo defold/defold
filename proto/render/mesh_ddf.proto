@@ -1,8 +1,10 @@
 package Render;
 
+import "ddf_extensions.proto";
+
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Mesh_"; // TODO: Fix Mesh_ (conflicts with Mesh message). Merge *.proto into single file?
-// option ddf_java_package = "com.dynamo.render.ddf";
+option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message Mesh
 {
