@@ -1,16 +1,20 @@
 package TestDDF;
 
+import "ddf_extensions.proto";
+
 option java_package = "com.dynamo.ddf.proto";
-// NOTE: This is not a comment, ie has effect. We should probably add an user defined options for this
-// option ddf_java_package = "com.dynamo.ddf.test";
+option (ddf_java_package) = "com.dynamo.ddf.test";
+option (ddf_namespace) = "DUMMY";
 option java_outer_classname = "TestDDF";
 
-message Simple 
+option (ddf_includes) = "test_ddf.h";
+
+message Simple
 {
     required int32 a = 1;
 }
 
-message ScalarTypes 
+message ScalarTypes
 {
     required float  Float = 1;
     required double Double = 2;
@@ -140,7 +144,7 @@ message MaterialDesc
         required uint32 Register = 4;
         required Vector4 Value = 5;
     }
-    
+
     required string Name = 1;
     required string VertexProgram = 2;
     required string FragmentProgram = 3;
@@ -160,5 +164,17 @@ message MissingRequired
 }
 
 
+message Vector2Message
+{
+    option (alias) = "MyVector2";
+
+    required float X = 1;
+    required float Y = 2;
+}
+
+message TestStructAlias
+{
+    required Vector2Message Vec2 = 1;
+}
 
 

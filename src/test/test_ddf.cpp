@@ -571,6 +571,32 @@ TEST(MissingRequired, Load)
     ASSERT_EQ(0, message);
 }
 
+TEST(TestStructAlias, LoadSave)
+{
+    TestDDF::TestStructAlias struct_alias;
+    struct_alias.mutable_vec2()->set_x(10);
+    struct_alias.mutable_vec2()->set_y(20);
+
+    std::string msg_str = struct_alias.SerializeAsString();
+
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    DUMMY::TestDDF::TestStructAlias* message;
+
+    dmDDF::Result e = dmDDF::LoadMessage<DUMMY::TestDDF::TestStructAlias>((void*) msg_buf, msg_buf_size, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(struct_alias.vec2().x(), message->m_Vec2.m_X);
+    ASSERT_EQ(struct_alias.vec2().y(), message->m_Vec2.m_Y);
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, DUMMY::TestDDF::TestStructAlias::m_DDFDescriptor, msg_str2);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    EXPECT_EQ(msg_str, msg_str2);
+
+    dmDDF::FreeMessage(message);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

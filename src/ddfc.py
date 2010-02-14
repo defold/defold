@@ -1,11 +1,18 @@
+#!/usr/bin/python
+
 from optparse import OptionParser
 
 import sys, os
+from cStringIO import StringIO
 import dlib
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
 from google.protobuf.descriptor_pb2 import FieldDescriptorProto
+
+from plugin_pb2 import CodeGeneratorRequest, CodeGeneratorResponse
+
+import ddf_extensions_pb2
 
 DDF_MAJOR_VERSION=1
 DDF_MINOR_VERSION=0
@@ -114,7 +121,7 @@ def DotToNamespace(str):
         str = str[1:]
     return str.replace(".", "::")
 
-def ToCStruct(pp, message_type):
+def ToCStruct(context, pp, message_type):
     # Calculate maximum lenght of "type"
     max_len = 0
     for f in message_type.field:
@@ -123,7 +130,7 @@ def ToCStruct(pp, message_type):
         elif f.type  == FieldDescriptor.TYPE_BYTES:
             pass
         elif f.type == FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            max_len = max(len(DotToNamespace(f.type_name)), max_len)
+            max_len = max(len(context.GetFieldTypeName(f)), max_len)
         else:
             max_len = max(len(type_to_ctype[f.type]), max_len)
 
@@ -133,10 +140,10 @@ def ToCStruct(pp, message_type):
     pp.Begin("struct %s", message_type.name)
 
     for et in message_type.enum_type:
-        ToCEnum(pp, et)
+        ToCEnum(context, pp, et)
 
     for nt in message_type.nested_type:
-        ToCStruct(pp, nt)
+        ToCStruct(context, pp, nt)
 
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED or f.type == FieldDescriptor.TYPE_BYTES:
@@ -158,7 +165,7 @@ def ToCStruct(pp, message_type):
             pp.Print("uint32_t " + "m_Count;")
             pp.End(" m_%s", f.name)
         elif f.type ==  FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            p(DotToNamespace(f.type_name), f.name)
+            p(context.GetFieldTypeName(f), f.name)
         else:
             p(type_to_ctype[f.type], f.name)
     pp.Print('')
@@ -166,7 +173,7 @@ def ToCStruct(pp, message_type):
     pp.Print('static const uint64_t m_DDFHash;')
     pp.End()
 
-def ToCEnum(pp, message_type):
+def ToCEnum(context, pp, message_type):
     lst = []
     for f in message_type.value:
         lst.append((f.name, f.number))
@@ -179,13 +186,13 @@ def ToCEnum(pp, message_type):
 
     pp.End()
 
-def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
+def ToDescriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
     pp_h.Print('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
     for nt in message_type.nested_type:
-        ToDescriptor(pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
+        ToDescriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
 
     lst = []
     for f in message_type.field:
@@ -226,7 +233,7 @@ def ToDescriptor(pp_cpp, pp_h, message_type, namespace_lst):
 
     pp_cpp.Print('')
 
-def ToEnumDescriptor(pp_cpp, pp_h, enum_type, namespace_lst):
+def ToEnumDescriptor(context, pp_cpp, pp_h, enum_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
     pp_h.Print("extern dmDDF::EnumDescriptor %s_%s_DESCRIPTOR;", namespace, enum_type.name)
@@ -261,7 +268,7 @@ def DotToJavaPackage(str, proto_package, java_package):
     else:
         return tmp
 
-def ToJavaEnum(pp, message_type):
+def ToJavaEnum(context, pp, message_type):
     lst = []
     for f in message_type.value:
         lst.append(("public static final int %s_%s" % (message_type.name, f.name), f.number))
@@ -274,8 +281,8 @@ def ToJavaEnum(pp, message_type):
     pp.Print("")
     #pp.End()
 
-def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_package):
-    # Calculate maximum lenght of "type"
+def ToJavaClass(context, pp, message_type, proto_package, java_package, qualified_proto_package):
+    # Calculate maximum length of "type"
     max_len = 0
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
@@ -305,10 +312,10 @@ def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_p
     pp.Begin("public static final class %s", message_type.name)
 
     for et in message_type.enum_type:
-        ToJavaEnum(pp, et)
+        ToJavaEnum(context, pp, et)
 
     for nt in message_type.nested_type:
-        ToJavaClass(pp, nt, proto_package, java_package, qualified_proto_package + "$" + nt.name)
+        ToJavaClass(context, pp, nt, proto_package, java_package, qualified_proto_package + "$" + nt.name)
 
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
@@ -335,21 +342,21 @@ def ToJavaClass(pp, message_type, proto_package, java_package, qualified_proto_p
 #    pp.Print('static const uint64_t m_DDFHash;')
     pp.End()
 
-def CompileJava(input_file, options):
-    fds = FileDescriptorSet()
-    fds.ParseFromString(open(input_file, "rb").read())
+def CompileJava(context, proto_file, ddf_java_package, file_to_generate):
+#def CompileJava(input_file, options):
+    file_desc = proto_file
 
-    file_desc = fds.file[0]
+    path = ddf_java_package.replace('.', '/')
 
-    path = os.path.join(options.java_out, options.java_package.replace('.', '/'))
-    if not os.path.exists(path):
-        os.makedirs(path)
 
-    f_java = open(os.path.join(path, options.java_classname + '.java'), 'w')
+    file_java = context.Response.file.add()
+    file_java.name = os.path.join(path, proto_file.options.java_outer_classname + '.java')
+    f_java = StringIO()
+
     pp_java = PrettyPrinter(f_java, 0)
 
-    if options.java_package != '':
-        pp_java.Print("package %s;",  options.java_package)
+    if ddf_java_package != '':
+        pp_java.Print("package %s;",  ddf_java_package)
     pp_java.Print("")
     pp_java.Print("import java.util.List;")
     pp_java.Print("import java.util.ArrayList;")
@@ -357,31 +364,42 @@ def CompileJava(input_file, options):
     pp_java.Print("import com.dynamo.ddf.annotations.ProtoClassName;")
 
     pp_java.Print("")
-    pp_java.Begin("public final class %s", options.java_classname)
+    pp_java.Begin("public final class %s", proto_file.options.java_outer_classname)
 
     for mt in file_desc.enum_type:
-        ToJavaEnum(pp_java, mt)
+        ToJavaEnum(context, pp_java, mt)
 
     for mt in file_desc.message_type:
-        ToJavaClass(pp_java, mt, file_desc.package,
-                    options.java_package + "." + options.java_classname,
+        ToJavaClass(context, pp_java, mt, file_desc.package,
+                    ddf_java_package + "." + proto_file.options.java_outer_classname,
                     file_desc.options.java_package + "." + file_desc.options.java_outer_classname + "$" + mt.name)
 
     pp_java.End("")
 
-def Compile(input_file, output_dir, options):
-    namespace = options.namespace
-    base_name = os.path.basename(input_file)
+    file_java.content = f_java.getvalue()
+
+def ToEnsureStructAliasSize(context, file_desc, pp_cpp):
+    import md5
+    m = md5.md5(file_desc.package + file_desc.name)
+    pp_cpp.Begin('void EnsureStructAliasSize_%s()' % m.hexdigest())
+
+    for t, at in context.TypeAliasMessages.iteritems():
+        pp_cpp.Print('DDF_STATIC_ASSERT(sizeof(%s) == sizeof(%s), Invalid_Struct_Alias_Size);' % (DotToNamespace(t), at))
+
+    pp_cpp.End()
+
+def Compile(context, proto_file, file_to_generate, namespace, includes):
+    base_name = os.path.basename(file_to_generate)
 
     if base_name.rfind(".") != -1:
         base_name = base_name[0:base_name.rfind(".")]
 
-    fds = FileDescriptorSet()
-    fds.ParseFromString(open(input_file, "rb").read())
+    file_desc = proto_file
 
-    file_desc = fds.file[0]
+    file_h = context.Response.file.add()
+    file_h.name = base_name + ".h"
 
-    f_h = open(os.path.join(output_dir, base_name + ".h"), "w")
+    f_h = StringIO()
     pp_h = PrettyPrinter(f_h, 0)
 
     guard_name = base_name.upper() + "_H"
@@ -392,7 +410,11 @@ def Compile(input_file, output_dir, options):
     pp_h.Print('#include <stdint.h>')
     pp_h.Print('#include <assert.h>')
     for d in file_desc.dependency:
-        pp_h.Print('#include "%s"', d.replace(".proto", ".h"))
+        if not 'ddf_extensions' in d:
+            pp_h.Print('#include "%s"', d.replace(".proto", ".h"))
+
+    for i in includes:
+        pp_h.Print('#include "%s"', i)
     pp_h.Print("")
 
     if namespace:
@@ -400,18 +422,22 @@ def Compile(input_file, output_dir, options):
     pp_h.Begin("namespace %s",  file_desc.package)
 
     for mt in file_desc.enum_type:
-        ToCEnum(pp_h, mt)
+        ToCEnum(context, pp_h, mt)
 
     for mt in file_desc.message_type:
-        ToCStruct(pp_h, mt)
+        ToCStruct(context, pp_h, mt)
 
     pp_h.End()
 
-    f_cpp = open(os.path.join(output_dir, base_name + ".cpp"), "w")
+    file_cpp = context.Response.file.add()
+    file_cpp.name = base_name + ".cpp"
+    f_cpp = StringIO()
+
     pp_cpp = PrettyPrinter(f_cpp, 0)
     pp_cpp.Print('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
-        pp_cpp.Print('#include "%s"', d.replace(".proto", ".h"))
+        if not 'ddf_extensions' in d:
+            pp_cpp.Print('#include "%s"', d.replace(".proto", ".h"))
     pp_cpp.Print('#include "%s.h"' % base_name)
 
     if namespace:
@@ -420,48 +446,106 @@ def Compile(input_file, output_dir, options):
     pp_h.Print("#ifdef DDF_EXPOSE_DESCRIPTORS")
 
     for mt in file_desc.enum_type:
-        ToEnumDescriptor(pp_cpp, pp_h, mt, [file_desc.package])
+        ToEnumDescriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
 
     for mt in file_desc.message_type:
-        ToDescriptor(pp_cpp, pp_h, mt, [file_desc.package])
+        ToDescriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
 
     pp_h.Print("#endif")
 
     if namespace:
         pp_h.End()
 
+    ToEnsureStructAliasSize(context, file_desc, pp_cpp)
+
     if namespace:
         pp_cpp.End()
 
-    f_cpp.close()
+    file_cpp.content = f_cpp.getvalue()
 
     pp_h.Print('#endif // %s ', guard_name)
-    f_h.close()
+    file_h.content = f_h.getvalue()
+
+
+class CompilerContext(object):
+    def __init__(self, request):
+        self.Request = request
+        self.MessageTypes = {}
+        self.TypeAliasMessages = {}
+        self.Response = CodeGeneratorResponse()
+
+    def AddMessageType(self, package, message_type):
+        if message_type.name in self.MessageTypes:
+            return
+        n = str(package + '.' + message_type.name)
+        self.MessageTypes[n] = message_type
+
+        if self.HasTypeAlias(n):
+            self.TypeAliasMessages[n] = self.TypeAliasName(n)
+
+        for mt in message_type.nested_type:
+            self.AddMessageType(package + '.' + message_type.name, mt)
+
+    def HasTypeAlias(self, type_name):
+        mt = self.MessageTypes[type_name]
+        for x in mt.options.ListFields():
+            if x[0].name == 'alias':
+                return True
+        return False
+
+    def TypeAliasName(self, type_name):
+        mt = self.MessageTypes[type_name]
+        for x in mt.options.ListFields():
+            if x[0].name == 'alias':
+                return x[1]
+        assert False
+
+    def GetFieldTypeName(self, f):
+        if f.type ==  FieldDescriptor.TYPE_MESSAGE:
+            if self.HasTypeAlias(f.type_name):
+                return self.TypeAliasName(f.type_name)
+            else:
+                return DotToNamespace(f.type_name)
+        elif f.type == FieldDescriptor.TYPE_ENUM:
+            return DotToNamespace(f.type_name)
+        else:
+            assert(False)
 
 if __name__ == '__main__':
+
     usage = "usage: %prog [options] FILE"
     parser = OptionParser(usage = usage)
     parser.add_option("-o", dest="output_file", help="Output file (.cpp)", metavar="FILE")
-    parser.add_option("--ns", dest="namespace", help="Namespace", metavar="NAMESPACE")
-    parser.add_option("--java_package", default=None, dest="java_package", help="Java packge name", metavar="JAVA_PACKAGE")
-    parser.add_option("--java_classname", default=None, dest="java_classname", help="Java class name", metavar="JAVA_CLASSNAME")
-    parser.add_option("--java_out", default=None, dest="java_out", help="Java output directory")
+    parser.add_option("--java", dest="java", help="Generate java", action="store_true")
+    parser.add_option("--cxx", dest="cxx", help="Generate c++", action="store_true")
     (options, args) = parser.parse_args()
 
-    if not options.output_file:
-        parser.error("Output file not (-o) not specified")
+    request = CodeGeneratorRequest()
+    request.ParseFromString(sys.stdin.read())
+    context = CompilerContext(request)
 
-    if len(args) == 0:
-        parser.error("No input file specified")
+    for pf in request.proto_file:
+        for mt in pf.message_type:
+            context.AddMessageType('.' + pf.package, mt)
 
-    if options.java_out and options.java_package == None:
-        parser.error("No java package specified")
+    for pf in request.proto_file:
+        if pf.name == request.file_to_generate[0]:
+            namespace = None
+            for x in pf.options.ListFields():
+                if x[0].name == 'ddf_namespace':
+                    namespace = x[1]
 
-    if options.java_out and options.java_classname == None:
-        parser.error("No java class name specified")
+            includes = []
+            for x in pf.options.ListFields():
+                if x[0].name == 'ddf_includes':
+                    includes = x[1].split()
 
-    output_dir = os.path.dirname(options.output_file)
-    Compile(args[0], output_dir, options)
+            if options.cxx:
+                Compile(context, pf, request.file_to_generate[0], namespace, includes)
 
-    if options.java_out:
-        CompileJava(args[0], options)
+            for x in pf.options.ListFields():
+                if x[0].name == 'ddf_java_package':
+                    if options.java:
+                        CompileJava(context, pf, x[1], request.file_to_generate[0])
+
+    sys.stdout.write(context.Response.SerializeToString())

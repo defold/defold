@@ -108,6 +108,12 @@ namespace dmDDF
         WIRETYPE_FIXED32          = 5,
     };
 
+    #define DDF_STATIC_ASSERT(x, error) \
+    do { \
+        static const char error[(x)?1:-1] = {0};\
+        (void) error;\
+    } while(0)
+
     /**
      * Load/decode a DDF message from buffer
      * @param buffer Input buffer

@@ -38,9 +38,12 @@ def configure(conf):
 
     conf.sub_config('src')
 
-    conf.find_file('ddfc.py', var='DDFC', path_list = [os.path.abspath('src')], mandatory = True)
+    conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
+    conf.find_program('ddfc_java', var='DDFC_JAVA', path_list = [os.path.abspath('src')], mandatory = True)
 
     waf_dynamo.configure(conf)
+
+    conf.env['PROTOBUF_JAR'] = conf.env.DYNAMO_HOME + '/ext/share/java/protobuf-java-2.3.0.jar'
 
     if sys.platform == "darwin":
         platform = "darwin"
@@ -59,6 +62,10 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
 
 def build(bld):
+    # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
+    # Only required 'in' ddf-lib.
+    python_path = os.environ.get('PYTHONPATH', '')
+    os.environ['PYTHONPATH'] = python_path + os.pathsep + 'default/src/ddf'
     bld.add_subdirs('src')
 
 def shutdown():
@@ -68,11 +75,12 @@ def shutdown():
 
     if Options.commands['build']:
         dynamo_home = Build.bld.get_env()['DYNAMO_HOME']
-        cp = os.pathsep.join([dynamo_home + '/ext/share/java/protobuf-java-2.0.3.jar',
+        cp = os.pathsep.join([dynamo_home + '/ext/share/java/protobuf-java-2.3.0.jar',
                               dynamo_home + '/ext/share/java/junit-4.6.jar',
                               'build/default/src/java_test',
                               'build/default/src/test/generated',
-                              'build/default/src/java'])
+                              'build/default/src/java',
+                              'build/default/src/ddf/generated'])
         cmd = """
 "%s" -cp %s org.junit.runner.JUnitCore com.dynamo.ddf.test.DDFLoaderTest
 """ % (Build.bld.get_env()['JAVA'][0], cp)
