@@ -52,7 +52,7 @@ def build(bld):
     test_resource = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
                                      uselib = 'GTEST DDF DLIB',
-                                     uselib_local = 'gamesys lua',
+                                     uselib_local = 'gamesys lua script',
                                      proto_gen_py = True,
                                      target = 'test_resource',
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb')
@@ -62,7 +62,7 @@ def build(bld):
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',
                                      uselib = 'GTEST DDF DLIB',
-                                     uselib_local = 'gamesys lua',
+                                     uselib_local = 'gamesys lua script',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
                                      source = 'test_gameobject.cpp test_resource_ddf.proto')
@@ -72,22 +72,22 @@ def build(bld):
     test_script = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
                                      uselib = 'GTEST DDF DLIB',
-                                     uselib_local = 'gamesys lua',
+                                     uselib_local = 'gamesys lua script',
                                      proto_gen_py = True,
                                      target = 'test_script',
                                      source = 'test_script.cpp')
 
     test_script.install_path = None
 
-    test_luasupport = bld.new_task_gen(features = 'cxx cprogram',
-                                       includes = '../../../src',
-                                       uselib = 'GTEST DDF DLIB',
-                                       uselib_local = 'gamesys lua',
-                                       proto_gen_py = True,
-                                       target = 'test_luasupport',
-                                       source = 'test_luasupport.cpp test_resource_ddf.proto')
+    test_script_util = bld.new_task_gen(features = 'cxx cprogram',
+                                        includes = '../../../src',
+                                        uselib = 'GTEST DDF DLIB',
+                                        uselib_local = 'gamesys lua script',
+                                        proto_gen_py = True,
+                                        target = 'test_script_util',
+                                        source = 'test_script_util.cpp test_resource_ddf.proto')
 
-    test_luasupport.install_path = None
+    test_script_util.install_path = None
 
 
 

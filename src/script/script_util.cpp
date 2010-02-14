@@ -1,4 +1,4 @@
-#include "luasupport.h"
+#include "script_util.h"
 #include <string.h>
 extern "C"
 {
@@ -6,7 +6,7 @@ extern "C"
 #include "../lua/lauxlib.h"
 }
 
-namespace dmGameObject
+namespace dmScriptUtil
 {
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last);

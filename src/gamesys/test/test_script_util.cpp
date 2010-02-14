@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "../gameobject.h"
-#include "../luasupport.h"
+#include "../../script/script_util.h"
 #include "gamesys/test/test_resource_ddf.h"
 
 extern "C"
@@ -21,7 +21,7 @@ TEST(LuaTableToDDF, Vec3)
 
     char* buf = new char[sizeof(TestResource::Vec)];
 
-    dmGameObject::LuaTableToDDF(L, TestResource::Vec::m_DDFDescriptor, buf, sizeof(TestResource::Vec));
+    dmScriptUtil::LuaTableToDDF(L, TestResource::Vec::m_DDFDescriptor, buf, sizeof(TestResource::Vec));
 
     TestResource::Vec* vec = (TestResource::Vec*) buf;
 
@@ -43,7 +43,7 @@ TEST(DDFToLuaTable, Vec3)
     vec->m_Y = 222;
     vec->m_Z = 333;
 
-    dmGameObject::DDFToLuaTable(L, TestResource::Vec::m_DDFDescriptor, (const char*) vec);
+    dmScriptUtil::DDFToLuaTable(L, TestResource::Vec::m_DDFDescriptor, (const char*) vec);
 
     lua_getfield(L, -1, "X"); ASSERT_EQ(111, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_getfield(L, -1, "Y"); ASSERT_EQ(222, luaL_checkint(L, -1)); lua_pop(L, 1);
@@ -77,7 +77,7 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     char* buf = new char[1024];
 
-    dmGameObject::LuaTableToDDF(L, TestResource::GlobalData::m_DDFDescriptor, buf, 1024);
+    dmScriptUtil::LuaTableToDDF(L, TestResource::GlobalData::m_DDFDescriptor, buf, 1024);
 
     TestResource::GlobalData* global_data = (TestResource::GlobalData*) buf;
 
@@ -107,7 +107,7 @@ TEST(DDFToLuaTable, MessageInMessage)
     g->m_VecValue.m_Y = 22;
     g->m_VecValue.m_Z = 33;
 
-    dmGameObject::DDFToLuaTable(L, TestResource::GlobalData::m_DDFDescriptor, (const char*) g);
+    dmScriptUtil::DDFToLuaTable(L, TestResource::GlobalData::m_DDFDescriptor, (const char*) g);
 
     lua_getfield(L, -1, "UIntValue"); ASSERT_EQ(1234, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_getfield(L, -1, "IntValue"); ASSERT_EQ(5678, luaL_checkint(L, -1)); lua_pop(L, 1);
@@ -141,7 +141,7 @@ int ProtectedLuaDDFBufferOverflow (lua_State *L)
     lua_pushstring(L, "string_value");
     lua_setfield(L, -2, "StringValue");
 
-    dmGameObject::LuaTableToDDF(L, TestResource::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize);
+    dmScriptUtil::LuaTableToDDF(L, TestResource::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize);
 
     return 0;
 }

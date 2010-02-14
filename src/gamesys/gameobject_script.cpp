@@ -9,7 +9,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
-#include "luasupport.h"
+#include "../script/script_util.h"
 
 extern "C"
 {
@@ -92,7 +92,7 @@ namespace dmGameObject
                     const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
                     if (strcmp(f->m_Name, key) == 0)
                     {
-                        DDFToLuaValue(L, f, (char*) update_context->m_GlobalData);
+                        dmScriptUtil::DDFToLuaValue(L, f, (char*) update_context->m_GlobalData);
                         return 1;
                     }
                 }
@@ -376,7 +376,7 @@ namespace dmGameObject
 
         char* p = buf + sizeof(ScriptEventData);
         lua_pushvalue(L, 2);
-        LuaTableToDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+        dmScriptUtil::LuaTableToDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
@@ -655,7 +655,7 @@ bail:
         {
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
             // lua_cpcall?
-            DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+            dmScriptUtil::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
         }
         else
         {

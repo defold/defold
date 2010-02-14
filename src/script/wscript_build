@@ -1,0 +1,8 @@
+script = bld.new_task_gen(features = 'cxx cstaticlib',
+                          includes = '.',
+                          target = 'script',
+                          install_path='${PREFIX}/lib')
+
+script.find_sources_in_dirs(['.'])
+
+bld.install_files('${PREFIX}/include/script', 'script_util.h')
