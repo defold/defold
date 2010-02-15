@@ -121,6 +121,11 @@ public class Fontc
             glyph.m_LeftBearing = (int) metrics.getLSB();
             glyph.m_RightBearing = Math.round(metrics.getRSB() + (glyph.m_LeftBearing - metrics.getLSB()));
 
+            if (glyph.m_Width == 0)
+            {
+                glyph.m_Width = (int) (metrics.getAdvance());
+            }
+
             TextLayout layout = new TextLayout(s, font, m_FontRendererContext);
             glyph.m_YOffset = (int) layout.getAscent();
 
