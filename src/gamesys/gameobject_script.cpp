@@ -74,7 +74,29 @@ namespace dmGameObject
             lua_rawset(L, -3);
             return 1;
         }
+        else if (strcmp(key, "Rotation") == 0)
+        {
+            lua_newtable(L);
 
+            Quat& rot = i->m_Instance->m_Rotation;
+
+            lua_pushliteral(L, "X");
+            lua_pushnumber(L, rot.getX());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "Y");
+            lua_pushnumber(L, rot.getY());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "Z");
+            lua_pushnumber(L, rot.getZ());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "W");
+            lua_pushnumber(L, rot.getW());
+            lua_rawset(L, -3);
+			return 1;
+        }
         // Try to find value in globals in update context
         lua_pushstring(L, "__update_context__");
         lua_rawget(L, LUA_GLOBALSINDEX);
@@ -145,6 +167,40 @@ namespace dmGameObject
             float z = luaL_checknumber(L, -1);
 
             i->m_Instance->m_Position = Point3(x, y, z);
+        }
+        else if (strcmp(key, "Rotation") == 0)
+        {
+            luaL_checktype(L, 3, LUA_TTABLE);
+
+            lua_getfield(L, 3, "X");
+            if (lua_isnil(L, -1))
+            {
+                // X not present, assume { x, y, z, w }
+                lua_pop(L, 1);
+                lua_rawgeti(L, 3, 1);
+                lua_rawgeti(L, 3, 2);
+                lua_rawgeti(L, 3, 3);
+                lua_rawgeti(L, 3, 4);
+            }
+            else
+            {
+                // X present, assume { X = x, ... }
+                lua_pushliteral(L, "X");
+                lua_rawget(L, 3);
+                lua_pushliteral(L, "Y");
+                lua_rawget(L, 3);
+                lua_pushliteral(L, "Z");
+                lua_rawget(L, 3);
+                lua_pushliteral(L, "W");
+                lua_rawget(L, 3);
+            }
+
+            float x = luaL_checknumber(L, -4);
+            float y = luaL_checknumber(L, -3);
+            float z = luaL_checknumber(L, -2);
+            float w = luaL_checknumber(L, -1);
+
+            i->m_Instance->m_Rotation = Quat(x, y, z, w);
         }
         else
         {
