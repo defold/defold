@@ -44,6 +44,7 @@ namespace dmGameObject
             m_Prototype = prototype;
             m_ScriptInstance = NewScriptInstance(prototype->m_Script, this);
             m_Identifier = UNNAMED_IDENTIFIER;
+            m_ToBeDeleted = 0;
         }
 
         ~Instance()
@@ -56,6 +57,7 @@ namespace dmGameObject
         Prototype*      m_Prototype;
         HScriptInstance m_ScriptInstance;
         uint32_t        m_Identifier;
+        uint32_t        m_ToBeDeleted : 1;
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
     };

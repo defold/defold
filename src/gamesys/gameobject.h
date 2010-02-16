@@ -152,16 +152,17 @@ namespace dmGameObject
 
     /**
      * Creates a new gameobject collection
+     * @param factory Resource factory. Must be valid during the life-time of the collection
      * @param max_instances Max instances in this collection
      * @return HCollection
      */
-    HCollection NewCollection(uint32_t max_instances);
+    HCollection NewCollection(dmResource::HFactory factory, uint32_t max_instances);
 
     /**
      * Deletes a gameobject collection
      * @param collection
      */
-    void DeleteCollection(HCollection collection, dmResource::HFactory factory);
+    void DeleteCollection(HCollection collection);
 
     /**
      * Register a new component type
@@ -189,20 +190,18 @@ namespace dmGameObject
     /**
      * Create a new gameobject instane
      * @param collection Gameobject collection
-     * @param factory Resource factory
      * @param prototype_name Prototype file name
      * @param update_context Update context
      * @return New gameobject instance. NULL if any error occured
      */
-    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name, const UpdateContext* update_context);
+    HInstance New(HCollection collection, const char* prototype_name, const UpdateContext* update_context);
 
     /**
      * Delete gameobject instance
      * @param collection Gameobject collection
-     * @param factory Resource factory. Must be identical to factory used with New
      * @param instance Gameobject instance
      */
-    void Delete(HCollection collection, dmResource::HFactory factory, HInstance instance);
+    void Delete(HCollection collection, HInstance instance);
 
     /**
      * Set instance identifier. Must be unique within the collection.

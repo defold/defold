@@ -1,4 +1,6 @@
 #include <new>
+#include <algorithm> // TODO: Get rid of!
+#include <stdio.h>
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/event.h>
@@ -33,16 +35,26 @@ namespace dmGameObject
     const uint32_t MAX_COMPONENT_TYPES = 128;
     struct Collection
     {
-        Collection(uint32_t max_instances)
+        Collection(dmResource::HFactory factory, uint32_t max_instances)
         {
+            m_Factory = factory;
             m_ComponentTypeCount = 0;
             m_Instances.SetCapacity(max_instances);
+            m_InstancesToDelete.SetCapacity(max_instances);
             m_IDToInstance.SetCapacity(max_instances/3, max_instances);
+            m_InUpdate = 0;
         }
+        dmResource::HFactory     m_Factory;
         uint32_t                 m_ComponentTypeCount;
         ComponentType            m_ComponentTypes[MAX_COMPONENT_TYPES];
         dmArray<Instance*>       m_Instances;
+        // NOTE: Be *very* careful about m_InstancesToDelete
+        // m_InstancesToDelete is an array of instances flagged for delete during Update(.)
+        // Related code is Delete(.) and Update(.)
+        dmArray<uint16_t>        m_InstancesToDelete;
         dmHashTable32<Instance*> m_IDToInstance;
+
+        uint32_t                 m_InUpdate : 1;
     };
 
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer32("__unnamed__", strlen("__unnamed__"));
@@ -99,16 +111,16 @@ namespace dmGameObject
         }
     }
 
-    HCollection  NewCollection(uint32_t max_instances)
+    HCollection  NewCollection(dmResource::HFactory factory, uint32_t max_instances)
     {
-        return new Collection(max_instances);
+        return new Collection(factory, max_instances);
     }
 
-    void DeleteCollection(HCollection collection, dmResource::HFactory factory)
+    void DeleteCollection(HCollection collection)
     {
         while (collection->m_Instances.Size() > 0)
         {
-            Delete(collection, factory, collection->m_Instances[0]);
+            Delete(collection, collection->m_Instances[0]);
         }
         delete collection;
     }
@@ -288,9 +300,11 @@ namespace dmGameObject
         return ret;
     }
 
-    HInstance New(HCollection collection, dmResource::HFactory factory, const char* prototype_name, const UpdateContext* update_context)
+    HInstance New(HCollection collection, const char* prototype_name, const UpdateContext* update_context)
     {
+        assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
         Prototype* proto;
+        dmResource::HFactory factory = collection->m_Factory;
         dmResource::FactoryResult error = dmResource::Get(factory, prototype_name, (void**)&proto);
         if (error != dmResource::FACTORY_RESULT_OK)
         {
@@ -387,13 +401,36 @@ namespace dmGameObject
         }
         else
         {
-            Delete(collection, factory, instance);
+            Delete(collection, instance);
             return 0;
         }
     }
 
-    void Delete(HCollection collection, dmResource::HFactory factory, HInstance instance)
+    void Delete(HCollection collection, HInstance instance)
     {
+        if (collection->m_InUpdate)
+        {
+            int index = -1;
+            // TODO: O(n)...
+            for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+            {
+                if (collection->m_Instances[i] == instance)
+                {
+                    index = (int) i;
+                    break;
+                }
+            }
+            assert(index != -1);
+            // NOTE: Do not add for delete twice.
+            if (collection->m_Instances[index]->m_ToBeDeleted)
+                return;
+
+            collection->m_Instances[index]->m_ToBeDeleted = 1;
+            collection->m_InstancesToDelete.Push(index);
+            return;
+        }
+
+        dmResource::HFactory factory = collection->m_Factory;
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
@@ -431,6 +468,11 @@ namespace dmGameObject
 
         instance->~Instance();
         void* instance_memory = (void*) instance;
+
+        // This is required for failing test
+        // TODO: #ifdef on something...?
+        // Clear all memory excluding ComponentInstanceUserData
+        memset(instance_memory, 0xcc, sizeof(Instance));
         operator delete (instance_memory);
     }
 
@@ -577,6 +619,9 @@ namespace dmGameObject
     bool Update(HCollection collection, const UpdateContext* update_context)
     {
         DM_PROFILE(GameObject, "Update");
+        collection->m_InUpdate = 1;
+        collection->m_InstancesToDelete.SetSize(0);
+
         bool ret = DispatchEvents(collection, update_context);
 
         uint32_t n_objects = collection->m_Instances.Size();
@@ -595,6 +640,21 @@ namespace dmGameObject
             if (component_type->m_ComponentsUpdate)
             {
                 component_type->m_ComponentsUpdate(collection, update_context, component_type->m_Context);
+            }
+        }
+
+        collection->m_InUpdate = 0;
+
+        if (collection->m_InstancesToDelete.Size() > 0)
+        {
+            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
+            std::sort(&collection->m_InstancesToDelete[0], &collection->m_InstancesToDelete[0] + n_to_delete);
+            for (uint32_t i = 0; i < n_to_delete; ++i)
+            {
+                // NOTE: Delete from end. Very import due to EraseSwap in Delete(.)
+                int index = collection->m_InstancesToDelete[n_to_delete - i - 1];
+                assert(collection->m_Instances[index]->m_ToBeDeleted);
+                Delete(collection, collection->m_Instances[index]);
             }
         }
 
