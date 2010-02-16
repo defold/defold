@@ -372,6 +372,15 @@ TEST_F(GameObjectTest, TestComponentUserdata)
     ASSERT_EQ(30, m_ComponentUserDataAcc[TestResource::CResource::m_DDFHash]);
 }
 
+TEST_F(GameObjectTest, AutoDelete)
+{
+    for (int i = 0; i < 512; ++i)
+    {
+	dmGameObject::HInstance go = dmGameObject::New(collection, factory, "goproto01.go", 0x0);
+	ASSERT_NE((void*) 0, (void*) go);
+    }
+}
+
 void GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
                                         dmGameObject::HInstance instance,
                                         const dmGameObject::ScriptEventData* event_data,

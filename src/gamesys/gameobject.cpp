@@ -106,9 +106,9 @@ namespace dmGameObject
 
     void DeleteCollection(HCollection collection, dmResource::HFactory factory)
     {
-        for (uint32_t i = 0; collection->m_Instances.Size(); ++i)
+        while (collection->m_Instances.Size() > 0)
         {
-            Delete(collection, factory, collection->m_Instances[i]);
+            Delete(collection, factory, collection->m_Instances[0]);
         }
         delete collection;
     }
