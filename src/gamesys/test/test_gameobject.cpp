@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <map>
 #include <dlib/hash.h>
 #include <dlib/event.h>
@@ -437,32 +438,38 @@ TEST_F(GameObjectTest, DeleteSelf)
      * Component instances of type 'A' is used here. We need a specific ComponentUpdate though. (DeleteSelfComponentsUpdate)
      * See New(..., goproto01.go") below.
      */
-    for (int i = 0; i < 512; ++i)
+    for (int iter = 0; iter < 4; ++iter)
     {
-        dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.go", 0x0);
-        dmGameObject::SetPosition(go, Point3(i,i,i));
-        ASSERT_NE((void*) 0, (void*) go);
-        m_DeleteSelfInstances.push_back(go);
-        m_DeleteSelfIndexToInstance[i] = go;
-        m_DeleteSelfIndices.push_back(i);
-    }
+        m_DeleteSelfInstances.clear();
+        m_DeleteSelfIndexToInstance.clear();
 
-    std::random_shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end());
-
-    while (m_DeleteSelfIndices.size() > 0)
-    {
-        for (int i = 0; i < 16; ++i)
+        for (int i = 0; i < 512; ++i)
         {
-            int index = *(m_DeleteSelfIndices.end() - i - 1);
-            m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
-        }
-        dmGameObject::Update(collection, 0);
-        for (int i = 0; i < 16; ++i)
-        {
-            m_DeleteSelfIndices.pop_back();
+            dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.go", 0x0);
+            dmGameObject::SetPosition(go, Point3(i,i,i));
+            ASSERT_NE((void*) 0, (void*) go);
+            m_DeleteSelfInstances.push_back(go);
+            m_DeleteSelfIndexToInstance[i] = go;
+            m_DeleteSelfIndices.push_back(i);
         }
 
-        m_SelfInstancesToDelete.clear();
+        std::random_shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end());
+
+        while (m_DeleteSelfIndices.size() > 0)
+        {
+            for (int i = 0; i < 16; ++i)
+            {
+                int index = *(m_DeleteSelfIndices.end() - i - 1);
+                m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
+            }
+            dmGameObject::Update(collection, 0);
+            for (int i = 0; i < 16; ++i)
+            {
+                m_DeleteSelfIndices.pop_back();
+            }
+
+            m_SelfInstancesToDelete.clear();
+        }
     }
 }
 
