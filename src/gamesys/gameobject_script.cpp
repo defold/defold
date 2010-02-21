@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <ddf/ddf.h>
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -709,6 +710,17 @@ bail:
 
         if (script_event_data->m_DDFDescriptor)
         {
+        	// adjust char ptrs to global mem space
+        	char* data = (char*)script_event_data->m_DDFData;
+        	for (uint8_t i = 0; i < script_event_data->m_DDFDescriptor->m_FieldCount; ++i)
+        	{
+        		dmDDF::FieldDescriptor* field = &script_event_data->m_DDFDescriptor->m_Fields[i];
+        		uint32_t field_type = field->m_Type;
+        		if (field_type == dmDDF::TYPE_STRING)
+        		{
+        			*((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
+        		}
+        	}
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
             // lua_cpcall?
             dmScriptUtil::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
