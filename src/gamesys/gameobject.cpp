@@ -505,7 +505,7 @@ namespace dmGameObject
             return 0;
     }
 
-    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event)
+    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
     {
         uint32_t event_hash = dmHashString32(event);
         uint32_t component_index = 0xffffffff;
@@ -529,13 +529,23 @@ namespace dmGameObject
             }
         }
 
-        ScriptEventData e;
-        e.m_Component = component_index & 0xff;
-        e.m_DDFDescriptor = 0;
-        e.m_EventHash = event_hash;
-        e.m_Instance = instance;
+        char buf[SCRIPT_EVENT_MAX];
+        ScriptEventData* e = (ScriptEventData*)buf;
+        e->m_Component = component_index & 0xff;
+        e->m_EventHash = event_hash;
+        e->m_Instance = instance;
+        e->m_DDFDescriptor = ddf_desc;
+        if (ddf_desc != 0x0)
+        {
+        	assert(ddf_data != 0x0);
+        	uint32_t max_data_size = SCRIPT_EVENT_MAX - sizeof(ScriptEventData);
+        	// TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
+        	assert(ddf_desc->m_Size < max_data_size);
+        	// TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
+        	memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
+        }
 
-        dmEvent::Post(g_ReplySocket, g_EventID, &e);
+        dmEvent::Post(g_ReplySocket, g_EventID, buf);
 
         return RESULT_OK;
     }

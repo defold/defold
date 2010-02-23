@@ -234,7 +234,7 @@ namespace dmGameObject
      * @param event Named event
      * @return RESULT_OK on success
      */
-    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event);
+    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event, const dmDDF::Descriptor* ddf_desc = 0x0, char* ddf_data = 0x0);
 
     /**
      * Set integer property in instance script
