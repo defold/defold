@@ -469,6 +469,73 @@ namespace dmGameObject
         return 0;
     }
 
+    int Script_Transform(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        // check args
+        luaL_checktype(L, 1, LUA_TTABLE);
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        // retrieve position
+        lua_getfield(L, 1, "Position");
+		Vectormath::Aos::Point3 position(0.0f, 0.0f, 0.0f);
+        if (lua_istable(L, 3))
+        {
+			lua_getfield(L, 3, "X");
+			position.setX((float)lua_tonumber(L, 4));
+			lua_getfield(L, 3, "Y");
+			position.setY((float)lua_tonumber(L, 5));
+			lua_getfield(L, 3, "Z");
+			position.setZ((float)lua_tonumber(L, 6));
+			lua_pop(L, 3);
+        }
+		lua_pop(L, 1);
+
+		// retrieve rotation
+        lua_getfield(L, 1, "Rotation");
+        Vectormath::Aos::Quat rotation(0.0f, 0.0f, 0.0f, 1.0f);
+        if (lua_istable(L, 3))
+        {
+			lua_getfield(L, 3, "X");
+			rotation.setX((float)lua_tonumber(L, 4));
+			lua_getfield(L, 3, "Y");
+			rotation.setY((float)lua_tonumber(L, 5));
+			lua_getfield(L, 3, "Z");
+			rotation.setZ((float)lua_tonumber(L, 6));
+			lua_getfield(L, 3, "W");
+			rotation.setW((float)lua_tonumber(L, 7));
+			lua_pop(L, 4);
+        }
+		lua_pop(L, 1);
+
+		// retrieve point to transform
+		Vectormath::Aos::Vector3 p;
+		lua_getfield(L, 2, "X");
+		p.setX((float)lua_tonumber(L, 3));
+		lua_getfield(L, 2, "Y");
+		p.setY((float)lua_tonumber(L, 4));
+		lua_getfield(L, 2, "Z");
+		p.setZ((float)lua_tonumber(L, 5));
+		lua_pop(L, 3);
+
+		// calculate!
+		Vectormath::Aos::Point3 result = position + Vectormath::Aos::rotate(rotation, p);
+
+		// write result
+		lua_newtable(L);
+		lua_pushnumber(L, result.getX());
+		lua_setfield(L, 3, "X");
+		lua_pushnumber(L, result.getY());
+		lua_setfield(L, 3, "Y");
+		lua_pushnumber(L, result.getZ());
+		lua_setfield(L, 3, "Z");
+
+        assert(top + 1 == lua_gettop(L));
+
+        return 1;
+    }
+
     void InitializeScript()
     {
         lua_State *L = lua_open();
@@ -507,6 +574,10 @@ namespace dmGameObject
 
         lua_pushliteral(L, "Hash");
         lua_pushcfunction(L, Script_Hash);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "Transform");
+        lua_pushcfunction(L, Script_Transform);
         lua_rawset(L, LUA_GLOBALSINDEX);
     }
 
