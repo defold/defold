@@ -554,6 +554,10 @@ namespace dmGameObject
     {
         Prototype* proto = instance->m_Prototype;
         bool ret = RunScript(collection, proto->m_Script, "Update", instance->m_ScriptInstance, update_context);
+        if (!ret)
+        {
+        	dmLogError("The script for prototype %s failed to run.", proto->m_Name);
+        }
         return ret;
     }
 
