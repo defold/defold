@@ -574,48 +574,60 @@ namespace dmGameObject
 
         dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
         assert(script_event_data->m_Instance);
-
-        if (script_event_data->m_Component == 0xff)
+        bool exists = false;
+        for (uint32_t i = 0; i < context->m_Collection->m_Instances.Size(); ++i)
         {
-            bool ret = DispatchScriptEventsFunction(event_object, context->m_UpdateContext);
-            if (!ret)
-                context->m_Success = false;
+        	if (script_event_data->m_Instance == context->m_Collection->m_Instances[i])
+        	{
+        		exists = true;
+        		break;
+        	}
         }
-        else
+
+        if (exists)
         {
-            Instance* instance = script_event_data->m_Instance;
-            Prototype* prototype = instance->m_Prototype;
-            uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
-            ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
-            assert(component_type);
+			if (script_event_data->m_Component == 0xff)
+			{
+				bool ret = DispatchScriptEventsFunction(event_object, context->m_UpdateContext);
+				if (!ret)
+					context->m_Success = false;
+			}
+			else
+			{
+				Instance* instance = script_event_data->m_Instance;
+				Prototype* prototype = instance->m_Prototype;
+				uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
+				ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
+				assert(component_type);
 
-            if (component_type->m_ComponentOnEvent)
-            {
+				if (component_type->m_ComponentOnEvent)
+				{
 
-                // TODO: Not optimal way to find index of component instance data
-                uint32_t next_component_instance_data = 0;
-                for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
-                {
-                    ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
-                    assert(component_type);
-                    if (ct->m_ComponentInstanceHasUserdata)
-                    {
-                        next_component_instance_data++;
-                    }
-                }
+					// TODO: Not optimal way to find index of component instance data
+					uint32_t next_component_instance_data = 0;
+					for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
+					{
+						ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
+						assert(component_type);
+						if (ct->m_ComponentInstanceHasUserdata)
+						{
+							next_component_instance_data++;
+						}
+					}
 
-                uintptr_t* component_instance_data = 0;
-                if (component_type->m_ComponentInstanceHasUserdata)
-                {
-                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                }
-                component_type->m_ComponentOnEvent(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
-            }
-            else
-            {
-                // TODO User-friendly error message here...
-                dmLogWarning("Component type is missing OnEvent function");
-            }
+					uintptr_t* component_instance_data = 0;
+					if (component_type->m_ComponentInstanceHasUserdata)
+					{
+						component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+					}
+					component_type->m_ComponentOnEvent(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+				}
+				else
+				{
+					// TODO User-friendly error message here...
+					dmLogWarning("Component type is missing OnEvent function");
+				}
+			}
         }
     }
 
