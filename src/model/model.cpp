@@ -6,9 +6,9 @@
 
 namespace dmModel
 {
-    struct SModel
+    struct Model
     {
-        SModel()
+        Model()
         {
             memset(this, 0x0, sizeof(*this));
             m_Deleted = false;
@@ -37,7 +37,7 @@ namespace dmModel
             m_RenderContext = *rendercontext;
         }
 
-        dmArray<SModel*>        m_ModelList;
+        dmArray<Model*>         m_ModelList;
         RenderContext           m_RenderContext;
         SetObjectModel          m_SetGameobjectModel;
 
@@ -45,13 +45,13 @@ namespace dmModel
 
     HModel NewModel()
     {
-        SModel* model = new SModel;
+        Model* model = new Model;
         return (HModel)model;
     }
 
     HModel NewModel(HModel prototype, void* gameobject, void* collection)
     {
-        SModel* model = NewModel();
+        Model* model = NewModel();
 
         *model = *prototype;
         model->m_GameObject = gameobject;
@@ -100,7 +100,7 @@ namespace dmModel
         world->AddModel(model);
     }
 
-    void RenderModel(SModel* model, RenderContext* rendercontext, Vectormath::Aos::Quat rotation, Point3 position)
+    void RenderModel(Model* model, RenderContext* rendercontext, Vectormath::Aos::Quat rotation, Point3 position)
     {
         Render::Mesh* mesh = model->m_Mesh;
         if (mesh->m_PrimitiveCount == 0)
@@ -208,7 +208,7 @@ namespace dmModel
 
         for (size_t i=0; i<world->m_ModelList.Size(); i++)
         {
-            SModel* model = world->m_ModelList[i];
+            Model* model = world->m_ModelList[i];
 
             if (model->m_Deleted)
                 continue;
@@ -228,7 +228,7 @@ namespace dmModel
     {
         for (size_t i=0; i<world->m_ModelList.Size(); i++)
         {
-            SModel* model = (SModel*)world->m_ModelList[i];
+            Model* model = world->m_ModelList[i];
 
             if (model->m_Deleted == false)
                 dmLogInternal(DM_LOG_SEVERITY_WARNING, "Model not marked for delete\n");

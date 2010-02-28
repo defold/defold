@@ -13,7 +13,7 @@ namespace dmModel
     using namespace Vectormath::Aos;
 
 
-    typedef struct SModel* HModel;
+    typedef struct Model* HModel;
     typedef class ModelWorld* HWorld;
     typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
 
