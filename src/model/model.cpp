@@ -1,5 +1,5 @@
 #include <string.h>
-#include <vector>
+#include <dlib/array.h>
 #include <dlib/log.h>
 #include <graphics/graphics_device.h>
 #include "model.h"
@@ -29,7 +29,7 @@ namespace dmModel
     public:
         void AddModel(HModel model)
         {
-            m_ModelList.push_back(model);
+            m_ModelList.Push(model);
         }
 
         void UpdateContext(RenderContext* rendercontext)
@@ -37,7 +37,7 @@ namespace dmModel
             m_RenderContext = *rendercontext;
         }
 
-        std::vector<SModel*>    m_ModelList;
+        dmArray<SModel*>        m_ModelList;
         RenderContext           m_RenderContext;
         SetObjectModel          m_SetGameobjectModel;
 
@@ -60,9 +60,8 @@ namespace dmModel
         return (HModel)model;
     }
 
-    void DeleteModel(HModel model)
+    void DeleteModel(HWorld world, HModel model)
     {
-        // TODO: iterate list deferred?
         model->m_Deleted = true;
     }
 
@@ -183,7 +182,7 @@ namespace dmModel
     HWorld NewWorld(uint32_t max_models, SetObjectModel set_object_model)
     {
         ModelWorld* world = new ModelWorld;
-        world->m_ModelList.reserve(max_models);
+        world->m_ModelList.SetCapacity(max_models);
         world->m_SetGameobjectModel = set_object_model;
 
         return (HWorld)world;
@@ -196,9 +195,20 @@ namespace dmModel
 
     void RenderWorld(HWorld world)
     {
-        for (size_t i=0; i<world->m_ModelList.size(); i++)
+        // iterate world and look for deleted models
+        uint32_t size = world->m_ModelList.Size();
+        for (uint32_t i=0; i<size; i++)
         {
-            SModel* model = (SModel*)world->m_ModelList[i];
+            if (world->m_ModelList[i]->m_Deleted)
+            {
+                world->m_ModelList.EraseSwap(i);
+                size = world->m_ModelList.Size();
+            }
+        }
+
+        for (size_t i=0; i<world->m_ModelList.Size(); i++)
+        {
+            SModel* model = world->m_ModelList[i];
 
             if (model->m_Deleted)
                 continue;
@@ -209,13 +219,14 @@ namespace dmModel
             world->m_SetGameobjectModel(model->m_Collection, model->m_GameObject, &rot, &pos);
 
             RenderModel(model, &world->m_RenderContext, rot, pos);
-        }
 
+
+        }
     }
 
     void DeleteWorld(HWorld world)
     {
-        for (size_t i=0; i<world->m_ModelList.size(); i++)
+        for (size_t i=0; i<world->m_ModelList.Size(); i++)
         {
             SModel* model = (SModel*)world->m_ModelList[i];
 

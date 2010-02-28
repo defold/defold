@@ -62,9 +62,10 @@ namespace dmModel
 
     /**
      * Destroy a model
+     * @param world model world
      * @param model model to destroy
      */
-    void DeleteModel(HModel model);
+    void DeleteModel(HWorld world, HModel model);
 
     /**
      * Set model mesh
