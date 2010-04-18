@@ -106,6 +106,25 @@ namespace dmRenderDebug
         dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 3*12, dmGraphics::TYPE_UNSIGNED_INT, (void*) &State::m_CubeIndices[0]);
     }
 
+    void Plane(Matrix4* view_proj, const float* vertices, Vector4 color)
+    {
+        dmGraphics::HContext context = dmGraphics::GetContext();
+
+        if (!SetupPrograms(context)) return;
+
+        dmGraphics::SetFragmentConstant(context, &color, 0);
+
+        Matrix4 mat = Matrix4::identity();
+
+        SetupMatrices(context, view_proj, &mat);
+
+        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) vertices);
+        dmGraphics::DisableVertexStream(context, 1);
+        dmGraphics::DisableVertexStream(context, 2);
+
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLE_STRIP, 0, 4);
+    }
+
     void Cube(Point3 position, float size, Vector4 color)
     {
         dmGraphics::HContext context = dmGraphics::GetContext();

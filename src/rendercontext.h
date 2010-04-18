@@ -1,16 +1,17 @@
-// TODO: should probably go someplace else?
-#ifndef __RENDERCONTEXT_H__
-#define __RENDERCONTEXT_H__
+#ifndef RENDERCONTEXT_H
+#define RENDERCONTEXT_H
 
 #include <vectormath/cpp/vectormath_aos.h>
 #include <graphics/graphics_device.h>
 
+using namespace Vectormath::Aos;
 
 struct RenderContext
 {
-    Vectormath::Aos::Matrix4    m_View;
-    Vectormath::Aos::Matrix4    m_Projection;
-    Vectormath::Aos::Matrix4    m_ViewProj;
+    Matrix4                     m_View;
+    Matrix4                     m_Projection;
+    Matrix4                     m_ViewProj;
+    Point3                      m_CameraPosition;
 
     dmGraphics::HContext        m_GFXContext;
 };

@@ -31,6 +31,8 @@ namespace dmRenderDebug
      */
     void Square(Matrix4 view_proj, Point3 position, Vector3 size, Vector4 color);
 
+    void Plane(Matrix4* view_proj, const float* vertices, Vector4 color);
+
     /**
      * Cube Render debug cube (3D)
      * @param position Position
