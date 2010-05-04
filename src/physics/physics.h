@@ -94,6 +94,21 @@ namespace dmPhysics
      * @return User data
      */
     void* GetRigidBodyUserData(HRigidBody rigid_body);
+
+    /**
+     * Apply a force to the specified rigid body at the specified position.
+     * @param rigid_body Rigid body receiving the force.
+     * @param force Force to be applied (world space).
+     * @param relative_position Position of where the force will be applied, relative to the center of the body (world space).
+     */
+    void ApplyForce(HRigidBody rigid_body, Vector3 force, Vector3 position = Vector3(0.0f, 0.0f, 0.0f));
+
+    /**
+     * Return the total force currently applied to the specified rigid body.
+     * @param rigid_body Rigid body receiving the force.
+     * @return The total force (world space).
+     */
+    Vector3 GetTotalForce(HRigidBody rigid_body);
 }
 
 #endif // PHYSICS_H
