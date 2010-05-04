@@ -158,7 +158,7 @@ namespace dmGameSystem
         Point3 point_min(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]);
         Point3 point_max(convex_shape->m_Data[3], convex_shape->m_Data[4], convex_shape->m_Data[5]);
         // TODO: The box might not be centered. Fall-back to convex hull?
-        Vector3 half_ext = (point_max - point_min) * 0.5f;
+        Vectormath::Aos::Vector3 half_ext = (point_max - point_min) * 0.5f;
 
         resource->m_Resource = dmPhysics::NewBoxShape(half_ext);
 
