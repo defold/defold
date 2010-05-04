@@ -35,3 +35,16 @@ message RigidBodyDesc
     required float Mass = 1;
     required string CollisionShape = 2;
 }
+
+message Vector3
+{
+    required float X = 1;
+    required float Y = 2;
+    required float Z = 3;
+}
+
+message ApplyForceMessage
+{
+    required Vector3 Force = 1;
+    required Vector3 RelativePosition = 2;
+}
