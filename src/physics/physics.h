@@ -43,7 +43,7 @@ namespace dmPhysics
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape NewBoxShape(const Vector3& half_extents);
+    HCollisionShape NewBoxShape(const Vectormath::Aos::Vector3& half_extents);
 
     /**
      * Create a new convex hull shape
@@ -101,7 +101,7 @@ namespace dmPhysics
      * @param force Force to be applied (world space).
      * @param relative_position Position of where the force will be applied, relative to the center of the body (world space).
      */
-    void ApplyForce(HRigidBody rigid_body, Vector3 force, Vector3 position = Vector3(0.0f, 0.0f, 0.0f));
+    void ApplyForce(HRigidBody rigid_body, Vectormath::Aos::Vector3 force, Vectormath::Aos::Vector3 position = Vectormath::Aos::Vector3(0.0f, 0.0f, 0.0f));
 
     /**
      * Return the total force currently applied to the specified rigid body.
