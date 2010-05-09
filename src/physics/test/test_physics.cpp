@@ -69,11 +69,15 @@ TEST(physics, ApplyForce)
     dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     dmPhysics::HRigidBody box_rb = dmPhysics::NewRigidBody(world, box_shape, 0x0, Quat::identity(), Point3(0, 10.0f, 0), 1.0f);
     Vector3 force(1.0f, 0.0f, 0.0f);
-    dmPhysics::ApplyForce(box_rb, force, Vector3(0.0f, 0.0f, 0.0f));
+    dmPhysics::ApplyForce(box_rb, force, Point3(0.0f, 0.0f, 0.0f));
     Vector3 total_force = dmPhysics::GetTotalForce(box_rb);
     ASSERT_NEAR(total_force.getX(), force.getX(), 0.01f);
     ASSERT_NEAR(total_force.getY(), force.getY(), 0.01f);
     ASSERT_NEAR(total_force.getZ(), force.getZ(), 0.01f);
+
+    dmPhysics::DeleteRigidBody(world, box_rb);
+    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteWorld(world);
 }
 
 int main(int argc, char **argv)

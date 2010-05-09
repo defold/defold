@@ -101,7 +101,7 @@ namespace dmPhysics
      * @param force Force to be applied (world space).
      * @param relative_position Position of where the force will be applied, relative to the center of the body (world space).
      */
-    void ApplyForce(HRigidBody rigid_body, Vectormath::Aos::Vector3 force, Vectormath::Aos::Vector3 position = Vectormath::Aos::Vector3(0.0f, 0.0f, 0.0f));
+    void ApplyForce(HRigidBody rigid_body, Vectormath::Aos::Vector3 force, Vectormath::Aos::Point3 position);
 
     /**
      * Return the total force currently applied to the specified rigid body.
