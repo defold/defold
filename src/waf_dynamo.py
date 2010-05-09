@@ -19,7 +19,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
         self.fatal('The file %s could not be found' % file_name)
 
     return ret
- 
+
 def run_gtests(valgrind = False):
     if not Options.commands['build']:
         return
@@ -50,18 +50,39 @@ def detect(conf):
 
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
+    platform = None
+    if getattr(Options.options, 'platform', None):
+        platform=getattr(Options.options, 'platform')
+
     if sys.platform == "darwin":
-        platform = "darwin"
+        host_platform = "darwin"
     elif sys.platform == "linux2":
-        platform = "linux"
+        host_platform = "linux"
     elif sys.platform == "win32":
-        platform = "win32"
+        host_platform = "win32"
     else:
-        conf.fatal("Unable to determine platform")
+        conf.fatal("Unable to determine host platform")
+
+    if not platform:
+        platform = host_platform
+
+    conf.env['PLATFORM'] = platform
+    conf.env['HOST_PLATFORM'] = host_platform
 
     if platform == "linux" or platform == "darwin":
         conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
         conf.env.append_value('LINKFLAGS', ['-m32'])
+    elif platform == "arm6-darwin":
+        ARM_DARWIN_ROOT='/Developer/Platforms/iPhoneOS.platform/Developer'
+        conf.env['CC'] = '%s/usr/bin/gcc-4.2' % (ARM_DARWIN_ROOT)
+        conf.env['CXX'] = '%s/usr/bin/g++-4.2' % (ARM_DARWIN_ROOT)
+        conf.env['CPP'] = '%s/usr/bin/cpp-4.2' % (ARM_DARWIN_ROOT)
+        conf.env['AR'] = '%s/usr/bin/ar' % (ARM_DARWIN_ROOT)
+        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
+        conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
+
+        conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS3.2.sdk' % (ARM_DARWIN_ROOT)])
+        conf.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS3.2.sdk' % (ARM_DARWIN_ROOT)])
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
         conf.env.append_value('LINKFLAGS', '/DEBUG')
@@ -91,3 +112,4 @@ Build.BuildContext.exec_command = exec_command
 
 def set_options(opt):
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm6-darwin')
