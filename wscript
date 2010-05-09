@@ -19,6 +19,7 @@ def init():
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('compiler_cxx')
+    opt.tool_options('waf_dynamo')
 
 def configure(conf):
     # Replace version number in python file.
@@ -41,7 +42,7 @@ def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
     conf.find_program('ddfc_java', var='DDFC_JAVA', path_list = [os.path.abspath('src')], mandatory = True)
 
-    waf_dynamo.configure(conf)
+    conf.check_tool('waf_dynamo')
 
     conf.env['PROTOBUF_JAR'] = conf.env.DYNAMO_HOME + '/ext/share/java/protobuf-java-2.3.0.jar'
 
