@@ -6,11 +6,12 @@
 #include "../graphics_device.h"
 #include "opengl_device.h"
 
+#include "../glfw/include/GL/glfw.h"
+
 #ifdef __linux__
 #include <GL/glext.h>
 
 #elif defined (__MACH__)
-#include <sdl/SDL_opengl.h>
 
 #elif defined (_WIN32)
 
@@ -62,6 +63,19 @@ namespace dmGraphics
     {
         assert(params);
 
+        glfwInit(); // We can do this twice
+
+        if( !glfwOpenWindow( params->m_DisplayWidth, params->m_DisplayHeight, 0,0,0,0, 0,0, GLFW_WINDOW ) )
+        {
+            glfwTerminate();
+            return 0;
+        }
+
+        glfwSetWindowTitle(params->m_AppTitle);
+        glfwSwapInterval(60);
+
+
+#if 0
         int ret = SDL_InitSubSystem(SDL_INIT_VIDEO);
         assert(ret == 0);
 
@@ -78,6 +92,7 @@ namespace dmGraphics
         assert(gdevice.m_SDLscreen);
 
         SDL_WM_SetCaption(params->m_AppTitle, params->m_AppTitle);
+#endif
 
         gdevice.m_DisplayWidth = params->m_DisplayWidth;
         gdevice.m_DisplayHeight = params->m_DisplayHeight;
@@ -107,7 +122,7 @@ namespace dmGraphics
 
     void DestroyDevice()
     {
-        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        glfwTerminate();
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -127,7 +142,7 @@ namespace dmGraphics
 
     void Flip()
     {
-        SDL_GL_SwapBuffers();
+        glfwSwapBuffers();
     }
 
     void Draw(HContext context, PrimitiveType primitive_type, int32_t first, int32_t count )

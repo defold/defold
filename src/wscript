@@ -31,6 +31,8 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/graphics/null', 'null/null_device_defines.h')
 
+    bld.install_files('${PREFIX}/include/graphics/glfw', 'glfw/include/GL/glfw.h')
+
     bld.install_files('${PREFIX}/bin', 'ddsc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')

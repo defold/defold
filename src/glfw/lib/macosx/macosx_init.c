@@ -144,6 +144,15 @@ int _glfwPlatformInit( void )
 
     _glfwChangeToResourcesDirectory();
 
+    if (!_glfwInitJoysticks())
+    {
+        fprintf(
+            stderr,
+            "glfwInit failing because it initiate joysticks\n" );
+        _glfwPlatformTerminate();
+        return GL_FALSE;
+    }
+
     if( !_glfwInstallEventHandlers() )
     {
     	fprintf(
@@ -188,7 +197,10 @@ int _glfwPlatformTerminate( void )
         DisposeEventHandlerUPP( _glfwWin.KeyboardUPP );
         _glfwWin.KeyboardUPP = NULL;
     }
-    
+
+    // Terminate joysticks
+    _glfwTerminateJoysticks();
+
     return GL_TRUE;
 }
 

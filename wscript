@@ -17,15 +17,15 @@ def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
+    opt.tool_options('waf_dynamo')
 
 def configure(conf):
-    waf_dynamo.configure(conf)
+    conf.check_tool('waf_dynamo')
     waf_ddf.configure(conf)
     
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
-
 
     if sys.platform == "darwin":
         platform = "darwin"
@@ -51,7 +51,7 @@ def configure(conf):
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit'])
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     if platform == "win32":
@@ -62,11 +62,13 @@ def configure(conf):
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
+    
+    conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
+    conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
 
     conf.env['LIB_GTEST'] = 'gtest'
 
 def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
-
 

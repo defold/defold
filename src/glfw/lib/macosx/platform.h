@@ -264,6 +264,18 @@ GLFWGLOBAL struct {
     _GLFWthread      First;
 } _glfwThrd;
 
+//------------------------------------------------------------------------
+// Joystick information & state
+//------------------------------------------------------------------------
+GLFWGLOBAL struct {
+    int           Present;
+    //int           fd;
+    void*         Device;
+    int           NumAxes;
+    int           NumButtons;
+    float         *Axis;
+    unsigned char *Button;
+} _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 //------------------------------------------------------------------------
 // Library global data

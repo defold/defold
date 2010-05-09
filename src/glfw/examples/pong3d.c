@@ -803,7 +803,7 @@ int main( void )
     }
 
     // Open OpenGL window
-    if( !glfwOpenWindow( WIDTH, HEIGHT, 0,0,0,0, 16,0, GLFW_FULLSCREEN ) )
+    if( !glfwOpenWindow( WIDTH, HEIGHT, 0,0,0,0, 16,0, GLFW_WINDOW ) )
     {
         glfwTerminate();
         exit( 0 );
