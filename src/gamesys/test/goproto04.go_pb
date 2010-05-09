@@ -3,13 +3,13 @@ Script: "script01.scriptc"
 Components
 {
 	Name: "pycomp01.pc"
-	Position: { X: 0 Y: 0 Z: 0 W: 0 } 
+	Position: { X: 0 Y: 0 Z: 0 } 
 	Rotation: { X: 0 Y: 0 Z: 0 W: 1 } 
 }
 Components
 {
 	Name: "pycompDOESNOTEXISTS.pc"
-	Position: { X: 0 Y: 0 Z: 0 W: 0 } 
+	Position: { X: 0 Y: 0 Z: 0 } 
 	Rotation: { X: 0 Y: 0 Z: 0 W: 1 } 
 }
 

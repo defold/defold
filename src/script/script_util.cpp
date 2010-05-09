@@ -14,29 +14,41 @@ namespace dmScriptUtil
     static void LuaValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f,
                               char* buffer, char** data_start, char** data_end)
     {
+    	bool nil_val = lua_isnil(L, -1);
         switch (f->m_Type)
         {
             case dmDDF::TYPE_INT32:
             {
-                *((int32_t *) &buffer[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
+            	if (nil_val)
+            		*((int32_t *) &buffer[f->m_Offset]) = 0;
+            	else
+            		*((int32_t *) &buffer[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
             }
             break;
 
             case dmDDF::TYPE_UINT32:
             {
-                *((uint32_t *) &buffer[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
+            	if (nil_val)
+            		*((uint32_t *) &buffer[f->m_Offset]) = 0;
+            	else
+            		*((uint32_t *) &buffer[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
             }
             break;
 
             case dmDDF::TYPE_FLOAT:
             {
-                *((float *) &buffer[f->m_Offset]) = (float) luaL_checknumber(L, -1);
+            	if (nil_val)
+            		*((float *) &buffer[f->m_Offset]) = 0.0f;
+            	else
+            		*((float *) &buffer[f->m_Offset]) = (float) luaL_checknumber(L, -1);
             }
             break;
 
             case dmDDF::TYPE_STRING:
             {
-                const char* s = luaL_checkstring(L, -1);
+                const char* s = "";
+                if (!nil_val)
+                	s = luaL_checkstring(L, -1);
                 int size = strlen(s) + 1;
                 if (*data_start + size > *data_end)
                 {
@@ -54,8 +66,11 @@ namespace dmScriptUtil
 
             case dmDDF::TYPE_MESSAGE:
             {
-                const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-                DoLuaTableToDDF(L, d, &buffer[f->m_Offset], data_start, data_end);
+            	if (!nil_val)
+            	{
+					const dmDDF::Descriptor* d = f->m_MessageDescriptor;
+					DoLuaTableToDDF(L, d, &buffer[f->m_Offset], data_start, data_end);
+            	}
             }
             break;
 
@@ -78,11 +93,14 @@ namespace dmScriptUtil
 
             lua_pushstring(L, f->m_Name);
             lua_rawget(L, -2);
-            if (lua_isnil(L, -1))
+            if (lua_isnil(L, -1) && f->m_Label != dmDDF::LABEL_OPTIONAL)
             {
                 luaL_error(L, "Field %s not specified in table", f->m_Name);
             }
-            LuaValueToDDF(L, f, buffer, data_start, data_last);
+            else
+            {
+            	LuaValueToDDF(L, f, buffer, data_start, data_last);
+            }
             lua_pop(L, 1);
         }
     }

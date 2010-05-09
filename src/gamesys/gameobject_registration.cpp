@@ -64,9 +64,7 @@ namespace dmGameSystem
         {
         	dmPhysics::ApplyForceMessage* af = (dmPhysics::ApplyForceMessage*) event_data->m_DDFData;
             dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody) *user_data;
-            Vector3 force(af->m_Force.m_X, af->m_Force.m_Y, af->m_Force.m_Z);
-            Vector3 rel_pos(af->m_RelativePosition.m_X, af->m_RelativePosition.m_Y, af->m_RelativePosition.m_Z);
-            dmPhysics::ApplyForce(rigid_body, force, rel_pos);
+            dmPhysics::ApplyForce(rigid_body, af->m_Force, af->m_RelativePosition);
         }
     }
 

@@ -282,57 +282,72 @@ namespace dmGameObject
     static void PullDDFValue(lua_State* L, const dmDDF::FieldDescriptor* f,
                              char* message, char** buffer, char** buffer_last)
     {
-            switch (f->m_Type)
-            {
-                case dmDDF::TYPE_INT32:
-                {
-                    *((int32_t *) &message[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
-                }
-                break;
+    	bool nil_val = lua_isnil(L, -1);
+		switch (f->m_Type)
+		{
+			case dmDDF::TYPE_INT32:
+			{
+				if (nil_val)
+					*((int32_t *) &message[f->m_Offset]) = 0;
+				else
+					*((int32_t *) &message[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
+			}
+			break;
 
-                case dmDDF::TYPE_UINT32:
-                {
-                    *((uint32_t *) &message[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
-                }
-                break;
+			case dmDDF::TYPE_UINT32:
+			{
+				if (nil_val)
+					*((uint32_t *) &message[f->m_Offset]) = 0;
+				else
+					*((uint32_t *) &message[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
+			}
+			break;
 
-                case dmDDF::TYPE_FLOAT:
-                {
-                    *((float *) &message[f->m_Offset]) = (float) luaL_checknumber(L, -1);
-                }
-                break;
+			case dmDDF::TYPE_FLOAT:
+			{
+				if (nil_val)
+					*((float *) &message[f->m_Offset]) = 0.0f;
+				else
+					*((float *) &message[f->m_Offset]) = (float) luaL_checknumber(L, -1);
+			}
+			break;
 
-                case dmDDF::TYPE_STRING:
-                {
-                    const char* s = luaL_checkstring(L, -1);
-                    int size = strlen(s) + 1;
-                    if (*buffer + size > *buffer_last)
-                    {
-                        luaL_error(L, "Event data doesn't fit (payload max: %d)", SCRIPT_EVENT_MAX);
-                    }
-                    else
-                    {
-                        memcpy(*buffer, s, size);
-                        // NOTE: We store offset here an relocate later...
-                        *((const char**) &message[f->m_Offset]) = (const char*) (*buffer - message);
-                    }
-                    *buffer += size;
-                }
-                break;
+			case dmDDF::TYPE_STRING:
+			{
+				const char* s = "";
+				if (!nil_val)
+					s = luaL_checkstring(L, -1);
+				int size = strlen(s) + 1;
+				if (*buffer + size > *buffer_last)
+				{
+					luaL_error(L, "Event data doesn't fit (payload max: %d)", SCRIPT_EVENT_MAX);
+				}
+				else
+				{
+					memcpy(*buffer, s, size);
+					// NOTE: We store offset here an relocate later...
+					*((const char**) &message[f->m_Offset]) = (const char*) (*buffer - message);
+				}
+				*buffer += size;
+			}
+			break;
 
-                case dmDDF::TYPE_MESSAGE:
-                {
-                    const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-                    PullDDFTable(L, d, &message[f->m_Offset], buffer, buffer_last);
-                }
-                break;
+			case dmDDF::TYPE_MESSAGE:
+			{
+				if (!nil_val)
+				{
+					const dmDDF::Descriptor* d = f->m_MessageDescriptor;
+					PullDDFTable(L, d, &message[f->m_Offset], buffer, buffer_last);
+				}
+			}
+			break;
 
-                default:
-                {
-                    luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
-                }
-                break;
-            }
+			default:
+			{
+				luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+			}
+			break;
+		}
     }
 
     static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
@@ -346,11 +361,14 @@ namespace dmGameObject
 
             lua_pushstring(L, f->m_Name);
             lua_rawget(L, -2);
-            if (lua_isnil(L, -1))
+            if (lua_isnil(L, -1) && f->m_Label != dmDDF::LABEL_OPTIONAL)
             {
                 luaL_error(L, "Field %s not specified in table", f->m_Name);
             }
-            PullDDFValue(L, f, message, buffer, buffer_last);
+            else
+            {
+            	PullDDFValue(L, f, message, buffer, buffer_last);
+            }
             lua_pop(L, 1);
         }
     }

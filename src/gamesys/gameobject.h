@@ -14,6 +14,8 @@ namespace dmGameObject
     /// Instance handle
     typedef struct Instance* HInstance;
 
+    // Script handle
+    typedef struct Script* HScript;
     /// Instance handle
     typedef struct ScriptInstance* HScriptInstance;
 
