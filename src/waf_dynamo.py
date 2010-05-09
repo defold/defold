@@ -41,7 +41,7 @@ def run_gtests(valgrind = False):
                 print("test failed %s" %(t.target) )
                 sys.exit(ret)
 
-def configure(conf):
+def detect(conf):
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
@@ -75,4 +75,19 @@ def configure(conf):
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
 
-    
+def configure(conf):
+    detect(conf)
+
+old = Build.BuildContext.exec_command
+def exec_command(self, cmd, **kw):
+    if getattr(Options.options, 'eclipse', False):
+        if isinstance(cmd, list):
+            print >>sys.stderr, ' '.join(cmd)
+        else:
+            print >>sys.stwderr, cmd
+    return old(self, cmd, **kw)
+
+Build.BuildContext.exec_command = exec_command
+
+def set_options(opt):
+    opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
