@@ -84,7 +84,7 @@ def exec_command(self, cmd, **kw):
         if isinstance(cmd, list):
             print >>sys.stderr, ' '.join(cmd)
         else:
-            print >>sys.stwderr, cmd
+            print >>sys.stderr, cmd
     return old(self, cmd, **kw)
 
 Build.BuildContext.exec_command = exec_command
