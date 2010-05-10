@@ -7,7 +7,9 @@ option (ddf_java_package) = "com.dynamo.ddf.test";
 option (ddf_namespace) = "DUMMY";
 option java_outer_classname = "TestDDF";
 
-option (ddf_includes) = "test_ddf.h";
+option (ddf_includes) = "test_ddf.h test_ddf_import.h";
+
+import "test_ddf_import.proto";
 
 message Simple
 {
@@ -176,5 +178,11 @@ message TestStructAlias
 {
     required Vector2Message Vec2 = 1;
 }
+
+message TestImportMessage
+{
+    required TestDDFImport.ImportMessage msg = 1;
+}
+
 
 

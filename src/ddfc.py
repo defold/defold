@@ -262,16 +262,13 @@ def ToEnumDescriptor(context, pp_cpp, pp_h, enum_type, namespace_lst):
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::EnumValueDescriptor),', namespace, enum_type.name)
     pp_cpp.End()
 
-def DotToJavaPackage(str, proto_package, java_package):
+def DotToJavaPackage(context, str, proto_package, java_package):
     if str.startswith("."):
         str = str[1:]
-    tmp = str.replace(proto_package, java_package)
-    if True:
-        # Strip qualifying package name from classes in "this" package
-        # TODO: This should work with referring types too?
-        return tmp.replace(java_package + '.', "")
-    else:
-        return tmp
+
+    ret = context.TypeNameToJavaType[str]
+    ret = ret.replace(java_package + '.', "")
+    return ret
 
 def ToJavaEnum(context, pp, message_type):
     lst = []
@@ -292,7 +289,7 @@ def ToJavaClass(context, pp, message_type, proto_package, java_package, qualifie
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
             if f.type ==  FieldDescriptor.TYPE_MESSAGE:
-                tn = DotToJavaPackage(f.type_name, proto_package, java_package)
+                tn = DotToJavaPackage(context, f.type_name, proto_package, java_package)
             elif f.type == FieldDescriptor.TYPE_BYTES:
                 assert False
             else:
@@ -303,7 +300,7 @@ def ToJavaClass(context, pp, message_type, proto_package, java_package, qualifie
         elif f.type == FieldDescriptor.TYPE_ENUM:
             max_len = max(len("int"), max_len)
         elif f.type == FieldDescriptor.TYPE_MESSAGE:
-            max_len = max(len(DotToJavaPackage(f.type_name, proto_package, java_package)), max_len)
+            max_len = max(len(DotToJavaPackage(context, f.type_name, proto_package, java_package)), max_len)
         else:
             max_len = max(len(type_to_javatype[f.type]), max_len)
 
@@ -325,7 +322,7 @@ def ToJavaClass(context, pp, message_type, proto_package, java_package, qualifie
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
             if f.type ==  FieldDescriptor.TYPE_MESSAGE:
-                type_name = DotToJavaPackage(f.type_name, proto_package, java_package)
+                type_name = DotToJavaPackage(context, f.type_name, proto_package, java_package)
             elif f.type ==  FieldDescriptor.TYPE_BYTES:
                 type_name = "Byte"
             else:
@@ -338,7 +335,7 @@ def ToJavaClass(context, pp, message_type, proto_package, java_package, qualifie
         elif f.type == FieldDescriptor.TYPE_ENUM:
             p("int", f.name)
         elif f.type == FieldDescriptor.TYPE_MESSAGE:
-            java_type_name = DotToJavaPackage(f.type_name, proto_package, java_package)
+            java_type_name = DotToJavaPackage(context, f.type_name, proto_package, java_package)
             p(java_type_name, f.name, 'new %s()' % java_type_name)
         else:
             p(type_to_javatype[f.type], f.name)
@@ -476,10 +473,11 @@ class CompilerContext(object):
     def __init__(self, request):
         self.Request = request
         self.MessageTypes = {}
+        self.TypeNameToJavaType = {}
         self.TypeAliasMessages = {}
         self.Response = CodeGeneratorResponse()
 
-    def AddMessageType(self, package, message_type):
+    def AddMessageType(self, package, java_package, java_outer_classname, message_type):
         if message_type.name in self.MessageTypes:
             return
         n = str(package + '.' + message_type.name)
@@ -487,9 +485,12 @@ class CompilerContext(object):
 
         if self.HasTypeAlias(n):
             self.TypeAliasMessages[n] = self.TypeAliasName(n)
+            
+        self.TypeNameToJavaType[package[1:] + '.' + message_type.name] = java_package + '.' + java_outer_classname + '.' + message_type.name
 
         for mt in message_type.nested_type:
-            self.AddMessageType(package + '.' + message_type.name, mt)
+            # TODO: add something to java_package here?
+            self.AddMessageType(package + '.' + message_type.name, java_package, java_outer_classname, mt)
 
     def HasTypeAlias(self, type_name):
         mt = self.MessageTypes[type_name]
@@ -530,8 +531,13 @@ if __name__ == '__main__':
     context = CompilerContext(request)
 
     for pf in request.proto_file:
+        java_package = ''
+        for x in pf.options.ListFields():
+            if x[0].name == 'ddf_java_package':
+                java_package = x[1]
+
         for mt in pf.message_type:
-            context.AddMessageType('.' + pf.package, mt)
+            context.AddMessageType('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
 
     for pf in request.proto_file:
         if pf.name == request.file_to_generate[0]:

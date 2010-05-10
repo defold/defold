@@ -24,7 +24,7 @@ def pf_file(self, node):
 
 def build(bld):
     test_ddf = bld.new_task_gen(features = 'cxx cprogram ddf',
-                                source = 'test_ddf.cpp test_ddf_proto.proto',
+                                source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
                                 uselib = 'GTEST PROTOBUF DLIB PTHREAD',
                                 uselib_local = 'ddf',
                                 ddf_namespace = 'DUMMY',
@@ -34,7 +34,7 @@ def build(bld):
                                 protoc_includes = '../ddf',
                                 ddf_jar = 'test_ddf.jar',
                                 # NOTE: default/... is hardcoded. How to solve?
-                                classpath='default/src/ddf/generated' + os.pathsep + bld.env.PROTOBUF_JAR + os.pathsep + 'default/src/java',
+                                classpath='default/src/test/generated' + os.pathsep + 'default/src/ddf/generated' + os.pathsep + bld.env.PROTOBUF_JAR + os.pathsep + 'default/src/java',
                                 includes = '. .. ../ddf',
                                 target = 'test_ddf')
     test_ddf.install_path = None

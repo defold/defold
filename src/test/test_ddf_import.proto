@@ -1,0 +1,13 @@
+package TestDDFImport;
+
+import "ddf_extensions.proto";
+
+option java_package = "com.dynamo.ddfimport.proto";
+option (ddf_java_package) = "com.dynamo.ddfimport.test";
+option (ddf_namespace) = "DUMMY";
+option java_outer_classname = "TestDDFImport";
+
+message ImportMessage
+{
+    required int32 a = 1;
+}
