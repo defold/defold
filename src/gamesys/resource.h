@@ -102,7 +102,8 @@ namespace dmResource
     typedef CreateResult (*FResourceCreate)(HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
-                                           SResourceDescriptor* resource);
+                                           SResourceDescriptor* resource,
+                                           const char* filename);
 
     /**
      * Resource destroy function
@@ -127,7 +128,8 @@ namespace dmResource
     typedef CreateResult (*FResourceRecreate)(HFactory factory,
                                               void* context,
                                               const void* buffer, uint32_t buffer_size,
-                                              SResourceDescriptor* resource);
+                                              SResourceDescriptor* resource,
+                                              const char* filename);
 
     /**
      * Create a new factory

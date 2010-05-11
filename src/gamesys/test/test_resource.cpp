@@ -22,7 +22,7 @@ protected:
     dmResource::HFactory factory;
 };
 
-dmResource::CreateResult DummyCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource)
+dmResource::CreateResult DummyCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     return dmResource::CREATE_RESULT_OK;
 }
@@ -98,14 +98,16 @@ struct TestResourceContainer
 dmResource::CreateResult ResourceContainerCreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource);
+                                                 dmResource::SResourceDescriptor* resource,
+                                                 const char* filename);
 
 dmResource::CreateResult ResourceContainerDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
 dmResource::CreateResult FooResourceCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
-                                           dmResource::SResourceDescriptor* resource);
+                                           dmResource::SResourceDescriptor* resource,
+                                           const char* filename);
 
 dmResource::CreateResult FooResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
@@ -148,7 +150,8 @@ public:
 dmResource::CreateResult ResourceContainerCreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource)
+                                                 dmResource::SResourceDescriptor* resource,
+                                                 const char* filename)
 {
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_ResourceContainerCreateCallCount++;
@@ -196,7 +199,8 @@ dmResource::CreateResult ResourceContainerDestroy(dmResource::HFactory factory, 
 dmResource::CreateResult FooResourceCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
-                                           dmResource::SResourceDescriptor* resource)
+                                           dmResource::SResourceDescriptor* resource,
+                                           const char* filename)
 {
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_FooResourceCreateCallCount++;
@@ -336,7 +340,8 @@ TEST_F(GetResourceTest, ReferenceCountSimple)
 dmResource::CreateResult RecreateResourceCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
-                                                dmResource::SResourceDescriptor* resource)
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename)
 {
     int* recreate_resource = new int(atoi((const char*) buffer));
 
@@ -355,7 +360,8 @@ dmResource::CreateResult RecreateResourceDestroy(dmResource::HFactory factory, v
 dmResource::CreateResult RecreateResourceRecreate(dmResource::HFactory factory,
                                                   void* context,
                                                   const void* buffer, uint32_t buffer_size,
-                                                  dmResource::SResourceDescriptor* resource)
+                                                  dmResource::SResourceDescriptor* resource,
+                                                  const char* filename)
 {
     int* recreate_resource = (int*) resource->m_Resource;
     assert(recreate_resource);
@@ -411,6 +417,91 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(456, *resource);
 
     unlink(file_name);
+    fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+
+    dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
+}
+
+// Test the "filename" callback argument (overkill, but chmu is a TDD-nazi!)
+
+char filename_resource_filename[ 128 ];
+
+dmResource::CreateResult FilenameResourceCreate(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename)
+{
+	if (strcmp(filename_resource_filename, filename) == 0)
+		return dmResource::CREATE_RESULT_OK;
+	else
+		return dmResource::CREATE_RESULT_UNKNOWN;
+}
+
+dmResource::CreateResult FilenameResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+{
+    return dmResource::CREATE_RESULT_OK;
+}
+
+dmResource::CreateResult FilenameResourceRecreate(dmResource::HFactory factory,
+                                                  void* context,
+                                                  const void* buffer, uint32_t buffer_size,
+                                                  dmResource::SResourceDescriptor* resource,
+                                                  const char* filename)
+{
+	if (strcmp(filename_resource_filename, filename) == 0)
+		return dmResource::CREATE_RESULT_OK;
+	else
+		return dmResource::CREATE_RESULT_UNKNOWN;
+}
+
+TEST(FilenameTest, FilenameTest)
+{
+	const char* tmp_dir = 0;
+#if defined(_MSC_VER)
+    tmp_dir = ".";
+#else
+    tmp_dir = "/tmp";
+#endif
+
+    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+
+    dmResource::FactoryResult e;
+    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    uint32_t type;
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    DM_SNPRINTF(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, "__testfilename__.foo");
+
+    FILE* f;
+
+    f = fopen(filename_resource_filename, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "123");
+    fclose(f);
+
+    int* resource;
+    dmResource::FactoryResult fr = dmResource::Get(factory, "__testfilename__.foo", (void**) &resource);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    ASSERT_EQ(123, *resource);
+
+    dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
+
+    f = fopen(filename_resource_filename, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "456");
+    fclose(f);
+
+    fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    ASSERT_EQ(456, *resource);
+
+    unlink(filename_resource_filename);
     fr = dmResource::ReloadType(factory, type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
 

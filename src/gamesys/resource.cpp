@@ -256,7 +256,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ResourceType = (void*) resource_type;
         tmp_resource.m_ModificationTime = mtime;
 
-        CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource);
+        CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource, name);
         free(buffer);
         fclose(f);
 
@@ -306,10 +306,10 @@ void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_has
     {
         struct stat file_stat;
         if (stat(*file_name, &file_stat) != 0)
-	{
+        {
             context->m_Result = FACTORY_RESULT_RESOURCE_NOT_FOUND;
             return;
-	}
+        }
         // TODO: Fix better resolution on this.
         uint32_t mtime = (uint32_t) file_stat.st_mtime;
 
@@ -347,7 +347,7 @@ void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_has
         }
 
         // TODO: We should *NOT* allocate SResource dynamically...
-        CreateResult create_result = resource_type->m_RecreateFunction(context->m_Factory, resource_type->m_Context, buffer, file_size, rd);
+        CreateResult create_result = resource_type->m_RecreateFunction(context->m_Factory, resource_type->m_Context, buffer, file_size, rd, *file_name);
         free(buffer);
         fclose(f);
 

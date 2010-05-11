@@ -49,7 +49,8 @@ namespace dmGameSystem
     dmResource::CreateResult TextureCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
-                                           dmResource::SResourceDescriptor* resource)
+                                           dmResource::SResourceDescriptor* resource,
+                                           const char* filename)
     {
         dmGraphics::TextureImage* image;
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&image));
@@ -90,7 +91,8 @@ namespace dmGameSystem
     dmResource::CreateResult VertexProgramCreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
-                                                 dmResource::SResourceDescriptor* resource)
+                                                 dmResource::SResourceDescriptor* resource,
+                                                 const char* filename)
     {
 
         dmGraphics::HVertexProgram prog = dmGraphics::CreateVertexProgram(buffer, buffer_size);
@@ -112,7 +114,8 @@ namespace dmGameSystem
     dmResource::CreateResult FragmentProgramCreate(dmResource::HFactory factory,
                                                    void* context,
                                                    const void* buffer, uint32_t buffer_size,
-                                                   dmResource::SResourceDescriptor* resource)
+                                                   dmResource::SResourceDescriptor* resource,
+                                                   const char* filename)
     {
 
         dmGraphics::HFragmentProgram prog = dmGraphics::CreateFragmentProgram(buffer, buffer_size);
@@ -134,7 +137,8 @@ namespace dmGameSystem
     dmResource::CreateResult ConvexShapeCreate(dmResource::HFactory factory,
                                                void* context,
                                                const void* buffer, uint32_t buffer_size,
-                                               dmResource::SResourceDescriptor* resource)
+                                               dmResource::SResourceDescriptor* resource,
+                                               const char* filename)
     {
         dmPhysics::ConvexShape* convex_shape;
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysics::ConvexShape>(buffer, buffer_size, &convex_shape);
@@ -176,7 +180,8 @@ namespace dmGameSystem
     dmResource::CreateResult RigidBodyCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
-                                             dmResource::SResourceDescriptor* resource)
+                                             dmResource::SResourceDescriptor* resource,
+                                             const char* filename)
     {
         dmPhysics::RigidBodyDesc* rigid_body_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmPhysics::RigidBodyDesc>(buffer, buffer_size, &rigid_body_desc);
@@ -217,7 +222,8 @@ namespace dmGameSystem
     dmResource::CreateResult ImageFontCreate(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource)
+                                          dmResource::SResourceDescriptor* resource,
+                                          const char* filename)
     {
         dmRender::HImageFont font = dmRender::NewImageFont(buffer, buffer_size);
         if (font)
@@ -243,7 +249,8 @@ namespace dmGameSystem
     dmResource::CreateResult FontCreate(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,
-                                     dmResource::SResourceDescriptor* resource)
+                                     dmResource::SResourceDescriptor* resource,
+                                     const char* filename)
     {
         dmRender::FontDesc* font_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmRender::FontDesc>(buffer, buffer_size, &font_desc);

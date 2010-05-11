@@ -160,7 +160,7 @@ public:
 };
 
 template <typename T>
-dmResource::CreateResult GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource)
+dmResource::CreateResult GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;

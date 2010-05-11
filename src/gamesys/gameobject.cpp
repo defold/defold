@@ -172,7 +172,8 @@ namespace dmGameObject
     dmResource::CreateResult PrototypeCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
-                                             dmResource::SResourceDescriptor* resource)
+                                             dmResource::SResourceDescriptor* resource,
+                                             const char* filename)
     {
         PrototypeDesc* proto_desc;
 
@@ -247,7 +248,8 @@ namespace dmGameObject
     dmResource::CreateResult ScriptCreate(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource)
+                                          dmResource::SResourceDescriptor* resource,
+                                          const char* filename)
     {
         HScript script = NewScript(buffer);
         if (script)
@@ -273,7 +275,8 @@ namespace dmGameObject
     dmResource::CreateResult ScriptRecreate(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,
-                                            dmResource::SResourceDescriptor* resource)
+                                            dmResource::SResourceDescriptor* resource,
+                                            const char* filename)
     {
         HScript script = (HScript) resource->m_Resource;
         if (ReloadScript(script, buffer))
