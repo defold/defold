@@ -162,9 +162,9 @@ TEST(Socket, ClientServer1)
         if (g_ServerThread1Running)
             break;
 
-        dmSleep(10);
+        dmSleep(100);
     }
-    dmSleep(50); // Make sure that we are in "accept"
+    dmSleep(500); // Make sure that we are in "accept"
 
     ASSERT_EQ(true, g_ServerThread1Running);
 
