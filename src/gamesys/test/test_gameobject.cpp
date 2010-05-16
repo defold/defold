@@ -781,8 +781,8 @@ TEST_F(GameObjectTest, TestHierarchy2)
     dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.go", 0x0);
     dmGameObject::HInstance child_child = dmGameObject::New(collection, "goproto01.go", 0x0);
 
-    const float parent_rot = 1 * 3.14159265f / 4.0f;
-    const float child_rot = 0 * 3.14159265f / 5.0f;
+    const float parent_rot = 3.14159265f / 4.0f;
+    const float child_rot = 3.14159265f / 5.0f;
 
     Point3 parent_pos(1, 1, 0);
     Point3 child_pos(0, 1, 0);
