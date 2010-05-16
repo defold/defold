@@ -33,6 +33,8 @@ namespace dmGameObject
         RESULT_IDENTIFIER_IN_USE = -3,      //!< RESULT_IDENTIFIER_IN_USE
         RESULT_IDENTIFIER_ALREADY_SET = -4, //!< RESULT_IDENTIFIER_ALREADY_SET
         RESULT_COMPONENT_NOT_FOUND = -5,    //!< RESULT_COMPONENT_NOT_FOUND
+        RESULT_MAXIMUM_HIEARCHICAL_DEPTH = -6, //!< RESULT_MAXIMUM_HIEARCHICAL_DEPTH
+        RESULT_INVALID_OPERATION = -7,      //!< RESULT_INVALID_OPERATION
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -306,6 +308,52 @@ namespace dmGameObject
      * @return Position
      */
     Quat GetRotation(HInstance instance);
+
+    /**
+     * Get gameobject instance world position
+     * @param instance Gameobject instance
+     * @return World position
+     */
+    Point3 GetWorldPosition(HInstance instance);
+
+    /**
+     * Set parent instance to child
+     * @note Instances must belong to the same collection
+     * @param child Child instance
+     * @param parent Parent instance
+     * @return RESULT_OK on success. RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent at maximal level
+     */
+    Result SetParent(HInstance child, HInstance parent);
+
+    /**
+     * Get parent instance if exists
+     * @param instance Gameobject instance
+     * @return Parent instance. NULL if passed instance is rooted
+     */
+    HInstance GetParent(HInstance instance);
+
+    /**
+     * Get instance hierarchical depth
+     * @param instance Gameobject instance
+     * @return Hierarchical depth
+     */
+    uint32_t GetDepth(HInstance instance);
+
+    /**
+     * Get child count
+     * @note O(n) operation. Should only be used for debugging purposes.
+     * @param instance Gameobject instance
+     * @return Child count
+     */
+    uint32_t GetChildCount(HInstance instance);
+
+    /**
+     * Test if "child" is a direct parent of "parent"
+     * @param child Child Gamebject
+     * @param parent Parent Gameobject
+     * @return True if child of
+     */
+    bool IsChildOf(HInstance child, HInstance parent);
 
     /**
      * Register all resource types in resource factory
