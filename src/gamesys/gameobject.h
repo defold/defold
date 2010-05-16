@@ -317,6 +317,13 @@ namespace dmGameObject
     Point3 GetWorldPosition(HInstance instance);
 
     /**
+     * Get gameobject instance world rotation
+     * @param instance Gameobject instance
+     * @return World rotation
+     */
+    Quat GetWorldRotation(HInstance instance);
+
+    /**
      * Set parent instance to child
      * @note Instances must belong to the same collection
      * @param child Child instance

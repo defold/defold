@@ -1014,9 +1014,25 @@ namespace dmGameObject
 
     Point3 GetWorldPosition(HInstance instance)
     {
+        // TODO: Cache this calculation in UpdateTransforms?
         HCollection collection = instance->m_Collection;
-        Point3 position = collection->m_WorldTransforms[instance->m_Index].m_Translation;
-        return position;
+        if (instance->m_Parent == INVALID_INSTANCE_INDEX)
+        {
+            return instance->m_Position;
+        }
+        else
+        {
+            Transform* t = &collection->m_WorldTransforms[instance->m_Parent];
+            Point3 position = (t->m_Rotation * Quat(Vector3(instance->m_Position), 0.0f) * conj(t->m_Rotation)).getXYZ() + t->m_Translation;
+            return position;
+        }
+    }
+
+    Quat GetWorldRotation(HInstance instance)
+    {
+        HCollection collection = instance->m_Collection;
+        Quat rotation = collection->m_WorldTransforms[instance->m_Index].m_Rotation;
+        return rotation;
     }
 
     Result SetParent(HInstance child, HInstance parent)

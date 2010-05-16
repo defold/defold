@@ -752,7 +752,7 @@ TEST_F(GameObjectTest, TestHierarchy1)
         ret = dmGameObject::Update(collection, 0);
         ASSERT_TRUE(ret);
 
-        Point3 expected_child_pos = Point3((child_m * parent_m).getCol3().getXYZ());
+        Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
 
         ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos), 0.001f);
         ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_pos), 0.001f);
@@ -817,8 +817,8 @@ TEST_F(GameObjectTest, TestHierarchy2)
     ret = dmGameObject::Update(collection, 0);
     ASSERT_TRUE(ret);
 
-    Point3 expected_child_pos = Point3((child_m * parent_m).getCol3().getXYZ());
-    Point3 expected_child_child_pos = Point3((child_child_m * child_m * parent_m).getCol3().getXYZ());
+    Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
+    Point3 expected_child_child_pos = Point3(((child_m * parent_m) * child_child_pos).getXYZ());
 
     ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos), 0.001f);
     ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_pos), 0.001f);
