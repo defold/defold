@@ -984,8 +984,21 @@ int _glfwTerminateJoysticks()
 
 int _glfwPlatformGetJoystickParam( int joy, int param )
 {
-    // GL_FALSE == 0
-    return 0;
+    if (param == GLFW_PRESENT)
+    {
+        if (joy < GLFW_JOYSTICK_LAST)
+        {
+            return _glfwJoy[ joy ].Present;
+        }
+        else
+        {
+            return GL_FALSE;
+        }
+    }
+    else
+    {
+        return GL_FALSE;
+    }
 }
 
 int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
