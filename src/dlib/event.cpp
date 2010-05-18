@@ -152,7 +152,7 @@ namespace dmEvent
 		// mutex lock
 
 		Event *event_object = socket->m_Header;
-		Event *last_event_object = socket->m_Tail;
+		//Event *last_event_object = socket->m_Tail;
 		socket->m_Header = 0;
 		socket->m_Tail = 0;
 
@@ -169,6 +169,15 @@ namespace dmEvent
 
 		return dispatch_count;
 	}
+
+	static void ConsumeCallback(dmEvent::Event *, void* )
+    {
+    }
+
+    uint32_t Consume(uint32_t socket_id)
+    {
+        return Dispatch(socket_id, &ConsumeCallback, 0);
+    }
 
 };
 
