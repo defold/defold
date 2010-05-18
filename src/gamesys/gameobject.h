@@ -208,6 +208,12 @@ namespace dmGameObject
     void Delete(HCollection collection, HInstance instance);
 
     /**
+     * Delete all gameobject instances in the collection
+     * @param collection Gameobject collection
+     */
+    void DeleteAll(HCollection collection);
+
+    /**
      * Set instance identifier. Must be unique within the collection.
      * @param collection Collection
      * @param instance Instance

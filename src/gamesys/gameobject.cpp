@@ -180,14 +180,7 @@ namespace dmGameObject
 
     void DeleteCollection(HCollection collection)
     {
-        for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
-        {
-            Instance* instance = collection->m_Instances[i];
-            if (instance)
-            {
-                Delete(collection, instance);
-            }
-        }
+        DeleteAll(collection);
         delete collection;
     }
 
@@ -708,6 +701,20 @@ namespace dmGameObject
         // Clear all memory excluding ComponentInstanceUserData
         memset(instance_memory, 0xcc, sizeof(Instance));
         operator delete (instance_memory);
+    }
+
+    void DeleteAll(HCollection collection)
+    {
+        // This will perform tons of unnecessary work to resolve and reorder
+        // the hierarchies and other things but will serve as a nice test case
+        for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+        {
+            Instance* instance = collection->m_Instances[i];
+            if (instance)
+            {
+                Delete(collection, instance);
+            }
+        }
     }
 
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier)
