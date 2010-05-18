@@ -28,9 +28,14 @@ public class DDFLoader
             f.setAccessible(true);
             Object field_value = from.getField(message_f);
             Object value;
-            if (field_value instanceof List<?>)
+
+            if (message_f.isRepeated())
             {
-                value = createList(obj, message_f, (List<?>) field_value, f.getAnnotation(ComponentType.class).type());
+            	// Empty repeated needs special handling. field_value is not the empty list but a "Message"
+            	if (field_value instanceof List<?>)
+            		value = createList(obj, message_f, (List<?>) field_value, f.getAnnotation(ComponentType.class).type());
+            	else
+            		value = new ArrayList();
             }
             else if (field_value instanceof Message)
             {

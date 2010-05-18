@@ -111,6 +111,12 @@ class PrettyPrinter(object):
         print >>self.Stream, " " * self.Indent + "{"
         self.Indent += 4
 
+    def BeginParen(self, str, *format):
+        str = str % format
+        print >>self.Stream, " " * self.Indent + str
+        print >>self.Stream, " " * self.Indent + "("
+        self.Indent += 4
+
     def Print(self, str, *format):
         str = str % format
         print >>self.Stream, " " * self.Indent + str
@@ -119,6 +125,12 @@ class PrettyPrinter(object):
         str = str % format
         self.Indent -= 4
         print >>self.Stream, " " * self.Indent + "}%s;" % str
+        print >>self.Stream, ""
+
+    def EndParen(self, str = "", *format):
+        str = str % format
+        self.Indent -= 4
+        print >>self.Stream, " " * self.Indent + ")%s;" % str
         print >>self.Stream, ""
 
 def DotToNamespace(str):
@@ -283,6 +295,62 @@ def ToJavaEnum(context, pp, message_type):
     pp.Print("")
     #pp.End()
 
+def ToJavaEnumDescriptor(context, pp, enum_type, qualified_proto_package):
+
+    lst = []
+    for f in enum_type.value:
+        tpl = (f.name, f.number)
+        lst.append(tpl)
+
+    pp.Begin('public static class %s' % enum_type.name)
+    pp.Begin("public static com.dynamo.ddf.EnumValueDescriptor VALUES_DESCRIPTOR[] = new com.dynamo.ddf.EnumValueDescriptor[]")
+
+    for name, number in lst:
+        pp.Print('new com.dynamo.ddf.EnumValueDescriptor("%s", %d),'  % (name, number))
+
+    pp.End()
+    name = qualified_proto_package.replace('$', '_').replace('.', '_')
+    pp.Print('public static com.dynamo.ddf.EnumDescriptor DESCRIPTOR = new com.dynamo.ddf.EnumDescriptor("%s", VALUES_DESCRIPTOR);' % (name))
+    pp.End()
+
+def ToJavaDescriptor(context, pp, message_type, proto_package, java_package, qualified_proto_package):
+
+    lst = []
+    for f in message_type.field:
+        tpl = (f.name, f.number, f.type, f.label)
+        if f.type ==  FieldDescriptor.TYPE_MESSAGE:
+            tmp = DotToJavaPackage(context, f.type_name, proto_package, java_package)
+            if tmp.startswith("."):
+                tmp = tmp[1:]
+            tpl += (tmp + ".DESCRIPTOR", "null")
+        elif f.type ==  FieldDescriptor.TYPE_ENUM:
+            tmp = DotToJavaPackage(context, f.type_name, proto_package, java_package)
+            if tmp.startswith("."):
+                tmp = tmp[1:]
+            tpl += ("null", tmp + ".DESCRIPTOR", )
+
+        else:
+            tpl += ("null", "null")
+        lst.append(tpl)
+
+    pp.Begin("public static com.dynamo.ddf.FieldDescriptor FIELDS_DESCRIPTOR[] = new com.dynamo.ddf.FieldDescriptor[]")
+
+    for name, number, type, label, msg_desc, enum_desc in lst:
+        pp.Print('new com.dynamo.ddf.FieldDescriptor("%s", %d, %d, %d, %s, %s),'  % (name, number, type, label, msg_desc, enum_desc))
+
+    pp.End()
+
+    pp.BeginParen("public static com.dynamo.ddf.Descriptor DESCRIPTOR = new com.dynamo.ddf.Descriptor")
+    pp.Print('"%s",', qualified_proto_package.replace('$', '_').replace('.', '_'))
+    pp.Print('FIELDS_DESCRIPTOR')
+    pp.EndParen('')
+
+    # TODO: Add hash support for java types?
+    # TODO: This is not optimal. Hash value is sensitive on googles format string
+    # Also dependent on type invariant values?
+    hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
+    #pp.Print('const uint64_t %s::%s::m_DDFHash = 0x%016XLL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+
 def ToJavaClass(context, pp, message_type, proto_package, java_package, qualified_proto_package):
     # Calculate maximum length of "type"
     max_len = 0
@@ -314,7 +382,10 @@ def ToJavaClass(context, pp, message_type, proto_package, java_package, qualifie
     pp.Begin("public static final class %s", message_type.name)
 
     for et in message_type.enum_type:
+        ToJavaEnumDescriptor(context, pp, et, qualified_proto_package + '_' + et.name)
         ToJavaEnum(context, pp, et)
+
+    ToJavaDescriptor(context, pp, message_type, proto_package, java_package, qualified_proto_package)
 
     for nt in message_type.nested_type:
         ToJavaClass(context, pp, nt, proto_package, java_package, qualified_proto_package + "$" + nt.name)
@@ -339,13 +410,9 @@ def ToJavaClass(context, pp, message_type, proto_package, java_package, qualifie
             p(java_type_name, f.name, 'new %s()' % java_type_name)
         else:
             p(type_to_javatype[f.type], f.name)
-#    pp.Print('')
-#    pp.Print('static SDDFDescriptor* m_DDFDescriptor;')
-#    pp.Print('static const uint64_t m_DDFHash;')
     pp.End()
 
 def CompileJava(context, proto_file, ddf_java_package, file_to_generate):
-#def CompileJava(input_file, options):
     file_desc = proto_file
 
     path = ddf_java_package.replace('.', '/')
@@ -477,6 +544,7 @@ class CompilerContext(object):
         self.TypeAliasMessages = {}
         self.Response = CodeGeneratorResponse()
 
+    # TODO: We add enum types as message types. Kind of hack...
     def AddMessageType(self, package, java_package, java_outer_classname, message_type):
         if message_type.name in self.MessageTypes:
             return
@@ -488,9 +556,13 @@ class CompilerContext(object):
             
         self.TypeNameToJavaType[package[1:] + '.' + message_type.name] = java_package + '.' + java_outer_classname + '.' + message_type.name
 
-        for mt in message_type.nested_type:
-            # TODO: add something to java_package here?
-            self.AddMessageType(package + '.' + message_type.name, java_package, java_outer_classname, mt)
+        if hasattr(message_type, 'nested_type'):
+            for mt in message_type.nested_type:
+                # TODO: add something to java_package here?
+                self.AddMessageType(package + '.' + message_type.name, java_package, java_outer_classname, mt)
+
+            for et in message_type.enum_type:
+                self.AddMessageType(package + '.' + message_type.name, java_package, java_outer_classname, et)
 
     def HasTypeAlias(self, type_name):
         mt = self.MessageTypes[type_name]
@@ -538,6 +610,10 @@ if __name__ == '__main__':
 
         for mt in pf.message_type:
             context.AddMessageType('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
+
+        for et in pf.enum_type:
+            # NOTE: We add enum types as message types. Kind of hack...
+            context.AddMessageType('.' + pf.package, java_package, pf.options.java_outer_classname, et)
 
     for pf in request.proto_file:
         if pf.name == request.file_to_generate[0]:

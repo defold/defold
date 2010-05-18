@@ -4,6 +4,8 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.DescriptorProtos;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.Descriptors.Descriptor;
@@ -29,8 +31,7 @@ public class MessageBuilder
         case STRING:
             return object;
         case ENUM:
-            // TODO: CALL getNumber()?
-            throw new RuntimeException("TODO");
+        	return field_descriptor.getEnumType().findValueByNumber((Integer) object);
 
         case BYTE_STRING:
             return ByteString.copyFrom((byte[]) object);

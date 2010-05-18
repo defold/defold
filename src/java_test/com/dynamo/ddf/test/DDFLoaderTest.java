@@ -14,6 +14,7 @@ import org.junit.Test;
 
 import com.dynamo.ddf.DDF;
 import com.dynamo.ddf.proto.TestDDF.Bytes;
+import com.dynamo.ddf.proto.TestDDF.Mesh;
 import com.dynamo.ddf.proto.TestDDF.NestedArray;
 import com.dynamo.ddf.proto.TestDDF.NestedArraySub1;
 import com.dynamo.ddf.proto.TestDDF.NestedArraySub2;
@@ -23,6 +24,7 @@ import com.dynamo.ddf.proto.TestDDF.Simple01;
 import com.dynamo.ddf.proto.TestDDF.Simple01Repeated;
 import com.dynamo.ddf.proto.TestDDF.Simple02Repeated;
 import com.dynamo.ddf.proto.TestDDF.StringRepeated;
+import com.dynamo.ddf.proto.TestDDF.Mesh.Primitive;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
@@ -118,6 +120,22 @@ public class DDFLoaderTest
     }
 
     @Test
+    public final void testSimple01RepeatedEmpty() throws Throwable
+    {
+        Simple01Repeated.Builder b = com.dynamo.ddf.proto.TestDDF.Simple01Repeated
+                .newBuilder();
+        Simple01Repeated m1 = b.build();
+
+        TestDDF.Simple01Repeated m2 = saveLoad(m1, Simple01Repeated
+                .getDescriptor(), TestDDF.Simple01Repeated.class);
+
+        assertEquals(0, m1.getArrayCount());
+        assertEquals(0, m2.m_array.size());
+
+        genericCompare(m1, m2, Simple01Repeated.getDescriptor());
+    }
+
+    @Test
     public final void testSimple02Repeated() throws Throwable
     {
         Simple02Repeated.Builder b = Simple02Repeated.newBuilder();
@@ -207,5 +225,31 @@ public class DDFLoaderTest
         assertArrayEquals(m1.getData().toByteArray(), m2.m_data);
 
         genericCompare(m1, m2, Bytes.getDescriptor());
+    }
+
+    @Test
+    public final void testMesh() throws Throwable
+    {
+    	Mesh.Builder b = Mesh.newBuilder();
+
+    	int count = 10;
+
+        for (int i = 0; i < count; ++i)
+        {
+            b.addVertices((float) i*10 + 1);
+            b.addVertices((float) i*10 + 2);
+            b.addVertices((float) i*10 + 3);
+
+            b.addIndices(i*3 + 0);
+            b.addIndices(i*3 + 1);
+            b.addIndices(i*3 + 2);
+        }
+        b.setPrimitiveCount(count);
+        b.setName("MyMesh");
+        b.setPrimitiveType(Mesh.Primitive.TRIANGLES);
+
+        Mesh m1 = b.build();
+        TestDDF.Mesh m2 = saveLoad(m1, Mesh.getDescriptor(), TestDDF.Mesh.class);
+        genericCompare(m1, m2, Mesh.getDescriptor());
     }
 }
