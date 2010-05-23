@@ -96,7 +96,49 @@ namespace dmGameObject
             lua_pushliteral(L, "W");
             lua_pushnumber(L, rot.getW());
             lua_rawset(L, -3);
-			return 1;
+            return 1;
+        }
+        else if (strcmp(key, "WorldPosition") == 0)
+        {
+            lua_newtable(L);
+
+            Point3 pos = dmGameObject::GetWorldPosition(i->m_Instance);
+
+            lua_pushliteral(L, "X");
+            lua_pushnumber(L, pos.getX());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "Y");
+            lua_pushnumber(L, pos.getY());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "Z");
+            lua_pushnumber(L, pos.getZ());
+            lua_rawset(L, -3);
+            return 1;
+        }
+        else if (strcmp(key, "WorldRotation") == 0)
+        {
+            lua_newtable(L);
+
+            Quat rot = dmGameObject::GetWorldRotation(i->m_Instance);
+
+            lua_pushliteral(L, "X");
+            lua_pushnumber(L, rot.getX());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "Y");
+            lua_pushnumber(L, rot.getY());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "Z");
+            lua_pushnumber(L, rot.getZ());
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "W");
+            lua_pushnumber(L, rot.getW());
+            lua_rawset(L, -3);
+            return 1;
         }
         // Try to find value in globals in update context
         lua_pushstring(L, "__update_context__");
@@ -497,57 +539,104 @@ namespace dmGameObject
 
         // retrieve position
         lua_getfield(L, 1, "Position");
-		Vectormath::Aos::Point3 position(0.0f, 0.0f, 0.0f);
+        Vectormath::Aos::Point3 position(0.0f, 0.0f, 0.0f);
         if (lua_istable(L, 3))
         {
-			lua_getfield(L, 3, "X");
-			position.setX((float)lua_tonumber(L, 4));
-			lua_getfield(L, 3, "Y");
-			position.setY((float)lua_tonumber(L, 5));
-			lua_getfield(L, 3, "Z");
-			position.setZ((float)lua_tonumber(L, 6));
-			lua_pop(L, 3);
+            lua_getfield(L, 3, "X");
+            position.setX((float)lua_tonumber(L, 4));
+            lua_getfield(L, 3, "Y");
+            position.setY((float)lua_tonumber(L, 5));
+            lua_getfield(L, 3, "Z");
+            position.setZ((float)lua_tonumber(L, 6));
+            lua_pop(L, 3);
         }
-		lua_pop(L, 1);
+        lua_pop(L, 1);
 
-		// retrieve rotation
+        // retrieve rotation
         lua_getfield(L, 1, "Rotation");
         Vectormath::Aos::Quat rotation(0.0f, 0.0f, 0.0f, 1.0f);
         if (lua_istable(L, 3))
         {
-			lua_getfield(L, 3, "X");
-			rotation.setX((float)lua_tonumber(L, 4));
-			lua_getfield(L, 3, "Y");
-			rotation.setY((float)lua_tonumber(L, 5));
-			lua_getfield(L, 3, "Z");
-			rotation.setZ((float)lua_tonumber(L, 6));
-			lua_getfield(L, 3, "W");
-			rotation.setW((float)lua_tonumber(L, 7));
-			lua_pop(L, 4);
+            lua_getfield(L, 3, "X");
+            rotation.setX((float)lua_tonumber(L, 4));
+            lua_getfield(L, 3, "Y");
+            rotation.setY((float)lua_tonumber(L, 5));
+            lua_getfield(L, 3, "Z");
+            rotation.setZ((float)lua_tonumber(L, 6));
+            lua_getfield(L, 3, "W");
+            rotation.setW((float)lua_tonumber(L, 7));
+            lua_pop(L, 4);
         }
-		lua_pop(L, 1);
+        lua_pop(L, 1);
 
-		// retrieve point to transform
-		Vectormath::Aos::Vector3 p;
-		lua_getfield(L, 2, "X");
-		p.setX((float)lua_tonumber(L, 3));
-		lua_getfield(L, 2, "Y");
-		p.setY((float)lua_tonumber(L, 4));
-		lua_getfield(L, 2, "Z");
-		p.setZ((float)lua_tonumber(L, 5));
-		lua_pop(L, 3);
+        // retrieve point to transform
+        Vectormath::Aos::Vector3 p;
+        lua_getfield(L, 2, "X");
+        p.setX((float)lua_tonumber(L, 3));
+        lua_getfield(L, 2, "Y");
+        p.setY((float)lua_tonumber(L, 4));
+        lua_getfield(L, 2, "Z");
+        p.setZ((float)lua_tonumber(L, 5));
+        lua_pop(L, 3);
 
-		// calculate!
-		Vectormath::Aos::Point3 result = position + Vectormath::Aos::rotate(rotation, p);
+        // calculate!
+        Vectormath::Aos::Point3 result = position + Vectormath::Aos::rotate(rotation, p);
 
-		// write result
-		lua_newtable(L);
-		lua_pushnumber(L, result.getX());
-		lua_setfield(L, 3, "X");
-		lua_pushnumber(L, result.getY());
-		lua_setfield(L, 3, "Y");
-		lua_pushnumber(L, result.getZ());
-		lua_setfield(L, 3, "Z");
+        // write result
+        lua_newtable(L);
+        lua_pushnumber(L, result.getX());
+        lua_setfield(L, 3, "X");
+        lua_pushnumber(L, result.getY());
+        lua_setfield(L, 3, "Y");
+        lua_pushnumber(L, result.getZ());
+        lua_setfield(L, 3, "Z");
+
+        assert(top + 1 == lua_gettop(L));
+
+        return 1;
+    }
+
+    int Script_Rotate(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        // check args
+        luaL_checktype(L, 1, LUA_TTABLE);
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        // retrieve rotation
+        Vectormath::Aos::Quat r;
+        lua_getfield(L, 1, "X");
+        r.setX((float)lua_tonumber(L, 3));
+        lua_getfield(L, 1, "Y");
+        r.setY((float)lua_tonumber(L, 4));
+        lua_getfield(L, 1, "Z");
+        r.setZ((float)lua_tonumber(L, 5));
+        lua_getfield(L, 1, "W");
+        r.setW((float)lua_tonumber(L, 6));
+        lua_pop(L, 4);
+
+        // retrieve rotation
+        Vectormath::Aos::Vector3 v;
+        lua_getfield(L, 2, "X");
+        v.setX((float)lua_tonumber(L, 3));
+        lua_getfield(L, 2, "Y");
+        v.setY((float)lua_tonumber(L, 4));
+        lua_getfield(L, 2, "Z");
+        v.setZ((float)lua_tonumber(L, 5));
+        lua_pop(L, 3);
+
+        // calculate!
+        Vectormath::Aos::Vector3 result = Vectormath::Aos::rotate(r, v);
+
+        // write result
+        lua_newtable(L);
+        lua_pushnumber(L, result.getX());
+        lua_setfield(L, 3, "X");
+        lua_pushnumber(L, result.getY());
+        lua_setfield(L, 3, "Y");
+        lua_pushnumber(L, result.getZ());
+        lua_setfield(L, 3, "Z");
 
         assert(top + 1 == lua_gettop(L));
 
@@ -596,6 +685,10 @@ namespace dmGameObject
 
         lua_pushliteral(L, "Transform");
         lua_pushcfunction(L, Script_Transform);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "Rotate");
+        lua_pushcfunction(L, Script_Rotate);
         lua_rawset(L, LUA_GLOBALSINDEX);
     }
 
