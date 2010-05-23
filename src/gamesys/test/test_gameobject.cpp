@@ -569,6 +569,11 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
     *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
 
+void TestScript01DispatchReply(dmEvent::Event *event_object, void* user_ptr)
+{
+
+}
+
 TEST_F(GameObjectTest, TestScript01)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto01.go", 0x0);
@@ -588,12 +593,16 @@ TEST_F(GameObjectTest, TestScript01)
     ASSERT_TRUE(dmGameObject::Update(collection, go, &update_context));
 
     uint32_t socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
+    uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
     bool dispatch_result = false;
     dmEvent::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
 
     ASSERT_TRUE(dispatch_result);
 
     ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
+    // Final dispatch to deallocate event data
+    dmEvent::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
+    dmEvent::Dispatch(reply_socket, TestScript01DispatchReply, &dispatch_result);
 
     dmGameObject::Delete(collection, go);
 }
