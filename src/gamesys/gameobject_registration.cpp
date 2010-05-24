@@ -25,8 +25,7 @@ namespace dmGameSystem
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
         Point3 position = dmGameObject::GetPosition(instance);
-        Quat rotation = Quat::identity();
-        rotation = Quat::rotationZ(0.4f); // TODO: <--- HAXXOR JUST FOR FUN...
+        Quat rotation = dmGameObject::GetRotation(instance);
 
         dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rotation, position, rigid_body_prototype->m_Mass);
         *user_data = (uintptr_t) rigid_body;
