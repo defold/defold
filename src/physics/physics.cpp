@@ -1,9 +1,14 @@
 #include <stdint.h>
 #include "physics.h"
 #include "btBulletDynamicsCommon.h"
+#include "debug_draw.h"
 
 namespace dmPhysics
 {
+    DebugDraw m_DebugDraw;
+
+    using namespace Vectormath::Aos;
+
     class MotionState : public btMotionState
     {
     public:
@@ -45,13 +50,13 @@ namespace dmPhysics
         PhysicsWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
         ~PhysicsWorld();
 
-        btDefaultCollisionConfiguration*     m_CollisionConfiguration;
-        btCollisionDispatcher*               m_Dispatcher;
-        btAxisSweep3*                        m_OverlappingPairCache;
-        btSequentialImpulseConstraintSolver* m_Solver;
-        btDiscreteDynamicsWorld*             m_DynamicsWorld;
-        SetObjectState                       m_SetObjectState;
-        void*                                m_SetObjectStateContext;
+        btDefaultCollisionConfiguration*        m_CollisionConfiguration;
+        btCollisionDispatcher*                  m_Dispatcher;
+        btAxisSweep3*                           m_OverlappingPairCache;
+        btSequentialImpulseConstraintSolver*    m_Solver;
+        btDiscreteDynamicsWorld*                m_DynamicsWorld;
+        SetObjectState                          m_SetObjectState;
+        void*                                   m_SetObjectStateContext;
     };
 
     PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context)
@@ -67,9 +72,11 @@ namespace dmPhysics
         m_OverlappingPairCache = new btAxisSweep3(world_aabb_min,world_aabb_max,maxProxies);
 
         m_Solver = new btSequentialImpulseConstraintSolver;
-        m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
 
+        m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
         m_DynamicsWorld->setGravity(btVector3(0,-10,0));
+        m_DynamicsWorld->setDebugDrawer(&m_DebugDraw);
+
         m_SetObjectState = set_object_state;
         m_SetObjectStateContext = set_object_state_context;
     }
@@ -91,6 +98,11 @@ namespace dmPhysics
     void DeleteWorld(HWorld world)
     {
         delete world;
+    }
+
+    void DebugRender(HWorld world)
+    {
+        world->m_DynamicsWorld->debugDrawWorld();
     }
 
     void StepWorld(HWorld world, float dt)
@@ -167,5 +179,10 @@ namespace dmPhysics
     {
     	const btVector3& bt_total_force = rigid_body->getTotalForce();
     	return Vector3(bt_total_force.getX(), bt_total_force.getY(), bt_total_force.getZ());
+    }
+
+    void SetDebugRenderer(void* ctx, RenderLine render_line)
+    {
+        m_DebugDraw.SetRenderLine(ctx, render_line);
     }
 }

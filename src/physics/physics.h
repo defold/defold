@@ -1,8 +1,9 @@
 #ifndef PHYSICS_H
 #define PHYSICS_H
 
+#include <stdint.h>
+
 #include <vectormath/cpp/vectormath_aos.h>
-using namespace Vectormath::Aos;
 
 class btCollisionShape;
 class btRigidBody;
@@ -13,7 +14,7 @@ namespace dmPhysics
     typedef class btCollisionShape* HCollisionShape;
     typedef class btRigidBody* HRigidBody;
 
-    typedef void (*SetObjectState)(void* context, void* visual_object, const Quat& rotation, const Point3& position);
+    typedef void (*SetObjectState)(void* context, void* visual_object, const Vectormath::Aos::Quat& rotation, const Vectormath::Aos::Point3& position);
 
     /**
      * Create a new physics world
@@ -23,7 +24,7 @@ namespace dmPhysics
      * @param set_object_state_context User context
      * @return HPhysicsWorld
      */
-    HWorld NewWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
+    HWorld NewWorld(const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
 
     /**
      * Delete a physics world
@@ -37,6 +38,11 @@ namespace dmPhysics
      * @param dt Time step
      */
     void StepWorld(HWorld world, float dt);
+
+    /**
+     * Draws the world using the callback function registered through SetDebugRenderer.
+     */
+    void DebugRender(HWorld world);
 
     /**
      * Create a new shape
@@ -71,7 +77,8 @@ namespace dmPhysics
      */
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
-                            const Quat& rotation, const Point3& position,
+                            const Vectormath::Aos::Quat& rotation,
+                            const Vectormath::Aos::Point3& position,
                             float mass);
 
     /**
@@ -108,7 +115,15 @@ namespace dmPhysics
      * @param rigid_body Rigid body receiving the force.
      * @return The total force (world space).
      */
-    Vector3 GetTotalForce(HRigidBody rigid_body);
+    Vectormath::Aos::Vector3 GetTotalForce(HRigidBody rigid_body);
+
+    typedef void (*RenderLine)(void* ctx, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
+    /**
+     * Registers a callback function used to render lines when .
+     * @param ctx Context that will be supplied to the RenderLine callback.
+     * @param render_line Callback used to render lines.
+     */
+    void SetDebugRenderer(void* ctx, RenderLine render_line);
 }
 
 #endif // PHYSICS_H

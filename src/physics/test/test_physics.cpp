@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 #include "../physics.h"
 
+using namespace Vectormath::Aos;
+
 struct VisualObject
 {
     Quat   m_Orientation;
