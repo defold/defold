@@ -26,8 +26,7 @@ def configure(conf):
     
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'
-    conf.env['LIB_DLIB'] = 'dlib'
-    conf.env['LIB_DDF'] = 'ddf'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
 
 def build(bld):
     bld.add_subdirs('src')
