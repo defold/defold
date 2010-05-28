@@ -698,14 +698,38 @@ namespace dmGameObject
         g_LuaState = 0;
     }
 
-    static int DoLoadScript(lua_State* L, const void* memory)
+    struct LuaData
+    {
+        const char* m_Buffer;
+        uint32_t m_Size;
+    };
+
+    const char* ReadScript(lua_State *L, void *data, size_t *size)
+    {
+        LuaData* lua_data = (LuaData*)data;
+        if (lua_data->m_Size == 0)
+        {
+            return 0x0;
+        }
+        else
+        {
+            *size = lua_data->m_Size;
+            lua_data->m_Size = 0;
+            return lua_data->m_Buffer;
+        }
+    }
+
+    static int LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename)
     {
         int top = lua_gettop(L);
         (void) top;
 
         int functions;
 
-        int ret = luaL_loadstring(L, (const char*) memory);
+        LuaData data;
+        data.m_Buffer = (const char*)buffer;
+        data.m_Size = buffer_size;
+        int ret = lua_load(L, &ReadScript, &data, filename);
         if (ret != 0)
         {
             dmLogError("Error running script: %s", lua_tostring(L,-1));
@@ -724,7 +748,7 @@ namespace dmGameObject
         lua_getglobal(L, "functions");
         if (lua_type(L, -1) != LUA_TTABLE)
         {
-            dmLogError("No function table found in script");
+            dmLogError("No function table found in script: %s", filename);
             lua_pop(L, 1);
             goto bail;
         }
@@ -738,11 +762,11 @@ bail:
         return -1;
     }
 
-    HScript NewScript(const void* memory)
+    HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename)
     {
         lua_State* L = g_LuaState;
 
-        int functions = DoLoadScript(L, memory);
+        int functions = LoadScript(L, buffer, buffer_size, filename);
         if (functions != -1)
         {
             HScript script = new Script();
@@ -755,11 +779,11 @@ bail:
         }
     }
 
-    bool ReloadScript(HScript script, const void* memory)
+    bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
     {
         lua_State* L = g_LuaState;
 
-        int functions = DoLoadScript(L, memory);
+        int functions = LoadScript(L, buffer, buffer_size, filename);
         if (functions != -1)
         {
             script->m_FunctionsReference = functions;

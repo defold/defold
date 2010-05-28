@@ -310,7 +310,7 @@ namespace dmGameObject
                                           dmResource::SResourceDescriptor* resource,
                                           const char* filename)
     {
-        HScript script = NewScript(buffer);
+        HScript script = NewScript(buffer, buffer_size, filename);
         if (script)
         {
             resource->m_Resource = (void*) script;
@@ -338,7 +338,7 @@ namespace dmGameObject
                                             const char* filename)
     {
         HScript script = (HScript) resource->m_Resource;
-        if (ReloadScript(script, buffer))
+        if (ReloadScript(script, buffer, buffer_size, filename))
         {
             return dmResource::CREATE_RESULT_OK;
         }

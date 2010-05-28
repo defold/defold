@@ -28,8 +28,8 @@ namespace dmGameObject
     void    InitializeScript();
     void    FinalizeScript();
 
-    HScript NewScript(const void* memory);
-    bool    ReloadScript(HScript script, const void* memory);
+    HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename);
+    bool    ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename);
     void    DeleteScript(HScript script);
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance);
