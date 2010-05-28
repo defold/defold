@@ -24,11 +24,24 @@ namespace dmGameSystem
         RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*) resource;
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        Point3 position = dmGameObject::GetPosition(instance);
-        Quat rotation = dmGameObject::GetRotation(instance);
-
-        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rotation, position, rigid_body_prototype->m_Mass);
+        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rigid_body_prototype->m_Mass);
         *user_data = (uintptr_t) rigid_body;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult InitRigidBody(dmGameObject::HCollection collection,
+                                            dmGameObject::HInstance instance,
+                                            void* context,
+                                            uintptr_t* user_data)
+    {
+        assert(user_data);
+        dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody)*user_data;
+
+        Point3 position = dmGameObject::GetWorldPosition(instance);
+        Quat rotation = dmGameObject::GetWorldRotation(instance);
+
+        dmPhysics::SetRigidBodyInitialTransform(rigid_body, position, rotation);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -82,7 +95,7 @@ namespace dmGameSystem
             dmLogWarning("Unable to get resource type for 'rigidbody' (%d)", fact_result);
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
-        dmGameObject::Result res = dmGameObject::RegisterComponentType(collection, "rigidbody", type, physics_world, &CreateRigidBody, &DestroyRigidBody, &UpdateRigidBody, &OnEventRigidBody, true);
+        dmGameObject::Result res = dmGameObject::RegisterComponentType(collection, "rigidbody", type, physics_world, &CreateRigidBody, &InitRigidBody, &DestroyRigidBody, &UpdateRigidBody, &OnEventRigidBody, true);
         return res;
     }
 }

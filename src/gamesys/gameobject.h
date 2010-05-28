@@ -103,6 +103,20 @@ namespace dmGameObject
                                             uintptr_t* user_data);
 
     /**
+     * Component init function
+     * @param collection Collection handle
+     * @param instance Game object instance
+     * @param resource Component resource
+     * @param context User context
+     * @param user_data User data storage pointer
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentInit)(HCollection collection,
+                                            HInstance instance,
+                                            void* context,
+                                            uintptr_t* user_data);
+
+    /**
      * Component destroy function
      * @param collection Collection handle
      * @param instance Game object instance
@@ -187,6 +201,7 @@ namespace dmGameObject
                                  void* context,
                                  ComponentCreate create_function,
                                  ComponentDestroy destroy_function,
+                                 ComponentInit init_function,
                                  ComponentsUpdate components_update,
                                  ComponentOnEvent component_on_event,
                                  bool component_instance_has_user_data);
@@ -198,7 +213,7 @@ namespace dmGameObject
      * @param update_context Update context
      * @return New gameobject instance. NULL if any error occured
      */
-    HInstance New(HCollection collection, const char* prototype_name, const UpdateContext* update_context);
+    HInstance New(HCollection collection, const char* prototype_name);
 
     /**
      * Delete gameobject instance
@@ -269,6 +284,20 @@ namespace dmGameObject
      * @param value Value
      */
     void SetScriptStringProperty(HInstance instance, const char* key, const char* value);
+
+    /**
+     * Initializes a game object instance in the supplied collection.
+     * @param collection Game object collection
+     * @param update_context Update context
+     */
+    bool Init(HCollection collection, HInstance instance, const UpdateContext* update_context);
+
+    /**
+     * Initializes all game object instances in the supplied collection.
+     * @param collection Game object collection
+     * @param update_context Update context
+     */
+    bool Init(HCollection collection, const UpdateContext* update_context);
 
     /**
      * Call update function. Does *NOT* dispatch script events

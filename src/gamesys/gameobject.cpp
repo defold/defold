@@ -22,14 +22,15 @@ namespace dmGameObject
             memset(this, 0, sizeof(*this));
         }
 
-        uint32_t         m_ResourceType;
-        const char*      m_Name;
-        void*            m_Context;
-        ComponentCreate  m_CreateFunction;
-        ComponentDestroy m_DestroyFunction;
-        ComponentsUpdate m_ComponentsUpdate;
-        ComponentOnEvent m_ComponentOnEvent;
-        uint32_t         m_ComponentInstanceHasUserdata : 1;
+        uint32_t            m_ResourceType;
+        const char*         m_Name;
+        void*               m_Context;
+        ComponentCreate     m_CreateFunction;
+        ComponentInit       m_InitFunction;
+        ComponentDestroy    m_DestroyFunction;
+        ComponentsUpdate    m_ComponentsUpdate;
+        ComponentOnEvent    m_ComponentOnEvent;
+        uint32_t            m_ComponentInstanceHasUserdata : 1;
     };
 
     // Internal representation of a transform
@@ -202,6 +203,7 @@ namespace dmGameObject
                                  uint32_t resource_type,
                                  void* context,
                                  ComponentCreate create_function,
+                                 ComponentInit init_function,
                                  ComponentDestroy destroy_function,
                                  ComponentsUpdate components_update,
                                  ComponentOnEvent component_on_event,
@@ -218,6 +220,7 @@ namespace dmGameObject
         component_type.m_Name = name;
         component_type.m_Context = context;
         component_type.m_CreateFunction = create_function;
+        component_type.m_InitFunction = init_function;
         component_type.m_DestroyFunction = destroy_function;
         component_type.m_ComponentsUpdate = components_update;
         component_type.m_ComponentOnEvent = component_on_event;
@@ -404,7 +407,7 @@ namespace dmGameObject
         assert(collection->m_LevelInstanceCount[instance->m_Depth] < collection->m_MaxInstances);
     }
 
-    HInstance New(HCollection collection, const char* prototype_name, const UpdateContext* update_context)
+    HInstance New(HCollection collection, const char* prototype_name)
     {
         assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
         Prototype* proto;
@@ -503,17 +506,8 @@ namespace dmGameObject
         collection->m_Instances[instance_index] = instance;
 
         InsertInstanceInLevelIndex(collection, instance);
-        bool init_ok = RunScript(collection, proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
 
-        if (init_ok)
-        {
-            return instance;
-        }
-        else
-        {
-            Delete(collection, instance);
-            return 0;
-        }
+        return instance;
     }
 
     static void Unlink(Collection* collection, Instance* instance)
@@ -606,6 +600,74 @@ namespace dmGameObject
             MoveDown(collection, child);
             index = collection->m_Instances[index]->m_SiblingIndex;
         }
+    }
+
+    void UpdateTransforms(HCollection collection);
+
+    bool Init(HCollection collection, HInstance instance, const UpdateContext* update_context)
+    {
+        if (instance)
+        {
+            assert(collection->m_Instances[instance->m_Index] == instance);
+            Prototype* proto = instance->m_Prototype;
+            bool ret = RunScript(collection, proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
+            if (!ret)
+            {
+                dmLogError("The script for prototype %s failed to run.", proto->m_Name);
+                return ret;
+            }
+
+            uint32_t next_component_instance_data = 0;
+            Prototype* prototype = instance->m_Prototype;
+            for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+            {
+                Prototype::Component* component = &prototype->m_Components[i];
+                ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+                assert(component_type);
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_ComponentInstanceHasUserdata)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                }
+                assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+                if (component_type->m_InitFunction)
+                {
+                    CreateResult result = component_type->m_InitFunction(collection, instance, component_type->m_Context, component_instance_data);
+                    if (result != CREATE_RESULT_OK)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool Init(HCollection collection, const UpdateContext* update_context)
+    {
+        DM_PROFILE(GameObject, "Init");
+
+        assert(collection->m_InUpdate == 0 && "Initializing instances during Update(.) is not permitted");
+
+        // Update trasform cache
+        UpdateTransforms(collection);
+
+        bool result = true;
+        // Update scripts
+        uint32_t n_objects = collection->m_Instances.Size();
+        for (uint32_t i = 0; i < n_objects; ++i)
+        {
+            Instance* instance = collection->m_Instances[i];
+            if ( ! Init(collection, instance, update_context) )
+            {
+                result = false;
+            }
+        }
+
+        return result;
     }
 
     void Delete(HCollection collection, HInstance instance)
@@ -883,7 +945,7 @@ namespace dmGameObject
         return ctx.m_Success;
     }
 
-    void UpdateTransforms(HCollection collection, const UpdateContext* update_context)
+    void UpdateTransforms(HCollection collection)
     {
         DM_PROFILE(GameObject, "UpdateTransforms");
 
@@ -967,7 +1029,7 @@ namespace dmGameObject
             }
         }
 
-        UpdateTransforms(collection, update_context);
+        UpdateTransforms(collection);
 
         uint32_t component_types = collection->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)

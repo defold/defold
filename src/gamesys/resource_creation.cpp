@@ -213,7 +213,7 @@ namespace dmGameSystem
                                               void* context,
                                               dmResource::SResourceDescriptor* resource)
     {
-        RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*) resource;
+        RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*)resource->m_Resource;
         dmResource::Release(factory, rigid_body_prototype->m_CollisionShape);
         delete rigid_body_prototype;
         return dmResource::CREATE_RESULT_OK;
