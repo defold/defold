@@ -129,19 +129,16 @@ namespace dmPhysics
 
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
-                            const Quat& rotation, const Point3& position,
                             float mass)
     {
-        btQuaternion bt_rotation(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
-        btVector3 bt_position(position.getX(), position.getY(), position.getZ());
-        btTransform transform(bt_rotation, bt_position);
-
         bool is_dynamic = (mass != 0.f);
 
         btVector3 local_inertia(0,0,0);
         if (is_dynamic)
             shape->calculateLocalInertia(mass, local_inertia);
 
+        btTransform transform;
+        transform.setIdentity();
         MotionState* motion_state = new MotionState(transform, visual_object, world->m_SetObjectState, world->m_SetObjectStateContext);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
         btRigidBody* body = new btRigidBody(rb_info);
@@ -156,6 +153,17 @@ namespace dmPhysics
 
         world->m_DynamicsWorld->removeCollisionObject(rigid_body);
         delete rigid_body;
+    }
+
+    void SetRigidBodyInitialTransform(HRigidBody rigid_body, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation)
+    {
+        btMotionState* motion_state = rigid_body->getMotionState();
+        assert(motion_state);
+        btVector3 bt_position(position.getX(), position.getY(), position.getZ());
+        btQuaternion bt_orientation(orientation.getX(), orientation.getY(), orientation.getZ(), orientation.getW());
+        btTransform world_transform(bt_orientation, bt_position);
+        motion_state->setWorldTransform(world_transform);
+        rigid_body->setWorldTransform(world_transform);
     }
 
     void SetRigidBodyUserData(HRigidBody rigid_body, void* user_data)

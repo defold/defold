@@ -77,8 +77,6 @@ namespace dmPhysics
      */
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
-                            const Vectormath::Aos::Quat& rotation,
-                            const Vectormath::Aos::Point3& position,
                             float mass);
 
     /**
@@ -87,6 +85,14 @@ namespace dmPhysics
      * @param rigid_body Rigid body to delete
      */
     void DeleteRigidBody(HWorld world, HRigidBody rigid_body);
+
+    /**
+     * Set rigid body initial transform
+     * @param rigid_body Rigid body
+     * @param position Initial position
+     * @param orientation Initial orientation
+     */
+    void SetRigidBodyInitialTransform(HRigidBody rigid_body, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation);
 
     /**
      * Set rigid body user data
