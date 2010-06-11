@@ -72,7 +72,7 @@ namespace dmGraphics
         }
 
         glfwSetWindowTitle(params->m_AppTitle);
-        glfwSwapInterval(60);
+        glfwSwapInterval(1);
 
 
 #if 0

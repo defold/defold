@@ -37,7 +37,7 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "linux":
-        conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
+        conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESSARB'])
 
     if os.getenv('PYTHONPATH'):
         if sys.platform == "win32":
