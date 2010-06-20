@@ -1061,6 +1061,15 @@ namespace dmGameObject
         return ret;
     }
 
+    dmResource::HFactory GetFactory(HCollection collection)
+    {
+        if (collection != 0x0)
+        {
+            return collection->m_Factory;
+        }
+        return 0x0;
+    }
+
     void SetPosition(HInstance instance, Point3 position)
     {
         instance->m_Position = position;

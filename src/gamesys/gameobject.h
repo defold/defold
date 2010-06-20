@@ -317,6 +317,13 @@ namespace dmGameObject
     bool Update(HCollection collection, const UpdateContext* update_context);
 
     /**
+     * Retrieve a factory from the specified collection
+     * @param collection Game object collection
+     * @return The resource factory bound to the specified collection
+     */
+    dmResource::HFactory GetFactory(HCollection collection);
+
+    /**
      * Set gameobject instance position
      * @param instance Gameobject instance
      * @param position New Position
