@@ -58,6 +58,8 @@ namespace dmGameObject
         void*              m_GlobalData;
         /// Time step
         float              m_DT;
+        /// Time step fraction currently used
+        float              m_DTF;
     };
 
     extern const uint32_t UNNAMED_IDENTIFIER;
@@ -140,6 +142,16 @@ namespace dmGameObject
                                      void* context);
 
     /**
+     * Component render function. Renders all components of this type for all game objects
+     * @param collection Collection handle
+     * @param update_context Update context
+     * @param context User context
+     */
+    typedef void (*ComponentsRender)(HCollection collection,
+                                     const UpdateContext* update_context,
+                                     void* context);
+
+    /**
      * Component on-event function. Called when event is sent to this component
      * @param collection Collection handle
      * @param instance Instance handle
@@ -151,6 +163,26 @@ namespace dmGameObject
                                      const ScriptEventData* event_data,
                                      void* context,
                                      uintptr_t* user_data);
+
+    /**
+     * Collection of component registration data.
+     */
+    struct ComponentType
+    {
+        ComponentType();
+
+        uint32_t            m_ResourceType;
+        const char*         m_Name;
+        void*               m_Context;
+        ComponentCreate     m_CreateFunction;
+        ComponentInit       m_InitFunction;
+        ComponentDestroy    m_DestroyFunction;
+        ComponentsUpdate    m_UpdateFunction;
+        ComponentsRender    m_RenderFunction;
+        ComponentOnEvent    m_OnEventFunction;
+        uint32_t            m_InstanceHasUserData : 1;
+    };
+
     /**
      * Initialize system
      */
@@ -185,26 +217,10 @@ namespace dmGameObject
     /**
      * Register a new component type
      * @param collection Gameobject collection
-     * @param name Descriptive name
-     * @param resource_type Resource type, resource factory type
-     * @param context User context
-     * @param create_function Create function call-back
-     * @param destroy_function Destroy function call-back
-     * @param components_update Components update call-back. NULL if not required.
-     * @param component_on_event. Component on-event call-back. NULL if not required.
-     * @param component_instance_has_user_data True if the component instance needs user data
+     * @param type Collection of component type registration data
      * @return RESULT_OK on success
      */
-    Result RegisterComponentType(HCollection collection,
-                                 const char* name,
-                                 uint32_t resource_type,
-                                 void* context,
-                                 ComponentCreate create_function,
-                                 ComponentDestroy destroy_function,
-                                 ComponentInit init_function,
-                                 ComponentsUpdate components_update,
-                                 ComponentOnEvent component_on_event,
-                                 bool component_instance_has_user_data);
+    Result RegisterComponentType(HCollection collection, const ComponentType& type);
 
     /**
      * Create a new gameobject instane
@@ -315,6 +331,13 @@ namespace dmGameObject
      * @return True on success
      */
     bool Update(HCollection collection, const UpdateContext* update_context);
+
+    /**
+     * Renders all gameobject components
+     * @param collection Gameobject collection
+     * @param update_context Update context
+     */
+    void Render(HCollection collection, const UpdateContext* update_context);
 
     /**
      * Retrieve a factory from the specified collection

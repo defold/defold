@@ -49,36 +49,88 @@ protected:
 
         e = dmResource::GetTypeFromExtension(factory, "pc", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, "pc", resource_type, this, PhysComponentCreate, PhysComponentInit, PhysComponentDestroy, PhysComponentsUpdate, 0, false);
+        dmGameObject::ComponentType pc_type;
+        pc_type.m_Name = "pc";
+        pc_type.m_ResourceType = resource_type;
+        pc_type.m_Context = this;
+        pc_type.m_CreateFunction = PhysComponentCreate;
+        pc_type.m_InitFunction = PhysComponentInit;
+        pc_type.m_DestroyFunction = PhysComponentDestroy;
+        pc_type.m_UpdateFunction = PhysComponentsUpdate;
+        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, pc_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // A has component_user_data
         e = dmResource::GetTypeFromExtension(factory, "a", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, "a", resource_type, this, AComponentCreate, AComponentInit, AComponentDestroy, AComponentsUpdate, 0, true);
+        dmGameObject::ComponentType a_type;
+        a_type.m_Name = "a";
+        a_type.m_ResourceType = resource_type;
+        a_type.m_Context = this;
+        a_type.m_CreateFunction = AComponentCreate;
+        a_type.m_InitFunction = AComponentInit;
+        a_type.m_DestroyFunction = AComponentDestroy;
+        a_type.m_UpdateFunction = AComponentsUpdate;
+        a_type.m_InstanceHasUserData = true;
+        result = dmGameObject::RegisterComponentType(collection, a_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
         e = dmResource::GetTypeFromExtension(factory, "b", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, "b", resource_type, this, BComponentCreate, BComponentInit, BComponentDestroy, BComponentsUpdate, 0, false);
+        dmGameObject::ComponentType b_type;
+        b_type.m_Name = "b";
+        b_type.m_ResourceType = resource_type;
+        b_type.m_Context = this;
+        b_type.m_CreateFunction = BComponentCreate;
+        b_type.m_InitFunction = BComponentInit;
+        b_type.m_DestroyFunction = BComponentDestroy;
+        b_type.m_UpdateFunction = BComponentsUpdate;
+        result = dmGameObject::RegisterComponentType(collection, b_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // C has component_user_data
         e = dmResource::GetTypeFromExtension(factory, "c", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, "c", resource_type, this, CComponentCreate, CComponentInit, CComponentDestroy, CComponentsUpdate, 0, true);
+        dmGameObject::ComponentType c_type;
+        c_type.m_Name = "c";
+        c_type.m_ResourceType = resource_type;
+        c_type.m_Context = this;
+        c_type.m_CreateFunction = CComponentCreate;
+        c_type.m_InitFunction = CComponentInit;
+        c_type.m_DestroyFunction = CComponentDestroy;
+        c_type.m_UpdateFunction = CComponentsUpdate;
+        c_type.m_InstanceHasUserData = true;
+        result = dmGameObject::RegisterComponentType(collection, c_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // EventTargetComponent
         e = dmResource::GetTypeFromExtension(factory, "et", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, "et", resource_type, this, EventTargetComponentCreate, EventTargetComponentInit, EventTargetComponentDestroy, EventTargetComponentsUpdate, &EventTargetOnEvent, true);
+        dmGameObject::ComponentType et_type;
+        et_type.m_Name = "et";
+        et_type.m_ResourceType = resource_type;
+        et_type.m_Context = this;
+        et_type.m_CreateFunction = EventTargetComponentCreate;
+        et_type.m_InitFunction = EventTargetComponentInit;
+        et_type.m_DestroyFunction = EventTargetComponentDestroy;
+        et_type.m_UpdateFunction = EventTargetComponentsUpdate;
+        et_type.m_OnEventFunction = &EventTargetOnEvent;
+        et_type.m_InstanceHasUserData = true;
+        result = dmGameObject::RegisterComponentType(collection, et_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         e = dmResource::GetTypeFromExtension(factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        result = dmGameObject::RegisterComponentType(collection, "deleteself", resource_type, this, DeleteSelfComponentCreate, DeleteSelfComponentInit, DeleteSelfComponentDestroy, DeleteSelfComponentsUpdate, 0, false);
+        dmGameObject::ComponentType ds_type;
+        ds_type.m_Name = "deleteself";
+        ds_type.m_ResourceType = resource_type;
+        ds_type.m_Context = this;
+        ds_type.m_CreateFunction = DeleteSelfComponentCreate;
+        ds_type.m_InitFunction = DeleteSelfComponentInit;
+        ds_type.m_DestroyFunction = DeleteSelfComponentDestroy;
+        ds_type.m_UpdateFunction = DeleteSelfComponentsUpdate;
+        result = dmGameObject::RegisterComponentType(collection, ds_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         m_MaxComponentCreateCountMap[TestResource::PhysComponent::m_DDFHash] = 1000000;

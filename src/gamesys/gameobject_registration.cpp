@@ -95,7 +95,17 @@ namespace dmGameSystem
             dmLogWarning("Unable to get resource type for 'rigidbody' (%d)", fact_result);
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
-        dmGameObject::Result res = dmGameObject::RegisterComponentType(collection, "rigidbody", type, physics_world, &CreateRigidBody, &InitRigidBody, &DestroyRigidBody, &UpdateRigidBody, &OnEventRigidBody, true);
+        dmGameObject::ComponentType component_type;
+        component_type.m_Name = "rigidbody";
+        component_type.m_ResourceType = type;
+        component_type.m_Context = physics_world;
+        component_type.m_CreateFunction = &CreateRigidBody;
+        component_type.m_InitFunction = &InitRigidBody;
+        component_type.m_DestroyFunction = &DestroyRigidBody;
+        component_type.m_UpdateFunction = &UpdateRigidBody;
+        component_type.m_OnEventFunction = &OnEventRigidBody;
+        component_type.m_InstanceHasUserData = (uint32_t)true;
+        dmGameObject::Result res = dmGameObject::RegisterComponentType(collection, component_type);
         return res;
     }
 }

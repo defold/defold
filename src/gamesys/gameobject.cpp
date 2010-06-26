@@ -15,24 +15,6 @@
 
 namespace dmGameObject
 {
-    struct ComponentType
-    {
-        ComponentType()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        uint32_t            m_ResourceType;
-        const char*         m_Name;
-        void*               m_Context;
-        ComponentCreate     m_CreateFunction;
-        ComponentInit       m_InitFunction;
-        ComponentDestroy    m_DestroyFunction;
-        ComponentsUpdate    m_ComponentsUpdate;
-        ComponentOnEvent    m_ComponentOnEvent;
-        uint32_t            m_ComponentInstanceHasUserdata : 1;
-    };
-
     // Internal representation of a transform
     struct Transform
     {
@@ -122,6 +104,11 @@ namespace dmGameObject
     uint32_t g_ReplySocket = 0;
     uint32_t g_EventID = 0;
 
+    ComponentType::ComponentType()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     void Initialize()
     {
         assert(g_Descriptors == 0);
@@ -198,35 +185,15 @@ namespace dmGameObject
         return 0;
     }
 
-    Result RegisterComponentType(HCollection collection,
-                                 const char* name,
-                                 uint32_t resource_type,
-                                 void* context,
-                                 ComponentCreate create_function,
-                                 ComponentInit init_function,
-                                 ComponentDestroy destroy_function,
-                                 ComponentsUpdate components_update,
-                                 ComponentOnEvent component_on_event,
-                                 bool component_instance_has_user_data)
+    Result RegisterComponentType(HCollection collection, const ComponentType& type)
     {
         if (collection->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
             return RESULT_OUT_OF_RESOURCES;
 
-        if (FindComponentType(collection, resource_type) != 0)
+        if (FindComponentType(collection, type.m_ResourceType) != 0)
             return RESULT_ALREADY_REGISTERED;
 
-        ComponentType component_type;
-        component_type.m_ResourceType = resource_type;
-        component_type.m_Name = name;
-        component_type.m_Context = context;
-        component_type.m_CreateFunction = create_function;
-        component_type.m_InitFunction = init_function;
-        component_type.m_DestroyFunction = destroy_function;
-        component_type.m_ComponentsUpdate = components_update;
-        component_type.m_ComponentOnEvent = component_on_event;
-        component_type.m_ComponentInstanceHasUserdata = (uint32_t) component_instance_has_user_data;
-
-        collection->m_ComponentTypes[collection->m_ComponentTypeCount++] = component_type;
+        collection->m_ComponentTypes[collection->m_ComponentTypeCount++] = type;
 
         return RESULT_OK;
     }
@@ -435,7 +402,7 @@ namespace dmGameObject
                 dmLogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
                 assert(false);
             }
-            if (component_type->m_ComponentInstanceHasUserdata)
+            if (component_type->m_InstanceHasUserData)
                 component_instance_userdata_count++;
         }
 
@@ -455,7 +422,7 @@ namespace dmGameObject
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
-            if (component_type->m_ComponentInstanceHasUserdata)
+            if (component_type->m_InstanceHasUserData)
             {
                 component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                 *component_instance_data = 0;
@@ -484,7 +451,7 @@ namespace dmGameObject
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
-                if (component_type->m_ComponentInstanceHasUserdata)
+                if (component_type->m_InstanceHasUserData)
                 {
                     component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                 }
@@ -626,7 +593,7 @@ namespace dmGameObject
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
-                if (component_type->m_ComponentInstanceHasUserdata)
+                if (component_type->m_InstanceHasUserData)
                 {
                     component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                 }
@@ -696,7 +663,7 @@ namespace dmGameObject
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
-            if (component_type->m_ComponentInstanceHasUserdata)
+            if (component_type->m_InstanceHasUserData)
             {
                 component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
             }
@@ -903,7 +870,7 @@ namespace dmGameObject
 				ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
 				assert(component_type);
 
-				if (component_type->m_ComponentOnEvent)
+				if (component_type->m_OnEventFunction)
 				{
 
 					// TODO: Not optimal way to find index of component instance data
@@ -912,18 +879,18 @@ namespace dmGameObject
 					{
 						ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
 						assert(component_type);
-						if (ct->m_ComponentInstanceHasUserdata)
+						if (ct->m_InstanceHasUserData)
 						{
 							next_component_instance_data++;
 						}
 					}
 
 					uintptr_t* component_instance_data = 0;
-					if (component_type->m_ComponentInstanceHasUserdata)
+					if (component_type->m_InstanceHasUserData)
 					{
 						component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
 					}
-					component_type->m_ComponentOnEvent(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+					component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
 				}
 				else
 				{
@@ -1036,9 +1003,9 @@ namespace dmGameObject
         {
             ComponentType* component_type = &collection->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
-            if (component_type->m_ComponentsUpdate)
+            if (component_type->m_UpdateFunction)
             {
-                component_type->m_ComponentsUpdate(collection, update_context, component_type->m_Context);
+                component_type->m_UpdateFunction(collection, update_context, component_type->m_Context);
             }
         }
 
@@ -1059,6 +1026,22 @@ namespace dmGameObject
         }
 
         return ret;
+    }
+
+    void Render(HCollection collection, const UpdateContext* update_context)
+    {
+        DM_PROFILE(GameObject, "Update");
+
+        uint32_t component_types = collection->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            ComponentType* component_type = &collection->m_ComponentTypes[i];
+            DM_PROFILE(GameObject, component_type->m_Name);
+            if (component_type->m_RenderFunction)
+            {
+                component_type->m_RenderFunction(collection, update_context, component_type->m_Context);
+            }
+        }
     }
 
     dmResource::HFactory GetFactory(HCollection collection)
