@@ -9,5 +9,12 @@
 #define DM_SNPRINTF snprintf
 #endif
 
+/**
+ * Separate strings. Equivialent to BSD strsep
+ * @param stringp Pointer to string
+ * @param delim Delimiter string
+ * @return Next token. NULL if end-of-tokens.
+ */
+char* dmStrSep(char** stringp, const char* delim);
 
 #endif //DM_DSTRINGS_H
