@@ -1,11 +1,11 @@
 #include <assert.h>
 #include "dstrings.h"
 
-/*      $OpenBSD: strsep.c,v 1.3 1997/08/20 04:28:14 millert Exp $      */
+/*      $NetBSD: strtok_r.c,v 1.9 2003/08/07 16:43:53 agc Exp $ */
 
-/*-
- * Copyright (c) 1990, 1993
- *      The Regents of the University of California.  All rights reserved.
+/*
+ * Copyright (c) 1988 Regents of the University of California.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -15,11 +15,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *      This product includes software developed by the University of
- *      California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -36,16 +32,43 @@
  * SUCH DAMAGE.
  */
 
-char * dmStrSep(char **stringp, const char *delim)
+/*
+ * thread-save version of strtok
+ */
+char* dmStrTok(char *s, const char *delim, char **lasts)
 {
-    register char *s;
-    register const char *spanp;
-    register int c, sc;
+    const char *spanp;
+    int c, sc;
     char *tok;
 
-    if ((s = *stringp) == NULL)
+    /* s may be NULL */
+    assert(delim != NULL);
+    assert(lasts != NULL);
+
+    if (s == NULL && (s = *lasts) == NULL)
         return (NULL);
-    for (tok = s;;) {
+
+    /*
+     * Skip (span) leading delimiters (s += strspn(s, delim), sort of).
+     */
+cont:
+    c = *s++;
+    for (spanp = delim; (sc = *spanp++) != 0;) {
+        if (c == sc)
+            goto cont;
+    }
+
+    if (c == 0) {           /* no non-delimiter characters */
+        *lasts = NULL;
+        return (NULL);
+    }
+    tok = s - 1;
+
+    /*
+     * Scan token (scan for delimiters: s += strcspn(s, delim), sort of).
+     * Note that delim must have one NUL; we stop if we see that, too.
+     */
+    for (;;) {
         c = *s++;
         spanp = delim;
         do {
@@ -54,7 +77,7 @@ char * dmStrSep(char **stringp, const char *delim)
                     s = NULL;
                 else
                     s[-1] = 0;
-                *stringp = s;
+                *lasts = s;
                 return (tok);
             }
         } while (sc != 0);

@@ -10,11 +10,12 @@
 #endif
 
 /**
- * Separate strings. Equivialent to BSD strsep
- * @param stringp Pointer to string
+ * Tokenize strings. Equivalent to BSD strsep_r
+ * @param string Pointer to string. For the first call string is the string to tokenize. Subsequent should pass NULL.
  * @param delim Delimiter string
- * @return Next token. NULL if end-of-tokens.
+ * @param lasts Internal state pointer
+ * @return
  */
-char* dmStrSep(char** stringp, const char* delim);
+char* dmStrTok(char *string, const char *delim, char **lasts);
 
 #endif //DM_DSTRINGS_H
