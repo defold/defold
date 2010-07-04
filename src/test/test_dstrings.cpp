@@ -3,7 +3,7 @@
 #include <string.h>
 #include "dlib/dstrings.h"
 
-TEST(dmStrings, dmStrSep1)
+TEST(dmStrings, dmStrTok1)
 {
     char* string = strdup("");
     char* s, *last;
@@ -13,7 +13,7 @@ TEST(dmStrings, dmStrSep1)
     free(string);
 }
 
-TEST(dmStrings, dmStrSep2)
+TEST(dmStrings, dmStrTok2)
 {
     char* string = strdup("a");
     char* s, *last;
@@ -27,7 +27,7 @@ TEST(dmStrings, dmStrSep2)
     free(string);
 }
 
-TEST(dmStrings, dmStrSep3)
+TEST(dmStrings, dmStrTok3)
 {
     char* string = strdup("a b c");
     char* s, *last;
@@ -49,7 +49,7 @@ TEST(dmStrings, dmStrSep3)
     free(string);
 }
 
-TEST(dmStrings, dmStrSep4)
+TEST(dmStrings, dmStrTok4)
 {
     char* string = strdup("foo\r\nbar");
     char* s, *last;
