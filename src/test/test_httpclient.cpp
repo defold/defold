@@ -312,6 +312,9 @@ TEST(dmHttpClient, ConnectionRefused)
 
 int main(int argc, char **argv)
 {
+    dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmSocket::Finalize();
+    return ret;
 }

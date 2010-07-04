@@ -119,7 +119,7 @@ def build(bld):
 
     test_http_client = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_httpclient.cpp',
-                                 uselib = 'GTEST THREAD',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
                                  uselib_local = "dlib",
                                  includes = ['../../src'],
                                  target = 'test_httpclient')
