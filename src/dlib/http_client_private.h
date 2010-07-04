@@ -10,7 +10,7 @@ namespace dmHttpClientPrivate
         PARSE_RESULT_SYNTAX_ERROR = -1,
     };
 
-    ParseResult ParseHeader(char* header,
+    ParseResult ParseHeader(char* header_str,
                             void* user_data,
                             void (*version)(void* user_data, int major, int minor, int status, const char* status_str),
                             void (*header)(void* user_data, const char* key, const char* value),
