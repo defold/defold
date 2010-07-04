@@ -1,6 +1,15 @@
 #! /usr/bin/env python
+import os
 
 def build(bld):
+
+    bld.new_task_gen(features='javac seq',
+                     classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
+                     source_root='http_server')
+
+    bld.env["JAVACFLAGS"] = '-g'
+    bld.add_group()
+
     test_hashtable = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_hashtable.cpp',
                                       uselib = 'GTEST',
@@ -107,3 +116,12 @@ def build(bld):
                                  target = 'test_dstrings')
 
     test_dstrings.install_path = None
+
+    test_http_client = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_httpclient.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_httpclient')
+
+    test_http_client.install_path = None
