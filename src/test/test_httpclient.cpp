@@ -165,6 +165,10 @@ TEST_F(dmHttpClientParserTest, TestContent)
     ASSERT_STREQ("foo\r\n\r\nbar", headers + m_ContentOffset);
 }
 
+#ifndef _WIN32
+
+// NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
+
 TEST_F(dmHttpClientTest, Simple)
 {
     char buf[128];
@@ -276,7 +280,6 @@ TEST_F(dmHttpClientTest, TestHeaders)
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_EQ((uint32_t) n, m_Content.size());
     ASSERT_STREQ("123", m_Headers["Content-Length"].c_str());
-
 }
 
 TEST_F(dmHttpClientTest, Test400)
@@ -291,6 +294,8 @@ TEST_F(dmHttpClientTest, Test400)
         ASSERT_EQ(400, m_StatusCode);
     }
 }
+
+#endif // #ifndef _WIN32
 
 TEST(dmHttpClient, HostNotFound)
 {
