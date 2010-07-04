@@ -93,9 +93,7 @@ namespace dmSocket
     typedef int Socket;
     typedef uint32_t Address; // TODO: Always in network order?
 
-#if defined(__linux__) || defined(__MACH__)
-    const Socket INVALID_SOCKET = -1;
-#endif
+    const Socket INVALID_SOCKET_HANDLE = 0xffffffff;
 
     enum Type
     {

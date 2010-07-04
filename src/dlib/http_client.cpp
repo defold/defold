@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "socket.h"
+#include "./socket.h"
 #include "http_client.h"
 #include "http_client_private.h"
 #include "log.h"
@@ -73,7 +73,7 @@ namespace dmHttpClient
 
         Client* client = new Client();
 
-        client->m_Socket = dmSocket::INVALID_SOCKET;
+        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         client->m_Address = address;
         client->m_Port = port;
         client->m_SocketResult = dmSocket::RESULT_OK;
@@ -103,7 +103,7 @@ namespace dmHttpClient
 
     void Delete(HClient client)
     {
-        if (client->m_Socket != dmSocket::INVALID_SOCKET)
+        if (client->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
         {
             dmSocket::Delete(client->m_Socket);
         }
@@ -117,7 +117,7 @@ namespace dmHttpClient
 
     static Result Connect(HClient client)
     {
-        if (client->m_Socket == dmSocket::INVALID_SOCKET)
+        if (client->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
         {
             dmSocket::Result sock_result = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client->m_Socket);
             if (sock_result != dmSocket::RESULT_OK)
@@ -270,7 +270,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         return sock_res;
 bail:
         dmSocket::Delete(client->m_Socket);
-        client->m_Socket = dmSocket::INVALID_SOCKET;
+        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         return sock_res;
     }
 
@@ -302,14 +302,14 @@ bail:
         if (response.m_Chunked)
         {
             dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET;
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_UNSUPPORTED_TRANSFER_ENCODING;
         }
 
         if (response.m_ContentLength == -1)
         {
             dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET;
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_MISSING_CONTENT_LENGTH;
         }
 
@@ -346,7 +346,7 @@ bail:
         if (total_content != response.m_ContentLength)
         {
             dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET;
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_PARTIAL_CONTENT;
         }
 
@@ -356,7 +356,7 @@ bail:
             return RESULT_NOT_200_OK;
 bail:
         dmSocket::Delete(client->m_Socket);
-        client->m_Socket = dmSocket::INVALID_SOCKET;
+        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         return RESULT_SOCKET_ERROR;
     }
 
