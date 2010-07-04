@@ -52,7 +52,10 @@ namespace dmSocket
             //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTDIR);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTSOCK);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(OPNOTSUPP);
-            //DM_SOCKET_NATIVE_TO_RESULT_CASE(PIPE);
+#ifndef _WIN32
+            // NOTE: EPIPE is not availble on winsock
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(PIPE);
+#endif
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTONOSUPPORT);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTOTYPE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(TIMEDOUT);
@@ -121,6 +124,11 @@ namespace dmSocket
         }
         else
         {
+#if defined(__MACH__)
+            int set = 1;
+            // Disable SIGPIPE on socket. On Linux MSG_NOSIGNAL is passed on send(.)
+            setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &set, sizeof(set));
+#endif
             *socket = s;
             return RESULT_OK;
         }
@@ -250,7 +258,9 @@ namespace dmSocket
     Result Send(Socket socket, const void* buffer, int length, int* sent_bytes)
     {
         *sent_bytes = 0;
-#ifdef _WIN32
+#if defined(__linux__)
+        ssize_t s = send(socket, buffer, length, MSG_NOSIGNAL);
+#elif defined(_WIN32)
         int s = send(socket, (const char*) buffer, length, 0);
 #else
         ssize_t s = send(socket, buffer, length, 0);
@@ -385,7 +395,7 @@ namespace dmSocket
             //DM_SOCKET_RESULT_TO_STRING_CASE(NOTDIR);
             DM_SOCKET_RESULT_TO_STRING_CASE(NOTSOCK);
             DM_SOCKET_RESULT_TO_STRING_CASE(OPNOTSUPP);
-            //DM_SOCKET_RESULT_TO_STRING_CASE(PIPE);
+            DM_SOCKET_RESULT_TO_STRING_CASE(PIPE);
             DM_SOCKET_RESULT_TO_STRING_CASE(PROTONOSUPPORT);
             DM_SOCKET_RESULT_TO_STRING_CASE(PROTOTYPE);
             DM_SOCKET_RESULT_TO_STRING_CASE(TIMEDOUT);

@@ -72,7 +72,7 @@ namespace dmSocket
         //RESULT_NOTDIR         = -21,
         RESULT_NOTSOCK        = -22,
         RESULT_OPNOTSUPP      = -23,
-        //RESULT_PIPE           = -24,
+        RESULT_PIPE           = -24,
         RESULT_PROTONOSUPPORT = -25,
         RESULT_PROTOTYPE      = -26,
         RESULT_TIMEDOUT       = -27,
@@ -124,6 +124,8 @@ namespace dmSocket
 
     Result Initialize();
     Result Finalize();
+
+    // TODO: Write about disabled SIGPIPE
     Result New(Type type, Protocol protocol, Socket* socket);
     Result SetReuseAddress(Socket socket, bool reuse);
     Result Delete(Socket socket);
