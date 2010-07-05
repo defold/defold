@@ -18,4 +18,13 @@
  */
 char* dmStrTok(char *string, const char *delim, char **lasts);
 
+/**
+ * Size-bounded string copying. Same as OpenBSD 2.4 strlcpy. (http://www.manpagez.com/man/3/strlcpy/)
+ * @param dst Destination string
+ * @param src Source string
+ * @param size Max size
+ * @return
+ */
+size_t dmStrlCpy(char *dst, const char *src, size_t size);
+
 #endif //DM_DSTRINGS_H

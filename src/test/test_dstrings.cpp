@@ -67,6 +67,25 @@ TEST(dmStrings, dmStrTok4)
     free(string);
 }
 
+TEST(dmStrings, dmStrlCpy1)
+{
+    const char* src = "foo";
+    char dst[1];
+    dst[0] = 'x';
+
+    dmStrlCpy(dst, src, 0);
+    ASSERT_EQ('x', dst[0]);
+}
+
+TEST(dmStrings, dmStrlCpy2)
+{
+    const char* src = "foo";
+    char dst[3];
+
+    dmStrlCpy(dst, src, sizeof(dst));
+    ASSERT_STREQ("fo", dst);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
