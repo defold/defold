@@ -18,20 +18,13 @@ def set_options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('waf_dynamo')
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
-    conf.check_tool('waf_dynamo')
     conf.check_tool('java')
 
-    if sys.platform == "darwin":
-        platform = "darwin"
-    elif sys.platform == "linux2":
-        platform = "linux"
-    elif sys.platform == "win32":
-        platform = "win32"
-    else:
-        conf.fatal("Unable to determine platform")
+    platform = conf.env['PLATFORM']
 
     if platform == "win32":
         conf.env.append_value('CPPPATH', "../include/win32")
@@ -49,7 +42,7 @@ def configure(conf):
     if sys.platform == "linux2":
         conf.env['LIB_THREAD'] = 'pthread'
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif platform == "darwin":
+    elif 'darwin' in platform:
         conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     else:
