@@ -55,19 +55,19 @@ def detect(conf):
         platform=getattr(Options.options, 'platform')
 
     if sys.platform == "darwin":
-        host_platform = "darwin"
+        build_platform = "darwin"
     elif sys.platform == "linux2":
-        host_platform = "linux"
+        build_platform = "linux"
     elif sys.platform == "win32":
-        host_platform = "win32"
+        build_platform = "win32"
     else:
         conf.fatal("Unable to determine host platform")
 
     if not platform:
-        platform = host_platform
+        platform = build_platform
 
     conf.env['PLATFORM'] = platform
-    conf.env['HOST_PLATFORM'] = host_platform
+    conf.env['BUILD_PLATFORM'] = build_platform
 
     if platform == "linux" or platform == "darwin":
         conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
