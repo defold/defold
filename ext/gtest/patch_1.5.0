@@ -1,0 +1,34 @@
+diff --git a/src/gtest-death-test.cc b/src/gtest-death-test.cc
+index 3b73b01..4d89c75 100644
+--- a/src/gtest-death-test.cc
++++ b/src/gtest-death-test.cc
+@@ -36,9 +36,9 @@
+ 
+ #if GTEST_HAS_DEATH_TEST
+ 
+-#if GTEST_OS_MAC
++#if GTEST_OS_MAC_
+ #include <crt_externs.h>
+-#endif  // GTEST_OS_MAC
++#endif  // GTEST_OS_MAC_
+ 
+ #include <errno.h>
+ #include <fcntl.h>
+@@ -832,7 +832,7 @@ struct ExecDeathTestArgs {
+   int close_fd;       // File descriptor to close; the read end of a pipe
+ };
+ 
+-#if GTEST_OS_MAC
++#if GTEST_OS_MAC_
+ inline char** GetEnviron() {
+   // When Google Test is built as a framework on MacOS X, the environ variable
+   // is unavailable. Apple's documentation (man environ) recommends using
+@@ -844,7 +844,7 @@ inline char** GetEnviron() {
+ // it reside in the global namespace.
+ extern "C" char** environ;
+ inline char** GetEnviron() { return environ; }
+-#endif  // GTEST_OS_MAC
++#endif  // GTEST_OS_MAC_
+ 
+ // The main function for a threadsafe-style death test child process.
+ // This function is called in a clone()-ed process and thus must avoid
