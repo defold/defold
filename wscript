@@ -22,6 +22,7 @@ def set_options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('waf_dynamo')
     # Replace version number in python file.
     ddfc_py_str = ddfc_py_str_orig = open('src/ddfc.py', 'rb').read()
     ddfc_py_str = re.sub('DDF_MAJOR_VERSION=(\d*)', 'DDF_MAJOR_VERSION=%d' % DDF_MAJOR_VERSION, ddfc_py_str)
@@ -42,18 +43,9 @@ def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
     conf.find_program('ddfc_java', var='DDFC_JAVA', path_list = [os.path.abspath('src')], mandatory = True)
 
-    conf.check_tool('waf_dynamo')
-
     conf.env['PROTOBUF_JAR'] = conf.env.DYNAMO_HOME + '/ext/share/java/protobuf-java-2.3.0.jar'
 
-    if sys.platform == "darwin":
-        platform = "darwin"
-    elif sys.platform == "linux2":
-        platform = "linux"
-    elif sys.platform == "win32":
-        platform = "win32"
-    else:
-        conf.fatal("Unable to determine platform")
+    platform=conf.env['PLATFORM']
 
     if platform == 'win32':
         conf.env.append_value('CPPPATH', "../src/win32")
