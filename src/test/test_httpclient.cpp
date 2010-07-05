@@ -7,6 +7,8 @@
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
 
+const char* g_Hostname = "localhost";
+
 class dmHttpClientTest: public ::testing::Test
 {
 public:
@@ -34,7 +36,7 @@ public:
         params.m_Userdata = this;
         params.m_HttpContent = dmHttpClientTest::HttpContent;
         params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-        m_Client = dmHttpClient::New(&params, "localhost", 7000);
+        m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
         ASSERT_NE((void*) 0, m_Client);
     }
 
@@ -307,7 +309,7 @@ TEST(dmHttpClient, HostNotFound)
 TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, g_Hostname, 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
@@ -317,6 +319,11 @@ TEST(dmHttpClient, ConnectionRefused)
 
 int main(int argc, char **argv)
 {
+    if (argc > 1)
+    {
+        g_Hostname = argv[1];
+    }
+
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
