@@ -44,6 +44,7 @@ namespace dmHttpClient
         RESULT_PARTIAL_CONTENT = -4,              //!< RESULT_PARTIAL_CONTENT
         RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5,//!< RESULT_UNSUPPORTED_TRANSFER_ENCODING
         RESULT_INVAL_ERROR = -6,                  //!< RESULT_INVAL_ERROR
+        RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
     };
 
     /**

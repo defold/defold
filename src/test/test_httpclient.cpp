@@ -224,7 +224,7 @@ TEST_F(dmHttpClientTest, Timeout2)
         r = dmHttpClient::Get(m_Client, "/add/100/20");
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         dmSocket::Result sock_r = dmHttpClient::GetLastSocketResult(m_Client);
-        ASSERT_TRUE(sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);
+        ASSERT_TRUE(r == dmHttpClient::RESULT_UNEXPECTED_EOF || sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);
     }
 }
 

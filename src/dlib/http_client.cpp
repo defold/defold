@@ -23,6 +23,7 @@ namespace dmHttpClient
         // Headers
         int      m_ContentLength;
         uint32_t m_Chunked : 1;
+        uint32_t m_CloseConnection : 1;
 
         Response(HClient client)
         {
@@ -30,6 +31,7 @@ namespace dmHttpClient
             m_ContentLength = -1;
             m_ContentOffset = -1;
             m_Chunked = 0;
+            m_CloseConnection = 0;
         }
     };
 
@@ -166,6 +168,12 @@ namespace dmHttpClient
         resp->m_Major = major;
         resp->m_Minor = minor;
         resp->m_Status = status;
+
+        if ((major << 16 | minor) < (1 << 16 | 1))
+        {
+            // Close connection for HTTP protocol version < 1.1
+            resp->m_CloseConnection = 1;
+        }
     }
 
     static void HandleHeader(void* user_data, const char* key, const char* value)
@@ -179,6 +187,10 @@ namespace dmHttpClient
         else if (strcmp(key, "Transfer-Encoding") == 0 && strcmp(key, "chunked") == 0)
         {
             resp->m_Chunked = 1;
+        }
+        else if (strcmp(key, "Connection") == 0 && strcmp(key, "close") == 0)
+        {
+            resp->m_CloseConnection = 1;
         }
 
         HClient c = resp->m_Client;
@@ -229,6 +241,11 @@ namespace dmHttpClient
             parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, &HandleVersion, &HandleHeader, &HandleContent);
             if (parse_res == dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA)
             {
+                if (recv_bytes == 0)
+                {
+                    dmLogWarning("Unexpected eof for socket connection.");
+                    return RESULT_UNEXPECTED_EOF;
+                }
                 continue;
             }
             else if (parse_res == dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR)
@@ -296,7 +313,9 @@ bail:
         r = RecvAndParseHeaders(client, &response, &total_recv);
         if (r != RESULT_OK)
         {
-            goto bail;
+            dmSocket::Delete(client->m_Socket);
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            return r;
         }
 
         if (response.m_Chunked)
@@ -343,6 +362,12 @@ bail:
             }
         }
 
+        if (response.m_CloseConnection)
+        {
+            dmSocket::Delete(client->m_Socket);
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
         if (total_content != response.m_ContentLength)
         {
             dmSocket::Delete(client->m_Socket);
@@ -366,7 +391,8 @@ bail:
         for (int i = 0; i < client->m_MaxGetRetries; ++i)
         {
             r = DoGet(client, path);
-            if (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET || client->m_SocketResult == dmSocket::RESULT_PIPE))
+            if (r == RESULT_UNEXPECTED_EOF ||
+               (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
                 // Try again
                 dmLogInfo("HTTPCLIENT: Connection lost, reconnecting.");
