@@ -33,6 +33,15 @@ def configure(conf):
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DDF'] = 'ddf'
 
+    platform = conf.env['PLATFORM']
+
+    if platform == "linux":
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+    elif 'darwin' in platform:
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+    else:
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+
 def build(bld):
     bld.add_subdirs('src')
 
