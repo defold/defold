@@ -39,7 +39,7 @@ def configure(conf):
 
     conf.env['LIB_GTEST'] = 'gtest'
 
-    if sys.platform == "linux2":
+    if platform == "linux":
         conf.env['LIB_THREAD'] = 'pthread'
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'darwin' in platform:

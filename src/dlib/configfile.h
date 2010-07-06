@@ -24,11 +24,15 @@ namespace dmConfigFile
 
     /**
      * Load config file
+     * @note Config values can be specified or overridden by command line arguments with the following syntax:
+     *       --config=section.key=value
      * @param file_name File name
+     * @param argc Command line argument count (typically from main(...))
+     * @param argv Command line arguments (typically from main(...))
      * @param config Config file handle (out)
      * @return RESULT_OK on success
      */
-    Result Load(const char* file_name, HConfig* config);
+    Result Load(const char* file_name, int argc, const char** argv, HConfig* config);
 
     /**
      * Delete config file

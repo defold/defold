@@ -8,6 +8,7 @@
 
 #include "configfile.h"
 #include "array.h"
+#include "dstrings.h"
 
 namespace dmConfigFile
 {
@@ -36,7 +37,8 @@ namespace dmConfigFile
         {
             memset(this, 0, sizeof(*this));
         }
-
+        int             m_Argc;
+        const char**    m_Argv;
         FILE*           m_File;
         const char*     m_Filename;
         jmp_buf         m_JmpBuf;
@@ -138,9 +140,39 @@ namespace dmConfigFile
         return s;
     }
 
+    static bool ContainsKey(const dmArray<Entry>& entries, uint64_t key_hash)
+    {
+        for (uint32_t i = 0; i < entries.Size(); ++i)
+        {
+            const Entry*e = &entries[i];
+            if (e->m_Key == key_hash)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     static void AddEntry(Context* context, const char* key, const char* value)
     {
         uint64_t key_hash = dmHashString64(key);
+        if (ContainsKey(context->m_Entries, key_hash))
+        {
+            dmLogWarning("Config value '%s' specified twice. First value will be used.", key);
+            return;
+        }
+
+        uint32_t i = AddString(context, value);
+        if (context->m_Entries.Remaining() == 0)
+        {
+            context->m_Entries.OffsetCapacity(32);
+        }
+        context->m_Entries.Push(Entry(key_hash, i));
+    }
+
+    static void AddEntryWithHashedKey(Context* context, uint64_t key_hash, const char* value)
+    {
         uint32_t i = AddString(context, value);
         if (context->m_Entries.Remaining() == 0)
         {
@@ -202,6 +234,27 @@ namespace dmConfigFile
 
         ParseLiteral(context, value_buf, sizeof(value_buf));
 
+        for (int i = 0; i < context->m_Argc; ++i)
+        {
+            const char* arg = context->m_Argv[i];
+            if (strncmp("--config=", arg, sizeof("--config=")-1) == 0)
+            {
+                const char* eq = strchr(arg, '=');
+                const char* eq2 = strchr(eq+1, '=');
+                if (!eq2)
+                {
+                    dmLogWarning("Invalid config option: %s", arg);
+                    continue;
+                }
+
+                if (strncmp(key_buf, eq + 1, eq2 - (eq+1)) == 0)
+                {
+                    AddEntry(context, key_buf, eq2 + 1);
+                    return;
+                }
+            }
+        }
+
         AddEntry(context, key_buf, value_buf);
     }
 
@@ -231,7 +284,7 @@ namespace dmConfigFile
         }
     }
 
-    Result Load(const char* file_name, HConfig* config)
+    Result Load(const char* file_name, int argc, const char** argv, HConfig* config)
     {
         assert(file_name);
         assert(config);
@@ -245,6 +298,8 @@ namespace dmConfigFile
         }
 
         Context context;
+        context.m_Argc = argc;
+        context.m_Argv = argv;
         context.m_File = f;
         context.m_Filename = file_name;
         context.m_Entries.SetCapacity(128);
@@ -260,6 +315,27 @@ namespace dmConfigFile
         else
         {
             Parse(&context);
+
+            for (int i = 0; i < context.m_Argc; ++i)
+            {
+                const char* arg = context.m_Argv[i];
+                if (strncmp("--config=", arg, sizeof("--config=")-1) == 0)
+                {
+                    const char* eq = strchr(arg, '=');
+                    const char* eq2 = strchr(eq+1, '=');
+                    if (!eq2)
+                    {
+                        dmLogWarning("Invalid config option: %s", arg);
+                        continue;
+                    }
+
+                    uint64_t key_hash =  dmHashBuffer64(eq+1, eq2 - (eq+1));
+                    if (!ContainsKey(context.m_Entries, key_hash))
+                    {
+                        AddEntryWithHashedKey(&context, key_hash, eq2 + 1);
+                    }
+                }
+            }
 
             Config* c = new Config();
 
