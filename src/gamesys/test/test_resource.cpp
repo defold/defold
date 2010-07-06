@@ -11,7 +11,10 @@ class ResourceTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        factory = dmResource::NewFactory(16, ".", RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        factory = dmResource::NewFactory(&params, ".");
     }
 
     virtual void TearDown()
@@ -121,7 +124,9 @@ protected:
         m_FooResourceCreateCallCount = 0;
         m_FooResourceDestroyCallCount = 0;
 
-        m_Factory = dmResource::NewFactory(16, "build/default/src/gamesys/test/", RESOURCE_FACTORY_FLAGS_EMPTY);
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test/");
         m_ResourceName = "test.cont";
 
         dmResource::FactoryResult e;
@@ -380,7 +385,10 @@ TEST(RecreateTest, RecreateTest)
     tmp_dir = "/tmp";
 #endif
 
-    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
 
     dmResource::FactoryResult e;
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
@@ -466,7 +474,10 @@ TEST(FilenameTest, FilenameTest)
     tmp_dir = "/tmp";
 #endif
 
-    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
 
     dmResource::FactoryResult e;
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);

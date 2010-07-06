@@ -64,6 +64,8 @@ struct SResourceFactory
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
     char                                         m_ResourcePath[RESOURCE_PATH_MAX];
+    char*                                        m_StreamBuffer;
+    uint32_t                                     m_StreamBufferSize;
 };
 
 static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -99,25 +101,38 @@ static void GetCanonicalPath(const char* base_dir, const char* relative_dir, cha
     *dest = '\0';
 }
 
-HFactory NewFactory(uint32_t max_resources, const char* resource_path, uint32_t flags)
+void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
 {
+    params->m_MaxResources = 1024;
+    params->m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
+    params->m_StreamBufferSize = 4 * 1024 * 1024;
+}
+
+HFactory NewFactory(NewFactoryParams* params, const char* resource_path)
+{
+    void* buffer = malloc(params->m_StreamBufferSize);
+    if (!buffer)
+        return 0;
+
     SResourceFactory* factory = new SResourceFactory;
     factory->m_ResourceTypesCount = 0;
+    factory->m_StreamBufferSize = params->m_StreamBufferSize;
+    factory->m_StreamBuffer = (char*) buffer;
 
-    const uint32_t table_size = (3 *max_resources) / 4;
+    const uint32_t table_size = (3 * params->m_MaxResources) / 4;
     factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>();
-    factory->m_Resources->SetCapacity(table_size, max_resources);
+    factory->m_Resources->SetCapacity(table_size, params->m_MaxResources);
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
-    factory->m_ResourceToHash->SetCapacity(table_size, max_resources);
+    factory->m_ResourceToHash->SetCapacity(table_size, params->m_MaxResources);
 
     strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
     factory->m_ResourcePath[RESOURCE_PATH_MAX-1] = '\0';
 
-    if (flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
+    if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
         factory->m_ResourceHashToFilename = new dmHashTable<uint64_t, const char*>();
-        factory->m_ResourceHashToFilename->SetCapacity(table_size, max_resources);
+        factory->m_ResourceHashToFilename->SetCapacity(table_size, params->m_MaxResources);
     }
     else
     {
@@ -129,6 +144,7 @@ HFactory NewFactory(uint32_t max_resources, const char* resource_path, uint32_t 
 
 void DeleteFactory(HFactory factory)
 {
+    free(factory->m_StreamBuffer);
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     delete factory->m_ResourceHashToFilename;
@@ -164,6 +180,40 @@ FactoryResult RegisterType(HFactory factory,
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
+    return FACTORY_RESULT_OK;
+}
+
+static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* resource_size)
+{
+    FILE* f = fopen(path, "rb");
+    if (f == 0)
+    {
+        dmLogWarning("Resource not found: %s", path);
+        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    *resource_size = (uint32_t) file_size;
+
+    // Extra byte for resources expecting null-terminated string...
+    if (file_size + 1 >= (long) factory->m_StreamBufferSize)
+    {
+        dmLogError("Resource too large for streambuffer: %s", path);
+        fclose(f);
+        return FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+    }
+    factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+
+    if (fread(factory->m_StreamBuffer, 1, file_size, f) != (size_t) file_size)
+    {
+        fclose(f);
+        return FACTORY_RESULT_IO_ERROR;
+    }
+
+    fclose(f);
     return FACTORY_RESULT_OK;
 }
 
@@ -216,37 +266,15 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
             return FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE;
         }
 
-        FILE* f = fopen(canonical_path, "rb");
-        if (f == 0)
-        {
-            dmLogWarning("Resource not found: %s", canonical_path);
-            return FACTORY_RESULT_RESOURCE_NOT_FOUND;
-        }
+        uint32_t file_size;
+        FactoryResult result = LoadResource(factory, canonical_path, &file_size);
+        if (result != FACTORY_RESULT_OK)
+            return result;
 
         struct stat file_stat;
         stat(canonical_path, &file_stat);
         // TODO: Fix better resolution on this.
         uint32_t mtime = (uint32_t) file_stat.st_mtime;
-
-        fseek(f, 0, SEEK_END);
-        long file_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        void* buffer = malloc(file_size+1); // Extra byte for resources expecting null-terminated string...
-        if (buffer == 0)
-        {
-            dmLogError("Out of memory: %s", canonical_path);
-            return FACTORY_RESULT_OUT_OF_MEMORY;
-            fclose(f);
-        }
-        ((char*) buffer)[file_size] = 0; // Null-terminate. See comment above
-
-        if (fread(buffer, 1, file_size, f) != (size_t) file_size)
-        {
-            free(buffer);
-            fclose(f);
-            return FACTORY_RESULT_IO_ERROR;
-        }
 
         // TODO: We should *NOT* allocate SResource dynamically...
         SResourceDescriptor tmp_resource;
@@ -256,9 +284,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ResourceType = (void*) resource_type;
         tmp_resource.m_ModificationTime = mtime;
 
-        CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, &tmp_resource, name);
-        free(buffer);
-        fclose(f);
+        CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, &tmp_resource, name);
 
         if (create_error == CREATE_RESULT_OK)
         {
@@ -304,6 +330,15 @@ void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_has
     // TODO: Not 64-bit friendly
     if ((uint32_t) resource_type == context->m_Type)
     {
+
+        uint32_t file_size;
+        FactoryResult result = LoadResource(context->m_Factory, *file_name, &file_size);
+        if (result != FACTORY_RESULT_OK)
+        {
+            context->m_Result = result;
+            return;
+        }
+
         struct stat file_stat;
         if (stat(*file_name, &file_stat) != 0)
         {
@@ -316,40 +351,8 @@ void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_has
         if (mtime == rd->m_ModificationTime)
             return;
 
-        FILE* f = fopen(*file_name, "rb");
-        if (f == 0)
-        {
-            dmLogWarning("Resource not found: %s", *file_name);
-            context->m_Result = FACTORY_RESULT_RESOURCE_NOT_FOUND;
-            return;
-        }
-
-        fseek(f, 0, SEEK_END);
-        long file_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        void* buffer = malloc(file_size+1); // Extra byte for resources expecting null-terminated string...
-        if (buffer == 0)
-        {
-            dmLogError("Out of memory: %s", *file_name);
-            context->m_Result = FACTORY_RESULT_OUT_OF_MEMORY;
-            fclose(f);
-            return;
-        }
-        ((char*) buffer)[file_size] = 0; // Null-terminate. See comment in Get()
-
-        if (fread(buffer, 1, file_size, f) != (size_t) file_size)
-        {
-            free(buffer);
-            fclose(f);
-            context->m_Result = FACTORY_RESULT_IO_ERROR;
-            return;
-        }
-
         // TODO: We should *NOT* allocate SResource dynamically...
-        CreateResult create_result = resource_type->m_RecreateFunction(context->m_Factory, resource_type->m_Context, buffer, file_size, rd, *file_name);
-        free(buffer);
-        fclose(f);
+        CreateResult create_result = resource_type->m_RecreateFunction(context->m_Factory, resource_type->m_Context, context->m_Factory->m_StreamBuffer, file_size, rd, *file_name);
 
         if (create_result != CREATE_RESULT_OK)
         {
