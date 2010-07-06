@@ -1,10 +1,26 @@
 #include <string.h>
+#include <ctype.h>
 #include "dlib/dstrings.h"
 #include "dlib/math.h"
 #include "dlib/uri.h"
 
 namespace dmURI
 {
+    // NOTE: Does not conform to rfc2396 but good enough for our purposes
+    bool IsValidScheme(const char* start, const char* end)
+    {
+        const char*s = start;
+        while (s < end)
+        {
+            if (!isalnum(*s))
+                return false;
+            ++s;
+        }
+
+        return true;
+    }
+
+    // NOTE: This parser is not even close to rfc2396 but good enough for our purposes
     Result Parse(const char* uri, Parts* parts)
     {
         parts->m_Scheme[0] = '\0';
@@ -12,7 +28,7 @@ namespace dmURI
         parts->m_Path[0] = '\0';
 
         const char* scheme_end = strchr(uri, ':');
-        if (!scheme_end)
+        if (!scheme_end || !IsValidScheme(uri, scheme_end))
         {
             // Assume file:/// scheme
             dmStrlCpy(parts->m_Scheme, "file", sizeof(parts->m_Scheme));

@@ -4,7 +4,7 @@
 
 TEST(dmURI, TestEmpty)
 {
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse("", uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
@@ -14,9 +14,9 @@ TEST(dmURI, TestEmpty)
     delete uri_parts;
 }
 
-TEST(dmURI, TestAssumeFile)
+TEST(dmURI, TestAssumeFile1)
 {
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse("/foo/bar", uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
@@ -26,9 +26,21 @@ TEST(dmURI, TestAssumeFile)
     delete uri_parts;
 }
 
+TEST(dmURI, TestAssumeFile2)
+{
+    dmURI::Parts* uri_parts = new dmURI::Parts();
+    dmURI::Result r;
+    r = dmURI::Parse("/c:/foo/bar", uri_parts);
+    ASSERT_EQ(dmURI::RESULT_OK, r);
+    ASSERT_STREQ("file", uri_parts->m_Scheme);
+    ASSERT_STREQ("", uri_parts->m_Location);
+    ASSERT_STREQ("/c:/foo/bar", uri_parts->m_Path);
+    delete uri_parts;
+}
+
 TEST(dmURI, Test1)
 {
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse("http://foo.com/x", uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
@@ -40,7 +52,7 @@ TEST(dmURI, Test1)
 
 TEST(dmURI, Test2)
 {
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse("http:/foo.com/x", uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
@@ -52,7 +64,7 @@ TEST(dmURI, Test2)
 
 TEST(dmURI, Test3)
 {
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse("http:foo.com/x", uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
@@ -71,7 +83,7 @@ TEST(dmURI, TestOverflow1)
     for (int i = 0; i < 1024*64; ++i)
         strcat(buf, "x");
 
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse(buf, uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
@@ -97,7 +109,7 @@ TEST(dmURI, TestOverflow2)
 
     strcat(buf, "/path");
 
-    dmURI::Parts* uri_parts = new dmURI::Parts();;
+    dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
     r = dmURI::Parse(buf, uri_parts);
     ASSERT_EQ(dmURI::RESULT_OK, r);
