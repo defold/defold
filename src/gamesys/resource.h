@@ -164,10 +164,10 @@ namespace dmResource
     /**
      * Create a new factory
      * @param params New factory parmeters
-     * @param resource_path Resource root path
-     * @return Factory handle. NULL if out of memory.
+     * @param uri Resource root uri, eg http://locahost:5000 or build/default/content
+     * @return Factory handle. NULL if out of memory or invalid uri.
      */
-    HFactory NewFactory(NewFactoryParams* params, const char* resource_path);
+    HFactory NewFactory(NewFactoryParams* params, const char* uri);
 
     /**
      * Delete a factory

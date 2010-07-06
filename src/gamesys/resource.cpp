@@ -16,6 +16,8 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
+#include <dlib/http_client.h>
+#include <dlib/uri.h>
 
 #include "resource.h"
 
@@ -47,8 +49,7 @@ struct SResourceType
     FResourceRecreate m_RecreateFunction;
 };
 
-// This is both used for m_ResourcePath in SResourceFactory and the total resource path, ie
-// m_ResourcePath concatenated with relative path
+// This is both for the total resource path, ie m_UriParts.X concatenated with relative path
 const uint32_t RESOURCE_PATH_MAX = 1024;
 
 const uint32_t MAX_RESOURCE_TYPES = 128;
@@ -63,9 +64,19 @@ struct SResourceFactory
     dmHashTable<uint64_t, const char*>*          m_ResourceHashToFilename;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
-    char                                         m_ResourcePath[RESOURCE_PATH_MAX];
+
+    dmURI::Parts                                 m_UriParts;
+    dmHttpClient::HClient                        m_HttpClient;
+
     char*                                        m_StreamBuffer;
     uint32_t                                     m_StreamBufferSize;
+
+    // HTTP related state
+    // Total number bytes loaded in current GET-request
+    uint32_t                                     m_HttpContentLength;
+    uint32_t                                     m_HttpTotalBytesStreamed;
+    int                                          m_HttpStatus;
+    FactoryResult                                m_HttpFactoryResult;
 };
 
 static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -108,13 +119,83 @@ void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
     params->m_StreamBufferSize = 4 * 1024 * 1024;
 }
 
-HFactory NewFactory(NewFactoryParams* params, const char* resource_path)
+static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
 {
-    void* buffer = malloc(params->m_StreamBufferSize);
+    SResourceFactory* factory = (SResourceFactory*) user_data;
+    factory->m_HttpStatus = status_code;
+
+    if (strcmp(key, "Content-Length") == 0)
+    {
+        factory->m_HttpContentLength = strtol(value, 0, 10);
+    }
+}
+
+static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+{
+    SResourceFactory* factory = (SResourceFactory*) user_data;
+    (void) status_code;
+
+    assert(factory->m_HttpTotalBytesStreamed <= factory->m_StreamBufferSize);
+    if (factory->m_StreamBufferSize - factory->m_HttpTotalBytesStreamed < content_data_size)
+    {
+        factory->m_HttpFactoryResult = FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+        return;
+    }
+
+    memcpy(factory->m_StreamBuffer + factory->m_HttpTotalBytesStreamed, content_data, content_data_size);
+    factory->m_HttpTotalBytesStreamed += content_data_size;
+}
+
+HFactory NewFactory(NewFactoryParams* params, const char* uri)
+{
+    // NOTE: We need an extra byte for null-termination.
+    // Legacy reason (load python scripts from "const char*")
+    // The gui-system still relies on this behaviour (luaL_loadstring)
+
+    void* buffer = malloc(params->m_StreamBufferSize + 1);
     if (!buffer)
         return 0;
 
     SResourceFactory* factory = new SResourceFactory;
+
+    dmURI::Result uri_result = dmURI::Parse(uri, &factory->m_UriParts);
+    if (uri_result != dmURI::RESULT_OK)
+    {
+        dmLogError("Unable to parse uri: %s", uri);
+        free(buffer);
+        delete factory;
+        return 0;
+    }
+
+    factory->m_HttpClient = 0;
+
+    if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0)
+    {
+        dmHttpClient::NewParams http_params;
+        http_params.m_HttpHeader = &HttpHeader;
+        http_params.m_HttpContent = &HttpContent;
+        http_params.m_Userdata = factory;
+        factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port);
+        if (!factory->m_HttpClient)
+        {
+            dmLogError("Invalid URI: %s", uri);
+            free(buffer);
+            delete factory;
+            return 0;
+        }
+    }
+    else if (strcmp(factory->m_UriParts.m_Scheme, "file") == 0)
+    {
+        // Ok
+    }
+    else
+    {
+        dmLogError("Invalid URI: %s", uri);
+        free(buffer);
+        delete factory;
+        return 0;
+    }
+
     factory->m_ResourceTypesCount = 0;
     factory->m_StreamBufferSize = params->m_StreamBufferSize;
     factory->m_StreamBuffer = (char*) buffer;
@@ -125,9 +206,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* resource_path)
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
     factory->m_ResourceToHash->SetCapacity(table_size, params->m_MaxResources);
-
-    strncpy(factory->m_ResourcePath, resource_path, RESOURCE_PATH_MAX);
-    factory->m_ResourcePath[RESOURCE_PATH_MAX-1] = '\0';
 
     if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
@@ -145,6 +223,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* resource_path)
 void DeleteFactory(HFactory factory)
 {
     free(factory->m_StreamBuffer);
+    if (factory->m_HttpClient)
+    {
+        dmHttpClient::Delete(factory->m_HttpClient);
+    }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     delete factory->m_ResourceHashToFilename;
@@ -185,36 +267,82 @@ FactoryResult RegisterType(HFactory factory,
 
 static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* resource_size)
 {
-    FILE* f = fopen(path, "rb");
-    if (f == 0)
+    if (factory->m_HttpClient)
     {
-        dmLogWarning("Resource not found: %s", path);
-        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+        // Load over HTTP
+        *resource_size = 0;
+        factory->m_HttpContentLength = 0;
+        factory->m_HttpTotalBytesStreamed = 0;
+        factory->m_HttpFactoryResult = FACTORY_RESULT_OK;
+        factory->m_HttpStatus = -1;
+
+        dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, path);
+        if (http_result != dmHttpClient::RESULT_OK)
+        {
+            if (factory->m_HttpStatus == 404)
+            {
+                return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+            }
+            else
+            {
+                dmLogWarning("Unexpected http status code: %d", factory->m_HttpStatus);
+                return FACTORY_RESULT_IO_ERROR;
+            }
+        }
+
+        if (factory->m_HttpFactoryResult != FACTORY_RESULT_OK)
+            return factory->m_HttpFactoryResult;
+
+        if (factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
+        {
+            dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
+        }
+
+        // Extra byte for resources expecting null-terminated string...
+        if (factory->m_HttpTotalBytesStreamed + 1 >= factory->m_StreamBufferSize)
+        {
+            dmLogError("Resource too large for streambuffer: %s", path);
+        }
+        factory->m_StreamBuffer[factory->m_HttpTotalBytesStreamed] = 0; // Null-terminate. See comment above
+
+        *resource_size = factory->m_HttpTotalBytesStreamed;
+        return FACTORY_RESULT_OK;
     }
-
-    fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    *resource_size = (uint32_t) file_size;
-
-    // Extra byte for resources expecting null-terminated string...
-    if (file_size + 1 >= (long) factory->m_StreamBufferSize)
+    else
     {
-        dmLogError("Resource too large for streambuffer: %s", path);
+        // Load over local file system
+
+        FILE* f = fopen(path, "rb");
+        if (f == 0)
+        {
+            dmLogWarning("Resource not found: %s", path);
+            return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        fseek(f, 0, SEEK_END);
+        long file_size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        *resource_size = (uint32_t) file_size;
+
+        // Extra byte for resources expecting null-terminated string...
+        if (file_size + 1 >= (long) factory->m_StreamBufferSize)
+        {
+            dmLogError("Resource too large for streambuffer: %s", path);
+            fclose(f);
+            return FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+        }
+        factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+
+        if (fread(factory->m_StreamBuffer, 1, file_size, f) != (size_t) file_size)
+        {
+            fclose(f);
+            return FACTORY_RESULT_IO_ERROR;
+        }
+
         fclose(f);
-        return FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+        return FACTORY_RESULT_OK;
     }
-    factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
-
-    if (fread(factory->m_StreamBuffer, 1, file_size, f) != (size_t) file_size)
-    {
-        fclose(f);
-        return FACTORY_RESULT_IO_ERROR;
-    }
-
-    fclose(f);
-    return FACTORY_RESULT_OK;
 }
 
 FactoryResult Get(HFactory factory, const char* name, void** resource)
@@ -226,7 +354,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
 
 #if 1
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory->m_ResourcePath, name, canonical_path);
+    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
 
 #else
 #ifdef _WIN32
@@ -426,7 +554,7 @@ FactoryResult GetExtensionFromType(HFactory factory, uint32_t type, const char**
 FactoryResult GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory->m_ResourcePath, name, canonical_path);
+    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 

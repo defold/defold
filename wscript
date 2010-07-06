@@ -35,8 +35,34 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('src')
-    
+
 import Build, Options
 import os, subprocess
 def shutdown():
+    if not Options.commands['build']:
+        return
+
+    # TODO: Fix support for win32
+    from Logs import warn, error
+    import urllib2, time, atexit
+
+    if sys.platform != 'win32':
+        os.system('scripts/start_http_server.sh')
+        atexit.register(os.system, 'scripts/stop_http_server.sh')
+
+        start = time.time()
+        while True:
+            if time.time() - start > 5:
+                error('HTTP server failed to start within 5 seconds')
+                sys.exit(1)
+            try:
+                urllib2.urlopen('http://localhost:6000')
+                break
+            except urllib2.URLError:
+                print('Waiting for HTTP testserver to start...')
+                sys.stdout.flush()
+                time.sleep(0.5)
+    else:
+        warn('HTTP tests not supported on Win32 yet')
+
     waf_dynamo.run_gtests(valgrind = True)
