@@ -1,8 +1,14 @@
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include "dlib/dstrings.h"
 #include "dlib/math.h"
 #include "dlib/uri.h"
+
+/*
+ * TODO:
+ * - Return error for string truncation?
+ */
 
 namespace dmURI
 {
@@ -25,6 +31,8 @@ namespace dmURI
     {
         parts->m_Scheme[0] = '\0';
         parts->m_Location[0] = '\0';
+        parts->m_Hostname[0] = '\0';
+        parts->m_Port = -1;
         parts->m_Path[0] = '\0';
 
         const char* scheme_end = strchr(uri, ':');
@@ -40,6 +48,12 @@ namespace dmURI
             size_t n = dmMin(sizeof(parts->m_Scheme), (size_t) (scheme_end-uri) + 1);
             dmStrlCpy(parts->m_Scheme, uri, n);
 
+            if (strcmp(parts->m_Scheme, "http") == 0)
+            {
+                // Default to port 80 for http
+                parts->m_Port = 80;
+            }
+
             const char* slash_slash = strstr(uri, "//");
             if (slash_slash)
             {
@@ -53,6 +67,13 @@ namespace dmURI
                 else
                 {
                     dmStrlCpy(parts->m_Location, location, sizeof(parts->m_Location));
+                }
+                dmStrlCpy(parts->m_Hostname, parts->m_Location, sizeof(parts->m_Hostname));
+                char* port = strchr(parts->m_Hostname, ':');
+                if (port)
+                {
+                    parts->m_Port = strtol(port + 1, 0, 10);
+                    *port = '\0';
                 }
             }
             else
