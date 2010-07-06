@@ -279,13 +279,16 @@ static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* 
         dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, path);
         if (http_result != dmHttpClient::RESULT_OK)
         {
+            dmLogWarning("Resource not found: %s", path);
+
             if (factory->m_HttpStatus == 404)
             {
                 return FACTORY_RESULT_RESOURCE_NOT_FOUND;
             }
             else
             {
-                dmLogWarning("Unexpected http status code: %d", factory->m_HttpStatus);
+                if (http_result == dmHttpClient::RESULT_NOT_200_OK)
+                    dmLogWarning("Unexpected http status code: %d", factory->m_HttpStatus);
                 return FACTORY_RESULT_IO_ERROR;
             }
         }
