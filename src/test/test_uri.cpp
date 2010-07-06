@@ -41,6 +41,62 @@ TEST(dmURI, TestAssumeFile2)
     delete uri_parts;
 }
 
+TEST(dmURI, TestFile1)
+{
+    dmURI::Parts* uri_parts = new dmURI::Parts();
+    dmURI::Result r;
+    r = dmURI::Parse("file:///foo", uri_parts);
+    ASSERT_EQ(dmURI::RESULT_OK, r);
+    ASSERT_STREQ("file", uri_parts->m_Scheme);
+    ASSERT_STREQ("", uri_parts->m_Location);
+    ASSERT_STREQ("", uri_parts->m_Hostname);
+    ASSERT_EQ(-1, uri_parts->m_Port);
+    ASSERT_STREQ("/foo", uri_parts->m_Path);
+    delete uri_parts;
+}
+
+TEST(dmURI, TestFile2)
+{
+    dmURI::Parts* uri_parts = new dmURI::Parts();
+    dmURI::Result r;
+    r = dmURI::Parse("file:foo", uri_parts);
+    ASSERT_EQ(dmURI::RESULT_OK, r);
+    ASSERT_STREQ("file", uri_parts->m_Scheme);
+    ASSERT_STREQ("", uri_parts->m_Location);
+    ASSERT_STREQ("", uri_parts->m_Hostname);
+    ASSERT_EQ(-1, uri_parts->m_Port);
+    ASSERT_STREQ("foo", uri_parts->m_Path);
+    delete uri_parts;
+}
+
+TEST(dmURI, TestFile3)
+{
+    dmURI::Parts* uri_parts = new dmURI::Parts();
+    dmURI::Result r;
+    r = dmURI::Parse("file://foo", uri_parts);
+    ASSERT_EQ(dmURI::RESULT_OK, r);
+    ASSERT_STREQ("file", uri_parts->m_Scheme);
+    ASSERT_STREQ("foo", uri_parts->m_Location);
+    ASSERT_STREQ("foo", uri_parts->m_Hostname);
+    ASSERT_EQ(-1, uri_parts->m_Port);
+    ASSERT_STREQ("", uri_parts->m_Path);
+    delete uri_parts;
+}
+
+TEST(dmURI, TestFile4)
+{
+    dmURI::Parts* uri_parts = new dmURI::Parts();
+    dmURI::Result r;
+    r = dmURI::Parse("file:/foo", uri_parts);
+    ASSERT_EQ(dmURI::RESULT_OK, r);
+    ASSERT_STREQ("file", uri_parts->m_Scheme);
+    ASSERT_STREQ("", uri_parts->m_Location);
+    ASSERT_STREQ("", uri_parts->m_Hostname);
+    ASSERT_EQ(-1, uri_parts->m_Port);
+    ASSERT_STREQ("/foo", uri_parts->m_Path);
+    delete uri_parts;
+}
+
 TEST(dmURI, Test1)
 {
     dmURI::Parts* uri_parts = new dmURI::Parts();
