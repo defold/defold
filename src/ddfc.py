@@ -436,7 +436,7 @@ def CompileJava(context, proto_file, ddf_java_package, file_to_generate):
     pp_java.Begin("public final class %s", proto_file.options.java_outer_classname)
 
     for mt in file_desc.enum_type:
-        ToJavaEnumDescriptor(context, pp_java, et, ddf_java_package + '_' + et.name)
+        ToJavaEnumDescriptor(context, pp_java, mt, ddf_java_package + '_' + et.name)
         ToJavaEnum(context, pp_java, mt)
 
     for mt in file_desc.message_type:
@@ -554,7 +554,7 @@ class CompilerContext(object):
 
         if self.HasTypeAlias(n):
             self.TypeAliasMessages[n] = self.TypeAliasName(n)
-            
+
         self.TypeNameToJavaType[package[1:] + '.' + message_type.name] = java_package + '.' + java_outer_classname + '.' + message_type.name
 
         if hasattr(message_type, 'nested_type'):

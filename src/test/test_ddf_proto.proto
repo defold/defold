@@ -33,6 +33,13 @@ enum TestEnum
     TestEnumVal2 = 20;
 }
 
+// Test for bug with duplicate enums. Introduced in previous commit
+enum TestEnumB
+{
+    TestEnumValB1 = 10;
+    TestEnumValB2 = 20;
+}
+
 // http://localhost:8080/redmine/issues/22
 message TestGlobalEnumBug
 {
