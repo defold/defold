@@ -33,6 +33,12 @@ enum TestEnum
     TestEnumVal2 = 20;
 }
 
+// http://localhost:8080/redmine/issues/22
+message TestGlobalEnumBug
+{
+    required TestEnum t = 1;
+}
+
 message NestedType
 {
     message TheNestedType

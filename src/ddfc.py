@@ -436,6 +436,7 @@ def CompileJava(context, proto_file, ddf_java_package, file_to_generate):
     pp_java.Begin("public final class %s", proto_file.options.java_outer_classname)
 
     for mt in file_desc.enum_type:
+        ToJavaEnumDescriptor(context, pp_java, et, ddf_java_package + '_' + et.name)
         ToJavaEnum(context, pp_java, mt)
 
     for mt in file_desc.message_type:
