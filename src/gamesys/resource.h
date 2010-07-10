@@ -34,6 +34,7 @@ namespace dmResource
         FACTORY_RESULT_IO_ERROR                  = -9,   //!< FACTORY_RESULT_IO_ERROR
         FACTORY_RESULT_NOT_LOADED                = -10,  //!< FACTORY_RESULT_NOT_LOADED
         FACTORY_RESULT_OUT_OF_RESOURCES          = -11,  //!< FACTORY_RESULT_OUT_OF_RESOURCES
+        FACTORY_RESULT_STREAMBUFFER_TOO_SMALL    = -12,  //!< FACTORY_RESULT_STREAMBUFFER_TOO_SMALL
         FACTORY_RESULT_UNKNOWN                   = -1000,//!< FACTORY_RESULT_UNKNOWN
     };
 
@@ -132,13 +133,41 @@ namespace dmResource
                                               const char* filename);
 
     /**
-     * Create a new factory
-     * @param max_resources Max resources created simultaneously
-     * @param resource_path Resource root path
-     * @param flags Factory flags
-     * @return Factory handle
+     * Set default NewFactoryParams params
+     * @param params
      */
-    HFactory NewFactory(uint32_t max_resources, const char* resource_path, uint32_t flags);
+    void SetDefaultNewFactoryParams(struct NewFactoryParams* params);
+
+    /**
+     * New factory parmetes
+     */
+    struct NewFactoryParams
+    {
+        /// Maximum number of resource in factory. Default is 1024
+        uint32_t m_MaxResources;
+
+        /// Factory flags. Default is RESOURCE_FACTORY_FLAGS_EMPTY
+        uint32_t m_Flags;
+
+        /// Stream buffer size. Must be equal or greater to the largest resource file to load.
+        /// Default is 4MB (4 * 1024 * 1024)
+        uint32_t m_StreamBufferSize;
+
+        uint32_t m_Reserved[7];
+
+        NewFactoryParams()
+        {
+            SetDefaultNewFactoryParams(this);
+        }
+    };
+
+    /**
+     * Create a new factory
+     * @param params New factory parmeters
+     * @param uri Resource root uri, eg http://locahost:5000 or build/default/content
+     * @return Factory handle. NULL if out of memory or invalid uri.
+     */
+    HFactory NewFactory(NewFactoryParams* params, const char* uri);
 
     /**
      * Delete a factory

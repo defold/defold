@@ -11,7 +11,11 @@ class ResourceTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        factory = dmResource::NewFactory(16, ".", RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        factory = dmResource::NewFactory(&params, ".");
+        ASSERT_NE((void*) 0, factory);
     }
 
     virtual void TearDown()
@@ -111,7 +115,7 @@ dmResource::CreateResult FooResourceCreate(dmResource::HFactory factory,
 
 dmResource::CreateResult FooResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
-class GetResourceTest : public ::testing::Test
+class GetResourceTest : public ::testing::TestWithParam<const char*>
 {
 protected:
     virtual void SetUp()
@@ -121,7 +125,10 @@ protected:
         m_FooResourceCreateCallCount = 0;
         m_FooResourceDestroyCallCount = 0;
 
-        m_Factory = dmResource::NewFactory(16, "build/default/src/gamesys/test/", RESOURCE_FACTORY_FLAGS_EMPTY);
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        m_Factory = dmResource::NewFactory(&params, GetParam());
+        ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "test.cont";
 
         dmResource::FactoryResult e;
@@ -229,7 +236,7 @@ dmResource::CreateResult FooResourceDestroy(dmResource::HFactory factory, void* 
     return dmResource::CREATE_RESULT_OK;
 }
 
-TEST_F(GetResourceTest, GetTestResource)
+TEST_P(GetResourceTest, GetTestResource)
 {
     dmResource::FactoryResult e;
 
@@ -246,9 +253,29 @@ TEST_F(GetResourceTest, GetTestResource)
 
     ASSERT_EQ(dmHashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
     dmResource::Release(m_Factory, test_resource_cont);
+
+    // Add test for FACTORY_RESULT_RESOURCE_NOT_FOUND (for http test)
+    e = dmResource::Get(m_Factory, "does_not_exists.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, e);
 }
 
-TEST_F(GetResourceTest, GetReference1)
+#ifdef _WIN32
+
+// NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
+
+INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
+                        GetResourceTest,
+                        ::testing::Values("build/default/src/gamesys/test/"));
+
+#else
+
+INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
+                        GetResourceTest,
+                        ::testing::Values("build/default/src/gamesys/test/", "http://localhost:6000"));
+
+#endif // #ifdef _WIN32
+
+TEST_P(GetResourceTest, GetReference1)
 {
     dmResource::FactoryResult e;
 
@@ -257,7 +284,7 @@ TEST_F(GetResourceTest, GetReference1)
     ASSERT_EQ(dmResource::FACTORY_RESULT_NOT_LOADED, e);
 }
 
-TEST_F(GetResourceTest, GetReference2)
+TEST_P(GetResourceTest, GetReference2)
 {
     dmResource::FactoryResult e;
 
@@ -278,7 +305,7 @@ TEST_F(GetResourceTest, GetReference2)
     dmResource::Release(m_Factory, resource);
 }
 
-TEST_F(GetResourceTest, ReferenceCountSimple)
+TEST_P(GetResourceTest, ReferenceCountSimple)
 {
     dmResource::FactoryResult e;
 
@@ -371,6 +398,24 @@ dmResource::CreateResult RecreateResourceRecreate(dmResource::HFactory factory,
     return dmResource::CREATE_RESULT_OK;
 }
 
+TEST(dmResource, InvalidHost)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, "http://foo_host");
+    ASSERT_EQ((void*) 0, factory);
+}
+
+TEST(dmResource, InvalidUri)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, "gopher://foo_host");
+    ASSERT_EQ((void*) 0, factory);
+}
+
 TEST(RecreateTest, RecreateTest)
 {
     const char* tmp_dir = 0;
@@ -380,7 +425,11 @@ TEST(RecreateTest, RecreateTest)
     tmp_dir = "/tmp";
 #endif
 
-    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    ASSERT_NE((void*) 0, factory);
 
     dmResource::FactoryResult e;
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
@@ -466,7 +515,11 @@ TEST(FilenameTest, FilenameTest)
     tmp_dir = "/tmp";
 #endif
 
-    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    ASSERT_NE((void*) 0, factory);
 
     dmResource::FactoryResult e;
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);

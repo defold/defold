@@ -26,7 +26,10 @@ protected:
         update_context.m_GlobalData = 0;
         update_context.m_DDFGlobalDataDescriptor = 0;
 
-        factory = dmResource::NewFactory(16, "build/default/src/gamesys/test", RESOURCE_FACTORY_FLAGS_EMPTY);
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 16;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
+        factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
         collection = dmGameObject::NewCollection(factory, 1024);
         dmGameObject::RegisterResourceTypes(factory);
 
@@ -731,7 +734,10 @@ TEST(ScriptTest, TestReloadScript)
     tmp_dir = "/tmp";
 #endif
 
-    dmResource::HFactory factory = dmResource::NewFactory(16, tmp_dir, RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT);
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, 1024);
     dmGameObject::RegisterResourceTypes(factory);
 
