@@ -1028,22 +1028,6 @@ namespace dmGameObject
         return ret;
     }
 
-    void Render(HCollection collection, const UpdateContext* update_context)
-    {
-        DM_PROFILE(GameObject, "Update");
-
-        uint32_t component_types = collection->m_ComponentTypeCount;
-        for (uint32_t i = 0; i < component_types; ++i)
-        {
-            ComponentType* component_type = &collection->m_ComponentTypes[i];
-            DM_PROFILE(GameObject, component_type->m_Name);
-            if (component_type->m_RenderFunction)
-            {
-                component_type->m_RenderFunction(collection, update_context, component_type->m_Context);
-            }
-        }
-    }
-
     dmResource::HFactory GetFactory(HCollection collection)
     {
         if (collection != 0x0)

@@ -58,8 +58,6 @@ namespace dmGameObject
         void*              m_GlobalData;
         /// Time step
         float              m_DT;
-        /// Time step fraction currently used
-        float              m_DTF;
     };
 
     extern const uint32_t UNNAMED_IDENTIFIER;
@@ -142,16 +140,6 @@ namespace dmGameObject
                                      void* context);
 
     /**
-     * Component render function. Renders all components of this type for all game objects
-     * @param collection Collection handle
-     * @param update_context Update context
-     * @param context User context
-     */
-    typedef void (*ComponentsRender)(HCollection collection,
-                                     const UpdateContext* update_context,
-                                     void* context);
-
-    /**
      * Component on-event function. Called when event is sent to this component
      * @param collection Collection handle
      * @param instance Instance handle
@@ -178,7 +166,6 @@ namespace dmGameObject
         ComponentInit       m_InitFunction;
         ComponentDestroy    m_DestroyFunction;
         ComponentsUpdate    m_UpdateFunction;
-        ComponentsRender    m_RenderFunction;
         ComponentOnEvent    m_OnEventFunction;
         uint32_t            m_InstanceHasUserData : 1;
     };
@@ -331,13 +318,6 @@ namespace dmGameObject
      * @return True on success
      */
     bool Update(HCollection collection, const UpdateContext* update_context);
-
-    /**
-     * Renders all gameobject components
-     * @param collection Gameobject collection
-     * @param update_context Update context
-     */
-    void Render(HCollection collection, const UpdateContext* update_context);
 
     /**
      * Retrieve a factory from the specified collection
