@@ -960,7 +960,8 @@ namespace dmGameObject
                     ret = false;
             }
             // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
-            // demands updated child-transforms. Many redundant calculations.
+            // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
+            // into UpdateTrasform, then Update or similar
             UpdateTransforms(collection);
         }
 
