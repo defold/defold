@@ -16,6 +16,21 @@ namespace dmPhysics
 
     typedef void (*SetObjectState)(void* context, void* visual_object, const Vectormath::Aos::Quat& rotation, const Vectormath::Aos::Point3& position);
 
+    typedef void (*CollisionCallback)(void* user_data_a, void* user_data_b, void* user_data);
+
+    struct ContactPoint
+    {
+        Vectormath::Aos::Point3 m_PositionA;
+        Vectormath::Aos::Point3 m_PositionB;
+        // Always A->B
+        Vectormath::Aos::Vector3 m_Normal;
+        float m_Distance;
+        void* m_UserDataA;
+        void* m_UserDataB;
+    };
+
+    typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
+
     /**
      * Create a new physics world
      * @param world_min World min (AABB)
@@ -38,6 +53,20 @@ namespace dmPhysics
      * @param dt Time step
      */
     void StepWorld(HWorld world, float dt);
+
+    /**
+     * Call callback functions for each collision and contact
+     * @param world Physics world
+     * @param collision_callback Collision callback function, called once per collision pair
+     * @param collision_callback_user_data User data passed to collision_callback
+     * @param contact_point_callback Contact point callback function, called once per contact point
+     * @param contact_point_callback_user_data User data passed to contact_point_callback
+     */
+    void ForEachCollision(HWorld world,
+            CollisionCallback collision_callback,
+            void* collision_callback_user_data,
+            ContactPointCallback contact_point_callback,
+            void* contact_point_callback_user_data);
 
     /**
      * Draws the world using the callback function registered through SetDebugRenderer.
@@ -77,7 +106,8 @@ namespace dmPhysics
      */
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
-                            float mass);
+                            float mass,
+                            void* user_data);
 
     /**
      * Delete a rigid body

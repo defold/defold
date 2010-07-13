@@ -111,6 +111,51 @@ namespace dmPhysics
         world->m_DynamicsWorld->stepSimulation(dt, 1);
     }
 
+    void ForEachCollision(HWorld world,
+            CollisionCallback collision_callback,
+            void* collision_callback_user_data,
+            ContactPointCallback contact_point_callback,
+            void* contact_point_callback_user_data)
+    {
+        // Assume world->stepSimulation or world->performDiscreteCollisionDetection has been called
+
+        if (collision_callback != 0x0 || contact_point_callback != 0x0)
+        {
+            int num_manifolds = world->m_DynamicsWorld->getDispatcher()->getNumManifolds();
+            for (int i = 0; i < num_manifolds; ++i)
+            {
+                btPersistentManifold* contactManifold = world->m_DynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
+                btCollisionObject* object_a = static_cast<btCollisionObject*>(contactManifold->getBody0());
+                btCollisionObject* object_b = static_cast<btCollisionObject*>(contactManifold->getBody1());
+
+                if (collision_callback != 0x0)
+                {
+                    collision_callback(object_a->getUserPointer(), object_b->getUserPointer(), collision_callback_user_data);
+                }
+
+                if (contact_point_callback)
+                {
+                    int num_contacts = contactManifold->getNumContacts();
+                    for (int j = 0; j < num_contacts; ++j)
+                    {
+                        btManifoldPoint& pt = contactManifold->getContactPoint(j);
+                        if (pt.getDistance() <= 0.0f)
+                        {
+                            ContactPoint point;
+                            const btVector3& pt_a = pt.getPositionWorldOnA();
+                            point.m_PositionA = Vectormath::Aos::Point3(pt_a.getX(), pt_a.getY(), pt_a.getZ());
+                            const btVector3& pt_b = pt.getPositionWorldOnB();
+                            point.m_PositionB = Vectormath::Aos::Point3(pt_b.getX(), pt_b.getY(), pt_b.getZ());
+                            const btVector3& normal = pt.m_normalWorldOnB;
+                            point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
+                            contact_point_callback(point, contact_point_callback_user_data);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     HCollisionShape NewBoxShape(const Vector3& half_extents)
     {
         return new btBoxShape(btVector3(half_extents.getX(), half_extents.getY(), half_extents.getZ()));
@@ -129,7 +174,8 @@ namespace dmPhysics
 
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
-                            float mass)
+                            float mass,
+                            void* user_data)
     {
         bool is_dynamic = (mass != 0.f);
 
@@ -142,6 +188,7 @@ namespace dmPhysics
         MotionState* motion_state = new MotionState(transform, visual_object, world->m_SetObjectState, world->m_SetObjectStateContext);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
         btRigidBody* body = new btRigidBody(rb_info);
+        body->setUserPointer(user_data);
         world->m_DynamicsWorld->addRigidBody(body);
         return body;
     }
