@@ -1,13 +1,13 @@
 Name: "ComponentEvent"
 Components
 {
-    Name: "component_event.scriptc"
+    Name: "event_target.et"
     Position: { X: 0 Y: 0 Z: 0 }
     Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
 }
 Components
 {
-    Name: "event_target.et"
+    Name: "event_target2.et"
     Position: { X: 0 Y: 0 Z: 0 }
     Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
 }

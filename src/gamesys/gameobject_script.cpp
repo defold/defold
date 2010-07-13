@@ -264,7 +264,7 @@ namespace dmGameObject
 
         int top = lua_gettop(L);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstance->m_ScriptDataReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstancePOOOOP->m_ScriptDataReference);
         lua_pushstring(L, key);
         lua_pushinteger(L, value);
         lua_settable(L, -3);
@@ -278,7 +278,7 @@ namespace dmGameObject
 
         int top = lua_gettop(L);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstance->m_ScriptDataReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstancePOOOOP->m_ScriptDataReference);
         lua_pushstring(L, key);
         lua_pushnumber(L, value);
         lua_settable(L, -3);
@@ -292,7 +292,7 @@ namespace dmGameObject
 
         int top = lua_gettop(L);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstance->m_ScriptDataReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstancePOOOOP->m_ScriptDataReference);
         lua_pushstring(L, key);
         lua_pushstring(L, value);
         lua_settable(L, -3);
@@ -643,6 +643,13 @@ namespace dmGameObject
         return 1;
     }
 
+    ScriptContext::ScriptContext()
+    : m_Instances()
+    , m_UpdateContext(0x0)
+    {
+        m_Instances.SetCapacity(512);
+    }
+
     void InitializeScript()
     {
         lua_State *L = lua_open();
@@ -900,10 +907,140 @@ bail:
         return false;
     }
 
-    bool DispatchScriptEventsFunction(dmEvent::Event *event_object, const UpdateContext* update_context)
+    dmResource::CreateResult ScriptCreateResource(dmResource::HFactory factory,
+                                          void* context,
+                                          const void* buffer, uint32_t buffer_size,
+                                          dmResource::SResourceDescriptor* resource,
+                                          const char* filename)
     {
-        dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
+        HScript script = NewScript(buffer, buffer_size, filename);
+        if (script)
+        {
+            resource->m_Resource = (void*) script;
+            return dmResource::CREATE_RESULT_OK;
+        }
+        else
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+    }
 
+    dmResource::CreateResult ScriptDestroyResource(dmResource::HFactory factory,
+                                           void* context,
+                                           dmResource::SResourceDescriptor* resource)
+    {
+        DeleteScript((HScript) resource->m_Resource);
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult ScriptRecreateResource(dmResource::HFactory factory,
+                                            void* context,
+                                            const void* buffer, uint32_t buffer_size,
+                                            dmResource::SResourceDescriptor* resource,
+                                            const char* filename)
+    {
+        HScript script = (HScript) resource->m_Resource;
+        if (ReloadScript(script, buffer, buffer_size, filename))
+        {
+            return dmResource::CREATE_RESULT_OK;
+        }
+        else
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+    }
+
+    CreateResult ScriptCreateComponent(HCollection collection,
+            HInstance instance,
+            void* resource,
+            void* context,
+            uintptr_t* user_data)
+    {
+        HScript script = (HScript)resource;
+        HScriptInstance script_instance = NewScriptInstance(script, instance);
+        if (script_instance != 0x0)
+        {
+            instance->m_ScriptInstancePOOOOP = script_instance;
+            ScriptContext* script_context = (ScriptContext*)context;
+            script_context->m_Instances.Push(script_instance);
+            *user_data = (uintptr_t)script_instance;
+            return CREATE_RESULT_OK;
+        }
+        else
+        {
+            return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+    }
+
+    CreateResult ScriptInitComponent(HCollection collection,
+            HInstance instance,
+            void* context,
+            uintptr_t* user_data)
+    {
+        Prototype* proto = instance->m_Prototype;
+        ScriptContext* script_context = (ScriptContext*)context;
+        HScriptInstance script_instance = (HScriptInstance)*user_data;
+        bool ret = RunScript(collection, script_instance->m_Script, "Init", script_instance, script_context->m_UpdateContext);
+        if (ret)
+        {
+            return CREATE_RESULT_OK;
+        }
+        else
+        {
+            dmLogError("The script for prototype %s failed to run.", proto->m_Name);
+            return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+    }
+
+    CreateResult ScriptDestroyComponent(HCollection collection,
+            HInstance instance,
+            void* context,
+            uintptr_t* user_data)
+    {
+        HScriptContext script_context = (HScriptContext)context;
+        HScriptInstance script_instance = (HScriptInstance)*user_data;
+        for (uint32_t i = 0; i < script_context->m_Instances.Size(); ++i)
+        {
+            if (script_instance == script_context->m_Instances[i])
+            {
+                script_context->m_Instances.EraseSwap(i);
+                break;
+            }
+        }
+        instance->m_ScriptInstancePOOOOP = 0x0;
+        DeleteScriptInstance(script_instance);
+        return CREATE_RESULT_OK;
+    }
+
+    UpdateResult ScriptUpdateComponent(HCollection collection,
+            const UpdateContext* update_context,
+            void* context)
+    {
+        UpdateResult result = UPDATE_RESULT_OK;
+        HScriptContext script_context = (HScriptContext)context;
+        uint32_t size = script_context->m_Instances.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            HScriptInstance script_instance = script_context->m_Instances[i];
+            Prototype* proto = script_instance->m_Instance->m_Prototype;
+            bool ret = RunScript(collection, script_instance->m_Script, "Update", script_instance, update_context);
+            if (!ret)
+            {
+                dmLogError("The script for prototype %s failed to run.", proto->m_Name);
+                result = UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+        }
+        return result;
+    }
+
+    UpdateResult ScriptOnEventComponent(HCollection collection,
+            HInstance instance,
+            const ScriptEventData* script_event_data,
+            void* context,
+            uintptr_t* user_data)
+    {
+        ScriptContext* script_context = (ScriptContext*)context;
+        ScriptInstance* script_instance = (ScriptInstance*)*user_data;
         //assert(script_event_data->m_DDFDescriptor);
         //assert(script_event_data->m_DDFData);
         assert(script_event_data->m_Instance);
@@ -914,14 +1051,14 @@ bail:
         int ret;
 
         lua_pushliteral(L, "__update_context__");
-        lua_pushlightuserdata(L, (void*) update_context);
+        lua_pushlightuserdata(L, (void*) script_context->m_UpdateContext);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_Instance->m_ScriptInstance->m_Script->m_FunctionsReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
         if (lua_type(L, -1) != LUA_TTABLE)
         {
-            dmLogError("Invalid 'SenderFunctionsReference' (%d) in event", script_event_data->m_Instance->m_ScriptInstance->m_Script->m_FunctionsReference);
-            return false;
+            dmLogError("Invalid 'SenderFunctionsReference' (%d) in event", script_instance->m_Script->m_FunctionsReference);
+            return UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
         const char* function_name = "OnEvent";
@@ -933,7 +1070,7 @@ bail:
             goto bail;
         }
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_event_data->m_Instance->m_ScriptInstance->m_InstanceReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
         char buf[9];
         DM_SNPRINTF(buf, sizeof(buf), "%X", script_event_data->m_EventHash);
@@ -941,17 +1078,17 @@ bail:
 
         if (script_event_data->m_DDFDescriptor)
         {
-        	// adjust char ptrs to global mem space
-        	char* data = (char*)script_event_data->m_DDFData;
-        	for (uint8_t i = 0; i < script_event_data->m_DDFDescriptor->m_FieldCount; ++i)
-        	{
-        		dmDDF::FieldDescriptor* field = &script_event_data->m_DDFDescriptor->m_Fields[i];
-        		uint32_t field_type = field->m_Type;
-        		if (field_type == dmDDF::TYPE_STRING)
-        		{
-        			*((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
-        		}
-        	}
+            // adjust char ptrs to global mem space
+            char* data = (char*)script_event_data->m_DDFData;
+            for (uint8_t i = 0; i < script_event_data->m_DDFDescriptor->m_FieldCount; ++i)
+            {
+                dmDDF::FieldDescriptor* field = &script_event_data->m_DDFDescriptor->m_Fields[i];
+                uint32_t field_type = field->m_Type;
+                if (field_type == dmDDF::TYPE_STRING)
+                {
+                    *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
+                }
+            }
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
             // lua_cpcall?
             dmScriptUtil::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
@@ -973,13 +1110,12 @@ bail:
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
-        return true;
+        return UPDATE_RESULT_OK;
 bail:
         lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
         assert(top == lua_gettop(L));
-        return false;
+        return UPDATE_RESULT_UNKNOWN_ERROR;
     }
-
 }

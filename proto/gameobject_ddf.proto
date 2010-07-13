@@ -9,30 +9,29 @@ option (ddf_java_package) = "com.dynamo.gamesys.ddf";
 
 message ComponentDesc
 {
-	required string  Name     = 1;
-	required dmMath.Point3 Position = 2;
-	required dmMath.Quat Rotation = 3;
+    required string Name = 1;
+    required dmMath.Point3 Position = 2;
+    required dmMath.Quat Rotation = 3;
 }
 
 message PrototypeDesc
 {
-    required string Name 		      = 1;
-    required string Script 			  = 2;
-    repeated ComponentDesc Components = 3;
+    required string Name              = 1;
+    repeated ComponentDesc Components = 2;
 }
 
 message Property
 {
-	enum PropertyType
-	{
-		INTEGER = 1;
-		FLOAT = 2;
-		STRING = 3;
-	}
+    enum PropertyType
+    {
+        INTEGER = 1;
+        FLOAT = 2;
+        STRING = 3;
+    }
 
-	required PropertyType Type = 1;
-	required string Key = 2;
-	required string Value = 3;
+    required PropertyType Type = 1;
+    required string Key = 2;
+    required string Value = 3;
 }
 
 message InstanceDesc
@@ -47,6 +46,6 @@ message InstanceDesc
 
 message LevelDesc
 {
-	required string Name = 1;
-	repeated InstanceDesc Instances = 2;
+    required string Name = 1;
+    repeated InstanceDesc Instances = 2;
 }

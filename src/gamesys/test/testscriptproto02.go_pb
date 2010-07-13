@@ -1,3 +1,7 @@
 Name: "MyObject01"
-Script: "testscriptproto02.scriptc"
-
+Components
+{
+    Name: "testscriptproto02.scriptc"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}

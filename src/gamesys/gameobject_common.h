@@ -30,7 +30,6 @@ namespace dmGameObject
         };
 
         const char*            m_Name;
-        HScript                m_Script;
         dmArray<Component>     m_Components;
     };
 
@@ -46,7 +45,6 @@ namespace dmGameObject
             m_Rotation = Quat::identity();
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
-            m_ScriptInstance = NewScriptInstance(prototype->m_Script, this);
             m_Identifier = UNNAMED_IDENTIFIER;
             m_Depth = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
@@ -55,11 +53,11 @@ namespace dmGameObject
             m_SiblingIndex = INVALID_INSTANCE_INDEX;
             m_FirstChildIndex = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
+            m_ScriptInstancePOOOOP = 0x0;
         }
 
         ~Instance()
         {
-            DeleteScriptInstance(m_ScriptInstance);
         }
 
         // Collection this instances belongs to. Added for GetWorldPosition.
@@ -68,7 +66,6 @@ namespace dmGameObject
         Quat            m_Rotation;
         Point3          m_Position;
         Prototype*      m_Prototype;
-        HScriptInstance m_ScriptInstance;
         uint32_t        m_Identifier;
 
         // Hierarchical depth
@@ -100,6 +97,11 @@ namespace dmGameObject
 
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
+
+        // Hard pointer to the script instance, if any
+        // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
+        // In the long run, every component should be able to receive init-properties, which would demad a general solution.
+        HScriptInstance m_ScriptInstancePOOOOP;
     };
 }
 

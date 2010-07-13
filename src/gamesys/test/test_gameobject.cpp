@@ -32,6 +32,8 @@ protected:
         factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
         collection = dmGameObject::NewCollection(factory, 1024);
         dmGameObject::RegisterResourceTypes(factory);
+        script_context = dmGameObject::CreateScriptContext(0x0);
+        dmGameObject::RegisterComponentTypes(factory, collection, script_context);
 
         // Register dummy physical resource type
         dmResource::FactoryResult e;
@@ -142,13 +144,14 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(collection);
+        dmGameObject::DestroyScriptContext(script_context);
         dmResource::DeleteFactory(factory);
         dmGameObject::Finalize();
     }
 
     uint32_t m_EventTargetCounter;
 
-    static void EventTargetOnEvent(dmGameObject::HCollection collection,
+    static dmGameObject::UpdateResult EventTargetOnEvent(dmGameObject::HCollection collection,
                                    dmGameObject::HInstance instance,
                                    const dmGameObject::ScriptEventData* event_data,
                                    void* context,
@@ -194,7 +197,7 @@ protected:
     static dmGameObject::ComponentCreate  DeleteSelfComponentCreate;
     static dmGameObject::ComponentInit    DeleteSelfComponentInit;
     static dmGameObject::ComponentDestroy DeleteSelfComponentDestroy;
-    static void DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
+    static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
                                            const dmGameObject::UpdateContext* update_context,
                                            void* context);
 
@@ -220,6 +223,7 @@ public:
     dmGameObject::UpdateContext update_context;
     dmGameObject::HCollection collection;
     dmResource::HFactory factory;
+    dmGameObject::HScriptContext script_context;
 };
 
 template <typename T>
@@ -289,12 +293,13 @@ static dmGameObject::CreateResult GenericComponentInit(dmGameObject::HCollection
 }
 
 template <typename T>
-static void GenericComponentsUpdate(dmGameObject::HCollection collection,
+static dmGameObject::UpdateResult GenericComponentsUpdate(dmGameObject::HCollection collection,
                                     const dmGameObject::UpdateContext* update_context,
                                     void* context)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
     game_object_test->m_ComponentUpdateCountMap[T::m_DDFHash]++;
+    return dmGameObject::UPDATE_RESULT_OK;
 }
 
 
@@ -360,11 +365,11 @@ TEST_F(GameObjectTest, Test01)
     dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.go");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret;
-    ret = dmGameObject::Update(collection, go, &update_context);
+    ret = dmGameObject::Update(collection, &update_context);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::Update(collection, go, &update_context);
+    ret = dmGameObject::Update(collection, &update_context);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::Update(collection, go, &update_context);
+    ret = dmGameObject::Update(collection, &update_context);
     ASSERT_TRUE(ret);
     dmGameObject::Delete(collection, go);
 
@@ -417,7 +422,8 @@ TEST_F(GameObjectTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, "goproto02.go");
     ASSERT_NE((void*) 0, (void*) go);
-    dmGameObject::Update(collection, &update_context);
+    bool ret = dmGameObject::Update(collection, &update_context);
+    ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestResource::PhysComponent::m_DDFHash]);
 
     dmGameObject::Delete(collection, go);
@@ -489,7 +495,7 @@ TEST_F(GameObjectTest, AutoDelete)
     }
 }
 
-void GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
+dmGameObject::UpdateResult GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
                                                 const dmGameObject::UpdateContext* update_context,
                                                 void* context)
 {
@@ -507,8 +513,11 @@ void GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection collec
         int index = game_object_test->m_DeleteSelfIndices[i];
 
         dmGameObject::HInstance go = game_object_test->m_DeleteSelfIndexToInstance[index];
-        ASSERT_EQ(index, (int) dmGameObject::GetPosition(go).getX());
+        if (index != (int)dmGameObject::GetPosition(go).getX())
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
     }
+
+    return dmGameObject::UPDATE_RESULT_OK;
 }
 
 TEST_F(GameObjectTest, DeleteSelf)
@@ -542,7 +551,8 @@ TEST_F(GameObjectTest, DeleteSelf)
                 int index = *(m_DeleteSelfIndices.end() - i - 1);
                 m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
             }
-            dmGameObject::Update(collection, 0);
+            bool ret = dmGameObject::Update(collection, 0);
+            ASSERT_TRUE(ret);
             for (int i = 0; i < 16; ++i)
             {
                 m_DeleteSelfIndices.pop_back();
@@ -553,7 +563,7 @@ TEST_F(GameObjectTest, DeleteSelf)
     }
 }
 
-void GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
+dmGameObject::UpdateResult GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
                                         dmGameObject::HInstance instance,
                                         const dmGameObject::ScriptEventData* event_data,
                                         void* context,
@@ -566,7 +576,7 @@ void GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
         self->m_EventTargetCounter++;
         if (self->m_EventTargetCounter == 2)
         {
-            dmGameObject::PostNamedEvent(instance, 0, "test_event");
+            dmGameObject::PostNamedEvent(instance, "component_event.scriptc", "test_event");
         }
     }
     else if (event_data->m_EventHash == dmHashString32("dec"))
@@ -576,7 +586,9 @@ void GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
     else
     {
         assert(0);
+        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
     }
+    return dmGameObject::UPDATE_RESULT_OK;
 }
 
 TEST_F(GameObjectTest, TestComponentEvent)
@@ -603,6 +615,24 @@ TEST_F(GameObjectTest, TestComponentEvent)
     ASSERT_EQ(2U, m_EventTargetCounter);
 
     ASSERT_TRUE(dmGameObject::Update(collection, 0));
+
+    dmGameObject::Delete(collection, go);
+}
+
+TEST_F(GameObjectTest, TestBroadcastEvent)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, "component_broadcast_event.go");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::Result r;
+
+    ASSERT_EQ(0U, m_EventTargetCounter);
+
+    r = dmGameObject::PostNamedEvent(go, 0, "inc");
+    ASSERT_EQ(dmGameObject::RESULT_OK, r);
+
+    ASSERT_TRUE(dmGameObject::Update(collection, 0));
+    ASSERT_EQ(2U, m_EventTargetCounter);
 
     dmGameObject::Delete(collection, go);
 }
@@ -671,7 +701,7 @@ TEST_F(GameObjectTest, TestScript01)
 
     dmGameObject::Init(collection, &update_context);
 
-    ASSERT_TRUE(dmGameObject::Update(collection, go, &update_context));
+    ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
 
     uint32_t socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
     uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
@@ -708,7 +738,7 @@ TEST_F(GameObjectTest, TestFailingScript03)
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    ASSERT_FALSE(dmGameObject::Update(collection, go, &update_context));
+    ASSERT_FALSE(dmGameObject::Update(collection, &update_context));
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     dmGameObject::Delete(collection, go);
 }
@@ -740,26 +770,35 @@ TEST(ScriptTest, TestReloadScript)
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, 1024);
     dmGameObject::RegisterResourceTypes(factory);
+    dmGameObject::HScriptContext script_context = dmGameObject::CreateScriptContext(0x0);
+    dmGameObject::RegisterComponentTypes(factory, collection, script_context);
 
     uint32_t type;
     dmResource::FactoryResult e = dmResource::GetTypeFromExtension(factory, "scriptc", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-    char script_file_name[512];
-    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "%s/%s", tmp_dir, "__test__.scriptc");
+    const char* script_file_name = "__test__.scriptc";
+    char script_path[512];
+    DM_SNPRINTF(script_path, sizeof(script_path), "%s/%s", tmp_dir, script_file_name);
 
     char go_file_name[512];
     DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", tmp_dir, "__go__.go");
 
     dmGameObject::PrototypeDesc prototype;
-    memset(&prototype, 0, sizeof(prototype));
+    //memset(&prototype, 0, sizeof(prototype));
     prototype.m_Name = "foo";
-    prototype.m_Script = "__test__.scriptc";
+    prototype.m_Components.m_Count = 1;
+    dmGameObject::ComponentDesc component_desc;
+    memset(&component_desc, 0, sizeof(component_desc));
+    component_desc.m_Name = script_file_name;
+    component_desc.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    component_desc.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    prototype.m_Components.m_Data = &component_desc;
 
     dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObject::PrototypeDesc::m_DDFDescriptor, go_file_name);
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
-    CreateFile(script_file_name,
+    CreateFile(script_path,
                "function Init(self)\n"
                "end\n"
                "function Update(self)\n"
@@ -779,7 +818,7 @@ TEST(ScriptTest, TestReloadScript)
 
     dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
 
-    CreateFile(script_file_name,
+    CreateFile(script_path,
                "function Init(self)\n"
                "end\n"
                "function Update(self)\n"
@@ -797,7 +836,7 @@ TEST(ScriptTest, TestReloadScript)
     ASSERT_EQ(20, p2.getY());
     ASSERT_EQ(30, p2.getZ());
 
-    unlink(script_file_name);
+    unlink(script_path);
     fr = dmResource::ReloadType(factory, type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
 
@@ -805,6 +844,7 @@ TEST(ScriptTest, TestReloadScript)
 
     dmGameObject::Delete(collection, go);
     dmGameObject::DeleteCollection(collection);
+    dmGameObject::DestroyScriptContext(script_context);
     dmResource::DeleteFactory(factory);
     dmGameObject::Finalize();
 }

@@ -18,6 +18,8 @@ namespace dmGameObject
     typedef struct Script* HScript;
     /// Instance handle
     typedef struct ScriptInstance* HScriptInstance;
+    /// Script context
+    typedef struct ScriptContext* HScriptContext;
 
     /// Collection handle
     typedef struct Collection* HCollection;
@@ -48,6 +50,15 @@ namespace dmGameObject
     };
 
     /**
+     * Create result enum
+     */
+    enum UpdateResult
+    {
+        UPDATE_RESULT_OK = 0,              //!< UPDATE_RESULT_OK
+        UPDATE_RESULT_UNKNOWN_ERROR = -1000,//!< UPDATE_RESULT_UNKNOWN_ERROR
+    };
+
+    /**
      * Update context
      */
     struct UpdateContext
@@ -74,7 +85,7 @@ namespace dmGameObject
         /// Subject
         HInstance m_Instance;
 
-        /// Subject instance component. Set to 0xff to target scripts
+        /// Subject instance component index. Set to 0xff to broadcast to all components. Set to 0 to target scripts.
         uint8_t   m_Component;
         uint8_t   m_Pad[3];
 
@@ -135,7 +146,7 @@ namespace dmGameObject
      * @param update_context Update context
      * @param context User context
      */
-    typedef void (*ComponentsUpdate)(HCollection collection,
+    typedef UpdateResult (*ComponentsUpdate)(HCollection collection,
                                      const UpdateContext* update_context,
                                      void* context);
 
@@ -146,7 +157,7 @@ namespace dmGameObject
      * @param context User context
      * @param user_data User data storage pointer
      */
-    typedef void (*ComponentOnEvent)(HCollection collection,
+    typedef UpdateResult (*ComponentOnEvent)(HCollection collection,
                                      HInstance instance,
                                      const ScriptEventData* event_data,
                                      void* context,
@@ -303,15 +314,6 @@ namespace dmGameObject
     bool Init(HCollection collection, const UpdateContext* update_context);
 
     /**
-     * Call update function. Does *NOT* dispatch script events
-     * @param collection Gameobject collection
-     * @param instance Gameobject instance
-     * @param update_context Update context
-     * @return True on success
-     */
-    bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context);
-
-    /**
      * Update all gameobjects and its components and dispatches all event to script
      * @param collection Gameobject collection
      * @param update_context Update context
@@ -413,6 +415,28 @@ namespace dmGameObject
      * @return dmResource::FactoryResult
      */
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory);
+
+    /**
+     * Register all component types in collection
+     * @param factory Resource factory
+     * @param collection Collection
+     * @param update_context An update context that will be used in the script components so it must live for as long as the collection.
+     * @return Result
+     */
+    Result RegisterComponentTypes(dmResource::HFactory factory, HCollection collection, HScriptContext script_context);
+
+    /**
+     * Creates a script context
+     * @param update_context Update context to bind to the script context
+     * @return The script context
+     */
+    HScriptContext CreateScriptContext(UpdateContext* update_context);
+
+    /**
+     * Destroy a script context
+     * @param script_context Script context to destroy
+     */
+    void DestroyScriptContext(HScriptContext script_context);
 }
 
 #endif // GAMEOBJECT_H

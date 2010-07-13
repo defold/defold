@@ -58,26 +58,28 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void UpdateRigidBody(dmGameObject::HCollection collection,
+    dmGameObject::UpdateResult UpdateRigidBody(dmGameObject::HCollection collection,
                          const dmGameObject::UpdateContext* update_context,
                          void* context)
     {
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
         dmPhysics::StepWorld(world, update_context->m_DT);
+        return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void OnEventRigidBody(dmGameObject::HCollection collection,
-    		dmGameObject::HInstance instance,
-			const dmGameObject::ScriptEventData* event_data,
-			void* context,
-			uintptr_t* user_data)
+    dmGameObject::UpdateResult OnEventRigidBody(dmGameObject::HCollection collection,
+            dmGameObject::HInstance instance,
+            const dmGameObject::ScriptEventData* event_data,
+            void* context,
+            uintptr_t* user_data)
     {
         if (event_data->m_EventHash == dmHashString32("ApplyForce"))
         {
-        	dmPhysics::ApplyForceMessage* af = (dmPhysics::ApplyForceMessage*) event_data->m_DDFData;
+            dmPhysics::ApplyForceMessage* af = (dmPhysics::ApplyForceMessage*) event_data->m_DDFData;
             dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody) *user_data;
             dmPhysics::ApplyForce(rigid_body, af->m_Force, af->m_RelativePosition);
         }
+        return dmGameObject::UPDATE_RESULT_OK;
     }
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
@@ -86,10 +88,10 @@ namespace dmGameSystem
     {
         uint32_t type;
 
-    	dmGameObject::RegisterDDFType(dmPhysics::ApplyForceMessage::m_DDFDescriptor);
-    	dmEvent::Register(dmHashString32(dmPhysics::ApplyForceMessage::m_DDFDescriptor->m_Name), sizeof(dmGameObject::ScriptEventData) + sizeof(dmPhysics::ApplyForceMessage));
+        dmGameObject::RegisterDDFType(dmPhysics::ApplyForceMessage::m_DDFDescriptor);
+        dmEvent::Register(dmHashString32(dmPhysics::ApplyForceMessage::m_DDFDescriptor->m_Name), sizeof(dmGameObject::ScriptEventData) + sizeof(dmPhysics::ApplyForceMessage));
 
-    	dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "rigidbody", &type);
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "rigidbody", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
         {
             dmLogWarning("Unable to get resource type for 'rigidbody' (%d)", fact_result);

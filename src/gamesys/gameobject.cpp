@@ -22,7 +22,8 @@ namespace dmGameObject
         Quat   m_Rotation;
     };
 
-    const uint32_t MAX_COMPONENT_TYPES = 128;
+    // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
+    const uint32_t MAX_COMPONENT_TYPES = 255;
     // Max hierarchical depth
     // 4 is interpreted as up to four levels of child nodes including root-nodes
     // Must be greater than zero
@@ -241,16 +242,7 @@ namespace dmGameObject
             }
         }
 
-        HScript script;
-        dmResource::FactoryResult fact_e = dmResource::Get(factory, proto_desc->m_Script, (void**) &script);
-        if (fact_e != dmResource::FACTORY_RESULT_OK)
-        {
-            dmDDF::FreeMessage(proto_desc);
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-
         proto->m_Name = strdup(proto_desc->m_Name);
-        proto->m_Script = script;
 
         resource->m_Resource = (void*) proto;
 
@@ -269,67 +261,37 @@ namespace dmGameObject
         }
 
         free((void*) proto->m_Name);
-        dmResource::Release(factory, proto->m_Script);
         delete proto;
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult ScriptCreate(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename)
-    {
-        HScript script = NewScript(buffer, buffer_size, filename);
-        if (script)
-        {
-            resource->m_Resource = (void*) script;
-            return dmResource::CREATE_RESULT_OK;
-        }
-        else
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-    }
-
-    dmResource::CreateResult ScriptDestroy(dmResource::HFactory factory,
-                                           void* context,
-                                           dmResource::SResourceDescriptor* resource)
-    {
-
-        DeleteScript((HScript) resource->m_Resource);
-        return dmResource::CREATE_RESULT_OK;
-    }
-
-    dmResource::CreateResult ScriptRecreate(dmResource::HFactory factory,
-                                            void* context,
-                                            const void* buffer, uint32_t buffer_size,
-                                            dmResource::SResourceDescriptor* resource,
-                                            const char* filename)
-    {
-        HScript script = (HScript) resource->m_Resource;
-        if (ReloadScript(script, buffer, buffer_size, filename))
-        {
-            return dmResource::CREATE_RESULT_OK;
-        }
-        else
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-    }
-
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
     {
-        dmResource::FactoryResult ret;
+        dmResource::FactoryResult ret = dmResource::FACTORY_RESULT_OK;
         ret = dmResource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreate, &ScriptDestroy, &ScriptRecreate);
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreateResource, &ScriptDestroyResource, &ScriptRecreateResource);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
         return ret;
+    }
+
+    Result RegisterComponentTypes(dmResource::HFactory factory, HCollection collection, HScriptContext script_context)
+    {
+        ComponentType script_component;
+        dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
+        script_component.m_Name = "scriptc";
+        script_component.m_Context = script_context;
+        script_component.m_CreateFunction = &ScriptCreateComponent;
+        script_component.m_InitFunction = &ScriptInitComponent;
+        script_component.m_DestroyFunction = &ScriptDestroyComponent;
+        script_component.m_UpdateFunction = &ScriptUpdateComponent;
+        script_component.m_OnEventFunction = &ScriptOnEventComponent;
+        script_component.m_InstanceHasUserData = true;
+        return RegisterComponentType(collection, script_component);
     }
 
     static void EraseSwapLevelIndex(HCollection collection, HInstance instance)
@@ -576,13 +538,6 @@ namespace dmGameObject
         if (instance)
         {
             assert(collection->m_Instances[instance->m_Index] == instance);
-            Prototype* proto = instance->m_Prototype;
-            bool ret = RunScript(collection, proto->m_Script, "Init", instance->m_ScriptInstance, update_context);
-            if (!ret)
-            {
-                dmLogError("The script for prototype %s failed to run.", proto->m_Name);
-                return ret;
-            }
 
             uint32_t next_component_instance_data = 0;
             Prototype* prototype = instance->m_Prototype;
@@ -780,7 +735,7 @@ namespace dmGameObject
         uint32_t event_hash = dmHashString32(event);
         uint32_t component_index = 0xffffffff;
 
-        // Send to component or script?
+        // Send to component or broadcast?
         if (component_name != 0 && *component_name != '\0')
         {
             uint32_t component_name_hash = dmHashString32(component_name);
@@ -820,17 +775,6 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    bool Update(HCollection collection, HInstance instance, const UpdateContext* update_context)
-    {
-        Prototype* proto = instance->m_Prototype;
-        bool ret = RunScript(collection, proto->m_Script, "Update", instance->m_ScriptInstance, update_context);
-        if (!ret)
-        {
-        	dmLogError("The script for prototype %s failed to run.", proto->m_Name);
-        }
-        return ret;
-    }
-
     struct DispatchEventsContext
     {
         HCollection m_Collection;
@@ -847,57 +791,79 @@ namespace dmGameObject
         bool exists = false;
         for (uint32_t i = 0; i < context->m_Collection->m_Instances.Size(); ++i)
         {
-        	if (script_event_data->m_Instance == context->m_Collection->m_Instances[i])
-        	{
-        		exists = true;
-        		break;
-        	}
+            if (script_event_data->m_Instance == context->m_Collection->m_Instances[i])
+            {
+                exists = true;
+                break;
+            }
         }
 
         if (exists)
         {
-			if (script_event_data->m_Component == 0xff)
-			{
-				bool ret = DispatchScriptEventsFunction(event_object, context->m_UpdateContext);
-				if (!ret)
-					context->m_Success = false;
-			}
-			else
-			{
-				Instance* instance = script_event_data->m_Instance;
-				Prototype* prototype = instance->m_Prototype;
-				uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
-				ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
-				assert(component_type);
+            Instance* instance = script_event_data->m_Instance;
+            Prototype* prototype = instance->m_Prototype;
+            // Broadcast to all components
+            if (script_event_data->m_Component == 0xff)
+            {
+                uint32_t next_component_instance_data = 0;
+                uint32_t components_size = prototype->m_Components.Size();
+                for (uint32_t i = 0; i < components_size; ++i)
+                {
+                    ComponentType* component_type = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
+                    assert(component_type);
+                    if (component_type->m_OnEventFunction)
+                    {
+                        uintptr_t* component_instance_data = 0;
+                        if (component_type->m_InstanceHasUserData)
+                        {
+                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                        }
+                        UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+                        if (res != UPDATE_RESULT_OK)
+                            context->m_Success = false;
+                    }
 
-				if (component_type->m_OnEventFunction)
-				{
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+            }
+            else
+            {
+                uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
+                ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
+                assert(component_type);
 
-					// TODO: Not optimal way to find index of component instance data
-					uint32_t next_component_instance_data = 0;
-					for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
-					{
-						ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
-						assert(component_type);
-						if (ct->m_InstanceHasUserData)
-						{
-							next_component_instance_data++;
-						}
-					}
+                if (component_type->m_OnEventFunction)
+                {
+                    // TODO: Not optimal way to find index of component instance data
+                    uint32_t next_component_instance_data = 0;
+                    for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
+                    {
+                        ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
+                        assert(component_type);
+                        if (ct->m_InstanceHasUserData)
+                        {
+                            next_component_instance_data++;
+                        }
+                    }
 
-					uintptr_t* component_instance_data = 0;
-					if (component_type->m_InstanceHasUserData)
-					{
-						component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-					}
-					component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
-				}
-				else
-				{
-					// TODO User-friendly error message here...
-					dmLogWarning("Component type is missing OnEvent function");
-				}
-			}
+                    uintptr_t* component_instance_data = 0;
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                    }
+                    UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+                    if (res != UPDATE_RESULT_OK)
+                        context->m_Success = false;
+                }
+                else
+                {
+                    // TODO User-friendly error message here...
+                    dmLogWarning("Component type is missing OnEvent function");
+                }
+            }
         }
     }
 
@@ -982,22 +948,6 @@ namespace dmGameObject
 
         bool ret = DispatchEvents(collection, update_context);
 
-        // Update scripts
-        uint32_t n_objects = collection->m_Instances.Size();
-        for (uint32_t i = 0; i < n_objects; ++i)
-        {
-            Instance* instance = collection->m_Instances[i];
-            if (instance)
-            {
-                assert(collection->m_Instances[instance->m_Index] == instance);
-                bool update_ret = Update(collection, instance, update_context);
-                if (!update_ret)
-                    ret = false;
-            }
-        }
-
-        UpdateTransforms(collection);
-
         uint32_t component_types = collection->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
@@ -1005,8 +955,13 @@ namespace dmGameObject
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
             {
-                component_type->m_UpdateFunction(collection, update_context, component_type->m_Context);
+                UpdateResult res = component_type->m_UpdateFunction(collection, update_context, component_type->m_Context);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
             }
+            // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
+            // demands updated child-transforms. Many redundant calculations.
+            UpdateTransforms(collection);
         }
 
         collection->m_InUpdate = 0;
@@ -1187,4 +1142,15 @@ namespace dmGameObject
         return false;
     }
 
+    HScriptContext CreateScriptContext(UpdateContext* update_context)
+    {
+        HScriptContext script_context = new ScriptContext();
+        script_context->m_UpdateContext = update_context;
+        return script_context;
+    }
+
+    void DestroyScriptContext(HScriptContext script_context)
+    {
+        delete script_context;
+    }
 }
