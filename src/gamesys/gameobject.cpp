@@ -539,6 +539,21 @@ namespace dmGameObject
         {
             assert(collection->m_Instances[instance->m_Index] == instance);
 
+            // Update world transforms since some components might need them in their init-callback
+            Transform* trans = &collection->m_WorldTransforms[instance->m_Index];
+            if (instance->m_Parent == INVALID_INSTANCE_INDEX)
+            {
+                trans->m_Translation = instance->m_Position;
+                trans->m_Rotation = instance->m_Rotation;
+            }
+            else
+            {
+                const Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
+                trans->m_Rotation = parent_trans->m_Rotation * instance->m_Rotation;
+                trans->m_Translation = (parent_trans->m_Rotation * Quat(Vector3(instance->m_Position), 0.0f) * conj(parent_trans->m_Rotation)).getXYZ()
+                                      + parent_trans->m_Translation;
+            }
+
             uint32_t next_component_instance_data = 0;
             Prototype* prototype = instance->m_Prototype;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
