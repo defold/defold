@@ -68,6 +68,11 @@ namespace dmGameObject
         Prototype*      m_Prototype;
         uint32_t        m_Identifier;
 
+        // Hard pointer to the script instance, if any
+        // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
+        // In the long run, every component should be able to receive init-properties, which would demad a general solution.
+        HScriptInstance m_ScriptInstancePOOOOP;
+
         // Hierarchical depth
         uint16_t        m_Depth : 4;
         // Padding
@@ -97,11 +102,6 @@ namespace dmGameObject
 
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
-
-        // Hard pointer to the script instance, if any
-        // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
-        // In the long run, every component should be able to receive init-properties, which would demad a general solution.
-        HScriptInstance m_ScriptInstancePOOOOP;
     };
 }
 
