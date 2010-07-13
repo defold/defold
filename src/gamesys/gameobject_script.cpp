@@ -260,6 +260,9 @@ namespace dmGameObject
 
     void SetScriptIntProperty(HInstance instance, const char* key, int32_t value)
     {
+        if (!instance->m_ScriptInstancePOOOOP)
+            return;
+
         lua_State*L = g_LuaState;
 
         int top = lua_gettop(L);
@@ -274,6 +277,9 @@ namespace dmGameObject
 
     void SetScriptFloatProperty(HInstance instance, const char* key, float value)
     {
+        if (!instance->m_ScriptInstancePOOOOP)
+            return;
+
         lua_State*L = g_LuaState;
 
         int top = lua_gettop(L);
@@ -288,6 +294,9 @@ namespace dmGameObject
 
     void SetScriptStringProperty(HInstance instance, const char* key, const char* value)
     {
+        if (!instance->m_ScriptInstancePOOOOP)
+            return;
+
         lua_State*L = g_LuaState;
 
         int top = lua_gettop(L);
