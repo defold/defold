@@ -226,11 +226,11 @@ namespace dmPhysics
         return rigid_body->getUserPointer();
     }
 
-    void ApplyForce(HRigidBody rigid_body, Vector3 force, Point3 relative_position)
+    void ApplyForce(HRigidBody rigid_body, Vector3 force, Point3 position)
     {
         btVector3 bt_force(force.getX(), force.getY(), force.getZ());
-        btVector3 bt_relative_position(relative_position.getX(), relative_position.getY(), relative_position.getZ());
-    	rigid_body->applyForce(bt_force, bt_relative_position);
+        btVector3 bt_position(position.getX(), position.getY(), position.getZ());
+    	rigid_body->applyForce(bt_force, bt_position - rigid_body->getWorldTransform().getOrigin());
     }
 
     Vector3 GetTotalForce(HRigidBody rigid_body)
