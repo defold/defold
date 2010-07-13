@@ -40,5 +40,17 @@ message RigidBodyDesc
 message ApplyForceMessage
 {
     required dmMath.Vector3 Force = 1;
-    required dmMath.Point3 RelativePosition = 2;
+    required dmMath.Point3 Position = 2;
+}
+
+message CollisionMessage
+{
+    required string OtherGameObjectId = 1;
+}
+
+message ContactPointMessage
+{
+    required dmMath.Point3 Position = 1;
+    required dmMath.Vector3 Normal = 2;
+    required string OtherGameObjectId = 3;
 }

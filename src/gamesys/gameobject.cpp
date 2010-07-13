@@ -9,9 +9,11 @@
 #include <dlib/profile.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
-#include "../proto/gameobject_ddf.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
+
+#include "../proto/gameobject_ddf.h"
+#include "../proto/physics_ddf.h"
 
 namespace dmGameObject
 {
@@ -125,6 +127,10 @@ namespace dmGameObject
 
         g_ReplySocket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
         dmEvent::CreateSocket(g_ReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+        RegisterDDFType(dmPhysics::ApplyForceMessage::m_DDFDescriptor);
+        RegisterDDFType(dmPhysics::CollisionMessage::m_DDFDescriptor);
+        RegisterDDFType(dmPhysics::ContactPointMessage::m_DDFDescriptor);
 
         InitializeScript();
     }

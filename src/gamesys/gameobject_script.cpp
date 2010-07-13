@@ -451,23 +451,27 @@ namespace dmGameObject
         // Passing ddf data is optional atm
         if (top >= 4)
         {
-			const char* type_name = event_name;
-			uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
-			const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
-			if (desc_tmp != 0)
-			{
-				desc = *desc_tmp;
-				if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
-				{
-					luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
-					return 0;
-				}
-				luaL_checktype(L, 4, LUA_TTABLE);
+            const char* type_name = event_name;
+            uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
+            const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
+            if (desc_tmp != 0)
+            {
+                desc = *desc_tmp;
+                if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
+                {
+                    luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                    return 0;
+                }
+                luaL_checktype(L, 4, LUA_TTABLE);
 
-				lua_pushvalue(L, 4);
-				dmScriptUtil::LuaTableToDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
-				lua_pop(L, 1);
-			}
+                lua_pushvalue(L, 4);
+                dmScriptUtil::LuaTableToDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                lua_pop(L, 1);
+            }
+            else
+            {
+                luaL_error(L, "DDF type %s has not been registered through dmGameObject::RegisterDDFType.", type_name);
+            }
         }
 
         lua_pushstring(L, "__collection__");
