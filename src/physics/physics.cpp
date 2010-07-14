@@ -1,4 +1,7 @@
 #include <stdint.h>
+
+#include <dlib/log.h>
+
 #include "physics.h"
 #include "btBulletDynamicsCommon.h"
 #include "debug_draw.h"
@@ -178,19 +181,32 @@ namespace dmPhysics
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
                             float mass,
+                            bool is_kinematic,
                             void* user_data)
     {
         bool is_dynamic = (mass != 0.f);
 
         btVector3 local_inertia(0,0,0);
         if (is_dynamic)
+        {
+            if (is_kinematic)
+            {
+                dmLogError("Rigid body can not be dynamic (mass > 0) and kinematic at the same time.");
+                return 0x0;
+            }
             shape->calculateLocalInertia(mass, local_inertia);
+        }
 
         btTransform transform;
         transform.setIdentity();
         MotionState* motion_state = new MotionState(transform, visual_object, world->m_SetObjectState, world->m_SetObjectStateContext);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
         btRigidBody* body = new btRigidBody(rb_info);
+        if (is_kinematic && !is_dynamic)
+        {
+            body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+            body->setActivationState(DISABLE_DEACTIVATION);
+        }
         body->setUserPointer(user_data);
         world->m_DynamicsWorld->addRigidBody(body);
         return body;
@@ -198,6 +214,8 @@ namespace dmPhysics
 
     void DeleteRigidBody(HWorld world, HRigidBody rigid_body)
     {
+        if (rigid_body == 0x0)
+            return;
         if (rigid_body->getMotionState())
             delete rigid_body->getMotionState();
 

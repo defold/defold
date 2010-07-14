@@ -102,11 +102,14 @@ namespace dmPhysics
      * @param rotation Initial rotation
      * @param position Initial position
      * @param mass Mass. If identical to 0.0f the rigid body is static
+     * @param is_kinematic If the rigid body should be flagged as kinematic or not. This is only possible when mass == 0.
+     * @param user_data User data
      * @return A new rigid body
      */
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
                             float mass,
+                            bool is_kinematic,
                             void* user_data);
 
     /**
