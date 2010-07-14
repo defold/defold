@@ -157,6 +157,20 @@ namespace dmPhysics
      */
     Vectormath::Aos::Vector3 GetTotalForce(HRigidBody rigid_body);
 
+    /**
+     * Return the world position of the specified rigid body.
+     * @param rigid_body Rigid body handle
+     * @return The world space position
+     */
+    Vectormath::Aos::Point3 GetWorldPosition(HRigidBody rigid_body);
+
+    /**
+     * Return the world rotation of the specified rigid body.
+     * @param rigid_body Rigid body handle
+     * @return The world space rotation
+     */
+    Vectormath::Aos::Quat GetWorldRotation(HRigidBody rigid_body);
+
     typedef void (*RenderLine)(void* ctx, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
     /**
      * Registers a callback function used to render lines when .

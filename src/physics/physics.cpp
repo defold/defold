@@ -15,12 +15,11 @@ namespace dmPhysics
     class MotionState : public btMotionState
     {
     public:
-        MotionState(const btTransform& initial_pos, void* visual_object, void* callback_context, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+        MotionState(void* visual_object, void* callback_context, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
         : m_VisualObject(visual_object)
         , m_CallbackContext(callback_context)
         , m_GetWorldTransform(get_world_transform)
         , m_SetWorldTransform(set_world_transform)
-        , m_Pos1(initial_pos)
         {
         }
 
@@ -29,17 +28,31 @@ namespace dmPhysics
 
         virtual void getWorldTransform(btTransform& world_trans) const
         {
-            world_trans = m_Pos1;
+            if (m_GetWorldTransform != 0x0)
+            {
+                Vectormath::Aos::Point3 position;
+                Vectormath::Aos::Quat rotation;
+                m_GetWorldTransform(m_VisualObject, m_CallbackContext, position, rotation);
+                world_trans.setOrigin(btVector3(position.getX(), position.getY(), position.getZ()));
+                world_trans.setRotation(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()));
+            }
+            else
+            {
+                world_trans = btTransform::getIdentity();
+            }
         }
 
         virtual void setWorldTransform(const btTransform &worldTrans)
         {
-            btQuaternion bt_rot = worldTrans.getRotation();
-            btVector3 bt_pos = worldTrans.getOrigin();
+            if (m_SetWorldTransform != 0x0)
+            {
+                btVector3 bt_pos = worldTrans.getOrigin();
+                btQuaternion bt_rot = worldTrans.getRotation();
 
-            Quat rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
-            Point3 pos = Point3(bt_pos.getX(), bt_pos.getY(), bt_pos.getZ());
-            m_SetWorldTransform(m_VisualObject, m_CallbackContext, pos, rot);
+                Point3 pos = Point3(bt_pos.getX(), bt_pos.getY(), bt_pos.getZ());
+                Quat rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
+                m_SetWorldTransform(m_VisualObject, m_CallbackContext, pos, rot);
+            }
         }
 
     protected:
@@ -47,7 +60,6 @@ namespace dmPhysics
         void*           m_CallbackContext;
         GetWorldTransformCallback  m_GetWorldTransform;
         SetWorldTransformCallback  m_SetWorldTransform;
-        btTransform     m_Pos1;
     };
 
     struct PhysicsWorld
@@ -201,9 +213,7 @@ namespace dmPhysics
             shape->calculateLocalInertia(mass, local_inertia);
         }
 
-        btTransform transform;
-        transform.setIdentity();
-        MotionState* motion_state = new MotionState(transform, visual_object, world->m_CallbackContext, world->m_GetWorldTransform, world->m_SetWorldTransform);
+        MotionState* motion_state = new MotionState(visual_object, world->m_CallbackContext, world->m_GetWorldTransform, world->m_SetWorldTransform);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
         btRigidBody* body = new btRigidBody(rb_info);
         if (is_kinematic && !is_dynamic)
@@ -259,6 +269,18 @@ namespace dmPhysics
     {
     	const btVector3& bt_total_force = rigid_body->getTotalForce();
     	return Vector3(bt_total_force.getX(), bt_total_force.getY(), bt_total_force.getZ());
+    }
+
+    Vectormath::Aos::Point3 GetWorldPosition(HRigidBody rigid_body)
+    {
+        btVector3 position = rigid_body->getWorldTransform().getOrigin();
+        return Vectormath::Aos::Point3(position.getX(), position.getY(), position.getZ());
+    }
+
+    Vectormath::Aos::Quat GetWorldRotation(HRigidBody rigid_body)
+    {
+        btQuaternion rotation = rigid_body->getWorldTransform().getRotation();
+        return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
     }
 
     void SetDebugRenderer(void* ctx, RenderLine render_line)

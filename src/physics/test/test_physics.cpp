@@ -6,13 +6,24 @@ using namespace Vectormath::Aos;
 
 struct VisualObject
 {
+    VisualObject() : m_Position(0.0f, 0.0f, 0.0f), m_Rotation(0.0f, 0.0f, 0.0f, 1.0f) {}
     Point3 m_Position;
     Quat   m_Rotation;
 };
 
 void GetWorldTransform(void* visual_object, void* callback_context, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
 {
-
+    if (visual_object != 0x0)
+    {
+        VisualObject* o = (VisualObject*) visual_object;
+        position = o->m_Position;
+        rotation = o->m_Rotation;
+    }
+    else
+    {
+        position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+        rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    }
 }
 
 void SetWorldTransform(void* visual_object, void* callback_context, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
@@ -42,28 +53,62 @@ protected:
 TEST_F(PhysicsTest, Simple)
 {
     dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HRigidBody rb = dmPhysics::NewRigidBody(m_World, shape, 0, 1.0f, false, 0x0);
+    dmPhysics::HRigidBody rb = dmPhysics::NewRigidBody(m_World, shape, 0x0, 1.0f, false, 0x0);
 
     dmPhysics::DeleteRigidBody(m_World, rb);
     dmPhysics::DeleteCollisionShape(shape);
 }
 
-TEST_F(PhysicsTest, Kinematic)
+TEST_F(PhysicsTest, KinematicConstruction)
 {
     dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HRigidBody rb = dmPhysics::NewRigidBody(m_World, shape, 0, 1.0f, true, 0x0);
+    dmPhysics::HRigidBody rb = dmPhysics::NewRigidBody(m_World, shape, 0x0, 1.0f, true, 0x0);
 
     ASSERT_EQ((void*)0, (void*)rb);
 
     dmPhysics::DeleteRigidBody(m_World, rb);
 
-    rb = dmPhysics::NewRigidBody(m_World, shape, 0, 0.0f, true, 0x0);
+    rb = dmPhysics::NewRigidBody(m_World, shape, 0x0, 0.0f, true, 0x0);
 
     ASSERT_NE((void*)0, (void*)rb);
 
     dmPhysics::DeleteRigidBody(m_World, rb);
 
     dmPhysics::DeleteCollisionShape(shape);
+}
+
+TEST_F(PhysicsTest, WorldTransformCallbacks)
+{
+    VisualObject dynamic_vo;
+    dynamic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    dynamic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    dmPhysics::HCollisionShape dynamic_shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    dmPhysics::HRigidBody dynamic_rb = dmPhysics::NewRigidBody(m_World, dynamic_shape, &dynamic_vo, 1.0f, false, 0x0);
+
+    VisualObject kinematic_vo;
+    kinematic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    kinematic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    dmPhysics::HCollisionShape kinematic_shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    dmPhysics::HRigidBody kinematic_rb = dmPhysics::NewRigidBody(m_World, kinematic_shape, &kinematic_vo, 0.0f, true, 0x0);
+
+    ASSERT_EQ(0.0f, dynamic_vo.m_Position.getY());
+    ASSERT_EQ(0.0f, dmPhysics::GetWorldPosition(dynamic_rb).getY());
+    ASSERT_EQ(0.0f, kinematic_vo.m_Position.getY());
+    ASSERT_EQ(0.0f, dmPhysics::GetWorldPosition(kinematic_rb).getY());
+
+    kinematic_vo.m_Position.setY(1.0f);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+
+    ASSERT_GT(0.0f, dynamic_vo.m_Position.getY());
+    ASSERT_GT(0.0f, dmPhysics::GetWorldPosition(dynamic_rb).getY());
+    ASSERT_EQ(1.0f, kinematic_vo.m_Position.getY());
+    ASSERT_EQ(1.0f, dmPhysics::GetWorldPosition(kinematic_rb).getY());
+
+    dmPhysics::DeleteRigidBody(m_World, dynamic_rb);
+    dmPhysics::DeleteCollisionShape(dynamic_shape);
+    dmPhysics::DeleteRigidBody(m_World, kinematic_rb);
+    dmPhysics::DeleteCollisionShape(kinematic_shape);
 }
 
 TEST_F(PhysicsTest, GroundBoxCollision)
