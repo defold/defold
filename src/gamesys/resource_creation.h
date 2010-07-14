@@ -7,7 +7,8 @@
 struct RigidBodyPrototype
 {
     dmPhysics::HCollisionShape m_CollisionShape;
-    float                      m_Mass;
+    float m_Mass;
+    bool m_IsKinematic;
 };
 
 namespace dmGameSystem

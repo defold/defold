@@ -24,7 +24,7 @@ namespace dmGameSystem
         RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*) resource;
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rigid_body_prototype->m_Mass, instance);
+        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rigid_body_prototype->m_Mass, rigid_body_prototype->m_IsKinematic, instance);
         *user_data = (uintptr_t) rigid_body;
         return dmGameObject::CREATE_RESULT_OK;
     }

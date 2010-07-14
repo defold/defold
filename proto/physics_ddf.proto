@@ -35,6 +35,7 @@ message RigidBodyDesc
 {
     required float Mass = 1;
     required string CollisionShape = 2;
+    required uint32 IsKinematic = 3;
 }
 
 message ApplyForceMessage

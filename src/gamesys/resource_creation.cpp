@@ -202,6 +202,7 @@ namespace dmGameSystem
         RigidBodyPrototype* rigid_body_prototype = new RigidBodyPrototype();
         rigid_body_prototype->m_CollisionShape = collision_shape;
         rigid_body_prototype->m_Mass = rigid_body_desc->m_Mass;
+        rigid_body_prototype->m_IsKinematic = rigid_body_desc->m_IsKinematic != 0;
         resource->m_Resource = (void*) rigid_body_prototype;
 
         dmDDF::FreeMessage(rigid_body_desc);
