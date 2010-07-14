@@ -15,11 +15,12 @@ def init():
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('compiler_cxx')
+    opt.tool_options('waf_dynamo')
     
 def configure(conf):
     conf.check_tool('compiler_cxx')
 
-    waf_dynamo.configure(conf)
+    conf.check_tool('waf_dynamo')
     waf_ddf.configure(conf)
 
     conf.sub_config('src')
