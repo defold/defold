@@ -6,16 +6,21 @@ using namespace Vectormath::Aos;
 
 struct VisualObject
 {
-    Quat   m_Orientation;
     Point3 m_Position;
+    Quat   m_Rotation;
 };
 
-void SetVisualObjectState(void* context, void* visual_object, const Quat& orientation, const Point3& position)
+void GetWorldTransform(void* visual_object, void* callback_context, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
+{
+
+}
+
+void SetWorldTransform(void* visual_object, void* callback_context, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
 {
     if (!visual_object) return;
     VisualObject* o = (VisualObject*) visual_object;
-    o->m_Orientation = orientation;
     o->m_Position = position;
+    o->m_Rotation = rotation;
 }
 
 class PhysicsTest : public ::testing::Test
@@ -23,7 +28,7 @@ class PhysicsTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_World = dmPhysics::NewWorld(Point3(-1000.0f, -1000.0f, -1000.0f), Point3(1000.0f, 1000.0f, 1000.0f), &SetVisualObjectState, 0);
+        m_World = dmPhysics::NewWorld(Point3(-1000.0f, -1000.0f, -1000.0f), Point3(1000.0f, 1000.0f, 1000.0f), &GetWorldTransform, &SetWorldTransform, 0);
     }
 
     virtual void TearDown()

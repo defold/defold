@@ -15,12 +15,13 @@ namespace dmPhysics
     class MotionState : public btMotionState
     {
     public:
-        MotionState(const btTransform& initial_pos, void* visual_object, SetObjectState set_object_state, void* set_object_state_context)
+        MotionState(const btTransform& initial_pos, void* visual_object, void* callback_context, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+        : m_VisualObject(visual_object)
+        , m_CallbackContext(callback_context)
+        , m_GetWorldTransform(get_world_transform)
+        , m_SetWorldTransform(set_world_transform)
+        , m_Pos1(initial_pos)
         {
-            m_Pos1 = initial_pos;
-            m_VisualObject = visual_object;
-            m_SetObjectState = set_object_state;
-            m_SetObjectStateContext = set_object_state_context;
         }
 
         virtual ~MotionState() {
@@ -38,19 +39,20 @@ namespace dmPhysics
 
             Quat rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
             Point3 pos = Point3(bt_pos.getX(), bt_pos.getY(), bt_pos.getZ());
-            m_SetObjectState(m_SetObjectStateContext, m_VisualObject, rot, pos);
+            m_SetWorldTransform(m_VisualObject, m_CallbackContext, pos, rot);
         }
 
     protected:
-        SetObjectState  m_SetObjectState;
-        void*           m_SetObjectStateContext;
         void*           m_VisualObject;
+        void*           m_CallbackContext;
+        GetWorldTransformCallback  m_GetWorldTransform;
+        SetWorldTransformCallback  m_SetWorldTransform;
         btTransform     m_Pos1;
     };
 
     struct PhysicsWorld
     {
-        PhysicsWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
+        PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context);
         ~PhysicsWorld();
 
         btDefaultCollisionConfiguration*        m_CollisionConfiguration;
@@ -58,11 +60,12 @@ namespace dmPhysics
         btAxisSweep3*                           m_OverlappingPairCache;
         btSequentialImpulseConstraintSolver*    m_Solver;
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
-        SetObjectState                          m_SetObjectState;
-        void*                                   m_SetObjectStateContext;
+        GetWorldTransformCallback               m_GetWorldTransform;
+        SetWorldTransformCallback               m_SetWorldTransform;
+        void*                                   m_CallbackContext;
     };
 
-    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context)
+    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -80,8 +83,9 @@ namespace dmPhysics
         m_DynamicsWorld->setGravity(btVector3(0,-10,0));
         m_DynamicsWorld->setDebugDrawer(&m_DebugDraw);
 
-        m_SetObjectState = set_object_state;
-        m_SetObjectStateContext = set_object_state_context;
+        m_GetWorldTransform = get_world_transform;
+        m_SetWorldTransform = set_world_transform;
+        m_CallbackContext = callback_context;
     }
 
     PhysicsWorld::~PhysicsWorld()
@@ -93,9 +97,9 @@ namespace dmPhysics
         delete m_CollisionConfiguration;
     }
 
-    HWorld NewWorld(const Point3& world_min, const Point3& world_max, SetObjectState set_object_state, void* set_object_state_context)
+    HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context)
     {
-        return new PhysicsWorld(world_min, world_max, set_object_state, set_object_state_context);
+        return new PhysicsWorld(world_min, world_max, get_world_transform, set_world_transform, callback_context);
     }
 
     void DeleteWorld(HWorld world)
@@ -199,7 +203,7 @@ namespace dmPhysics
 
         btTransform transform;
         transform.setIdentity();
-        MotionState* motion_state = new MotionState(transform, visual_object, world->m_SetObjectState, world->m_SetObjectStateContext);
+        MotionState* motion_state = new MotionState(transform, visual_object, world->m_CallbackContext, world->m_GetWorldTransform, world->m_SetWorldTransform);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
         btRigidBody* body = new btRigidBody(rb_info);
         if (is_kinematic && !is_dynamic)

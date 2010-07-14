@@ -14,7 +14,8 @@ namespace dmPhysics
     typedef class btCollisionShape* HCollisionShape;
     typedef class btRigidBody* HRigidBody;
 
-    typedef void (*SetObjectState)(void* context, void* visual_object, const Vectormath::Aos::Quat& rotation, const Vectormath::Aos::Point3& position);
+    typedef void (*GetWorldTransformCallback)(void* visual_object, void* callback_context, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
+    typedef void (*SetWorldTransformCallback)(void* visual_object, void* callback_context, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
 
     typedef void (*CollisionCallback)(void* user_data_a, void* user_data_b, void* user_data);
 
@@ -39,7 +40,7 @@ namespace dmPhysics
      * @param set_object_state_context User context
      * @return HPhysicsWorld
      */
-    HWorld NewWorld(const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, SetObjectState set_object_state, void* set_object_state_context);
+    HWorld NewWorld(const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context);
 
     /**
      * Delete a physics world
