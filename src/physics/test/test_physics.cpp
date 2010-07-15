@@ -424,6 +424,53 @@ TEST_F(PhysicsTest, ApplyForce)
     dmPhysics::DeleteCollisionShape(box_shape);
 }
 
+struct RayCastResult
+{
+    bool m_Hit[2];
+};
+
+void RayCastResponse(bool hit, float hit_fraction, uint32_t user_id, void* user_data)
+{
+    if (hit)
+    {
+        RayCastResult* rcr = (RayCastResult*)user_data;
+        rcr->m_Hit[user_id] = hit;
+    }
+}
+
+TEST_F(PhysicsTest, RayCasting)
+{
+    float box_half_ext = 0.5f;
+    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    VisualObject vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, &vo);
+
+    RayCastResult result;
+    memset(result.m_Hit, 0, sizeof(bool) * 2);
+
+    dmPhysics::RayCastRequest request;
+    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f, 0.0f);
+    request.m_UserId = 0;
+    request.m_UserData = &result;
+    request.m_ResponseCallback = &RayCastResponse;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
+    request.m_UserId = 1;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+
+    ASSERT_FALSE(result.m_Hit[0]);
+    ASSERT_TRUE(result.m_Hit[1]);
+
+    dmPhysics::DeleteCollisionObject(m_World, box_co);
+    dmPhysics::DeleteCollisionShape(box_shape);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

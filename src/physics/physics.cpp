@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include <dlib/array.h>
 #include <dlib/log.h>
 
 #include "physics.h"
@@ -75,6 +76,7 @@ namespace dmPhysics
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
+        dmArray<RayCastRequest>                 m_RayCastRequests;
     };
 
     PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
@@ -97,6 +99,8 @@ namespace dmPhysics
 
         m_GetWorldTransform = get_world_transform;
         m_SetWorldTransform = set_world_transform;
+
+        m_RayCastRequests.SetCapacity(128);
     }
 
     PhysicsWorld::~PhysicsWorld()
@@ -142,8 +146,23 @@ namespace dmPhysics
                 }
             }
         }
+
+        // Step simulation
         // TODO: Max substeps = 1 for now...
         world->m_DynamicsWorld->stepSimulation(dt, 1);
+
+        // Handle ray cast requests
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            btVector3 from(request.m_From.getX(), request.m_From.getY(), request.m_From.getZ());
+            btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
+            btCollisionWorld::ClosestRayResultCallback result_callback(from, to);
+            world->m_DynamicsWorld->rayTest(from, to, result_callback);
+            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, request.m_UserId, request.m_UserData);
+        }
+        world->m_RayCastRequests.SetSize(0);
     }
 
     void ForEachCollision(HWorld world,
@@ -379,6 +398,14 @@ namespace dmPhysics
     {
         btQuaternion rotation = collision_object->getWorldTransform().getRotation();
         return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+    }
+
+    void RequestRayCast(HWorld world, const RayCastRequest& request)
+    {
+        if (!world->m_RayCastRequests.Full())
+            world->m_RayCastRequests.Push(request);
+        else
+            dmLogWarning("Ray cast query buffer is full (%d), ignoring request.", world->m_RayCastRequests.Capacity());
     }
 
     void SetDebugRenderer(void* ctx, RenderLine render_line)

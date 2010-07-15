@@ -178,6 +178,19 @@ namespace dmPhysics
      */
     Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
+    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, uint32_t user_id, void* user_data);
+
+    struct RayCastRequest
+    {
+        Vectormath::Aos::Point3 m_From;
+        Vectormath::Aos::Point3 m_To;
+        uint32_t m_UserId;
+        void* m_UserData;
+        RayCastResponseCallback m_ResponseCallback;
+    };
+
+    void RequestRayCast(HWorld world, const RayCastRequest& request);
+
     typedef void (*RenderLine)(void* ctx, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
     /**
      * Registers a callback function used to render lines when .
