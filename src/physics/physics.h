@@ -6,38 +6,38 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 class btCollisionShape;
-class btRigidBody;
+class btCollisionObject;
 
 namespace dmPhysics
 {
-    enum RigidBodyType
+    enum CollisionObjectType
     {
-        RIGID_BODY_TYPE_DYNAMIC,
-        RIGID_BODY_TYPE_KINEMATIC,
-        RIGID_BODY_TYPE_STATIC,
-        RIGID_BODY_TYPE_TRIGGER,
-        RIGID_BODY_TYPE_COUNT
+        COLLISION_OBJECT_TYPE_DYNAMIC,
+        COLLISION_OBJECT_TYPE_KINEMATIC,
+        COLLISION_OBJECT_TYPE_STATIC,
+        COLLISION_OBJECT_TYPE_TRIGGER,
+        COLLISION_OBJECT_TYPE_COUNT
     };
 
     typedef struct PhysicsWorld* HWorld;
     typedef class btCollisionShape* HCollisionShape;
-    typedef class btRigidBody* HRigidBody;
+    typedef class btCollisionObject* HCollisionObject;
+
+    typedef void (*GetWorldTransformCallback)(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
+    typedef void (*SetWorldTransformCallback)(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
+
+    typedef void (*CollisionCallback)(void* user_data_collider, void* user_data_collidee, void* user_data);
 
     struct ContactPoint
     {
         Vectormath::Aos::Point3 m_PositionA;
         Vectormath::Aos::Point3 m_PositionB;
-        // Always A->B
+        /// Always A->B
         Vectormath::Aos::Vector3 m_Normal;
         float m_Distance;
         void* m_UserDataA;
         void* m_UserDataB;
     };
-
-    typedef void (*GetWorldTransformCallback)(void* visual_object, void* callback_context, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
-    typedef void (*SetWorldTransformCallback)(void* visual_object, void* callback_context, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
-
-    typedef void (*CollisionCallback)(void* user_data_a, void* user_data_b, void* user_data);
 
     typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
 
@@ -45,11 +45,11 @@ namespace dmPhysics
      * Create a new physics world
      * @param world_min World min (AABB)
      * @param world_max World max (AABB)
-     * @param set_object_state Set object state call-back. Used for updating corresponding visual object state
-     * @param set_object_state_context User context
+     * @param get_world_transform Callback for copying the transform from the corresponding user data to the collision object
+     * @param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
      * @return HPhysicsWorld
      */
-    HWorld NewWorld(const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context);
+    HWorld NewWorld(const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
 
     /**
      * Delete a physics world
@@ -105,80 +105,78 @@ namespace dmPhysics
     void DeleteCollisionShape(HCollisionShape shape);
 
     /**
-     * Create a new rigid body
+     * Create a new collision object
      * @param world Physics world
      * @param shape Shape
-     * @param visual_object Corresponding visual object
      * @param rotation Initial rotation
      * @param position Initial position
-     * @param mass Mass. If identical to 0.0f the rigid body is static
-     * @param is_kinematic If the rigid body should be flagged as kinematic or not. This is only possible when mass == 0.
+     * @param mass Mass, must be positive for COLLISION_OBJECT_TYPE_DYNAMIC and zero for all other types
+     * @param collision_object_type Type of collision object
      * @param user_data User data
-     * @return A new rigid body
+     * @return A new collision object
      */
-    HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
-                            void* visual_object,
+    HCollisionObject NewCollisionObject(HWorld world, HCollisionShape shape,
                             float mass,
-                            RigidBodyType rigid_body_type,
+                            CollisionObjectType collision_object_type,
                             void* user_data);
 
     /**
-     * Delete a rigid body
+     * Delete a collision object
      * @param world Physics world
-     * @param rigid_body Rigid body to delete
+     * @param collision_object Collision object to delete
      */
-    void DeleteRigidBody(HWorld world, HRigidBody rigid_body);
+    void DeleteCollisionObject(HWorld world, HCollisionObject collision_object);
 
     /**
-     * Set rigid body initial transform
-     * @param rigid_body Rigid body
+     * Set collision object initial transform
+     * @param collision_object Collision object
      * @param position Initial position
      * @param orientation Initial orientation
      */
-    void SetRigidBodyInitialTransform(HRigidBody rigid_body, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation);
+    void SetCollisionObjectInitialTransform(HCollisionObject collision_object, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation);
 
     /**
-     * Set rigid body user data
-     * @param rigid_body Rigid body
+     * Set collision object user data
+     * @param collision_object Collision object
      * @param user_data User data
      */
-    void SetRigidBodyUserData(HRigidBody rigid_body, void* user_data);
+    void SetCollisionObjectUserData(HCollisionObject collision_object, void* user_data);
 
     /**
-     * Set rigid body user data
-     * @param rigid_body Rigid body
+     * Set collision object user data
+     * @param collision_object Collision object
      * @return User data
      */
-    void* GetRigidBodyUserData(HRigidBody rigid_body);
+    void* GetCollisionObjectUserData(HCollisionObject collision_object);
 
     /**
-     * Apply a force to the specified rigid body at the specified position.
-     * @param rigid_body Rigid body receiving the force.
-     * @param force Force to be applied (world space).
-     * @param position Position of where the force will be applied (world space).
+     * Apply a force to the specified collision object at the specified position
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param force Force to be applied (world space)
+     * @param position Position of where the force will be applied (world space)
      */
-    void ApplyForce(HRigidBody rigid_body, Vectormath::Aos::Vector3 force, Vectormath::Aos::Point3 position);
+    void ApplyForce(HCollisionObject collision_object, Vectormath::Aos::Vector3 force, Vectormath::Aos::Point3 position);
 
     /**
-     * Return the total force currently applied to the specified rigid body.
-     * @param rigid_body Rigid body receiving the force.
+     * Return the total force currently applied to the specified collision object.
+     * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
      * @return The total force (world space).
      */
-    Vectormath::Aos::Vector3 GetTotalForce(HRigidBody rigid_body);
+    Vectormath::Aos::Vector3 GetTotalForce(HCollisionObject collision_object);
 
     /**
-     * Return the world position of the specified rigid body.
-     * @param rigid_body Rigid body handle
+     * Return the world position of the specified collision object.
+     * @param collision_object Collision object handle
      * @return The world space position
      */
-    Vectormath::Aos::Point3 GetWorldPosition(HRigidBody rigid_body);
+    Vectormath::Aos::Point3 GetWorldPosition(HCollisionObject collision_object);
 
     /**
-     * Return the world rotation of the specified rigid body.
-     * @param rigid_body Rigid body handle
+     * Return the world rotation of the specified collision object.
+     * @param collision_object Collision object handle
      * @return The world space rotation
      */
-    Vectormath::Aos::Quat GetWorldRotation(HRigidBody rigid_body);
+    Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
     typedef void (*RenderLine)(void* ctx, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
     /**

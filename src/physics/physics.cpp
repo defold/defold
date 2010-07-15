@@ -4,6 +4,7 @@
 
 #include "physics.h"
 #include "btBulletDynamicsCommon.h"
+#include "BulletCollision/CollisionDispatch/btGhostObject.h"
 #include "debug_draw.h"
 
 namespace dmPhysics
@@ -15,15 +16,16 @@ namespace dmPhysics
     class MotionState : public btMotionState
     {
     public:
-        MotionState(void* visual_object, void* callback_context, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
-        : m_VisualObject(visual_object)
-        , m_CallbackContext(callback_context)
+        MotionState(void* user_data, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+        : m_UserData(user_data)
         , m_GetWorldTransform(get_world_transform)
         , m_SetWorldTransform(set_world_transform)
         {
         }
 
-        virtual ~MotionState() {
+        virtual ~MotionState()
+        {
+
         }
 
         virtual void getWorldTransform(btTransform& world_trans) const
@@ -32,7 +34,7 @@ namespace dmPhysics
             {
                 Vectormath::Aos::Point3 position;
                 Vectormath::Aos::Quat rotation;
-                m_GetWorldTransform(m_VisualObject, m_CallbackContext, position, rotation);
+                m_GetWorldTransform(m_UserData, position, rotation);
                 world_trans.setOrigin(btVector3(position.getX(), position.getY(), position.getZ()));
                 world_trans.setRotation(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()));
             }
@@ -51,20 +53,19 @@ namespace dmPhysics
 
                 Point3 pos = Point3(bt_pos.getX(), bt_pos.getY(), bt_pos.getZ());
                 Quat rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
-                m_SetWorldTransform(m_VisualObject, m_CallbackContext, pos, rot);
+                m_SetWorldTransform(m_UserData, pos, rot);
             }
         }
 
     protected:
-        void*           m_VisualObject;
-        void*           m_CallbackContext;
-        GetWorldTransformCallback  m_GetWorldTransform;
-        SetWorldTransformCallback  m_SetWorldTransform;
+        void* m_UserData;
+        GetWorldTransformCallback m_GetWorldTransform;
+        SetWorldTransformCallback m_SetWorldTransform;
     };
 
     struct PhysicsWorld
     {
-        PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context);
+        PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
         ~PhysicsWorld();
 
         btDefaultCollisionConfiguration*        m_CollisionConfiguration;
@@ -74,10 +75,9 @@ namespace dmPhysics
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
-        void*                                   m_CallbackContext;
     };
 
-    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context)
+    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -97,7 +97,6 @@ namespace dmPhysics
 
         m_GetWorldTransform = get_world_transform;
         m_SetWorldTransform = set_world_transform;
-        m_CallbackContext = callback_context;
     }
 
     PhysicsWorld::~PhysicsWorld()
@@ -109,9 +108,9 @@ namespace dmPhysics
         delete m_CollisionConfiguration;
     }
 
-    HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform, void* callback_context)
+    HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
     {
-        return new PhysicsWorld(world_min, world_max, get_world_transform, set_world_transform, callback_context);
+        return new PhysicsWorld(world_min, world_max, get_world_transform, set_world_transform);
     }
 
     void DeleteWorld(HWorld world)
@@ -126,6 +125,23 @@ namespace dmPhysics
 
     void StepWorld(HWorld world, float dt)
     {
+        // Update all trigger transforms before physics world step
+        if (world->m_GetWorldTransform != 0x0)
+        {
+            int collision_object_count = world->m_DynamicsWorld->getNumCollisionObjects();
+            for (int i = 0; i < collision_object_count; ++i)
+            {
+                btCollisionObject* collision_object = world->m_DynamicsWorld->getCollisionObjectArray()[i];
+                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT)
+                {
+                    Vectormath::Aos::Point3 position;
+                    Vectormath::Aos::Quat rotation;
+                    world->m_GetWorldTransform(collision_object->getUserPointer(), position, rotation);
+                    btTransform world_transform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), btVector3(position.getX(), position.getY(), position.getZ()));
+                    collision_object->setWorldTransform(world_transform);
+                }
+            }
+        }
         // TODO: Max substeps = 1 for now...
         world->m_DynamicsWorld->stepSimulation(dt, 1);
     }
@@ -150,6 +166,7 @@ namespace dmPhysics
                 if (collision_callback != 0x0)
                 {
                     collision_callback(object_a->getUserPointer(), object_b->getUserPointer(), collision_callback_user_data);
+                    collision_callback(object_b->getUserPointer(), object_a->getUserPointer(), collision_callback_user_data);
                 }
 
                 if (contact_point_callback)
@@ -175,6 +192,25 @@ namespace dmPhysics
                     }
                 }
             }
+            // check ghosts
+            if (collision_callback != 0x0)
+            {
+                int num_collision_objects = world->m_DynamicsWorld->getNumCollisionObjects();
+                for (int i = 0; i < num_collision_objects; ++i)
+                {
+                    btCollisionObject* collision_object = world->m_DynamicsWorld->getCollisionObjectArray()[i];
+                    btGhostObject* ghost_object = btGhostObject::upcast(collision_object);
+                    if (ghost_object != 0x0)
+                    {
+                        int num_overlaps = ghost_object->getNumOverlappingObjects();
+                        for (int j = 0; j < num_overlaps; ++j)
+                        {
+                            btCollisionObject* collidee = ghost_object->getOverlappingObject(j);
+                            collision_callback(ghost_object->getUserPointer(), collidee->getUserPointer(), collision_callback_user_data);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -194,118 +230,154 @@ namespace dmPhysics
         delete shape;
     }
 
-    HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
-                            void* visual_object,
-                            float mass,
-                            RigidBodyType rigid_body_type,
-                            void* user_data)
+    HCollisionObject NewCollisionObject(HWorld world,
+            HCollisionShape shape,
+            float mass,
+            CollisionObjectType collision_object_type,
+            void* user_data)
     {
-        switch (rigid_body_type)
+        if (shape == 0x0)
         {
-        case RIGID_BODY_TYPE_DYNAMIC:
+            dmLogError("Collision objects must have a shape.");
+            return 0x0;
+        }
+        switch (collision_object_type)
+        {
+        case COLLISION_OBJECT_TYPE_DYNAMIC:
             if (mass == 0.0f)
             {
-                dmLogError("Rigid bodies can not be dynamic and have zero mass.");
+                dmLogError("Collision objects can not be dynamic and have zero mass.");
                 return 0x0;
             }
             break;
         default:
             if (mass > 0.0f)
             {
-                dmLogError("Only dynamic rigid bodies can have a positive mass.");
+                dmLogError("Only dynamic collision objects can have a positive mass.");
                 return 0x0;
             }
             break;
         }
 
         btVector3 local_inertia(0.0f, 0.0f, 0.0f);
-        if (rigid_body_type == RIGID_BODY_TYPE_DYNAMIC)
+        if (collision_object_type == COLLISION_OBJECT_TYPE_DYNAMIC)
         {
             shape->calculateLocalInertia(mass, local_inertia);
         }
 
-        MotionState* motion_state = new MotionState(visual_object, world->m_CallbackContext, world->m_GetWorldTransform, world->m_SetWorldTransform);
-        btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
-        // TODO: Investigate if RIGID_BODY_TYPE_TRIGGER should be instantiated from a btGhostObject instead of rigid body with no contact response
-        // Pros:
-        // * Light weight object, one of its purposes are triggers
-        // Cons:
-        // * No motion state and hence no automatic callback to update its position => must be done manually from the trigger-component or similar
-        btRigidBody* body = new btRigidBody(rb_info);
-        switch (rigid_body_type)
+        btCollisionObject* collision_object = 0x0;
+        uint16_t collision_group = (uint16_t)btBroadphaseProxy::DefaultFilter;
+        uint16_t collision_mask = (uint16_t)btBroadphaseProxy::AllFilter;
+        if (collision_object_type != COLLISION_OBJECT_TYPE_TRIGGER)
         {
-        case RIGID_BODY_TYPE_KINEMATIC:
-            body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
-            body->setActivationState(DISABLE_DEACTIVATION);
-            break;
-        case RIGID_BODY_TYPE_STATIC:
-            body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
-            break;
-        case RIGID_BODY_TYPE_TRIGGER:
-            body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT | btCollisionObject::CF_NO_CONTACT_RESPONSE);
-            break;
-        default:
-            break;
+            MotionState* motion_state = new MotionState(user_data, world->m_GetWorldTransform, world->m_SetWorldTransform);
+            btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
+            btRigidBody* body = new btRigidBody(rb_info);
+            switch (collision_object_type)
+            {
+            case COLLISION_OBJECT_TYPE_DYNAMIC:
+                body->setGravity(world->m_DynamicsWorld->getGravity());
+                break;
+            case COLLISION_OBJECT_TYPE_KINEMATIC:
+                body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+                body->setActivationState(DISABLE_DEACTIVATION);
+                break;
+            case COLLISION_OBJECT_TYPE_STATIC:
+                body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
+                break;
+            default:
+                break;
+            }
+            collision_object = body;
         }
-        body->setUserPointer(user_data);
-        world->m_DynamicsWorld->addRigidBody(body);
-        return body;
+        else
+        {
+            collision_object = new btGhostObject();
+            btTransform world_transform;
+            if (world->m_GetWorldTransform != 0x0)
+            {
+                Vectormath::Aos::Point3 position;
+                Vectormath::Aos::Quat rotation;
+                world->m_GetWorldTransform(user_data, position, rotation);
+                world_transform = btTransform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), btVector3(position.getX(), position.getY(), position.getZ()));
+            }
+            else
+            {
+                world_transform = btTransform::getIdentity();
+            }
+            collision_object->setWorldTransform(world_transform);
+            collision_object->setCollisionShape(shape);
+            collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+        }
+        collision_object->setUserPointer(user_data);
+        world->m_DynamicsWorld->addCollisionObject(collision_object, collision_group, collision_mask);
+        return collision_object;
     }
 
-    void DeleteRigidBody(HWorld world, HRigidBody rigid_body)
+    void DeleteCollisionObject(HWorld world, HCollisionObject collision_object)
     {
-        if (rigid_body == 0x0)
+        if (collision_object == 0x0)
             return;
-        if (rigid_body->getMotionState())
+        btRigidBody* rigid_body = btRigidBody::upcast(collision_object);
+        if (rigid_body != 0x0 && rigid_body->getMotionState())
             delete rigid_body->getMotionState();
 
-        world->m_DynamicsWorld->removeCollisionObject(rigid_body);
-        delete rigid_body;
+        world->m_DynamicsWorld->removeCollisionObject(collision_object);
+        delete collision_object;
     }
 
-    void SetRigidBodyInitialTransform(HRigidBody rigid_body, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation)
+    void SetCollisionObjectInitialTransform(HCollisionObject collision_object, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation)
     {
-        btMotionState* motion_state = rigid_body->getMotionState();
-        assert(motion_state);
         btVector3 bt_position(position.getX(), position.getY(), position.getZ());
         btQuaternion bt_orientation(orientation.getX(), orientation.getY(), orientation.getZ(), orientation.getW());
         btTransform world_transform(bt_orientation, bt_position);
-        motion_state->setWorldTransform(world_transform);
-        rigid_body->setWorldTransform(world_transform);
+        collision_object->setWorldTransform(world_transform);
     }
 
-    void SetRigidBodyUserData(HRigidBody rigid_body, void* user_data)
+    void SetCollisionObjectUserData(HCollisionObject collision_object, void* user_data)
     {
-        rigid_body->setUserPointer(user_data);
+        collision_object->setUserPointer(user_data);
     }
 
-    void* GetRigidBodyUserData(HRigidBody rigid_body)
+    void* GetCollisionObjectUserData(HCollisionObject collision_object)
     {
-        return rigid_body->getUserPointer();
+        return collision_object->getUserPointer();
     }
 
-    void ApplyForce(HRigidBody rigid_body, Vector3 force, Point3 position)
+    void ApplyForce(HCollisionObject collision_object, Vector3 force, Point3 position)
     {
-        btVector3 bt_force(force.getX(), force.getY(), force.getZ());
-        btVector3 bt_position(position.getX(), position.getY(), position.getZ());
-    	rigid_body->applyForce(bt_force, bt_position - rigid_body->getWorldTransform().getOrigin());
+        btRigidBody* rigid_body = btRigidBody::upcast(collision_object);
+        if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
+        {
+            btVector3 bt_force(force.getX(), force.getY(), force.getZ());
+            btVector3 bt_position(position.getX(), position.getY(), position.getZ());
+            rigid_body->applyForce(bt_force, bt_position - collision_object->getWorldTransform().getOrigin());
+        }
     }
 
-    Vector3 GetTotalForce(HRigidBody rigid_body)
+    Vector3 GetTotalForce(HCollisionObject collision_object)
     {
-    	const btVector3& bt_total_force = rigid_body->getTotalForce();
-    	return Vector3(bt_total_force.getX(), bt_total_force.getY(), bt_total_force.getZ());
+        btRigidBody* rigid_body = btRigidBody::upcast(collision_object);
+        if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
+        {
+            const btVector3& bt_total_force = rigid_body->getTotalForce();
+            return Vector3(bt_total_force.getX(), bt_total_force.getY(), bt_total_force.getZ());
+        }
+        else
+        {
+            return Vector3(0.0f, 0.0f, 0.0f);
+        }
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition(HRigidBody rigid_body)
+    Vectormath::Aos::Point3 GetWorldPosition(HCollisionObject collision_object)
     {
-        btVector3 position = rigid_body->getWorldTransform().getOrigin();
+        btVector3 position = collision_object->getWorldTransform().getOrigin();
         return Vectormath::Aos::Point3(position.getX(), position.getY(), position.getZ());
     }
 
-    Vectormath::Aos::Quat GetWorldRotation(HRigidBody rigid_body)
+    Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object)
     {
-        btQuaternion rotation = rigid_body->getWorldTransform().getRotation();
+        btQuaternion rotation = collision_object->getWorldTransform().getRotation();
         return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
     }
 
