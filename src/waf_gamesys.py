@@ -45,7 +45,7 @@ def testresourcecont_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('convexshape', 'protoc --encode=dmPhysics.ConvexShape -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('convexshape', 'protoc --encode=dmPhysicsDDF.ConvexShape -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK',
                       before='cc cxx',
                       shell=True)
@@ -58,7 +58,7 @@ def gameobjectdesc_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('rigidbody', 'protoc --encode=dmPhysics.RigidBodyDesc -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('rigidbody', 'protoc --encode=dmPhysicsDDF.RigidBodyDesc -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK',
                       before='cc cxx',
                       shell=True)

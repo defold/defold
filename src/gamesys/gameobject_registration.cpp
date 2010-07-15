@@ -24,7 +24,7 @@ namespace dmGameSystem
         RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*) resource;
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rigid_body_prototype->m_Mass, rigid_body_prototype->m_IsKinematic, instance);
+        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rigid_body_prototype->m_Mass, rigid_body_prototype->m_Type, instance);
         *user_data = (uintptr_t) rigid_body;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -62,37 +62,37 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance instance_a = (dmGameObject::HInstance)user_data_a;
         dmGameObject::HInstance instance_b = (dmGameObject::HInstance)user_data_b;
-        const uint32_t data_size = sizeof(dmPhysics::CollisionMessage) + 9;
+        const uint32_t data_size = sizeof(dmPhysicsDDF::CollisionMessage) + 9;
         char data[data_size];
-        dmPhysics::CollisionMessage* ddf = (dmPhysics::CollisionMessage*)&data;
-        ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysics::CollisionMessage);
-        char* id = &data[sizeof(dmPhysics::CollisionMessage)];
+        dmPhysicsDDF::CollisionMessage* ddf = (dmPhysicsDDF::CollisionMessage*)&data;
+        ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysicsDDF::CollisionMessage);
+        char* id = &data[sizeof(dmPhysicsDDF::CollisionMessage)];
         // Broadcast to A components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
-        dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysics::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysics::CollisionMessage::m_DDFDescriptor, data);
+        dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
-        dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysics::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysics::CollisionMessage::m_DDFDescriptor, data);
+        dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
     }
 
     void ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
         dmGameObject::HInstance instance_a = (dmGameObject::HInstance)contact_point.m_UserDataA;
         dmGameObject::HInstance instance_b = (dmGameObject::HInstance)contact_point.m_UserDataB;
-        char data[sizeof(dmPhysics::ContactPointMessage) + 9];
-        dmPhysics::ContactPointMessage* ddf = (dmPhysics::ContactPointMessage*)&data;
-        ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysics::ContactPointMessage);
-        char* id = &data[sizeof(dmPhysics::ContactPointMessage)];
+        char data[sizeof(dmPhysicsDDF::ContactPointMessage) + 9];
+        dmPhysicsDDF::ContactPointMessage* ddf = (dmPhysicsDDF::ContactPointMessage*)&data;
+        ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysicsDDF::ContactPointMessage);
+        char* id = &data[sizeof(dmPhysicsDDF::ContactPointMessage)];
         // Broadcast to A components
         ddf->m_Position = contact_point.m_PositionA;
         ddf->m_Normal = contact_point.m_Normal;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
-        dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysics::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysics::ContactPointMessage::m_DDFDescriptor, data);
+        dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         ddf->m_Position = contact_point.m_PositionB;
         ddf->m_Normal = -contact_point.m_Normal;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
-        dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysics::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysics::ContactPointMessage::m_DDFDescriptor, data);
+        dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
     }
 
     dmGameObject::UpdateResult UpdateRigidBody(dmGameObject::HCollection collection,
@@ -113,7 +113,7 @@ namespace dmGameSystem
     {
         if (event_data->m_EventHash == dmHashString32("ApplyForceMessage"))
         {
-            dmPhysics::ApplyForceMessage* af = (dmPhysics::ApplyForceMessage*) event_data->m_DDFData;
+            dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) event_data->m_DDFData;
             dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody) *user_data;
             dmPhysics::ApplyForce(rigid_body, af->m_Force, af->m_Position);
         }
@@ -126,8 +126,8 @@ namespace dmGameSystem
     {
         uint32_t type;
 
-        dmGameObject::RegisterDDFType(dmPhysics::ApplyForceMessage::m_DDFDescriptor);
-        dmEvent::Register(dmHashString32(dmPhysics::ApplyForceMessage::m_DDFDescriptor->m_Name), sizeof(dmGameObject::ScriptEventData) + sizeof(dmPhysics::ApplyForceMessage));
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
+        dmEvent::Register(dmHashString32(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_Name), sizeof(dmGameObject::ScriptEventData) + sizeof(dmPhysicsDDF::ApplyForceMessage));
 
         dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "rigidbody", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)

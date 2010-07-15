@@ -140,14 +140,14 @@ namespace dmGameSystem
                                                dmResource::SResourceDescriptor* resource,
                                                const char* filename)
     {
-        dmPhysics::ConvexShape* convex_shape;
-        dmDDF::Result e = dmDDF::LoadMessage<dmPhysics::ConvexShape>(buffer, buffer_size, &convex_shape);
+        dmPhysicsDDF::ConvexShape* convex_shape;
+        dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::ConvexShape>(buffer, buffer_size, &convex_shape);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        if (convex_shape->m_ShapeType != dmPhysics::ConvexShape::BOX)
+        if (convex_shape->m_ShapeType != dmPhysicsDDF::ConvexShape::BOX)
         {
             dmLogError("Only box shapes are currently supported");
             return dmResource::CREATE_RESULT_FORMAT_ERROR;
@@ -183,8 +183,8 @@ namespace dmGameSystem
                                              dmResource::SResourceDescriptor* resource,
                                              const char* filename)
     {
-        dmPhysics::RigidBodyDesc* rigid_body_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmPhysics::RigidBodyDesc>(buffer, buffer_size, &rigid_body_desc);
+        dmPhysicsDDF::RigidBodyDesc* rigid_body_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::RigidBodyDesc>(buffer, buffer_size, &rigid_body_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -202,7 +202,7 @@ namespace dmGameSystem
         RigidBodyPrototype* rigid_body_prototype = new RigidBodyPrototype();
         rigid_body_prototype->m_CollisionShape = collision_shape;
         rigid_body_prototype->m_Mass = rigid_body_desc->m_Mass;
-        rigid_body_prototype->m_IsKinematic = rigid_body_desc->m_IsKinematic != 0;
+        rigid_body_prototype->m_Type = (dmPhysics::RigidBodyType)rigid_body_desc->m_Type;
         resource->m_Resource = (void*) rigid_body_prototype;
 
         dmDDF::FreeMessage(rigid_body_desc);

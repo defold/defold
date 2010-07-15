@@ -128,9 +128,9 @@ namespace dmGameObject
         g_ReplySocket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
         dmEvent::CreateSocket(g_ReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
-        RegisterDDFType(dmPhysics::ApplyForceMessage::m_DDFDescriptor);
-        RegisterDDFType(dmPhysics::CollisionMessage::m_DDFDescriptor);
-        RegisterDDFType(dmPhysics::ContactPointMessage::m_DDFDescriptor);
+        RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
+        RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
+        RegisterDDFType(dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor);
 
         InitializeScript();
     }

@@ -1,4 +1,4 @@
-package dmPhysics;
+package dmPhysicsDDF;
 
 import "ddf_extensions.proto";
 import "ddf/ddf_math.proto";
@@ -31,11 +31,20 @@ message ConvexShape
     repeated float Data = 2;
 }
 
+/* This should coincide with RigidBodyType in physics-lib */
+enum RigidBodyType
+{
+    RIGID_BODY_TYPE_DYNAMIC = 0;
+    RIGID_BODY_TYPE_KINEMATIC = 1;
+    RIGID_BODY_TYPE_STATIC = 2;
+    RIGID_BODY_TYPE_TRIGGER = 3;
+}
+
 message RigidBodyDesc
 {
     required float Mass = 1;
     required string CollisionShape = 2;
-    required uint32 IsKinematic = 3;
+    required RigidBodyType Type = 3;
 }
 
 message ApplyForceMessage
