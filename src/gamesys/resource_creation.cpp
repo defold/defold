@@ -177,14 +177,14 @@ namespace dmGameSystem
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult RigidBodyCreate(dmResource::HFactory factory,
+    dmResource::CreateResult CollisionObjectCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
                                              dmResource::SResourceDescriptor* resource,
                                              const char* filename)
     {
-        dmPhysicsDDF::RigidBodyDesc* rigid_body_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::RigidBodyDesc>(buffer, buffer_size, &rigid_body_desc);
+        dmPhysicsDDF::CollisionObjectDesc* collision_object_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::CollisionObjectDesc>(buffer, buffer_size, &collision_object_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -192,31 +192,31 @@ namespace dmGameSystem
 
         dmPhysics::HCollisionShape collision_shape;
         dmResource::FactoryResult FACTORY_RESULT;
-        FACTORY_RESULT = dmResource::Get(factory, rigid_body_desc->m_CollisionShape, (void**) &collision_shape);
+        FACTORY_RESULT = dmResource::Get(factory, collision_object_desc->m_CollisionShape, (void**) &collision_shape);
         if (FACTORY_RESULT != dmResource::FACTORY_RESULT_OK)
         {
-            dmDDF::FreeMessage(rigid_body_desc);
+            dmDDF::FreeMessage(collision_object_desc);
             return dmResource::CREATE_RESULT_UNKNOWN; // TODO: Translate error... we need a new function...
         }
 
-        RigidBodyPrototype* rigid_body_prototype = new RigidBodyPrototype();
-        rigid_body_prototype->m_CollisionShape = collision_shape;
-        rigid_body_prototype->m_Mass = rigid_body_desc->m_Mass;
-        rigid_body_prototype->m_Type = (dmPhysics::RigidBodyType)rigid_body_desc->m_Type;
-        resource->m_Resource = (void*) rigid_body_prototype;
+        CollisionObjectPrototype* collision_object_prototype = new CollisionObjectPrototype();
+        collision_object_prototype->m_CollisionShape = collision_shape;
+        collision_object_prototype->m_Mass = collision_object_desc->m_Mass;
+        collision_object_prototype->m_Type = (dmPhysics::CollisionObjectType)collision_object_desc->m_Type;
+        resource->m_Resource = (void*) collision_object_prototype;
 
-        dmDDF::FreeMessage(rigid_body_desc);
+        dmDDF::FreeMessage(collision_object_desc);
 
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult RigidBodyDestroy(dmResource::HFactory factory,
+    dmResource::CreateResult CollisionObjectDestroy(dmResource::HFactory factory,
                                               void* context,
                                               dmResource::SResourceDescriptor* resource)
     {
-        RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*)resource->m_Resource;
-        dmResource::Release(factory, rigid_body_prototype->m_CollisionShape);
-        delete rigid_body_prototype;
+        CollisionObjectPrototype* collision_object_prototype = (CollisionObjectPrototype*)resource->m_Resource;
+        dmResource::Release(factory, collision_object_prototype->m_CollisionShape);
+        delete collision_object_prototype;
         return dmResource::CREATE_RESULT_OK;
     }
 
@@ -317,7 +317,7 @@ namespace dmGameSystem
         e = dmResource::RegisterType(factory, "convexshape", 0, &ConvexShapeCreate, &ConvexShapeDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
-        e = dmResource::RegisterType(factory, "rigidbody", 0, &RigidBodyCreate, &RigidBodyDestroy, 0);
+        e = dmResource::RegisterType(factory, "collisionobject", 0, &CollisionObjectCreate, &CollisionObjectDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
         e = dmResource::RegisterType(factory, "imagefont", 0, &ImageFontCreate, &ImageFontDestroy, 0);

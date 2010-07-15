@@ -13,7 +13,7 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CreateRigidBody(dmGameObject::HCollection collection,
+    dmGameObject::CreateResult CreateCollisionObject(dmGameObject::HCollection collection,
                                                dmGameObject::HInstance instance,
                                                void* resource,
                                                void* context,
@@ -21,31 +21,31 @@ namespace dmGameSystem
     {
         assert(user_data);
 
-        RigidBodyPrototype* rigid_body_prototype = (RigidBodyPrototype*) resource;
+        CollisionObjectPrototype* collision_object_prototype = (CollisionObjectPrototype*) resource;
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        dmPhysics::HRigidBody rigid_body = dmPhysics::NewRigidBody(world, rigid_body_prototype->m_CollisionShape, instance, rigid_body_prototype->m_Mass, rigid_body_prototype->m_Type, instance);
-        *user_data = (uintptr_t) rigid_body;
+        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(world, collision_object_prototype->m_CollisionShape, collision_object_prototype->m_Mass, collision_object_prototype->m_Type, instance);
+        *user_data = (uintptr_t) collision_object;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult InitRigidBody(dmGameObject::HCollection collection,
+    dmGameObject::CreateResult InitCollisionObject(dmGameObject::HCollection collection,
                                             dmGameObject::HInstance instance,
                                             void* context,
                                             uintptr_t* user_data)
     {
         assert(user_data);
-        dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody)*user_data;
+        dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject)*user_data;
 
         Point3 position = dmGameObject::GetWorldPosition(instance);
         Quat rotation = dmGameObject::GetWorldRotation(instance);
 
-        dmPhysics::SetRigidBodyInitialTransform(rigid_body, position, rotation);
+        dmPhysics::SetCollisionObjectInitialTransform(collision_object, position, rotation);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult DestroyRigidBody(dmGameObject::HCollection collection,
+    dmGameObject::CreateResult DestroyCollisionObject(dmGameObject::HCollection collection,
                                                 dmGameObject::HInstance instance,
                                                 void* context,
                                                 uintptr_t* user_data)
@@ -53,8 +53,8 @@ namespace dmGameSystem
         assert(user_data);
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody) *user_data;
-        dmPhysics::DeleteRigidBody(world, rigid_body);
+        dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
+        dmPhysics::DeleteCollisionObject(world, collision_object);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -95,7 +95,7 @@ namespace dmGameSystem
         dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
     }
 
-    dmGameObject::UpdateResult UpdateRigidBody(dmGameObject::HCollection collection,
+    dmGameObject::UpdateResult UpdateCollisionObject(dmGameObject::HCollection collection,
                          const dmGameObject::UpdateContext* update_context,
                          void* context)
     {
@@ -105,7 +105,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult OnEventRigidBody(dmGameObject::HCollection collection,
+    dmGameObject::UpdateResult OnEventCollisionObject(dmGameObject::HCollection collection,
             dmGameObject::HInstance instance,
             const dmGameObject::ScriptEventData* event_data,
             void* context,
@@ -114,8 +114,8 @@ namespace dmGameSystem
         if (event_data->m_EventHash == dmHashString32("ApplyForceMessage"))
         {
             dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) event_data->m_DDFData;
-            dmPhysics::HRigidBody rigid_body = (dmPhysics::HRigidBody) *user_data;
-            dmPhysics::ApplyForce(rigid_body, af->m_Force, af->m_Position);
+            dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
+            dmPhysics::ApplyForce(collision_object, af->m_Force, af->m_Position);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -129,21 +129,21 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         dmEvent::Register(dmHashString32(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_Name), sizeof(dmGameObject::ScriptEventData) + sizeof(dmPhysicsDDF::ApplyForceMessage));
 
-        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "rigidbody", &type);
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "collisionobject", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
         {
-            dmLogWarning("Unable to get resource type for 'rigidbody' (%d)", fact_result);
+            dmLogWarning("Unable to get resource type for 'collisionobject' (%d)", fact_result);
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
         dmGameObject::ComponentType component_type;
-        component_type.m_Name = "rigidbody";
+        component_type.m_Name = "collisionobject";
         component_type.m_ResourceType = type;
         component_type.m_Context = physics_world;
-        component_type.m_CreateFunction = &CreateRigidBody;
-        component_type.m_InitFunction = &InitRigidBody;
-        component_type.m_DestroyFunction = &DestroyRigidBody;
-        component_type.m_UpdateFunction = &UpdateRigidBody;
-        component_type.m_OnEventFunction = &OnEventRigidBody;
+        component_type.m_CreateFunction = &CreateCollisionObject;
+        component_type.m_InitFunction = &InitCollisionObject;
+        component_type.m_DestroyFunction = &DestroyCollisionObject;
+        component_type.m_UpdateFunction = &UpdateCollisionObject;
+        component_type.m_OnEventFunction = &OnEventCollisionObject;
         component_type.m_InstanceHasUserData = (uint32_t)true;
         dmGameObject::Result res = dmGameObject::RegisterComponentType(collection, component_type);
         return res;

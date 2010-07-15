@@ -31,20 +31,20 @@ message ConvexShape
     repeated float Data = 2;
 }
 
-/* This should coincide with RigidBodyType in physics-lib */
-enum RigidBodyType
+/* This should coincide with CollisionObjectType in physics-lib */
+enum CollisionObjectType
 {
-    RIGID_BODY_TYPE_DYNAMIC = 0;
-    RIGID_BODY_TYPE_KINEMATIC = 1;
-    RIGID_BODY_TYPE_STATIC = 2;
-    RIGID_BODY_TYPE_TRIGGER = 3;
+    COLLISION_OBJECT_TYPE_DYNAMIC = 0;
+    COLLISION_OBJECT_TYPE_KINEMATIC = 1;
+    COLLISION_OBJECT_TYPE_STATIC = 2;
+    COLLISION_OBJECT_TYPE_TRIGGER = 3;
 }
 
-message RigidBodyDesc
+message CollisionObjectDesc
 {
     required float Mass = 1;
     required string CollisionShape = 2;
-    required RigidBodyType Type = 3;
+    required CollisionObjectType Type = 3;
 }
 
 message ApplyForceMessage

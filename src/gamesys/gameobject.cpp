@@ -379,6 +379,11 @@ namespace dmGameObject
         void* instance_memory = ::operator new (sizeof(Instance) + component_instance_userdata_count * component_userdata_size);
         Instance* instance = new(instance_memory) Instance(proto);
         instance->m_ComponentInstanceUserDataCount = component_instance_userdata_count;
+        instance->m_Collection = collection;
+        uint16_t instance_index = collection->m_InstanceIndices.Pop();
+        instance->m_Index = instance_index;
+        assert(collection->m_Instances[instance_index] == 0);
+        collection->m_Instances[instance_index] = instance;
 
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
@@ -431,14 +436,10 @@ namespace dmGameObject
             // We can not call Delete here. Delete call DestroyFunction for every component
             dmResource::Release(factory, instance->m_Prototype);
             operator delete (instance_memory);
+            collection->m_Instances[instance_index] = 0x0;
+            collection->m_InstanceIndices.Push(instance_index);
             return 0;
         }
-
-        instance->m_Collection = collection;
-        uint16_t instance_index = collection->m_InstanceIndices.Pop();
-        instance->m_Index = instance_index;
-        assert(collection->m_Instances[instance_index] == 0);
-        collection->m_Instances[instance_index] = instance;
 
         InsertInstanceInLevelIndex(collection, instance);
 

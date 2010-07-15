@@ -4,11 +4,11 @@
 #include <physics/physics.h>
 #include "resource.h"
 
-struct RigidBodyPrototype
+struct CollisionObjectPrototype
 {
     dmPhysics::HCollisionShape m_CollisionShape;
     float m_Mass;
-    dmPhysics::RigidBodyType m_Type;
+    dmPhysics::CollisionObjectType m_Type;
 };
 
 namespace dmGameSystem

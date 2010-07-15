@@ -58,15 +58,15 @@ def gameobjectdesc_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('rigidbody', 'protoc --encode=dmPhysicsDDF.RigidBodyDesc -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('collisionobject', 'protoc --encode=dmPhysicsDDF.CollisionObjectDesc -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/physics_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK',
                       before='cc cxx',
                       shell=True)
 
-@extension('.rigidbody_pb')
+@extension('.collisionobject_pb')
 def gameobjectdesc_file(self, node):
-    obj_ext = '.rigidbody'
-    task = self.create_task('rigidbody')
+    obj_ext = '.collisionobject'
+    task = self.create_task('collisionobject')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
