@@ -10,14 +10,18 @@ class btRigidBody;
 
 namespace dmPhysics
 {
+    enum RigidBodyType
+    {
+        RIGID_BODY_TYPE_DYNAMIC,
+        RIGID_BODY_TYPE_KINEMATIC,
+        RIGID_BODY_TYPE_STATIC,
+        RIGID_BODY_TYPE_TRIGGER,
+        RIGID_BODY_TYPE_COUNT
+    };
+
     typedef struct PhysicsWorld* HWorld;
     typedef class btCollisionShape* HCollisionShape;
     typedef class btRigidBody* HRigidBody;
-
-    typedef void (*GetWorldTransformCallback)(void* visual_object, void* callback_context, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
-    typedef void (*SetWorldTransformCallback)(void* visual_object, void* callback_context, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
-
-    typedef void (*CollisionCallback)(void* user_data_a, void* user_data_b, void* user_data);
 
     struct ContactPoint
     {
@@ -29,6 +33,11 @@ namespace dmPhysics
         void* m_UserDataA;
         void* m_UserDataB;
     };
+
+    typedef void (*GetWorldTransformCallback)(void* visual_object, void* callback_context, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
+    typedef void (*SetWorldTransformCallback)(void* visual_object, void* callback_context, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
+
+    typedef void (*CollisionCallback)(void* user_data_a, void* user_data_b, void* user_data);
 
     typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
 
@@ -110,7 +119,7 @@ namespace dmPhysics
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
                             float mass,
-                            bool is_kinematic,
+                            RigidBodyType rigid_body_type,
                             void* user_data);
 
     /**

@@ -197,29 +197,55 @@ namespace dmPhysics
     HRigidBody NewRigidBody(HWorld world, HCollisionShape shape,
                             void* visual_object,
                             float mass,
-                            bool is_kinematic,
+                            RigidBodyType rigid_body_type,
                             void* user_data)
     {
-        bool is_dynamic = (mass != 0.f);
-
-        btVector3 local_inertia(0,0,0);
-        if (is_dynamic)
+        switch (rigid_body_type)
         {
-            if (is_kinematic)
+        case RIGID_BODY_TYPE_DYNAMIC:
+            if (mass == 0.0f)
             {
-                dmLogError("Rigid body can not be dynamic (mass > 0) and kinematic at the same time.");
+                dmLogError("Rigid bodies can not be dynamic and have zero mass.");
                 return 0x0;
             }
+            break;
+        default:
+            if (mass > 0.0f)
+            {
+                dmLogError("Only dynamic rigid bodies can have a positive mass.");
+                return 0x0;
+            }
+            break;
+        }
+
+        btVector3 local_inertia(0.0f, 0.0f, 0.0f);
+        if (rigid_body_type == RIGID_BODY_TYPE_DYNAMIC)
+        {
             shape->calculateLocalInertia(mass, local_inertia);
         }
 
         MotionState* motion_state = new MotionState(visual_object, world->m_CallbackContext, world->m_GetWorldTransform, world->m_SetWorldTransform);
         btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
+        // TODO: Investigate if RIGID_BODY_TYPE_TRIGGER should be instantiated from a btGhostObject instead of rigid body with no contact response
+        // Pros:
+        // * Light weight object, one of its purposes are triggers
+        // Cons:
+        // * No motion state and hence no automatic callback to update its position => must be done manually from the trigger-component or similar
         btRigidBody* body = new btRigidBody(rb_info);
-        if (is_kinematic && !is_dynamic)
+        switch (rigid_body_type)
         {
+        case RIGID_BODY_TYPE_KINEMATIC:
             body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
             body->setActivationState(DISABLE_DEACTIVATION);
+            break;
+        case RIGID_BODY_TYPE_STATIC:
+            body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_STATIC_OBJECT);
+            break;
+        case RIGID_BODY_TYPE_TRIGGER:
+            body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+            break;
+        default:
+            break;
         }
         body->setUserPointer(user_data);
         world->m_DynamicsWorld->addRigidBody(body);
