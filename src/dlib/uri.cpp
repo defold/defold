@@ -45,7 +45,7 @@ namespace dmURI
         }
         else
         {
-            size_t n = dmMin(sizeof(parts->m_Scheme), (size_t) (scheme_end-uri) + 1);
+            size_t n = dmMath::Min(sizeof(parts->m_Scheme), (size_t) (scheme_end-uri) + 1);
             dmStrlCpy(parts->m_Scheme, uri, n);
 
             if (strcmp(parts->m_Scheme, "http") == 0)
@@ -61,7 +61,7 @@ namespace dmURI
                 const char* path = strchr(location, '/');
                 if (path)
                 {
-                    dmStrlCpy(parts->m_Location, location, dmMin(sizeof(parts->m_Location), (size_t) (path - location) + 1));
+                    dmStrlCpy(parts->m_Location, location, dmMath::Min(sizeof(parts->m_Location), (size_t) (path - location) + 1));
                     dmStrlCpy(parts->m_Path, path, sizeof(parts->m_Path));
                 }
                 else
