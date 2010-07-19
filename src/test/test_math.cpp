@@ -17,6 +17,47 @@ TEST(dmMath, Clamp)
     ASSERT_EQ(2, dmMath::Clamp(3, 0, 2));
 }
 
+TEST(dmMath, Bezier)
+{
+    float delta = 0.05f;
+    float epsilon = 0.00001f;
+
+    ASSERT_EQ(2.0f, dmMath::LinearBezier(0.0f, 2.0f, 4.0f));
+    ASSERT_EQ(3.0f, dmMath::LinearBezier(0.5f, 2.0f, 4.0f));
+    ASSERT_EQ(4.0f, dmMath::LinearBezier(1.0f, 2.0f, 4.0f));
+    ASSERT_NEAR(dmMath::LinearBezier(delta, 2.0f, 4.0f) - dmMath::LinearBezier(0.0f, 2.0f, 4.0f),
+            dmMath::LinearBezier(1.0f, 2.0f, 4.0f) - dmMath::LinearBezier(1.0f - delta, 2.0f, 4.0f),
+            epsilon);
+    ASSERT_NEAR(dmMath::LinearBezier(delta, 2.0f, 4.0f) - dmMath::LinearBezier(0.0f, 2.0f, 4.0f),
+            dmMath::LinearBezier(0.5f, 2.0f, 4.0f) - dmMath::LinearBezier(0.5f - delta, 2.0f, 4.0f),
+            epsilon);
+    ASSERT_NEAR(dmMath::LinearBezier(0.5f + delta, 2.0f, 4.0f) - dmMath::LinearBezier(0.5f, 2.0f, 4.0f),
+            dmMath::LinearBezier(1.0f, 2.0f, 4.0f) - dmMath::LinearBezier(1.0f - delta, 2.0f, 4.0f),
+            epsilon);
+
+    ASSERT_EQ(2.0f, dmMath::QuadraticBezier(0.0f, 2.0f, 3.0f, 2.0f));
+    ASSERT_EQ(2.5f, dmMath::QuadraticBezier(0.5f, 2.0f, 3.0f, 2.0f));
+    ASSERT_EQ(2.0f, dmMath::QuadraticBezier(1.0f, 2.0f, 3.0f, 2.0f));
+    ASSERT_NEAR(dmMath::QuadraticBezier(delta, 2.0f, 3.0f, 2.0f) - dmMath::QuadraticBezier(0.0f, 2.0f, 3.0f, 2.0f),
+            dmMath::QuadraticBezier(1.0f - delta, 2.0f, 3.0f, 2.0f) - dmMath::QuadraticBezier(1.0f, 2.0f, 3.0f, 2.0f),
+            epsilon);
+    ASSERT_GT(dmMath::QuadraticBezier(delta, 2.0f, 3.0f, 2.0f) - dmMath::QuadraticBezier(0.0f, 2.0f, 3.0f, 2.0f),
+            dmMath::QuadraticBezier(0.5f, 2.0f, 3.0f, 2.0f) - dmMath::QuadraticBezier(0.5f - delta, 2.0f, 3.0f, 2.0f));
+    ASSERT_LT(dmMath::QuadraticBezier(0.5f, 2.0f, 3.0f, 2.0f) - dmMath::QuadraticBezier(0.5f + delta, 2.0f, 3.0f, 2.0f),
+            dmMath::QuadraticBezier(1.0f - delta, 2.0f, 3.0f, 2.0f) - dmMath::QuadraticBezier(1.0f, 2.0f, 3.0f, 2.0f));
+
+    ASSERT_EQ(2.0f, dmMath::CubicBezier(0.0f, 2.0f, 2.0f, 4.0f, 4.0f));
+    ASSERT_EQ(3.0f, dmMath::CubicBezier(0.5f, 2.0f, 2.0f, 4.0f, 4.0f));
+    ASSERT_EQ(4.0f, dmMath::CubicBezier(1.0f, 2.0f, 2.0f, 4.0f, 4.0f));
+    ASSERT_NEAR(dmMath::CubicBezier(delta, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(0.0f, 2.0f, 2.0f, 4.0f, 4.0f),
+            dmMath::CubicBezier(1.0f, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(1.0f - delta, 2.0f, 2.0f, 4.0f, 4.0f),
+            epsilon);
+    ASSERT_LT(dmMath::CubicBezier(delta, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(0.0f, 2.0f, 2.0f, 4.0f, 4.0f),
+            dmMath::CubicBezier(0.5f, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(0.5f - delta, 2.0f, 2.0f, 4.0f, 4.0f));
+    ASSERT_GT(dmMath::CubicBezier(0.5f + delta, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(0.5f, 2.0f, 2.0f, 4.0f, 4.0f),
+            dmMath::CubicBezier(1.0f, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(1.0f - delta, 2.0f, 2.0f, 4.0f, 4.0f));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
