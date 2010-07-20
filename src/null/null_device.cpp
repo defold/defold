@@ -138,6 +138,7 @@ namespace dmGraphics
     void DestroyTexture(HTexture t)
     {
         assert(t);
+        delete t;
     }
 
     void EnableState(HContext context, RenderState state)
