@@ -178,34 +178,35 @@ namespace dmPhysics
             int num_manifolds = world->m_DynamicsWorld->getDispatcher()->getNumManifolds();
             for (int i = 0; i < num_manifolds; ++i)
             {
-                btPersistentManifold* contactManifold = world->m_DynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
-                btCollisionObject* object_a = static_cast<btCollisionObject*>(contactManifold->getBody0());
-                btCollisionObject* object_b = static_cast<btCollisionObject*>(contactManifold->getBody1());
+                btPersistentManifold* contact_manifold = world->m_DynamicsWorld->getDispatcher()->getManifoldByIndexInternal(i);
+                btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
+                btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
 
                 if (collision_callback != 0x0)
                 {
-                    collision_callback(object_a->getUserPointer(), object_b->getUserPointer(), collision_callback_user_data);
-                    collision_callback(object_b->getUserPointer(), object_a->getUserPointer(), collision_callback_user_data);
+                    collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
                 }
 
                 if (contact_point_callback)
                 {
-                    int num_contacts = contactManifold->getNumContacts();
+                    int num_contacts = contact_manifold->getNumContacts();
                     for (int j = 0; j < num_contacts; ++j)
                     {
-                        btManifoldPoint& pt = contactManifold->getContactPoint(j);
+                        btManifoldPoint& pt = contact_manifold->getContactPoint(j);
                         if (pt.getDistance() <= 0.0f)
                         {
                             ContactPoint point;
                             const btVector3& pt_a = pt.getPositionWorldOnA();
                             point.m_PositionA = Vectormath::Aos::Point3(pt_a.getX(), pt_a.getY(), pt_a.getZ());
+                            point.m_UserDataA = object_a->getUserPointer();
+                            point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
                             const btVector3& pt_b = pt.getPositionWorldOnB();
                             point.m_PositionB = Vectormath::Aos::Point3(pt_b.getX(), pt_b.getY(), pt_b.getZ());
+                            point.m_UserDataB = object_b->getUserPointer();
+                            point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
                             const btVector3& normal = pt.m_normalWorldOnB;
                             point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
                             point.m_Distance = pt.getDistance();
-                            point.m_UserDataA = object_a->getUserPointer();
-                            point.m_UserDataB = object_b->getUserPointer();
                             contact_point_callback(point, contact_point_callback_user_data);
                         }
                     }
@@ -225,7 +226,7 @@ namespace dmPhysics
                         for (int j = 0; j < num_overlaps; ++j)
                         {
                             btCollisionObject* collidee = ghost_object->getOverlappingObject(j);
-                            collision_callback(ghost_object->getUserPointer(), collidee->getUserPointer(), collision_callback_user_data);
+                            collision_callback(ghost_object->getUserPointer(), ghost_object->getBroadphaseHandle()->m_collisionFilterGroup, collidee->getUserPointer(), collidee->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
                         }
                     }
                 }

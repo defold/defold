@@ -236,9 +236,11 @@ TEST_F(PhysicsTest, GroundBoxCollision)
     dmPhysics::DeleteCollisionShape(box_shape);
 }
 
-void CollisionCallback(void* user_data_collider, void* user_data_collidee, void* user_data)
+void CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {
-    VisualObject* vo = (VisualObject*)user_data_collider;
+    VisualObject* vo = (VisualObject*)user_data_a;
+    ++vo->m_CollisionCount;
+    vo = (VisualObject*)user_data_b;
     ++vo->m_CollisionCount;
     int* count = (int*)user_data;
     *count = *count + 1;
@@ -289,7 +291,7 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     ASSERT_LT(0, box_visual_object.m_CollisionCount);
     ASSERT_LT(0, ground_visual_object.m_CollisionCount);
 
-    ASSERT_EQ(2, collision_count); // one for each object
+    ASSERT_EQ(1, collision_count);
     ASSERT_EQ(2, contact_point_count);
 
     dmPhysics::DeleteCollisionObject(m_World, ground_co);
@@ -298,9 +300,11 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     dmPhysics::DeleteCollisionShape(box_shape);
 }
 
-void TriggerCollisionCallback(void* user_data_collider, void* user_data_collidee, void* user_data)
+void TriggerCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {
-    VisualObject* vo = (VisualObject*)user_data_collider;
+    VisualObject* vo = (VisualObject*)user_data_a;
+    ++vo->m_CollisionCount;
+    vo = (VisualObject*)user_data_b;
     ++vo->m_CollisionCount;
 }
 
@@ -401,10 +405,54 @@ TEST_F(PhysicsTest, TriggerCollisions)
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
 
     dmPhysics::DeleteCollisionObject(m_World, trigger_co);
-    dmPhysics::DeleteCollisionShape(trigger_shape);
 
     dmPhysics::DeleteCollisionObject(m_World, static_co);
     dmPhysics::DeleteCollisionShape(static_shape);
+
+    // Test trigger collision: kinematic body moved into trigger
+
+    VisualObject kinematic_vo;
+    kinematic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    kinematic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    kinematic_vo.m_CollisionCount = 0;
+    dmPhysics::HCollisionShape kinematic_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    dmPhysics::HCollisionObject kinematic_co = dmPhysics::NewCollisionObject(m_World, kinematic_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &kinematic_vo);
+
+    trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
+    trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+    trigger_vo.m_CollisionCount = 0;
+    trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, &trigger_vo);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+    dmPhysics::ForEachCollision(m_World, &TriggerCollisionCallback, 0x0, 0x0, 0x0);
+
+    ASSERT_EQ(0, kinematic_vo.m_CollisionCount);
+    ASSERT_EQ(0, trigger_vo.m_CollisionCount);
+
+    kinematic_vo.m_Position.setY(0.5f);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+    dmPhysics::ForEachCollision(m_World, &TriggerCollisionCallback, 0x0, 0x0, 0x0);
+
+    ASSERT_EQ(1, kinematic_vo.m_CollisionCount);
+    ASSERT_EQ(1, trigger_vo.m_CollisionCount);
+
+    kinematic_vo.m_CollisionCount = 0;
+    trigger_vo.m_CollisionCount = 0;
+
+    kinematic_vo.m_Position.setY(0.0f);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+    dmPhysics::ForEachCollision(m_World, &TriggerCollisionCallback, 0x0, 0x0, 0x0);
+
+    ASSERT_EQ(0, kinematic_vo.m_CollisionCount);
+    ASSERT_EQ(0, trigger_vo.m_CollisionCount);
+
+    dmPhysics::DeleteCollisionObject(m_World, kinematic_co);
+    dmPhysics::DeleteCollisionShape(kinematic_shape);
+
+    dmPhysics::DeleteCollisionObject(m_World, trigger_co);
+    dmPhysics::DeleteCollisionShape(trigger_shape);
 }
 
 TEST_F(PhysicsTest, ApplyForce)
@@ -473,10 +521,51 @@ TEST_F(PhysicsTest, RayCasting)
 
 enum FilterGroup
 {
-    FILTER_GROUP_A = 1 << 0,
-    FILTER_GROUP_B = 1 << 1,
-    FILTER_GROUP_C = 1 << 2
+    FILTER_GROUP_A,
+    FILTER_GROUP_B,
+    FILTER_GROUP_C,
+    FILTER_GROUP_COUNT
 };
+
+void FilterCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+{
+    VisualObject* vo_a = (VisualObject*)user_data_a;
+    ++vo_a->m_CollisionCount;
+    VisualObject* vo_b = (VisualObject*)user_data_b;
+    ++vo_b->m_CollisionCount;
+    int* collision_count = (int*)user_data;
+    int index_a = 0;
+    int index_b = 0;
+    int mask = 1;
+    for (int i = 0; i < FILTER_GROUP_COUNT; ++i)
+    {
+        if (mask == group_a)
+            index_a = i;
+        if (mask == group_b)
+            index_b = i;
+        mask <<= 1;
+    }
+    collision_count[index_a] += 1;
+    collision_count[index_b] += 1;
+}
+
+void FilterContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
+{
+    int* count = (int*)user_data;
+    int index_a = 0;
+    int index_b = 0;
+    int mask = 1;
+    for (int i = 0; i < FILTER_GROUP_COUNT; ++i)
+    {
+        if (mask == contact_point.m_GroupA)
+            index_a = i;
+        if (mask == contact_point.m_GroupB)
+            index_b = i;
+        mask <<= 1;
+    }
+    count[index_a] += 1;
+    count[index_b] += 1;
+}
 
 TEST_F(PhysicsTest, CollisionFiltering)
 {
@@ -485,34 +574,40 @@ TEST_F(PhysicsTest, CollisionFiltering)
     dmPhysics::HCollisionShape box_shape_a = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_a;
     vo_a.m_Position.setY(1.1f);
-    uint16_t group = FILTER_GROUP_A;
-    uint16_t mask = FILTER_GROUP_B;
+    uint16_t group = 1 << FILTER_GROUP_A;
+    uint16_t mask = 1 << FILTER_GROUP_B;
     dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, box_shape_a, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, group, mask, &vo_a);
 
     dmPhysics::HCollisionShape box_shape_b = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_b;
     vo_b.m_Position.setX(-0.6f);
-    group = FILTER_GROUP_B;
-    mask = FILTER_GROUP_A;
+    group = 1 << FILTER_GROUP_B;
+    mask = 1 << FILTER_GROUP_A;
     dmPhysics::HCollisionObject box_co_b = dmPhysics::NewCollisionObject(m_World, box_shape_b, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, group, mask, &vo_b);
 
     dmPhysics::HCollisionShape box_shape_c = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_c;
     vo_c.m_Position.setX(0.6f);
-    group = FILTER_GROUP_C;
-    mask = FILTER_GROUP_C;
+    group = 1 << FILTER_GROUP_C;
+    mask = 1 << FILTER_GROUP_C;
     dmPhysics::HCollisionObject box_co_c = dmPhysics::NewCollisionObject(m_World, box_shape_c, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, group, mask, &vo_c);
 
-    int collision_count = 0;
-    int contact_point_count = 0;
+    int collision_count[FILTER_GROUP_COUNT];
+    memset(collision_count, 0, FILTER_GROUP_COUNT * sizeof(int));
+    int contact_point_count[FILTER_GROUP_COUNT];
+    memset(contact_point_count, 0, FILTER_GROUP_COUNT * sizeof(int));
     for (int i = 0; i < 10; ++i)
     {
         dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
-        dmPhysics::ForEachCollision(m_World, CollisionCallback, &collision_count, ContactPointCallback, &contact_point_count);
+        dmPhysics::ForEachCollision(m_World, FilterCollisionCallback, &collision_count, FilterContactPointCallback, &contact_point_count);
     }
 
-    ASSERT_EQ(collision_count, vo_a.m_CollisionCount + vo_b.m_CollisionCount);
+    ASSERT_EQ(collision_count[FILTER_GROUP_A] + collision_count[FILTER_GROUP_B], vo_a.m_CollisionCount + vo_b.m_CollisionCount);
     ASSERT_EQ(0, vo_c.m_CollisionCount);
+    ASSERT_EQ(collision_count[FILTER_GROUP_C], vo_c.m_CollisionCount);
+
+    ASSERT_EQ(contact_point_count[FILTER_GROUP_A], contact_point_count[FILTER_GROUP_B]);
+    ASSERT_EQ(0, contact_point_count[FILTER_GROUP_C]);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_a);
     dmPhysics::DeleteCollisionShape(box_shape_a);

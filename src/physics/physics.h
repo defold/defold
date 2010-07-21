@@ -26,17 +26,19 @@ namespace dmPhysics
     typedef void (*GetWorldTransformCallback)(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
     typedef void (*SetWorldTransformCallback)(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
 
-    typedef void (*CollisionCallback)(void* user_data_collider, void* user_data_collidee, void* user_data);
+    typedef void (*CollisionCallback)(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 
     struct ContactPoint
     {
         Vectormath::Aos::Point3 m_PositionA;
+        void* m_UserDataA;
+        uint16_t m_GroupA;
         Vectormath::Aos::Point3 m_PositionB;
+        void* m_UserDataB;
+        uint16_t m_GroupB;
         /// Always A->B
         Vectormath::Aos::Vector3 m_Normal;
         float m_Distance;
-        void* m_UserDataA;
-        void* m_UserDataB;
     };
 
     typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
