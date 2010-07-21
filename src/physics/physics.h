@@ -112,12 +112,16 @@ namespace dmPhysics
      * @param position Initial position
      * @param mass Mass, must be positive for COLLISION_OBJECT_TYPE_DYNAMIC and zero for all other types
      * @param collision_object_type Type of collision object
+     * @param group Collision filter group. Two objects a and b are tested for collision if a.group & b.mask != 0 && a.mask & b.group != 0.
+     * @param mask Collision filter mask @see group
      * @param user_data User data
      * @return A new collision object
      */
     HCollisionObject NewCollisionObject(HWorld world, HCollisionShape shape,
                             float mass,
                             CollisionObjectType collision_object_type,
+                            uint16_t group,
+                            uint16_t mask,
                             void* user_data);
 
     /**

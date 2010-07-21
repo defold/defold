@@ -253,6 +253,8 @@ namespace dmPhysics
             HCollisionShape shape,
             float mass,
             CollisionObjectType collision_object_type,
+            uint16_t group,
+            uint16_t mask,
             void* user_data)
     {
         if (shape == 0x0)
@@ -285,8 +287,6 @@ namespace dmPhysics
         }
 
         btCollisionObject* collision_object = 0x0;
-        uint16_t collision_group = (uint16_t)btBroadphaseProxy::DefaultFilter;
-        uint16_t collision_mask = (uint16_t)btBroadphaseProxy::AllFilter;
         if (collision_object_type != COLLISION_OBJECT_TYPE_TRIGGER)
         {
             MotionState* motion_state = new MotionState(user_data, world->m_GetWorldTransform, world->m_SetWorldTransform);
@@ -329,7 +329,7 @@ namespace dmPhysics
             collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
         }
         collision_object->setUserPointer(user_data);
-        world->m_DynamicsWorld->addCollisionObject(collision_object, collision_group, collision_mask);
+        world->m_DynamicsWorld->addCollisionObject(collision_object, group, mask);
         return collision_object;
     }
 
