@@ -214,10 +214,13 @@ namespace dmGraphics
     void DestroyVertexProgram(HVertexProgram program)
     {
         assert(program);
+        glDeleteProgramsARB(1, &program);
     }
 
     void DestroyFragmentProgram(HFragmentProgram program)
     {
+        assert(program);
+        glDeleteProgramsARB(1, &program);
     }
 
     static void SetProgram(GLenum type, uint32_t program)
