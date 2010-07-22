@@ -121,6 +121,14 @@ namespace dmPhysics
             m_collisionFilterGroup = ~0;
             m_collisionFilterMask = mask;
         }
+
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult,bool normalInWorldSpace)
+        {
+            if (rayResult.m_collisionObject->hasContactResponse())
+                return btCollisionWorld::ClosestRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
+            else
+                return 1.0f;
+        }
     };
 
     HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
