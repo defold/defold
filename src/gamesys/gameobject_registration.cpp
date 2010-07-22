@@ -87,13 +87,15 @@ namespace dmGameSystem
         char* id = &data[sizeof(dmPhysicsDDF::ContactPointMessage)];
         // Broadcast to A components
         ddf->m_Position = contact_point.m_PositionA;
-        ddf->m_Normal = contact_point.m_Normal;
+        ddf->m_Normal = -contact_point.m_Normal;
+        ddf->m_Distance = contact_point.m_Distance;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
         ddf->m_Group = contact_point.m_GroupB;
         dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         ddf->m_Position = contact_point.m_PositionB;
-        ddf->m_Normal = -contact_point.m_Normal;
+        ddf->m_Normal = contact_point.m_Normal;
+        ddf->m_Distance = contact_point.m_Distance;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
         ddf->m_Group = contact_point.m_GroupA;
         dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);

@@ -65,6 +65,7 @@ message ContactPointMessage
 {
     required dmMath.Point3 Position = 1;
     required dmMath.Vector3 Normal = 2;
-    required string OtherGameObjectId = 3;
-    required uint32 Group = 4;
+    required float Distance = 3;
+    required string OtherGameObjectId = 4;
+    required uint32 Group = 5;
 }
