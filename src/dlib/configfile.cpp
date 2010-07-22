@@ -396,6 +396,7 @@ namespace dmConfigFile
         int ret = setjmp(context.m_JmpBuf);
         if (ret != RESULT_OK)
         {
+            delete[] context.m_Buffer;
             return (Result) ret;
         }
         else
@@ -444,6 +445,7 @@ namespace dmConfigFile
             *config = c;
         }
 
+        delete[] context.m_Buffer;
         return RESULT_OK;
     }
 
