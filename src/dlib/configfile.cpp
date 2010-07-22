@@ -358,6 +358,7 @@ namespace dmConfigFile
             if (http_result != dmHttpClient::RESULT_OK || context.m_BufferSize == -1)
             {
                 dmHttpClient::Delete(client);
+                delete[] context.m_Buffer;
                 return RESULT_FILE_NOT_FOUND;
             }
             dmHttpClient::Delete(client);
