@@ -340,9 +340,6 @@ namespace dmPhysics
             btRigidBody* body = new btRigidBody(rb_info);
             switch (collision_object_type)
             {
-            case COLLISION_OBJECT_TYPE_DYNAMIC:
-                body->setGravity(world->m_DynamicsWorld->getGravity());
-                break;
             case COLLISION_OBJECT_TYPE_KINEMATIC:
                 body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
                 body->setActivationState(DISABLE_DEACTIVATION);
@@ -353,6 +350,9 @@ namespace dmPhysics
             default:
                 break;
             }
+            world->m_DynamicsWorld->addRigidBody(body);
+            body->getBroadphaseHandle()->m_collisionFilterGroup = group;
+            body->getBroadphaseHandle()->m_collisionFilterMask = mask;
             collision_object = body;
         }
         else
@@ -373,9 +373,9 @@ namespace dmPhysics
             collision_object->setWorldTransform(world_transform);
             collision_object->setCollisionShape(shape);
             collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
+            world->m_DynamicsWorld->addCollisionObject(collision_object, group, mask);
         }
         collision_object->setUserPointer(user_data);
-        world->m_DynamicsWorld->addCollisionObject(collision_object, group, mask);
         return collision_object;
     }
 
