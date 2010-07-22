@@ -112,6 +112,17 @@ namespace dmPhysics
         delete m_CollisionConfiguration;
     }
 
+    struct ProcessRayCastResultCallback : public btCollisionWorld::ClosestRayResultCallback
+    {
+        ProcessRayCastResultCallback(btVector3 from, btVector3 to, uint16_t mask)
+        : btCollisionWorld::ClosestRayResultCallback(from, to)
+        {
+            // *all* groups for now, bullet will test this against the colliding object's mask
+            m_collisionFilterGroup = ~0;
+            m_collisionFilterMask = mask;
+        }
+    };
+
     HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
     {
         return new PhysicsWorld(world_min, world_max, get_world_transform, set_world_transform);
@@ -156,11 +167,19 @@ namespace dmPhysics
         for (uint32_t i = 0; i < size; ++i)
         {
             const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_ResponseCallback == 0x0)
+            {
+                dmLogWarning("Ray cast requested without any response callback, skipped.");
+                continue;
+            }
             btVector3 from(request.m_From.getX(), request.m_From.getY(), request.m_From.getZ());
             btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
-            btCollisionWorld::ClosestRayResultCallback result_callback(from, to);
+            ProcessRayCastResultCallback result_callback(from, to, request.m_Mask);
             world->m_DynamicsWorld->rayTest(from, to, result_callback);
-            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, request.m_UserId, request.m_UserData);
+            uint16_t group = 0;
+            if (result_callback.m_collisionObject != 0x0)
+                group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, request.m_UserId, request.m_UserData, group);
         }
         world->m_RayCastRequests.SetSize(0);
     }
@@ -399,6 +418,17 @@ namespace dmPhysics
     {
         btQuaternion rotation = collision_object->getWorldTransform().getRotation();
         return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+    }
+
+    RayCastRequest::RayCastRequest()
+    : m_From(0.0f, 0.0f, 0.0f)
+    , m_To(0.0f, 0.0f, 0.0f)
+    , m_UserId(0)
+    , m_Mask(~0)
+    , m_UserData(0x0)
+    , m_ResponseCallback(0x0)
+    {
+
     }
 
     void RequestRayCast(HWorld world, const RayCastRequest& request)

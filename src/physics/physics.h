@@ -184,13 +184,16 @@ namespace dmPhysics
      */
     Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
-    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, uint32_t user_id, void* user_data);
+    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, uint32_t user_id, void* user_data, uint16_t group);
 
     struct RayCastRequest
     {
+        RayCastRequest();
+
         Vectormath::Aos::Point3 m_From;
         Vectormath::Aos::Point3 m_To;
         uint32_t m_UserId;
+        uint16_t m_Mask;
         void* m_UserData;
         RayCastResponseCallback m_ResponseCallback;
     };

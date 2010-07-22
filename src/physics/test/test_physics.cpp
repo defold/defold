@@ -474,27 +474,28 @@ TEST_F(PhysicsTest, ApplyForce)
 
 struct RayCastResult
 {
-    bool m_Hit[2];
+    bool m_Hit;
+    float m_HitFraction;
+    uint16_t m_Group;
+    void* m_UserData;
 };
 
-void RayCastResponse(bool hit, float hit_fraction, uint32_t user_id, void* user_data)
+void RayCastResponse(bool hit, float hit_fraction, uint32_t user_id, void* user_data, uint16_t group)
 {
     if (hit)
     {
         RayCastResult* rcr = (RayCastResult*)user_data;
-        rcr->m_Hit[user_id] = hit;
+        rcr[user_id].m_Hit = hit;
+        rcr[user_id].m_HitFraction = hit_fraction;
+        rcr[user_id].m_Group = group;
+        rcr[user_id].m_UserData = user_data;
     }
 }
 
-TEST_F(PhysicsTest, RayCasting)
+TEST_F(PhysicsTest, EmptyRayCasting)
 {
-    float box_half_ext = 0.5f;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    VisualObject vo;
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &vo);
-
     RayCastResult result;
-    memset(result.m_Hit, 0, sizeof(bool) * 2);
+    memset(&result, 0, sizeof(RayCastResult));
 
     dmPhysics::RayCastRequest request;
     request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
@@ -512,11 +513,86 @@ TEST_F(PhysicsTest, RayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result.m_Hit[0]);
-    ASSERT_TRUE(result.m_Hit[1]);
+    ASSERT_FALSE(result.m_Hit);
+    ASSERT_FALSE(result.m_Hit);
+}
+
+TEST_F(PhysicsTest, RayCasting)
+{
+    float box_half_ext = 0.5f;
+    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    VisualObject vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &vo);
+
+    RayCastResult result[2];
+    memset(result, 0, sizeof(RayCastResult) * 2);
+
+    dmPhysics::RayCastRequest request;
+    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f, 0.0f);
+    request.m_UserId = 0;
+    request.m_UserData = result;
+    request.m_ResponseCallback = &RayCastResponse;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
+    request.m_UserId = 1;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+
+    ASSERT_FALSE(result[0].m_Hit);
+    ASSERT_TRUE(result[1].m_Hit);
+    ASSERT_GT(1.0f, result[1].m_HitFraction);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(box_shape);
+}
+
+TEST_F(PhysicsTest, FilteredRayCasting)
+{
+    float box_half_ext = 0.5f;
+
+    enum Groups
+    {
+        GROUP_A = 1 << 0,
+        GROUP_B = 1 << 1
+    };
+
+    dmPhysics::HCollisionShape box_shape_a = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    VisualObject vo_a;
+    dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, box_shape_a, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, GROUP_A, GROUP_A, &vo_a);
+
+    dmPhysics::HCollisionShape box_shape_b = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    VisualObject vo_b;
+    vo_b.m_Position.setY(-1.0f);
+    dmPhysics::HCollisionObject box_co_b = dmPhysics::NewCollisionObject(m_World, box_shape_b, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, GROUP_B, GROUP_B, &vo_b);
+
+    RayCastResult result;
+    memset(&result, 0, sizeof(RayCastResult));
+
+    dmPhysics::RayCastRequest request;
+    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(0.0f, -1.0f, 0.0f);
+    request.m_UserId = 0;
+    request.m_UserData = &result;
+    request.m_Mask = GROUP_B;
+    request.m_ResponseCallback = &RayCastResponse;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+
+    ASSERT_TRUE(result.m_Hit);
+    ASSERT_EQ(GROUP_B, result.m_Group);
+
+    dmPhysics::DeleteCollisionObject(m_World, box_co_a);
+    dmPhysics::DeleteCollisionShape(box_shape_a);
+
+    dmPhysics::DeleteCollisionObject(m_World, box_co_b);
+    dmPhysics::DeleteCollisionShape(box_shape_b);
 }
 
 enum FilterGroup
