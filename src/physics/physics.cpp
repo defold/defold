@@ -114,8 +114,9 @@ namespace dmPhysics
 
     struct ProcessRayCastResultCallback : public btCollisionWorld::ClosestRayResultCallback
     {
-        ProcessRayCastResultCallback(btVector3 from, btVector3 to, uint16_t mask)
+        ProcessRayCastResultCallback(btVector3 from, btVector3 to, uint16_t mask, void* ignored_user_data)
         : btCollisionWorld::ClosestRayResultCallback(from, to)
+        , m_IgnoredUserData(ignored_user_data)
         {
             // *all* groups for now, bullet will test this against the colliding object's mask
             m_collisionFilterGroup = ~0;
@@ -124,11 +125,15 @@ namespace dmPhysics
 
         virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult,bool normalInWorldSpace)
         {
-            if (rayResult.m_collisionObject->hasContactResponse())
-                return btCollisionWorld::ClosestRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
-            else
+            if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
                 return 1.0f;
+            else if (!rayResult.m_collisionObject->hasContactResponse())
+                return 1.0f;
+            else
+                return btCollisionWorld::ClosestRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
         }
+
+        void* m_IgnoredUserData;
     };
 
     HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
@@ -182,7 +187,7 @@ namespace dmPhysics
             }
             btVector3 from(request.m_From.getX(), request.m_From.getY(), request.m_From.getZ());
             btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
-            ProcessRayCastResultCallback result_callback(from, to, request.m_Mask);
+            ProcessRayCastResultCallback result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
             world->m_DynamicsWorld->rayTest(from, to, result_callback);
             uint16_t group = 0;
             if (result_callback.m_collisionObject != 0x0)
@@ -433,6 +438,7 @@ namespace dmPhysics
     , m_To(0.0f, 0.0f, 0.0f)
     , m_UserId(0)
     , m_Mask(~0)
+    , m_IgnoredUserData((void*)~0) // unlikely user data to ignore
     , m_UserData(0x0)
     , m_ResponseCallback(0x0)
     {

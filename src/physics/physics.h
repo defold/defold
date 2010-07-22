@@ -194,6 +194,7 @@ namespace dmPhysics
         Vectormath::Aos::Point3 m_To;
         uint32_t m_UserId;
         uint16_t m_Mask;
+        void* m_IgnoredUserData;
         void* m_UserData;
         RayCastResponseCallback m_ResponseCallback;
     };

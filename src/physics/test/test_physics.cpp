@@ -583,6 +583,39 @@ TEST_F(PhysicsTest, InsideRayCasting)
     dmPhysics::DeleteCollisionShape(box_shape);
 }
 
+TEST_F(PhysicsTest, IgnoreRayCasting)
+{
+    float box_half_ext = 0.5f;
+    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    VisualObject vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &vo);
+
+    RayCastResult result;
+    memset(&result, 0, sizeof(RayCastResult));
+
+    dmPhysics::RayCastRequest request;
+    request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    request.m_UserId = 0;
+    request.m_IgnoredUserData = &vo;
+    request.m_UserData = &result;
+    request.m_ResponseCallback = &RayCastResponse;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
+    request.m_UserId = 1;
+
+    dmPhysics::RequestRayCast(m_World, request);
+
+    dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
+
+    ASSERT_FALSE(result.m_Hit);
+
+    dmPhysics::DeleteCollisionObject(m_World, box_co);
+    dmPhysics::DeleteCollisionShape(box_shape);
+}
+
 TEST_F(PhysicsTest, TriggerRayCasting)
 {
     float box_half_ext = 0.5f;
