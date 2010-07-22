@@ -604,6 +604,7 @@ void Release(HFactory factory, void* resource)
         if (factory->m_ResourceHashToFilename)
         {
             const char** s = factory->m_ResourceHashToFilename->Get(*resource_hash);
+            factory->m_ResourceHashToFilename->Erase(*resource_hash);
             assert(s);
             free((void*) *s);
         }
