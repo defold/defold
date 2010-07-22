@@ -840,9 +840,12 @@ namespace dmGameObject
                         {
                             component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                         }
-                        UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
-                        if (res != UPDATE_RESULT_OK)
-                            context->m_Success = false;
+                        {
+                            DM_PROFILE(GameObject, "OnEventFunction");
+                            UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+                            if (res != UPDATE_RESULT_OK)
+                                context->m_Success = false;
+                        }
                     }
 
                     if (component_type->m_InstanceHasUserData)
@@ -876,9 +879,12 @@ namespace dmGameObject
                     {
                         component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                     }
-                    UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
-                    if (res != UPDATE_RESULT_OK)
-                        context->m_Success = false;
+                    {
+                        DM_PROFILE(GameObject, "OnEventFunction");
+                        UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+                        if (res != UPDATE_RESULT_OK)
+                            context->m_Success = false;
+                    }
                 }
                 else
                 {
@@ -891,6 +897,8 @@ namespace dmGameObject
 
     bool DispatchEvents(HCollection collection, const UpdateContext* update_context)
     {
+        DM_PROFILE(GameObject, "DispatchEvents");
+
         DispatchEventsContext ctx;
         ctx.m_Collection = collection;
         ctx.m_UpdateContext = update_context;
@@ -968,11 +976,14 @@ namespace dmGameObject
         collection->m_InUpdate = 1;
         collection->m_InstancesToDelete.SetSize(0);
 
-        bool ret = DispatchEvents(collection, update_context);
+        bool ret = true;
 
         uint32_t component_types = collection->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
+            if (!DispatchEvents(collection, update_context))
+                ret = false;
+
             ComponentType* component_type = &collection->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
