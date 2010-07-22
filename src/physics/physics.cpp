@@ -189,10 +189,14 @@ namespace dmPhysics
             btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
             ProcessRayCastResultCallback result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
             world->m_DynamicsWorld->rayTest(from, to, result_callback);
-            uint16_t group = 0;
+            void* collision_object_user_data = 0x0;
+            uint16_t collision_object_group = 0;
             if (result_callback.m_collisionObject != 0x0)
-                group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
-            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, request.m_UserId, request.m_UserData, group);
+            {
+                collision_object_user_data = result_callback.m_collisionObject->getUserPointer();
+                collision_object_group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+            }
+            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, request.m_UserId, request.m_UserData, collision_object_user_data, collision_object_group);
         }
         world->m_RayCastRequests.SetSize(0);
     }

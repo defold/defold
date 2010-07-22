@@ -184,21 +184,45 @@ namespace dmPhysics
      */
     Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
-    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, uint32_t user_id, void* user_data, uint16_t group);
+    /**
+     * Callback used to report ray cast response.
+     * @param hit If the ray cast hit something or not
+     * @param hit_fraction The fraction [0,1] of the ray at which point the ray cast hit something. A value of 1 is considered no hit.
+     * @param user_id User supplied id of the ray cast query the response originated from
+     * @param user_data User supplied data to store the result
+     * @param collision_object_user_data User supplied data when creating the collision object the ray cast hit
+     * @param collision_object_group Group of the collision object the ray cast hit
+     */
+    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, uint32_t user_id, void* user_data, void* collision_object_user_data, uint16_t collision_object_group);
 
+    /**
+     * Container of data for ray cast queries.
+     */
     struct RayCastRequest
     {
         RayCastRequest();
 
+        /// Start of ray
         Vectormath::Aos::Point3 m_From;
+        /// End of ray
         Vectormath::Aos::Point3 m_To;
+        /// User supplied id to identify this query when the response is handled
         uint32_t m_UserId;
+        /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
+        /// All collision objects with this user data will be ignored in the ray cast
         void* m_IgnoredUserData;
+        /// User supplied data that will be passed to the response callback
         void* m_UserData;
+        /// Response callback function that will be called once the ray cast has been performed
         RayCastResponseCallback m_ResponseCallback;
     };
 
+    /**
+     * Request a ray cast that will be performed the next time the world is updated
+     * @param world Physics world in which to perform the ray cast
+     * @param request Struct containing data for the query
+     */
     void RequestRayCast(HWorld world, const RayCastRequest& request);
 
     typedef void (*RenderLine)(void* ctx, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);

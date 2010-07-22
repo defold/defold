@@ -476,26 +476,27 @@ struct RayCastResult
 {
     bool m_Hit;
     float m_HitFraction;
-    uint16_t m_Group;
     void* m_UserData;
+    void* m_CollisionObjectUserData;
+    uint16_t m_CollisionObjectGroup;
 };
 
-void RayCastResponse(bool hit, float hit_fraction, uint32_t user_id, void* user_data, uint16_t group)
+void RayCastResponse(bool hit, float hit_fraction, uint32_t user_id, void* user_data, void* collision_object_user_data, uint16_t collision_object_group)
 {
-    if (hit)
-    {
-        RayCastResult* rcr = (RayCastResult*)user_data;
-        rcr[user_id].m_Hit = hit;
-        rcr[user_id].m_HitFraction = hit_fraction;
-        rcr[user_id].m_Group = group;
-        rcr[user_id].m_UserData = user_data;
-    }
+    RayCastResult* rcr = (RayCastResult*)user_data;
+    rcr[user_id].m_Hit = hit;
+    rcr[user_id].m_HitFraction = hit_fraction;
+    rcr[user_id].m_UserData = user_data;
+    rcr[user_id].m_CollisionObjectUserData = collision_object_user_data;
+    rcr[user_id].m_CollisionObjectGroup = collision_object_group;
 }
 
 TEST_F(PhysicsTest, EmptyRayCasting)
 {
     RayCastResult result;
     memset(&result, 0, sizeof(RayCastResult));
+    // Avoid false positives
+    result.m_Hit = true;
 
     dmPhysics::RayCastRequest request;
     request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
@@ -513,7 +514,6 @@ TEST_F(PhysicsTest, EmptyRayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result.m_Hit);
     ASSERT_FALSE(result.m_Hit);
 }
 
@@ -546,6 +546,8 @@ TEST_F(PhysicsTest, RayCasting)
     ASSERT_FALSE(result[0].m_Hit);
     ASSERT_TRUE(result[1].m_Hit);
     ASSERT_GT(1.0f, result[1].m_HitFraction);
+    ASSERT_EQ((void*)&vo, (void*)result[1].m_CollisionObjectUserData);
+    ASSERT_EQ(1, result[1].m_CollisionObjectGroup);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(box_shape);
@@ -684,7 +686,7 @@ TEST_F(PhysicsTest, FilteredRayCasting)
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
     ASSERT_TRUE(result.m_Hit);
-    ASSERT_EQ(GROUP_B, result.m_Group);
+    ASSERT_EQ(GROUP_B, result.m_CollisionObjectGroup);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_a);
     dmPhysics::DeleteCollisionShape(box_shape_a);
