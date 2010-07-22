@@ -24,7 +24,7 @@ namespace dmGameSystem
         CollisionObjectPrototype* collision_object_prototype = (CollisionObjectPrototype*) resource;
         dmPhysics::HWorld world = (dmPhysics::HWorld) context;
 
-        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(world, collision_object_prototype->m_CollisionShape, collision_object_prototype->m_Mass, collision_object_prototype->m_Type, instance);
+        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(world, collision_object_prototype->m_CollisionShape, collision_object_prototype->m_Mass, collision_object_prototype->m_Type, collision_object_prototype->m_Group, collision_object_prototype->m_Mask, instance);
         *user_data = (uintptr_t) collision_object;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -58,7 +58,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void CollisionCallback(void* user_data_a, void* user_data_b, void* user_data)
+    void CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         dmGameObject::HInstance instance_a = (dmGameObject::HInstance)user_data_a;
         dmGameObject::HInstance instance_b = (dmGameObject::HInstance)user_data_b;
@@ -69,9 +69,11 @@ namespace dmGameSystem
         char* id = &data[sizeof(dmPhysicsDDF::CollisionMessage)];
         // Broadcast to A components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
+        ddf->m_Group = group_b;
         dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
+        ddf->m_Group = group_a;
         dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
     }
 
@@ -87,11 +89,13 @@ namespace dmGameSystem
         ddf->m_Position = contact_point.m_PositionA;
         ddf->m_Normal = contact_point.m_Normal;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
+        ddf->m_Group = contact_point.m_GroupB;
         dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         ddf->m_Position = contact_point.m_PositionB;
         ddf->m_Normal = -contact_point.m_Normal;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
+        ddf->m_Group = contact_point.m_GroupA;
         dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
     }
 

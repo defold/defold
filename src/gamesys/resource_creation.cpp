@@ -203,6 +203,8 @@ namespace dmGameSystem
         collision_object_prototype->m_CollisionShape = collision_shape;
         collision_object_prototype->m_Mass = collision_object_desc->m_Mass;
         collision_object_prototype->m_Type = (dmPhysics::CollisionObjectType)collision_object_desc->m_Type;
+        collision_object_prototype->m_Group = (uint16_t)collision_object_desc->m_Group;
+        collision_object_prototype->m_Mask = (uint16_t)collision_object_desc->m_Mask;
         resource->m_Resource = (void*) collision_object_prototype;
 
         dmDDF::FreeMessage(collision_object_desc);

@@ -45,6 +45,8 @@ message CollisionObjectDesc
     required float Mass = 1;
     required string CollisionShape = 2;
     required CollisionObjectType Type = 3;
+    required uint32 Group = 4;
+    required uint32 Mask = 5;
 }
 
 message ApplyForceMessage
@@ -56,6 +58,7 @@ message ApplyForceMessage
 message CollisionMessage
 {
     required string OtherGameObjectId = 1;
+    required uint32 Group = 2;
 }
 
 message ContactPointMessage
@@ -63,4 +66,5 @@ message ContactPointMessage
     required dmMath.Point3 Position = 1;
     required dmMath.Vector3 Normal = 2;
     required string OtherGameObjectId = 3;
+    required uint32 Group = 4;
 }
