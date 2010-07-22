@@ -414,6 +414,8 @@ namespace dmPhysics
         btRigidBody* rigid_body = btRigidBody::upcast(collision_object);
         if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
         {
+            bool force_activate = false;
+            rigid_body->activate(force_activate);
             btVector3 bt_force(force.getX(), force.getY(), force.getZ());
             btVector3 bt_position(position.getX(), position.getY(), position.getZ());
             rigid_body->applyForce(bt_force, bt_position - collision_object->getWorldTransform().getOrigin());
