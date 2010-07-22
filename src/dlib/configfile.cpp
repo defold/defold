@@ -3,8 +3,11 @@
 #include <setjmp.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 #include "hash.h"
 #include "log.h"
+#include "http_client.h"
+#include "uri.h"
 
 #include "configfile.h"
 #include "array.h"
@@ -39,8 +42,10 @@ namespace dmConfigFile
         }
         int             m_Argc;
         const char**    m_Argv;
-        FILE*           m_File;
-        const char*     m_Filename;
+        char*           m_Buffer;
+        int             m_BufferPos;
+        int             m_BufferSize;
+        const char*     m_URI;
         jmp_buf         m_JmpBuf;
         char            m_CategoryBuffer[CATEGORY_MAX_SIZE];
         uint32_t        m_Line;
@@ -51,7 +56,7 @@ namespace dmConfigFile
 
     void ParseError(Context* context, Result result)
     {
-        dmLogWarning("Config file parse error in file '%s' at line: %d", context->m_Filename, context->m_Line);
+        dmLogWarning("Config file parse error in file '%s' at line: %d", context->m_URI, context->m_Line);
         longjmp(context->m_JmpBuf, (int) result);
     }
 
@@ -60,24 +65,45 @@ namespace dmConfigFile
         return c == ' ' || c == '\t';
     }
 
+    static int BufferGetChar(Context* context)
+    {
+        if (context->m_BufferPos >= context->m_BufferSize)
+            return 0;
+        return context->m_Buffer[context->m_BufferPos++];
+    }
+
+    static bool BufferEof(Context* context)
+    {
+        return context->m_BufferPos >= context->m_BufferSize;
+    }
+
+    static void BufferUngetChar(char c, Context* context)
+    {
+        if (context->m_BufferPos <= 0 || c == 0)
+        {
+            return;
+        }
+        context->m_Buffer[--context->m_BufferPos] = c;
+    }
+
     static int GetChar(Context* context)
     {
-        int c = fgetc(context->m_File);
+        int c = BufferGetChar(context);
         // Ignore '\r' in order to accept DOS-lineendings
         while (c == '\r')
         {
-            c = fgetc(context->m_File);
+            c = BufferGetChar(context);
         }
         return c;
     }
 
     static int SafeGetChar(Context* context)
     {
-        int c = fgetc(context->m_File);
+        int c = BufferGetChar(context);
         // Ignore '\r' in order to accept DOS-lineendings
         while (c == '\r')
         {
-            c = fgetc(context->m_File);
+            c = BufferGetChar(context);
         }
         if (c == EOF)
             ParseError(context, RESULT_UNEXPECTED_EOF);
@@ -86,8 +112,8 @@ namespace dmConfigFile
 
     static int PeekChar(Context* context)
     {
-        int c = fgetc(context->m_File);
-        ungetc(c, context->m_File);
+        int c = BufferGetChar(context);
+        BufferUngetChar(c, context);
         return c;
     }
 
@@ -110,7 +136,7 @@ namespace dmConfigFile
                 context->m_Line++;
         } while (isspace(c));
 
-        ungetc(c, context->m_File);
+        BufferUngetChar(c, context);
     }
 
     static void EatBlank(Context* context)
@@ -121,7 +147,7 @@ namespace dmConfigFile
             c = GetChar(context);
         } while (IsBlank(c));
 
-        ungetc(c, context->m_File);
+        BufferUngetChar(c, context);
     }
 
     static uint32_t AddString(Context* context, const char* string)
@@ -194,7 +220,7 @@ namespace dmConfigFile
             c = GetChar(context);
             ++i;
         }
-        ungetc(c, context->m_File);
+        BufferUngetChar(c, context);
         buf[i] = '\0';
     }
 
@@ -211,7 +237,7 @@ namespace dmConfigFile
             c = GetChar(context);
             ++i;
         }
-        ungetc(c, context->m_File);
+        BufferUngetChar(c, context);
         buf[i] = '\0';
     }
 
@@ -270,7 +296,7 @@ namespace dmConfigFile
         while (true)
         {
             EatSpace(context);
-            if (feof(context->m_File))
+            if (BufferEof(context))
                 return;
 
             if (PeekChar(context) == '[')
@@ -284,6 +310,27 @@ namespace dmConfigFile
         }
     }
 
+    void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
+    {
+        Context* context = (Context*) user_data;
+        if (strcmp("Content-Length", key) == 0)
+        {
+            context->m_BufferSize = (int) strtol(value, 0, 10);
+            context->m_Buffer = new char[context->m_BufferSize];
+        }
+    }
+
+    void HttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    {
+        Context* context = (Context*) user_data;
+        if (status_code != 200 || context->m_BufferSize == -1)
+            return;
+
+        assert(context->m_BufferPos + (int) content_data_size <= context->m_BufferSize);
+        memcpy(context->m_Buffer + context->m_BufferPos, content_data, content_data_size);
+        context->m_BufferPos += (int) content_data_size;
+    }
+
     Result Load(const char* file_name, int argc, const char** argv, HConfig* config)
     {
         assert(file_name);
@@ -291,17 +338,57 @@ namespace dmConfigFile
 
         *config = 0;
 
-        FILE* f = fopen(file_name, "rb");
-        if (!f)
-        {
-            return RESULT_FILE_NOT_FOUND;
-        }
+        dmURI::Parts uri_parts;
+        dmURI::Result r = dmURI::Parse(file_name, &uri_parts);
+        if (r != dmURI::RESULT_OK)
+            return RESULT_INVALID_URI;
 
         Context context;
+
+        if (strcmp(uri_parts.m_Scheme, "http") == 0)
+        {
+            dmHttpClient::NewParams params;
+            params.m_Userdata = &context;
+            params.m_HttpContent = &HttpContent;
+            params.m_HttpHeader = &HttpHeader;
+            dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 7000);
+
+            context.m_BufferSize = -1;
+            dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
+            if (http_result != dmHttpClient::RESULT_OK || context.m_BufferSize == -1)
+            {
+                dmHttpClient::Delete(client);
+                return RESULT_FILE_NOT_FOUND;
+            }
+            dmHttpClient::Delete(client);
+            context.m_BufferSize = context.m_BufferPos;
+            context.m_BufferPos = 0;
+        }
+        else if (strcmp(uri_parts.m_Scheme, "file") == 0)
+        {
+            FILE* f = fopen(file_name, "rb");
+            if (!f)
+            {
+                return RESULT_FILE_NOT_FOUND;
+            }
+            fseek(f, 0, SEEK_END);
+            long file_size = ftell(f);
+            fseek(f, 0, SEEK_SET);
+
+            context.m_Buffer = new char[file_size];
+            if (fread(context.m_Buffer, 1, file_size, f) != (size_t) file_size)
+            {
+                fclose(f);
+                delete[] context.m_Buffer;
+                return RESULT_UNEXPECTED_EOF;
+            }
+            fclose(f);
+            context.m_BufferSize = (int) file_size;
+        }
+
         context.m_Argc = argc;
         context.m_Argv = argv;
-        context.m_File = f;
-        context.m_Filename = file_name;
+        context.m_URI = file_name;
         context.m_Entries.SetCapacity(128);
         context.m_StringBuffer.SetCapacity(0400);
         context.m_Line = 1;
@@ -309,7 +396,6 @@ namespace dmConfigFile
         int ret = setjmp(context.m_JmpBuf);
         if (ret != RESULT_OK)
         {
-            fclose(f);
             return (Result) ret;
         }
         else
@@ -323,6 +409,7 @@ namespace dmConfigFile
                 {
                     const char* eq = strchr(arg, '=');
                     const char* eq2 = strchr(eq+1, '=');
+
                     if (!eq2)
                     {
                         dmLogWarning("Invalid config option: %s", arg);
@@ -356,7 +443,6 @@ namespace dmConfigFile
 
             *config = c;
         }
-        fclose(f);
 
         return RESULT_OK;
     }

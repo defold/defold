@@ -20,6 +20,7 @@ namespace dmConfigFile
         RESULT_LITERAL_TOO_LONG = -2,//!< RESULT_LITERAL_TOO_LONG
         RESULT_SYNTAX_ERROR     = -3,//!< RESULT_SYNTAX_ERROR
         RESULT_UNEXPECTED_EOF   = -4,//!< RESULT_UNEXPECTED_EOF
+        RESULT_INVALID_URI      = -5,//!< RESULT_INVALID_URI
     };
 
     /**
