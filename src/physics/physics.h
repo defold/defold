@@ -184,16 +184,17 @@ namespace dmPhysics
      */
     Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
+    struct RayCastRequest;
+
     /**
      * Callback used to report ray cast response.
      * @param hit If the ray cast hit something or not
      * @param hit_fraction The fraction [0,1] of the ray at which point the ray cast hit something. A value of 1 is considered no hit.
-     * @param user_id User supplied id of the ray cast query the response originated from
-     * @param user_data User supplied data to store the result
      * @param collision_object_user_data User supplied data when creating the collision object the ray cast hit
      * @param collision_object_group Group of the collision object the ray cast hit
+     * @param
      */
-    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, uint32_t user_id, void* user_data, void* collision_object_user_data, uint16_t collision_object_group);
+    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, void* collision_object_user_data, uint16_t collision_object_group, const RayCastRequest& request);
 
     /**
      * Container of data for ray cast queries.

@@ -196,7 +196,7 @@ namespace dmPhysics
                 collision_object_user_data = result_callback.m_collisionObject->getUserPointer();
                 collision_object_group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
             }
-            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, request.m_UserId, request.m_UserData, collision_object_user_data, collision_object_group);
+            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, collision_object_user_data, collision_object_group, request);
         }
         world->m_RayCastRequests.SetSize(0);
     }

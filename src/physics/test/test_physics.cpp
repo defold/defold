@@ -476,19 +476,19 @@ struct RayCastResult
 {
     bool m_Hit;
     float m_HitFraction;
-    void* m_UserData;
     void* m_CollisionObjectUserData;
     uint16_t m_CollisionObjectGroup;
+    void* m_UserData;
 };
 
-void RayCastResponse(bool hit, float hit_fraction, uint32_t user_id, void* user_data, void* collision_object_user_data, uint16_t collision_object_group)
+void RayCastResponse(bool hit, float hit_fraction, void* collision_object_user_data, uint16_t collision_object_group, const dmPhysics::RayCastRequest& request)
 {
-    RayCastResult* rcr = (RayCastResult*)user_data;
-    rcr[user_id].m_Hit = hit;
-    rcr[user_id].m_HitFraction = hit_fraction;
-    rcr[user_id].m_UserData = user_data;
-    rcr[user_id].m_CollisionObjectUserData = collision_object_user_data;
-    rcr[user_id].m_CollisionObjectGroup = collision_object_group;
+    RayCastResult* rcr = (RayCastResult*)request.m_UserData;
+    rcr[request.m_UserId].m_Hit = hit;
+    rcr[request.m_UserId].m_HitFraction = hit_fraction;
+    rcr[request.m_UserId].m_CollisionObjectUserData = collision_object_user_data;
+    rcr[request.m_UserId].m_CollisionObjectGroup = collision_object_group;
+    rcr[request.m_UserId].m_UserData = request.m_UserData;
 }
 
 TEST_F(PhysicsTest, EmptyRayCasting)
