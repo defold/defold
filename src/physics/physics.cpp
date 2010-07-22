@@ -2,6 +2,7 @@
 
 #include <dlib/array.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
 
 #include "physics.h"
 #include "btBulletDynamicsCommon.h"
@@ -156,6 +157,7 @@ namespace dmPhysics
         // Update all trigger transforms before physics world step
         if (world->m_GetWorldTransform != 0x0)
         {
+            DM_PROFILE(Physics, "UpdateTriggers");
             int collision_object_count = world->m_DynamicsWorld->getNumCollisionObjects();
             for (int i = 0; i < collision_object_count; ++i)
             {
@@ -171,34 +173,41 @@ namespace dmPhysics
             }
         }
 
-        // Step simulation
-        // TODO: Max substeps = 1 for now...
-        world->m_DynamicsWorld->stepSimulation(dt, 1);
+        {
+            DM_PROFILE(Physics, "StepSimulation");
+            // Step simulation
+            // TODO: Max substeps = 1 for now...
+            world->m_DynamicsWorld->stepSimulation(dt, 1);
+        }
 
         // Handle ray cast requests
         uint32_t size = world->m_RayCastRequests.Size();
-        for (uint32_t i = 0; i < size; ++i)
+        if (size > 0)
         {
-            const RayCastRequest& request = world->m_RayCastRequests[i];
-            if (request.m_ResponseCallback == 0x0)
+            DM_PROFILE(Physics, "RayCasts");
+            for (uint32_t i = 0; i < size; ++i)
             {
-                dmLogWarning("Ray cast requested without any response callback, skipped.");
-                continue;
+                const RayCastRequest& request = world->m_RayCastRequests[i];
+                if (request.m_ResponseCallback == 0x0)
+                {
+                    dmLogWarning("Ray cast requested without any response callback, skipped.");
+                    continue;
+                }
+                btVector3 from(request.m_From.getX(), request.m_From.getY(), request.m_From.getZ());
+                btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
+                ProcessRayCastResultCallback result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+                world->m_DynamicsWorld->rayTest(from, to, result_callback);
+                void* collision_object_user_data = 0x0;
+                uint16_t collision_object_group = 0;
+                if (result_callback.m_collisionObject != 0x0)
+                {
+                    collision_object_user_data = result_callback.m_collisionObject->getUserPointer();
+                    collision_object_group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+                }
+                request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, collision_object_user_data, collision_object_group, request);
             }
-            btVector3 from(request.m_From.getX(), request.m_From.getY(), request.m_From.getZ());
-            btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
-            ProcessRayCastResultCallback result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
-            world->m_DynamicsWorld->rayTest(from, to, result_callback);
-            void* collision_object_user_data = 0x0;
-            uint16_t collision_object_group = 0;
-            if (result_callback.m_collisionObject != 0x0)
-            {
-                collision_object_user_data = result_callback.m_collisionObject->getUserPointer();
-                collision_object_group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
-            }
-            request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, collision_object_user_data, collision_object_group, request);
+            world->m_RayCastRequests.SetSize(0);
         }
-        world->m_RayCastRequests.SetSize(0);
     }
 
     void ForEachCollision(HWorld world,
