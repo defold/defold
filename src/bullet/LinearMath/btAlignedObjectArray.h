@@ -138,6 +138,16 @@ class btAlignedObjectArray
 			return m_size;
 		}
 		
+		SIMD_FORCE_INLINE const T& at(int n) const
+		{
+			return m_data[n];
+		}
+
+		SIMD_FORCE_INLINE T& at(int n)
+		{
+			return m_data[n];
+		}
+
 		SIMD_FORCE_INLINE const T& operator[](int n) const
 		{
 			return m_data[n];
@@ -171,9 +181,9 @@ class btAlignedObjectArray
 		{
 			int curSize = size();
 
-			if (newsize < size())
+			if (newsize < curSize)
 			{
-				for(int i = curSize; i < newsize; i++)
+				for(int i = newsize; i < curSize; i++)
 				{
 					m_data[i].~T();
 				}
@@ -195,6 +205,18 @@ class btAlignedObjectArray
 			m_size = newsize;
 		}
 	
+		SIMD_FORCE_INLINE	T&  expandNonInitializing( )
+		{	
+			int sz = size();
+			if( sz == capacity() )
+			{
+				reserve( allocSize(size()) );
+			}
+			m_size++;
+
+			return m_data[sz];		
+		}
+
 
 		SIMD_FORCE_INLINE	T&  expand( const T& fillValue=T())
 		{	
@@ -435,6 +457,13 @@ class btAlignedObjectArray
 		m_data = (T*)buffer;
 		m_size = size;
 		m_capacity = capacity;
+	}
+
+	void copyFromArray(const btAlignedObjectArray& otherArray)
+	{
+		int otherSize = otherArray.size();
+		resize (otherSize);
+		otherArray.copy(0, otherSize, m_data);
 	}
 
 };
