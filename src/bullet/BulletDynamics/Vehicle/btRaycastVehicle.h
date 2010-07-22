@@ -29,10 +29,6 @@ class btRaycastVehicle : public btActionInterface
 		btAlignedObjectArray<btVector3>	m_axle;
 		btAlignedObjectArray<btScalar>	m_forwardImpulse;
 		btAlignedObjectArray<btScalar>	m_sideImpulse;
-	
-		///backwards compatibility
-		int	m_userConstraintType;
-		int	m_userConstraintId;
 
 public:
 	class btVehicleTuning
@@ -44,8 +40,7 @@ public:
 				m_suspensionCompression(btScalar(0.83)),
 				m_suspensionDamping(btScalar(0.88)),
 				m_maxSuspensionTravelCm(btScalar(500.)),
-				m_frictionSlip(btScalar(10.5)),
-				m_maxSuspensionForce(btScalar(6000.))
+				m_frictionSlip(btScalar(10.5))
 			{
 			}
 			btScalar	m_suspensionStiffness;
@@ -53,7 +48,6 @@ public:
 			btScalar	m_suspensionDamping;
 			btScalar	m_maxSuspensionTravelCm;
 			btScalar	m_frictionSlip;
-			btScalar	m_maxSuspensionForce;
 
 		};
 private:
@@ -84,7 +78,6 @@ public:
 	///btActionInterface interface
 	virtual void updateAction( btCollisionWorld* collisionWorld, btScalar step)
 	{
-        (void) collisionWorld;
 		updateVehicle(step);
 	}
 	
@@ -195,26 +188,6 @@ public:
 	}
 
 
-	///backwards compatibility
-	int getUserConstraintType() const
-	{
-		return m_userConstraintType ;
-	}
-
-	void	setUserConstraintType(int userConstraintType)
-	{
-		m_userConstraintType = userConstraintType;
-	};
-
-	void	setUserConstraintId(int uid)
-	{
-		m_userConstraintId = uid;
-	}
-
-	int getUserConstraintId() const
-	{
-		return m_userConstraintId;
-	}
 
 };
 

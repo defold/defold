@@ -21,6 +21,9 @@ subject to the following restrictions:
 
 
 
+#define SIMDSQRT12 btScalar(0.7071067811865475244008443621048490)
+
+#define btRecipSqrt(x) ((btScalar)(btScalar(1.0)/btSqrt(btScalar(x))))		/* reciprocal square root */
 
 SIMD_FORCE_INLINE btVector3 btAabbSupport(const btVector3& halfExtents,const btVector3& supportDir)
 {
@@ -30,7 +33,25 @@ SIMD_FORCE_INLINE btVector3 btAabbSupport(const btVector3& halfExtents,const btV
 }
 
 
-
+SIMD_FORCE_INLINE void btPlaneSpace1 (const btVector3& n, btVector3& p, btVector3& q)
+{
+  if (btFabs(n.z()) > SIMDSQRT12) {
+    // choose p in y-z plane
+    btScalar a = n[1]*n[1] + n[2]*n[2];
+    btScalar k = btRecipSqrt (a);
+    p.setValue(0,-n[2]*k,n[1]*k);
+    // set q = n x p
+    q.setValue(a*k,-n[0]*p[2],n[0]*p[1]);
+  }
+  else {
+    // choose p in x-y plane
+    btScalar a = n.x()*n.x() + n.y()*n.y();
+    btScalar k = btRecipSqrt (a);
+    p.setValue(-n.y()*k,n.x()*k,0);
+    // set q = n x p
+    q.setValue(-n.z()*p.y(),n.z()*p.x(),a*k);
+  }
+}
 
 
 
@@ -96,8 +117,10 @@ public:
 
 	static void calculateDiffAxisAngleQuaternion(const btQuaternion& orn0,const btQuaternion& orn1a,btVector3& axis,btScalar& angle)
 	{
-		btQuaternion orn1 = orn0.nearest(orn1a);
+		btQuaternion orn1 = orn0.farthest(orn1a);
 		btQuaternion dorn = orn1 * orn0.inverse();
+		///floating point inaccuracy can lead to w component > 1..., which breaks 
+		dorn.normalize();
 		angle = dorn.getAngle();
 		axis = btVector3(dorn.x(),dorn.y(),dorn.z());
 		axis[3] = btScalar(0.);
@@ -204,21 +227,17 @@ public:
 
 	void	initSeparatingDistance(const btVector3& separatingVector,btScalar separatingDistance,const btTransform& transA,const btTransform& transB)
 	{
+		m_separatingNormal = separatingVector;
 		m_separatingDistance = separatingDistance;
-
-		if (m_separatingDistance>0.f)
-		{
-			m_separatingNormal = separatingVector;
-			
-			const btVector3& toPosA = transA.getOrigin();
-			const btVector3& toPosB = transB.getOrigin();
-			btQuaternion toOrnA = transA.getRotation();
-			btQuaternion toOrnB = transB.getRotation();
-			m_posA = toPosA;
-			m_posB = toPosB;
-			m_ornA = toOrnA;
-			m_ornB = toOrnB;
-		}
+		
+		const btVector3& toPosA = transA.getOrigin();
+		const btVector3& toPosB = transB.getOrigin();
+		btQuaternion toOrnA = transA.getRotation();
+		btQuaternion toOrnB = transB.getRotation();
+		m_posA = toPosA;
+		m_posB = toPosB;
+		m_ornA = toOrnA;
+		m_ornB = toOrnB;
 	}
 
 };

@@ -34,7 +34,7 @@ email: projectileman@yahoo.com
 
 
 #include "gim_math.h"
-#include <string.h>
+#include <memory.h>
 
 #ifdef PREFETCH
 #include <xmmintrin.h>	// for prefetch
@@ -117,7 +117,7 @@ void gim_free(void *ptr);
 
 
 
-#if defined (_WIN32) && !defined(__MINGW32__) && !defined(__CYGWIN__)
+#if defined (WIN32) && !defined(__MINGW32__) && !defined(__CYGWIN__)
     #define GIM_SIMD_MEMORY 1
 #endif
 

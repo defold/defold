@@ -28,14 +28,11 @@ class btManifoldPoint;
 typedef bool (*ContactAddedCallback)(btManifoldPoint& cp,	const btCollisionObject* colObj0,int partId0,int index0,const btCollisionObject* colObj1,int partId1,int index1);
 extern ContactAddedCallback		gContactAddedCallback;
 
-//#define DEBUG_PART_INDEX 1
 
 
 ///btManifoldResult is a helper class to manage  contact results.
 class btManifoldResult : public btDiscreteCollisionDetectorInterface::Result
 {
-protected:
-
 	btPersistentManifold* m_manifoldPtr;
 
 	//we need this for compounds
@@ -53,13 +50,6 @@ protected:
 public:
 
 	btManifoldResult()
-#ifdef DEBUG_PART_INDEX
-		:
-	m_partId0(-1),
-	m_partId1(-1),
-	m_index0(-1),
-	m_index1(-1)
-#endif //DEBUG_PART_INDEX
 	{
 	}
 
@@ -81,16 +71,12 @@ public:
 		return m_manifoldPtr;
 	}
 
-	virtual void setShapeIdentifiersA(int partId0,int index0)
+	virtual void setShapeIdentifiers(int partId0,int index0,	int partId1,int index1)
 	{
-		m_partId0=partId0;
-		m_index0=index0;
-	}
-
-	virtual void setShapeIdentifiersB(	int partId1,int index1)
-	{
-		m_partId1=partId1;
-		m_index1=index1;
+			m_partId0=partId0;
+			m_partId1=partId1;
+			m_index0=index0;
+			m_index1=index1;		
 	}
 
 
@@ -113,16 +99,7 @@ public:
 		}
 	}
 
-	const btCollisionObject* getBody0Internal() const
-	{
-		return m_body0;
-	}
 
-	const btCollisionObject* getBody1Internal() const
-	{
-		return m_body1;
-	}
-	
 };
 
 #endif //MANIFOLD_RESULT_H

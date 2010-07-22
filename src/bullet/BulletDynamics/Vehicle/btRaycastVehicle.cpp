@@ -22,7 +22,7 @@
 #include "LinearMath/btIDebugDraw.h"
 #include "BulletDynamics/ConstraintSolver/btContactConstraint.h"
 
-
+static btRigidBody s_fixedObject( 0,0,0);
 
 btRaycastVehicle::btRaycastVehicle(const btVehicleTuning& tuning,btRigidBody* chassis,	btVehicleRaycaster* raycaster )
 :m_vehicleRaycaster(raycaster),
@@ -70,7 +70,6 @@ btWheelInfo&	btRaycastVehicle::addWheel( const btVector3& connectionPointCS, con
 	ci.m_frictionSlip = tuning.m_frictionSlip;
 	ci.m_bIsFrontWheel = isFrontWheel;
 	ci.m_maxSuspensionTravelCm = tuning.m_maxSuspensionTravelCm;
-	ci.m_maxSuspensionForce = tuning.m_maxSuspensionForce;
 
 	m_wheelInfo.push_back( btWheelInfo(ci));
 	
@@ -187,7 +186,7 @@ btScalar btRaycastVehicle::rayCast(btWheelInfo& wheel)
 		wheel.m_raycastInfo.m_contactNormalWS  = rayResults.m_hitNormalInWorld;
 		wheel.m_raycastInfo.m_isInContact = true;
 		
-		wheel.m_raycastInfo.m_groundObject = &getFixedBody();///@todo for driving on dynamic/movable objects!;
+		wheel.m_raycastInfo.m_groundObject = &s_fixedObject;///@todo for driving on dynamic/movable objects!;
 		//wheel.m_raycastInfo.m_groundObject = object;
 
 
@@ -302,9 +301,10 @@ void btRaycastVehicle::updateVehicle( btScalar step )
 		
 		btScalar suspensionForce = wheel.m_wheelsSuspensionForce;
 		
-		if (suspensionForce > wheel.m_maxSuspensionForce)
+		btScalar gMaxSuspensionForce = btScalar(6000.);
+		if (suspensionForce > gMaxSuspensionForce)
 		{
-			suspensionForce = wheel.m_maxSuspensionForce;
+			suspensionForce = gMaxSuspensionForce;
 		}
 		btVector3 impulse = wheel.m_raycastInfo.m_contactNormalWS * suspensionForce * step;
 		btVector3 relpos = wheel.m_raycastInfo.m_contactPointWS - getRigidBody()->getCenterOfMassPosition();
@@ -689,7 +689,7 @@ void	btRaycastVehicle::updateFriction(btScalar	timeStep)
 					
 					btVector3 sideImp = m_axle[wheel] * m_sideImpulse[wheel];
 
-					rel_pos[m_indexUpAxis] *= wheelInfo.m_rollInfluence;
+					rel_pos[m_indexForwardAxis] *= wheelInfo.m_rollInfluence;
 					m_chassisBody->applyImpulse(sideImp,rel_pos);
 
 					//apply friction impulse on the ground
@@ -708,13 +708,13 @@ void	btRaycastVehicle::debugDraw(btIDebugDraw* debugDrawer)
 
 	for (int v=0;v<this->getNumWheels();v++)
 	{
-		btVector3 wheelColor(0,1,1);
+		btVector3 wheelColor(0,255,255);
 		if (getWheelInfo(v).m_raycastInfo.m_isInContact)
 		{
-			wheelColor.setValue(0,0,1);
+			wheelColor.setValue(0,0,255);
 		} else
 		{
-			wheelColor.setValue(1,0,1);
+			wheelColor.setValue(255,0,255);
 		}
 
 		btVector3 wheelPosWS = getWheelInfo(v).m_worldTransform.getOrigin();

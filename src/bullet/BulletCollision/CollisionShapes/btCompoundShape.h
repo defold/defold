@@ -1,6 +1,6 @@
 /*
 Bullet Continuous Collision Detection and Physics Library
-Copyright (c) 2003-2009 Erwin Coumans  http://bulletphysics.org
+Copyright (c) 2003-2006 Erwin Coumans  http://continuousphysics.com/Bullet/
 
 This software is provided 'as-is', without any express or implied warranty.
 In no event will the authors be held liable for any damages arising from the use of this software.
@@ -62,11 +62,6 @@ ATTRIBUTE_ALIGNED16(class) btCompoundShape	: public btCollisionShape
 	///increment m_updateRevision when adding/removing/replacing child shapes, so that some caches can be updated
 	int								m_updateRevision;
 
-	btScalar	m_collisionMargin;
-
-protected:
-	btVector3	m_localScaling;
-
 public:
 	BT_DECLARE_ALIGNED_ALLOCATOR();
 
@@ -121,8 +116,10 @@ public:
 	Use this yourself if you modify the children or their transforms. */
 	virtual void recalculateLocalAabb(); 
 
-	virtual void	setLocalScaling(const btVector3& scaling);
-
+	virtual void	setLocalScaling(const btVector3& scaling)
+	{
+		m_localScaling = scaling;
+	}
 	virtual const btVector3& getLocalScaling() const 
 	{
 		return m_localScaling;
@@ -143,13 +140,13 @@ public:
 		return "Compound";
 	}
 
+	//this is optional, but should make collision queries faster, by culling non-overlapping nodes
+	void	createAabbTreeFromChildren();
 
 	btDbvt*							getDynamicAabbTree()
 	{
 		return m_dynamicAabbTree;
 	}
-
-	void createAabbTreeFromChildren();
 
 	///computes the exact moment of inertia and the transform from the coordinate system defined by the principal axes of the moment of inertia
 	///and the center of mass to the current coordinate system. "masses" points to an array of masses of the children. The resulting transform
@@ -163,45 +160,12 @@ public:
 		return m_updateRevision;
 	}
 
-	virtual	int	calculateSerializeBufferSize() const;
-
-	///fills the dataBuffer and returns the struct name (and 0 on failure)
-	virtual	const char*	serialize(void* dataBuffer, btSerializer* serializer) const;
-
-
-};
-
-///do not change those serialization structures, it requires an updated sBulletDNAstr/sBulletDNAstr64
-struct btCompoundShapeChildData
-{
-	btTransformFloatData	m_transform;
-	btCollisionShapeData	*m_childShape;
-	int						m_childShapeType;
-	float					m_childMargin;
-};
-
-///do not change those serialization structures, it requires an updated sBulletDNAstr/sBulletDNAstr64
-struct	btCompoundShapeData
-{
-	btCollisionShapeData		m_collisionShapeData;
-
-	btCompoundShapeChildData	*m_childShapePtr;
-
-	int							m_numChildShapes;
-
-	float	m_collisionMargin;
+private:
+	btScalar	m_collisionMargin;
+protected:
+	btVector3	m_localScaling;
 
 };
-
-
-SIMD_FORCE_INLINE	int	btCompoundShape::calculateSerializeBufferSize() const
-{
-	return sizeof(btCompoundShapeData);
-}
-
-
-
-
 
 
 

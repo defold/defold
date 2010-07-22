@@ -23,7 +23,7 @@ subject to the following restrictions:
 
 #include <limits.h>
 #include <stdio.h>
-#include <string.h>
+#include <memory.h>
 #include "LinearMath/btAlignedAllocator.h"
 
 #define BT_UINT_MAX UINT_MAX

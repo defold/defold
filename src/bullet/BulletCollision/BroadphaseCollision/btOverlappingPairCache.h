@@ -457,7 +457,6 @@ public:
 	
 	virtual void	sortOverlappingPairs(btDispatcher* dispatcher)
 	{
-        (void) dispatcher;
 	}
 
 

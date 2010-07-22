@@ -25,8 +25,7 @@ ContactProcessedCallback	gContactProcessedCallback = 0;
 
 
 btPersistentManifold::btPersistentManifold()
-:btTypedObject(BT_PERSISTENT_MANIFOLD_TYPE),
-m_body0(0),
+:m_body0(0),
 m_body1(0),
 m_cachedPoints (0),
 m_index1a(0)

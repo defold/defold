@@ -1,6 +1,7 @@
+
 /*
 Bullet Continuous Collision Detection and Physics Library
-Copyright (c) 2003-2009 Erwin Coumans  http://bulletphysics.org
+Copyright (c) 2003-2006 Erwin Coumans  http://continuousphysics.com/Bullet/
 
 This software is provided 'as-is', without any express or implied warranty.
 In no event will the authors be held liable for any damages arising from the use of this software.
@@ -12,24 +13,23 @@ subject to the following restrictions:
 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
-
 #include "btTetrahedronShape.h"
 #include "LinearMath/btMatrix3x3.h"
 
-btBU_Simplex1to4::btBU_Simplex1to4() : btPolyhedralConvexAabbCachingShape (),
+btBU_Simplex1to4::btBU_Simplex1to4() : btPolyhedralConvexShape (),
 m_numVertices(0)
 {
 	m_shapeType = TETRAHEDRAL_SHAPE_PROXYTYPE;
 }
 
-btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0) : btPolyhedralConvexAabbCachingShape (),
+btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0) : btPolyhedralConvexShape (),
 m_numVertices(0)
 {
 	m_shapeType = TETRAHEDRAL_SHAPE_PROXYTYPE;
 	addVertex(pt0);
 }
 
-btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0,const btVector3& pt1) : btPolyhedralConvexAabbCachingShape (),
+btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0,const btVector3& pt1) : btPolyhedralConvexShape (),
 m_numVertices(0)
 {
 	m_shapeType = TETRAHEDRAL_SHAPE_PROXYTYPE;
@@ -37,7 +37,7 @@ m_numVertices(0)
 	addVertex(pt1);
 }
 
-btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0,const btVector3& pt1,const btVector3& pt2) : btPolyhedralConvexAabbCachingShape (),
+btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0,const btVector3& pt1,const btVector3& pt2) : btPolyhedralConvexShape (),
 m_numVertices(0)
 {
 	m_shapeType = TETRAHEDRAL_SHAPE_PROXYTYPE;
@@ -46,7 +46,7 @@ m_numVertices(0)
 	addVertex(pt2);
 }
 
-btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0,const btVector3& pt1,const btVector3& pt2,const btVector3& pt3) : btPolyhedralConvexAabbCachingShape (),
+btBU_Simplex1to4::btBU_Simplex1to4(const btVector3& pt0,const btVector3& pt1,const btVector3& pt2,const btVector3& pt3) : btPolyhedralConvexShape (),
 m_numVertices(0)
 {
 	m_shapeType = TETRAHEDRAL_SHAPE_PROXYTYPE;
@@ -57,31 +57,13 @@ m_numVertices(0)
 }
 
 
-void btBU_Simplex1to4::getAabb(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const
-{
-#if 1
-	btPolyhedralConvexAabbCachingShape::getAabb(t,aabbMin,aabbMax);
-#else
-	aabbMin.setValue(BT_LARGE_FLOAT,BT_LARGE_FLOAT,BT_LARGE_FLOAT);
-	aabbMax.setValue(-BT_LARGE_FLOAT,-BT_LARGE_FLOAT,-BT_LARGE_FLOAT);
-
-	//just transform the vertices in worldspace, and take their AABB
-	for (int i=0;i<m_numVertices;i++)
-	{
-		btVector3 worldVertex = t(m_vertices[i]);
-		aabbMin.setMin(worldVertex);
-		aabbMax.setMax(worldVertex);
-	}
-#endif
-}
-
-
 
 
 
 void btBU_Simplex1to4::addVertex(const btVector3& pt)
 {
 	m_vertices[m_numVertices++] = pt;
+
 	recalcLocalAabb();
 }
 

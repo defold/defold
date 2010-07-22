@@ -1,6 +1,6 @@
 /*
 Bullet Continuous Collision Detection and Physics Library
-Copyright (c) 2003-2009 Erwin Coumans  http://bulletphysics.org
+Copyright (c) 2003-2006 Erwin Coumans  http://continuousphysics.com/Bullet/
 
 This software is provided 'as-is', without any express or implied warranty.
 In no event will the authors be held liable for any damages arising from the use of this software.
@@ -41,7 +41,7 @@ public:
 	
 	const btVector3& getHalfExtentsWithoutMargin() const
 	{
-		return m_implicitShapeDimensions;//scaling is included, margin is not
+		return m_implicitShapeDimensions;//changed in Bullet 2.63: assume the scaling and margin are included
 	}
 	
 
@@ -311,7 +311,6 @@ public:
 	}
 
 };
-
 
 #endif //OBB_BOX_MINKOWSKI_H
 

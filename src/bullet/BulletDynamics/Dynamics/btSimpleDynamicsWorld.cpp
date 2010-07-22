@@ -132,18 +132,8 @@ btVector3 btSimpleDynamicsWorld::getGravity () const
 
 void	btSimpleDynamicsWorld::removeRigidBody(btRigidBody* body)
 {
-	btCollisionWorld::removeCollisionObject(body);
+	removeCollisionObject(body);
 }
-
-void	btSimpleDynamicsWorld::removeCollisionObject(btCollisionObject* collisionObject)
-{
-	btRigidBody* body = btRigidBody::upcast(collisionObject);
-	if (body)
-		removeRigidBody(body);
-	else
-		btCollisionWorld::removeCollisionObject(collisionObject);
-}
-
 
 void	btSimpleDynamicsWorld::addRigidBody(btRigidBody* body)
 {

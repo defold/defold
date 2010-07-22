@@ -41,7 +41,6 @@ class btDynamicsWorld : public btCollisionWorld
 
 protected:
 		btInternalTickCallback m_internalTickCallback;
-		btInternalTickCallback m_internalPreTickCallback;
 		void*	m_worldUserInfo;
 
 		btContactSolverInfo	m_solverInfo;
@@ -50,7 +49,7 @@ public:
 		
 
 		btDynamicsWorld(btDispatcher* dispatcher,btBroadphaseInterface* broadphase,btCollisionConfiguration* collisionConfiguration)
-		:btCollisionWorld(dispatcher,broadphase,collisionConfiguration), m_internalTickCallback(0),m_internalPreTickCallback(0), m_worldUserInfo(0)
+		:btCollisionWorld(dispatcher,broadphase,collisionConfiguration), m_internalTickCallback(0), m_worldUserInfo(0)
 		{
 		}
 
@@ -103,15 +102,9 @@ public:
 		virtual void	clearForces() = 0;
 
 		/// Set the callback for when an internal tick (simulation substep) happens, optional user info
-		void setInternalTickCallback(btInternalTickCallback cb,	void* worldUserInfo=0,bool isPreTick=false) 
+		void setInternalTickCallback(btInternalTickCallback cb,	void* worldUserInfo=0) 
 		{ 
-			if (isPreTick)
-			{
-				m_internalPreTickCallback = cb;
-			} else
-			{
-				m_internalTickCallback = cb; 
-			}
+			m_internalTickCallback = cb; 
 			m_worldUserInfo = worldUserInfo;
 		}
 

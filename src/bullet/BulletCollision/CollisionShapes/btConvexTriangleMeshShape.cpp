@@ -1,6 +1,6 @@
 /*
 Bullet Continuous Collision Detection and Physics Library
-Copyright (c) 2003-2009 Erwin Coumans  http://bulletphysics.org
+Copyright (c) 2003-2006 Erwin Coumans  http://continuousphysics.com/Bullet/
 
 This software is provided 'as-is', without any express or implied warranty.
 In no event will the authors be held liable for any damages arising from the use of this software.
@@ -12,7 +12,6 @@ subject to the following restrictions:
 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
-
 #include "btConvexTriangleMeshShape.h"
 #include "BulletCollision/CollisionShapes/btCollisionMargin.h"
 
@@ -21,7 +20,7 @@ subject to the following restrictions:
 
 
 btConvexTriangleMeshShape ::btConvexTriangleMeshShape (btStridingMeshInterface* meshInterface, bool calcAabb)
-: btPolyhedralConvexAabbCachingShape(), m_stridingMesh(meshInterface)
+: btPolyhedralConvexShape(), m_stridingMesh(meshInterface)
 {
 	m_shapeType = CONVEX_TRIANGLEMESH_SHAPE_PROXYTYPE;
 	if ( calcAabb )
@@ -44,7 +43,7 @@ public:
 
 	LocalSupportVertexCallback(const btVector3& supportVecLocal)
 		: m_supportVertexLocal(btScalar(0.),btScalar(0.),btScalar(0.)),
-		m_maxDot(btScalar(-BT_LARGE_FLOAT)),
+		m_maxDot(btScalar(-1e30)),
                 m_supportVecLocal(supportVecLocal)
 	{
 	}
@@ -92,7 +91,7 @@ btVector3	btConvexTriangleMeshShape::localGetSupportingVertexWithoutMargin(const
 	}
 
 	LocalSupportVertexCallback	supportCallback(vec);
-	btVector3 aabbMax(btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT));
+	btVector3 aabbMax(btScalar(1e30),btScalar(1e30),btScalar(1e30));
 	m_stridingMesh->InternalProcessAllTriangles(&supportCallback,-aabbMax,aabbMax);
 	supVec = supportCallback.GetSupportVertexLocal();
 
@@ -105,7 +104,7 @@ void	btConvexTriangleMeshShape::batchedUnitVectorGetSupportingVertexWithoutMargi
 	{
 		for (int i=0;i<numVectors;i++)
 		{
-			supportVerticesOut[i][3] = btScalar(-BT_LARGE_FLOAT);
+			supportVerticesOut[i][3] = btScalar(-1e30);
 		}
 	}
 	
@@ -116,7 +115,7 @@ void	btConvexTriangleMeshShape::batchedUnitVectorGetSupportingVertexWithoutMargi
 	{
 		const btVector3& vec = vectors[j];
 		LocalSupportVertexCallback	supportCallback(vec);
-		btVector3 aabbMax(btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT));
+		btVector3 aabbMax(btScalar(1e30),btScalar(1e30),btScalar(1e30));
 		m_stridingMesh->InternalProcessAllTriangles(&supportCallback,-aabbMax,aabbMax);
 		supportVerticesOut[j] = supportCallback.GetSupportVertexLocal();
 	}
@@ -298,7 +297,7 @@ void btConvexTriangleMeshShape::calculatePrincipalAxisTransform(btTransform& pri
    };
 
    CenterCallback centerCallback;
-   btVector3 aabbMax(btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT));
+   btVector3 aabbMax(btScalar(1e30),btScalar(1e30),btScalar(1e30));
    m_stridingMesh->InternalProcessAllTriangles(&centerCallback, -aabbMax, aabbMax);
    btVector3 center = centerCallback.getCenter();
    principal.setOrigin(center);

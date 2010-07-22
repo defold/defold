@@ -1,6 +1,6 @@
 /*
 Bullet Continuous Collision Detection and Physics Library
-Copyright (c) 2003-2009 Erwin Coumans  http://bulletphysics.org
+Copyright (c) 2003-2006 Erwin Coumans  http://continuousphysics.com/Bullet/
 
 This software is provided 'as-is', without any express or implied warranty.
 In no event will the authors be held liable for any damages arising from the use of this software.
@@ -12,25 +12,24 @@ subject to the following restrictions:
 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
-
 #include "btConvexHullShape.h"
 #include "BulletCollision/CollisionShapes/btCollisionMargin.h"
 
 #include "LinearMath/btQuaternion.h"
-#include "LinearMath/btSerializer.h"
 
-btConvexHullShape ::btConvexHullShape (const btScalar* points,int numPoints,int stride) : btPolyhedralConvexAabbCachingShape ()
+
+
+btConvexHullShape ::btConvexHullShape (const btScalar* points,int numPoints,int stride) : btPolyhedralConvexShape ()
 {
 	m_shapeType = CONVEX_HULL_SHAPE_PROXYTYPE;
 	m_unscaledPoints.resize(numPoints);
 
-	unsigned char* pointsAddress = (unsigned char*)points;
+	unsigned char* pointsBaseAddress = (unsigned char*)points;
 
 	for (int i=0;i<numPoints;i++)
 	{
-		btScalar* point = (btScalar*)pointsAddress;
-		m_unscaledPoints[i] = btVector3(point[0], point[1], point[2]);
-		pointsAddress += stride;
+		btVector3* point = (btVector3*)(pointsBaseAddress + i*stride);
+		m_unscaledPoints[i] = point[0];
 	}
 
 	recalcLocalAabb();
@@ -52,10 +51,22 @@ void btConvexHullShape::addPoint(const btVector3& point)
 
 }
 
-btVector3	btConvexHullShape::localGetSupportingVertexWithoutMargin(const btVector3& vec)const
+btVector3	btConvexHullShape::localGetSupportingVertexWithoutMargin(const btVector3& vec0)const
 {
 	btVector3 supVec(btScalar(0.),btScalar(0.),btScalar(0.));
-	btScalar newDot,maxDot = btScalar(-BT_LARGE_FLOAT);
+	btScalar newDot,maxDot = btScalar(-1e30);
+
+	btVector3 vec = vec0;
+	btScalar lenSqr = vec.length2();
+	if (lenSqr < btScalar(0.0001))
+	{
+		vec.setValue(1,0,0);
+	} else
+	{
+		btScalar rlen = btScalar(1.) / btSqrt(lenSqr );
+		vec *= rlen;
+	}
+
 
 	for (int i=0;i<m_unscaledPoints.size();i++)
 	{
@@ -78,7 +89,7 @@ void	btConvexHullShape::batchedUnitVectorGetSupportingVertexWithoutMargin(const 
 	{
 		for (int i=0;i<numVectors;i++)
 		{
-			supportVerticesOut[i][3] = btScalar(-BT_LARGE_FLOAT);
+			supportVerticesOut[i][3] = btScalar(-1e30);
 		}
 	}
 	for (int i=0;i<m_unscaledPoints.size();i++)
@@ -173,39 +184,4 @@ bool btConvexHullShape::isInside(const btVector3& ,btScalar ) const
 	btAssert(0);
 	return false;
 }
-
-///fills the dataBuffer and returns the struct name (and 0 on failure)
-const char*	btConvexHullShape::serialize(void* dataBuffer, btSerializer* serializer) const
-{
-	//int szc = sizeof(btConvexHullShapeData);
-	btConvexHullShapeData* shapeData = (btConvexHullShapeData*) dataBuffer;
-	btConvexInternalShape::serialize(&shapeData->m_convexInternalShapeData, serializer);
-
-	int numElem = m_unscaledPoints.size();
-	shapeData->m_numUnscaledPoints = numElem;
-#ifdef BT_USE_DOUBLE_PRECISION
-	shapeData->m_unscaledPointsFloatPtr = 0;
-	shapeData->m_unscaledPointsDoublePtr = numElem ? (btVector3Data*)serializer->getUniquePointer((void*)&m_unscaledPoints[0]):  0;
-#else
-	shapeData->m_unscaledPointsFloatPtr = numElem ? (btVector3Data*)serializer->getUniquePointer((void*)&m_unscaledPoints[0]):  0;
-	shapeData->m_unscaledPointsDoublePtr = 0;
-#endif
-	
-	if (numElem)
-	{
-		int sz = sizeof(btVector3Data);
-	//	int sz2 = sizeof(btVector3DoubleData);
-	//	int sz3 = sizeof(btVector3FloatData);
-		btChunk* chunk = serializer->allocate(sz,numElem);
-		btVector3Data* memPtr = (btVector3Data*)chunk->m_oldPtr;
-		for (int i=0;i<numElem;i++,memPtr++)
-		{
-			m_unscaledPoints[i].serialize(*memPtr);
-		}
-		serializer->finalizeChunk(chunk,btVector3DataName,BT_ARRAY_CODE,(void*)&m_unscaledPoints[0]);
-	}
-	
-	return "btConvexHullShapeData";
-}
-
 

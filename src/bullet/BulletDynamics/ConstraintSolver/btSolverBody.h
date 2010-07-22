@@ -105,16 +105,17 @@ operator+(const btSimdScalar& v1, const btSimdScalar& v2)
 #endif
 
 ///The btSolverBody is an internal datastructure for the constraint solver. Only necessary data is packed to increase cache coherence/performance.
-ATTRIBUTE_ALIGNED64 (struct)	btSolverBodyObsolete
+ATTRIBUTE_ALIGNED16 (struct)	btSolverBody
 {
 	BT_DECLARE_ALIGNED_ALLOCATOR();
 	btVector3		m_deltaLinearVelocity;
 	btVector3		m_deltaAngularVelocity;
-	btVector3		m_angularFactor;
-	btVector3		m_invMass;
+	btScalar		m_angularFactor;
+	btScalar		m_invMass;
+	btScalar		m_friction;
 	btRigidBody*	m_originalBody;
 	btVector3		m_pushVelocity;
-	btVector3		m_turnVelocity;
+	//btVector3		m_turnVelocity;	
 
 	
 	SIMD_FORCE_INLINE void	getVelocityInLocalPointObsolete(const btVector3& rel_pos, btVector3& velocity ) const
@@ -144,18 +145,12 @@ ATTRIBUTE_ALIGNED64 (struct)	btSolverBodyObsolete
 		}
 	}
 
-	SIMD_FORCE_INLINE void internalApplyPushImpulse(const btVector3& linearComponent, const btVector3& angularComponent,btScalar impulseMagnitude)
-	{
-		if (m_originalBody)
-		{
-			m_pushVelocity += linearComponent*impulseMagnitude;
-			m_turnVelocity += angularComponent*(impulseMagnitude*m_angularFactor);
-		}
-	}
+	
+/*
 	
 	void	writebackVelocity()
 	{
-		if (m_originalBody)
+		if (m_invMass)
 		{
 			m_originalBody->setLinearVelocity(m_originalBody->getLinearVelocity()+ m_deltaLinearVelocity);
 			m_originalBody->setAngularVelocity(m_originalBody->getAngularVelocity()+m_deltaAngularVelocity);
@@ -163,21 +158,14 @@ ATTRIBUTE_ALIGNED64 (struct)	btSolverBodyObsolete
 			//m_originalBody->setCompanionId(-1);
 		}
 	}
+	*/
 
-
-	void	writebackVelocity(btScalar timeStep)
+	void	writebackVelocity(btScalar timeStep=0)
 	{
-        (void) timeStep;
-		if (m_originalBody)
+		if (m_invMass)
 		{
-			m_originalBody->setLinearVelocity(m_originalBody->getLinearVelocity()+ m_deltaLinearVelocity);
+			m_originalBody->setLinearVelocity(m_originalBody->getLinearVelocity()+m_deltaLinearVelocity);
 			m_originalBody->setAngularVelocity(m_originalBody->getAngularVelocity()+m_deltaAngularVelocity);
-			
-			//correct the position/orientation based on push/turn recovery
-			btTransform newTransform;
-			btTransformUtil::integrateTransform(m_originalBody->getWorldTransform(),m_pushVelocity,m_turnVelocity,timeStep,newTransform);
-			m_originalBody->setWorldTransform(newTransform);
-			
 			//m_originalBody->setCompanionId(-1);
 		}
 	}

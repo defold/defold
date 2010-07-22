@@ -61,8 +61,6 @@ subject to the following restrictions:
 #include "LinearMath/btDefaultMotionState.h"
 #include "LinearMath/btQuickprof.h"
 #include "LinearMath/btIDebugDraw.h"
-#include "LinearMath/btSerializer.h"
-
 
 #endif //BULLET_COLLISION_COMMON_H
 
