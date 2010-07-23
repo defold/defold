@@ -2,6 +2,11 @@
 #include <gtest/gtest.h>
 #include "dlib/math.h"
 
+TEST(dmMath, ConstantsDefined)
+{
+    ASSERT_NEAR(0.0f, cosf(M_PI_2), 0.0000001f);
+}
+
 TEST(dmMath, MinMax)
 {
     ASSERT_EQ(1, dmMath::Min(1,2));

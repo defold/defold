@@ -10,6 +10,15 @@ def build(bld):
     bld.env["JAVACFLAGS"] = '-g'
     bld.add_group()
 
+    test_math = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_math.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_math')
+
+    test_math.install_path = None
+
     test_hashtable = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_hashtable.cpp',
                                       uselib = 'GTEST',
@@ -125,15 +134,6 @@ def build(bld):
                                  target = 'test_httpclient')
 
     test_http_client.install_path = None
-
-    test_math = bld.new_task_gen(features = 'cxx cprogram',
-                                 source = 'test_math.cpp',
-                                 uselib = 'GTEST THREAD',
-                                 uselib_local = "dlib",
-                                 includes = ['../../src'],
-                                 target = 'test_math')
-
-    test_math.install_path = None
 
     test_uri = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_uri.cpp',
