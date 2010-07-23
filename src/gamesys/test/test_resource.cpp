@@ -271,7 +271,7 @@ INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/gamesys/test/", "http://localhost:6000"));
+                        ::testing::Values("build/default/src/gamesys/test/", "http://localhost:6123"));
 
 #endif // #ifdef _WIN32
 

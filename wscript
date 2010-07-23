@@ -65,7 +65,7 @@ def shutdown():
                 error('HTTP server failed to start within 5 seconds')
                 sys.exit(1)
             try:
-                urllib2.urlopen('http://localhost:6000')
+                urllib2.urlopen('http://localhost:6123')
                 break
             except urllib2.URLError:
                 print('Waiting for HTTP testserver to start...')
