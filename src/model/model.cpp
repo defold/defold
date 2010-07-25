@@ -49,8 +49,10 @@ namespace dmModel
         return (HModel)model;
     }
 
+#if 0
     HModel NewModel(HModel prototype, void* gameobject, void* collection)
     {
+    	assert(false);
         Model* model = NewModel();
 
         *model = *prototype;
@@ -64,7 +66,7 @@ namespace dmModel
     {
         model->m_Deleted = true;
     }
-
+#endif
     void SetMesh(HModel model, Render::Mesh* mesh)
     {
         model->m_Mesh = mesh;
@@ -100,6 +102,7 @@ namespace dmModel
         world->AddModel(model);
     }
 
+#if 0
     void RenderModel(Model* model, RenderContext* rendercontext, Vectormath::Aos::Quat rotation, Point3 position)
     {
         Render::Mesh* mesh = model->m_Mesh;
@@ -177,7 +180,7 @@ namespace dmModel
         dmGraphics::DisableVertexStream(context, 1);
         dmGraphics::DisableVertexStream(context, 2);
     }
-
+#endif
 
     HWorld NewWorld(uint32_t max_models, SetObjectModel set_object_model)
     {
@@ -186,42 +189,6 @@ namespace dmModel
         world->m_SetGameobjectModel = set_object_model;
 
         return (HWorld)world;
-    }
-
-    void UpdateContext(HWorld world, RenderContext* rendercontext)
-    {
-        world->UpdateContext(rendercontext);
-    }
-
-    void RenderWorld(HWorld world)
-    {
-        // iterate world and look for deleted models
-        uint32_t size = world->m_ModelList.Size();
-        for (uint32_t i=0; i<size; i++)
-        {
-            if (world->m_ModelList[i]->m_Deleted)
-            {
-                world->m_ModelList.EraseSwap(i);
-                size = world->m_ModelList.Size();
-            }
-        }
-
-        for (size_t i=0; i<world->m_ModelList.Size(); i++)
-        {
-            Model* model = world->m_ModelList[i];
-
-            if (model->m_Deleted)
-                continue;
-
-            Quat rot;
-            Point3 pos;
-
-            world->m_SetGameobjectModel(model->m_Collection, model->m_GameObject, &rot, &pos);
-
-            RenderModel(model, &world->m_RenderContext, rot, pos);
-
-
-        }
     }
 
     void DeleteWorld(HWorld world)
@@ -239,4 +206,43 @@ namespace dmModel
 
         delete world;
     }
+
+    void UpdateContext(HWorld world, RenderContext* rendercontext)
+    {
+//        world->UpdateContext(rendercontext);
+    }
+
+    void RenderWorld(HWorld world)
+    {
+//    	return;
+        // iterate world and look for deleted models
+        uint32_t size = world->m_ModelList.Size();
+        for (uint32_t i=0; i<size; i++)
+        {
+            if (world->m_ModelList[i]->m_Deleted)
+            {
+                world->m_ModelList.EraseSwap(i);
+                size = world->m_ModelList.Size();
+            }
+        }
+#if 0
+        for (size_t i=0; i<world->m_ModelList.Size(); i++)
+        {
+            Model* model = world->m_ModelList[i];
+
+            if (model->m_Deleted)
+                continue;
+
+            Quat rot;
+            Point3 pos;
+
+            world->m_SetGameobjectModel(model->m_Collection, model->m_GameObject, &rot, &pos);
+
+//            RenderModel(model, &world->m_RenderContext, rot, pos);
+
+
+        }
+#endif
+    }
+
 }
