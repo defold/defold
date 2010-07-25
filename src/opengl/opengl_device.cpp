@@ -65,7 +65,8 @@ namespace dmGraphics
 
         glfwInit(); // We can do this twice
 
-        if( !glfwOpenWindow( params->m_DisplayWidth, params->m_DisplayHeight, 0,0,0,0, 0,0, GLFW_WINDOW ) )
+
+        if( !glfwOpenWindow( params->m_DisplayWidth, params->m_DisplayHeight, 8,8,8,8, 32,0, GLFW_WINDOW ) )
         {
             glfwTerminate();
             return 0;
