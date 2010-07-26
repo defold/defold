@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <dlib/hash.h>
 #include <dlib/profile.h>
-#include <render/model/model.h>
+#include "model/model.h"
 #include "render.h"
 
 #include "rendertypes/rendertypemodel.h"
