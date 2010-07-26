@@ -15,8 +15,6 @@ namespace dmModel
 
     typedef struct Model* HModel;
     typedef class ModelWorld* HWorld;
-    typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
-
 
     /**
      * Create a new model world
@@ -24,7 +22,7 @@ namespace dmModel
      * @param set_object_model callback fn to update model orientation from gameobject
      * @return new model world handle
      */
-    HWorld NewWorld(uint32_t max_models, SetObjectModel set_object_model);
+    HWorld NewWorld(uint32_t max_models);
 
     /**
      * Destroy model world
@@ -33,17 +31,10 @@ namespace dmModel
     void DeleteWorld(HWorld);
 
     /**
-     * Update model world context
-     * @param world model world
-     * @param rendercontext rendercontext to use
-     */
-    void UpdateContext(HWorld world, RenderContext* rendercontext);
-
-    /**
-     * Render a world
+     * Update world
      * @param world model world
      */
-    void RenderWorld(HWorld world);
+    void UpdateWorld(HWorld world);
 
     /**
      * Create a new model
@@ -52,20 +43,11 @@ namespace dmModel
     HModel NewModel();
 
     /**
-     * Create a new model with parameters
-     * @param prototype prototype model
-     * @param gameobject game object
-     * @param collection game object collection
-     * @return newly created model
-     */
-    HModel NewModel(HModel prototype, void* gameobject, void* collection);
-
-    /**
      * Destroy a model
      * @param world model world
      * @param model model to destroy
      */
-    void DeleteModel(HWorld world, HModel model);
+    void DeleteModel(HModel model);
 
     /**
      * Set model mesh

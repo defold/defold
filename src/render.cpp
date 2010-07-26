@@ -97,15 +97,6 @@ namespace dmRender
         m_RenderWorld->m_RenderContext = *rendercontext;
     }
 
-
-    static int RenderTypeCompareFunc(const void* a, const void* b)
-	{
-    	RenderObject* _a = (RenderObject*)a;
-    	RenderObject* _b = (RenderObject*)b;
-
-    	return ((int)_a->m_Type - (int)_b->m_Type);
-	}
-
     static void UpdateDeletedInstances()
     {
     	uint32_t size = m_RenderWorld->m_RenderObjectInstanceList.Size();
@@ -170,13 +161,6 @@ namespace dmRender
     		dmArray<RenderObject*> *array = &rp->m_InstanceList[m_RenderWorld->m_RenderBuffer];
     		if (array->Size())
     		{
-    			// sort based on type
-    			qsort(&array->Front(),
-						array->Size(),
-						sizeof(RenderObject*),
-						RenderTypeCompareFunc);
-
-
     			int old_type = -1;
 				RenderObject** rolist = &array->Front();
 				for (uint32_t e=0; e < array->Size(); e++, rolist++)

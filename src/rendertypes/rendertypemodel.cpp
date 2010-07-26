@@ -13,7 +13,9 @@ namespace dmRender
 
 		dmGraphics::SetDepthMask(context, true);
 		dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
-		glDepthFunc(GL_LESS);
+
+        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::EnableState(context, dmGraphics::BLEND);
 	}
 
 
@@ -33,8 +35,6 @@ namespace dmRender
 
         dmGraphics::SetTexture(context, dmModel::GetTexture0(model));
 
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
 
         dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material) );
 
@@ -71,31 +71,20 @@ namespace dmRender
             }
         }
 
-
         dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Positions[0]);
 
         if (mesh->m_Texcoord0.m_Count > 0)
-        {
             dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Texcoord0[0]);
-        }
         else
-        {
             dmGraphics::DisableVertexStream(context, 1);
-        }
-
 
         if (mesh->m_Normals.m_Count > 0)
-        {
             dmGraphics::SetVertexStream(context, 2, 3, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Normals[0]);
-        }
         else
-        {
             dmGraphics::DisableVertexStream(context, 2);
-        }
 
         dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, mesh->m_PrimitiveCount*3, dmGraphics::TYPE_UNSIGNED_INT, (void*) &mesh->m_Indices[0]);
 
-        dmGraphics::DisableState(context, dmGraphics::BLEND);
         dmGraphics::DisableVertexStream(context, 0);
         dmGraphics::DisableVertexStream(context, 1);
         dmGraphics::DisableVertexStream(context, 2);
