@@ -3,6 +3,8 @@
 #include <dlib/profile.h>
 #include "model/model.h"
 #include "render.h"
+#include "render/material_ddf.h"
+
 
 #include "rendertypes/rendertypemodel.h"
 
@@ -166,6 +168,9 @@ namespace dmRender
 				for (uint32_t e=0; e < array->Size(); e++, rolist++)
 				{
 					RenderObject* ro = *rolist;
+					if (!ro->m_Enabled)
+					    continue;
+
 					// check if we need to change render type and run its setup func
 					if (old_type != (int)ro->m_Type)
 					{
@@ -215,9 +220,38 @@ namespace dmRender
     	ro->m_Type = type;
     	ro->m_Go = go;
     	ro->m_MarkForDelete = 0;
+    	ro->m_Enabled = 1;
+
+    	if (type == RENDEROBJECT_TYPE_MODEL)
+    	{
+    		dmModel::Model* model = (dmModel::Model*)resource;
+    		uint32_t reg;
+
+    		reg = Render::MaterialDesc::DIFFUSE_COLOR;
+    		ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
+            reg = Render::MaterialDesc::EMISSIVE_COLOR;
+            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
+            reg = Render::MaterialDesc::SPECULAR_COLOR;
+            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
+    	}
+
 
     	m_RenderWorld->m_RenderObjectInstanceList.Push(ro);
     	return ro;
+    }
+
+    void Disable(HRenderObject ro)
+    {
+        ro->m_Enabled = 0;
+    }
+    void Enable(HRenderObject ro)
+    {
+        ro->m_Enabled = 1;
+
+    }
+    bool IsEnabled(HRenderObject ro)
+    {
+        return ro->m_Enabled == true;
     }
 
     void DeleteRenderObject(HRenderObject ro)
@@ -233,6 +267,11 @@ namespace dmRender
     void SetRotation(HRenderObject ro, Quat rot)
     {
     	// double buffering
+    }
+
+    void SetColor(HRenderObject ro, Vector4 color, Render::MaterialDesc::ParameterSemantic color_type)
+    {
+        ro->m_Colour[color_type] = color;
     }
 
 

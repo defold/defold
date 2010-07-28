@@ -14,8 +14,7 @@ namespace dmRender
 		dmGraphics::SetDepthMask(context, true);
 		dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
 
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
+        dmGraphics::DisableState(context, dmGraphics::BLEND);
 	}
 
 
@@ -38,6 +37,7 @@ namespace dmRender
 
         dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material) );
 
+#if 0
         for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
             uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
@@ -47,7 +47,9 @@ namespace dmRender
                 dmGraphics::SetFragmentConstant(context, &v, i);
             }
         }
+#endif
 
+        dmGraphics::SetFragmentConstant(context, &ro->m_Colour[0], 0);
 
         dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(material) );
 

@@ -4,8 +4,10 @@
 
 #include <string.h>
 #include <dlib/container.h>
+#include <ddf/ddf.h>
 #include <vectormath/cpp/vectormath_aos.h>
 #include "rendercontext.h"
+#include "render/material_ddf.h"
 
 namespace dmRender
 {
@@ -73,8 +75,14 @@ namespace dmRender
     void UpdateContext(RenderContext* rendercontext);
     HRenderObject NewRenderObjectInstance(void* resource, void* go, RenderObjectType type);
     void DeleteRenderObject(HRenderObject ro);
+    void Disable(HRenderObject ro);
+    void Enable(HRenderObject ro);
+    bool IsEnabled(HRenderObject ro);
+
     void SetPosition(HRenderObject ro, Vector4 pos);
     void SetRotation(HRenderObject ro, Quat rot);
+    void SetColor(HRenderObject ro, Vector4 color, Render::MaterialDesc::ParameterSemantic color_type);
+
     HRenderPass NewRenderPass(RenderPassDesc* desc);
     void DeleteRenderPass(HRenderPass renderpass);
     void AddRenderObject(HRenderPass renderpass, HRenderObject renderobject);
