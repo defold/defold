@@ -165,7 +165,7 @@ namespace dmGameSystem
         Vectormath::Aos::Vector3 half_ext = (point_max - point_min) * 0.5f;
 
         resource->m_Resource = dmPhysics::NewBoxShape(half_ext);
-
+        dmDDF::FreeMessage(convex_shape);
         return dmResource::CREATE_RESULT_OK;
     }
 
@@ -289,6 +289,7 @@ namespace dmGameSystem
         dmRender::SetVertexProgram(font, vertex_program);
         dmRender::SetFragmentProgram(font, fragment_program);
         resource->m_Resource = (void*)font;
+        dmDDF::FreeMessage(font_desc);
         return dmResource::CREATE_RESULT_OK;
     }
 
@@ -300,6 +301,8 @@ namespace dmGameSystem
         dmResource::Release(factory, (void*) dmRender::GetImageFont(font));
         dmResource::Release(factory, (void*) dmRender::GetVertexProgram(font));
         dmResource::Release(factory, (void*) dmRender::GetFragmentProgram(font));
+
+        dmRender::DeleteFont(font);
 
         return dmResource::CREATE_RESULT_OK;
     }
