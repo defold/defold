@@ -23,7 +23,6 @@ namespace dmRender
     {
         ~SFont()
         {
-            dmDDF::FreeMessage(m_Font);
             dmGraphics::DestroyTexture(m_Texture);
         }
 
