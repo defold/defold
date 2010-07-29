@@ -86,11 +86,26 @@ namespace dmPhysics
     void DebugRender(HWorld world);
 
     /**
-     * Create a new shape
+     * Create a new sphere shape
+     * @param radius Sphere radius
+     * @return Shape
+     */
+    HCollisionShape NewSphereShape(float radius);
+
+    /**
+     * Create a new box shape
      * @param half_extents Box half extents
      * @return Shape
      */
     HCollisionShape NewBoxShape(const Vectormath::Aos::Vector3& half_extents);
+
+    /**
+     * Create a new capsule shape
+     * @param radius Radius of top and bottom half-spheres of the capsule
+     * @param height Height of the capsule; the distance between the two half-spheres
+     * @return Shape
+     */
+    HCollisionShape NewCapsuleShape(float radius, float height);
 
     /**
      * Create a new convex hull shape

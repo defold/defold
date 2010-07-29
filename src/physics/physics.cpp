@@ -279,9 +279,19 @@ namespace dmPhysics
         }
     }
 
+    HCollisionShape NewSphereShape(float radius)
+    {
+        return new btSphereShape(radius);
+    }
+
     HCollisionShape NewBoxShape(const Vector3& half_extents)
     {
         return new btBoxShape(btVector3(half_extents.getX(), half_extents.getY(), half_extents.getZ()));
+    }
+
+    HCollisionShape NewCapsuleShape(float radius, float height)
+    {
+        return new btCapsuleShape(radius, height);
     }
 
     HCollisionShape NewConvexHullShape(const float* vertices, uint32_t vertex_count)
