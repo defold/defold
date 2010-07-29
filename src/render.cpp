@@ -126,7 +126,7 @@ namespace dmRender
     		m_RenderWorld->m_RenderObjectInstanceList[i] = temp_list[i];
     	}
 
-    	delete mem;
+        delete [] mem;
     }
 
 
