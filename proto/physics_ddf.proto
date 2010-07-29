@@ -11,16 +11,20 @@ message ConvexShape
 {
     enum Type
     {
-        BOX = 1;
-        CAPSULE = 2;
-        HULL = 3;
+        TYPE_SPHERE = 1;
+        TYPE_BOX = 2;
+        TYPE_CAPSULE = 3;
+        TYPE_HULL = 4;
     }
 
     required Type  ShapeType = 1;
 
     /*
+     ShapeType == SPHERE
+     Data = [radius]
+
      ShapeType == BOX
-     Data = [min_x, min_y, min_z, max_x, max_y, max_z]
+     Data = [ext_x, ext_y, ext_z]
 
      ShapeType == CAPSULE
      Data = [radius, height]

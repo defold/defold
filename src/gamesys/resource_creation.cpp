@@ -147,24 +147,42 @@ namespace dmGameSystem
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        if (convex_shape->m_ShapeType != dmPhysicsDDF::ConvexShape::BOX)
+        switch (convex_shape->m_ShapeType)
         {
-            dmLogError("Only box shapes are currently supported");
-            return dmResource::CREATE_RESULT_FORMAT_ERROR;
+        case dmPhysicsDDF::ConvexShape::TYPE_SPHERE:
+            if (convex_shape->m_Data.m_Count != 1)
+            {
+                dmLogError("Invalid sphere shape");
+                return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            }
+            resource->m_Resource = dmPhysics::NewSphereShape(convex_shape->m_Data[0]);
+            break;
+        case dmPhysicsDDF::ConvexShape::TYPE_BOX:
+            if (convex_shape->m_Data.m_Count != 3)
+            {
+                dmLogError("Invalid box shape");
+                return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            }
+            resource->m_Resource = dmPhysics::NewBoxShape(Vector3(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]));
+            break;
+        case dmPhysicsDDF::ConvexShape::TYPE_CAPSULE:
+            if (convex_shape->m_Data.m_Count != 2)
+            {
+                dmLogError("Invalid capsule shape");
+                return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            }
+            resource->m_Resource = dmPhysics::NewCapsuleShape(convex_shape->m_Data[0], convex_shape->m_Data[1]);
+            break;
+        case dmPhysicsDDF::ConvexShape::TYPE_HULL:
+            if (convex_shape->m_Data.m_Count < 9)
+            {
+                dmLogError("Invalid hull shape");
+                return dmResource::CREATE_RESULT_FORMAT_ERROR;
+            }
+            resource->m_Resource = dmPhysics::NewConvexHullShape(&convex_shape->m_Data[0], convex_shape->m_Data.m_Count);
+            break;
         }
 
-        if (convex_shape->m_Data.m_Count != 6)
-        {
-            dmLogError("Invalid box shape");
-            return dmResource::CREATE_RESULT_FORMAT_ERROR;
-        }
-
-        Point3 point_min(convex_shape->m_Data[0], convex_shape->m_Data[1], convex_shape->m_Data[2]);
-        Point3 point_max(convex_shape->m_Data[3], convex_shape->m_Data[4], convex_shape->m_Data[5]);
-        // TODO: The box might not be centered. Fall-back to convex hull?
-        Vectormath::Aos::Vector3 half_ext = (point_max - point_min) * 0.5f;
-
-        resource->m_Resource = dmPhysics::NewBoxShape(half_ext);
         dmDDF::FreeMessage(convex_shape);
         return dmResource::CREATE_RESULT_OK;
     }
