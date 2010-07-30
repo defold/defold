@@ -9,7 +9,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/event.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
