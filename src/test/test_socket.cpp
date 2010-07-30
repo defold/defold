@@ -33,12 +33,7 @@ TEST(Socket, GetHostByName2)
 {
     dmSocket::Address a;
     dmSocket::Result r = dmSocket::GetHostByName("host.nonexistingdomain", &a);
-#ifdef _WIN32
-    // NOTE: No idea why.
-    ASSERT_EQ(dmSocket::RESULT_NO_DATA, r);
-#else
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, r);
-#endif
 }
 
 TEST(Socket, ServerSocket1)
