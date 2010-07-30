@@ -17,12 +17,15 @@ TEST(ConfigFile, MissingFile)
     ASSERT_EQ(dmConfigFile::RESULT_FILE_NOT_FOUND, r);
 }
 
+#ifndef _WIN32
+// No support for running http server on windows
 TEST(ConfigFile, MissingHttp)
 {
     dmConfigFile::HConfig config;
     dmConfigFile::Result r = dmConfigFile::Load("http://foo:2323/bla", 0, (const char**) 0, &config);
     ASSERT_EQ(dmConfigFile::RESULT_FILE_NOT_FOUND, r);
 }
+#endif
 
 TEST(ConfigFile, NoSection)
 {
@@ -63,6 +66,8 @@ TEST(ConfigFile, TestFile)
     dmConfigFile::Delete(config);
 }
 
+#ifndef _WIN32
+// No support for http server on windows
 TEST(ConfigFile, TestHttp)
 {
     dmConfigFile::HConfig config;
@@ -83,6 +88,7 @@ TEST(ConfigFile, TestHttp)
     ASSERT_EQ(1122, dmConfigFile::GetInt(config, "missing_int_key", 1122));
     dmConfigFile::Delete(config);
 }
+#endif
 
 TEST(ConfigFile, CommandLine)
 {
