@@ -540,6 +540,9 @@ TEST_F(PhysicsTest, RayCasting)
     ASSERT_FALSE(result[0].m_Response.m_Hit);
     ASSERT_TRUE(result[1].m_Response.m_Hit);
     ASSERT_GT(1.0f, result[1].m_Response.m_Fraction);
+    ASSERT_EQ(0.0f, result[1].m_Response.m_Position.getX());
+    ASSERT_EQ(0.5f, result[1].m_Response.m_Position.getY());
+    ASSERT_EQ(0.0f, result[1].m_Response.m_Position.getZ());
     ASSERT_EQ(0.0f, result[1].m_Response.m_Normal.getX());
     ASSERT_EQ(1.0f, result[1].m_Response.m_Normal.getY());
     ASSERT_EQ(0.0f, result[1].m_Response.m_Normal.getZ());

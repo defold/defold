@@ -241,6 +241,8 @@ namespace dmPhysics
 
         /// Fraction between ray start and end at which the hit occured. The valid interval is [start, end), so 1.0f is considered outside the range
         float m_Fraction;
+        /// Position at which the ray hit the surface
+        Vectormath::Aos::Point3 m_Position;
         /// Normal of the surface at the position the ray hit the surface
         Vectormath::Aos::Vector3 m_Normal;
         /// User specified data for the object that the ray hit
