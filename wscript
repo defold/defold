@@ -18,8 +18,8 @@ def set_options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
     conf.check_tool('compiler_cxx')
+    conf.check_tool('waf_dynamo')
     conf.sub_config('src')
 
     conf.check_tool('java')
