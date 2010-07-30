@@ -262,9 +262,9 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     dmPhysics::HCollisionObject ground_co = dmPhysics::NewCollisionObject(m_World, ground_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, &ground_visual_object);
 
     VisualObject box_visual_object;
+    box_visual_object.m_Position = Point3(0, 10, 0);
     dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &box_visual_object);
-    dmPhysics::SetCollisionObjectInitialTransform(box_co, Point3(0, 10.0f, 0), Quat::identity());
 
     int collision_count = 0;
     int contact_point_count = 0;
@@ -292,7 +292,7 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     ASSERT_LT(0, ground_visual_object.m_CollisionCount);
 
     ASSERT_EQ(1, collision_count);
-    ASSERT_EQ(2, contact_point_count);
+    ASSERT_EQ(4, contact_point_count);
 
     dmPhysics::DeleteCollisionObject(m_World, ground_co);
     dmPhysics::DeleteCollisionObject(m_World, box_co);
@@ -537,15 +537,16 @@ TEST_F(PhysicsTest, RayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
+
     ASSERT_FALSE(result[0].m_Response.m_Hit);
     ASSERT_TRUE(result[1].m_Response.m_Hit);
     ASSERT_GT(1.0f, result[1].m_Response.m_Fraction);
-    ASSERT_EQ(0.0f, result[1].m_Response.m_Position.getX());
-    ASSERT_EQ(0.5f, result[1].m_Response.m_Position.getY());
-    ASSERT_EQ(0.0f, result[1].m_Response.m_Position.getZ());
-    ASSERT_EQ(0.0f, result[1].m_Response.m_Normal.getX());
-    ASSERT_EQ(1.0f, result[1].m_Response.m_Normal.getY());
-    ASSERT_EQ(0.0f, result[1].m_Response.m_Normal.getZ());
+    ASSERT_NEAR(0.0f, result[1].m_Response.m_Position.getX(), 0.00001f);
+    ASSERT_NEAR(0.5f, result[1].m_Response.m_Position.getY(), 0.00001f);
+    ASSERT_NEAR(0.0f, result[1].m_Response.m_Position.getZ(), 0.00001f);
+    ASSERT_NEAR(0.0f, result[1].m_Response.m_Normal.getX(), 0.00001f);
+    ASSERT_NEAR(1.0f, result[1].m_Response.m_Normal.getY(), 0.00001f);
+    ASSERT_NEAR(0.0f, result[1].m_Response.m_Normal.getZ(), 0.00001f);
     ASSERT_EQ((void*)&vo, (void*)result[1].m_Response.m_CollisionObjectUserData);
     ASSERT_EQ(1, result[1].m_Response.m_CollisionObjectGroup);
 

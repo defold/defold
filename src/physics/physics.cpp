@@ -241,22 +241,19 @@ namespace dmPhysics
                     for (int j = 0; j < num_contacts; ++j)
                     {
                         btManifoldPoint& pt = contact_manifold->getContactPoint(j);
-                        if (pt.getDistance() <= 0.0f)
-                        {
-                            ContactPoint point;
-                            const btVector3& pt_a = pt.getPositionWorldOnA();
-                            point.m_PositionA = Vectormath::Aos::Point3(pt_a.getX(), pt_a.getY(), pt_a.getZ());
-                            point.m_UserDataA = object_a->getUserPointer();
-                            point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
-                            const btVector3& pt_b = pt.getPositionWorldOnB();
-                            point.m_PositionB = Vectormath::Aos::Point3(pt_b.getX(), pt_b.getY(), pt_b.getZ());
-                            point.m_UserDataB = object_b->getUserPointer();
-                            point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
-                            const btVector3& normal = pt.m_normalWorldOnB;
-                            point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
-                            point.m_Distance = pt.getDistance();
-                            contact_point_callback(point, contact_point_callback_user_data);
-                        }
+                        ContactPoint point;
+                        const btVector3& pt_a = pt.getPositionWorldOnA();
+                        point.m_PositionA = Vectormath::Aos::Point3(pt_a.getX(), pt_a.getY(), pt_a.getZ());
+                        point.m_UserDataA = object_a->getUserPointer();
+                        point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
+                        const btVector3& pt_b = pt.getPositionWorldOnB();
+                        point.m_PositionB = Vectormath::Aos::Point3(pt_b.getX(), pt_b.getY(), pt_b.getZ());
+                        point.m_UserDataB = object_b->getUserPointer();
+                        point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
+                        const btVector3& normal = pt.m_normalWorldOnB;
+                        point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
+                        point.m_Distance = pt.getDistance();
+                        contact_point_callback(point, contact_point_callback_user_data);
                     }
                 }
             }
