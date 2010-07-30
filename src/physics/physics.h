@@ -239,8 +239,6 @@ namespace dmPhysics
     {
         RayCastResponse();
 
-        /// If the ray hit something or not
-        bool m_Hit;
         /// Fraction between ray start and end at which the hit occured. The valid interval is [start, end), so 1.0f is considered outside the range
         float m_Fraction;
         /// Normal of the surface at the position the ray hit the surface
@@ -249,6 +247,8 @@ namespace dmPhysics
         void* m_CollisionObjectUserData;
         /// Group of the object the ray hit
         uint16_t m_CollisionObjectGroup;
+        /// If the ray hit something or not
+        uint16_t m_Hit : 1;
     };
 
     /**

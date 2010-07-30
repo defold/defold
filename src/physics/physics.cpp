@@ -198,7 +198,7 @@ namespace dmPhysics
                 ProcessRayCastResultCallback result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
                 world->m_DynamicsWorld->rayTest(from, to, result_callback);
                 RayCastResponse response;
-                response.m_Hit = result_callback.hasHit();
+                response.m_Hit = result_callback.hasHit() ? 1 : 0;
                 response.m_Fraction = result_callback.m_closestHitFraction;
                 response.m_Normal = Vectormath::Aos::Vector3(result_callback.m_hitNormalWorld.getX(), result_callback.m_hitNormalWorld.getY(), result_callback.m_hitNormalWorld.getZ());
                 if (result_callback.m_collisionObject != 0x0)
@@ -475,11 +475,11 @@ namespace dmPhysics
     }
 
     RayCastResponse::RayCastResponse()
-    : m_Hit(false)
-    , m_Fraction(1.0f)
+    : m_Fraction(1.0f)
     , m_Normal(0.0f, 0.0f, 0.0f)
     , m_CollisionObjectUserData(0x0)
     , m_CollisionObjectGroup(0)
+    , m_Hit(0)
     {
 
     }
