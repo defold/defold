@@ -115,7 +115,7 @@ namespace dmPhysics
 
     struct ProcessRayCastResultCallback : public btCollisionWorld::ClosestRayResultCallback
     {
-        ProcessRayCastResultCallback(btVector3 from, btVector3 to, uint16_t mask, void* ignored_user_data)
+        ProcessRayCastResultCallback(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
         : btCollisionWorld::ClosestRayResultCallback(from, to)
         , m_IgnoredUserData(ignored_user_data)
         {
