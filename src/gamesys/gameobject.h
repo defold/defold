@@ -73,6 +73,9 @@ namespace dmGameObject
 
     extern const uint32_t UNNAMED_IDENTIFIER;
 
+    // TODO: Configurable?
+    const uint32_t SCRIPT_EVENT_MAX = 256;
+
     #define DMGAMEOBJECT_EVENT_NAME "script_event"
     #define DMGAMEOBJECT_EVENT_SOCKET_NAME "script"
     #define DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME "script_reply"

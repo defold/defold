@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <dlib/hash.h>
-#include <dlib/event.h>
+#include <dlib/message.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <dlib/log.h>
@@ -651,7 +651,7 @@ TEST_F(GameObjectTest, TestScriptProperty)
     dmGameObject::Delete(collection, go);
 }
 
-void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
+void TestScript01Dispatch(dmMessage::Message *event_object, void* user_ptr)
 {
     dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
     TestResource::Spawn* s = (TestResource::Spawn*) script_event_data->m_DDFData;
@@ -673,12 +673,12 @@ void TestScript01Dispatch(dmEvent::Event *event_object, void* user_ptr)
     reply_script_event->m_DDFDescriptor = TestResource::SpawnResult::m_DDFDescriptor;
 
     uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
-    dmEvent::Post(reply_socket, event_id, reply_buf);
+    dmMessage::Post(reply_socket, event_id, reply_buf, 256);
 
     *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
 
-void TestScript01DispatchReply(dmEvent::Event *event_object, void* user_ptr)
+void TestScript01DispatchReply(dmMessage::Message *event_object, void* user_ptr)
 {
 
 }
@@ -706,14 +706,14 @@ TEST_F(GameObjectTest, TestScript01)
     uint32_t socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
     uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
     bool dispatch_result = false;
-    dmEvent::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
+    dmMessage::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
 
     ASSERT_TRUE(dispatch_result);
 
     ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
     // Final dispatch to deallocate event data
-    dmEvent::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
-    dmEvent::Dispatch(reply_socket, TestScript01DispatchReply, &dispatch_result);
+    dmMessage::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
+    dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &dispatch_result);
 
     dmGameObject::Delete(collection, go);
 }
@@ -1245,9 +1245,6 @@ TEST_F(GameObjectTest, TestHierarchy8)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-
-    uint32_t event_id = dmHashString32("spawn_result");
-    dmEvent::Register(event_id, 256);
 
     int ret = RUN_ALL_TESTS();
     return ret;

@@ -9,8 +9,6 @@ using namespace Vectormath::Aos;
 namespace dmGameObject
 {
     // TODO: Configurable?
-    const uint32_t SCRIPT_EVENT_MAX = 256;
-    // TODO: Configurable?
     const uint32_t SCRIPT_EVENT_SOCKET_BUFFER_SIZE = 0x8000;
 
     struct Prototype

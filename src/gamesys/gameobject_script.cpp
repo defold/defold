@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/event.h>
+#include <dlib/message.h>
 #include <dlib/dstrings.h>
 #include <dlib/profile.h>
 #include "gameobject.h"
@@ -537,7 +537,7 @@ namespace dmGameObject
 
         assert(top == lua_gettop(L));
 
-        dmEvent::Post(g_Socket, g_EventID, buf);
+        dmMessage::Post(g_Socket, g_EventID, buf, SCRIPT_EVENT_MAX);
 
         return 0;
     }

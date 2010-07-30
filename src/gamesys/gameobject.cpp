@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
-#include <dlib/event.h>
+#include <dlib/message.h>
 #include <dlib/hash.h>
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
@@ -120,13 +120,12 @@ namespace dmGameObject
         g_Descriptors->SetCapacity(17, 128);
 
         g_EventID = dmHashString32(DMGAMEOBJECT_EVENT_NAME);
-        dmEvent::Register(g_EventID, SCRIPT_EVENT_MAX);
 
         g_Socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
-        dmEvent::CreateSocket(g_Socket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        dmMessage::CreateSocket(g_Socket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
         g_ReplySocket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
-        dmEvent::CreateSocket(g_ReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        dmMessage::CreateSocket(g_ReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
         RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
@@ -138,9 +137,8 @@ namespace dmGameObject
     void Finalize()
     {
         FinalizeScript();
-        dmEvent::Unregister(g_EventID);
-        dmEvent::DestroySocket(g_Socket);
-        dmEvent::DestroySocket(g_ReplySocket);
+        dmMessage::DestroySocket(g_Socket);
+        dmMessage::DestroySocket(g_ReplySocket);
         delete g_Descriptors;
 
         g_EventID = 0xffffffff;
@@ -792,7 +790,7 @@ namespace dmGameObject
         	memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
         }
 
-        dmEvent::Post(g_ReplySocket, g_EventID, buf);
+        dmMessage::Post(g_ReplySocket, g_EventID, buf, SCRIPT_EVENT_MAX);
 
         return RESULT_OK;
     }
@@ -804,7 +802,7 @@ namespace dmGameObject
         bool m_Success;
     };
 
-    void DispatchEventsFunction(dmEvent::Event *event_object, void* user_ptr)
+    void DispatchEventsFunction(dmMessage::Message *event_object, void* user_ptr)
     {
         DispatchEventsContext* context = (DispatchEventsContext*) user_ptr;
 
@@ -903,7 +901,7 @@ namespace dmGameObject
         ctx.m_Collection = collection;
         ctx.m_UpdateContext = update_context;
         ctx.m_Success = true;
-        (void) dmEvent::Dispatch(g_ReplySocket, &DispatchEventsFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(g_ReplySocket, &DispatchEventsFunction, (void*) &ctx);
 
         return ctx.m_Success;
     }

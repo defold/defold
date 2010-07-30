@@ -2,7 +2,7 @@
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
-#include <dlib/event.h>
+#include <dlib/message.h>
 #include <dlib/hash.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
@@ -133,7 +133,6 @@ namespace dmGameSystem
         uint32_t type;
 
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
-        dmEvent::Register(dmHashString32(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_Name), sizeof(dmGameObject::ScriptEventData) + sizeof(dmPhysicsDDF::ApplyForceMessage));
 
         dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "collisionobject", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
