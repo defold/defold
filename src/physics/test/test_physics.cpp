@@ -474,20 +474,14 @@ TEST_F(PhysicsTest, ApplyForce)
 
 struct RayCastResult
 {
-    bool m_Hit;
-    float m_HitFraction;
-    void* m_CollisionObjectUserData;
-    uint16_t m_CollisionObjectGroup;
+    dmPhysics::RayCastResponse m_Response;
     void* m_UserData;
 };
 
-void RayCastResponse(bool hit, float hit_fraction, void* collision_object_user_data, uint16_t collision_object_group, const dmPhysics::RayCastRequest& request)
+void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request)
 {
     RayCastResult* rcr = (RayCastResult*)request.m_UserData;
-    rcr[request.m_UserId].m_Hit = hit;
-    rcr[request.m_UserId].m_HitFraction = hit_fraction;
-    rcr[request.m_UserId].m_CollisionObjectUserData = collision_object_user_data;
-    rcr[request.m_UserId].m_CollisionObjectGroup = collision_object_group;
+    rcr[request.m_UserId].m_Response = response;
     rcr[request.m_UserId].m_UserData = request.m_UserData;
 }
 
@@ -496,14 +490,14 @@ TEST_F(PhysicsTest, EmptyRayCasting)
     RayCastResult result;
     memset(&result, 0, sizeof(RayCastResult));
     // Avoid false positives
-    result.m_Hit = true;
+    result.m_Response.m_Hit = true;
 
     dmPhysics::RayCastRequest request;
     request.m_From = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
-    request.m_ResponseCallback = &RayCastResponse;
+    request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
 
@@ -514,7 +508,7 @@ TEST_F(PhysicsTest, EmptyRayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result.m_Hit);
+    ASSERT_FALSE(result.m_Response.m_Hit);
 }
 
 TEST_F(PhysicsTest, RayCasting)
@@ -532,7 +526,7 @@ TEST_F(PhysicsTest, RayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = result;
-    request.m_ResponseCallback = &RayCastResponse;
+    request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
 
@@ -543,11 +537,14 @@ TEST_F(PhysicsTest, RayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result[0].m_Hit);
-    ASSERT_TRUE(result[1].m_Hit);
-    ASSERT_GT(1.0f, result[1].m_HitFraction);
-    ASSERT_EQ((void*)&vo, (void*)result[1].m_CollisionObjectUserData);
-    ASSERT_EQ(1, result[1].m_CollisionObjectGroup);
+    ASSERT_FALSE(result[0].m_Response.m_Hit);
+    ASSERT_TRUE(result[1].m_Response.m_Hit);
+    ASSERT_GT(1.0f, result[1].m_Response.m_Fraction);
+    ASSERT_EQ(0.0f, result[1].m_Response.m_Normal.getX());
+    ASSERT_EQ(1.0f, result[1].m_Response.m_Normal.getY());
+    ASSERT_EQ(0.0f, result[1].m_Response.m_Normal.getZ());
+    ASSERT_EQ((void*)&vo, (void*)result[1].m_Response.m_CollisionObjectUserData);
+    ASSERT_EQ(1, result[1].m_Response.m_CollisionObjectGroup);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(box_shape);
@@ -568,7 +565,7 @@ TEST_F(PhysicsTest, InsideRayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
-    request.m_ResponseCallback = &RayCastResponse;
+    request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
 
@@ -579,7 +576,7 @@ TEST_F(PhysicsTest, InsideRayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result.m_Hit);
+    ASSERT_FALSE(result.m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(box_shape);
@@ -601,7 +598,7 @@ TEST_F(PhysicsTest, IgnoreRayCasting)
     request.m_UserId = 0;
     request.m_IgnoredUserData = &vo;
     request.m_UserData = &result;
-    request.m_ResponseCallback = &RayCastResponse;
+    request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
 
@@ -612,7 +609,7 @@ TEST_F(PhysicsTest, IgnoreRayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result.m_Hit);
+    ASSERT_FALSE(result.m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(box_shape);
@@ -633,7 +630,7 @@ TEST_F(PhysicsTest, TriggerRayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
-    request.m_ResponseCallback = &RayCastResponse;
+    request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
 
@@ -645,7 +642,7 @@ TEST_F(PhysicsTest, TriggerRayCasting)
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
     // We rather have a 0.0f hit here, but bullet thinks otherwise
-    ASSERT_FALSE(result.m_Hit);
+    ASSERT_FALSE(result.m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(box_shape);
@@ -679,14 +676,14 @@ TEST_F(PhysicsTest, FilteredRayCasting)
     request.m_UserId = 0;
     request.m_UserData = &result;
     request.m_Mask = GROUP_B;
-    request.m_ResponseCallback = &RayCastResponse;
+    request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_TRUE(result.m_Hit);
-    ASSERT_EQ(GROUP_B, result.m_CollisionObjectGroup);
+    ASSERT_TRUE(result.m_Response.m_Hit);
+    ASSERT_EQ(GROUP_B, result.m_Response.m_CollisionObjectGroup);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_a);
     dmPhysics::DeleteCollisionShape(box_shape_a);

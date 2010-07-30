@@ -200,16 +200,14 @@ namespace dmPhysics
     Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
     struct RayCastRequest;
+    struct RayCastResponse;
 
     /**
      * Callback used to report ray cast response.
-     * @param hit If the ray cast hit something or not
-     * @param hit_fraction The fraction [0,1] of the ray at which point the ray cast hit something. A value of 1 is considered no hit.
-     * @param collision_object_user_data User supplied data when creating the collision object the ray cast hit
-     * @param collision_object_group Group of the collision object the ray cast hit
-     * @param
+     * @param response Information about the result of the ray cast
+     * @param request The request that the callback originated from
      */
-    typedef void (*RayCastResponseCallback)(bool hit, float hit_fraction, void* collision_object_user_data, uint16_t collision_object_group, const RayCastRequest& request);
+    typedef void (*RayCastCallback)(const RayCastResponse& response, const RayCastRequest& request);
 
     /**
      * Container of data for ray cast queries.
@@ -220,7 +218,7 @@ namespace dmPhysics
 
         /// Start of ray
         Vectormath::Aos::Point3 m_From;
-        /// End of ray
+        /// End of ray, exclusive since the ray is valid in [m_From, m_To)
         Vectormath::Aos::Point3 m_To;
         /// User supplied id to identify this query when the response is handled
         uint32_t m_UserId;
@@ -231,7 +229,26 @@ namespace dmPhysics
         /// User supplied data that will be passed to the response callback
         void* m_UserData;
         /// Response callback function that will be called once the ray cast has been performed
-        RayCastResponseCallback m_ResponseCallback;
+        RayCastCallback m_Callback;
+    };
+
+    /**
+     * Container of data for ray cast results.
+     */
+    struct RayCastResponse
+    {
+        RayCastResponse();
+
+        /// If the ray hit something or not
+        bool m_Hit;
+        /// Fraction between ray start and end at which the hit occured. The valid interval is [start, end), so 1.0f is considered outside the range
+        float m_Fraction;
+        /// Normal of the surface at the position the ray hit the surface
+        Vectormath::Aos::Vector3 m_Normal;
+        /// User specified data for the object that the ray hit
+        void* m_CollisionObjectUserData;
+        /// Group of the object the ray hit
+        uint16_t m_CollisionObjectGroup;
     };
 
     /**

@@ -188,7 +188,7 @@ namespace dmPhysics
             for (uint32_t i = 0; i < size; ++i)
             {
                 const RayCastRequest& request = world->m_RayCastRequests[i];
-                if (request.m_ResponseCallback == 0x0)
+                if (request.m_Callback == 0x0)
                 {
                     dmLogWarning("Ray cast requested without any response callback, skipped.");
                     continue;
@@ -197,14 +197,16 @@ namespace dmPhysics
                 btVector3 to(request.m_To.getX(), request.m_To.getY(), request.m_To.getZ());
                 ProcessRayCastResultCallback result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
                 world->m_DynamicsWorld->rayTest(from, to, result_callback);
-                void* collision_object_user_data = 0x0;
-                uint16_t collision_object_group = 0;
+                RayCastResponse response;
+                response.m_Hit = result_callback.hasHit();
+                response.m_Fraction = result_callback.m_closestHitFraction;
+                response.m_Normal = Vectormath::Aos::Vector3(result_callback.m_hitNormalWorld.getX(), result_callback.m_hitNormalWorld.getY(), result_callback.m_hitNormalWorld.getZ());
                 if (result_callback.m_collisionObject != 0x0)
                 {
-                    collision_object_user_data = result_callback.m_collisionObject->getUserPointer();
-                    collision_object_group = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+                    response.m_CollisionObjectUserData = result_callback.m_collisionObject->getUserPointer();
+                    response.m_CollisionObjectGroup = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
                 }
-                request.m_ResponseCallback(result_callback.hasHit(), result_callback.m_closestHitFraction, collision_object_user_data, collision_object_group, request);
+                request.m_Callback(response, request);
             }
             world->m_RayCastRequests.SetSize(0);
         }
@@ -467,7 +469,17 @@ namespace dmPhysics
     , m_Mask(~0)
     , m_IgnoredUserData((void*)~0) // unlikely user data to ignore
     , m_UserData(0x0)
-    , m_ResponseCallback(0x0)
+    , m_Callback(0x0)
+    {
+
+    }
+
+    RayCastResponse::RayCastResponse()
+    : m_Hit(false)
+    , m_Fraction(1.0f)
+    , m_Normal(0.0f, 0.0f, 0.0f)
+    , m_CollisionObjectUserData(0x0)
+    , m_CollisionObjectGroup(0)
     {
 
     }
