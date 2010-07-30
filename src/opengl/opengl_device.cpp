@@ -28,7 +28,7 @@
 // VBO Extension for OGL 1.4.1
 typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
 typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLDELETEPROGRAMARBPROC) (GLsizei, const GLuint*);
+typedef void (APIENTRY * PFNGLDELETEPROGRAMSARBPROC) (GLsizei, const GLuint*);
 typedef void (APIENTRY * PFNGLPROGRAMSTRINGARBPROC) (GLenum, GLenum, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat, GLfloat, GLfloat, GLfloat);
 typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
@@ -36,7 +36,7 @@ typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboo
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
-PFNGLDELETEPROGRAMARBPROC glDeleteProgramARB = NULL;
+PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB = NULL;
 PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
 PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
 PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
@@ -112,7 +112,7 @@ namespace dmGraphics
     #if defined (_WIN32)
         glGenProgramsARB = (PFNGLGENPROGRAMARBPROC) wglGetProcAddress("glGenProgramsARB");
         glBindProgramARB = (PFNGLBINDPROGRAMARBPROC) wglGetProcAddress("glBindProgramARB");
-        glDeleteProgramARB = (PFNGLDELETEPROGRAMARBPROC) wglGetProcAddress("glDeleteProgramARB");
+        glDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) wglGetProcAddress("glDeleteProgramsARB");
         glProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) wglGetProcAddress("glProgramStringARB");
         glProgramLocalParameter4fARB = (PFNGLVERTEXPARAMFLOAT4ARBPROC) wglGetProcAddress("glProgramLocalParameter4fARB");
         glEnableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glEnableVertexAttribArray");
