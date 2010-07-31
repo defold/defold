@@ -102,7 +102,7 @@ namespace dmMath
      * @param b Result if test failed
      * @return a when x >= 0, b otherwise
      */
-    float Select(float x, float a, float b)
+    inline float Select(float x, float a, float b)
     {
         if (x >= 0.0f)
             return a;
