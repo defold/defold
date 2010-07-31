@@ -62,8 +62,10 @@ def shutdown():
     import urllib2, time, atexit
 
     if sys.platform != 'win32':
+        os.system('scripts/start_proxy_server.sh')
         os.system('scripts/start_http_server.sh')
         atexit.register(os.system, 'scripts/stop_http_server.sh')
+        atexit.register(os.system, 'scripts/stop_proxy_server.sh')
 
         start = time.time()
         while True:

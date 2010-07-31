@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "./socket.h"
+#include "./socks_proxy.h"
 #include "http_client.h"
 #include "http_client_private.h"
 #include "log.h"
@@ -40,6 +41,7 @@ namespace dmHttpClient
         dmSocket::Socket    m_Socket;
         dmSocket::Address   m_Address;
         uint16_t            m_Port;
+        bool                m_UseSocksProxy;
         dmSocket::Result    m_SocketResult;
 
         void*               m_Userdata;
@@ -73,6 +75,18 @@ namespace dmHttpClient
         if (r != dmSocket::RESULT_OK)
             return 0;
 
+        char* socks_proxy = getenv("DMSOCKS_PROXY");
+        dmSocket::Address proxy_address = 0;
+        if (socks_proxy)
+        {
+            r = dmSocket::GetHostByName(socks_proxy, &proxy_address);
+            if (r != dmSocket::RESULT_OK)
+            {
+                dmLogWarning("Unable to IP for socks proxy: %s", socks_proxy);
+                return 0;
+            }
+        }
+
         Client* client = new Client();
 
         client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
@@ -84,6 +98,8 @@ namespace dmHttpClient
         client->m_HttpContent = params->m_HttpContent;
         client->m_HttpHeader = params->m_HttpHeader;
         client->m_MaxGetRetries = 4;
+
+        client->m_UseSocksProxy = getenv("DMSOCKS_PROXY") != 0;
 
         return client;
     }
@@ -121,19 +137,30 @@ namespace dmHttpClient
     {
         if (client->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
         {
-            dmSocket::Result sock_result = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client->m_Socket);
-            if (sock_result != dmSocket::RESULT_OK)
+            if (client->m_UseSocksProxy)
             {
-                client->m_SocketResult = sock_result;
-                return RESULT_SOCKET_ERROR;
+                dmSocksProxy::Result socks_result = dmSocksProxy::Connect(client->m_Address, client->m_Port, &client->m_Socket, &client->m_SocketResult);
+                if (socks_result != dmSocksProxy::RESULT_OK)
+                {
+                    return RESULT_SOCKET_ERROR;
+                }
             }
-
-            sock_result = dmSocket::Connect(client->m_Socket, client->m_Address, client->m_Port);
-            if (sock_result != dmSocket::RESULT_OK)
+            else
             {
-                client->m_SocketResult = sock_result;
-                dmSocket::Delete(client->m_Socket);
-                return RESULT_SOCKET_ERROR;
+                dmSocket::Result sock_result = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client->m_Socket);
+                if (sock_result != dmSocket::RESULT_OK)
+                {
+                    client->m_SocketResult = sock_result;
+                    return RESULT_SOCKET_ERROR;
+                }
+
+                sock_result = dmSocket::Connect(client->m_Socket, client->m_Address, client->m_Port);
+                if (sock_result != dmSocket::RESULT_OK)
+                {
+                    client->m_SocketResult = sock_result;
+                    dmSocket::Delete(client->m_Socket);
+                    return RESULT_SOCKET_ERROR;
+                }
             }
         }
 

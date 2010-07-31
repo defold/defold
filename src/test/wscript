@@ -143,3 +143,12 @@ def build(bld):
                                  target = 'test_uri')
 
     test_uri.install_path = None
+
+    test_socks_proxy = bld.new_task_gen(features = 'cxx cprogram',
+                                        source = 'test_socks_proxy.cpp',
+                                        uselib = 'GTEST THREAD',
+                                        uselib_local = "dlib",
+                                        includes = ['../../src'],
+                                        target = 'test_socks_proxy')
+
+    test_socks_proxy.install_path = None
