@@ -63,6 +63,15 @@ TEST(dmMath, Bezier)
             dmMath::CubicBezier(1.0f, 2.0f, 2.0f, 4.0f, 4.0f) - dmMath::CubicBezier(1.0f - delta, 2.0f, 2.0f, 4.0f, 4.0f));
 }
 
+TEST(dmMath, Select)
+{
+    float a = 1.0f;
+    float b = 2.0f;
+    ASSERT_EQ(a, dmMath::Select(0.0f, a, b));
+    ASSERT_EQ(a, dmMath::Select(1.0f, a, b));
+    ASSERT_EQ(b, dmMath::Select(-1.0f, a, b));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

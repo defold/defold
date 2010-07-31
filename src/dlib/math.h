@@ -94,6 +94,21 @@ namespace dmMath
         float s = (1.0f - t);
         return s * s * s * p0 + 3.0f * s * s * t * p1 + 3.0f * s * t * t * p2 + t * t * t * p3;
     }
+
+    /**
+     * Select one of two floats depending on the sign of another.
+     * @param x Value to test for positiveness
+     * @param a Result if test succeeded
+     * @param b Result if test failed
+     * @return a when x >= 0, b otherwise
+     */
+    float Select(float x, float a, float b)
+    {
+        if (x >= 0.0f)
+            return a;
+        else
+            return b;
+    }
 }
 
 #endif
