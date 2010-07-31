@@ -7,6 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys
+import Options
 
 import waf_ddf, waf_dynamo
 
@@ -48,6 +49,15 @@ def configure(conf):
         else:
             ddf_search_lst = os.getenv('PYTHONPATH').split(':')
 
+
+    if platform == "darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
+    if platform == "linux":
+        conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
+    if platform == "win32":
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib'])
+
+
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
@@ -60,9 +70,15 @@ def configure(conf):
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
     conf.env['LIB_GTEST'] = 'gtest'
+    conf.env['LIB_GRAPHICS'] = 'graphics_null'
+    conf.env['LIB_DLIB'] = 'dlib'
 
 def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
+
+def shutdown():
+
+    waf_dynamo.run_gtests(valgrind = True)
 
 

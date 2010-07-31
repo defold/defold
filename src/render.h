@@ -17,6 +17,7 @@ namespace dmRender
 	enum RenderObjectType
 	{
 		RENDEROBJECT_TYPE_MODEL = 0,
+		RENDEROBJECT_TYPE_PARTICLE = 1,
 	};
 
 

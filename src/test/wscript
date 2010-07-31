@@ -1,0 +1,10 @@
+def build(bld):
+    test_render = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_render.cpp',
+                                    uselib = 'DLIB GTEST GRAPHICS',
+                                    uselib_local = 'render',
+                                    includes = ['../../src'],
+                                    target = 'test_render')
+
+    test_render = None
+    

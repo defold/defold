@@ -291,7 +291,7 @@ namespace dmRender
 
     void DeleteRenderPass(HRenderPass renderpass)
     {
-
+        delete renderpass;
     }
 
     void AddRenderObject(HRenderPass renderpass, HRenderObject renderobject)
