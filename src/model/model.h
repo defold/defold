@@ -1,11 +1,11 @@
-#ifndef __MODEL_H__
-#define __MODEL_H__
+#ifndef MODEL_H
+#define MODEL_H
 
 #include <vectormath/cpp/vectormath_aos.h>
 #include <ddf/ddf.h>
 #include <graphics/material.h>
-#include "render/mesh_ddf.h"
-#include "../rendercontext.h"
+#include <render/mesh_ddf.h>
+#include <render/rendercontext.h>
 
 
 namespace dmModel
