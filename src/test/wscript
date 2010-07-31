@@ -3,7 +3,7 @@ def build(bld):
                                     source = 'test_render.cpp',
                                     uselib = 'DLIB GTEST GRAPHICS',
                                     uselib_local = 'render',
-                                    includes = ['../../src'],
+                                    includes = ['../../src', '..'],
                                     target = 'test_render')
 
     test_render = None

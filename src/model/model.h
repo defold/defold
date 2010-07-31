@@ -4,8 +4,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <ddf/ddf.h>
 #include <graphics/material.h>
-#include <render/mesh_ddf.h>
-#include <render/rendercontext.h>
+#include "render/mesh_ddf.h"
+#include "../rendercontext.h"
 
 
 namespace dmModel
