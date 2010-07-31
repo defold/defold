@@ -1,12 +1,24 @@
-import Task, TaskGen
+import Task, TaskGen, Utils, re, os
 from TaskGen import extension
+import waf_ddf
 
 def ProtoCTask(name, message_type, proto_file, input_ext, output_ext, append_to_all = False, include = '../proto'):
-    Task.simple_task_type(name, 'protoc --encode=%s -I ${DYNAMO_HOME}/share/proto -I %s -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (message_type, include, proto_file),
-                          color='PINK',
-                          after='proto_gen_py',
-                          before='cc cxx',
-                          shell=True)
+    task = Task.simple_task_type(name, 'protoc --encode=%s -I ${DYNAMO_HOME}/share/proto -I %s -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (message_type, include, proto_file),
+                                 color='PINK',
+                                 after='proto_gen_py',
+                                 before='cc cxx',
+                                 shell=True)
+
+    def scan(self):
+        n = self.generator.path.find_resource(Utils.subst_vars(proto_file, self.env))
+        if n:
+            deps = waf_ddf.do_scan(self, [n], include)[0]
+            deps += [n]
+            return deps, []
+        else:
+            return [], []
+
+    task.scan = scan
 
     @extension(input_ext)
     def xfile(self, node):
