@@ -41,11 +41,56 @@ def apply_ddf_jar(self):
     if self.install_path:
         self.bld.install_files('${PREFIX}/share/java', out.abspath(self.env), self.env)
 
+def scan_file_import(self, path):
+    f = open(path, 'r')
+    ret = set()
+    for line in f:
+        m = re.match('\s*import\s*"([^"]*?)"\s*;', line)
+        if m:
+            ret.add(m.groups()[0])
+    return ret
+
+def scan_file(self, file, include_nodes, scanned):
+    for incn in include_nodes:
+        n = incn.find_resource(file)
+        if n:
+            if n.abspath() in scanned:
+                return []
+            scanned.add(n.abspath())
+            return [n] + scan_node(self, n, include_nodes, scanned)
+
+    return []
+
+def scan_node(self, node, include_nodes, scanned):
+    deps = scan_file_import(self, node.abspath())
+    ret = []
+    for d in deps:
+        ret += scan_file(self, d, include_nodes, scanned)
+    return ret
+
+def do_scan(self, inputs, includes):
+    includes = Utils.to_list(includes)
+    include_nodes = [ self.generator.path.find_dir(x) for x in includes ]
+    include_nodes = filter(lambda x: x, include_nodes)
+    depnodes = []
+    for n in inputs:
+        if n.name.endswith('.proto'):
+            scanned = set()
+            # NOTE: Is it really correct to return dependency on self?
+            # Seems to be required
+            depnodes += [n]
+            depnodes += scan_node(self, n, include_nodes + [n.parent], scanned)
+    return depnodes, []
+
+def scan(self):
+    includes = Utils.to_list(getattr(self.generator, 'protoc_includes', []))
+    return do_scan(self, self.inputs, includes)
+
 def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', mandatory = True)
     conf.find_program('ddfc_java', var='DDFC_JAVA', mandatory = True)
 
-Task.simple_task_type('bproto', 'protoc \
+bproto = Task.simple_task_type('bproto', 'protoc \
 --plugin=protoc-gen-ddf=${DDFC_CXX} \
 --ddf_out=${TGT[0].dir(env)} \
 -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
@@ -53,8 +98,9 @@ Task.simple_task_type('bproto', 'protoc \
                       before='cc cxx javac',
                       after='proto_b',
                       shell=True)
+bproto.scan = scan
 
-Task.simple_task_type('bproto_java', 'protoc \
+bproto_java = Task.simple_task_type('bproto_java', 'protoc \
 --plugin=protoc-gen-ddf=${DDFC_JAVA} \
 --ddf_out=${OUTDIR} \
 -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
@@ -62,6 +108,7 @@ Task.simple_task_type('bproto_java', 'protoc \
                       before='cc cxx javac',
                       after='proto_b',
                       shell=True)
+bproto_java.scan = scan
 
 def bproto_file(self, node):
 
@@ -128,13 +175,15 @@ def bproto_file(self, node):
         javac.set_outputs(java_node_out)
 
 
-Task.simple_task_type('proto_b', 'protoc -o${TGT} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
-                      color='PINK',
-                      before='cc cxx',
-                      shell=True)
+proto_b = Task.simple_task_type('proto_b', 'protoc -o${TGT} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+                                 color='PINK',
+                                 before='cc cxx',
+                                 shell=True)
+
+proto_b.scan = scan
 
 
-Task.simple_task_type('proto_ddf', 'protoc \
+proto_ddf = Task.simple_task_type('proto_ddf', 'protoc \
 --plugin=protoc-gen-ddf=${DDFC} \
 --ddf_out=${TGT[0].dir(env)} \
 --python_out=${TGT[0].dir(env)} \
@@ -146,23 +195,28 @@ Task.simple_task_type('proto_ddf', 'protoc \
                       after='proto_b',
                       shell=True)
 
-Task.simple_task_type('proto_gen_cc', 'protoc --cpp_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
-                      color='RED',
-                      before='cc cxx',
-                      after='proto_b',
-                      shell=True)
+proto_ddf.scan = scan
 
-Task.simple_task_type('proto_gen_py', 'protoc --python_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
-                      color='RED',
-                      before='cc cxx',
-                      after='proto_b',
-                      shell=True)
+proto_gen_cc = Task.simple_task_type('proto_gen_cc', 'protoc --cpp_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+                                      color='RED',
+                                      before='cc cxx',
+                                      after='proto_b',
+                                      shell=True)
+proto_gen_cc.scan = scan
 
-Task.simple_task_type('proto_gen_java', 'protoc --java_out=${JAVA_OUT} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
-                      color='RED',
-                      before='cc cxx',
-                      after='proto_b',
-                      shell=True)
+proto_gen_py = Task.simple_task_type('proto_gen_py', 'protoc --python_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+                                     color='RED',
+                                     before='cc cxx',
+                                     after='proto_b',
+                                     shell=True)
+proto_gen_py.scan = scan
+
+proto_gen_java = Task.simple_task_type('proto_gen_java', 'protoc --java_out=${JAVA_OUT} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+                                       color='RED',
+                                       before='cc cxx',
+                                       after='proto_b',
+                                       shell=True)
+proto_gen_java.scan = scan
 
 def compile_java_file(self, java_node, outdir):
     # Set variables for javac
