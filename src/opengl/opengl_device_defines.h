@@ -39,6 +39,8 @@ namespace dmGraphics
 #define GFXDEVICE_PRIMITIVE_TRIANGLES                   (GL_TRIANGLES)
 #define GFXDEVICE_PRIMITIVE_TRIANGLE_STRIP              (GL_TRIANGLE_STRIP)
 #define GFXDEVICE_PRIMITIVE_TRIANGLE_FAN                (GL_TRIANGLE_FAN)
+#define GFXDEVICE_PRIMITIVE_QUADS                       (GL_QUADS)
+#define GFXDEVICE_PRIMITIVE_QUAD_STRIP                  (GL_QUAD_STRIP)
 
 // Clear flags
 #define GFXDEVICE_CLEAR_COLOURUFFER                     (GL_COLOR_BUFFER_BIT)

@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////////
 //
-//	graphics_device.h - Graphics device interface
+//     graphics_device.h - Graphics device interface
 //
 ///////////////////////////////////////////////////////////////////////////////////
 #ifndef __GRAPHICSDEVICE_H__
@@ -26,7 +26,9 @@ namespace dmGraphics
         PRIMITIVE_LINE_STRIP                    = GFXDEVICE_PRIMITIVE_LINE_STRIP,
         PRIMITIVE_TRIANGLES                     = GFXDEVICE_PRIMITIVE_TRIANGLES,
         PRIMITIVE_TRIANGLE_STRIP                = GFXDEVICE_PRIMITIVE_TRIANGLE_STRIP,
-        PRIMITIVE_TRIANGLE_FAN                  = GFXDEVICE_PRIMITIVE_TRIANGLE_FAN
+        PRIMITIVE_TRIANGLE_FAN                  = GFXDEVICE_PRIMITIVE_TRIANGLE_FAN,
+        PRIMITIVE_QUADS                         = GFXDEVICE_PRIMITIVE_QUADS,
+        PRIMITIVE_QUAD_STRIP                    = GFXDEVICE_PRIMITIVE_QUAD_STRIP
     };
 
     // buffer clear types
@@ -95,7 +97,7 @@ namespace dmGraphics
     {
         uint32_t        m_DisplayWidth;
         uint32_t        m_DisplayHeight;
-        const char*	    m_AppTitle;
+        const char*     m_AppTitle;
         bool            m_Fullscreen;
         bool            m_PrintDeviceInfo;
     };
@@ -145,4 +147,4 @@ namespace dmGraphics
 
 }
 
-#endif	// __GRAPHICSDEVICE_H__
+#endif // __GRAPHICSDEVICE_H__

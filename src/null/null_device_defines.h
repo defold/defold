@@ -10,6 +10,8 @@
 #define GFX_DEVICE_PRIMITIVE_TRIANGLES           (-1ul)
 #define GFX_DEVICE_PRIMITIVE_TRIANGLE_STRIP      (-1ul)
 #define GFX_DEVICE_PRIMITIVE_TRIANGLE_FAN        (-1ul)
+#define GFX_DEVICE_PRIMITIVE_QUADS               (-1ul)
+#define GFX_DEVICE_PRIMITIVE_QUAD_STRIP          (-1ul)
 
 // Clear flags
 #define GFX_DEVICE_CLEAR_COLOURUFFER            (-1ul)
