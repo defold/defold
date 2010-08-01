@@ -22,6 +22,7 @@ TEST(dmSocksProxy, NoSocksProxySet)
 TEST(dmSocksProxy, ConnectionRefused)
 {
     setenv("DMSOCKS_PROXY", "localhost", 1);
+    setenv("DMSOCKS_PROXY_PORT", "1079", 1);
 
     dmSocket::Address local_address = dmSocket::AddressFromIPString("127.0.0.1");
 
