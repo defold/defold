@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <gtest/gtest.h>
 #include "../src/dlib/socks_proxy.h"
 
