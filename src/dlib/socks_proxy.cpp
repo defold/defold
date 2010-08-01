@@ -53,18 +53,21 @@ namespace dmSocksProxy
         if (sock_res != dmSocket::RESULT_OK)
         {
             if (socket_result)
+            {
+                dmSocket::Delete(*socket);
                 *socket_result = sock_res;
+            }
             return RESULT_SOCKET_ERROR;
         }
 
-        Request request = { 0x04, 0x01, htons(port), address, 0};
+        Request request = { 0x04, 0x01, htons(port), address, 0 };
 
         const char* buf = (const char*) &request;
         int total_sent = 0;
         while (total_sent < (int) sizeof(request))
         {
             int sent_bytes;
-            dmSocket::Result sock_res = dmSocket::Send(*socket, buf + total_sent, sizeof(request) - total_sent, &sent_bytes);
+            sock_res = dmSocket::Send(*socket, buf + total_sent, sizeof(request) - total_sent, &sent_bytes);
             if (sock_res == dmSocket::RESULT_TRY_AGAIN || sock_res == dmSocket::RESULT_OK)
             {
                 total_sent += sent_bytes;
@@ -72,7 +75,10 @@ namespace dmSocksProxy
             else
             {
                 if (socket_result)
+                {
+                    dmSocket::Delete(*socket);
                     *socket_result = sock_res;
+                }
                 return RESULT_SOCKET_ERROR;
             }
         }
@@ -83,15 +89,23 @@ namespace dmSocksProxy
         while (total_recv < (int) sizeof(response))
         {
             int recv_bytes;
-            dmSocket::Result sock_res = dmSocket::Receive(*socket, recv_buf + total_recv, sizeof(response) - total_recv, &recv_bytes);
+            sock_res = dmSocket::Receive(*socket, recv_buf + total_recv, sizeof(response) - total_recv, &recv_bytes);
             if (sock_res == dmSocket::RESULT_TRY_AGAIN || sock_res == dmSocket::RESULT_OK)
             {
+                if (recv_bytes == 0)
+                {
+                    // Connection closed
+                    return RESULT_INVALID_SERVER_RESPONSE;
+                }
                 total_recv += recv_bytes;
             }
             else
             {
                 if (socket_result)
+                {
+                    dmSocket::Delete(*socket);
                     *socket_result = sock_res;
+                }
                 return RESULT_SOCKET_ERROR;
             }
         }

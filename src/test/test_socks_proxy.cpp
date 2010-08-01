@@ -52,11 +52,11 @@ TEST(dmSocksProxy, Connect)
     setenv("DMSOCKS_PROXY_PORT", "1081", 1);
 
     dmSocket::Address local_address;
-    dmSocket::GetHostByName("www.svd.se", &local_address);
+    dmSocket::GetHostByName("localhost", &local_address);
 
     dmSocket::Socket socket;
     dmSocket::Result socket_result;
-    dmSocksProxy::Result r = dmSocksProxy::Connect(local_address, 80, &socket, &socket_result);
+    dmSocksProxy::Result r = dmSocksProxy::Connect(local_address, 7000, &socket, &socket_result);
     ASSERT_EQ(r, dmSocksProxy::RESULT_OK);
 }
 
