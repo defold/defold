@@ -3,6 +3,11 @@
 #include <gtest/gtest.h>
 #include "../src/dlib/socks_proxy.h"
 
+#ifndef _WIN32
+
+// unsetenv and setenv is missing on win32
+// tests temporarily disabled
+
 TEST(dmSocksProxy, NoSocksProxySet)
 {
     unsetenv("DMSOCKS_PROXY");
@@ -53,6 +58,8 @@ TEST(dmSocksProxy, Connect)
     dmSocksProxy::Result r = dmSocksProxy::Connect(local_address, 80, &socket, &socket_result);
     ASSERT_EQ(r, dmSocksProxy::RESULT_OK);
 }
+
+#endif
 
 int main(int argc, char **argv)
 {
