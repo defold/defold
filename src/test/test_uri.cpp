@@ -155,11 +155,11 @@ TEST(dmURI, TestPort)
 
 TEST(dmURI, TestOverflow1)
 {
-    char* buf = (char*) malloc(1024*128);
+    char* buf = (char*) malloc(32*128);
     buf[0] = 0;
 
     strcat(buf, "http://foo.com/");
-    for (int i = 0; i < 1024*64; ++i)
+    for (int i = 0; i < 32*64; ++i)
         strcat(buf, "x");
 
     dmURI::Parts* uri_parts = new dmURI::Parts();
@@ -178,11 +178,11 @@ TEST(dmURI, TestOverflow1)
 
 TEST(dmURI, TestOverflow2)
 {
-    char* buf = (char*) malloc(1024*128);
+    char* buf = (char*) malloc(32*128);
     buf[0] = 0;
 
     strcat(buf, "http://");
-    for (int i = 0; i < 1024*64; ++i)
+    for (int i = 0; i < 32*64; ++i)
         strcat(buf, "x");
 
     strcat(buf, "/path");
