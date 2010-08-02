@@ -21,7 +21,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_gtests(valgrind = False):
-    if not Options.commands['build']:
+    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
 # TODO: Add something similar to this
@@ -113,3 +113,4 @@ Build.BuildContext.exec_command = exec_command
 def set_options(opt):
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm6-darwin')
+    opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
