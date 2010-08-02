@@ -73,6 +73,7 @@ namespace dmProfile
             s.m_Name = name;
             s.m_Elapsed = 0;
             s.m_Index = i;
+            s.m_Samples = 0;
             g_Scopes.Push(s);
             return &g_Scopes[i];
         }
