@@ -6,6 +6,7 @@
 #endif
 #include <math.h>
 #include <stdlib.h>
+#include <stdint.h>
 #if defined(_MSC_VER)
 #undef _USE_MATH_DEFINES
 #endif
@@ -116,11 +117,16 @@ namespace dmMath
 
     /**
      * Return a random number in the interval [0,1], with a granularity of a millionth.
-     * TODO: Should we support seeding too for determinism?
      */
     inline float Rand01()
     {
-        return (float)(rand()%1000001) * 0.000001f;
+        uint32_t r;
+#if defined(_MSC_VER)
+        rand_s(&r);
+#else
+        r = rand();
+#endif
+        return (float)(r%1000001) * 0.000001f;
     }
 
     /**
@@ -129,7 +135,13 @@ namespace dmMath
      */
     inline float RandOpen01()
     {
-        return (float)(rand()%1000000) * 0.000001f;
+        uint32_t r;
+#if defined(_MSC_VER)
+        rand_s(&r);
+#else
+        r = rand();
+#endif
+        return (float)(r%1000000) * 0.000001f;
     }
 
     /**
