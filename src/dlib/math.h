@@ -124,7 +124,7 @@ namespace dmMath
     {
         uint32_t r;
 #if defined(_MSC_VER)
-        rand_s(&r);
+        std::rand_s(&r);
 #else
         r = rand();
 #endif
@@ -138,7 +138,7 @@ namespace dmMath
     {
         uint32_t r;
 #if defined(_MSC_VER)
-        rand_s(&r);
+        std::rand_s(&r);
 #else
         r = rand();
 #endif
