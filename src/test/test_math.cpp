@@ -95,7 +95,7 @@ void TestRand(float (*rand)(), float* out)
 
 TEST(dmMath, Rand)
 {
-    // TODO: Put this into the functions?
+    // windows don't use this so we can't have it in the functions :(
     srand(0);
 
     float out[3];

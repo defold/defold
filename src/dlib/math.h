@@ -131,7 +131,6 @@ namespace dmMath
 
     /**
      * Return a random number in the interval [0,1), with a granularity of a millionth.
-     * TODO: Should we support seeding too for determinism?
      */
     inline float RandOpen01()
     {
@@ -146,7 +145,6 @@ namespace dmMath
 
     /**
      * Return a random number in the interval [-1,1], with a granularity of a millionth.
-     * TODO: Should we support seeding too for determinism?
      */
     inline float Rand11()
     {
