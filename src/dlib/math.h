@@ -3,12 +3,14 @@
 
 #if defined(_MSC_VER)
 #define _USE_MATH_DEFINES
+#define _CRT_RAND_S
 #endif
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
 #if defined(_MSC_VER)
 #undef _USE_MATH_DEFINES
+#undef _CRT_RAND_S
 #endif
 
 /**
