@@ -3,14 +3,12 @@
 
 #if defined(_MSC_VER)
 #define _USE_MATH_DEFINES
-#define _CRT_RAND_S
 #endif
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
 #if defined(_MSC_VER)
 #undef _USE_MATH_DEFINES
-#undef _CRT_RAND_S
 #endif
 
 /**
@@ -18,6 +16,8 @@
  */
 namespace dmMath
 {
+    static const float RAND_MAX_RECIP = 1.0f / RAND_MAX;
+
     /**
      * Min function
      * @param a Value a
@@ -122,13 +122,8 @@ namespace dmMath
      */
     inline float Rand01()
     {
-        uint32_t r;
-#if defined(_MSC_VER)
-        std::rand_s(&r);
-#else
-        r = rand();
-#endif
-        return (float)(r%1000001) * 0.000001f;
+        uint32_t r = rand();
+        return (float)(r%((uint32_t)RAND_MAX + 1)) * RAND_MAX_RECIP;
     }
 
     /**
@@ -136,13 +131,7 @@ namespace dmMath
      */
     inline float RandOpen01()
     {
-        uint32_t r;
-#if defined(_MSC_VER)
-        std::rand_s(&r);
-#else
-        r = rand();
-#endif
-        return (float)(r%1000000) * 0.000001f;
+        return (float)(rand()%RAND_MAX) * RAND_MAX_RECIP;
     }
 
     /**
