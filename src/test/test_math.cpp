@@ -95,26 +95,22 @@ void TestRand(float (*rand)(), float* out)
 
 TEST(dmMath, Rand)
 {
-    // windows don't use this so we can't have it in the functions :(
     srand(0);
 
     float out[3];
 
     TestRand(dmMath::Rand01, out);
-    printf("%.6f %.6f %.6f\n", out[0], out[1], out[2]);
     ASSERT_NEAR(0.0f, out[0], 0.0001f);
     ASSERT_NEAR(1.0f, out[1], 0.0001f);
     ASSERT_NEAR(0.5f, out[2], 0.001f);
 
     TestRand(dmMath::RandOpen01, out);
-    printf("%.6f %.6f %.6f\n", out[0], out[1], out[2]);
     ASSERT_NEAR(0.0f, out[0], 0.0001f);
     ASSERT_NEAR(1.0f, out[1], 0.0001f);
     ASSERT_GT(1.0f, out[1]);
     ASSERT_NEAR(0.5f, out[2], 0.001f);
 
     TestRand(dmMath::Rand11, out);
-    printf("%.6f %.6f %.6f\n", out[0], out[1], out[2]);
     ASSERT_NEAR(-1.0f, out[0], 0.0005f);
     ASSERT_NEAR(1.0f, out[1], 0.0005f);
     ASSERT_NEAR(0.0f, out[2], 0.01f);
