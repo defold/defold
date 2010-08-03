@@ -72,6 +72,51 @@ TEST(dmMath, Select)
     ASSERT_EQ(b, dmMath::Select(-1.0f, a, b));
 }
 
+// out is [min, max, mean]
+void TestRand(float (*rand)(), float* out)
+{
+    uint32_t iterations = 100000;
+    float min = 0.5f;
+    float max = 0.5f;
+    float sum = 0.0f;
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        float r = rand();
+        if (min > r)
+            min = r;
+        if (max < r)
+            max = r;
+        sum += r;
+    }
+    out[0] = min;
+    out[1] = max;
+    out[2] = sum / iterations;
+}
+
+TEST(dmMath, Rand)
+{
+    // TODO: Put this into the functions?
+    srand(0);
+
+    float out[3];
+
+    TestRand(dmMath::Rand01, out);
+    ASSERT_NEAR(0.0f, out[0], 0.0001f);
+    ASSERT_NEAR(1.0f, out[1], 0.0001f);
+    ASSERT_NEAR(0.5f, out[2], 0.001f);
+
+    TestRand(dmMath::RandOpen01, out);
+    ASSERT_NEAR(0.0f, out[0], 0.0001f);
+    ASSERT_NEAR(1.0f, out[1], 0.0001f);
+    ASSERT_GT(1.0f, out[1]);
+    ASSERT_NEAR(0.5f, out[2], 0.001f);
+
+    TestRand(dmMath::Rand11, out);
+    ASSERT_NEAR(-1.0f, out[0], 0.0005f);
+    ASSERT_NEAR(1.0f, out[1], 0.0005f);
+    ASSERT_NEAR(0.0f, out[2], 0.01f);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

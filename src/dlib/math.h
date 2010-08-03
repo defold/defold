@@ -9,6 +9,9 @@
 #undef _USE_MATH_DEFINES
 #endif
 
+/**
+ * Collection of math functions.
+ */
 namespace dmMath
 {
     /**
@@ -108,6 +111,33 @@ namespace dmMath
             return a;
         else
             return b;
+    }
+
+    /**
+     * Return a random number in the interval [0,1], with a granularity of a millionth.
+     * TODO: Should we support seeding too for determinism?
+     */
+    inline float Rand01()
+    {
+        return (float)(rand()%1000001) * 0.000001f;
+    }
+
+    /**
+     * Return a random number in the interval [0,1), with a granularity of a millionth.
+     * TODO: Should we support seeding too for determinism?
+     */
+    inline float RandOpen01()
+    {
+        return (float)(rand()%1000000) * 0.000001f;
+    }
+
+    /**
+     * Return a random number in the interval [-1,1], with a granularity of a millionth.
+     * TODO: Should we support seeding too for determinism?
+     */
+    inline float Rand11()
+    {
+        return 2.0f * Rand01() - 1.0f;
     }
 }
 
