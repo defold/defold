@@ -13,100 +13,92 @@
 #error "Unsupported platform"
 #endif
 
-/*
-  ACCES,
-  AFNOSUPPORT,
-  AGAIN,
-  BADF,
-  CONNRESET,
-  DESTADDRREQ,
-  FAULT,
-  HOSTUNREACH,
-  INTR,
-  INVAL,
-  ISCONN,
-  MFILE,
-  MSGSIZE,
-  NETDOWN,
-  NETUNREACH,
-  NFILE,
-  NOBUFS,
-  NOENT,
-  NOMEM,
-  NOTCONN,
-  NOTDIR,
-  NOTSOCK,
-  OPNOTSUPP,
-  PIPE,
-  PROTONOSUPPORT,
-  PROTOTYPE,
-  TIMEDOUT,
-*/
-
 namespace dmSocket
 {
+    /**
+     * Socket result
+     */
     enum Result
     {
-        RESULT_OK             = 0,
+        RESULT_OK             = 0,    //!< RESULT_OK
 
-        RESULT_ACCES          = -1,
-        RESULT_AFNOSUPPORT    = -2,
-        RESULT_WOULDBLOCK     = -3,
-        RESULT_BADF           = -4,
-        RESULT_CONNRESET      = -5,
-        RESULT_DESTADDRREQ    = -6,
-        RESULT_FAULT          = -7,
-        RESULT_HOSTUNREACH    = -8,
-        RESULT_INTR           = -9,
-        RESULT_INVAL          = -10,
-        RESULT_ISCONN         = -11,
-        RESULT_MFILE          = -12,
-        RESULT_MSGSIZE        = -13,
-        RESULT_NETDOWN        = -14,
-        RESULT_NETUNREACH     = -15,
+        RESULT_ACCES          = -1,   //!< RESULT_ACCES
+        RESULT_AFNOSUPPORT    = -2,   //!< RESULT_AFNOSUPPORT
+        RESULT_WOULDBLOCK     = -3,   //!< RESULT_WOULDBLOCK
+        RESULT_BADF           = -4,   //!< RESULT_BADF
+        RESULT_CONNRESET      = -5,   //!< RESULT_CONNRESET
+        RESULT_DESTADDRREQ    = -6,   //!< RESULT_DESTADDRREQ
+        RESULT_FAULT          = -7,   //!< RESULT_FAULT
+        RESULT_HOSTUNREACH    = -8,   //!< RESULT_HOSTUNREACH
+        RESULT_INTR           = -9,   //!< RESULT_INTR
+        RESULT_INVAL          = -10,  //!< RESULT_INVAL
+        RESULT_ISCONN         = -11,  //!< RESULT_ISCONN
+        RESULT_MFILE          = -12,  //!< RESULT_MFILE
+        RESULT_MSGSIZE        = -13,  //!< RESULT_MSGSIZE
+        RESULT_NETDOWN        = -14,  //!< RESULT_NETDOWN
+        RESULT_NETUNREACH     = -15,  //!< RESULT_NETUNREACH
         //RESULT_NFILE          = -16,
-        RESULT_NOBUFS         = -17,
+        RESULT_NOBUFS         = -17,  //!< RESULT_NOBUFS
         //RESULT_NOENT          = -18,
         //RESULT_NOMEM          = -19,
-        RESULT_NOTCONN        = -20,
+        RESULT_NOTCONN        = -20,  //!< RESULT_NOTCONN
         //RESULT_NOTDIR         = -21,
-        RESULT_NOTSOCK        = -22,
-        RESULT_OPNOTSUPP      = -23,
-        RESULT_PIPE           = -24,
-        RESULT_PROTONOSUPPORT = -25,
-        RESULT_PROTOTYPE      = -26,
-        RESULT_TIMEDOUT       = -27,
+        RESULT_NOTSOCK        = -22,  //!< RESULT_NOTSOCK
+        RESULT_OPNOTSUPP      = -23,  //!< RESULT_OPNOTSUPP
+        RESULT_PIPE           = -24,  //!< RESULT_PIPE
+        RESULT_PROTONOSUPPORT = -25,  //!< RESULT_PROTONOSUPPORT
+        RESULT_PROTOTYPE      = -26,  //!< RESULT_PROTOTYPE
+        RESULT_TIMEDOUT       = -27,  //!< RESULT_TIMEDOUT
 
-        RESULT_ADDRNOTAVAIL   = -28,
-        RESULT_CONNREFUSED    = -29,
-        RESULT_ADDRINUSE      = -30,
+        RESULT_ADDRNOTAVAIL   = -28,  //!< RESULT_ADDRNOTAVAIL
+        RESULT_CONNREFUSED    = -29,  //!< RESULT_CONNREFUSED
+        RESULT_ADDRINUSE      = -30,  //!< RESULT_ADDRINUSE
 
         // gethostbyname errors
-        RESULT_HOST_NOT_FOUND = -100,
-        RESULT_TRY_AGAIN      = -101,
-        RESULT_NO_RECOVERY    = -102,
-        RESULT_NO_DATA        = -103,
+        RESULT_HOST_NOT_FOUND = -100, //!< RESULT_HOST_NOT_FOUND
+        RESULT_TRY_AGAIN      = -101, //!< RESULT_TRY_AGAIN
+        RESULT_NO_RECOVERY    = -102, //!< RESULT_NO_RECOVERY
+        RESULT_NO_DATA        = -103, //!< RESULT_NO_DATA
 
-        RESULT_UNKNOWN        = -1000,
+        RESULT_UNKNOWN        = -1000,//!< RESULT_UNKNOWN
     };
 
+    /**
+     * Socket handle
+     */
     typedef int Socket;
-    typedef uint32_t Address; // TODO: Always in network order?
 
+    /**
+     * Network address
+     */
+    typedef uint32_t Address;
+
+    /**
+     * Invalid socket handle
+     */
     const Socket INVALID_SOCKET_HANDLE = 0xffffffff;
 
+    /**
+     * Socket type
+     */
     enum Type
     {
-        TYPE_STREAM = SOCK_STREAM,
-        TYPE_DGRAM = SOCK_DGRAM,
+        TYPE_STREAM = SOCK_STREAM,//!< TYPE_STREAM
+        TYPE_DGRAM = SOCK_DGRAM,  //!< TYPE_DGRAM
     };
 
+    /**
+     * Network protocol
+     */
     enum Protocol
     {
-        PROTOCOL_TCP = IPPROTO_TCP,
-        PROTOCOL_UDP = IPPROTO_UDP,
+        PROTOCOL_TCP = IPPROTO_TCP,//!< PROTOCOL_TCP
+        PROTOCOL_UDP = IPPROTO_UDP,//!< PROTOCOL_UDP
     };
 
+    /**
+     * Socket shutdown type
+     */
     enum ShutdownType
     {
 #if defined(__linux__) || defined(__MACH__)
@@ -114,47 +106,151 @@ namespace dmSocket
         SHUTDOWNTYPE_WRITE     = SHUT_WR,
         SHUTDOWNTYPE_READWRITE = SHUT_RDWR,
 #else
-        SHUTDOWNTYPE_READ      = SD_RECEIVE,
-        SHUTDOWNTYPE_WRITE     = SD_SEND,
-        SHUTDOWNTYPE_READWRITE = SD_BOTH,
+        SHUTDOWNTYPE_READ      = SD_RECEIVE,//!< SHUTDOWNTYPE_READ
+        SHUTDOWNTYPE_WRITE     = SD_SEND,   //!< SHUTDOWNTYPE_WRITE
+        SHUTDOWNTYPE_READWRITE = SD_BOTH,   //!< SHUTDOWNTYPE_READWRITE
 #endif
     };
 
+    /**
+     * Initialize socket system. Network initialization is required on some platforms.
+     * @return RESULT_OK on success
+     */
     Result Initialize();
+
+    /**
+     * Finalize socket system.
+     * @return RESULT_OK on success
+     */
     Result Finalize();
 
-    // TODO: Write about disabled SIGPIPE
+    /**
+     * Create a new socket. Corresponds to BSD socket function socket().
+     * @note SIGPIPE is disabled on applicable platforms. This has the implication
+     * that Receive can return zero bytes when the connection is closed by remote peer.
+     * @param type Soccket type
+     * @param protocol Protocol
+     * @param socket Pointer to created socket
+     * @return RESULT_OK on succcess
+     */
     Result New(Type type, Protocol protocol, Socket* socket);
-    Result SetReuseAddress(Socket socket, bool reuse);
+
+    /**
+     * Delete a socket. Corresponds to BSD socket function close()
+     * @param socket Socket to close
+     * @return RESULT_OK on success
+     */
     Result Delete(Socket socket);
+
+    /**
+     * Set resue socket address option on socket. Socket option SO_REUSEADDR on most platforms
+     * @param socket Socket to set resuse address ton
+     * @param reuse True if reuse
+     * @return RESULT_OK on success
+     */
+    Result SetReuseAddress(Socket socket, bool reuse);
+
+    /**
+     * Set blocking option on a socket
+     * @param socket Socket to set blocking on
+     * @param blocking True to block
+     * @return RESULT_OK on success
+     */
+    Result SetBlocking(Socket socket, bool blocking);
+
+    /**
+     * Accept a connection on a socket
+     * @param socket Socket to accept connections on
+     * @param address Result address parameter
+     * @param accept_socket Pointer to accepted socket (result)
+     * @return RESULT_OK on success
+     */
     Result Accept(Socket socket, Address* address, Socket* accept_socket);
+
+    /**
+     * Bind a name to a socket
+     * @param socket Socket to bind name to
+     * @param address Address to bind
+     * @param port Port to bind to
+     * @return RESULT_OK on success
+     */
     Result Bind(Socket socket, Address address, int port);
+
+    /**
+     * Initiate a connection on a socket
+     * @param socket Socket to initiate connection on
+     * @param address Address to connect to
+     * @param port Port to connect to
+     * @return RESULT_OK on success
+     */
     Result Connect(Socket socket, Address address, int port);
+
+    /**
+     * Listen for connections on a socket
+     * @param socket Socket to listen on
+     * @param backlog Maximum length for the queue of pending connections
+     * @return RESULT_OK on success
+     */
     Result Listen(Socket socket, int backlog);
+
+    /**
+     * Shutdown part of a socket connection
+     * @param socket Socket to shutdown connection ow
+     * @param how Shutdown type
+     * @return RESULT_OK on success
+     */
     Result Shutdown(Socket socket, ShutdownType how);
 
+    /**
+     * Send a message on a socket
+     * @param socket Socket to send a message on
+     * @param buffer Buffer to send
+     * @param length Lenght of buffer to send
+     * @param sent_bytes Number of bytes sent (result)
+     * @return RESULT_OK on success
+     */
     Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);     // TODO: No flags here
     //ssize_t SendMessage(Socket socket, const struct msghdr *buffer, int flags);
     //ssize_t SentTo(int socket, const void *buffer, size_t length, int flags, const struct sockaddr *dest_addr,
     //socklen_t dest_len);
 
+    /**
+     * Receive data on a socket
+     * @param socket Socket to receive data on
+     * @param buffer Buffer to receive to
+     * @param length Receive buffer length
+     * @param received_bytes Number of received bytes (result)
+     * @return RESULT_OK on success
+     */
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes); // TODO: No flags here
 
-    Result SetBlocking(Socket socket, bool blocking);
 
+    // TODO: Support these calls?
     //ssize_t recvfrom(int socket, void *restrict buffer, size_t length, int flags,
     //struct sockaddr *restrict address, socklen_t *restrict address_len);
     //ssize_t recvmsg(int socket, struct msghdr *message, int flags);
 
+    /**
+     * Get address from ip string
+     * @param address IP-string
+     * @return Address
+     */
     Address AddressFromIPString(const char* address);
+
+    /**
+     * Get host by name.
+     * @param name  Hostname to resolve
+     * @param address Host address result
+     * @return RESULT_OK on success
+     */
     Result GetHostByName(const char* name, Address* address);
 
+    /**
+     * Convert result value to string
+     * @param result Result to convert
+     * @return Result as string
+     */
     const char* ResultToString(Result result);
-
-#if 0
-
-// int fcntl(int fildes, int cmd, ...);
-#endif
 
 }
 
