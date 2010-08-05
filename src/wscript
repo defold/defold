@@ -8,5 +8,4 @@ def build(bld):
     bld.add_subdirs('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
 
-    bld.add_subdirs('lua')
     bld.add_subdirs('script')

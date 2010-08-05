@@ -5,7 +5,7 @@
 #include <ddf/ddf.h>
 extern "C"
 {
-#include "../lua/lua.h"
+#include <lua/lua.h>
 }
 
 namespace dmScriptUtil
