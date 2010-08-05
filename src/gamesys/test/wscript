@@ -47,7 +47,7 @@ def testresourcecont_file(self, node):
 def build(bld):
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA RESOURCE',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET LUA',
                                      uselib_local = 'gamesys script',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
@@ -57,7 +57,7 @@ def build(bld):
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA RESOURCE',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET LUA',
                                      uselib_local = 'gamesys script',
                                      proto_gen_py = True,
                                      target = 'test_script',
@@ -67,7 +67,7 @@ def build(bld):
 
     test_script_util = bld.new_task_gen(features = 'cxx cprogram',
                                         includes = '../../../src',
-                                        uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA RESOURCE',
+                                        uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET LUA',
                                         uselib_local = 'gamesys script',
                                         proto_gen_py = True,
                                         target = 'test_script_util',
