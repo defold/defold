@@ -4,8 +4,7 @@
 #include <ddf/ddf.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include "resource.h"
-//#include "gameobject_script.h"
+#include <resource/resource.h>
 
 using namespace Vectormath::Aos;
 

@@ -2,7 +2,7 @@
 #define RESOURCE_CREATION_H
 
 #include <physics/physics.h>
-#include "resource.h"
+#include <resource/resource.h>
 
 struct CollisionObjectPrototype
 {

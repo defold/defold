@@ -15,9 +15,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestResource.AResource', before='cc cxx')
 create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestResource.BResource', before='cc cxx')
 create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestResource.CResource', before='cc cxx')
-create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='cc cxx')
 create_simple_protoc_task('physcomp', '.pc_pb', '.pc', 'TestResource.PhysComponent', before='cc cxx')
-create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
 create_simple_protoc_task('event_target', '.et_pb', '.et', 'TestResource.EventTarget', before='cc cxx')
 
 Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ../proto -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
@@ -47,21 +45,9 @@ def testresourcecont_file(self, node):
     task.set_outputs(out)
 
 def build(bld):
-    resources = bld.new_task_gen(source = 'test.cont_pb')
-
-    test_resource = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA',
-                                     uselib_local = 'gamesys script',
-                                     proto_gen_py = True,
-                                     target = 'test_resource',
-                                     source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb')
-
-    test_resource.install_path = None
-
     test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA RESOURCE',
                                      uselib_local = 'gamesys script',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
@@ -71,7 +57,7 @@ def build(bld):
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA RESOURCE',
                                      uselib_local = 'gamesys script',
                                      proto_gen_py = True,
                                      target = 'test_script',
@@ -81,7 +67,7 @@ def build(bld):
 
     test_script_util = bld.new_task_gen(features = 'cxx cprogram',
                                         includes = '../../../src',
-                                        uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA',
+                                        uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA RESOURCE',
                                         uselib_local = 'gamesys script',
                                         proto_gen_py = True,
                                         target = 'test_script_util',

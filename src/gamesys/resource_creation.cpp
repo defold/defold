@@ -2,7 +2,7 @@
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <stdint.h>
-#include "resource.h"
+#include <resource/resource.h>
 #include "../proto/physics_ddf.h"
 #include <graphics/graphics_device.h>
 #include <graphics/graphics_ddf.h>

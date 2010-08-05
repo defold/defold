@@ -3,7 +3,7 @@
 
 #include <dlib/array.h>
 
-#include "resource.h"
+#include <resource/resource.h>
 #include "gameobject.h"
 
 /**

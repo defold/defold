@@ -7,7 +7,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <dlib/log.h>
-#include "../resource.h"
+#include <resource/resource.h>
 #include "../gameobject.h"
 #include "gamesys/test/test_resource_ddf.h"
 #include "../proto/gameobject_ddf.h"
