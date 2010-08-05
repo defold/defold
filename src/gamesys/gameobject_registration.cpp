@@ -5,7 +5,7 @@
 #include <dlib/message.h>
 #include <dlib/hash.h>
 #include <ddf/ddf.h>
-#include "gameobject.h"
+#include <gameobject/gameobject.h>
 #include <physics/physics.h>
 #include "resource_creation.h"
 
@@ -133,6 +133,8 @@ namespace dmGameSystem
         uint32_t type;
 
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor);
 
         dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "collisionobject", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)

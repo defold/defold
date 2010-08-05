@@ -1,7 +1,7 @@
 #ifndef GAMEOBJECT_REGISTRATION_H
 #define GAMEOBJECT_REGISTRATION_H
 
-#include "gameobject.h"
+#include <gameobject/gameobject.h>
 #include <physics/physics.h>
 
 namespace dmGameSystem
