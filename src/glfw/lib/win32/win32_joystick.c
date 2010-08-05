@@ -232,3 +232,22 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons,
     return button;
 }
 
+//========================================================================
+// _glfwPlatformGetJoystickDeviceId() - Get joystick device id
+//========================================================================
+
+int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
+{
+    JOYCAPS   jc;
+
+    // Is joystick present?
+    if( !_glfwJoystickPresent( joy ) )
+    {
+        return GL_FALSE;
+    }
+
+    // Get joystick capabilities
+    _glfw_joyGetDevCaps( joy - GLFW_JOYSTICK_1, &jc, sizeof(JOYCAPS) );
+    *device_id = (char*)jc.szPname;
+    return GL_TRUE;
+}

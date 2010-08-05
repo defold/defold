@@ -225,7 +225,7 @@ HIDCreateOpenDeviceInterface(io_object_t hidDevice, recDevice * pDevice)
                                                      &(pDevice->interface));
             if (S_OK != plugInResult)
                 HIDReportErrorNum
-                    ("CouldnÕt query HID class device interface from plugInInterface",
+                    ("Couldn't query HID class device interface from plugInInterface",
                      plugInResult);
             (*ppPlugInInterface)->Release(ppPlugInInterface);
         } else
@@ -1066,3 +1066,16 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
     return numbuttons;
 }
 
+int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
+{
+    // Is joystick present?
+    if( !_glfwJoy[ joy ].Present )
+    {
+        return GL_FALSE;
+    }
+    else
+    {
+        *device_id = _glfwJoy[joy_index].Device->Product;
+        return GL_TRUE;
+    }
+}
