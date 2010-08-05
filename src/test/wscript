@@ -1,0 +1,32 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK'):
+    def create(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(compiled_ext)
+        task.set_outputs(out)
+
+    cmd = 'protoc --encode=%s -I ../src/test -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
+    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
+    declare_extension([ext], create)
+
+create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='cc cxx')
+create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
+
+def build(bld):
+    resources = bld.new_task_gen(source = 'test.cont_pb')
+
+    test_resource = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA',
+                                     uselib_local = 'resource',
+                                     proto_gen_py = True,
+                                     target = 'test_resource',
+                                     source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb')
+
+    test_resource.install_path = None
+
+
+
