@@ -1,0 +1,9 @@
+function Init(self)
+end
+
+function Update(self)
+	assert(false)
+end
+
+functions = { Init = Init, Update = Update }
+

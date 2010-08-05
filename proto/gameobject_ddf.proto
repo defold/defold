@@ -1,0 +1,51 @@
+package dmGameObject;
+
+import "ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.gamesys.proto";
+option java_outer_classname = "GameObject";
+option (ddf_java_package) = "com.dynamo.gamesys.ddf";
+
+message ComponentDesc
+{
+    required string Name = 1;
+    required dmMath.Point3 Position = 2;
+    required dmMath.Quat Rotation = 3;
+}
+
+message PrototypeDesc
+{
+    required string Name              = 1;
+    repeated ComponentDesc Components = 2;
+}
+
+message Property
+{
+    enum PropertyType
+    {
+        INTEGER = 1;
+        FLOAT = 2;
+        STRING = 3;
+    }
+
+    required PropertyType Type = 1;
+    required string Key = 2;
+    required string Value = 3;
+}
+
+message InstanceDesc
+{
+    required string  Prototype = 1;
+    required string  Name      = 2;
+    repeated string  Children      = 6;
+    required dmMath.Point3 Position  = 3;
+    required dmMath.Quat Rotation  = 4;
+    repeated Property ScriptProperties = 5;
+}
+
+message LevelDesc
+{
+    required string Name = 1;
+    repeated InstanceDesc Instances = 2;
+}

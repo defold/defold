@@ -1,0 +1,7 @@
+function Init(self)
+end
+
+function Update(self)
+end
+
+functions = { Init = Init, Update = Update }
