@@ -8,7 +8,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ${DYNAMO_HOME}/share/proto ../src/gameobject/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
+    cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ${DYNAMO_HOME}/share/proto ../src/gameobject/test/test_gameobject_ddf.proto < ${SRC} > ${TGT}' % type
     Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
     declare_extension([ext], create)
 
@@ -51,7 +51,7 @@ def build(bld):
                                      uselib_local = 'gameobject script',
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
-                                     source = 'test_gameobject.cpp test_resource_ddf.proto')
+                                     source = 'test_gameobject.cpp test_gameobject_ddf.proto')
     test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.et_pb'])
     test_gameobject.install_path = None
 
@@ -71,7 +71,7 @@ def build(bld):
                                         uselib_local = 'gameobject script',
                                         proto_gen_py = True,
                                         target = 'test_script_util',
-                                        source = 'test_script_util.cpp test_resource_ddf.proto')
+                                        source = 'test_script_util.cpp test_gameobject_ddf.proto')
 
     test_script_util.install_path = None
 

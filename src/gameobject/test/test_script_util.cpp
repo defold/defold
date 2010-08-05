@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "../gameobject.h"
 #include "../../script/script_util.h"
-#include "gameobject/test/test_resource_ddf.h"
+#include "gameobject/test/test_gameobject_ddf.h"
 
 extern "C"
 {
@@ -19,11 +19,11 @@ TEST(LuaTableToDDF, Vec3)
     lua_pushinteger(L, 22); lua_setfield(L, -2, "Y");
     lua_pushinteger(L, 33); lua_setfield(L, -2, "Z");
 
-    char* buf = new char[sizeof(TestResource::Vec)];
+    char* buf = new char[sizeof(TestGameObject::Vec)];
 
-    dmScriptUtil::LuaTableToDDF(L, TestResource::Vec::m_DDFDescriptor, buf, sizeof(TestResource::Vec));
+    dmScriptUtil::LuaTableToDDF(L, TestGameObject::Vec::m_DDFDescriptor, buf, sizeof(TestGameObject::Vec));
 
-    TestResource::Vec* vec = (TestResource::Vec*) buf;
+    TestGameObject::Vec* vec = (TestGameObject::Vec*) buf;
 
     ASSERT_EQ(11, vec->m_X);
     ASSERT_EQ(22, vec->m_Y);
@@ -38,12 +38,12 @@ TEST(DDFToLuaTable, Vec3)
 {
     lua_State *L = lua_open();
 
-    TestResource::Vec* vec = new TestResource::Vec;
+    TestGameObject::Vec* vec = new TestGameObject::Vec;
     vec->m_X = 111;
     vec->m_Y = 222;
     vec->m_Z = 333;
 
-    dmScriptUtil::DDFToLuaTable(L, TestResource::Vec::m_DDFDescriptor, (const char*) vec);
+    dmScriptUtil::DDFToLuaTable(L, TestGameObject::Vec::m_DDFDescriptor, (const char*) vec);
 
     lua_getfield(L, -1, "X"); ASSERT_EQ(111, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_getfield(L, -1, "Y"); ASSERT_EQ(222, luaL_checkint(L, -1)); lua_pop(L, 1);
@@ -77,9 +77,9 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     char* buf = new char[1024];
 
-    dmScriptUtil::LuaTableToDDF(L, TestResource::GlobalData::m_DDFDescriptor, buf, 1024);
+    dmScriptUtil::LuaTableToDDF(L, TestGameObject::GlobalData::m_DDFDescriptor, buf, 1024);
 
-    TestResource::GlobalData* global_data = (TestResource::GlobalData*) buf;
+    TestGameObject::GlobalData* global_data = (TestGameObject::GlobalData*) buf;
 
     global_data->m_StringValue = (const char*) ((uintptr_t) global_data->m_StringValue + (uintptr_t) global_data);
 
@@ -99,7 +99,7 @@ TEST(DDFToLuaTable, MessageInMessage)
 {
     lua_State *L = lua_open();
 
-    TestResource::GlobalData* g = new TestResource::GlobalData;
+    TestGameObject::GlobalData* g = new TestGameObject::GlobalData;
     g->m_UIntValue = 1234;
     g->m_IntValue = 5678;
     g->m_StringValue = "foo";
@@ -107,7 +107,7 @@ TEST(DDFToLuaTable, MessageInMessage)
     g->m_VecValue.m_Y = 22;
     g->m_VecValue.m_Z = 33;
 
-    dmScriptUtil::DDFToLuaTable(L, TestResource::GlobalData::m_DDFDescriptor, (const char*) g);
+    dmScriptUtil::DDFToLuaTable(L, TestGameObject::GlobalData::m_DDFDescriptor, (const char*) g);
 
     lua_getfield(L, -1, "UIntValue"); ASSERT_EQ(1234, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_getfield(L, -1, "IntValue"); ASSERT_EQ(5678, luaL_checkint(L, -1)); lua_pop(L, 1);
@@ -141,7 +141,7 @@ int ProtectedLuaDDFBufferOverflow (lua_State *L)
     lua_pushstring(L, "string_value");
     lua_setfield(L, -2, "StringValue");
 
-    dmScriptUtil::LuaTableToDDF(L, TestResource::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize);
+    dmScriptUtil::LuaTableToDDF(L, TestGameObject::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize);
 
     return 0;
 }
@@ -150,7 +150,7 @@ TEST(LuaTableToDDF, LuaDDFBufferOverflow)
 {
     lua_State *L = lua_open();
 
-    uint32_t expected_size = sizeof(TestResource::LuaDDFBufferOverflow) + strlen("string_value") + 1;
+    uint32_t expected_size = sizeof(TestGameObject::LuaDDFBufferOverflow) + strlen("string_value") + 1;
 
     for (uint32_t i = 0; i < 512; ++i)
     {
