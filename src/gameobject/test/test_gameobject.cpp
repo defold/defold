@@ -816,7 +816,7 @@ TEST(ScriptTest, TestReloadScript)
     ASSERT_EQ(2, p1.getY());
     ASSERT_EQ(3, p1.getZ());
 
-    dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
+    dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     CreateFile(script_path,
                "function Init(self)\n"
