@@ -157,9 +157,9 @@ TEST(Socket, ClientServer1)
         if (g_ServerThread1Running)
             break;
 
-        dmSleep(100);
+        dmTime::Sleep(100);
     }
-    dmSleep(500); // Make sure that we are in "accept"
+    dmTime::Sleep(500); // Make sure that we are in "accept"
 
     ASSERT_EQ(true, g_ServerThread1Running);
 

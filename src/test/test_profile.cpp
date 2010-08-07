@@ -31,33 +31,33 @@ TEST(dlib, Profile)
             dmProfile::Begin();
             {
                 DM_PROFILE(A, "a")
-                dmSleep(100000);
+                dmTime::Sleep(100000);
                 {
                     {
                         DM_PROFILE(B, "a_b1")
-                        dmSleep(50000);
+                        dmTime::Sleep(50000);
                         {
                             DM_PROFILE(C, "a_b1_c")
-                            dmSleep(40000);
+                            dmTime::Sleep(40000);
                         }
                     }
                     {
                         DM_PROFILE(B, "b2")
-                        dmSleep(50000);
+                        dmTime::Sleep(50000);
                         {
                             DM_PROFILE(C, "a_b2_c1")
-                            dmSleep(40000);
+                            dmTime::Sleep(40000);
                         }
                         {
                             DM_PROFILE(C, "a_b2_c2")
-                            dmSleep(60000);
+                            dmTime::Sleep(60000);
                         }
                     }
                 }
             }
             {
                 DM_PROFILE(D, "a_d")
-                dmSleep(80000);
+                dmTime::Sleep(80000);
             }
         }
 
