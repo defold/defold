@@ -15,7 +15,7 @@ namespace dmTime
     #if defined(__linux__) || defined(__MACH__)
         usleep(useconds);
     #elif defined(_WIN32)
-        Sleep(useconds / 1000);
+        ::Sleep(useconds / 1000);
     #else
     #error "Unsupported platform"
     #endif
