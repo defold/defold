@@ -35,7 +35,7 @@ namespace dmTime
         uint64_t t;
         GetSystemTimeAsFileTime(&ft);
 
-        t |= ft.dwHighDateTime;
+        t = ft.dwHighDateTime;
         t <<= 32;
         t |= ft.dwLowDateTime;
 
