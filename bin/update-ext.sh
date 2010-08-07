@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 
 download() {
     [ -f $DYNAMO_EXT/cache/$1 ] && return
