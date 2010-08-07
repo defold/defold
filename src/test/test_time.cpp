@@ -10,9 +10,9 @@ TEST(dmTime, Sleep)
 TEST(dmTime, GetTime)
 {
     uint64_t start = dmTime::GetTime();
-    dmTime::Sleep(10000);
+    dmTime::Sleep(100000);
     uint64_t end = dmTime::GetTime();
-    ASSERT_NEAR(10000, end-start, 200);
+    ASSERT_NEAR(100000, end-start, 2000);
 }
 
 int main(int argc, char **argv)
