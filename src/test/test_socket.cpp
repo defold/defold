@@ -49,7 +49,7 @@ TEST(Socket, ServerSocket1)
 
     r = dmSocket::Listen(socket, 1000);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
-    
+
     r = dmSocket::Delete(socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
@@ -99,13 +99,18 @@ TEST(Socket, ServerSocket3)
     dmSocket::Socket client_socket;
     r = dmSocket::Accept(socket, &address, &client_socket);
     ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
-    
+
     r = dmSocket::Delete(socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 bool g_ServerThread1Running = false;
+#ifdef _WIN32
+int  g_ServerThread1Port = 9003;
+#else
 int  g_ServerThread1Port = 9002;
+#endif
+
 static void ServerThread1(void* arg)
 {
     dmSocket::Socket socket;
