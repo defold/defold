@@ -454,7 +454,7 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
+    dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     f = fopen(file_name, "wb");
     ASSERT_NE((FILE*) 0, f);
@@ -543,7 +543,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    dmSleep(1000000); // TODO: Currently seconds time resolution in modification time
+    dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     f = fopen(filename_resource_filename, "wb");
     ASSERT_NE((FILE*) 0, f);
