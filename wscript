@@ -49,6 +49,9 @@ def configure(conf):
         conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
 
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
+
 def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')

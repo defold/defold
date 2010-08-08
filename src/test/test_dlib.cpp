@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
-#include "dlib/hash.h"
+#include "../dlib/hash.h"
+#include "../dlib/log.h"
 
 TEST(dlib, Hash)
 {
@@ -9,6 +10,11 @@ TEST(dlib, Hash)
 
     ASSERT_EQ(0xe18f6896, h1);
     ASSERT_EQ(0xe18f6896a8365dfbLL, h2);
+}
+
+TEST(dlib, Log)
+{
+    dmLogWarning("Test warning message. Should have domain DLIB");
 }
 
 int main(int argc, char **argv)

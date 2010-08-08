@@ -10,7 +10,7 @@ void dmLogSetlevel(dmLogSeverity severity)
     g_LogLevel = severity;
 }
 
-void dmLogInternal(dmLogSeverity severity, const char* format, ...)
+void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
 {
     if (severity < g_LogLevel)
         return;
@@ -37,7 +37,7 @@ void dmLogInternal(dmLogSeverity severity, const char* format, ...)
             assert(0);
     }
 
-    fprintf(stderr, "%s: ", severity_str);
+    fprintf(stderr, "%s:%s: ", severity_str, domain);
     vfprintf(stderr, format, lst);
     fprintf(stderr, "\n");
     va_end(lst);
