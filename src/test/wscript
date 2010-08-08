@@ -36,15 +36,6 @@ def build(bld):
 
     test_array.install_path = None
 
-    test_iterator = bld.new_task_gen(features = 'cxx cprogram',
-                                      source = 'test_iterator.cpp',
-                                      uselib = 'GTEST',
-                                      uselib_local = "dlib",
-                                      includes = ['../../src'],
-                                      target = 'test_iterator')
-
-    test_iterator.install_path = None
-
     test_indexpool = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_indexpool.cpp',
                                       uselib = 'GTEST',
