@@ -35,7 +35,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
 #ifdef _MSC_VER
 #define dmLogInfo(format, ... ) dmLogInternal(DM_LOG_SEVERITY_INFO, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
-#define dmLogWarning(format, ... ) dmLogInternal(DM_LOG_SEVERITY_WARNING, format, __VA_ARGS__ );
+#define dmLogWarning(format, ... ) dmLogInternal(DM_LOG_SEVERITY_WARNING, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
 #define dmLogError(format, ... ) dmLogInternal(DM_LOG_SEVERITY_ERROR, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
 #define dmLogFatal(format, ... ) dmLogInternal(DM_LOG_SEVERITY_FATAL, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
 #else
