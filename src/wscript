@@ -14,7 +14,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/iterator.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
