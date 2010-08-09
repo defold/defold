@@ -13,12 +13,17 @@ namespace dmGameObject
     /// Instance handle
     typedef struct Instance* HInstance;
 
-    // Script handle
+    /// Script handle
     typedef struct Script* HScript;
+
     /// Instance handle
     typedef struct ScriptInstance* HScriptInstance;
+
     /// Script context
     typedef struct ScriptContext* HScriptContext;
+
+    /// Component register
+    typedef struct Register* HRegister;
 
     /// Collection handle
     typedef struct Collection* HCollection;
@@ -201,12 +206,25 @@ namespace dmGameObject
     Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
     /**
+     * Create a new component type register
+     * @return Register handle
+     */
+    HRegister NewRegister();
+
+    /**
+     * Delete a component type register
+     * @param regist Register to delete
+     */
+    void DeleteRegister(HRegister regist);
+
+    /**
      * Creates a new gameobject collection
      * @param factory Resource factory. Must be valid during the life-time of the collection
+     * @param regist Register
      * @param max_instances Max instances in this collection
      * @return HCollection
      */
-    HCollection NewCollection(dmResource::HFactory factory, uint32_t max_instances);
+    HCollection NewCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
 
     /**
      * Deletes a gameobject collection
@@ -216,11 +234,11 @@ namespace dmGameObject
 
     /**
      * Register a new component type
-     * @param collection Gameobject collection
+     * @param regist Gameobject register
      * @param type Collection of component type registration data
      * @return RESULT_OK on success
      */
-    Result RegisterComponentType(HCollection collection, const ComponentType& type);
+    Result RegisterComponentType(HRegister regist, const ComponentType& type);
 
     /**
      * Create a new gameobject instane
@@ -421,11 +439,11 @@ namespace dmGameObject
     /**
      * Register all component types in collection
      * @param factory Resource factory
-     * @param collection Collection
+     * @param regist Register
      * @param update_context An update context that will be used in the script components so it must live for as long as the collection.
      * @return Result
      */
-    Result RegisterComponentTypes(dmResource::HFactory factory, HCollection collection, HScriptContext script_context);
+    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, HScriptContext script_context);
 
     /**
      * Creates a script context

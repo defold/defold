@@ -30,10 +30,11 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
-        collection = dmGameObject::NewCollection(factory, 1024);
+        regist = dmGameObject::NewRegister();
+        collection = dmGameObject::NewCollection(factory, regist, 1024);
         dmGameObject::RegisterResourceTypes(factory);
         script_context = dmGameObject::CreateScriptContext(0x0);
-        dmGameObject::RegisterComponentTypes(factory, collection, script_context);
+        dmGameObject::RegisterComponentTypes(factory, regist, script_context);
 
         // Register dummy physical resource type
         dmResource::FactoryResult e;
@@ -62,7 +63,7 @@ protected:
         pc_type.m_InitFunction = PhysComponentInit;
         pc_type.m_DestroyFunction = PhysComponentDestroy;
         pc_type.m_UpdateFunction = PhysComponentsUpdate;
-        dmGameObject::Result result = dmGameObject::RegisterComponentType(collection, pc_type);
+        dmGameObject::Result result = dmGameObject::RegisterComponentType(regist, pc_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // A has component_user_data
@@ -77,7 +78,7 @@ protected:
         a_type.m_DestroyFunction = AComponentDestroy;
         a_type.m_UpdateFunction = AComponentsUpdate;
         a_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(collection, a_type);
+        result = dmGameObject::RegisterComponentType(regist, a_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
@@ -91,7 +92,7 @@ protected:
         b_type.m_InitFunction = BComponentInit;
         b_type.m_DestroyFunction = BComponentDestroy;
         b_type.m_UpdateFunction = BComponentsUpdate;
-        result = dmGameObject::RegisterComponentType(collection, b_type);
+        result = dmGameObject::RegisterComponentType(regist, b_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // C has component_user_data
@@ -106,7 +107,7 @@ protected:
         c_type.m_DestroyFunction = CComponentDestroy;
         c_type.m_UpdateFunction = CComponentsUpdate;
         c_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(collection, c_type);
+        result = dmGameObject::RegisterComponentType(regist, c_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // EventTargetComponent
@@ -122,7 +123,7 @@ protected:
         et_type.m_UpdateFunction = EventTargetComponentsUpdate;
         et_type.m_OnEventFunction = &EventTargetOnEvent;
         et_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(collection, et_type);
+        result = dmGameObject::RegisterComponentType(regist, et_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         e = dmResource::GetTypeFromExtension(factory, "deleteself", &resource_type);
@@ -135,7 +136,7 @@ protected:
         ds_type.m_InitFunction = DeleteSelfComponentInit;
         ds_type.m_DestroyFunction = DeleteSelfComponentDestroy;
         ds_type.m_UpdateFunction = DeleteSelfComponentsUpdate;
-        result = dmGameObject::RegisterComponentType(collection, ds_type);
+        result = dmGameObject::RegisterComponentType(regist, ds_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         m_MaxComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash] = 1000000;
@@ -146,6 +147,7 @@ protected:
         dmGameObject::DeleteCollection(collection);
         dmGameObject::DestroyScriptContext(script_context);
         dmResource::DeleteFactory(factory);
+        dmGameObject::DeleteRegister(regist);
         dmGameObject::Finalize();
     }
 
@@ -221,6 +223,7 @@ public:
     std::map<int, dmGameObject::HInstance> m_DeleteSelfIndexToInstance;
 
     dmGameObject::UpdateContext update_context;
+    dmGameObject::HRegister regist;
     dmGameObject::HCollection collection;
     dmResource::HFactory factory;
     dmGameObject::HScriptContext script_context;
@@ -768,10 +771,11 @@ TEST(ScriptTest, TestReloadScript)
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
-    dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, 1024);
+    dmGameObject::HRegister regist = dmGameObject::NewRegister();
+    dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, regist, 1024);
     dmGameObject::RegisterResourceTypes(factory);
     dmGameObject::HScriptContext script_context = dmGameObject::CreateScriptContext(0x0);
-    dmGameObject::RegisterComponentTypes(factory, collection, script_context);
+    dmGameObject::RegisterComponentTypes(factory, regist, script_context);
 
     uint32_t type;
     dmResource::FactoryResult e = dmResource::GetTypeFromExtension(factory, "scriptc", &type);
@@ -846,6 +850,7 @@ TEST(ScriptTest, TestReloadScript)
     dmGameObject::DeleteCollection(collection);
     dmGameObject::DestroyScriptContext(script_context);
     dmResource::DeleteFactory(factory);
+    dmGameObject::DeleteRegister(regist);
     dmGameObject::Finalize();
 }
 

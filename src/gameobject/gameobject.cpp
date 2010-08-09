@@ -25,16 +25,28 @@ namespace dmGameObject
 
     // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
     const uint32_t MAX_COMPONENT_TYPES = 255;
+
+    struct Register
+    {
+        uint32_t      m_ComponentTypeCount;
+        ComponentType m_ComponentTypes[MAX_COMPONENT_TYPES];
+
+        Register()
+        {
+            m_ComponentTypeCount = 0;
+        }
+    };
+
     // Max hierarchical depth
     // 4 is interpreted as up to four levels of child nodes including root-nodes
     // Must be greater than zero
     const uint32_t MAX_HIERARCHICAL_DEPTH = 4;
     struct Collection
     {
-        Collection(dmResource::HFactory factory, uint32_t max_instances)
+        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
         {
             m_Factory = factory;
-            m_ComponentTypeCount = 0;
+            m_Register = regist;
             m_MaxInstances = max_instances;
             m_Instances.SetCapacity(max_instances);
             m_Instances.SetSize(max_instances);
@@ -56,10 +68,11 @@ namespace dmGameObject
             memset(&m_WorldTransforms[0], 0xcc, sizeof(Transform) * max_instances);
             memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
         }
+        // Resource factory
         dmResource::HFactory     m_Factory;
 
-        uint32_t                 m_ComponentTypeCount;
-        ComponentType            m_ComponentTypes[MAX_COMPONENT_TYPES];
+        // GameObject component register
+        HRegister                m_Register;
 
         // Maximum number of instances
         uint32_t                 m_MaxInstances;
@@ -156,14 +169,24 @@ namespace dmGameObject
         }
     }
 
-    HCollection  NewCollection(dmResource::HFactory factory, uint32_t max_instances)
+    HRegister NewRegister()
+    {
+        return new Register();
+    }
+
+    void DeleteRegister(HRegister regist)
+    {
+        delete regist;
+    }
+
+    HCollection NewCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
             dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX);
             return 0;
         }
-        return new Collection(factory, max_instances);
+        return new Collection(factory, regist, max_instances);
     }
 
     void DeleteCollection(HCollection collection)
@@ -172,11 +195,11 @@ namespace dmGameObject
         delete collection;
     }
 
-    static ComponentType* FindComponentType(Collection* collection, uint32_t resource_type)
+    static ComponentType* FindComponentType(Register* regist, uint32_t resource_type)
     {
-        for (uint32_t i = 0; i < collection->m_ComponentTypeCount; ++i)
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            ComponentType* ct = &collection->m_ComponentTypes[i];
+            ComponentType* ct = &regist->m_ComponentTypes[i];
             if (ct->m_ResourceType == resource_type)
             {
                 return ct;
@@ -185,15 +208,15 @@ namespace dmGameObject
         return 0;
     }
 
-    Result RegisterComponentType(HCollection collection, const ComponentType& type)
+    Result RegisterComponentType(HRegister regist, const ComponentType& type)
     {
-        if (collection->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
+        if (regist->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
             return RESULT_OUT_OF_RESOURCES;
 
-        if (FindComponentType(collection, type.m_ResourceType) != 0)
+        if (FindComponentType(regist, type.m_ResourceType) != 0)
             return RESULT_ALREADY_REGISTERED;
 
-        collection->m_ComponentTypes[collection->m_ComponentTypeCount++] = type;
+        regist->m_ComponentTypes[regist->m_ComponentTypeCount++] = type;
 
         return RESULT_OK;
     }
@@ -278,7 +301,7 @@ namespace dmGameObject
         return ret;
     }
 
-    Result RegisterComponentTypes(dmResource::HFactory factory, HCollection collection, HScriptContext script_context)
+    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, HScriptContext script_context)
     {
         ComponentType script_component;
         dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
@@ -290,7 +313,7 @@ namespace dmGameObject
         script_component.m_UpdateFunction = &ScriptUpdateComponent;
         script_component.m_OnEventFunction = &ScriptOnEventComponent;
         script_component.m_InstanceHasUserData = true;
-        return RegisterComponentType(collection, script_component);
+        return RegisterComponentType(regist, script_component);
     }
 
     static void EraseSwapLevelIndex(HCollection collection, HInstance instance)
@@ -357,7 +380,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
-            ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
             if (!component_type)
             {
                 dmLogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
@@ -384,7 +407,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
-            ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
@@ -413,7 +436,7 @@ namespace dmGameObject
             for (uint32_t i = 0; i < components_created; ++i)
             {
                 Prototype::Component* component = &proto->m_Components[i];
-                ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
@@ -559,7 +582,7 @@ namespace dmGameObject
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
                 Prototype::Component* component = &prototype->m_Components[i];
-                ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
@@ -629,7 +652,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
-            ComponentType* component_type = FindComponentType(collection, component->m_ResourceType);
+            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
@@ -824,7 +847,7 @@ namespace dmGameObject
                 uint32_t components_size = prototype->m_Components.Size();
                 for (uint32_t i = 0; i < components_size; ++i)
                 {
-                    ComponentType* component_type = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
+                    ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType);
                     assert(component_type);
                     if (component_type->m_OnEventFunction)
                     {
@@ -850,7 +873,7 @@ namespace dmGameObject
             else
             {
                 uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
-                ComponentType* component_type = FindComponentType(context->m_Collection, resource_type);
+                ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type);
                 assert(component_type);
 
                 if (component_type->m_OnEventFunction)
@@ -859,7 +882,7 @@ namespace dmGameObject
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
                     {
-                        ComponentType* ct = FindComponentType(context->m_Collection, prototype->m_Components[i].m_ResourceType);
+                        ComponentType* ct = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType);
                         assert(component_type);
                         if (ct->m_InstanceHasUserData)
                         {
@@ -971,13 +994,13 @@ namespace dmGameObject
 
         bool ret = true;
 
-        uint32_t component_types = collection->m_ComponentTypeCount;
+        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
             if (!DispatchEvents(collection, update_context))
                 ret = false;
 
-            ComponentType* component_type = &collection->m_ComponentTypes[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
             {
