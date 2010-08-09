@@ -952,6 +952,8 @@ int _glfwInitJoysticks( void )
 
             _glfwJoy[i].NumButtons = device->buttons;
             _glfwJoy[i].Button = malloc(sizeof(char) * device->buttons);
+            strncpy(_glfwJoy[i].DeviceId, device->product, sizeof(_glfwJoy[i].DeviceId));
+            _glfwJoy[i].DeviceId[sizeof(_glfwJoy[i].DeviceId)-1] = '\0';
 
             i++;
             device = device->pNext;
@@ -1075,7 +1077,7 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     }
     else
     {
-        *device_id = _glfwJoy[joy_index].Device->Product;
+        *device_id = _glfwJoy[ joy ].DeviceId;
         return GL_TRUE;
     }
 }
