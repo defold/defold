@@ -50,19 +50,19 @@ namespace dmGameObject
 
     bool    RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
 
-    dmResource::CreateResult ScriptCreateResource(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename);
-    dmResource::CreateResult ScriptDestroyResource(dmResource::HFactory factory,
-                                           void* context,
-                                           dmResource::SResourceDescriptor* resource);
-    dmResource::CreateResult ScriptRecreateResource(dmResource::HFactory factory,
-                                            void* context,
-                                            const void* buffer, uint32_t buffer_size,
-                                            dmResource::SResourceDescriptor* resource,
-                                            const char* filename);
+    dmResource::CreateResult ResCreateScript(dmResource::HFactory factory,
+                                             void* context,
+                                             const void* buffer, uint32_t buffer_size,
+                                             dmResource::SResourceDescriptor* resource,
+                                             const char* filename);
+    dmResource::CreateResult ResDestroyScript(dmResource::HFactory factory,
+                                             void* context,
+                                             dmResource::SResourceDescriptor* resource);
+    dmResource::CreateResult ResRecreateScript(dmResource::HFactory factory,
+                                               void* context,
+                                               const void* buffer, uint32_t buffer_size,
+                                               dmResource::SResourceDescriptor* resource,
+                                               const char* filename);
     CreateResult ScriptCreateComponent(HCollection collection,
             HInstance instance,
             void* resource,

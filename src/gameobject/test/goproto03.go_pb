@@ -1,13 +1,13 @@
 Name: "MyObject01"
 Components
 {
-    Name: "script01.scriptc"
+    Resource: "script01.scriptc"
     Position: { X: 0 Y: 0 Z: 0 }
     Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
 }
 Components
 {
-    Name: "pycompDOESNOTEXISTS.pc"
+    Resource: "pycompDOESNOTEXISTS.pc"
     Position: { X: 0 Y: 0 Z: 0 }
     Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
 }

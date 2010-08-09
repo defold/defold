@@ -32,7 +32,7 @@ protected:
         factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
         regist = dmGameObject::NewRegister();
         collection = dmGameObject::NewCollection(factory, regist, 1024);
-        dmGameObject::RegisterResourceTypes(factory);
+        dmGameObject::RegisterResourceTypes(factory, regist);
         script_context = dmGameObject::CreateScriptContext(0x0);
         dmGameObject::RegisterComponentTypes(factory, regist, script_context);
 
@@ -773,7 +773,7 @@ TEST(ScriptTest, TestReloadScript)
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     dmGameObject::HRegister regist = dmGameObject::NewRegister();
     dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, regist, 1024);
-    dmGameObject::RegisterResourceTypes(factory);
+    dmGameObject::RegisterResourceTypes(factory, regist);
     dmGameObject::HScriptContext script_context = dmGameObject::CreateScriptContext(0x0);
     dmGameObject::RegisterComponentTypes(factory, regist, script_context);
 
@@ -794,7 +794,7 @@ TEST(ScriptTest, TestReloadScript)
     prototype.m_Components.m_Count = 1;
     dmGameObject::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
-    component_desc.m_Name = script_file_name;
+    component_desc.m_Resource = script_file_name;
     component_desc.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     component_desc.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     prototype.m_Components.m_Data = &component_desc;

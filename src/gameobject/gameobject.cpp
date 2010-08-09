@@ -221,11 +221,11 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    dmResource::CreateResult PrototypeCreate(dmResource::HFactory factory,
-                                             void* context,
-                                             const void* buffer, uint32_t buffer_size,
-                                             dmResource::SResourceDescriptor* resource,
-                                             const char* filename)
+    dmResource::CreateResult ResCreatePrototype(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename)
     {
         PrototypeDesc* proto_desc;
 
@@ -240,9 +240,9 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
-            const char* component_name = proto_desc->m_Components[i].m_Name;
+            const char* component_resource = proto_desc->m_Components[i].m_Resource;
             void* component;
-            dmResource::FactoryResult fact_e = dmResource::Get(factory, component_name, (void**) &component);
+            dmResource::FactoryResult fact_e = dmResource::Get(factory, component_resource, (void**) &component);
 
             if (fact_e != dmResource::FACTORY_RESULT_OK)
             {
@@ -260,7 +260,7 @@ namespace dmGameObject
                 uint32_t resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.Push(Prototype::Component(component, resource_type, component_name));
+                proto->m_Components.Push(Prototype::Component(component, resource_type, component_resource));
             }
         }
 
@@ -272,9 +272,9 @@ namespace dmGameObject
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult PrototypeDestroy(dmResource::HFactory factory,
-                                              void* context,
-                                              dmResource::SResourceDescriptor* resource)
+    dmResource::CreateResult ResDestroyPrototype(dmResource::HFactory factory,
+                                                 void* context,
+                                                 dmResource::SResourceDescriptor* resource)
     {
         Prototype* proto = (Prototype*) resource->m_Resource;
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
@@ -287,14 +287,127 @@ namespace dmGameObject
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
+    dmResource::CreateResult ResCreateCollection(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename)
+    {
+        Register* regist = (Register*) context;
+
+        CollectionDesc* collection_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObject::CollectionDesc>(buffer, buffer_size, &collection_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+
+        // TODO: How to configure 1024. In collection?
+        HCollection collection = NewCollection(factory, regist, 1024);
+
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            // Instances will never be removed for now.. will be fixed when collection loading is implemented.
+            dmGameObject::HInstance instance = dmGameObject::New(collection, collection_desc->m_Instances[i].m_Prototype);
+            if (instance != 0x0)
+            {
+                dmGameObject::SetPosition(instance, collection_desc->m_Instances[i].m_Position);
+                dmGameObject::SetRotation(instance, collection_desc->m_Instances[i].m_Rotation);
+
+                if (dmGameObject::SetIdentifier(collection, instance, collection_desc->m_Instances[i].m_Name)
+                   != dmGameObject::RESULT_OK)
+                {
+                    dmLogError("Unable to set identifier for %s. Name clash?", collection_desc->m_Instances[i].m_Name);
+                }
+                else
+                {
+                    dmGameObject::SetScriptStringProperty(instance, "Id", collection_desc->m_Instances[i].m_Name);
+                }
+
+                for (uint32_t j = 0; j < collection_desc->m_Instances[i].m_ScriptProperties.m_Count; ++j)
+                {
+                    const dmGameObject::Property& p = collection_desc->m_Instances[i].m_ScriptProperties[j];
+                    switch (p.m_Type)
+                    {
+                        case dmGameObject::Property::STRING:
+                            dmGameObject::SetScriptStringProperty(instance, p.m_Key, p.m_Value);
+                        break;
+
+                        case dmGameObject::Property::INTEGER:
+                            dmGameObject::SetScriptIntProperty(instance, p.m_Key, atoi(p.m_Value));
+                        break;
+
+                        case dmGameObject::Property::FLOAT:
+                            dmGameObject::SetScriptFloatProperty(instance, p.m_Key, atof(p.m_Value));
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                dmLogFatal("Could not instantiate game object from prototype %s.", collection_desc->m_Instances[i].m_Prototype);
+            }
+        }
+
+        // Setup hierarchy
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(collection_desc->m_Instances[i].m_Name));
+            assert(parent);
+
+            for (uint32_t j = 0; j < collection_desc->m_Instances[i].m_Children.m_Count; ++j)
+            {
+
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(collection_desc->m_Instances[i].m_Children[j]));
+                if (child)
+                {
+                    dmGameObject::Result r = dmGameObject::SetParent(child, parent);
+                    if (r != dmGameObject::RESULT_OK)
+                    {
+                        dmLogError("Unable to set %s as parent to %s (%d)", collection_desc->m_Instances[i].m_Name, collection_desc->m_Instances[i].m_Children[j], r);
+                    }
+                    else
+                    {
+                        dmGameObject::SetScriptStringProperty(child, "Parent", collection_desc->m_Instances[i].m_Name);
+                    }
+                }
+                else
+                {
+                    dmLogError("Child not found: %s", collection_desc->m_Instances[i].m_Children[j]);
+                }
+            }
+        }
+
+        resource->m_Resource = (void*) collection;
+
+        dmDDF::FreeMessage(collection_desc);
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult ResDestroyCollection(dmResource::HFactory factory,
+                                                 void* context,
+                                                 dmResource::SResourceDescriptor* resource)
+    {
+        HCollection collection = (HCollection) resource->m_Resource;
+        dmMessage::Consume(g_Socket);
+        dmGameObject::DeleteAll(collection);
+        DeleteCollection(collection);
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
     {
         dmResource::FactoryResult ret = dmResource::FACTORY_RESULT_OK;
-        ret = dmResource::RegisterType(factory, "go", 0, &PrototypeCreate, &PrototypeDestroy, 0);
+        ret = dmResource::RegisterType(factory, "go", 0, &ResCreatePrototype, &ResDestroyPrototype, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ScriptCreateResource, &ScriptDestroyResource, &ScriptRecreateResource);
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ResCreateScript, &ResDestroyScript, &ResRecreateScript);
+        if (ret != dmResource::FACTORY_RESULT_OK)
+            return ret;
+
+        // TODO: Change to collectionc!
+        ret = dmResource::RegisterType(factory, "level", regist, &ResCreateCollection, &ResDestroyCollection, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 

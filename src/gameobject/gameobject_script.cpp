@@ -920,11 +920,11 @@ bail:
         return false;
     }
 
-    dmResource::CreateResult ScriptCreateResource(dmResource::HFactory factory,
-                                          void* context,
-                                          const void* buffer, uint32_t buffer_size,
-                                          dmResource::SResourceDescriptor* resource,
-                                          const char* filename)
+    dmResource::CreateResult ResCreateScript(dmResource::HFactory factory,
+                                             void* context,
+                                             const void* buffer, uint32_t buffer_size,
+                                             dmResource::SResourceDescriptor* resource,
+                                             const char* filename)
     {
         HScript script = NewScript(buffer, buffer_size, filename);
         if (script)
@@ -938,19 +938,19 @@ bail:
         }
     }
 
-    dmResource::CreateResult ScriptDestroyResource(dmResource::HFactory factory,
-                                           void* context,
-                                           dmResource::SResourceDescriptor* resource)
+    dmResource::CreateResult ResDestroyScript(dmResource::HFactory factory,
+                                              void* context,
+                                              dmResource::SResourceDescriptor* resource)
     {
         DeleteScript((HScript) resource->m_Resource);
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult ScriptRecreateResource(dmResource::HFactory factory,
-                                            void* context,
-                                            const void* buffer, uint32_t buffer_size,
-                                            dmResource::SResourceDescriptor* resource,
-                                            const char* filename)
+    dmResource::CreateResult ResRecreateScript(dmResource::HFactory factory,
+                                               void* context,
+                                               const void* buffer, uint32_t buffer_size,
+                                               dmResource::SResourceDescriptor* resource,
+                                               const char* filename)
     {
         HScript script = (HScript) resource->m_Resource;
         if (ReloadScript(script, buffer, buffer_size, filename))
