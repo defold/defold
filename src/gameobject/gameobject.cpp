@@ -406,8 +406,7 @@ namespace dmGameObject
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        // TODO: Change to collectionc!
-        ret = dmResource::RegisterType(factory, "level", regist, &ResCreateCollection, &ResDestroyCollection, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCreateCollection, &ResDestroyCollection, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
