@@ -746,6 +746,27 @@ TEST_F(GameObjectTest, TestFailingScript03)
     dmGameObject::Delete(collection, go);
 }
 
+TEST_F(GameObjectTest, Collection)
+{
+    // NOTE: Coll is local and not collection in GameObjectTest
+    dmGameObject::HCollection coll;
+    dmResource::FactoryResult r = dmResource::Get(factory, "level1.collectionc", (void**) &coll);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+    ASSERT_NE((void*) 0, coll);
+
+    uint32_t go01ident = dmHashString32("go01");
+    dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
+    ASSERT_NE((void*) 0, go01);
+
+    uint32_t go02ident = dmHashString32("go02");
+    dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
+    ASSERT_NE((void*) 0, go02);
+
+    ASSERT_NE(go01, go02);
+
+    dmResource::Release(factory, (void*) coll);
+}
+
 static void CreateFile(const char* file_name, const char* contents)
 {
     FILE* f;
