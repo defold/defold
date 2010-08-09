@@ -127,7 +127,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HCollection collection,
+                                                  dmGameObject::HRegister regist,
                                                   dmPhysics::HWorld physics_world)
     {
         uint32_t type;
@@ -152,7 +152,7 @@ namespace dmGameSystem
         component_type.m_UpdateFunction = &UpdateCollisionObject;
         component_type.m_OnEventFunction = &OnEventCollisionObject;
         component_type.m_InstanceHasUserData = (uint32_t)true;
-        dmGameObject::Result res = dmGameObject::RegisterComponentType(collection, component_type);
+        dmGameObject::Result res = dmGameObject::RegisterComponentType(regist, component_type);
         return res;
     }
 }

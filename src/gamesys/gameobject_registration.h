@@ -7,7 +7,7 @@
 namespace dmGameSystem
 {
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HCollection collection,
+                                                  dmGameObject::HRegister regist,
                                                   dmPhysics::HWorld physics_world);
 }
 
