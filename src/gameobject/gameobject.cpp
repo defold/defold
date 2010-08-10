@@ -43,6 +43,7 @@ namespace dmGameObject
         Collection*    m_CurrentCollection;
 
         Vector3        m_AccumulatedTranslation;
+        Quat           m_AccumulatedRotation;
 
         Register()
         {
@@ -53,6 +54,7 @@ namespace dmGameObject
             m_CurrentCollection = 0;
             // Accumulated position for child collections
             m_AccumulatedTranslation = Vector3(0,0,0);
+            m_AccumulatedRotation = Quat::identity();
         }
 
         ~Register()
@@ -341,6 +343,7 @@ namespace dmGameObject
             collection = NewCollection(factory, regist, 1024);
             regist->m_CurrentCollection = collection;
             regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
+            regist->m_AccumulatedRotation = Quat::identity();
 
             // NOTE: Root-collection name is not prepended to identifier
             prev_identifier_path[0] = '\0';
@@ -357,27 +360,31 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
-            dmGameObject::HInstance instance = dmGameObject::New(collection, collection_desc->m_Instances[i].m_Prototype);
+            const dmGameObject::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+            dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
             if (instance != 0x0)
             {
-                dmGameObject::SetPosition(instance, collection_desc->m_Instances[i].m_Position + regist->m_AccumulatedTranslation);
-                dmGameObject::SetRotation(instance, collection_desc->m_Instances[i].m_Rotation);
+                Quat rot = regist->m_AccumulatedRotation * instance_desc.m_Rotation;
+                Vector3 pos = rotate(regist->m_AccumulatedRotation, Vector3(instance_desc.m_Position)) + regist->m_AccumulatedTranslation;
+
+                dmGameObject::SetPosition(instance, Point3(pos));
+                dmGameObject::SetRotation(instance, rot);
 
                 dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
-                dmStrlCat(tmp_ident, collection_desc->m_Instances[i].m_Name, sizeof(tmp_ident));
+                dmStrlCat(tmp_ident, instance_desc.m_Name, sizeof(tmp_ident));
 
                 if (dmGameObject::SetIdentifier(collection, instance, tmp_ident) != dmGameObject::RESULT_OK)
                 {
-                    dmLogError("Unable to set identifier for %s. Name clash?", collection_desc->m_Instances[i].m_Name);
+                    dmLogError("Unable to set identifier for %s. Name clash?", instance_desc.m_Name);
                 }
                 else
                 {
-                    dmGameObject::SetScriptStringProperty(instance, "Id", collection_desc->m_Instances[i].m_Name);
+                    dmGameObject::SetScriptStringProperty(instance, "Id", instance_desc.m_Name);
                 }
 
-                for (uint32_t j = 0; j < collection_desc->m_Instances[i].m_ScriptProperties.m_Count; ++j)
+                for (uint32_t j = 0; j < instance_desc.m_ScriptProperties.m_Count; ++j)
                 {
-                    const dmGameObject::Property& p = collection_desc->m_Instances[i].m_ScriptProperties[j];
+                    const dmGameObject::Property& p = instance_desc.m_ScriptProperties[j];
                     switch (p.m_Type)
                     {
                         case dmGameObject::Property::STRING:
@@ -396,7 +403,7 @@ namespace dmGameObject
             }
             else
             {
-                dmLogError("Could not instantiate game object from prototype %s.", collection_desc->m_Instances[i].m_Prototype);
+                dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
                 res = dmResource::CREATE_RESULT_UNKNOWN;
                 goto bail;
             }
@@ -405,30 +412,32 @@ namespace dmGameObject
         // Setup hierarchy
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
+            const dmGameObject::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+
             dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
-            dmStrlCat(tmp_ident, collection_desc->m_Instances[i].m_Name, sizeof(tmp_ident));
+            dmStrlCat(tmp_ident, instance_desc.m_Name, sizeof(tmp_ident));
 
             dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(tmp_ident));
             assert(parent);
 
-            for (uint32_t j = 0; j < collection_desc->m_Instances[i].m_Children.m_Count; ++j)
+            for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
             {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(collection_desc->m_Instances[i].m_Children[j]));
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(instance_desc.m_Children[j]));
                 if (child)
                 {
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);
                     if (r != dmGameObject::RESULT_OK)
                     {
-                        dmLogError("Unable to set %s as parent to %s (%d)", collection_desc->m_Instances[i].m_Name, collection_desc->m_Instances[i].m_Children[j], r);
+                        dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Name, instance_desc.m_Children[j], r);
                     }
                     else
                     {
-                        dmGameObject::SetScriptStringProperty(child, "Parent", collection_desc->m_Instances[i].m_Name);
+                        dmGameObject::SetScriptStringProperty(child, "Parent", instance_desc.m_Name);
                     }
                 }
                 else
                 {
-                    dmLogError("Child not found: %s", collection_desc->m_Instances[i].m_Children[j]);
+                    dmLogError("Child not found: %s", instance_desc.m_Children[j]);
                 }
             }
         }
@@ -436,9 +445,20 @@ namespace dmGameObject
         // Load sub collections
         for (uint32_t i = 0; i < collection_desc->m_CollectionInstances.m_Count; ++i)
         {
+            dmGameObject::CollectionInstanceDesc& coll_instance_desc = collection_desc->m_CollectionInstances[i];
+
             Collection* child_coll;
-            regist->m_AccumulatedTranslation += collection_desc->m_CollectionInstances[i].m_Translation;
-            dmResource::FactoryResult r = dmResource::Get(factory, collection_desc->m_CollectionInstances[i].m_Collection, (void**) &child_coll);
+            Vector3 prev_translation = regist->m_AccumulatedTranslation;
+            Quat prev_rotation = regist->m_AccumulatedRotation;
+
+            Quat rot = regist->m_AccumulatedRotation * coll_instance_desc.m_Rotation;
+            Vector3 trans = (regist->m_AccumulatedRotation * Quat(Vector3(coll_instance_desc.m_Position), 0.0f) * conj(regist->m_AccumulatedRotation)).getXYZ()
+                       + regist->m_AccumulatedTranslation;
+
+            regist->m_AccumulatedRotation = rot;
+            regist->m_AccumulatedTranslation = trans;
+
+            dmResource::FactoryResult r = dmResource::Get(factory, coll_instance_desc.m_Collection, (void**) &child_coll);
             if (r != dmResource::FACTORY_RESULT_OK)
             {
                 res = dmResource::CREATE_RESULT_UNKNOWN;
@@ -449,7 +469,9 @@ namespace dmGameObject
                 assert(child_coll != collection);
                 dmResource::Release(factory, (void*) child_coll);
             }
-            regist->m_AccumulatedTranslation -= collection_desc->m_CollectionInstances[i].m_Translation;
+
+            regist->m_AccumulatedTranslation = prev_translation;
+            regist->m_AccumulatedRotation = prev_rotation;
         }
 
         if (loading_root)
@@ -784,7 +806,7 @@ bail:
             {
                 const Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
                 trans->m_Rotation = parent_trans->m_Rotation * instance->m_Rotation;
-                trans->m_Translation = (parent_trans->m_Rotation * Quat(Vector3(instance->m_Position), 0.0f) * conj(parent_trans->m_Rotation)).getXYZ()
+                trans->m_Translation = rotate(parent_trans->m_Rotation, Vector3(instance->m_Position))
                                       + parent_trans->m_Translation;
             }
 
@@ -1191,7 +1213,7 @@ bail:
                  */
 
                 trans->m_Rotation = parent_trans->m_Rotation * instance->m_Rotation;
-                trans->m_Translation = (parent_trans->m_Rotation * Quat(Vector3(instance->m_Position), 0.0f) * conj(parent_trans->m_Rotation)).getXYZ()
+                trans->m_Translation = rotate(parent_trans->m_Rotation, Vector3(instance->m_Position))
                                       + parent_trans->m_Translation;
             }
         }

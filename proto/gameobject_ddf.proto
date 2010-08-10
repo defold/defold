@@ -47,7 +47,8 @@ message InstanceDesc
 message CollectionInstanceDesc
 {
     required string         Collection  = 1;
-    required dmMath.Vector3 Translation = 2;
+    required dmMath.Point3  Position    = 2;
+    required dmMath.Quat    Rotation    = 3;
 }
 
 message CollectionDesc
