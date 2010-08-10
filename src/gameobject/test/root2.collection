@@ -1,0 +1,25 @@
+Name: "root"
+
+Instances
+{
+    Prototype: "goproto01.go"
+    Name: "go01"
+    Position { X: 123 Y: 0 Z: 0 }
+    Rotation { X: 0.0 Y: 1.0 Z: 0.0 W: 0.0 }
+}
+
+Instances
+{
+    Prototype: "goproto02.go"
+    Name: "go02"
+    Position { X: 456 Y: 0 Z: 0 }
+    Rotation { X: 0.0 Y: 2.0 Z: 0.0 W: 0.0 }
+}
+
+CollectionInstances:
+{
+    Collection: "failing_sub.collectionc"
+    Translation: { X: 0 Y: 1000 Z: 0 }
+}
+
+

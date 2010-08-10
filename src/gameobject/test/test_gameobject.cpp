@@ -748,23 +748,88 @@ TEST_F(GameObjectTest, TestFailingScript03)
 
 TEST_F(GameObjectTest, Collection)
 {
-    // NOTE: Coll is local and not collection in GameObjectTest
-    dmGameObject::HCollection coll;
-    dmResource::FactoryResult r = dmResource::Get(factory, "level1.collectionc", (void**) &coll);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
-    ASSERT_NE((void*) 0, coll);
+    for (int i = 0; i < 10; ++i)
+    {
+        // NOTE: Coll is local and not collection in GameObjectTest
+        dmGameObject::HCollection coll;
+        dmResource::FactoryResult r = dmResource::Get(factory, "level1.collectionc", (void**) &coll);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+        ASSERT_NE((void*) 0, coll);
 
-    uint32_t go01ident = dmHashString32("go01");
-    dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
-    ASSERT_NE((void*) 0, go01);
+        uint32_t go01ident = dmHashString32("go01");
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
+        ASSERT_NE((void*) 0, go01);
 
-    uint32_t go02ident = dmHashString32("go02");
-    dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
-    ASSERT_NE((void*) 0, go02);
+        uint32_t go02ident = dmHashString32("go02");
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
+        ASSERT_NE((void*) 0, go02);
 
-    ASSERT_NE(go01, go02);
+        ASSERT_NE(go01, go02);
 
-    dmResource::Release(factory, (void*) coll);
+        dmResource::Release(factory, (void*) coll);
+    }
+}
+
+TEST_F(GameObjectTest, CollectionFail)
+{
+    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    for (int i = 0; i < 10; ++i)
+    {
+        // NOTE: Coll is local and not collection in GameObjectTest
+        dmGameObject::HCollection coll;
+        dmResource::FactoryResult r = dmResource::Get(factory, "failing_sub.collectionc", (void**) &coll);
+        ASSERT_NE(dmResource::FACTORY_RESULT_OK, r);
+    }
+    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+}
+
+TEST_F(GameObjectTest, CollectionInCollection)
+{
+    for (int i = 0; i < 10; ++i)
+    {
+        // NOTE: Coll is local and not collection in GameObjectTest
+        dmGameObject::HCollection coll;
+        dmResource::FactoryResult r = dmResource::Get(factory, "root.collectionc", (void**) &coll);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+        ASSERT_NE((void*) 0, coll);
+
+        uint32_t go01ident = dmHashString32("go01");
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
+        ASSERT_NE((void*) 0, go01);
+        ASSERT_NEAR(dmGameObject::GetPosition(go01).getX(), 123.0f, 0.0000f);
+
+        uint32_t go02ident = dmHashString32("go02");
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
+        ASSERT_NE((void*) 0, go02);
+        ASSERT_NEAR(dmGameObject::GetPosition(go02).getX(), 456.0f, 0.0000f);
+
+        ASSERT_NE(go01, go02);
+
+        uint32_t go01_sub_ident = dmHashString32("sub.go01");
+        dmGameObject::HInstance go01_sub = dmGameObject::GetInstanceFromIdentifier(coll, go01_sub_ident);
+        ASSERT_NE((void*) 0, go01_sub);
+        ASSERT_NEAR(dmGameObject::GetPosition(go01_sub).getY(), 1000.0f + 10.0f, 0.0000f);
+
+        uint32_t go02_sub_ident = dmHashString32("sub.go02");
+        dmGameObject::HInstance go02_sub = dmGameObject::GetInstanceFromIdentifier(coll, go02_sub_ident);
+        ASSERT_NE((void*) 0, go02_sub);
+        ASSERT_NEAR(dmGameObject::GetPosition(go02_sub).getY(), 1000.0f + 20.0f, 0.0000f);
+
+        dmResource::Release(factory, (void*) coll);
+    }
+}
+
+TEST_F(GameObjectTest, CollectionInCollectionChildFail)
+{
+    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    for (int i = 0; i < 10; ++i)
+    {
+        // NOTE: Coll is local and not collection in GameObjectTest
+        dmGameObject::HCollection coll;
+        dmResource::FactoryResult r = dmResource::Get(factory, "root2.collectionc", (void**) &coll);
+        ASSERT_NE(dmResource::FACTORY_RESULT_OK, r);
+    }
+    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
 }
 
 static void CreateFile(const char* file_name, const char* contents)

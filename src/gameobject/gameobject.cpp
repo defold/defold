@@ -1,5 +1,6 @@
 #include <new>
 #include <stdio.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
@@ -7,6 +8,8 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/profile.h>
+#include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
@@ -26,14 +29,35 @@ namespace dmGameObject
     // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
+    #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
     struct Register
     {
-        uint32_t      m_ComponentTypeCount;
-        ComponentType m_ComponentTypes[MAX_COMPONENT_TYPES];
+        uint32_t       m_ComponentTypeCount;
+        ComponentType  m_ComponentTypes[MAX_COMPONENT_TYPES];
+        dmMutex::Mutex m_Mutex;
+        // Current identifier path. Used during loading of collections and specifically collections in collections.
+        // Contains the current path and is *protected* by m_Mutex.
+        char           m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
+
+        // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
+        Collection*    m_CurrentCollection;
+
+        Vector3        m_AccumulatedPosition;
 
         Register()
         {
             m_ComponentTypeCount = 0;
+            m_Mutex = dmMutex::New();
+            m_CurrentIdentifierPath[0] = '\0';
+            // If m_CurrentCollection != 0 => loading sub-collection
+            m_CurrentCollection = 0;
+            // Accumulated position for child collections
+            m_AccumulatedPosition = Vector3(0,0,0);
+        }
+
+        ~Register()
+        {
+            dmMutex::Delete(m_Mutex);
         }
     };
 
@@ -56,7 +80,7 @@ namespace dmGameObject
             m_WorldTransforms.SetCapacity(max_instances);
             m_WorldTransforms.SetSize(max_instances);
             m_InstancesToDelete.SetCapacity(max_instances);
-            m_IDToInstance.SetCapacity(max_instances/3, max_instances);
+            m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
             m_InUpdate = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
@@ -294,6 +318,8 @@ namespace dmGameObject
                                                 const char* filename)
     {
         Register* regist = (Register*) context;
+        char prev_identifier_path[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
+        char tmp_ident[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
 
         CollectionDesc* collection_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObject::CollectionDesc>(buffer, buffer_size, &collection_desc);
@@ -301,21 +327,46 @@ namespace dmGameObject
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        dmResource::CreateResult res = dmResource::CREATE_RESULT_OK;
 
-        // TODO: How to configure 1024. In collection?
-        HCollection collection = NewCollection(factory, regist, 1024);
+        // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
+        dmMutex::Lock(regist->m_Mutex);
+
+        HCollection collection;
+        bool loading_root;
+        if (regist->m_CurrentCollection == 0)
+        {
+            loading_root = true;
+            // TODO: How to configure 1024. In collection?
+            collection = NewCollection(factory, regist, 1024);
+            regist->m_CurrentCollection = collection;
+            regist->m_AccumulatedPosition = Vector3(0, 0, 0);
+
+            // NOTE: Root-collection name is not prepended to identifier
+            prev_identifier_path[0] = '\0';
+            regist->m_CurrentIdentifierPath[0] = '\0';
+        }
+        else
+        {
+            loading_root = false;
+            collection = regist->m_CurrentCollection;
+            dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+            dmStrlCat(regist->m_CurrentIdentifierPath, collection_desc->m_Name, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+            dmStrlCat(regist->m_CurrentIdentifierPath, ".", DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+        }
 
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
-            // Instances will never be removed for now.. will be fixed when collection loading is implemented.
             dmGameObject::HInstance instance = dmGameObject::New(collection, collection_desc->m_Instances[i].m_Prototype);
             if (instance != 0x0)
             {
-                dmGameObject::SetPosition(instance, collection_desc->m_Instances[i].m_Position);
+                dmGameObject::SetPosition(instance, collection_desc->m_Instances[i].m_Position + regist->m_AccumulatedPosition);
                 dmGameObject::SetRotation(instance, collection_desc->m_Instances[i].m_Rotation);
 
-                if (dmGameObject::SetIdentifier(collection, instance, collection_desc->m_Instances[i].m_Name)
-                   != dmGameObject::RESULT_OK)
+                dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
+                dmStrlCat(tmp_ident, collection_desc->m_Instances[i].m_Name, sizeof(tmp_ident));
+
+                if (dmGameObject::SetIdentifier(collection, instance, tmp_ident) != dmGameObject::RESULT_OK)
                 {
                     dmLogError("Unable to set identifier for %s. Name clash?", collection_desc->m_Instances[i].m_Name);
                 }
@@ -345,19 +396,23 @@ namespace dmGameObject
             }
             else
             {
-                dmLogFatal("Could not instantiate game object from prototype %s.", collection_desc->m_Instances[i].m_Prototype);
+                dmLogError("Could not instantiate game object from prototype %s.", collection_desc->m_Instances[i].m_Prototype);
+                res = dmResource::CREATE_RESULT_UNKNOWN;
+                goto bail;
             }
         }
 
         // Setup hierarchy
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
-            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(collection_desc->m_Instances[i].m_Name));
+            dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
+            dmStrlCat(tmp_ident, collection_desc->m_Instances[i].m_Name, sizeof(tmp_ident));
+
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(tmp_ident));
             assert(parent);
 
             for (uint32_t j = 0; j < collection_desc->m_Instances[i].m_Children.m_Count; ++j)
             {
-
                 dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(collection_desc->m_Instances[i].m_Children[j]));
                 if (child)
                 {
@@ -378,10 +433,54 @@ namespace dmGameObject
             }
         }
 
-        resource->m_Resource = (void*) collection;
+        // Load sub collections
+        for (uint32_t i = 0; i < collection_desc->m_CollectionInstances.m_Count; ++i)
+        {
+            Collection* child_coll;
+            regist->m_AccumulatedPosition += collection_desc->m_CollectionInstances[i].m_Translation;
+            dmResource::FactoryResult r = dmResource::Get(factory, collection_desc->m_CollectionInstances[i].m_Collection, (void**) &child_coll);
+            if (r != dmResource::FACTORY_RESULT_OK)
+            {
+                res = dmResource::CREATE_RESULT_UNKNOWN;
+                goto bail;
+            }
+            else
+            {
+                assert(child_coll != collection);
+                dmResource::Release(factory, (void*) child_coll);
+            }
+            regist->m_AccumulatedPosition -= collection_desc->m_CollectionInstances[i].m_Translation;
+        }
 
+        if (loading_root)
+        {
+            resource->m_Resource = (void*) collection;
+        }
+        else
+        {
+            // We must create a child collection. We can't return "collection" and release.
+            // The root collection is not yet created.
+            resource->m_Resource = (void*) NewCollection(factory, regist, 1);
+        }
+bail:
         dmDDF::FreeMessage(collection_desc);
-        return dmResource::CREATE_RESULT_OK;
+        dmStrlCpy(regist->m_CurrentIdentifierPath, prev_identifier_path, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+
+        if (loading_root && res != dmResource::CREATE_RESULT_OK)
+        {
+            // Loading of root-collection is responsible for deleting
+            DeleteAll(collection);
+            DeleteCollection(collection);
+        }
+
+        if (loading_root)
+        {
+            // We must reset this to next load.
+            regist->m_CurrentCollection = 0;
+        }
+
+        dmMutex::Unlock(regist->m_Mutex);
+        return res;
     }
 
     dmResource::CreateResult ResDestroyCollection(dmResource::HFactory factory,
