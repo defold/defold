@@ -23,8 +23,17 @@ char* dmStrTok(char *string, const char *delim, char **lasts);
  * @param dst Destination string
  * @param src Source string
  * @param size Max size
- * @return
+ * @return Total length of the created string
  */
 size_t dmStrlCpy(char *dst, const char *src, size_t size);
+
+/**
+ * Size-bounded string concatenation. Same as OpenBSD 2.4 strlcat. (http://www.manpagez.com/man/3/strlcat)
+ * @param dst Destination string
+ * @param src Source string
+ * @param size Max size
+ * @return Total length of the created string
+ */
+size_t dmStrlCat(char *dst, const char *src, size_t size);
 
 #endif //DM_DSTRINGS_H

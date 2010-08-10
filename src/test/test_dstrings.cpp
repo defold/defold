@@ -86,6 +86,38 @@ TEST(dmStrings, dmStrlCpy2)
     ASSERT_STREQ("fo", dst);
 }
 
+TEST(dmStrings, dmStrlCat1)
+{
+    const char* src = "foo";
+    char dst[1];
+    dst[0] = 'x';
+
+    dmStrlCat(dst, src, 0);
+    ASSERT_EQ('x', dst[0]);
+}
+
+TEST(dmStrings, dmStrlCat2)
+{
+    const char* src = "foo";
+    char dst[3] = { 0 };
+
+    dmStrlCat(dst, src, sizeof(dst));
+    ASSERT_STREQ("fo", dst);
+}
+
+TEST(dmStrings, dmStrlCat3)
+{
+    const char* src = "foo";
+    char dst[6];
+    dst[0] = 'x';
+    dst[1] = 'y';
+    dst[2] = 'z';
+    dst[3] = '\0';
+
+    dmStrlCat(dst, src, sizeof(dst));
+    ASSERT_STREQ("xyzfo", dst);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
