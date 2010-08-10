@@ -54,7 +54,7 @@ namespace dmMutex
 
     void Lock(Mutex mutex)
     {
-        uint32_t ret = WaitForSingleObject(thread, INFINITE);
+        DWORD ret = WaitForSingleObject(thread, INFINITE);
         assert(ret == WAIT_OBJECT_0);
     }
 
