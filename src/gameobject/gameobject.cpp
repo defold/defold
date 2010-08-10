@@ -42,7 +42,7 @@ namespace dmGameObject
         // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
         Collection*    m_CurrentCollection;
 
-        Vector3        m_AccumulatedPosition;
+        Vector3        m_AccumulatedTranslation;
 
         Register()
         {
@@ -52,7 +52,7 @@ namespace dmGameObject
             // If m_CurrentCollection != 0 => loading sub-collection
             m_CurrentCollection = 0;
             // Accumulated position for child collections
-            m_AccumulatedPosition = Vector3(0,0,0);
+            m_AccumulatedTranslation = Vector3(0,0,0);
         }
 
         ~Register()
@@ -340,7 +340,7 @@ namespace dmGameObject
             // TODO: How to configure 1024. In collection?
             collection = NewCollection(factory, regist, 1024);
             regist->m_CurrentCollection = collection;
-            regist->m_AccumulatedPosition = Vector3(0, 0, 0);
+            regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
 
             // NOTE: Root-collection name is not prepended to identifier
             prev_identifier_path[0] = '\0';
@@ -360,7 +360,7 @@ namespace dmGameObject
             dmGameObject::HInstance instance = dmGameObject::New(collection, collection_desc->m_Instances[i].m_Prototype);
             if (instance != 0x0)
             {
-                dmGameObject::SetPosition(instance, collection_desc->m_Instances[i].m_Position + regist->m_AccumulatedPosition);
+                dmGameObject::SetPosition(instance, collection_desc->m_Instances[i].m_Position + regist->m_AccumulatedTranslation);
                 dmGameObject::SetRotation(instance, collection_desc->m_Instances[i].m_Rotation);
 
                 dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
@@ -437,7 +437,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < collection_desc->m_CollectionInstances.m_Count; ++i)
         {
             Collection* child_coll;
-            regist->m_AccumulatedPosition += collection_desc->m_CollectionInstances[i].m_Translation;
+            regist->m_AccumulatedTranslation += collection_desc->m_CollectionInstances[i].m_Translation;
             dmResource::FactoryResult r = dmResource::Get(factory, collection_desc->m_CollectionInstances[i].m_Collection, (void**) &child_coll);
             if (r != dmResource::FACTORY_RESULT_OK)
             {
@@ -449,7 +449,7 @@ namespace dmGameObject
                 assert(child_coll != collection);
                 dmResource::Release(factory, (void*) child_coll);
             }
-            regist->m_AccumulatedPosition -= collection_desc->m_CollectionInstances[i].m_Translation;
+            regist->m_AccumulatedTranslation -= collection_desc->m_CollectionInstances[i].m_Translation;
         }
 
         if (loading_root)
