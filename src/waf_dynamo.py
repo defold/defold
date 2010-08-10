@@ -96,6 +96,16 @@ def detect(conf):
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
 
+    if platform == "linux":
+        conf.env['LIB_PLATFORM_THREAD'] = 'pthread'
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+    elif 'darwin' in platform:
+        conf.env['LIB_PLATFORM_THREAD'] = ''
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+    else:
+        conf.env['LIB_PLATFORM_THREAD'] = ''
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+
 def configure(conf):
     detect(conf)
 
