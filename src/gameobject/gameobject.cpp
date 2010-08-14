@@ -519,7 +519,7 @@ bail:
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
     {
         dmResource::FactoryResult ret = dmResource::FACTORY_RESULT_OK;
-        ret = dmResource::RegisterType(factory, "go", 0, &ResCreatePrototype, &ResDestroyPrototype, 0);
+        ret = dmResource::RegisterType(factory, "goc", 0, &ResCreatePrototype, &ResDestroyPrototype, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
