@@ -33,7 +33,7 @@ def build(bld):
                       ddf_ext.path.find_or_declare('ddf_extensions_pb2.py').abspath(ddf_ext.env),
                       ddf_ext.env)
 
-    bld.install_files('${PREFIX}/lib/python/ddf',
+    bld.install_files('${PREFIX}/lib/python',
                       ddf_ext.path.find_or_declare('plugin_pb2.py').abspath(ddf_ext.env),
                       ddf_ext.env)
 
