@@ -2,7 +2,7 @@ Name: "sub"
 
 Instances
 {
-    Prototype: "goproto01.go"
+    Prototype: "goproto01.goc"
     Name: "go01"
     Position { X: 0 Y: 10 Z: 170 }
     Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }
@@ -10,7 +10,7 @@ Instances
 
 Instances
 {
-    Prototype: "goproto02.go"
+    Prototype: "goproto02.goc"
     Name: "go02"
     Position { X: 0 Y: 20 Z: 170 }
     Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }

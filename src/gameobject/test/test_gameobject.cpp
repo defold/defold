@@ -365,7 +365,7 @@ dmGameObject::ComponentDestroy GameObjectTest::DeleteSelfComponentDestroy = Gene
 
 TEST_F(GameObjectTest, Test01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret;
     ret = dmGameObject::Update(collection, &update_context);
@@ -384,8 +384,8 @@ TEST_F(GameObjectTest, Test01)
 
 TEST_F(GameObjectTest, TestIdentifier)
 {
-    dmGameObject::HInstance go1 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance go2 = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance go1 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance go2 = dmGameObject::New(collection, "goproto01.goc");
     ASSERT_NE((void*) 0, (void*) go1);
     ASSERT_NE((void*) 0, (void*) go2);
 
@@ -423,7 +423,7 @@ TEST_F(GameObjectTest, TestIdentifier)
 
 TEST_F(GameObjectTest, TestUpdate)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto02.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto02.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret = dmGameObject::Update(collection, &update_context);
     ASSERT_TRUE(ret);
@@ -438,7 +438,7 @@ TEST_F(GameObjectTest, TestUpdate)
 
 TEST_F(GameObjectTest, TestNonexistingComponent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto03.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto03.goc");
     ASSERT_EQ((void*) 0, (void*) go);
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -449,7 +449,7 @@ TEST_F(GameObjectTest, TestNonexistingComponent)
 
 TEST_F(GameObjectTest, TestPartialNonexistingComponent1)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto04.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto04.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     // First one exists
@@ -464,7 +464,7 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
 {
     // Only succeed creating the first component
     m_MaxComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash] = 1;
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto05.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto05.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -477,7 +477,7 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
 
 TEST_F(GameObjectTest, TestComponentUserdata)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto06.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto06.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Delete(collection, go);
@@ -493,7 +493,7 @@ TEST_F(GameObjectTest, AutoDelete)
 {
     for (int i = 0; i < 512; ++i)
     {
-        dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.go");
+        dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.goc");
         ASSERT_NE((void*) 0, (void*) go);
     }
 }
@@ -528,7 +528,7 @@ TEST_F(GameObjectTest, DeleteSelf)
     /*
      * NOTE: We do not have any .deleteself resources on disk even though we register the type
      * Component instances of type 'A' is used here. We need a specific ComponentUpdate though. (DeleteSelfComponentsUpdate)
-     * See New(..., goproto01.go") below.
+     * See New(..., goproto01.goc") below.
      */
     for (int iter = 0; iter < 4; ++iter)
     {
@@ -537,7 +537,7 @@ TEST_F(GameObjectTest, DeleteSelf)
 
         for (int i = 0; i < 512; ++i)
         {
-            dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.go");
+            dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.goc");
             dmGameObject::SetPosition(go, Point3(i,i,i));
             ASSERT_NE((void*) 0, (void*) go);
             m_DeleteSelfInstances.push_back(go);
@@ -596,7 +596,7 @@ dmGameObject::UpdateResult GameObjectTest::EventTargetOnEvent(dmGameObject::HCol
 
 TEST_F(GameObjectTest, TestComponentEvent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_event.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "component_event.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Result r;
@@ -624,7 +624,7 @@ TEST_F(GameObjectTest, TestComponentEvent)
 
 TEST_F(GameObjectTest, TestBroadcastEvent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_broadcast_event.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "component_broadcast_event.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Result r;
@@ -642,7 +642,7 @@ TEST_F(GameObjectTest, TestBroadcastEvent)
 
 TEST_F(GameObjectTest, TestScriptProperty)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "script_property.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "script_property.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::SetScriptIntProperty(go, "MyIntProp", 1010);
@@ -688,7 +688,7 @@ void TestScript01DispatchReply(dmMessage::Message *event_object, void* user_ptr)
 
 TEST_F(GameObjectTest, TestScript01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto01.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto01.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     TestGameObject::GlobalData global_data;
@@ -727,7 +727,7 @@ TEST_F(GameObjectTest, TestFailingScript02)
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    dmGameObject::New(collection, "testscriptproto02.go");
+    dmGameObject::New(collection, "testscriptproto02.goc");
     bool result = dmGameObject::Init(collection, &update_context);
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     ASSERT_FALSE(result);
@@ -736,7 +736,7 @@ TEST_F(GameObjectTest, TestFailingScript02)
 TEST_F(GameObjectTest, TestFailingScript03)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto03.go");
+    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto03.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     // Avoid logging expected errors. Better solution?
@@ -872,7 +872,7 @@ TEST(ScriptTest, TestReloadScript)
     DM_SNPRINTF(script_path, sizeof(script_path), "%s/%s", tmp_dir, script_file_name);
 
     char go_file_name[512];
-    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", tmp_dir, "__go__.go");
+    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", tmp_dir, "__go__.goc");
 
     dmGameObject::PrototypeDesc prototype;
     //memset(&prototype, 0, sizeof(prototype));
@@ -897,7 +897,7 @@ TEST(ScriptTest, TestReloadScript)
                "functions = { Init = Init, Update = Update }\n");
 
     dmGameObject::HInstance go;
-    go = dmGameObject::New(collection, "__go__.go");
+    go = dmGameObject::New(collection, "__go__.goc");
     ASSERT_NE((dmGameObject::HInstance) 0, go);
 
     dmGameObject::Update(collection, 0);
@@ -944,8 +944,8 @@ TEST_F(GameObjectTest, TestHierarchy1)
 {
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-        dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.go");
+        dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.goc");
 
         const float parent_rot = 3.14159265f / 4.0f;
 
@@ -1002,9 +1002,9 @@ TEST_F(GameObjectTest, TestHierarchy1)
 TEST_F(GameObjectTest, TestHierarchy2)
 {
     // Test transform
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child_child = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child_child = dmGameObject::New(collection, "goproto01.goc");
 
     const float parent_rot = 3.14159265f / 4.0f;
     const float child_rot = 3.14159265f / 5.0f;
@@ -1061,9 +1061,9 @@ TEST_F(GameObjectTest, TestHierarchy3)
     // Test with siblings
     for (int i = 0; i < 3; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-        dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.go");
-        dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.go");
+        dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
 
         ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
         ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
@@ -1146,11 +1146,11 @@ TEST_F(GameObjectTest, TestHierarchy4)
 {
     // Test RESULT_MAXIMUM_HIEARCHICAL_DEPTH
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child3 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child4 = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child4 = dmGameObject::New(collection, "goproto01.goc");
 
     dmGameObject::Result r;
 
@@ -1179,10 +1179,10 @@ TEST_F(GameObjectTest, TestHierarchy5)
 {
     // Test parent subtree
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child3 = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(collection, "goproto01.goc");
 
     dmGameObject::SetParent(child1, parent);
     dmGameObject::SetParent(child3, child2);
@@ -1204,8 +1204,8 @@ TEST_F(GameObjectTest, TestHierarchy6)
     // Test invalid reparent.
     // Test that the child node is not present in the upward trace from parent
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
 
     // parent -> child1
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child1, parent));
@@ -1225,9 +1225,9 @@ TEST_F(GameObjectTest, TestHierarchy7)
 {
     // Test remove interior node
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.go");
-    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.go");
+    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
 
     dmGameObject::SetParent(child1, parent);
     dmGameObject::SetParent(child2, child1);
@@ -1260,10 +1260,10 @@ TEST_F(GameObjectTest, TestHierarchy8)
 
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance a1 = dmGameObject::New(collection, "goproto01.go");
-        dmGameObject::HInstance b2 = dmGameObject::New(collection, "goproto01.go");
-        dmGameObject::HInstance c2 = dmGameObject::New(collection, "goproto01.go");
-        dmGameObject::HInstance d3 = dmGameObject::New(collection, "goproto01.go");
+        dmGameObject::HInstance a1 = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance b2 = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance c2 = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance d3 = dmGameObject::New(collection, "goproto01.goc");
 
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(d3, b2));
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, a1));
