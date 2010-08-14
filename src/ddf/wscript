@@ -29,6 +29,12 @@ def build(bld):
          target = 'ddf_extensions_pb2.py',
          shell = True)
 
+    ddf_ext = bld.new_task_gen(
+         rule   = 'echo "" > ${TGT}',
+         source = 'ddf_extensions.proto',
+         target = '__init__.py',
+         shell = True)
+
     bld.install_files('${PREFIX}/lib/python/ddf',
                       ddf_ext.path.find_or_declare('ddf_extensions_pb2.py').abspath(ddf_ext.env),
                       ddf_ext.env)

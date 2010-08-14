@@ -60,7 +60,7 @@ def build(bld):
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
     # Only required 'in' ddf-lib.
     python_path = os.environ.get('PYTHONPATH', '')
-    os.environ['PYTHONPATH'] = python_path + os.pathsep + 'default/src/ddf'
+    os.environ['PYTHONPATH'] = 'default/src' + os.pathsep + python_path
     bld.add_subdirs('src')
 
 def shutdown():
