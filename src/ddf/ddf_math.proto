@@ -1,6 +1,6 @@
 package dmMath;
 
-import "ddf_extensions.proto";
+import "ddf/ddf_extensions.proto";
 
 option java_package = "com.dynamo.proto";
 option java_outer_classname = "DdfMath";
@@ -11,7 +11,7 @@ option (ddf_includes) = "vectormath/cpp/vectormath_aos.h";
 message Point3
 {
     option (alias) = "Vectormath::Aos::Point3";
-    
+
     required float X = 1;
     required float Y = 2;
     required float Z = 3;
@@ -21,7 +21,7 @@ message Point3
 message Vector3
 {
     option (alias) = "Vectormath::Aos::Vector3";
-    
+
     required float X = 1;
     required float Y = 2;
     required float Z = 3;

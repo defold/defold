@@ -1,6 +1,7 @@
 package TestDDF;
 
-import "ddf_extensions.proto";
+import "ddf/ddf_extensions.proto";
+
 
 option java_package = "com.dynamo.ddf.proto";
 option (ddf_java_package) = "com.dynamo.ddf.test";

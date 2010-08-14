@@ -50,7 +50,7 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'ddfc_java', chmod=493)
     bld.install_files('${PREFIX}/bin', 'ddfc_cxx.bat')
     bld.install_files('${PREFIX}/bin', 'ddfc_java.bat')
-    bld.install_files('${PREFIX}/share/proto', 'ddf/ddf_extensions.proto')
+    bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_extensions.proto')
     bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_math.proto')
 
 def configure(conf):

@@ -182,36 +182,27 @@ proto_b = Task.simple_task_type('proto_b', 'protoc -o${TGT} -I ${SRC[0].src_dir(
 
 proto_b.scan = scan
 
-
-proto_ddf = Task.simple_task_type('proto_ddf', 'protoc \
---plugin=protoc-gen-ddf=${DDFC} \
---ddf_out=${TGT[0].dir(env)} \
---python_out=${TGT[0].dir(env)} \
---cpp_out=${TGT[0].dir(env)} \
---java_out=${TGT[0].dir(env)}/generated \
--I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
-                      color='RED',
-                      before='cc cxx',
-                      after='proto_b',
-                      shell=True)
-
-proto_ddf.scan = scan
-
-proto_gen_cc = Task.simple_task_type('proto_gen_cc', 'protoc --cpp_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_cc = Task.simple_task_type('proto_gen_cc', 'protoc --cpp_out=${PROTO_OUT_DIR} ${PROTOC_FLAGS} ${SRC}',
                                       color='RED',
                                       before='cc cxx',
                                       after='proto_b',
                                       shell=True)
 proto_gen_cc.scan = scan
 
-proto_gen_py = Task.simple_task_type('proto_gen_py', 'protoc --python_out=${TGT[0].dir(env)} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_py = Task.simple_task_type('proto_gen_py', 'protoc --python_out=${PROTO_OUT_DIR} ${PROTOC_FLAGS} ${SRC}',
                                      color='RED',
                                      before='cc cxx',
                                      after='proto_b',
                                      shell=True)
 proto_gen_py.scan = scan
 
-proto_gen_java = Task.simple_task_type('proto_gen_java', 'protoc --java_out=${JAVA_OUT} -I ${SRC[0].src_dir(env)} ${PROTOC_FLAGS} ${SRC}',
+proto_gen_py_package = Task.simple_task_type('proto_gen_py_package', 'echo "" > ${TGT}',
+                                             color='RED',
+                                             before='cc cxx',
+                                             after='proto_b',
+                                             shell=True)
+
+proto_gen_java = Task.simple_task_type('proto_gen_java', 'protoc --java_out=${JAVA_OUT} ${PROTOC_FLAGS} ${SRC}',
                                        color='RED',
                                        before='cc cxx',
                                        after='proto_b',
@@ -242,24 +233,27 @@ def get_protoc_flags(self):
         protoc_flags += " -I %s " % p
     return protoc_flags
 
-@extension('.proto__')
-def proto_file__(self, node):
-    task = self.create_task('proto_ddf')
-    task.set_inputs(node)
+def find_proto_relpath(self, node, includes):
+    for pi in includes:
+        if not os.path.isabs(pi):
+            p = self.path.find_dir(pi).srcpath(self.env)
+            rel_path = os.path.relpath(node.abspath(), self.path.find_dir(pi).abspath())
+            if rel_path.find('..') != -1:
+                raise Utils.WafError('Relative path: %s for file %s and include dir %s containts "..". Change or reorder include path to remove parent path references.' %
+                                     (rel_path, node.abspath(), self.path.find_dir(pi).abspath()))
+            return os.path.dirname(rel_path)
 
-    out = [ node.change_ext(x) for x in '.cpp .pb.cc .pb.h _pb2.py'.split() ]
-    task.set_outputs(out)
+    raise Utils.WafError('No relative include-path path for % found' % node.abspath())
 
-    task.env['PROTOC_FLAGS'] = get_protoc_flags(self)
-
-    self.allnodes.append(node.change_ext('.cpp'))
-
-    if self.proto_compile_cc:
-        self.allnodes.append(node.change_ext('.pb.cc'))
+def proto_out_dir(self, node, n_parent):
+    out_dir_node = node
+    for i in range(max(0, n_parent)):
+        out_dir_node = out_dir_node.parent
+    return out_dir_node.dir(self.env)
 
 @extension('.proto')
 def proto_file(self, node):
-        Utils.def_attrs(self, java_package=None, classpath='.')
+        Utils.def_attrs(self, java_package=None, classpath='.', protoc_includes=['.'])
         bproto_file(self, node)
 
         task = self.create_task('proto_b')
@@ -267,8 +261,14 @@ def proto_file(self, node):
         out = node.change_ext('.bproto')
 
         protoc_includes = [self.env['DYNAMO_HOME'] + '/ext/include', self.env['DYNAMO_HOME'] + '/share/proto']
-        if hasattr(self, "protoc_includes"):
-            protoc_includes.extend(Utils.to_list(self.protoc_includes))
+        protoc_includes = Utils.to_list(self.protoc_includes) + protoc_includes
+
+        rel_path = find_proto_relpath(self, node, Utils.to_list(self.protoc_includes))
+        n_parent = 0
+        tmp = rel_path
+        while os.path.basename(tmp):
+            n_parent += 1
+            tmp = os.path.dirname(tmp)
 
         protoc_flags = ""
         for pi in protoc_includes:
@@ -282,10 +282,17 @@ def proto_file(self, node):
         task.env['PROTOC_FLAGS'] = protoc_flags
 
         if self.install_path:
-            self.bld.install_files('${PREFIX}/share/proto', out.abspath(self.env), self.env)
+            self.bld.install_files('${PREFIX}/share/proto/%s' % rel_path, out.abspath(self.env), self.env)
 
         if self.install_path:
-            self.bld.install_files('${PREFIX}/include/' + Utils.g_module.APPNAME,
+            # For backward compatibility
+            # proto-files imported without package name shoudl
+            # still install the header i APPNAME
+            if not rel_path:
+                tmp = Utils.g_module.APPNAME
+            else:
+                tmp = rel_path
+            self.bld.install_files('${PREFIX}/include/%s' % tmp,
                                    out.abspath(self.env).replace(".bproto", ".h"), self.env)
 
         task.set_outputs(out)
@@ -296,10 +303,13 @@ def proto_file(self, node):
 
         if hasattr(self, "proto_gen_cc") and self.proto_gen_cc:
             task = self.create_task('proto_gen_cc')
+            task.env['PROTO_RELPATH'] = rel_path
             task.env['PROTOC_FLAGS'] = protoc_flags
             task.set_inputs(node)
             cc_out = node.change_ext('.pb.cc')
             h_out = node.change_ext('.pb.h')
+            task.env['PROTO_OUT_DIR'] = proto_out_dir(self, cc_out, n_parent)
+
             task.set_outputs([cc_out, h_out])
             if hasattr(self, "proto_compile_cc") and self.proto_compile_cc:
                 self.allnodes.append(cc_out)
@@ -309,8 +319,25 @@ def proto_file(self, node):
             task.env['PROTOC_FLAGS'] = protoc_flags
             task.set_inputs(node)
             py_out = node.change_ext('_pb2.py')
+            task.env['PROTO_OUT_DIR'] = proto_out_dir(self, py_out, n_parent)
+
+            gen_py_proto_packages = getattr(self, 'gen_py_proto_packages', set())
+            if rel_path and not py_out.parent.abspath() in gen_py_proto_packages:
+                # Create a __init__.py package file
+                pkg_task = self.create_task('proto_gen_py_package')
+                pkg_out = node.parent.find_or_declare('__init__.py')
+                pkg_task.set_inputs(node)
+                pkg_task.set_outputs(pkg_out)
+                gen_py_proto_packages.add(py_out.parent.abspath())
+                if self.install_path:
+                    self.bld.install_files('${PREFIX}/lib/python/%s' % rel_path, pkg_out.abspath(self.env), self.env)
+
+                # Only create __init__.py once
+                gen_py_proto_packages.add(py_out.parent.abspath())
+                self.gen_py_proto_packages = gen_py_proto_packages
+
             if self.install_path:
-                self.bld.install_files('${PREFIX}/lib/python', py_out.abspath(self.env), self.env)
+                self.bld.install_files('${PREFIX}/lib/python/%s' % rel_path, py_out.abspath(self.env), self.env)
             task.set_outputs(py_out)
 
         if hasattr(self, "proto_gen_java") and self.proto_gen_java:
