@@ -17,7 +17,7 @@ from google.protobuf.descriptor_pb2 import FieldDescriptorProto
 
 from plugin_pb2 import CodeGeneratorRequest, CodeGeneratorResponse
 
-import ddf_extensions_pb2
+import ddf.ddf_extensions_pb2
 
 DDF_MAJOR_VERSION=1
 DDF_MINOR_VERSION=0
