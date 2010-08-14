@@ -9,6 +9,7 @@ def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['. opengl'],
                            proto_gen_py = True,
+                           protoc_includes = '../proto',
                            target = 'graphics',
                            install_path='${PREFIX}/lib')
 
@@ -17,6 +18,7 @@ def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['. null'],
                            proto_gen_py = True,
+                           protoc_includes = '../proto',
                            target = 'graphics_null',
                            install_path='${PREFIX}/lib')
 
