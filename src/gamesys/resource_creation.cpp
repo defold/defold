@@ -401,62 +401,6 @@ namespace dmGameSystem
         return dmResource::CREATE_RESULT_UNKNOWN;
     }
 
-    dmGameObject::CreateResult CreateModelComponent(dmGameObject::HCollection collection,
-                                            dmGameObject::HInstance instance,
-                                            void* resource,
-                                            void* context,
-                                            uintptr_t* user_data)
-    {
-
-        dmModel::HModel prototype = (dmModel::HModel)resource;
-        dmModel::HWorld world = (dmModel::HWorld)context;
-        dmModel::AddModel(world, prototype);
-
-
-        dmRender::HRenderObject ro = NewRenderObjectInstance((void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
-        *user_data = (uintptr_t) ro;
-
-        return dmGameObject::CREATE_RESULT_OK;
-
-    }
-
-    dmGameObject::CreateResult DestroyModelComponent(dmGameObject::HCollection collection,
-                                             dmGameObject::HInstance instance,
-                                             void* context,
-                                             uintptr_t* user_data)
-    {
-        dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-        dmRender::DeleteRenderObject(ro);
-
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    dmGameObject::UpdateResult UpdateModelComponent(dmGameObject::HCollection collection,
-                         const dmGameObject::UpdateContext* update_context,
-                         void* context)
-    {
-        dmModel::HWorld world = (dmModel::HWorld)context;
-        dmModel::UpdateWorld(world);
-        dmRender::Update();
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-
-    dmGameObject::UpdateResult OnEventModelComponent(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            const dmGameObject::ScriptEventData* event_data,
-            void* context,
-            uintptr_t* user_data)
-    {
-        if (event_data->m_EventHash == dmHashString32("SetRenderColor"))
-        {
-            dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)event_data->m_DDFData;
-            dmRender::MaterialDesc::ParameterSemantic color_type = (dmRender::MaterialDesc::ParameterSemantic)ddf->m_ColorType;
-            dmRender::SetColor(ro, ddf->m_Color, color_type);
-        }
-        return dmGameObject::UPDATE_RESULT_OK;
-    }
-
     dmResource::CreateResult CreateMesh(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,
@@ -688,34 +632,6 @@ namespace dmGameSystem
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
         return dmResource::FACTORY_RESULT_OK;
-    }
-
-
-    dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
-                                                  dmModel::HWorld model_world)
-    {
-        uint32_t type;
-
-        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "modelc", &type);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
-        {
-            dmLogWarning("Unable to get resource type for 'model' (%d)", fact_result);
-            return dmGameObject::RESULT_UNKNOWN_ERROR;
-        }
-        dmGameObject::ComponentType component_type;
-        component_type.m_Name = "modelc";
-        component_type.m_ResourceType = type;
-        component_type.m_Context = model_world;
-        component_type.m_CreateFunction = dmGameSystem::CreateModelComponent;
-        component_type.m_InitFunction = 0x0;
-        component_type.m_DestroyFunction = dmGameSystem::DestroyModelComponent;
-        component_type.m_UpdateFunction = dmGameSystem::UpdateModelComponent;
-        component_type.m_OnEventFunction = dmGameSystem::OnEventModelComponent;
-        component_type.m_InstanceHasUserData = true;
-
-        dmGameObject::Result res = dmGameObject::RegisterComponentType(regist, component_type);
-        return res;
     }
 
 }
