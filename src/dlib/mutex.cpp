@@ -8,11 +8,13 @@ namespace dmMutex
     {
         pthread_mutexattr_t attr;
         int ret = pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
         assert(ret == 0);
 
-        pthread_mutex_t mutex;
+        pthread_mutex_t* mutex = new pthread_mutex_t;
 
-        ret = pthread_mutex_init(&mutex, &attr);
+        ret = pthread_mutex_init(mutex, &attr);
         assert(ret == 0);
         ret = pthread_mutexattr_destroy(&attr);
         assert(ret == 0);
@@ -22,19 +24,20 @@ namespace dmMutex
 
     void Delete(Mutex mutex)
     {
-        int ret = pthread_mutex_destroy(&mutex);
+        int ret = pthread_mutex_destroy(mutex);
         assert(ret == 0);
+        delete mutex;
     }
 
     void Lock(Mutex mutex)
     {
-        int ret = pthread_mutex_lock(&mutex);
+        int ret = pthread_mutex_lock(mutex);
         assert(ret == 0);
     }
 
     void Unlock(Mutex mutex)
     {
-        int ret = pthread_mutex_unlock(&mutex);
+        int ret = pthread_mutex_unlock(mutex);
         assert(ret == 0);
     }
 

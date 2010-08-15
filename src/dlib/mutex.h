@@ -5,7 +5,7 @@
 #include <pthread.h>
 namespace dmMutex
 {
-    typedef pthread_mutex_t Mutex;
+    typedef pthread_mutex_t* Mutex;
 }
 
 #elif defined(_WIN32)
