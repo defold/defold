@@ -4,10 +4,7 @@
 
 #include <string.h>
 #include <dlib/container.h>
-#include <ddf/ddf.h>
 #include <vectormath/cpp/vectormath_aos.h>
-#include "rendercontext.h"
-#include "render/material_ddf.h"
 
 namespace dmRender
 {
@@ -31,7 +28,7 @@ namespace dmRender
     struct RenderPassDesc
     {
     	RenderPassDesc(){}
-        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, void (*beginfunc)(const RenderContext* rendercontext, const void* userdata), void (*endfunc)(const RenderContext* rendercontext, const void* userdata))
+        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, void (*beginfunc)(const dmRender::RenderContext* rendercontext, const void* userdata), void (*endfunc)(const dmRender::RenderContext* rendercontext, const void* userdata))
         {
             strncpy(m_Name, name, sizeof(m_Name));
             m_UserData = userdata;
@@ -45,8 +42,8 @@ namespace dmRender
         void*   	m_UserData;
         uint32_t 	m_Index;
         uint32_t	m_Capacity;
-        void    	(*m_BeginFunc)(const RenderContext* rendercontext, const void* userdata);
-        void    	(*m_EndFunc)(const RenderContext* rendercontext, const void* userdata);
+        void    	(*m_BeginFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
+        void    	(*m_EndFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
     };
 
     struct ModeltypeDesc
@@ -73,7 +70,7 @@ namespace dmRender
     void Initialize(uint32_t max_renderobjects, uint32_t max_renderpasses, SetObjectModel set_object_model);
     void Finalize();
     void Update();
-    void UpdateContext(RenderContext* rendercontext);
+    void UpdateContext(dmRender::RenderContext* rendercontext);
     HRenderObject NewRenderObjectInstance(void* resource, void* go, RenderObjectType type);
     void DeleteRenderObject(HRenderObject ro);
     void Disable(HRenderObject ro);
@@ -82,7 +79,7 @@ namespace dmRender
 
     void SetPosition(HRenderObject ro, Vector4 pos);
     void SetRotation(HRenderObject ro, Quat rot);
-    void SetColor(HRenderObject ro, Vector4 color, Render::MaterialDesc::ParameterSemantic color_type);
+    void SetColor(HRenderObject ro, Vector4 color, dmRender::MaterialDesc::ParameterSemantic color_type);
 
     HRenderPass NewRenderPass(RenderPassDesc* desc);
     void DeleteRenderPass(HRenderPass renderpass);

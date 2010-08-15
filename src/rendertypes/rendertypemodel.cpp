@@ -1,4 +1,6 @@
 #include <vectormath/cpp/vectormath_aos.h>
+#include "rendercontext.h"
+#include "renderinternal.h"
 #include "rendertypemodel.h"
 #include "../model/model.h"
 
@@ -26,8 +28,8 @@ namespace dmRender
 
     	dmGraphics::HMaterial material = dmModel::GetMaterial(model);
 
-        Render::Mesh* mesh = dmModel::GetMesh(model);
-        if (mesh->m_PrimitiveCount == 0)
+        dmModel::HMesh mesh = dmModel::GetMesh(model);
+        if (dmModel::GetPrimitiveCount(mesh) == 0)
             return;
 
         dmGraphics::HContext context = rendercontext->m_GFXContext;
@@ -73,19 +75,19 @@ namespace dmRender
             }
         }
 
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Positions[0]);
+        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetPositions(mesh));
 
-        if (mesh->m_Texcoord0.m_Count > 0)
-            dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Texcoord0[0]);
+        if (dmModel::GetTexcoord0Count(mesh) > 0)
+            dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetTexcoord0(mesh));
         else
             dmGraphics::DisableVertexStream(context, 1);
 
-        if (mesh->m_Normals.m_Count > 0)
-            dmGraphics::SetVertexStream(context, 2, 3, dmGraphics::TYPE_FLOAT, 0, (void*) &mesh->m_Normals[0]);
+        if (dmModel::GetNormalCount(mesh) > 0)
+            dmGraphics::SetVertexStream(context, 2, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetNormals(mesh));
         else
             dmGraphics::DisableVertexStream(context, 2);
 
-        dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, mesh->m_PrimitiveCount*3, dmGraphics::TYPE_UNSIGNED_INT, (void*) &mesh->m_Indices[0]);
+        dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, dmModel::GetPrimitiveCount(mesh)*3, dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndices(mesh));
 
         dmGraphics::DisableVertexStream(context, 0);
         dmGraphics::DisableVertexStream(context, 1);

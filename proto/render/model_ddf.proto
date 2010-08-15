@@ -1,6 +1,7 @@
-package Render;
+package dmRender;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Model";
@@ -12,4 +13,12 @@ message ModelDesc
     required string Mesh = 2;
     required string Material = 3;
     optional string Texture0 = 4;
+}
+
+
+message SetRenderColor
+{
+    required dmMath.Vector4 Color = 1;
+    /* TODO: This should be the proper type Render.MaterialDesc.ParameterSemantic instead of uint32. */
+    required uint32 ColorType = 2;
 }

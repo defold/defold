@@ -1,8 +1,13 @@
 
 #include <stdint.h>
 #include <gtest/gtest.h>
-#include "model/model.h"
+#include <ddf/ddf.h>
+#include "../../build/default/proto/render/mesh_ddf.h"
+#include "../../build/default/proto/render/material_ddf.h"
+#include "rendercontext.h"
 #include "render.h"
+#include "../model/model.h"
+
 
 using namespace Vectormath::Aos;
 
@@ -11,7 +16,9 @@ void SetObjectModel(void* context, void* gameobject, Quat* rotation, Point3* pos
 
 }
 
-TEST(dmRender, ModelWorld)
+
+
+TEST(dmRenderTest, InitializeFinalize)
 {
     const uint32_t n_models = 1000;
     const uint32_t n_ro = 100;
@@ -36,12 +43,17 @@ TEST(dmRender, ModelWorld)
         ro[i] = NewRenderObjectInstance((void*)model[i], (void*)0x0, dmRender::RENDEROBJECT_TYPE_PARTICLE);
     }
 
-    for (uint32_t i=0; i<1000; i++)
+    for (uint32_t i=0; i<n_ro; i++)
+    {
         dmRender::Update();
+        if (i & 1 == 0)
+            DeleteRenderObject(ro[i]);
+    }
 //    ASSERT_EQ((uint32_t) 16, a.Capacity());
 
     for (uint32_t i=0; i<n_ro; i++)
-        DeleteRenderObject(ro[i]);
+        if (i & 1 == 1)
+            DeleteRenderObject(ro[i]);
 
 
     for (uint32_t i=0; i<n_models; i++)

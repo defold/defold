@@ -1,4 +1,4 @@
-package Render;
+package dmRender;
 
 import "ddf/ddf_extensions.proto";
 

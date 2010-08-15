@@ -1,12 +1,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#include <vectormath/cpp/vectormath_aos.h>
-#include <ddf/ddf.h>
 #include <graphics/material.h>
-#include "render/mesh_ddf.h"
-#include "../rendercontext.h"
-
 
 namespace dmModel
 {
@@ -14,12 +9,12 @@ namespace dmModel
 
 
     typedef struct Model* HModel;
+    typedef struct Mesh* HMesh;
     typedef class ModelWorld* HWorld;
 
     /**
      * Create a new model world
      * @param max_models number of models in world
-     * @param set_object_model callback fn to update model orientation from gameobject
      * @return new model world handle
      */
     HWorld NewWorld(uint32_t max_models);
@@ -50,11 +45,34 @@ namespace dmModel
     void DeleteModel(HModel model);
 
     /**
+     * Create a new mesh
+     * @return New mesh handle
+     */
+    HMesh NewMesh();
+
+    /**
+     * Destroy a mesh
+     * @param mesh mesh to destroy
+     */
+    void DeleteMesh(HMesh mesh);
+
+    uint32_t GetPrimitiveCount(HMesh mesh);
+    dmRender::MeshDesc::Primitive GetPrimitiveType(HMesh mesh);
+    const void* GetPositions(HMesh mesh);
+    uint32_t    GetPositionCount(HMesh mesh);
+    const void* GetTexcoord0(HMesh mesh);
+    uint32_t    GetTexcoord0Count(HMesh mesh);
+    const void* GetNormals(HMesh mesh);
+    uint32_t    GetNormalCount(HMesh mesh);
+    const void* GetIndices(HMesh mesh);
+    uint32_t    GetIndexCount(HMesh mesh);
+
+    /**
      * Set model mesh
      * @param model model
      * @param mesh mesh
      */
-    void SetMesh(HModel model, Render::Mesh* mesh);
+    void SetMesh(HModel model, HMesh mesh);
 
     /**
      * Set model texture0
@@ -75,7 +93,7 @@ namespace dmModel
      * @param model Model
      * @return Mesh associated with model
      */
-    Render::Mesh* GetMesh(HModel model);
+    HMesh GetMesh(HModel model);
 
     /**
      * Get texture0 from model
