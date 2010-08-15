@@ -449,8 +449,8 @@ def CompileJava(context, proto_file, ddf_java_package, file_to_generate):
     file_java.content = f_java.getvalue()
 
 def ToEnsureStructAliasSize(context, file_desc, pp_cpp):
-    import md5
-    m = md5.md5(file_desc.package + file_desc.name)
+    import hashlib
+    m = hashlib.md5(file_desc.package + file_desc.name)
     pp_cpp.Begin('void EnsureStructAliasSize_%s()' % m.hexdigest())
 
     for t, at in context.TypeAliasMessages.iteritems():
