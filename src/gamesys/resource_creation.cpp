@@ -1,4 +1,6 @@
 #include <dlib/log.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <stdint.h>
@@ -10,6 +12,11 @@
 #include <render/fontrenderer.h>
 #include <render/render_ddf.h>
 #include "resource_creation.h"
+#include <gameobject/gameobject.h>
+#include <render/model_ddf.h>
+#include <render/model/model.h>
+#include <render/rendercontext.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
@@ -327,6 +334,326 @@ namespace dmGameSystem
         return dmResource::CREATE_RESULT_OK;
     }
 
+
+    dmResource::CreateResult CreateModel(dmResource::HFactory factory,
+                                      void* context,
+                                      const void* buffer, uint32_t buffer_size,
+                                      dmResource::SResourceDescriptor* resource,
+                                      const char* filename)
+    {
+        dmRender::ModelDesc* model_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_ModelDesc_DESCRIPTOR, (void**) &model_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+
+        dmModel::HMesh mesh = 0;
+        dmGraphics::HMaterial material = 0;
+        dmGraphics::HTexture texture0 = 0;
+
+        dmResource::Get(factory, model_desc->m_Mesh, (void**) &mesh);
+        dmResource::Get(factory, model_desc->m_Material, (void**) &material);
+        dmResource::Get(factory, model_desc->m_Texture0, (void**) &texture0);
+
+        dmDDF::FreeMessage((void*) model_desc);
+        if (mesh == 0 || material == 0 || texture0 == 0)
+        {
+            if (mesh) dmResource::Release(factory, (void*) mesh);
+            if (material) dmResource::Release(factory, (void*) material);
+            if (texture0) dmResource::Release(factory, (void*) texture0);
+
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+
+        dmModel::HModel model = dmModel::NewModel();
+
+        dmModel::SetMesh(model, mesh);
+        dmModel::SetMaterial(model, material);
+        dmModel::SetTexture0(model, texture0);
+
+        resource->m_Resource = (void*) model;
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult DestroyModel(dmResource::HFactory factory,
+            void* context,
+            dmResource::SResourceDescriptor* resource)
+    {
+        dmModel::HModel model = (dmModel::HModel) resource->m_Resource;
+
+        dmResource::Release(factory, (void*) dmModel::GetMesh(model));
+        dmResource::Release(factory, (void*) dmModel::GetMaterial(model));
+        dmResource::Release(factory, (void*) dmModel::GetTexture0(model));
+
+        dmModel::DeleteModel(model);
+
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult RecreateModel(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename)
+    {
+        // TODO: Implement me!
+        return dmResource::CREATE_RESULT_UNKNOWN;
+    }
+
+    dmGameObject::CreateResult CreateModelComponent(dmGameObject::HCollection collection,
+                                            dmGameObject::HInstance instance,
+                                            void* resource,
+                                            void* context,
+                                            uintptr_t* user_data)
+    {
+
+        dmModel::HModel prototype = (dmModel::HModel)resource;
+        dmModel::HWorld world = (dmModel::HWorld)context;
+        dmModel::AddModel(world, prototype);
+
+
+        dmRender::HRenderObject ro = NewRenderObjectInstance((void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
+        *user_data = (uintptr_t) ro;
+
+        return dmGameObject::CREATE_RESULT_OK;
+
+    }
+
+    dmGameObject::CreateResult DestroyModelComponent(dmGameObject::HCollection collection,
+                                             dmGameObject::HInstance instance,
+                                             void* context,
+                                             uintptr_t* user_data)
+    {
+        dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
+        dmRender::DeleteRenderObject(ro);
+
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::UpdateResult UpdateModelComponent(dmGameObject::HCollection collection,
+                         const dmGameObject::UpdateContext* update_context,
+                         void* context)
+    {
+        dmModel::HWorld world = (dmModel::HWorld)context;
+        dmModel::UpdateWorld(world);
+        dmRender::Update();
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmGameObject::UpdateResult OnEventModelComponent(dmGameObject::HCollection collection,
+            dmGameObject::HInstance instance,
+            const dmGameObject::ScriptEventData* event_data,
+            void* context,
+            uintptr_t* user_data)
+    {
+        if (event_data->m_EventHash == dmHashString32("SetRenderColor"))
+        {
+            dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
+            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)event_data->m_DDFData;
+            dmRender::MaterialDesc::ParameterSemantic color_type = (dmRender::MaterialDesc::ParameterSemantic)ddf->m_ColorType;
+            dmRender::SetColor(ro, ddf->m_Color, color_type);
+        }
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult CreateMesh(dmResource::HFactory factory,
+                                     void* context,
+                                     const void* buffer, uint32_t buffer_size,
+                                     dmResource::SResourceDescriptor* resource,
+                                     const char* filename)
+    {
+        dmRender::MeshDesc* mesh;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_MeshDesc_DESCRIPTOR, (void**) &mesh);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+        resource->m_Resource = (void*) mesh;
+
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult DestroyMesh(dmResource::HFactory factory,
+                                      void* context,
+                                      dmResource::SResourceDescriptor* resource)
+    {
+        dmDDF::FreeMessage((void*) resource->m_Resource);
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult RecreateMesh(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename)
+    {
+        // TODO: Implement me!
+        return dmResource::CREATE_RESULT_UNKNOWN;
+    }
+
+    struct Resource
+    {
+        dmRender::MaterialDesc* m_DDF;
+        dmGraphics::HVertexProgram m_VertexProgram;
+        dmGraphics::HFragmentProgram m_FragmentProgram;
+    };
+
+    // TODO: Fix this ugly thing! Materials as resources should be stored using a struct like Resource above so no resources are lost when it's time to destroy.
+    // Currently the model resource only store dmGraphics::HMaterial's so some more refactoring is needed to get it to work.
+    // Right now material is leaky too when e.g. a fragment program can't be constructed and the vertex program is leaked.
+    static dmHashTable<uintptr_t, Resource*> s_MaterialResources;
+    static bool s_Initialized = false;
+
+    dmResource::CreateResult CreateMaterial(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename)
+    {
+        dmRender::MaterialDesc* material_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_MaterialDesc_DESCRIPTOR, (void**) &material_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+
+        char vertex_program_buf[1024];
+        DM_SNPRINTF(vertex_program_buf, sizeof(vertex_program_buf), "%s.arbvp", material_desc->m_VertexProgram);
+        char fragment_program_buf[1024];
+        DM_SNPRINTF(fragment_program_buf, sizeof(fragment_program_buf), "%s.arbfp", material_desc->m_FragmentProgram);
+
+        dmResource::FactoryResult factory_e;
+        dmGraphics::HVertexProgram vertex_program;
+        factory_e = dmResource::Get(factory, vertex_program_buf, (void**) &vertex_program);
+        if ( factory_e != dmResource::FACTORY_RESULT_OK)
+        {
+            dmDDF::FreeMessage((void*) material_desc);
+            dmResource::Release(factory, (void*) vertex_program);
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+
+        dmGraphics::HFragmentProgram fragment_program;
+        factory_e = dmResource::Get(factory, fragment_program_buf, (void**) &fragment_program);
+        if ( factory_e != dmResource::FACTORY_RESULT_OK)
+        {
+            dmDDF::FreeMessage((void*) material_desc);
+            dmResource::Release(factory, (void*) fragment_program);
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+
+        dmGraphics::HMaterial material = dmGraphics::NewMaterial();
+        dmGraphics::SetMaterialVertexProgram(material, vertex_program);
+        dmGraphics::SetMaterialFragmentProgram(material, fragment_program);
+
+        // save pre-set fragment constants
+        if (material_desc->m_FragmentParameters.m_Count < dmGraphics::MAX_MATERIAL_CONSTANTS)
+        {
+            for (uint32_t i=0; i<material_desc->m_FragmentParameters.m_Count; i++)
+            {
+                if (material_desc->m_FragmentParameters[i].m_Register >= dmGraphics::MAX_MATERIAL_CONSTANTS)
+                {
+                    dmDDF::FreeMessage((void*) material_desc);
+                    dmResource::Release(factory, (void*) vertex_program);
+
+                    dmResource::Release(factory, (void*) fragment_program);
+
+                    dmGraphics::DeleteMaterial(material);
+                    return dmResource::CREATE_RESULT_CONSTANT_ERROR;
+                }
+                uint32_t reg = material_desc->m_FragmentParameters[i].m_Semantic;
+
+                // TODO: fix when Vector4 can be used properly in ddf
+                Vector4 v(material_desc->m_FragmentParameters[i].m_Value.m_x,
+                            material_desc->m_FragmentParameters[i].m_Value.m_y,
+                            material_desc->m_FragmentParameters[i].m_Value.m_z,
+                            material_desc->m_FragmentParameters[i].m_Value.m_w);
+
+                dmGraphics::SetMaterialFragmentProgramConstant(material, reg, v);
+                uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
+                dmGraphics::SetMaterialFragmentConstantMask(material, mask | 1 << reg);
+            }
+        }
+
+        // do the same for vertex constants
+        if (material_desc->m_VertexParameters.m_Count < dmGraphics::MAX_MATERIAL_CONSTANTS)
+        {
+            for (uint32_t i=0; i<material_desc->m_VertexParameters.m_Count; i++)
+            {
+                if (material_desc->m_VertexParameters[i].m_Register >= dmGraphics::MAX_MATERIAL_CONSTANTS)
+                {
+                    dmDDF::FreeMessage((void*) material_desc);
+                    dmResource::Release(factory, (void*) vertex_program);
+
+                    dmResource::Release(factory, (void*) fragment_program);
+
+                    dmGraphics::DeleteMaterial(material);
+                    return dmResource::CREATE_RESULT_CONSTANT_ERROR;
+                }
+                uint32_t reg = material_desc->m_VertexParameters[i].m_Register;
+                // TODO: fix when Vector4 can be used properly in ddf
+                Vector4 v(material_desc->m_VertexParameters[i].m_Value.m_x,
+                            material_desc->m_VertexParameters[i].m_Value.m_y,
+                            material_desc->m_VertexParameters[i].m_Value.m_z,
+                            material_desc->m_VertexParameters[i].m_Value.m_w);
+
+                dmGraphics::SetMaterialVertexProgramConstant(material, reg, v);
+                uint32_t mask = dmGraphics::GetMaterialVertexConstantMask(material);
+                dmGraphics::SetMaterialVertexConstantMask(material, mask | 1 << reg);
+            }
+        }
+
+
+        resource->m_Resource = (void*) material;
+
+        // TODO: Remove haxx, see above
+        if (!s_Initialized)
+        {
+            s_MaterialResources.SetCapacity(32, 128);
+            s_Initialized = true;
+        }
+        Resource* material_resources = new Resource();
+        material_resources->m_DDF = material_desc;
+        material_resources->m_VertexProgram = vertex_program;
+        material_resources->m_FragmentProgram = fragment_program;
+        assert(s_MaterialResources.Get((uintptr_t)material) == 0x0);
+        s_MaterialResources.Put((uintptr_t)material, material_resources);
+
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult DestroyMaterial(dmResource::HFactory factory,
+            void* context,
+            dmResource::SResourceDescriptor* resource)
+    {
+        dmGraphics::HMaterial m = (dmGraphics::HMaterial) resource->m_Resource;
+
+        // TODO: Remove haxx, see above
+        // Crash hard if there is no material in the hashtable, it means we are leaking anyway
+        Resource* material_resource = *s_MaterialResources.Get((uintptr_t)m);
+        assert(material_resource);
+        dmDDF::FreeMessage((void*) material_resource->m_DDF);
+        dmResource::Release(factory, (void*) material_resource->m_VertexProgram);
+        dmResource::Release(factory, (void*) material_resource->m_FragmentProgram);
+        delete material_resource;
+        s_MaterialResources.Erase((uintptr_t)m);
+
+        dmGraphics::DeleteMaterial(m);
+
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult RecreateMaterial(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename)
+    {
+        // TODO: Implement me!
+        return dmResource::CREATE_RESULT_UNKNOWN;
+    }
+
+
     dmResource::FactoryResult RegisterResources(dmResource::HFactory factory)
     {
         dmResource::FactoryResult e;
@@ -351,6 +678,44 @@ namespace dmGameSystem
         e = dmResource::RegisterType(factory, "font", 0, &FontCreate, &FontDestroy, 0);
         if( e != dmResource::FACTORY_RESULT_OK ) return e;
 
+        e = dmResource::RegisterType(factory, "modelc", 0, &CreateModel, &DestroyModel, &RecreateModel);
+        if( e != dmResource::FACTORY_RESULT_OK ) return e;
+
+        e = dmResource::RegisterType(factory, "materialc", 0, &CreateMaterial, &DestroyMaterial, &RecreateMaterial);
+        if( e != dmResource::FACTORY_RESULT_OK ) return e;
+
+        e = dmResource::RegisterType(factory, "mesh", 0, &CreateMesh, &DestroyMesh, &RecreateMesh);
+        if( e != dmResource::FACTORY_RESULT_OK ) return e;
+
         return dmResource::FACTORY_RESULT_OK;
     }
+
+
+    dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
+                                                  dmGameObject::HRegister regist,
+                                                  dmModel::HWorld model_world)
+    {
+        uint32_t type;
+
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "modelc", &type);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+        {
+            dmLogWarning("Unable to get resource type for 'model' (%d)", fact_result);
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        dmGameObject::ComponentType component_type;
+        component_type.m_Name = "modelc";
+        component_type.m_ResourceType = type;
+        component_type.m_Context = model_world;
+        component_type.m_CreateFunction = dmGameSystem::CreateModelComponent;
+        component_type.m_InitFunction = 0x0;
+        component_type.m_DestroyFunction = dmGameSystem::DestroyModelComponent;
+        component_type.m_UpdateFunction = dmGameSystem::UpdateModelComponent;
+        component_type.m_OnEventFunction = dmGameSystem::OnEventModelComponent;
+        component_type.m_InstanceHasUserData = true;
+
+        dmGameObject::Result res = dmGameObject::RegisterComponentType(regist, component_type);
+        return res;
+    }
+
 }
