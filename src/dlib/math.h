@@ -118,6 +118,16 @@ namespace dmMath
     }
 
     /**
+     * Abs function
+     * @param x
+     * @return Absolute value of x
+     */
+    inline float Abs(float x)
+    {
+        return Select(x, x, -x);
+    }
+
+    /**
      * Return a random number in the interval [0,1], with a granularity of a millionth.
      */
     inline float Rand01()

@@ -72,6 +72,13 @@ TEST(dmMath, Select)
     ASSERT_EQ(b, dmMath::Select(-1.0f, a, b));
 }
 
+TEST(dmMath, Abs)
+{
+    ASSERT_EQ(0.0f, dmMath::Abs(0.0f));
+    ASSERT_EQ(1.0f, dmMath::Abs(1.0f));
+    ASSERT_EQ(1.0f, dmMath::Abs(-1.0f));
+}
+
 // out is [min, max, mean]
 void TestRand(float (*rand)(), float* out)
 {
