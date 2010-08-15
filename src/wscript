@@ -50,9 +50,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
     bld.install_files('${PREFIX}/include/render', 'render.h')
     bld.install_files('${PREFIX}/include/render', 'rendercontext.h')
-    bld.install_files('${PREFIX}/include/render/resource_types', 'resource_types/material.h')
-    bld.install_files('${PREFIX}/include/render/resource_types', 'resource_types/mesh.h')
-    bld.install_files('${PREFIX}/include/render/resource_types', 'resource_types/model.h')
 
     bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/share/java', 'fontc.jar')
