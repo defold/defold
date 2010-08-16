@@ -70,8 +70,8 @@ def configure(conf):
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
     conf.env['LIB_GTEST'] = 'gtest'
-    conf.env['LIB_GRAPHICS'] = 'graphics_null'
-    conf.env['LIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_GRAPHICS'] = 'graphics_null'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
 
 def build(bld):
     bld.add_subdirs('src')
