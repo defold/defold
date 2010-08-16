@@ -227,8 +227,8 @@ namespace dmRender
     		dmModel::Model* model = (dmModel::Model*)resource;
     		uint32_t reg;
 
-    		reg = DIFFUSE_COLOR;
-    		ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
+            reg = DIFFUSE_COLOR;
+            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
             reg = EMISSIVE_COLOR;
             ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
             reg = SPECULAR_COLOR;
