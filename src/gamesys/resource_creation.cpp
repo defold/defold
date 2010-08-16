@@ -15,7 +15,6 @@
 #include <gameobject/gameobject.h>
 #include <render/model_ddf.h>
 #include <render/model/model.h>
-#include <render/rendercontext.h>
 #include <render/render.h>
 
 namespace dmGameSystem

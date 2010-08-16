@@ -7,7 +7,6 @@
 #include <render/material_ddf.h>
 #include <render/mesh_ddf.h>
 #include <render/material_ddf.h>
-#include <render/rendercontext.h>
 #include <render/render.h>
 
 struct CollisionObjectPrototype

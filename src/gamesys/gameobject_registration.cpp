@@ -10,7 +10,6 @@
 #include "resource_creation.h"
 #include <render/model_ddf.h>
 #include <render/model/model.h>
-#include <render/rendercontext.h>
 #include <render/render.h>
 
 #include "../proto/physics_ddf.h"
@@ -210,7 +209,7 @@ namespace dmGameSystem
         {
             dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
             dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)event_data->m_DDFData;
-            dmRender::MaterialDesc::ParameterSemantic color_type = (dmRender::MaterialDesc::ParameterSemantic)ddf->m_ColorType;
+            dmRender::ColorType color_type = (dmRender::ColorType)ddf->m_ColorType;
             dmRender::SetColor(ro, ddf->m_Color, color_type);
         }
         return dmGameObject::UPDATE_RESULT_OK;
