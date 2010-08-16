@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 #include <ddf/ddf.h>
+#include <graphics/graphics_device.h>
 #include "../../build/default/proto/render/mesh_ddf.h"
 #include "../../build/default/proto/render/material_ddf.h"
-#include "rendercontext.h"
 #include "render.h"
 #include "../model/model.h"
 

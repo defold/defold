@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <dlib/hash.h>
 #include <dlib/profile.h>
-#include "rendercontext.h"
+#include <graphics/graphics_device.h>
 #include "renderinternal.h"
 #include "model/model.h"
 
@@ -227,11 +227,11 @@ namespace dmRender
     		dmModel::Model* model = (dmModel::Model*)resource;
     		uint32_t reg;
 
-    		reg = dmRender::MaterialDesc::DIFFUSE_COLOR;
+    		reg = DIFFUSE_COLOR;
     		ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
-            reg = dmRender::MaterialDesc::EMISSIVE_COLOR;
+            reg = EMISSIVE_COLOR;
             ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
-            reg = dmRender::MaterialDesc::SPECULAR_COLOR;
+            reg = SPECULAR_COLOR;
             ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(dmModel::GetMaterial(model), reg);
     	}
 
@@ -269,7 +269,7 @@ namespace dmRender
     	// double buffering
     }
 
-    void SetColor(HRenderObject ro, Vector4 color, dmRender::MaterialDesc::ParameterSemantic color_type)
+    void SetColor(HRenderObject ro, Vector4 color, ColorType color_type)
     {
         ro->m_Colour[color_type] = color;
     }

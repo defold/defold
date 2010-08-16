@@ -2,10 +2,6 @@
 #define RENDERINTERNAL_H
 
 #include <vectormath/cpp/vectormath_aos.h>
-#include <ddf/ddf.h>
-#include "render/material_ddf.h"
-#include "render/model_ddf.h"
-#include "render/mesh_ddf.h"
 #include "render.h"
 
 
@@ -15,7 +11,7 @@ namespace dmRender
 
 	struct RenderObject
 	{
-		Vector4				m_Colour[dmRender::MaterialDesc::MAX_COLOR];
+		Vector4				m_Colour[MAX_COLOR];
 		Point3				m_Pos;
 		Quat				m_Rot;
 		RenderObjectType	m_Type;

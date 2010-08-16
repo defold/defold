@@ -7,6 +7,11 @@ namespace dmModel
 {
     using namespace Vectormath::Aos;
 
+    enum PrimtiveType
+    {
+        TRIANGLES = 1,
+        QUADS     = 2,
+    };
 
     typedef struct Model* HModel;
     typedef struct Mesh* HMesh;
@@ -56,16 +61,75 @@ namespace dmModel
      */
     void DeleteMesh(HMesh mesh);
 
-    uint32_t GetPrimitiveCount(HMesh mesh);
-    dmRender::MeshDesc::Primitive GetPrimitiveType(HMesh mesh);
-    const void* GetPositions(HMesh mesh);
-    uint32_t    GetPositionCount(HMesh mesh);
-    const void* GetTexcoord0(HMesh mesh);
-    uint32_t    GetTexcoord0Count(HMesh mesh);
-    const void* GetNormals(HMesh mesh);
-    uint32_t    GetNormalCount(HMesh mesh);
-    const void* GetIndices(HMesh mesh);
-    uint32_t    GetIndexCount(HMesh mesh);
+    /**
+     * Get number of primitives (triangles/quads) in mesh
+     * @param mesh Mesh to query
+     * @return Number of primitives
+     */
+    uint32_t        GetPrimitiveCount(HMesh mesh);
+
+    /**
+     * Get primitive type for mesh
+     * @param mesh Mesh to query
+     * @return Primitive type
+     */
+    PrimtiveType    GetPrimitiveType(HMesh mesh);
+
+    /**
+     * Get vertex positions for mesh
+     * @param mesh Mesh to query
+     * @return Pointer to vertex data
+     */
+    const void*     GetPositions(HMesh mesh);
+
+    /**
+     * Get vertex position count
+     * @param mesh Mesh to query
+     * @return Vertex data count
+     */
+    uint32_t        GetPositionCount(HMesh mesh);
+
+    /**
+     * Get texture0 coords for mesh
+     * @param mesh Mesh to query
+     * @return Pointer to texture coord data
+     */
+    const void*     GetTexcoord0(HMesh mesh);
+
+    /**
+     * Get texture0 coord count
+     * @param mesh Mesh to query
+     * @return Texture0 coord count
+     */
+    uint32_t        GetTexcoord0Count(HMesh mesh);
+
+    /**
+     * Get normals for mesh
+     * @param mesh Mesh to query
+     * @return Pointer to normal data
+     */
+    const void*     GetNormals(HMesh mesh);
+
+    /**
+     * Get normal count
+     * @param mesh Mesh to query
+     * @return Normal count
+     */
+    uint32_t        GetNormalCount(HMesh mesh);
+
+    /**
+     * Get index data for mesh
+     * @param mesh Mesh to query
+     * @return Pointer to index data
+     */
+    const void*     GetIndices(HMesh mesh);
+
+    /**
+     * Get index count
+     * @param mesh Mesh to query
+     * @return Index count
+     */
+    uint32_t        GetIndexCount(HMesh mesh);
 
     /**
      * Set model mesh
@@ -119,4 +183,4 @@ namespace dmModel
 }
 
 
-#endif //__MODEL_H__
+#endif //MODEL_H

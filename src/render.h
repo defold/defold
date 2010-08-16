@@ -1,10 +1,10 @@
-
 #ifndef RENDER_H
 #define RENDER_H
 
 #include <string.h>
-#include <dlib/container.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <dlib/container.h>
+#include <graphics/graphics_device.h>
 
 namespace dmRender
 {
@@ -17,6 +17,24 @@ namespace dmRender
 		RENDEROBJECT_TYPE_PARTICLE = 1,
 	};
 
+    enum ColorType
+    {
+        DIFFUSE_COLOR = 0,
+        EMISSIVE_COLOR = 1,
+        SPECULAR_COLOR = 2,
+        GENERIC = 3,
+        MAX_COLOR
+    };
+
+    struct RenderContext
+    {
+        Matrix4                     m_View;
+        Matrix4                     m_Projection;
+        Matrix4                     m_ViewProj;
+        Point3                      m_CameraPosition;
+
+        dmGraphics::HContext        m_GFXContext;
+    };
 
 
 
@@ -79,7 +97,7 @@ namespace dmRender
 
     void SetPosition(HRenderObject ro, Vector4 pos);
     void SetRotation(HRenderObject ro, Quat rot);
-    void SetColor(HRenderObject ro, Vector4 color, dmRender::MaterialDesc::ParameterSemantic color_type);
+    void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
 
     HRenderPass NewRenderPass(RenderPassDesc* desc);
     void DeleteRenderPass(HRenderPass renderpass);

@@ -21,8 +21,6 @@ message MaterialDesc
         DIFFUSE_COLOR = 0;
         EMISSIVE_COLOR = 1;
         SPECULAR_COLOR = 2;
-        MAX_COLOR = 3;
-        GENERIC = 4;
     }
 
     message Vector4

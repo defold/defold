@@ -1,5 +1,6 @@
 #include <vectormath/cpp/vectormath_aos.h>
-#include "rendercontext.h"
+#include <graphics/graphics_device.h>
+#include "render.h"
 #include "renderinternal.h"
 #include "rendertypemodel.h"
 #include "../model/model.h"

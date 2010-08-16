@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics_device.h>
-#include "render/mesh_ddf.h"
+#include "../build/default/proto/render/mesh_ddf.h"
 #include "model.h"
 
 namespace dmModel
@@ -82,19 +82,19 @@ namespace dmModel
         mesh->m_Deleted = true;
     }
 
-    uint32_t GetPrimitiveCount(HMesh mesh)          { return mesh->m_Desc.m_PrimitiveCount;  }
-    dmRender::MeshDesc::Primitive GetPrimitiveType(HMesh mesh) { return mesh->m_Desc.m_PrimitiveType;   }
-    const void* GetPositions(HMesh mesh)            { return &mesh->m_Desc.m_Positions.m_Data[0];   }
-    uint32_t    GetPositionCount(HMesh mesh)          { return mesh->m_Desc.m_Positions.m_Count;    }
+    uint32_t        GetPrimitiveCount(HMesh mesh)       { return mesh->m_Desc.m_PrimitiveCount;                 }
+    PrimtiveType    GetPrimitiveType(HMesh mesh)        { return (PrimtiveType)mesh->m_Desc.m_PrimitiveType;    }
+    const void*     GetPositions(HMesh mesh)            { return &mesh->m_Desc.m_Positions.m_Data[0];           }
+    uint32_t        GetPositionCount(HMesh mesh)        { return mesh->m_Desc.m_Positions.m_Count;              }
 
-    const void* GetTexcoord0(HMesh mesh)            { return &mesh->m_Desc.m_Texcoord0.m_Data[0];   }
-    uint32_t    GetTexcoord0Count(HMesh mesh)       { return mesh->m_Desc.m_Texcoord0.m_Count;      }
+    const void*     GetTexcoord0(HMesh mesh)            { return &mesh->m_Desc.m_Texcoord0.m_Data[0];           }
+    uint32_t        GetTexcoord0Count(HMesh mesh)       { return mesh->m_Desc.m_Texcoord0.m_Count;              }
 
-    const void* GetNormals(HMesh mesh)              { return &mesh->m_Desc.m_Normals.m_Data[0];     }
-    uint32_t    GetNormalCount(HMesh mesh)          { return mesh->m_Desc.m_Normals.m_Count;}
+    const void*     GetNormals(HMesh mesh)              { return &mesh->m_Desc.m_Normals.m_Data[0];             }
+    uint32_t        GetNormalCount(HMesh mesh)          { return mesh->m_Desc.m_Normals.m_Count;                }
 
-    const void* GetIndices(HMesh mesh)              { return &mesh->m_Desc.m_Indices.m_Data[0];     }
-    uint32_t    GetIndexCount(HMesh mesh)          { return mesh->m_Desc.m_Indices.m_Count;}
+    const void*     GetIndices(HMesh mesh)              { return &mesh->m_Desc.m_Indices.m_Data[0];             }
+    uint32_t        GetIndexCount(HMesh mesh)           { return mesh->m_Desc.m_Indices.m_Count;                }
 
     void SetMesh(HModel model, HMesh mesh)
     {
@@ -138,6 +138,9 @@ namespace dmModel
 
     void DeleteWorld(HWorld world)
     {
+        puts("sort out deletion of models!");
+
+        return;
         uint32_t size = world->m_ModelList.Size();
         for (uint32_t i=0; i<size; i++)
         {
