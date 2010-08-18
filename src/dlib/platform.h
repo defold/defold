@@ -9,7 +9,7 @@
 #define DM_PLATFORM DM_PLATFORM_LINUX
 #elif defined(__MACH__)
 #define DM_PLATFORM DM_PLATFORM_OSX
-#elif defined(__WIN32__)
+#elif defined(_WIN32)
 #define DM_PLATFORM DM_PLATFORM_WINDOWS
 #else
 #error "Unsupported platform"
