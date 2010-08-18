@@ -2,6 +2,7 @@
 #define RENDER_H
 
 #include <string.h>
+#include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/container.h>
 #include <graphics/graphics_device.h>
@@ -36,33 +37,12 @@ namespace dmRender
         dmGraphics::HContext        m_GFXContext;
     };
 
-
-
     typedef struct RenderObject* HRenderObject;
+    typedef struct RenderWorld* HRenderWorld;
     typedef struct RenderPass* HRenderPass;
     typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
 
 
-    struct RenderPassDesc
-    {
-    	RenderPassDesc(){}
-        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, void (*beginfunc)(const dmRender::RenderContext* rendercontext, const void* userdata), void (*endfunc)(const dmRender::RenderContext* rendercontext, const void* userdata))
-        {
-            strncpy(m_Name, name, sizeof(m_Name));
-            m_UserData = userdata;
-            m_Index = index;
-            m_Capacity = capacity;
-            m_BeginFunc = beginfunc;
-            m_EndFunc = endfunc;
-        }
-
-        char    	m_Name[128];
-        void*   	m_UserData;
-        uint32_t 	m_Index;
-        uint32_t	m_Capacity;
-        void    	(*m_BeginFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
-        void    	(*m_EndFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
-    };
 
     struct ModeltypeDesc
     {
@@ -84,13 +64,37 @@ namespace dmRender
         void    (*m_UpdateFunc)(const void* userdata);
     };
 
+    struct RenderPassDesc
+    {
+        RenderPassDesc(){}
+        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, void (*beginfunc)(const dmRender::RenderContext* rendercontext, const void* userdata), void (*endfunc)(const dmRender::RenderContext* rendercontext, const void* userdata))
+        {
+            strncpy(m_Name, name, sizeof(m_Name));
+            m_UserData = userdata;
+            m_Index = index;
+            m_Capacity = capacity;
+            m_BeginFunc = beginfunc;
+            m_EndFunc = endfunc;
+        }
 
-    void Initialize(uint32_t max_renderobjects, uint32_t max_renderpasses, SetObjectModel set_object_model);
-    void Finalize();
-    void Update();
-    void UpdateContext(dmRender::RenderContext* rendercontext);
-    HRenderObject NewRenderObjectInstance(void* resource, void* go, RenderObjectType type);
-    void DeleteRenderObject(HRenderObject ro);
+        char        m_Name[128];
+        void*       m_UserData;
+        uint32_t    m_Index;
+        uint32_t    m_Capacity;
+        void        (*m_BeginFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
+        void        (*m_EndFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
+    };
+
+
+    HRenderWorld NewRenderWorld(uint32_t max_instances, uint32_t max_renderpasses, SetObjectModel set_object_model);
+    void DeleteRenderWorld(HRenderWorld world);
+    void AddRenderPass(HRenderWorld world, HRenderPass renderpass);
+
+
+    void Update(HRenderWorld world, float dt);
+    void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
+    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, RenderObjectType type);
+    void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
     void Disable(HRenderObject ro);
     void Enable(HRenderObject ro);
     bool IsEnabled(HRenderObject ro);
@@ -99,10 +103,15 @@ namespace dmRender
     void SetRotation(HRenderObject ro, Quat rot);
     void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
 
+
+    void RenderPassBegin(RenderContext* rendercontext, RenderPass* rp);
+    void RenderPassEnd(RenderContext* rendercontext, RenderPass* rp);
     HRenderPass NewRenderPass(RenderPassDesc* desc);
     void DeleteRenderPass(HRenderPass renderpass);
     void AddRenderObject(HRenderPass renderpass, HRenderObject renderobject);
 
+    void DisableRenderPass(HRenderPass renderpass);
+    void EnableRenderPass(HRenderPass renderpass);
 
 }
 

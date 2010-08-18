@@ -18,25 +18,6 @@ namespace dmModel
     typedef class ModelWorld* HWorld;
 
     /**
-     * Create a new model world
-     * @param max_models number of models in world
-     * @return new model world handle
-     */
-    HWorld NewWorld(uint32_t max_models);
-
-    /**
-     * Destroy model world
-     * @param handle to world to destroy
-     */
-    void DeleteWorld(HWorld);
-
-    /**
-     * Update world
-     * @param world model world
-     */
-    void UpdateWorld(HWorld world);
-
-    /**
      * Create a new model
      * @return new model handle
      */
@@ -172,13 +153,6 @@ namespace dmModel
      * @return Material associated with model
      */
     dmGraphics::HMaterial GetMaterial(HModel model);
-
-    /**
-     * Add model to world
-     * @param world model world
-     * @param model model
-     */
-    void AddModel(HWorld world, HModel model);
 
 }
 

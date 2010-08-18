@@ -20,48 +20,42 @@ void SetObjectModel(void* context, void* gameobject, Quat* rotation, Point3* pos
 
 TEST(dmRenderTest, InitializeFinalize)
 {
-    return;
     const uint32_t n_models = 1000;
     const uint32_t n_ro = 100;
 
-    dmRender::Initialize(1000, 10, SetObjectModel);
-
-
-    dmModel::HWorld world = dmModel::NewWorld(n_models);
 
     dmModel::HModel model[n_models];
 
     for (uint32_t i=0; i<n_models; i++)
     {
         model[i] = dmModel::NewModel();
-        dmModel::AddModel(world, model[i]);
     }
 
+    dmRender::HRenderWorld world = dmRender::NewRenderWorld(n_ro, 10, SetObjectModel);
 
     dmRender::HRenderObject ro[n_ro];
     for (uint32_t i=0; i<n_ro; i++)
     {
-        ro[i] = NewRenderObjectInstance((void*)model[i], (void*)0x0, dmRender::RENDEROBJECT_TYPE_PARTICLE);
+        ro[i] = NewRenderObjectInstance(world, (void*)model[i], (void*)0x0, dmRender::RENDEROBJECT_TYPE_PARTICLE);
     }
 
     for (uint32_t i=0; i<n_ro; i++)
     {
-        dmRender::Update();
+        dmRender::Update(world, 0.0167);
         if (i & 1 == 0)
-            DeleteRenderObject(ro[i]);
+            DeleteRenderObject(world, ro[i]);
     }
 //    ASSERT_EQ((uint32_t) 16, a.Capacity());
 
     for (uint32_t i=0; i<n_ro; i++)
         if (i & 1 == 1)
-            DeleteRenderObject(ro[i]);
+            DeleteRenderObject(world, ro[i]);
 
 
     for (uint32_t i=0; i<n_models; i++)
         dmModel::DeleteModel(model[i]);
 
-    dmModel::DeleteWorld(world);
-    dmRender::Finalize();
+    dmRender::DeleteRenderWorld(world);
 }
 
 int main(int argc, char **argv)

@@ -36,39 +36,16 @@ namespace dmModel
         bool                    m_Deleted;
     };
 
-    class ModelWorld
-    {
-    public:
-        void AddModel(HModel model)
-        {
-            m_ModelList.Push(model);
-        }
-
-        dmArray<Model*> m_ModelList;
-    };
-
-    class MeshWorld
-    {
-    public:
-        void AddMesh(HMesh mesh)
-        {
-            m_MeshList.Push(mesh);
-        }
-
-        dmArray<Mesh*> m_MeshList;
-
-    };
-
 
     HModel NewModel()
     {
         Model* model = new Model;
-        return (HModel)model;
+        return model;
     }
 
     void DeleteModel(HModel model)
     {
-    	model->m_Deleted = true;
+        delete model;
     }
 
     HMesh NewMesh()
@@ -79,7 +56,7 @@ namespace dmModel
 
     void DeleteMesh(HMesh mesh)
     {
-        mesh->m_Deleted = true;
+        delete mesh;
     }
 
     uint32_t        GetPrimitiveCount(HMesh mesh)       { return mesh->m_Desc.m_PrimitiveCount;                 }
@@ -125,40 +102,4 @@ namespace dmModel
     {
         return model->m_Material;
     }
-
-
-
-    HWorld NewWorld(uint32_t max_models)
-    {
-        ModelWorld* world = new ModelWorld;
-        world->m_ModelList.SetCapacity(max_models);
-
-        return (HWorld)world;
-    }
-
-    void DeleteWorld(HWorld world)
-    {
-        puts("sort out deletion of models!");
-
-        return;
-        uint32_t size = world->m_ModelList.Size();
-        for (uint32_t i=0; i<size; i++)
-        {
-			Model* model = world->m_ModelList[i];
-			delete model;
-        }
-        delete world;
-    }
-
-    void AddModel(HWorld world, HModel model)
-    {
-        world->AddModel(model);
-    }
-
-    void UpdateWorld(HWorld world)
-    {
-        // iterate world and look for deleted models
-    	return;
-    }
-
 }
