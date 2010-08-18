@@ -4,10 +4,6 @@
 #include <physics/physics.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
-#include <render/material_ddf.h>
-#include <render/mesh_ddf.h>
-#include <render/material_ddf.h>
-#include <render/render.h>
 
 struct CollisionObjectPrototype
 {

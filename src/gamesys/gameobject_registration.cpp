@@ -167,11 +167,10 @@ namespace dmGameSystem
     {
 
         dmModel::HModel prototype = (dmModel::HModel)resource;
-        dmModel::HWorld world = (dmModel::HWorld)context;
-        dmModel::AddModel(world, prototype);
+        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
 
 
-        dmRender::HRenderObject ro = NewRenderObjectInstance((void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
+        dmRender::HRenderObject ro = NewRenderObjectInstance(world, (void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
         *user_data = (uintptr_t) ro;
 
         return dmGameObject::CREATE_RESULT_OK;
@@ -184,7 +183,9 @@ namespace dmGameSystem
                                              uintptr_t* user_data)
     {
         dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-        dmRender::DeleteRenderObject(ro);
+        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
+
+        dmRender::DeleteRenderObject(world, ro);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -193,9 +194,8 @@ namespace dmGameSystem
                          const dmGameObject::UpdateContext* update_context,
                          void* context)
     {
-        dmModel::HWorld world = (dmModel::HWorld)context;
-        dmModel::UpdateWorld(world);
-        dmRender::Update();
+        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
+        dmRender::Update(world, update_context->m_DT);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -205,6 +205,9 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
+        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
+        (void)world;
+
         if (event_data->m_EventHash == dmHashString32("SetRenderColor"))
         {
             dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
@@ -217,7 +220,7 @@ namespace dmGameSystem
 
     dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
-                                                  dmModel::HWorld model_world)
+                                                  dmRender::HRenderWorld renderworld)
     {
         uint32_t type;
 
@@ -230,7 +233,7 @@ namespace dmGameSystem
         dmGameObject::ComponentType component_type;
         component_type.m_Name = "modelc";
         component_type.m_ResourceType = type;
-        component_type.m_Context = model_world;
+        component_type.m_Context = renderworld;
         component_type.m_CreateFunction = dmGameSystem::CreateModelComponent;
         component_type.m_InitFunction = 0x0;
         component_type.m_DestroyFunction = dmGameSystem::DestroyModelComponent;

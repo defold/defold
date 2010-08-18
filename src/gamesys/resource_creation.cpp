@@ -14,6 +14,8 @@
 #include "resource_creation.h"
 #include <gameobject/gameobject.h>
 #include <render/model_ddf.h>
+#include <render/mesh_ddf.h>
+#include <render/material_ddf.h>
 #include <render/model/model.h>
 #include <render/render.h>
 

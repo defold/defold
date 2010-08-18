@@ -3,13 +3,13 @@
 
 #include <gameobject/gameobject.h>
 #include <physics/physics.h>
-#include <render/model/model.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
     dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
-                                                  dmModel::HWorld model_world);
+                                                  dmRender::HRenderWorld renderworld);
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
