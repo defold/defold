@@ -6,7 +6,6 @@ APPNAME = 'render'
 srcdir = '.'
 blddir = 'build'
 
-
 import os, sys
 import Options
 
