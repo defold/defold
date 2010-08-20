@@ -995,6 +995,14 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
             return GL_FALSE;
         }
     }
+    else if (param == GLFW_AXES)
+    {
+        return _glfwJoy[ joy ].NumAxes;
+    }
+    else if (param == GLFW_BUTTONS)
+    {
+        return _glfwJoy[ joy ].NumButtons;
+    }
     else
     {
         return GL_FALSE;
