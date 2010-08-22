@@ -36,6 +36,15 @@ def build(bld):
 
     test_array.install_path = None
 
+    test_circular_array = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_circular_array.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_circular_array')
+
+    test_circular_array.install_path = None
+
     test_indexpool = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_indexpool.cpp',
                                       uselib = 'GTEST',
