@@ -29,6 +29,9 @@ enum dmLogSeverity
 
 #ifndef DLIB_LOG_DOMAIN
 #define DLIB_LOG_DOMAIN "DEFAULT"
+#ifdef __GNUC__
+#warning "DLIB_LOG_DOMAIN is not defined"
+#endif
 #endif
 
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...);
