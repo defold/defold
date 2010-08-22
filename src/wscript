@@ -6,6 +6,7 @@ def set_options(opt):
 def build(bld):
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/circular_array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
