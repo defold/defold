@@ -125,6 +125,11 @@ TEST(dmCircularArray, Overflow)
 
     for (uint32_t i = array_size; i < array_size * 2; ++i)
         EXPECT_EQ(i, ar[i - array_size]);
+
+    ar.SetCapacity(array_size/2);
+
+    for (uint32_t i = array_size; i < array_size * 3 / 2; ++i)
+        EXPECT_EQ(i, ar[i - array_size]);
 }
 
 int main(int argc, char **argv)

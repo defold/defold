@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <assert.h>
 
+#include "math.h"
+
 /**
  * dmCircularArray class helper functions. (private)
  */
@@ -200,12 +202,12 @@ public:
 
             if (m_Front < m_Back)
             {
-                new_size = (uint32_t)(m_Back - m_Front) + 1;
+                new_size = dmMath::Min(new_capacity, (uint32_t)(m_Back - m_Front) + 1);
                 memcpy(new_block, (void*)m_Buffer, type_size * new_size);
             }
             else if (m_Back < m_Front)
             {
-                new_size = m_Capacity - (uint32_t)(m_Front - m_Back) + 1;
+                new_size = dmMath::Min(new_capacity, m_Capacity - (uint32_t)(m_Front - m_Back) + 1);
                 memcpy(new_block, (void*)m_Front, type_size * (uint32_t)(m_Buffer + m_Capacity - m_Front));
                 memcpy(&new_block[type_size * (m_Capacity - (uint32_t)(m_Front - m_Buffer))], (void*)m_Buffer, type_size * (uint32_t)(m_Back - m_Buffer));
             }
