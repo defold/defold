@@ -116,6 +116,18 @@ TEST(dmCircularArray, Static_int32)
     EXPECT_EQ(true, ar.Empty());
 }
 
+TEST(dmCircularArray, Stack)
+{
+    dmCircularArray<uint32_t> ar;
+    ar.SetCapacity(array_size);
+    ar.Push(1);
+    EXPECT_EQ(1U, ar.Top());
+    ar.Push(2);
+    EXPECT_EQ(2U, ar.Top());
+    ar.Pop();
+    EXPECT_EQ(1U, ar.Top());
+}
+
 TEST(dmCircularArray, Overflow)
 {
     dmCircularArray<uint32_t> ar;

@@ -77,8 +77,7 @@ public:
      */
     T& Front()
     {
-        assert(Size() > 0);
-        return m_Front[0];
+        return *m_Front;
     }
 
     /**
@@ -87,8 +86,25 @@ public:
      */
     const T& Front() const
     {
-        assert(Size() > 0);
-        return m_Front[0];
+        return *m_Front;
+    }
+
+    /**
+     * First element
+     * @return Reference to the top element (same as last Push() or will be affected by next Pop()).
+     */
+    T& Top()
+    {
+        return *m_Back;
+    }
+
+    /**
+     * First element
+     * @return Reference to the top element (same as last Push() or will be affected by next Pop()).
+     */
+    const T& Top() const
+    {
+        return *m_Back;
     }
 
     /**
