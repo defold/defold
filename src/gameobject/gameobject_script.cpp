@@ -1131,4 +1131,87 @@ bail:
         assert(top == lua_gettop(L));
         return UPDATE_RESULT_UNKNOWN_ERROR;
     }
+
+    UpdateResult ScriptOnInputComponent(HCollection collection,
+            HInstance instance,
+            const InputAction* input_action,
+            void* context,
+            uintptr_t* user_data)
+    {
+        ScriptContext* script_context = (ScriptContext*)context;
+        ScriptInstance* script_instance = (ScriptInstance*)*user_data;
+
+        lua_State* L = g_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+        int ret;
+
+        lua_pushliteral(L, "__update_context__");
+        lua_pushlightuserdata(L, (void*) script_context->m_UpdateContext);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            dmLogError("Invalid 'SenderFunctionsReference' (%d) in OnInput.", script_instance->m_Script->m_FunctionsReference);
+            return UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        const char* function_name = "OnInput";
+        lua_getfield(L, -1, function_name);
+        if (lua_type(L, -1) != LUA_TFUNCTION)
+        {
+            dmLogError("No '%s' function found", function_name);
+            lua_pop(L, 2);
+            goto bail;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+        lua_createtable(L, 0, 5);
+        {
+            int action_table = lua_gettop(L);
+
+            char buf[9];
+            DM_SNPRINTF(buf, sizeof(buf), "%X", input_action->m_ActionId);
+            lua_pushliteral(L, "Id");
+            lua_pushstring(L, buf);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "Value");
+            lua_pushnumber(L, input_action->m_Value);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "Pressed");
+            lua_pushboolean(L, input_action->m_Pressed);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "Released");
+            lua_pushboolean(L, input_action->m_Released);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "Repeated");
+            lua_pushboolean(L, input_action->m_Repeated);
+            lua_settable(L, action_table);
+        }
+
+        ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+        if (ret != 0)
+        {
+            dmLogError("Error running script: %s", function_name);
+            lua_pop(L, 2);
+            goto bail;
+        }
+
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return UPDATE_RESULT_OK;
+bail:
+        lua_pushliteral(L, "__update_context__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+        assert(top == lua_gettop(L));
+        return UPDATE_RESULT_UNKNOWN_ERROR;
+    }
 }

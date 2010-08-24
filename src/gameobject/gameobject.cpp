@@ -6,6 +6,7 @@
 #include <dlib/message.h>
 #include <dlib/hash.h>
 #include <dlib/array.h>
+#include <dlib/circular_array.h>
 #include <dlib/index_pool.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
@@ -83,6 +84,8 @@ namespace dmGameObject
             m_WorldTransforms.SetSize(max_instances);
             m_InstancesToDelete.SetCapacity(max_instances);
             m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
+            // TODO: Un-hard-code
+            m_FocusStack.SetCapacity(8);
             m_InUpdate = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
@@ -133,6 +136,9 @@ namespace dmGameObject
 
         // Identifier to Instance mapping
         dmHashTable32<Instance*> m_IDToInstance;
+
+        // Stack keeping track of which instance has the input focus
+        dmCircularArray<Instance*> m_FocusStack;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
@@ -545,6 +551,7 @@ bail:
         script_component.m_DestroyFunction = &ScriptDestroyComponent;
         script_component.m_UpdateFunction = &ScriptUpdateComponent;
         script_component.m_OnEventFunction = &ScriptOnEventComponent;
+        script_component.m_OnInputFunction = &ScriptOnInputComponent;
         script_component.m_InstanceHasUserData = true;
         return RegisterComponentType(regist, script_component);
     }
@@ -1264,6 +1271,69 @@ bail:
         }
 
         return ret;
+    }
+
+    UpdateResult DispatchInput(HCollection collection, InputAction* input_action)
+    {
+        DM_PROFILE(GameObject, "DispatchInput");
+        if (collection->m_FocusStack.Size() > 0)
+        {
+            Instance* instance = collection->m_FocusStack.Top();
+            bool exists = false;
+            for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+            {
+                if (instance == collection->m_Instances[i])
+                {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (exists)
+            {
+                Prototype* prototype = instance->m_Prototype;
+                // Broadcast to all components
+
+                uint32_t next_component_instance_data = 0;
+                uint32_t components_size = prototype->m_Components.Size();
+                for (uint32_t i = 0; i < components_size; ++i)
+                {
+                    ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[i].m_ResourceType);
+                    assert(component_type);
+                    if (component_type->m_OnInputFunction)
+                    {
+                        uintptr_t* component_instance_data = 0;
+                        if (component_type->m_InstanceHasUserData)
+                        {
+                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                        }
+                        UpdateResult res = component_type->m_OnInputFunction(collection, instance, input_action, component_type->m_Context, component_instance_data);
+                        if (res != UPDATE_RESULT_OK)
+                            return res;
+                    }
+
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+            }
+            else
+            {
+                collection->m_FocusStack.Pop();
+            }
+        }
+        return UPDATE_RESULT_OK;
+    }
+
+    void AcquireInputFocus(HCollection collection, HInstance instance)
+    {
+        collection->m_FocusStack.Push(instance);
+    }
+
+    void ReleaseInputFocus(HCollection collection, HInstance instance)
+    {
+        collection->m_FocusStack.Pop();
     }
 
     dmResource::HFactory GetFactory(HCollection collection)

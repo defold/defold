@@ -106,6 +106,23 @@ namespace dmGameObject
     };
 
     /**
+     * Container of input related information.
+     */
+    struct InputAction
+    {
+        /// Action id, hashed action name
+        uint32_t m_ActionId;
+        /// Value of the input [0,1]
+        float m_Value;
+        /// If the input was 0 last update
+        uint16_t m_Pressed;
+        /// If the input turned from above 0 to 0 this update
+        uint16_t m_Released;
+        /// If the input was held enough for the value to be repeated this update
+        uint16_t m_Repeated;
+    };
+
+    /**
      * Component create function
      * @param collection Collection handle
      * @param instance Game object instance
@@ -171,6 +188,19 @@ namespace dmGameObject
                                      uintptr_t* user_data);
 
     /**
+     * Component on-input function. Called when input is sent to this component
+     * @param collection Collection handle
+     * @param instance Instance handle
+     * @param context User context
+     * @param user_data User data storage pointer
+     */
+    typedef UpdateResult (*ComponentOnInput)(HCollection collection,
+                                     HInstance instance,
+                                     const InputAction* input_action,
+                                     void* context,
+                                     uintptr_t* user_data);
+
+    /**
      * Collection of component registration data.
      */
     struct ComponentType
@@ -185,6 +215,7 @@ namespace dmGameObject
         ComponentDestroy    m_DestroyFunction;
         ComponentsUpdate    m_UpdateFunction;
         ComponentOnEvent    m_OnEventFunction;
+        ComponentOnInput    m_OnInputFunction;
         uint32_t            m_InstanceHasUserData : 1;
     };
 
@@ -340,6 +371,11 @@ namespace dmGameObject
      * @return True on success
      */
     bool Update(HCollection collection, const UpdateContext* update_context);
+
+    UpdateResult DispatchInput(HCollection collection, InputAction* input_action);
+
+    void AcquireInputFocus(HCollection collection, HInstance instance);
+    void ReleaseInputFocus(HCollection collection, HInstance instance);
 
     /**
      * Retrieve a factory from the specified collection
