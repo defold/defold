@@ -7,15 +7,6 @@
 #include "math.h"
 
 /**
- * dmCircularArray class helper functions. (private)
- */
-class dmCircularArrayHelper
-{
-    public:
-    static void SetCapacity(uint32_t new_capacity, uint32_t type_size, uintptr_t* buffer, uint32_t capacity, uintptr_t* front, uintptr_t* back);
-};
-
-/**
  * Array class with basic bound-checking.
  * The contained type must be a value type and conform to memcpy-semantics.
  * Except for SetSize(.) and SetCapacity(.) all operations are O(1).
@@ -240,7 +231,7 @@ public:
 
         m_Buffer = (T*)new_block;
         m_Capacity = new_capacity;
-        if (new_capacity > 0)
+        if (new_size > 0)
         {
             m_Front = m_Buffer;
             m_Back = (T*)(new_block + type_size * (new_size - 1));
@@ -276,6 +267,7 @@ public:
         }
         else
         {
+            m_Front = m_Buffer;
             m_Back = &m_Buffer[((uint32_t)(m_Front - m_Buffer) + new_size - 1) % m_Capacity];
         }
     }
@@ -288,9 +280,18 @@ public:
     T& EraseSwap(uint32_t element_index)
     {
         assert( element_index < Size() );
-        m_Front[((uint32_t)(m_Front - m_Buffer) + element_index) % m_Capacity] = *m_Back;
-        m_Back = &m_Buffer[((uint32_t)(m_Back - m_Buffer) + m_Capacity - 1) % m_Capacity];
-        return m_Front[element_index];
+        if (m_Front == m_Back)
+        {
+            m_Front = 0x0;
+            m_Back = 0x0;
+            return m_Buffer[0];
+        }
+        else
+        {
+            m_Front[((uint32_t)(m_Front - m_Buffer) + element_index) % m_Capacity] = *m_Back;
+            m_Back = &m_Buffer[((uint32_t)(m_Back - m_Buffer) + m_Capacity - 1) % m_Capacity];
+            return m_Front[element_index];
+        }
     }
 
     /**
@@ -313,10 +314,19 @@ public:
      */
     void Push(const T& x)
     {
-        m_Back = &m_Buffer[((uint32_t)(m_Back - m_Buffer) + 1) % m_Capacity];
-        *m_Back = x;
-        if (m_Front == m_Back)
-            m_Front = &m_Buffer[((uint32_t)(m_Front - m_Buffer) + 1) % m_Capacity];
+        if (m_Front == 0x0)
+        {
+            *m_Buffer = x;
+            m_Front = m_Buffer;
+            m_Back = m_Buffer;
+        }
+        else
+        {
+            m_Back = &m_Buffer[((uint32_t)(m_Back - m_Buffer) + 1) % m_Capacity];
+            *m_Back = x;
+            if (m_Front == m_Back)
+                m_Front = &m_Buffer[((uint32_t)(m_Front - m_Buffer) + 1) % m_Capacity];
+        }
     }
 
     /**
@@ -326,7 +336,15 @@ public:
     void Pop()
     {
         assert(Size() > 0);
-        m_Back = &m_Buffer[((uint32_t)(m_Back - m_Buffer) + m_Capacity - 1) % m_Capacity];
+        if (m_Front == m_Back)
+        {
+            m_Front = 0x0;
+            m_Back = 0x0;
+        }
+        else
+        {
+            m_Back = &m_Buffer[((uint32_t)(m_Back - m_Buffer) + m_Capacity - 1) % m_Capacity];
+        }
     }
 
 private:
