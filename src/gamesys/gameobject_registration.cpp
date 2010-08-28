@@ -16,18 +16,49 @@
 
 namespace dmGameSystem
 {
+    void GetWorldTransform(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
+    {
+        if (!user_data)
+            return;
+        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
+        position = dmGameObject::GetWorldPosition(instance);
+        rotation = dmGameObject::GetWorldRotation(instance);
+    }
+
+    void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    {
+        if (!user_data)
+            return;
+        dmGameObject::HInstance instance = (dmGameObject::HInstance)user_data;
+        dmGameObject::SetPosition(instance, position);
+        dmGameObject::SetRotation(instance, rotation);
+    }
+
+    dmGameObject::CreateResult GOCollisionObjectNewWorld(void* context, void** world)
+    {
+        *world = dmPhysics::NewWorld(Vectormath::Aos::Point3(-1000, -1000, -1000), Vectormath::Aos::Point3(1000, 1000, 1000), &GetWorldTransform, &SetWorldTransform);
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult GOCollisionObjectDeleteWorld(void* context, void* world)
+    {
+        dmPhysics::DeleteWorld((dmPhysics::HWorld)world);
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::CreateResult CreateCollisionObject(dmGameObject::HCollection collection,
                                                dmGameObject::HInstance instance,
                                                void* resource,
+                                               void* world,
                                                void* context,
                                                uintptr_t* user_data)
     {
         assert(user_data);
 
         CollisionObjectPrototype* collision_object_prototype = (CollisionObjectPrototype*) resource;
-        dmPhysics::HWorld world = (dmPhysics::HWorld) context;
+        dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
 
-        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(world, collision_object_prototype->m_CollisionShape, collision_object_prototype->m_Mass, collision_object_prototype->m_Type, collision_object_prototype->m_Group, collision_object_prototype->m_Mask, instance);
+        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, collision_object_prototype->m_CollisionShape, collision_object_prototype->m_Mass, collision_object_prototype->m_Type, collision_object_prototype->m_Group, collision_object_prototype->m_Mask, instance);
         *user_data = (uintptr_t) collision_object;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -50,14 +81,15 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult DestroyCollisionObject(dmGameObject::HCollection collection,
                                                 dmGameObject::HInstance instance,
+                                                void* world,
                                                 void* context,
                                                 uintptr_t* user_data)
     {
         assert(user_data);
-        dmPhysics::HWorld world = (dmPhysics::HWorld) context;
+        dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
 
         dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
-        dmPhysics::DeleteCollisionObject(world, collision_object);
+        dmPhysics::DeleteCollisionObject(physics_world, collision_object);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -106,11 +138,12 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult UpdateCollisionObject(dmGameObject::HCollection collection,
                          const dmGameObject::UpdateContext* update_context,
+                         void* world,
                          void* context)
     {
-        dmPhysics::HWorld world = (dmPhysics::HWorld) context;
-        dmPhysics::StepWorld(world, update_context->m_DT);
-        dmPhysics::ForEachCollision(world, CollisionCallback, 0x0, ContactPointCallback, 0x0);
+        dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
+        dmPhysics::StepWorld(physics_world, update_context->m_DT);
+        dmPhysics::ForEachCollision(physics_world, CollisionCallback, 0x0, ContactPointCallback, 0x0);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -149,6 +182,8 @@ namespace dmGameSystem
         component_type.m_Name = "collisionobject";
         component_type.m_ResourceType = type;
         component_type.m_Context = physics_world;
+        component_type.m_NewWorldFunction = &GOCollisionObjectNewWorld;
+        component_type.m_DeleteWorldFunction = &GOCollisionObjectDeleteWorld;
         component_type.m_CreateFunction = &CreateCollisionObject;
         component_type.m_InitFunction = &InitCollisionObject;
         component_type.m_DestroyFunction = &DestroyCollisionObject;
@@ -159,18 +194,40 @@ namespace dmGameSystem
         return res;
     }
 
+    void SetObjectModel(void* context, void* gameobject, Vectormath::Aos::Quat* rotation,
+            Vectormath::Aos::Point3* position)
+    {
+        if (!gameobject) return;
+        dmGameObject::HInstance go = (dmGameObject::HInstance) gameobject;
+        *position = dmGameObject::GetWorldPosition(go);
+        *rotation = dmGameObject::GetWorldRotation(go);
+    }
+
+    dmGameObject::CreateResult GoModelComponentNewWorld(void* context, void** world)
+    {
+        *world = dmRender::NewRenderWorld(1000, 10, SetObjectModel);
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult GoModelComponentDeleteWorld(void* context, void* world)
+    {
+        dmRender::DeleteRenderWorld((dmRender::HRenderWorld)world);
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::CreateResult CreateModelComponent(dmGameObject::HCollection collection,
                                             dmGameObject::HInstance instance,
                                             void* resource,
+                                            void* world,
                                             void* context,
                                             uintptr_t* user_data)
     {
 
         dmModel::HModel prototype = (dmModel::HModel)resource;
-        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
+        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
 
 
-        dmRender::HRenderObject ro = NewRenderObjectInstance(world, (void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
+        dmRender::HRenderObject ro = NewRenderObjectInstance(render_world, (void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
         *user_data = (uintptr_t) ro;
 
         return dmGameObject::CREATE_RESULT_OK;
@@ -179,23 +236,25 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult DestroyModelComponent(dmGameObject::HCollection collection,
                                              dmGameObject::HInstance instance,
+                                             void* world,
                                              void* context,
                                              uintptr_t* user_data)
     {
         dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
+        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
 
-        dmRender::DeleteRenderObject(world, ro);
+        dmRender::DeleteRenderObject(render_world, ro);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::UpdateResult UpdateModelComponent(dmGameObject::HCollection collection,
                          const dmGameObject::UpdateContext* update_context,
+                         void* world,
                          void* context)
     {
-        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
-        dmRender::Update(world, update_context->m_DT);
+        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
+        dmRender::Update(render_world, update_context->m_DT);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -234,6 +293,8 @@ namespace dmGameSystem
         component_type.m_Name = "modelc";
         component_type.m_ResourceType = type;
         component_type.m_Context = renderworld;
+        component_type.m_NewWorldFunction = dmGameSystem::GoModelComponentNewWorld;
+        component_type.m_DeleteWorldFunction = dmGameSystem::GoModelComponentDeleteWorld;
         component_type.m_CreateFunction = dmGameSystem::CreateModelComponent;
         component_type.m_InitFunction = 0x0;
         component_type.m_DestroyFunction = dmGameSystem::DestroyModelComponent;
