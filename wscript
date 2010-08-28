@@ -44,6 +44,9 @@ def configure(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
 
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
+
 def build(bld):
     bld.add_subdirs('src')
 
