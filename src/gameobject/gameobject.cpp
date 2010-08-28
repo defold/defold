@@ -96,12 +96,21 @@ namespace dmGameObject
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
             memset(&m_WorldTransforms[0], 0xcc, sizeof(Transform) * max_instances);
             memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
+
+            for (uint32_t i = 0; i < m_Register->m_ComponentTypeCount; ++i)
+            {
+                if (m_Register->m_ComponentTypes[i].m_NewWorldFunction)
+                    m_Register->m_ComponentTypes[i].m_NewWorldFunction(m_Register->m_ComponentTypes[i].m_Context, &m_ComponentWorlds[i]);
+            }
         }
         // Resource factory
         dmResource::HFactory     m_Factory;
 
         // GameObject component register
         HRegister                m_Register;
+
+        // Component type specific worlds
+        void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
 
         // Maximum number of instances
         uint32_t                 m_MaxInstances;
@@ -224,16 +233,23 @@ namespace dmGameObject
     void DeleteCollection(HCollection collection)
     {
         DeleteAll(collection);
+        for (uint32_t i = 0; i < collection->m_Register->m_ComponentTypeCount; ++i)
+        {
+            if (collection->m_Register->m_ComponentTypes[i].m_DeleteWorldFunction)
+                collection->m_Register->m_ComponentTypes[i].m_DeleteWorldFunction(collection->m_Register->m_ComponentTypes[i].m_Context, collection->m_ComponentWorlds[i]);
+        }
         delete collection;
     }
 
-    static ComponentType* FindComponentType(Register* regist, uint32_t resource_type)
+    static ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index)
     {
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
             ComponentType* ct = &regist->m_ComponentTypes[i];
             if (ct->m_ResourceType == resource_type)
             {
+                if (index != 0x0)
+                    *index = i;
                 return ct;
             }
         }
@@ -245,7 +261,7 @@ namespace dmGameObject
         if (regist->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
             return RESULT_OUT_OF_RESOURCES;
 
-        if (FindComponentType(regist, type.m_ResourceType) != 0)
+        if (FindComponentType(regist, type.m_ResourceType, 0x0) != 0)
             return RESULT_ALREADY_REGISTERED;
 
         regist->m_ComponentTypes[regist->m_ComponentTypeCount++] = type;
@@ -540,12 +556,14 @@ bail:
         return ret;
     }
 
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, HScriptContext script_context)
+    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
     {
         ComponentType script_component;
         dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
         script_component.m_Name = "scriptc";
-        script_component.m_Context = script_context;
+        script_component.m_Context = 0x0;
+        script_component.m_NewWorldFunction = &ScriptNewWorld;
+        script_component.m_DeleteWorldFunction = &ScriptDeleteWorld;
         script_component.m_CreateFunction = &ScriptCreateComponent;
         script_component.m_InitFunction = &ScriptInitComponent;
         script_component.m_DestroyFunction = &ScriptDestroyComponent;
@@ -620,7 +638,7 @@ bail:
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
-            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
+            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, 0x0);
             if (!component_type)
             {
                 dmLogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
@@ -647,7 +665,8 @@ bail:
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
-            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
+            uint32_t component_type_index;
+            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
@@ -658,7 +677,7 @@ bail:
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, component_type->m_Context, component_instance_data);
+            CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
             if (create_result == CREATE_RESULT_OK)
             {
                 components_created++;
@@ -676,7 +695,8 @@ bail:
             for (uint32_t i = 0; i < components_created; ++i)
             {
                 Prototype::Component* component = &proto->m_Components[i];
-                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
+                uint32_t component_type_index;
+                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
@@ -686,7 +706,7 @@ bail:
                 }
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-                component_type->m_DestroyFunction(collection, instance, component_type->m_Context, component_instance_data);
+                component_type->m_DestroyFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
@@ -796,7 +816,7 @@ bail:
 
     void UpdateTransforms(HCollection collection);
 
-    bool Init(HCollection collection, HInstance instance, const UpdateContext* update_context)
+    bool Init(HCollection collection, HInstance instance)
     {
         if (instance)
         {
@@ -822,7 +842,7 @@ bail:
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
                 Prototype::Component* component = &prototype->m_Components[i];
-                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
+                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, 0x0);
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
@@ -846,7 +866,7 @@ bail:
         return true;
     }
 
-    bool Init(HCollection collection, const UpdateContext* update_context)
+    bool Init(HCollection collection)
     {
         DM_PROFILE(GameObject, "Init");
 
@@ -861,7 +881,7 @@ bail:
         for (uint32_t i = 0; i < n_objects; ++i)
         {
             Instance* instance = collection->m_Instances[i];
-            if ( ! Init(collection, instance, update_context) )
+            if ( ! Init(collection, instance) )
             {
                 result = false;
             }
@@ -892,7 +912,8 @@ bail:
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
-            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType);
+            uint32_t component_type_index;
+            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
@@ -902,7 +923,7 @@ bail:
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            component_type->m_DestroyFunction(collection, instance, component_type->m_Context, component_instance_data);
+            component_type->m_DestroyFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
         }
 
         if (instance->m_Identifier != UNNAMED_IDENTIFIER)
@@ -1056,7 +1077,6 @@ bail:
     struct DispatchEventsContext
     {
         HCollection m_Collection;
-        const UpdateContext* m_UpdateContext;
         bool m_Success;
     };
 
@@ -1087,7 +1107,7 @@ bail:
                 uint32_t components_size = prototype->m_Components.Size();
                 for (uint32_t i = 0; i < components_size; ++i)
                 {
-                    ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType);
+                    ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
                     assert(component_type);
                     if (component_type->m_OnEventFunction)
                     {
@@ -1113,7 +1133,7 @@ bail:
             else
             {
                 uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
-                ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type);
+                ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type, 0x0);
                 assert(component_type);
 
                 if (component_type->m_OnEventFunction)
@@ -1122,7 +1142,7 @@ bail:
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
                     {
-                        ComponentType* ct = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType);
+                        ComponentType* ct = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
                         assert(component_type);
                         if (ct->m_InstanceHasUserData)
                         {
@@ -1151,13 +1171,12 @@ bail:
         }
     }
 
-    bool DispatchEvents(HCollection collection, const UpdateContext* update_context)
+    bool DispatchEvents(HCollection collection)
     {
         DM_PROFILE(GameObject, "DispatchEvents");
 
         DispatchEventsContext ctx;
         ctx.m_Collection = collection;
-        ctx.m_UpdateContext = update_context;
         ctx.m_Success = true;
         (void) dmMessage::Dispatch(g_ReplySocket, &DispatchEventsFunction, (void*) &ctx);
 
@@ -1237,14 +1256,14 @@ bail:
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            if (!DispatchEvents(collection, update_context))
+            if (!DispatchEvents(collection))
                 ret = false;
 
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
             {
-                UpdateResult res = component_type->m_UpdateFunction(collection, update_context, component_type->m_Context);
+                UpdateResult res = component_type->m_UpdateFunction(collection, update_context, collection->m_ComponentWorlds[i], component_type->m_Context);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
             }
@@ -1298,7 +1317,7 @@ bail:
                 uint32_t components_size = prototype->m_Components.Size();
                 for (uint32_t i = 0; i < components_size; ++i)
                 {
-                    ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[i].m_ResourceType);
+                    ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
                     assert(component_type);
                     if (component_type->m_OnInputFunction)
                     {
@@ -1493,17 +1512,5 @@ bail:
         }
 
         return false;
-    }
-
-    HScriptContext CreateScriptContext(UpdateContext* update_context)
-    {
-        HScriptContext script_context = new ScriptContext();
-        script_context->m_UpdateContext = update_context;
-        return script_context;
-    }
-
-    void DestroyScriptContext(HScriptContext script_context)
-    {
-        delete script_context;
     }
 }

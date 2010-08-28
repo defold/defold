@@ -19,9 +19,6 @@ namespace dmGameObject
     /// Instance handle
     typedef struct ScriptInstance* HScriptInstance;
 
-    /// Script context
-    typedef struct ScriptContext* HScriptContext;
-
     /// Component register
     typedef struct Register* HRegister;
 
@@ -67,12 +64,8 @@ namespace dmGameObject
      */
     struct UpdateContext
     {
-        /// DDF descriptor for global data
-        dmDDF::Descriptor* m_DDFGlobalDataDescriptor;
-        /// Global read-only data
-        void*              m_GlobalData;
         /// Time step
-        float              m_DT;
+        float m_DT;
     };
 
     extern const uint32_t UNNAMED_IDENTIFIER;
@@ -123,6 +116,24 @@ namespace dmGameObject
     };
 
     /**
+     * Component world create function
+     * @param config Configuration of the world
+     * @param context Context for the component type
+     * @param world Out-parameter of the pointer in which to store the created world
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentNewWorld)(void* context, void** world);
+
+    /**
+     * Component world destroy function
+     * @param config Configuration of the world
+     * @param context Context for the component type
+     * @param world The pointer to the world to destroy
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentDeleteWorld)(void* context, void* world);
+
+    /**
      * Component create function
      * @param collection Collection handle
      * @param instance Game object instance
@@ -134,6 +145,7 @@ namespace dmGameObject
     typedef CreateResult (*ComponentCreate)(HCollection collection,
                                             HInstance instance,
                                             void* resource,
+                                            void* world,
                                             void* context,
                                             uintptr_t* user_data);
 
@@ -161,6 +173,7 @@ namespace dmGameObject
      */
     typedef CreateResult (*ComponentDestroy)(HCollection collection,
                                              HInstance instance,
+                                             void* world,
                                              void* context,
                                              uintptr_t* user_data);
 
@@ -172,6 +185,7 @@ namespace dmGameObject
      */
     typedef UpdateResult (*ComponentsUpdate)(HCollection collection,
                                      const UpdateContext* update_context,
+                                     void* world,
                                      void* context);
 
     /**
@@ -207,16 +221,18 @@ namespace dmGameObject
     {
         ComponentType();
 
-        uint32_t            m_ResourceType;
-        const char*         m_Name;
-        void*               m_Context;
-        ComponentCreate     m_CreateFunction;
-        ComponentInit       m_InitFunction;
-        ComponentDestroy    m_DestroyFunction;
-        ComponentsUpdate    m_UpdateFunction;
-        ComponentOnEvent    m_OnEventFunction;
-        ComponentOnInput    m_OnInputFunction;
-        uint32_t            m_InstanceHasUserData : 1;
+        uint32_t                m_ResourceType;
+        const char*             m_Name;
+        void*                   m_Context;
+        ComponentNewWorld       m_NewWorldFunction;
+        ComponentDeleteWorld    m_DeleteWorldFunction;
+        ComponentCreate         m_CreateFunction;
+        ComponentInit           m_InitFunction;
+        ComponentDestroy        m_DestroyFunction;
+        ComponentsUpdate        m_UpdateFunction;
+        ComponentOnEvent        m_OnEventFunction;
+        ComponentOnInput        m_OnInputFunction;
+        uint32_t                m_InstanceHasUserData : 1;
     };
 
     /**
@@ -275,7 +291,6 @@ namespace dmGameObject
      * Create a new gameobject instane
      * @param collection Gameobject collection
      * @param prototype_name Prototype file name
-     * @param update_context Update context
      * @return New gameobject instance. NULL if any error occured
      */
     HInstance New(HCollection collection, const char* prototype_name);
@@ -353,16 +368,14 @@ namespace dmGameObject
     /**
      * Initializes a game object instance in the supplied collection.
      * @param collection Game object collection
-     * @param update_context Update context
      */
-    bool Init(HCollection collection, HInstance instance, const UpdateContext* update_context);
+    bool Init(HCollection collection, HInstance instance);
 
     /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
-     * @param update_context Update context
      */
-    bool Init(HCollection collection, const UpdateContext* update_context);
+    bool Init(HCollection collection);
 
     /**
      * Update all gameobjects and its components and dispatches all event to script
@@ -477,23 +490,9 @@ namespace dmGameObject
      * Register all component types in collection
      * @param factory Resource factory
      * @param regist Register
-     * @param update_context An update context that will be used in the script components so it must live for as long as the collection.
      * @return Result
      */
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, HScriptContext script_context);
-
-    /**
-     * Creates a script context
-     * @param update_context Update context to bind to the script context
-     * @return The script context
-     */
-    HScriptContext CreateScriptContext(UpdateContext* update_context);
-
-    /**
-     * Destroy a script context
-     * @param script_context Script context to destroy
-     */
-    void DestroyScriptContext(HScriptContext script_context);
+    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist);
 }
 
 #endif // GAMEOBJECT_H

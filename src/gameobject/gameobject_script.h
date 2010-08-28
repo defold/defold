@@ -30,12 +30,11 @@ namespace dmGameObject
         int       m_ScriptDataReference;
     };
 
-    struct ScriptContext
+    struct ScriptWorld
     {
-        ScriptContext();
+        ScriptWorld();
 
         dmArray<ScriptInstance*> m_Instances;
-        UpdateContext* m_UpdateContext;
     };
 
     void    InitializeScript();
@@ -63,9 +62,12 @@ namespace dmGameObject
                                                const void* buffer, uint32_t buffer_size,
                                                dmResource::SResourceDescriptor* resource,
                                                const char* filename);
+    CreateResult ScriptNewWorld(void* context, void** world);
+    CreateResult ScriptDeleteWorld(void* context, void* world);
     CreateResult ScriptCreateComponent(HCollection collection,
             HInstance instance,
             void* resource,
+            void* world,
             void* context,
             uintptr_t* user_data);
     CreateResult ScriptInitComponent(HCollection collection,
@@ -74,10 +76,12 @@ namespace dmGameObject
             uintptr_t* user_data);
     CreateResult ScriptDestroyComponent(HCollection collection,
             HInstance instance,
+            void* world,
             void* context,
             uintptr_t* user_data);
     UpdateResult ScriptUpdateComponent(HCollection collection,
             const UpdateContext* update_context,
+            void* world,
             void* context);
     UpdateResult ScriptOnEventComponent(HCollection collection,
             HInstance instance,

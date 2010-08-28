@@ -140,31 +140,6 @@ namespace dmGameObject
             lua_rawset(L, -3);
             return 1;
         }
-        // Try to find value in globals in update context
-        lua_pushstring(L, "__update_context__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        UpdateContext* update_context = (UpdateContext*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        if (update_context)
-        {
-            if (update_context->m_GlobalData != 0)
-            {
-                assert(update_context->m_DDFGlobalDataDescriptor);
-
-                const dmDDF::Descriptor* d = update_context->m_DDFGlobalDataDescriptor;
-                for (uint32_t i = 0; i < d->m_FieldCount; ++i)
-                {
-                    const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
-                    if (strcmp(f->m_Name, key) == 0)
-                    {
-                        dmScriptUtil::DDFToLuaValue(L, f, (char*) update_context->m_GlobalData);
-                        return 1;
-                    }
-                }
-            }
-        }
-
         // Try to find value in instance data
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
@@ -656,9 +631,8 @@ namespace dmGameObject
         return 1;
     }
 
-    ScriptContext::ScriptContext()
+    ScriptWorld::ScriptWorld()
     : m_Instances()
-    , m_UpdateContext(0x0)
     {
         m_Instances.SetCapacity(512);
     }
@@ -963,9 +937,36 @@ bail:
         }
     }
 
+    CreateResult ScriptNewWorld(void* context, void** world)
+    {
+        if (world != 0x0)
+        {
+            *world = new ScriptWorld();
+            return CREATE_RESULT_OK;
+        }
+        else
+        {
+            return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+    }
+
+    CreateResult ScriptDeleteWorld(void* context, void* world)
+    {
+        if (world != 0x0)
+        {
+            delete (ScriptWorld*)world;
+            return CREATE_RESULT_OK;
+        }
+        else
+        {
+            return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+    }
+
     CreateResult ScriptCreateComponent(HCollection collection,
             HInstance instance,
             void* resource,
+            void* world,
             void* context,
             uintptr_t* user_data)
     {
@@ -974,8 +975,8 @@ bail:
         if (script_instance != 0x0)
         {
             instance->m_ScriptInstancePOOOOP = script_instance;
-            ScriptContext* script_context = (ScriptContext*)context;
-            script_context->m_Instances.Push(script_instance);
+            ScriptWorld* script_world = (ScriptWorld*)world;
+            script_world->m_Instances.Push(script_instance);
             *user_data = (uintptr_t)script_instance;
             return CREATE_RESULT_OK;
         }
@@ -991,9 +992,8 @@ bail:
             uintptr_t* user_data)
     {
         Prototype* proto = instance->m_Prototype;
-        ScriptContext* script_context = (ScriptContext*)context;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
-        bool ret = RunScript(collection, script_instance->m_Script, "Init", script_instance, script_context->m_UpdateContext);
+        bool ret = RunScript(collection, script_instance->m_Script, "Init", script_instance, 0x0);
         if (ret)
         {
             return CREATE_RESULT_OK;
@@ -1007,16 +1007,17 @@ bail:
 
     CreateResult ScriptDestroyComponent(HCollection collection,
             HInstance instance,
+            void* world,
             void* context,
             uintptr_t* user_data)
     {
-        HScriptContext script_context = (HScriptContext)context;
+        ScriptWorld* script_world = (ScriptWorld*)world;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
-        for (uint32_t i = 0; i < script_context->m_Instances.Size(); ++i)
+        for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
         {
-            if (script_instance == script_context->m_Instances[i])
+            if (script_instance == script_world->m_Instances[i])
             {
-                script_context->m_Instances.EraseSwap(i);
+                script_world->m_Instances.EraseSwap(i);
                 break;
             }
         }
@@ -1027,14 +1028,15 @@ bail:
 
     UpdateResult ScriptUpdateComponent(HCollection collection,
             const UpdateContext* update_context,
+            void* world,
             void* context)
     {
         UpdateResult result = UPDATE_RESULT_OK;
-        HScriptContext script_context = (HScriptContext)context;
-        uint32_t size = script_context->m_Instances.Size();
+        ScriptWorld* script_world = (ScriptWorld*)world;
+        uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
-            HScriptInstance script_instance = script_context->m_Instances[i];
+            HScriptInstance script_instance = script_world->m_Instances[i];
             Prototype* proto = script_instance->m_Instance->m_Prototype;
             bool ret = RunScript(collection, script_instance->m_Script, "Update", script_instance, update_context);
             if (!ret)
@@ -1052,10 +1054,7 @@ bail:
             void* context,
             uintptr_t* user_data)
     {
-        ScriptContext* script_context = (ScriptContext*)context;
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
-        //assert(script_event_data->m_DDFDescriptor);
-        //assert(script_event_data->m_DDFData);
         assert(script_event_data->m_Instance);
 
         lua_State* L = g_LuaState;
@@ -1064,7 +1063,7 @@ bail:
         int ret;
 
         lua_pushliteral(L, "__update_context__");
-        lua_pushlightuserdata(L, (void*) script_context->m_UpdateContext);
+        lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
@@ -1138,7 +1137,6 @@ bail:
             void* context,
             uintptr_t* user_data)
     {
-        ScriptContext* script_context = (ScriptContext*)context;
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
 
         lua_State* L = g_LuaState;
@@ -1147,7 +1145,7 @@ bail:
         int ret;
 
         lua_pushliteral(L, "__update_context__");
-        lua_pushlightuserdata(L, (void*) script_context->m_UpdateContext);
+        lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);

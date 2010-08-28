@@ -24,18 +24,15 @@ protected:
         m_InputCounter = 0;
 
         update_context.m_DT = 1.0f / 60.0f;
-        update_context.m_GlobalData = 0;
-        update_context.m_DDFGlobalDataDescriptor = 0;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
         regist = dmGameObject::NewRegister();
-        collection = dmGameObject::NewCollection(factory, regist, 1024);
         dmGameObject::RegisterResourceTypes(factory, regist);
-        script_context = dmGameObject::CreateScriptContext(0x0);
-        dmGameObject::RegisterComponentTypes(factory, regist, script_context);
+        dmGameObject::RegisterComponentTypes(factory, regist);
+        collection = dmGameObject::NewCollection(factory, regist, 1024);
 
         // Register dummy physical resource type
         dmResource::FactoryResult e;
@@ -164,7 +161,6 @@ protected:
     virtual void TearDown()
     {
         dmGameObject::DeleteCollection(collection);
-        dmGameObject::DestroyScriptContext(script_context);
         dmResource::DeleteFactory(factory);
         dmGameObject::DeleteRegister(regist);
         dmGameObject::Finalize();
@@ -227,6 +223,7 @@ protected:
     static dmGameObject::ComponentDestroy DeleteSelfComponentDestroy;
     static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
                                            const dmGameObject::UpdateContext* update_context,
+                                           void* world,
                                            void* context);
 
     static dmResource::FResourceCreate    InputTargetCreate;
@@ -259,7 +256,6 @@ public:
     dmGameObject::HRegister regist;
     dmGameObject::HCollection collection;
     dmResource::HFactory factory;
-    dmGameObject::HScriptContext script_context;
 };
 
 template <typename T>
@@ -295,6 +291,7 @@ template <typename T, int add_to_user_data>
 static dmGameObject::CreateResult GenericComponentCreate(dmGameObject::HCollection collection,
                                                          dmGameObject::HInstance instance,
                                                          void* resource,
+                                                         void* world,
                                                          void* context,
                                                          uintptr_t* user_data)
 {
@@ -331,6 +328,7 @@ static dmGameObject::CreateResult GenericComponentInit(dmGameObject::HCollection
 template <typename T>
 static dmGameObject::UpdateResult GenericComponentsUpdate(dmGameObject::HCollection collection,
                                     const dmGameObject::UpdateContext* update_context,
+                                    void* world,
                                     void* context)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
@@ -342,6 +340,7 @@ static dmGameObject::UpdateResult GenericComponentsUpdate(dmGameObject::HCollect
 template <typename T>
 static dmGameObject::CreateResult GenericComponentDestroy(dmGameObject::HCollection collection,
                                                           dmGameObject::HInstance instance,
+                                                          void* world,
                                                           void* context,
                                                           uintptr_t* user_data)
 {
@@ -540,6 +539,7 @@ TEST_F(GameObjectTest, AutoDelete)
 
 dmGameObject::UpdateResult GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
                                                 const dmGameObject::UpdateContext* update_context,
+                                                void* world,
                                                 void* context)
 {
     GameObjectTest* game_object_test = (GameObjectTest*) context;
@@ -794,10 +794,7 @@ TEST_F(GameObjectTest, TestScript01)
     global_data.m_VecValue.m_Y = 2.0f;
     global_data.m_VecValue.m_Z = 3.0f;
 
-    update_context.m_GlobalData = &global_data;
-    update_context.m_DDFGlobalDataDescriptor = TestGameObject::GlobalData::m_DDFDescriptor;
-
-    dmGameObject::Init(collection, &update_context);
+    dmGameObject::Init(collection);
 
     ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
 
@@ -823,7 +820,7 @@ TEST_F(GameObjectTest, TestFailingScript02)
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
     dmGameObject::New(collection, "testscriptproto02.goc");
-    bool result = dmGameObject::Init(collection, &update_context);
+    bool result = dmGameObject::Init(collection);
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     ASSERT_FALSE(result);
 }
@@ -953,10 +950,9 @@ TEST(ScriptTest, TestReloadScript)
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     dmGameObject::HRegister regist = dmGameObject::NewRegister();
-    dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, regist, 1024);
     dmGameObject::RegisterResourceTypes(factory, regist);
-    dmGameObject::HScriptContext script_context = dmGameObject::CreateScriptContext(0x0);
-    dmGameObject::RegisterComponentTypes(factory, regist, script_context);
+    dmGameObject::RegisterComponentTypes(factory, regist);
+    dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, regist, 1024);
 
     uint32_t type;
     dmResource::FactoryResult e = dmResource::GetTypeFromExtension(factory, "scriptc", &type);
@@ -1029,7 +1025,6 @@ TEST(ScriptTest, TestReloadScript)
 
     dmGameObject::Delete(collection, go);
     dmGameObject::DeleteCollection(collection);
-    dmGameObject::DestroyScriptContext(script_context);
     dmResource::DeleteFactory(factory);
     dmGameObject::DeleteRegister(regist);
     dmGameObject::Finalize();

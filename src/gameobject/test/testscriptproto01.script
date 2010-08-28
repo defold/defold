@@ -23,14 +23,6 @@ function Update(self)
 	p = self.Position
 	assert(p.Y == 123.0)
 	
-	assert(self.UIntValue == 12345)
-	assert(self.IntValue == -123)
-	assert(self.StringValue == "string_value")
-
-	assert(self.VecValue.X == 1.0)
-	assert(self.VecValue.Y == 2.0)
-	assert(self.VecValue.Z == 3.0)
-	
 	Post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
 end
 
