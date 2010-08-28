@@ -163,8 +163,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
-                                                  dmPhysics::HWorld physics_world)
+                                                  dmGameObject::HRegister regist)
     {
         uint32_t type;
 
@@ -181,7 +180,7 @@ namespace dmGameSystem
         dmGameObject::ComponentType component_type;
         component_type.m_Name = "collisionobject";
         component_type.m_ResourceType = type;
-        component_type.m_Context = physics_world;
+        component_type.m_Context = 0x0;
         component_type.m_NewWorldFunction = &GOCollisionObjectNewWorld;
         component_type.m_DeleteWorldFunction = &GOCollisionObjectDeleteWorld;
         component_type.m_CreateFunction = &CreateCollisionObject;
@@ -278,8 +277,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
-                                                  dmRender::HRenderWorld renderworld)
+                                                  dmGameObject::HRegister regist)
     {
         uint32_t type;
 
@@ -292,7 +290,7 @@ namespace dmGameSystem
         dmGameObject::ComponentType component_type;
         component_type.m_Name = "modelc";
         component_type.m_ResourceType = type;
-        component_type.m_Context = renderworld;
+        component_type.m_Context = 0x0;
         component_type.m_NewWorldFunction = dmGameSystem::GoModelComponentNewWorld;
         component_type.m_DeleteWorldFunction = dmGameSystem::GoModelComponentDeleteWorld;
         component_type.m_CreateFunction = dmGameSystem::CreateModelComponent;

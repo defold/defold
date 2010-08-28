@@ -8,12 +8,10 @@
 namespace dmGameSystem
 {
     dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
-                                                  dmRender::HRenderWorld renderworld);
+                                                  dmGameObject::HRegister regist);
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
-                                                  dmPhysics::HWorld physics_world);
+                                                  dmGameObject::HRegister regist);
 }
 
 #endif // GAMEOBJECT_REGISTRATION_H
