@@ -140,6 +140,22 @@ namespace dmGameObject
             lua_rawset(L, -3);
             return 1;
         }
+
+        // Try to find value in globals in update context
+        lua_pushstring(L, "__update_context__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        UpdateContext* update_context = (UpdateContext*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        if (update_context)
+        {
+            if (strcmp(key, "DT") == 0)
+            {
+                lua_pushnumber(L, update_context->m_DT);
+                return 1;
+            }
+        }
+
         // Try to find value in instance data
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
