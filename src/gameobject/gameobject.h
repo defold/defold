@@ -280,6 +280,14 @@ namespace dmGameObject
     void DeleteCollection(HCollection collection);
 
     /**
+     * Retrieve the world in the collection connected to the supplied resource type
+     * @param collection Collection handle
+     * @param resource_type Resource type
+     * @return A pointer to the world or 0x0 if the resource type could not be found
+     */
+    void* FindWorld(HCollection collection, uint32_t resource_type);
+
+    /**
      * Register a new component type
      * @param regist Gameobject register
      * @param type Collection of component type registration data

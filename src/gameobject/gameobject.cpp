@@ -256,6 +256,15 @@ namespace dmGameObject
         return 0;
     }
 
+    void* FindWorld(HCollection collection, uint32_t resource_type)
+    {
+        uint32_t index;
+        ComponentType* component_type = FindComponentType(collection->m_Register, resource_type, &index);
+        if (component_type != 0x0)
+            return collection->m_ComponentWorlds[index];
+        return 0x0;
+    }
+
     Result RegisterComponentType(HRegister regist, const ComponentType& type)
     {
         if (regist->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
