@@ -16,6 +16,8 @@
 
 namespace dmGameSystem
 {
+    const char* COLLISION_OBJECT_EXT = "collisionobject";
+
     void GetWorldTransform(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
@@ -144,6 +146,9 @@ namespace dmGameSystem
         dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
         dmPhysics::StepWorld(physics_world, update_context->m_DT);
         dmPhysics::ForEachCollision(physics_world, CollisionCallback, 0x0, ContactPointCallback, 0x0);
+        PhysicsContext* physics_context = (PhysicsContext*)context;
+        if (physics_context->m_Debug)
+            dmPhysics::DebugRender(physics_world);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -163,24 +168,24 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist)
+                                                  dmGameObject::HRegister regist,
+                                                  PhysicsContext* context)
     {
-        uint32_t type;
-
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor);
 
-        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, "collisionobject", &type);
+        uint32_t type;
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, COLLISION_OBJECT_EXT, &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
         {
-            dmLogWarning("Unable to get resource type for 'collisionobject' (%d)", fact_result);
+            dmLogWarning("Unable to get resource type for '%s' (%d)", COLLISION_OBJECT_EXT, fact_result);
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
         dmGameObject::ComponentType component_type;
-        component_type.m_Name = "collisionobject";
+        component_type.m_Name = COLLISION_OBJECT_EXT;
         component_type.m_ResourceType = type;
-        component_type.m_Context = 0x0;
+        component_type.m_Context = context;
         component_type.m_NewWorldFunction = &GOCollisionObjectNewWorld;
         component_type.m_DeleteWorldFunction = &GOCollisionObjectDeleteWorld;
         component_type.m_CreateFunction = &CreateCollisionObject;
@@ -191,6 +196,22 @@ namespace dmGameSystem
         component_type.m_InstanceHasUserData = (uint32_t)true;
         dmGameObject::Result res = dmGameObject::RegisterComponentType(regist, component_type);
         return res;
+    }
+
+    void RequestRayCast(dmGameObject::HCollection collection, const dmPhysics::RayCastRequest& request)
+    {
+        uint32_t type;
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), COLLISION_OBJECT_EXT, &type);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+        {
+            dmLogWarning("Unable to get resource type for '%s' (%d)", COLLISION_OBJECT_EXT, fact_result);
+        }
+        void* world = dmGameObject::FindWorld(collection, type);
+        if (world != 0x0)
+        {
+            dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
+            dmPhysics::RequestRayCast(physics_world, request);
+        }
     }
 
     void SetObjectModel(void* context, void* gameobject, Vectormath::Aos::Quat* rotation,
@@ -253,6 +274,8 @@ namespace dmGameSystem
                          void* context)
     {
         dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
+        // TODO: Not the best way, but it works for now.
+        dmRender::UpdateContext(render_world, (dmRender::RenderContext*)context);
         dmRender::Update(render_world, update_context->m_DT);
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -277,7 +300,8 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist)
+                                                dmGameObject::HRegister regist,
+                                                dmRender::RenderContext* context)
     {
         uint32_t type;
 
@@ -290,7 +314,7 @@ namespace dmGameSystem
         dmGameObject::ComponentType component_type;
         component_type.m_Name = "modelc";
         component_type.m_ResourceType = type;
-        component_type.m_Context = 0x0;
+        component_type.m_Context = context;
         component_type.m_NewWorldFunction = dmGameSystem::GoModelComponentNewWorld;
         component_type.m_DeleteWorldFunction = dmGameSystem::GoModelComponentDeleteWorld;
         component_type.m_CreateFunction = dmGameSystem::CreateModelComponent;

@@ -8,10 +8,19 @@
 namespace dmGameSystem
 {
     dmGameObject::Result RegisterModelComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist);
+                                                  dmGameObject::HRegister regist,
+                                                  dmRender::RenderContext* context);
+
+    struct PhysicsContext
+    {
+        bool m_Debug;
+    };
 
     dmGameObject::Result RegisterPhysicsComponent(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist);
+                                                  dmGameObject::HRegister regist,
+                                                  PhysicsContext* context);
+
+    void RequestRayCast(dmGameObject::HCollection collection, const dmPhysics::RayCastRequest& request);
 }
 
 #endif // GAMEOBJECT_REGISTRATION_H
