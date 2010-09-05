@@ -1301,7 +1301,7 @@ bail:
         return ret;
     }
 
-    UpdateResult DispatchInput(HCollection collection, InputAction* input_action)
+    UpdateResult DispatchInput(HCollection collection, InputAction* input_action, uint32_t input_action_count)
     {
         DM_PROFILE(GameObject, "DispatchInput");
         if (collection->m_FocusStack.Size() > 0)
@@ -1335,9 +1335,21 @@ bail:
                         {
                             component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                         }
-                        UpdateResult res = component_type->m_OnInputFunction(collection, instance, input_action, component_type->m_Context, component_instance_data);
-                        if (res != UPDATE_RESULT_OK)
-                            return res;
+                        for (uint32_t j = 0; j < input_action_count; ++j)
+                        {
+                            if (input_action[j].m_ActionId != 0)
+                            {
+                                InputResult res = component_type->m_OnInputFunction(collection, instance, &input_action[j], component_type->m_Context, component_instance_data);
+                                if (res == INPUT_RESULT_CONSUMED)
+                                {
+                                    memset(&input_action[j], 0, sizeof(InputAction));
+                                }
+                                else if (res == INPUT_RESULT_UNKNOWN_ERROR)
+                                {
+                                    return UPDATE_RESULT_OK;
+                                }
+                            }
+                        }
                     }
 
                     if (component_type->m_InstanceHasUserData)

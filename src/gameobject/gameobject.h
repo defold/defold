@@ -60,6 +60,16 @@ namespace dmGameObject
     };
 
     /**
+     * Input result enum
+     */
+    enum InputResult
+    {
+        INPUT_RESULT_IGNORED = 0,           //!< INPUT_RESULT_IGNORED
+        INPUT_RESULT_CONSUMED = 1,          //!< INPUT_RESULT_CONSUMED
+        INPUT_RESULT_UNKNOWN_ERROR = -1000  //!< INPUT_RESULT_UNKNOWN_ERROR
+    };
+
+    /**
      * Update context
      */
     struct UpdateContext
@@ -207,8 +217,9 @@ namespace dmGameObject
      * @param instance Instance handle
      * @param context User context
      * @param user_data User data storage pointer
+     * @return How the component handled the input
      */
-    typedef UpdateResult (*ComponentOnInput)(HCollection collection,
+    typedef InputResult (*ComponentOnInput)(HCollection collection,
                                      HInstance instance,
                                      const InputAction* input_action,
                                      void* context,
@@ -393,7 +404,7 @@ namespace dmGameObject
      */
     bool Update(HCollection collection, const UpdateContext* update_context);
 
-    UpdateResult DispatchInput(HCollection collection, InputAction* input_action);
+    UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count);
 
     void AcquireInputFocus(HCollection collection, HInstance instance);
     void ReleaseInputFocus(HCollection collection, HInstance instance);

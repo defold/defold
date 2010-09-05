@@ -1147,7 +1147,7 @@ bail:
         return UPDATE_RESULT_UNKNOWN_ERROR;
     }
 
-    UpdateResult ScriptOnInputComponent(HCollection collection,
+    InputResult ScriptOnInputComponent(HCollection collection,
             HInstance instance,
             const InputAction* input_action,
             void* context,
@@ -1157,7 +1157,6 @@ bail:
 
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
-        (void) top;
         int ret;
 
         lua_pushliteral(L, "__update_context__");
@@ -1168,7 +1167,7 @@ bail:
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             dmLogError("Invalid 'SenderFunctionsReference' (%d) in OnInput.", script_instance->m_Script->m_FunctionsReference);
-            return UPDATE_RESULT_UNKNOWN_ERROR;
+            return INPUT_RESULT_UNKNOWN_ERROR;
         }
 
         const char* function_name = "OnInput";
@@ -1208,24 +1207,45 @@ bail:
             lua_pushboolean(L, input_action->m_Repeated);
             lua_settable(L, action_table);
         }
-
-        ret = lua_pcall(L, 2, LUA_MULTRET, 0);
-        if (ret != 0)
         {
-            dmLogError("Error running script: %s", function_name);
-            lua_pop(L, 2);
-            goto bail;
+            int input_ret = lua_gettop(L) - 2;
+            ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
+                lua_pop(L, 2);
+                goto bail;
+            }
+            else if (input_ret == lua_gettop(L))
+            {
+                if (!lua_isboolean(L, -1))
+                {
+                    dmLogError("Script %s must return a boolean value (true/false), or no value at all.", function_name);
+                    lua_pop(L, 2);
+                    goto bail;
+                }
+                else
+                {
+                    int input_ret = lua_toboolean(L, -1);
+                    lua_pop(L, 1);
+                    assert(top == lua_gettop(L));
+                    if (input_ret)
+                        return INPUT_RESULT_CONSUMED;
+                    else
+                        return INPUT_RESULT_IGNORED;
+                }
+            }
+            else
+            {
+                lua_pop(L, 1);
+                return INPUT_RESULT_IGNORED;
+            }
         }
-
-        lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
-        return UPDATE_RESULT_OK;
 bail:
         lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
         assert(top == lua_gettop(L));
-        return UPDATE_RESULT_UNKNOWN_ERROR;
+        return INPUT_RESULT_UNKNOWN_ERROR;
     }
 }

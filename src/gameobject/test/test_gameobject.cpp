@@ -175,7 +175,7 @@ protected:
                                    uintptr_t* user_data);
 
     uint32_t m_InputCounter;
-    static dmGameObject::UpdateResult InputTargetOnInput(dmGameObject::HCollection collection,
+    static dmGameObject::InputResult InputTargetOnInput(dmGameObject::HCollection collection,
                                             dmGameObject::HInstance instance,
                                             const dmGameObject::InputAction* input_action,
                                             void* context,
@@ -680,7 +680,7 @@ TEST_F(GameObjectTest, TestBroadcastEvent)
     dmGameObject::Delete(collection, go);
 }
 
-dmGameObject::UpdateResult GameObjectTest::InputTargetOnInput(dmGameObject::HCollection collection,
+dmGameObject::InputResult GameObjectTest::InputTargetOnInput(dmGameObject::HCollection collection,
                                         dmGameObject::HInstance instance,
                                         const dmGameObject::InputAction* input_action,
                                         void* context,
@@ -691,13 +691,13 @@ dmGameObject::UpdateResult GameObjectTest::InputTargetOnInput(dmGameObject::HCol
     if (input_action->m_ActionId == dmHashString32("test_action"))
     {
         self->m_InputCounter++;
+        return dmGameObject::INPUT_RESULT_CONSUMED;
     }
     else
     {
         assert(0);
-        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        return dmGameObject::INPUT_RESULT_UNKNOWN_ERROR;
     }
-    return dmGameObject::UPDATE_RESULT_OK;
 }
 
 TEST_F(GameObjectTest, TestComponentInput)
@@ -718,7 +718,7 @@ TEST_F(GameObjectTest, TestComponentInput)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    r = dmGameObject::DispatchInput(collection, &action);
+    r = dmGameObject::DispatchInput(collection, &action, 1);
 
     ASSERT_EQ(1U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
@@ -729,7 +729,7 @@ TEST_F(GameObjectTest, TestComponentInput)
     action.m_Released = 1;
     action.m_Repeated = 0;
 
-    r = dmGameObject::DispatchInput(collection, &action);
+    r = dmGameObject::DispatchInput(collection, &action, 1);
 
     ASSERT_EQ(2U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);

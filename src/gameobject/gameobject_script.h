@@ -88,7 +88,7 @@ namespace dmGameObject
             const ScriptEventData* event_data,
             void* context,
             uintptr_t* user_data);
-    UpdateResult ScriptOnInputComponent(HCollection collection,
+    InputResult ScriptOnInputComponent(HCollection collection,
             HInstance instance,
             const InputAction* input_action,
             void* context,
