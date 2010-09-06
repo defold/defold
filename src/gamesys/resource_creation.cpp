@@ -437,18 +437,6 @@ namespace dmGameSystem
         return dmResource::CREATE_RESULT_UNKNOWN;
     }
 
-    struct Resource
-    {
-        dmRender::MaterialDesc* m_DDF;
-        dmGraphics::HVertexProgram m_VertexProgram;
-        dmGraphics::HFragmentProgram m_FragmentProgram;
-    };
-
-    // TODO: Fix this ugly thing! Materials as resources should be stored using a struct like Resource above so no resources are lost when it's time to destroy.
-    // Currently the model resource only store dmGraphics::HMaterial's so some more refactoring is needed to get it to work.
-    // Right now material is leaky too when e.g. a fragment program can't be constructed and the vertex program is leaked.
-    static dmHashTable<uintptr_t, Resource*> s_MaterialResources;
-    static bool s_Initialized = false;
 
     dmResource::CreateResult CreateMaterial(dmResource::HFactory factory,
             void* context,
@@ -551,19 +539,7 @@ namespace dmGameSystem
 
         resource->m_Resource = (void*) material;
 
-        // TODO: Remove haxx, see above
-        if (!s_Initialized)
-        {
-            s_MaterialResources.SetCapacity(32, 128);
-            s_Initialized = true;
-        }
-        Resource* material_resources = new Resource();
-        material_resources->m_DDF = material_desc;
-        material_resources->m_VertexProgram = vertex_program;
-        material_resources->m_FragmentProgram = fragment_program;
-        assert(s_MaterialResources.Get((uintptr_t)material) == 0x0);
-        s_MaterialResources.Put((uintptr_t)material, material_resources);
-
+        dmDDF::FreeMessage(material_desc);
         return dmResource::CREATE_RESULT_OK;
     }
 
@@ -571,19 +547,12 @@ namespace dmGameSystem
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::HMaterial m = (dmGraphics::HMaterial) resource->m_Resource;
+        dmGraphics::HMaterial material = (dmGraphics::HMaterial) resource->m_Resource;
 
-        // TODO: Remove haxx, see above
-        // Crash hard if there is no material in the hashtable, it means we are leaking anyway
-        Resource* material_resource = *s_MaterialResources.Get((uintptr_t)m);
-        assert(material_resource);
-        dmDDF::FreeMessage((void*) material_resource->m_DDF);
-        dmResource::Release(factory, (void*) material_resource->m_VertexProgram);
-        dmResource::Release(factory, (void*) material_resource->m_FragmentProgram);
-        delete material_resource;
-        s_MaterialResources.Erase((uintptr_t)m);
+        dmResource::Release(factory, (void*) GetMaterialVertexProgram(material));
+        dmResource::Release(factory, (void*) GetMaterialFragmentProgram(material));
 
-        dmGraphics::DeleteMaterial(m);
+        dmGraphics::DeleteMaterial(material);
 
         return dmResource::CREATE_RESULT_OK;
     }
