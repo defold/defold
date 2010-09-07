@@ -535,7 +535,6 @@ namespace dmGameSystem
             }
         }
 
-
         resource->m_Resource = (void*) material;
 
         dmDDF::FreeMessage(material_desc);
