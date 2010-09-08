@@ -152,8 +152,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult OnEventCollisionObject(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
+    dmGameObject::UpdateResult OnEventCollisionObject(dmGameObject::HInstance instance,
             const dmGameObject::ScriptEventData* event_data,
             void* context,
             uintptr_t* user_data)
@@ -280,8 +279,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult OnEventModelComponent(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
+    dmGameObject::UpdateResult OnEventModelComponent(dmGameObject::HInstance instance,
             const dmGameObject::ScriptEventData* event_data,
             void* context,
             uintptr_t* user_data)
