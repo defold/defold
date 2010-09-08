@@ -521,6 +521,12 @@ namespace dmGameObject
         assert(script_event_data->m_Instance);
         lua_pop(L, 1);
 
+        lua_pushstring(L, "__collection__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        HCollection collection = (HCollection)lua_touserdata(L, -1);
+        assert(collection);
+        lua_pop(L, 1);
+
         char* p = buf + sizeof(ScriptEventData);
         lua_pushvalue(L, 2);
         dmScriptUtil::LuaTableToDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
@@ -528,7 +534,8 @@ namespace dmGameObject
 
         assert(top == lua_gettop(L));
 
-        dmMessage::Post(g_Socket, g_EventID, buf, SCRIPT_EVENT_MAX);
+        dmGameObject::HRegister reg = dmGameObject::GetRegister(collection);
+        dmMessage::Post(dmGameObject::GetEventSocketId(reg), dmGameObject::GetEventId(reg), buf, SCRIPT_EVENT_MAX);
 
         return 0;
     }

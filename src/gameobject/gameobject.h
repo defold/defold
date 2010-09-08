@@ -83,10 +83,6 @@ namespace dmGameObject
     // TODO: Configurable?
     const uint32_t SCRIPT_EVENT_MAX = 256;
 
-    #define DMGAMEOBJECT_EVENT_NAME "script_event"
-    #define DMGAMEOBJECT_EVENT_SOCKET_NAME "script"
-    #define DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME "script_reply"
-
     /**
      * Game script event data
      */
@@ -411,6 +407,34 @@ namespace dmGameObject
      * @return The resource factory bound to the specified collection
      */
     dmResource::HFactory GetFactory(HCollection collection);
+
+    /**
+     * Retrieve a register from the specified collection
+     * @param collection Game object collection
+     * @return The register bound to the specified collection
+     */
+    HRegister GetRegister(HCollection collection);
+
+    /**
+     * Retrieve the event socket id for the specified register.
+     * @param reg Register handle
+     * @return The event socket id of the specified collection
+     */
+    uint32_t GetEventSocketId(HRegister reg);
+
+    /**
+     * Retrieve the reply event socket id for the specified register.
+     * @param reg Register handle
+     * @return The reply event socket id of the specified collection
+     */
+    uint32_t GetReplyEventSocketId(HRegister reg);
+
+    /**
+     * Retrieve the designated event id for game object events for the specified register.
+     * @param reg Register handle
+     * @return The event id of the specified collection
+     */
+    uint32_t GetEventId(HRegister reg);
 
     /**
      * Set gameobject instance position

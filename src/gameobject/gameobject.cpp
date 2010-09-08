@@ -30,21 +30,30 @@ namespace dmGameObject
     // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
+    #define DM_GAMEOBJECT_EVENT_NAME "script_event"
+    #define DM_GAMEOBJECT_EVENT_SOCKET_NAME "script"
+    #define DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME "script_reply"
+    uint32_t g_RegisterIndex = 0;
+
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
     struct Register
     {
-        uint32_t       m_ComponentTypeCount;
-        ComponentType  m_ComponentTypes[MAX_COMPONENT_TYPES];
-        dmMutex::Mutex m_Mutex;
+        uint32_t        m_ComponentTypeCount;
+        ComponentType   m_ComponentTypes[MAX_COMPONENT_TYPES];
+        dmMutex::Mutex  m_Mutex;
         // Current identifier path. Used during loading of collections and specifically collections in collections.
         // Contains the current path and is *protected* by m_Mutex.
-        char           m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
+        char            m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
 
         // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
-        Collection*    m_CurrentCollection;
+        Collection*     m_CurrentCollection;
 
-        Vector3        m_AccumulatedTranslation;
-        Quat           m_AccumulatedRotation;
+        Vector3         m_AccumulatedTranslation;
+        Quat            m_AccumulatedRotation;
+
+        uint32_t        m_EventId;
+        uint32_t        m_EventSocketId;
+        uint32_t        m_ReplyEventSocketId;
 
         Register()
         {
@@ -56,11 +65,30 @@ namespace dmGameObject
             // Accumulated position for child collections
             m_AccumulatedTranslation = Vector3(0,0,0);
             m_AccumulatedRotation = Quat::identity();
+
+            char buffer[32];
+
+            DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_NAME, g_RegisterIndex);
+            m_EventId = dmHashString32(buffer);
+
+            DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_SOCKET_NAME, g_RegisterIndex);
+            m_EventSocketId = dmHashString32(buffer);
+            dmMessage::CreateSocket(m_EventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+            DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME, g_RegisterIndex);
+            m_ReplyEventSocketId = dmHashString32(buffer);
+            dmMessage::CreateSocket(m_ReplyEventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+            ++g_RegisterIndex;
         }
 
         ~Register()
         {
             dmMutex::Delete(m_Mutex);
+            dmMessage::Consume(m_EventSocketId);
+            dmMessage::DestroySocket(m_EventSocketId);
+            dmMessage::Consume(m_ReplyEventSocketId);
+            dmMessage::DestroySocket(m_ReplyEventSocketId);
         }
     };
 
@@ -156,9 +184,6 @@ namespace dmGameObject
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer32("__unnamed__", strlen("__unnamed__"));
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
-    uint32_t g_Socket = 0;
-    uint32_t g_ReplySocket = 0;
-    uint32_t g_EventID = 0;
 
     ComponentType::ComponentType()
     {
@@ -172,27 +197,14 @@ namespace dmGameObject
         g_Descriptors = new dmHashTable64<const dmDDF::Descriptor*>();
         g_Descriptors->SetCapacity(17, 128);
 
-        g_EventID = dmHashString32(DMGAMEOBJECT_EVENT_NAME);
-
-        g_Socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
-        dmMessage::CreateSocket(g_Socket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
-
-        g_ReplySocket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
-        dmMessage::CreateSocket(g_ReplySocket, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
-
         InitializeScript();
     }
 
     void Finalize()
     {
         FinalizeScript();
-        dmMessage::DestroySocket(g_Socket);
-        dmMessage::DestroySocket(g_ReplySocket);
         delete g_Descriptors;
 
-        g_EventID = 0xffffffff;
-        g_Socket = 0xffffffff;
-        g_ReplySocket = 0xffffffff;
         g_Descriptors = 0;
     }
 
@@ -541,7 +553,6 @@ bail:
                                                  dmResource::SResourceDescriptor* resource)
     {
         HCollection collection = (HCollection) resource->m_Resource;
-        dmMessage::Consume(g_Socket);
         dmGameObject::DeleteAll(collection);
         DeleteCollection(collection);
         return dmResource::CREATE_RESULT_OK;
@@ -1078,7 +1089,7 @@ bail:
         	memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
         }
 
-        dmMessage::Post(g_ReplySocket, g_EventID, buf, SCRIPT_EVENT_MAX);
+        dmMessage::Post(instance->m_Collection->m_Register->m_ReplyEventSocketId, instance->m_Collection->m_Register->m_EventId, buf, SCRIPT_EVENT_MAX);
 
         return RESULT_OK;
     }
@@ -1180,7 +1191,7 @@ bail:
         DispatchEventsContext ctx;
         ctx.m_Register = collection->m_Register;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(g_ReplySocket, &DispatchEventsFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(collection->m_Register->m_ReplyEventSocketId, &DispatchEventsFunction, (void*) &ctx);
 
         return ctx.m_Success;
     }
@@ -1364,10 +1375,41 @@ bail:
     dmResource::HFactory GetFactory(HCollection collection)
     {
         if (collection != 0x0)
-        {
             return collection->m_Factory;
-        }
-        return 0x0;
+        else
+            return 0x0;
+    }
+
+    HRegister GetRegister(HCollection collection)
+    {
+        if (collection != 0x0)
+            return collection->m_Register;
+        else
+            return 0x0;
+    }
+
+    uint32_t GetEventSocketId(HRegister reg)
+    {
+        if (reg)
+            return reg->m_EventSocketId;
+        else
+            return 0;
+    }
+
+    uint32_t GetReplyEventSocketId(HRegister reg)
+    {
+        if (reg)
+            return reg->m_ReplyEventSocketId;
+        else
+            return 0;
+    }
+
+    uint32_t GetEventId(HRegister reg)
+    {
+        if (reg)
+            return reg->m_EventId;
+        else
+            return 0;
     }
 
     void SetPosition(HInstance instance, Point3 position)

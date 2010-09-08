@@ -745,13 +745,20 @@ TEST_F(GameObjectTest, TestScriptProperty)
     dmGameObject::Delete(collection, go);
 }
 
+struct TestScript01Context
+{
+    dmGameObject::HRegister m_Register;
+    bool m_Result;
+};
+
 void TestScript01Dispatch(dmMessage::Message *event_object, void* user_ptr)
 {
     dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
     TestGameObject::Spawn* s = (TestGameObject::Spawn*) script_event_data->m_DDFData;
     // NOTE: We relocate the string here (from offset to pointer)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
-    bool* dispatch_result = (bool*) user_ptr;
+    TestScript01Context* context = (TestScript01Context*)user_ptr;
+    bool* dispatch_result = &context->m_Result;
 
     uint32_t event_id = dmHashString32("spawn_result");
 
@@ -766,8 +773,7 @@ void TestScript01Dispatch(dmMessage::Message *event_object, void* user_ptr)
     reply_script_event->m_Instance = script_event_data->m_Instance;
     reply_script_event->m_DDFDescriptor = TestGameObject::SpawnResult::m_DDFDescriptor;
 
-    uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
-    dmMessage::Post(reply_socket, event_id, reply_buf, 256);
+    dmMessage::Post(dmGameObject::GetReplyEventSocketId(context->m_Register), event_id, reply_buf, 256);
 
     *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
@@ -794,17 +800,19 @@ TEST_F(GameObjectTest, TestScript01)
 
     ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
 
-    uint32_t socket = dmHashString32(DMGAMEOBJECT_EVENT_SOCKET_NAME);
-    uint32_t reply_socket = dmHashString32(DMGAMEOBJECT_REPLY_EVENT_SOCKET_NAME);
-    bool dispatch_result = false;
-    dmMessage::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
+    uint32_t socket = dmGameObject::GetEventSocketId(regist);
+    uint32_t reply_socket = dmGameObject::GetReplyEventSocketId(regist);
+    TestScript01Context context;
+    context.m_Register = regist;
+    context.m_Result = false;
+    dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
 
-    ASSERT_TRUE(dispatch_result);
+    ASSERT_TRUE(context.m_Result);
 
     ASSERT_TRUE(dmGameObject::Update(collection, &update_context));
     // Final dispatch to deallocate event data
-    dmMessage::Dispatch(socket, TestScript01Dispatch, &dispatch_result);
-    dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &dispatch_result);
+    dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
+    dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &context);
 
     dmGameObject::Delete(collection, go);
 }
