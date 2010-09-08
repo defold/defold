@@ -1085,7 +1085,7 @@ bail:
 
     struct DispatchEventsContext
     {
-        HCollection m_Collection;
+        HRegister m_Register;
         bool m_Success;
     };
 
@@ -1095,70 +1095,25 @@ bail:
 
         dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
         assert(script_event_data->m_Instance);
-        bool exists = false;
-        for (uint32_t i = 0; i < context->m_Collection->m_Instances.Size(); ++i)
+
+        Instance* instance = script_event_data->m_Instance;
+        if (instance->m_ToBeDeleted)
         {
-            if (script_event_data->m_Instance == context->m_Collection->m_Instances[i])
-            {
-                exists = true;
-                break;
-            }
+            dmLogWarning("Message sent to game object that will be deleted, message ignored.");
+            return;
         }
-
-        if (exists)
+        Prototype* prototype = instance->m_Prototype;
+        // Broadcast to all components
+        if (script_event_data->m_Component == 0xff)
         {
-            Instance* instance = script_event_data->m_Instance;
-            Prototype* prototype = instance->m_Prototype;
-            // Broadcast to all components
-            if (script_event_data->m_Component == 0xff)
+            uint32_t next_component_instance_data = 0;
+            uint32_t components_size = prototype->m_Components.Size();
+            for (uint32_t i = 0; i < components_size; ++i)
             {
-                uint32_t next_component_instance_data = 0;
-                uint32_t components_size = prototype->m_Components.Size();
-                for (uint32_t i = 0; i < components_size; ++i)
-                {
-                    ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                    assert(component_type);
-                    if (component_type->m_OnEventFunction)
-                    {
-                        uintptr_t* component_instance_data = 0;
-                        if (component_type->m_InstanceHasUserData)
-                        {
-                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                        }
-                        {
-                            DM_PROFILE(GameObject, "OnEventFunction");
-                            UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
-                            if (res != UPDATE_RESULT_OK)
-                                context->m_Success = false;
-                        }
-                    }
-
-                    if (component_type->m_InstanceHasUserData)
-                    {
-                        next_component_instance_data++;
-                    }
-                }
-            }
-            else
-            {
-                uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
-                ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type, 0x0);
+                ComponentType* component_type = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
                 assert(component_type);
-
                 if (component_type->m_OnEventFunction)
                 {
-                    // TODO: Not optimal way to find index of component instance data
-                    uint32_t next_component_instance_data = 0;
-                    for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
-                    {
-                        ComponentType* ct = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                        assert(component_type);
-                        if (ct->m_InstanceHasUserData)
-                        {
-                            next_component_instance_data++;
-                        }
-                    }
-
                     uintptr_t* component_instance_data = 0;
                     if (component_type->m_InstanceHasUserData)
                     {
@@ -1166,16 +1121,54 @@ bail:
                     }
                     {
                         DM_PROFILE(GameObject, "OnEventFunction");
-                        UpdateResult res = component_type->m_OnEventFunction(context->m_Collection, instance, script_event_data, component_type->m_Context, component_instance_data);
+                        UpdateResult res = component_type->m_OnEventFunction(instance, script_event_data, component_type->m_Context, component_instance_data);
                         if (res != UPDATE_RESULT_OK)
                             context->m_Success = false;
                     }
                 }
-                else
+
+                if (component_type->m_InstanceHasUserData)
                 {
-                    // TODO User-friendly error message here...
-                    dmLogWarning("Component type is missing OnEvent function");
+                    next_component_instance_data++;
                 }
+            }
+        }
+        else
+        {
+            uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
+            ComponentType* component_type = FindComponentType(context->m_Register, resource_type, 0x0);
+            assert(component_type);
+
+            if (component_type->m_OnEventFunction)
+            {
+                // TODO: Not optimal way to find index of component instance data
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
+                {
+                    ComponentType* ct = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
+                    assert(component_type);
+                    if (ct->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_InstanceHasUserData)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                }
+                {
+                    DM_PROFILE(GameObject, "OnEventFunction");
+                    UpdateResult res = component_type->m_OnEventFunction(instance, script_event_data, component_type->m_Context, component_instance_data);
+                    if (res != UPDATE_RESULT_OK)
+                        context->m_Success = false;
+                }
+            }
+            else
+            {
+                // TODO User-friendly error message here...
+                dmLogWarning("Component type is missing OnEvent function");
             }
         }
     }
@@ -1185,7 +1178,7 @@ bail:
         DM_PROFILE(GameObject, "DispatchEvents");
 
         DispatchEventsContext ctx;
-        ctx.m_Collection = collection;
+        ctx.m_Register = collection->m_Register;
         ctx.m_Success = true;
         (void) dmMessage::Dispatch(g_ReplySocket, &DispatchEventsFunction, (void*) &ctx);
 
@@ -1304,63 +1297,55 @@ bail:
     UpdateResult DispatchInput(HCollection collection, InputAction* input_action, uint32_t input_action_count)
     {
         DM_PROFILE(GameObject, "DispatchInput");
-        if (collection->m_FocusStack.Size() > 0)
+        Instance* instance = 0x0;
+        while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
         {
-            Instance* instance = collection->m_FocusStack.Top();
-            bool exists = false;
-            for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+            instance = collection->m_FocusStack.Top();
+            if (instance == 0x0 || instance->m_ToBeDeleted)
             {
-                if (instance == collection->m_Instances[i])
-                {
-                    exists = true;
-                    break;
-                }
+                collection->m_FocusStack.Pop();
+                instance = 0x0;
             }
+        }
+        if (instance != 0x0)
+        {
+            Prototype* prototype = instance->m_Prototype;
+            // Broadcast to all components
 
-            if (exists)
+            uint32_t next_component_instance_data = 0;
+            uint32_t components_size = prototype->m_Components.Size();
+            for (uint32_t i = 0; i < components_size; ++i)
             {
-                Prototype* prototype = instance->m_Prototype;
-                // Broadcast to all components
-
-                uint32_t next_component_instance_data = 0;
-                uint32_t components_size = prototype->m_Components.Size();
-                for (uint32_t i = 0; i < components_size; ++i)
+                ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
+                assert(component_type);
+                if (component_type->m_OnInputFunction)
                 {
-                    ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                    assert(component_type);
-                    if (component_type->m_OnInputFunction)
+                    uintptr_t* component_instance_data = 0;
+                    if (component_type->m_InstanceHasUserData)
                     {
-                        uintptr_t* component_instance_data = 0;
-                        if (component_type->m_InstanceHasUserData)
+                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                    }
+                    for (uint32_t j = 0; j < input_action_count; ++j)
+                    {
+                        if (input_action[j].m_ActionId != 0)
                         {
-                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                        }
-                        for (uint32_t j = 0; j < input_action_count; ++j)
-                        {
-                            if (input_action[j].m_ActionId != 0)
+                            InputResult res = component_type->m_OnInputFunction(instance, &input_action[j], component_type->m_Context, component_instance_data);
+                            if (res == INPUT_RESULT_CONSUMED)
                             {
-                                InputResult res = component_type->m_OnInputFunction(collection, instance, &input_action[j], component_type->m_Context, component_instance_data);
-                                if (res == INPUT_RESULT_CONSUMED)
-                                {
-                                    memset(&input_action[j], 0, sizeof(InputAction));
-                                }
-                                else if (res == INPUT_RESULT_UNKNOWN_ERROR)
-                                {
-                                    return UPDATE_RESULT_OK;
-                                }
+                                memset(&input_action[j], 0, sizeof(InputAction));
+                            }
+                            else if (res == INPUT_RESULT_UNKNOWN_ERROR)
+                            {
+                                return UPDATE_RESULT_OK;
                             }
                         }
                     }
-
-                    if (component_type->m_InstanceHasUserData)
-                    {
-                        next_component_instance_data++;
-                    }
                 }
-            }
-            else
-            {
-                collection->m_FocusStack.Pop();
+
+                if (component_type->m_InstanceHasUserData)
+                {
+                    next_component_instance_data++;
+                }
             }
         }
         return UPDATE_RESULT_OK;

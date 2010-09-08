@@ -200,27 +200,23 @@ namespace dmGameObject
 
     /**
      * Component on-event function. Called when event is sent to this component
-     * @param collection Collection handle
      * @param instance Instance handle
      * @param context User context
      * @param user_data User data storage pointer
      */
-    typedef UpdateResult (*ComponentOnEvent)(HCollection collection,
-                                     HInstance instance,
+    typedef UpdateResult (*ComponentOnEvent)(HInstance instance,
                                      const ScriptEventData* event_data,
                                      void* context,
                                      uintptr_t* user_data);
 
     /**
      * Component on-input function. Called when input is sent to this component
-     * @param collection Collection handle
      * @param instance Instance handle
      * @param context User context
      * @param user_data User data storage pointer
      * @return How the component handled the input
      */
-    typedef InputResult (*ComponentOnInput)(HCollection collection,
-                                     HInstance instance,
+    typedef InputResult (*ComponentOnInput)(HInstance instance,
                                      const InputAction* input_action,
                                      void* context,
                                      uintptr_t* user_data);

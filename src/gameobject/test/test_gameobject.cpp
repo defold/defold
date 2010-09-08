@@ -168,15 +168,13 @@ protected:
 
     uint32_t m_EventTargetCounter;
 
-    static dmGameObject::UpdateResult EventTargetOnEvent(dmGameObject::HCollection collection,
-                                   dmGameObject::HInstance instance,
+    static dmGameObject::UpdateResult EventTargetOnEvent(dmGameObject::HInstance instance,
                                    const dmGameObject::ScriptEventData* event_data,
                                    void* context,
                                    uintptr_t* user_data);
 
     uint32_t m_InputCounter;
-    static dmGameObject::InputResult InputTargetOnInput(dmGameObject::HCollection collection,
-                                            dmGameObject::HInstance instance,
+    static dmGameObject::InputResult InputTargetOnInput(dmGameObject::HInstance instance,
                                             const dmGameObject::InputAction* input_action,
                                             void* context,
                                             uintptr_t* user_data);
@@ -606,8 +604,7 @@ TEST_F(GameObjectTest, DeleteSelf)
     }
 }
 
-dmGameObject::UpdateResult GameObjectTest::EventTargetOnEvent(dmGameObject::HCollection collection,
-                                        dmGameObject::HInstance instance,
+dmGameObject::UpdateResult GameObjectTest::EventTargetOnEvent(dmGameObject::HInstance instance,
                                         const dmGameObject::ScriptEventData* event_data,
                                         void* context,
                                         uintptr_t* user_data)
@@ -680,8 +677,7 @@ TEST_F(GameObjectTest, TestBroadcastEvent)
     dmGameObject::Delete(collection, go);
 }
 
-dmGameObject::InputResult GameObjectTest::InputTargetOnInput(dmGameObject::HCollection collection,
-                                        dmGameObject::HInstance instance,
+dmGameObject::InputResult GameObjectTest::InputTargetOnInput(dmGameObject::HInstance instance,
                                         const dmGameObject::InputAction* input_action,
                                         void* context,
                                         uintptr_t* user_data)

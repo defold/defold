@@ -83,13 +83,11 @@ namespace dmGameObject
             const UpdateContext* update_context,
             void* world,
             void* context);
-    UpdateResult ScriptOnEventComponent(HCollection collection,
-            HInstance instance,
+    UpdateResult ScriptOnEventComponent(HInstance instance,
             const ScriptEventData* event_data,
             void* context,
             uintptr_t* user_data);
-    InputResult ScriptOnInputComponent(HCollection collection,
-            HInstance instance,
+    InputResult ScriptOnInputComponent(HInstance instance,
             const InputAction* input_action,
             void* context,
             uintptr_t* user_data);
