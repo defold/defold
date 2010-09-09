@@ -1232,7 +1232,7 @@ bail:
                 else
                 {
                     int input_ret = lua_toboolean(L, -1);
-                    lua_pop(L, 1);
+                    lua_pop(L, 2);
                     assert(top == lua_gettop(L));
                     if (input_ret)
                         return INPUT_RESULT_CONSUMED;
