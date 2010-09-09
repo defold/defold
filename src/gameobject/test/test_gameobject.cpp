@@ -464,13 +464,37 @@ TEST_F(GameObjectTest, TestUpdate)
     ASSERT_NE((void*) 0, (void*) go);
     bool ret = dmGameObject::Update(collection, &update_context);
     ASSERT_TRUE(ret);
+    ret = dmGameObject::PostUpdate(collection);
+    ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
 
     dmGameObject::Delete(collection, go);
+    ret = dmGameObject::PostUpdate(collection);
+    ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
+}
+
+TEST_F(GameObjectTest, TestPostDeleteUpdate)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto02.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    uint32_t event_id = dmHashString32("test");
+
+    dmGameObject::ScriptEventData data;
+    data.m_EventHash = event_id;
+    data.m_Component = 0xff;
+    data.m_Instance = go;
+    data.m_DDFDescriptor = 0x0;
+    dmMessage::Post(dmGameObject::GetReplyEventSocketId(regist), event_id, (void*)&data, sizeof(dmGameObject::ScriptEventData));
+
+    dmGameObject::Delete(collection, go);
+
+    bool ret = dmGameObject::Update(collection, &update_context);
+    ASSERT_TRUE(ret);
 }
 
 TEST_F(GameObjectTest, TestNonexistingComponent)
@@ -518,6 +542,8 @@ TEST_F(GameObjectTest, TestComponentUserdata)
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Delete(collection, go);
+    bool ret = dmGameObject::PostUpdate(collection);
+    ASSERT_TRUE(ret);
     // Two a:s
     ASSERT_EQ(2, m_ComponentUserDataAcc[TestGameObject::AResource::m_DDFHash]);
     // Zero c:s
@@ -593,6 +619,8 @@ TEST_F(GameObjectTest, DeleteSelf)
                 m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
             }
             bool ret = dmGameObject::Update(collection, 0);
+            ASSERT_TRUE(ret);
+            ret = dmGameObject::PostUpdate(collection);
             ASSERT_TRUE(ret);
             for (int i = 0; i < 16; ++i)
             {
@@ -1070,6 +1098,8 @@ TEST_F(GameObjectTest, TestHierarchy1)
         bool ret;
         ret = dmGameObject::Update(collection, 0);
         ASSERT_TRUE(ret);
+        ret = dmGameObject::PostUpdate(collection);
+        ASSERT_TRUE(ret);
 
         Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
 
@@ -1079,16 +1109,24 @@ TEST_F(GameObjectTest, TestHierarchy1)
         if (i % 2 == 0)
         {
             dmGameObject::Delete(collection, parent);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
             ASSERT_EQ(0U, dmGameObject::GetDepth(child));
             ASSERT_EQ(0U, dmGameObject::GetChildCount(child));
             dmGameObject::Delete(collection, child);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
         else
         {
             dmGameObject::Delete(collection, child);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(0U, dmGameObject::GetChildCount(parent));
             dmGameObject::Delete(collection, parent);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
     }
 }
@@ -1186,48 +1224,68 @@ TEST_F(GameObjectTest, TestHierarchy3)
         bool ret;
         ret = dmGameObject::Update(collection, 0);
         ASSERT_TRUE(ret);
+        ret = dmGameObject::PostUpdate(collection);
+        ASSERT_TRUE(ret);
 
         // Test all possible delete orders in this configuration
         if (i == 0)
         {
             dmGameObject::Delete(collection, parent);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(collection, child1);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(collection, child2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
         else if (i == 1)
         {
             dmGameObject::Delete(collection, child1);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(collection, parent);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(collection, child2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
         else if (i == 2)
         {
             dmGameObject::Delete(collection, child2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
 
             dmGameObject::Delete(collection, parent);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
 
             dmGameObject::Delete(collection, child1);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
         else
         {
@@ -1330,6 +1388,8 @@ TEST_F(GameObjectTest, TestHierarchy7)
     ASSERT_EQ(child1, dmGameObject::GetParent(child2));
 
     dmGameObject::Delete(collection, child1);
+    bool ret = dmGameObject::PostUpdate(collection);
+    ASSERT_TRUE(ret);
     ASSERT_EQ(parent, dmGameObject::GetParent(child2));
     ASSERT_TRUE(dmGameObject::IsChildOf(child2, parent));
 
@@ -1370,6 +1430,8 @@ TEST_F(GameObjectTest, TestHierarchy8)
         bool ret;
         ret = dmGameObject::Update(collection, 0);
         ASSERT_TRUE(ret);
+        ret = dmGameObject::PostUpdate(collection);
+        ASSERT_TRUE(ret);
 
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, c2));
 
@@ -1395,34 +1457,50 @@ TEST_F(GameObjectTest, TestHierarchy8)
         {
             ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
             dmGameObject::Delete(collection, a1);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
             dmGameObject::Delete(collection, c2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(b2));
             dmGameObject::Delete(collection, b2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(collection, d3);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
         else
         {
             ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
             ASSERT_EQ(3U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(collection, a1);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetDepth(b2));
             ASSERT_EQ(2U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(collection, b2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
             ASSERT_EQ(c2, dmGameObject::GetParent(d3));
             ASSERT_TRUE(dmGameObject::IsChildOf(d3, c2));
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
             ASSERT_EQ(1U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(collection, c2);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(collection, d3);
+            ret = dmGameObject::PostUpdate(collection);
+            ASSERT_TRUE(ret);
         }
     }
 }

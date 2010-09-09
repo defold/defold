@@ -396,6 +396,14 @@ namespace dmGameObject
      */
     bool Update(HCollection collection, const UpdateContext* update_context);
 
+    /**
+     * Performs clean up of the collection after update, such as deleting all instances scheduled for delete.
+     * @param collection Gameobject collection
+     * @param update_context Update context
+     * @return True on success
+     */
+    bool PostUpdate(HCollection collection);
+
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count);
 
     void AcquireInputFocus(HCollection collection, HInstance instance);

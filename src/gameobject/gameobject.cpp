@@ -242,9 +242,11 @@ namespace dmGameObject
         return new Collection(factory, regist, max_instances);
     }
 
+    void DoDeleteAll(HCollection collection);
+
     void DeleteCollection(HCollection collection)
     {
-        DeleteAll(collection);
+        DoDeleteAll(collection);
         for (uint32_t i = 0; i < collection->m_Register->m_ComponentTypeCount; ++i)
         {
             if (collection->m_Register->m_ComponentTypes[i].m_DeleteWorldFunction)
@@ -534,7 +536,6 @@ bail:
         if (loading_root && res != dmResource::CREATE_RESULT_OK)
         {
             // Loading of root-collection is responsible for deleting
-            DeleteAll(collection);
             DeleteCollection(collection);
         }
 
@@ -553,7 +554,6 @@ bail:
                                                  dmResource::SResourceDescriptor* resource)
     {
         HCollection collection = (HCollection) resource->m_Resource;
-        dmGameObject::DeleteAll(collection);
         DeleteCollection(collection);
         return dmResource::CREATE_RESULT_OK;
     }
@@ -915,17 +915,16 @@ bail:
         assert(collection->m_Instances[instance->m_Index] == instance);
         assert(instance->m_Collection == collection);
 
-        if (collection->m_InUpdate)
-        {
-            // NOTE: Do not add for delete twice.
-            if (instance->m_ToBeDeleted)
-                return;
-
-            instance->m_ToBeDeleted = 1;
-            collection->m_InstancesToDelete.Push(instance->m_Index);
+        // NOTE: Do not add for delete twice.
+        if (instance->m_ToBeDeleted)
             return;
-        }
 
+        instance->m_ToBeDeleted = 1;
+        collection->m_InstancesToDelete.Push(instance->m_Index);
+    }
+
+    void DoDelete(HCollection collection, HInstance instance)
+    {
         dmResource::HFactory factory = collection->m_Factory;
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
@@ -1008,6 +1007,18 @@ bail:
 
     void DeleteAll(HCollection collection)
     {
+        for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+        {
+            Instance* instance = collection->m_Instances[i];
+            if (instance)
+            {
+                Delete(collection, instance);
+            }
+        }
+    }
+
+    void DoDeleteAll(HCollection collection)
+    {
         // This will perform tons of unnecessary work to resolve and reorder
         // the hierarchies and other things but will serve as a nice test case
         for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
@@ -1015,7 +1026,7 @@ bail:
             Instance* instance = collection->m_Instances[i];
             if (instance)
             {
-                Delete(collection, instance);
+                DoDelete(collection, instance);
             }
         }
     }
@@ -1262,7 +1273,6 @@ bail:
     {
         DM_PROFILE(GameObject, "Update");
         collection->m_InUpdate = 1;
-        collection->m_InstancesToDelete.SetSize(0);
 
         bool ret = true;
 
@@ -1288,6 +1298,11 @@ bail:
 
         collection->m_InUpdate = 0;
 
+        return ret;
+    }
+
+    bool PostUpdate(HCollection collection)
+    {
         if (collection->m_InstancesToDelete.Size() > 0)
         {
             uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
@@ -1298,11 +1313,12 @@ bail:
 
                 assert(collection->m_Instances[instance->m_Index] == instance);
                 assert(instance->m_ToBeDeleted);
-                Delete(collection, instance);
+                DoDelete(collection, instance);
             }
+            collection->m_InstancesToDelete.SetSize(0);
         }
 
-        return ret;
+        return true;
     }
 
     UpdateResult DispatchInput(HCollection collection, InputAction* input_action, uint32_t input_action_count)
