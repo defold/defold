@@ -1,0 +1,12 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def build(bld):
+    test_gui = bld.new_task_gen(features = 'cxx cprogram',
+                                includes = '../../../src',
+                                uselib = 'GTEST DLIB PLATFORM_SOCKET LUA',
+                                uselib_local = 'gui',
+                                target = 'test_gui',
+                                source = 'test_gui.cpp')
+
+    test_gui.install_path = None
