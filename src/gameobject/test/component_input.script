@@ -5,7 +5,7 @@ function Update(self)
 end
 
 function OnInput(self, action)
-    assert(action.Id == Hash("test_action"), "Unknown action")
+    assert(action.Id == hash("test_action"), "Unknown action")
 end
 
 functions = { Init = Init, Update = Update, OnInput = OnInput }

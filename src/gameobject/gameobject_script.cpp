@@ -26,6 +26,12 @@ namespace dmGameObject
 
     lua_State* g_LuaState = 0;
 
+    ScriptWorld::ScriptWorld()
+    : m_Instances()
+    {
+        m_Instances.SetCapacity(512);
+    }
+
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
         ScriptInstance* i;
@@ -57,90 +63,6 @@ namespace dmGameObject
         assert(i);
 
         const char* key = luaL_checkstring(L, 2);
-        if (strcmp(key, "Position") == 0)
-        {
-            lua_newtable(L);
-
-            Point3& pos = i->m_Instance->m_Position;
-
-            lua_pushliteral(L, "X");
-            lua_pushnumber(L, pos.getX());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Y");
-            lua_pushnumber(L, pos.getY());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Z");
-            lua_pushnumber(L, pos.getZ());
-            lua_rawset(L, -3);
-            return 1;
-        }
-        else if (strcmp(key, "Rotation") == 0)
-        {
-            lua_newtable(L);
-
-            Quat& rot = i->m_Instance->m_Rotation;
-
-            lua_pushliteral(L, "X");
-            lua_pushnumber(L, rot.getX());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Y");
-            lua_pushnumber(L, rot.getY());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Z");
-            lua_pushnumber(L, rot.getZ());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "W");
-            lua_pushnumber(L, rot.getW());
-            lua_rawset(L, -3);
-            return 1;
-        }
-        else if (strcmp(key, "WorldPosition") == 0)
-        {
-            lua_newtable(L);
-
-            Point3 pos = dmGameObject::GetWorldPosition(i->m_Instance);
-
-            lua_pushliteral(L, "X");
-            lua_pushnumber(L, pos.getX());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Y");
-            lua_pushnumber(L, pos.getY());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Z");
-            lua_pushnumber(L, pos.getZ());
-            lua_rawset(L, -3);
-            return 1;
-        }
-        else if (strcmp(key, "WorldRotation") == 0)
-        {
-            lua_newtable(L);
-
-            Quat rot = dmGameObject::GetWorldRotation(i->m_Instance);
-
-            lua_pushliteral(L, "X");
-            lua_pushnumber(L, rot.getX());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Y");
-            lua_pushnumber(L, rot.getY());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "Z");
-            lua_pushnumber(L, rot.getZ());
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "W");
-            lua_pushnumber(L, rot.getW());
-            lua_rawset(L, -3);
-            return 1;
-        }
 
         // Try to find value in globals in update context
         lua_pushstring(L, "__update_context__");
@@ -168,84 +90,18 @@ namespace dmGameObject
 
     static int ScriptInstance_newindex(lua_State *L)
     {
+        int top = lua_gettop(L);
+
         ScriptInstance* i = ScriptInstance_Check(L, 1);
         (void) i;
         assert(i);
 
-        const char* key = luaL_checkstring(L, 2);
-        if (strcmp(key, "Position") == 0)
-        {
-            luaL_checktype(L, 3, LUA_TTABLE);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
+        lua_pushvalue(L, 2);
+        lua_pushvalue(L, 3);
+        lua_settable(L, -3);
 
-            lua_getfield(L, 3, "X");
-            if (lua_isnil(L, -1))
-            {
-                // X not present, assume { x, y, z }
-                lua_pop(L, 1);
-                lua_rawgeti(L, 3, 1);
-                lua_rawgeti(L, 3, 2);
-                lua_rawgeti(L, 3, 3);
-            }
-            else
-            {
-                // X present, assume { X = x, ... }
-                lua_pushliteral(L, "X");
-                lua_rawget(L, 3);
-                lua_pushliteral(L, "Y");
-                lua_rawget(L, 3);
-                lua_pushliteral(L, "Z");
-                lua_rawget(L, 3);
-            }
-
-            float x = luaL_checknumber(L, -3);
-            float y = luaL_checknumber(L, -2);
-            float z = luaL_checknumber(L, -1);
-
-            i->m_Instance->m_Position = Point3(x, y, z);
-        }
-        else if (strcmp(key, "Rotation") == 0)
-        {
-            luaL_checktype(L, 3, LUA_TTABLE);
-
-            lua_getfield(L, 3, "X");
-            if (lua_isnil(L, -1))
-            {
-                // X not present, assume { x, y, z, w }
-                lua_pop(L, 1);
-                lua_rawgeti(L, 3, 1);
-                lua_rawgeti(L, 3, 2);
-                lua_rawgeti(L, 3, 3);
-                lua_rawgeti(L, 3, 4);
-            }
-            else
-            {
-                // X present, assume { X = x, ... }
-                lua_pushliteral(L, "X");
-                lua_rawget(L, 3);
-                lua_pushliteral(L, "Y");
-                lua_rawget(L, 3);
-                lua_pushliteral(L, "Z");
-                lua_rawget(L, 3);
-                lua_pushliteral(L, "W");
-                lua_rawget(L, 3);
-            }
-
-            float x = luaL_checknumber(L, -4);
-            float y = luaL_checknumber(L, -3);
-            float z = luaL_checknumber(L, -2);
-            float w = luaL_checknumber(L, -1);
-
-            i->m_Instance->m_Rotation = Quat(x, y, z, w);
-        }
-        else
-        {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
-            lua_pushvalue(L, 2);
-            lua_pushvalue(L, 3);
-            lua_settable(L, -3);
-        }
-
-        // TODO: Check top...
+        assert(top + 1 == lua_gettop(L));
 
         return 1;
     }
@@ -303,7 +159,6 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_methods[] =
     {
-        //{"test", ScriptInstance_Test},
         {0,0}
     };
 
@@ -543,125 +398,63 @@ namespace dmGameObject
         return 0;
     }
 
-    int Script_Transform(lua_State* L)
+    int Script_GetPosition(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        // check args
-        luaL_checktype(L, 1, LUA_TTABLE);
-        luaL_checktype(L, 2, LUA_TTABLE);
-
-        // retrieve position
-        lua_getfield(L, 1, "Position");
-        Vectormath::Aos::Point3 position(0.0f, 0.0f, 0.0f);
-        if (lua_istable(L, 3))
-        {
-            lua_getfield(L, 3, "X");
-            position.setX((float)lua_tonumber(L, 4));
-            lua_getfield(L, 3, "Y");
-            position.setY((float)lua_tonumber(L, 5));
-            lua_getfield(L, 3, "Z");
-            position.setZ((float)lua_tonumber(L, 6));
-            lua_pop(L, 3);
-        }
-        lua_pop(L, 1);
-
-        // retrieve rotation
-        lua_getfield(L, 1, "Rotation");
-        Vectormath::Aos::Quat rotation(0.0f, 0.0f, 0.0f, 1.0f);
-        if (lua_istable(L, 3))
-        {
-            lua_getfield(L, 3, "X");
-            rotation.setX((float)lua_tonumber(L, 4));
-            lua_getfield(L, 3, "Y");
-            rotation.setY((float)lua_tonumber(L, 5));
-            lua_getfield(L, 3, "Z");
-            rotation.setZ((float)lua_tonumber(L, 6));
-            lua_getfield(L, 3, "W");
-            rotation.setW((float)lua_tonumber(L, 7));
-            lua_pop(L, 4);
-        }
-        lua_pop(L, 1);
-
-        // retrieve point to transform
-        Vectormath::Aos::Vector3 p;
-        lua_getfield(L, 2, "X");
-        p.setX((float)lua_tonumber(L, 3));
-        lua_getfield(L, 2, "Y");
-        p.setY((float)lua_tonumber(L, 4));
-        lua_getfield(L, 2, "Z");
-        p.setZ((float)lua_tonumber(L, 5));
-        lua_pop(L, 3);
-
-        // calculate!
-        Vectormath::Aos::Point3 result = position + Vectormath::Aos::rotate(rotation, p);
-
-        // write result
-        lua_newtable(L);
-        lua_pushnumber(L, result.getX());
-        lua_setfield(L, 3, "X");
-        lua_pushnumber(L, result.getY());
-        lua_setfield(L, 3, "Y");
-        lua_pushnumber(L, result.getZ());
-        lua_setfield(L, 3, "Z");
-
-        assert(top + 1 == lua_gettop(L));
-
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(i->m_Instance)));
         return 1;
     }
 
-    int Script_Rotate(lua_State* L)
+    int Script_GetRotation(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        // check args
-        luaL_checktype(L, 1, LUA_TTABLE);
-        luaL_checktype(L, 2, LUA_TTABLE);
-
-        // retrieve rotation
-        Vectormath::Aos::Quat r;
-        lua_getfield(L, 1, "X");
-        r.setX((float)lua_tonumber(L, 3));
-        lua_getfield(L, 1, "Y");
-        r.setY((float)lua_tonumber(L, 4));
-        lua_getfield(L, 1, "Z");
-        r.setZ((float)lua_tonumber(L, 5));
-        lua_getfield(L, 1, "W");
-        r.setW((float)lua_tonumber(L, 6));
-        lua_pop(L, 4);
-
-        // retrieve rotation
-        Vectormath::Aos::Vector3 v;
-        lua_getfield(L, 2, "X");
-        v.setX((float)lua_tonumber(L, 3));
-        lua_getfield(L, 2, "Y");
-        v.setY((float)lua_tonumber(L, 4));
-        lua_getfield(L, 2, "Z");
-        v.setZ((float)lua_tonumber(L, 5));
-        lua_pop(L, 3);
-
-        // calculate!
-        Vectormath::Aos::Vector3 result = Vectormath::Aos::rotate(r, v);
-
-        // write result
-        lua_newtable(L);
-        lua_pushnumber(L, result.getX());
-        lua_setfield(L, 3, "X");
-        lua_pushnumber(L, result.getY());
-        lua_setfield(L, 3, "Y");
-        lua_pushnumber(L, result.getZ());
-        lua_setfield(L, 3, "Z");
-
-        assert(top + 1 == lua_gettop(L));
-
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        dmScript::PushQuat(L, dmGameObject::GetRotation(i->m_Instance));
         return 1;
     }
 
-    ScriptWorld::ScriptWorld()
-    : m_Instances()
+    int Script_SetPosition(lua_State* L)
     {
-        m_Instances.SetCapacity(512);
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, 2);
+        dmGameObject::SetPosition(i->m_Instance, Vectormath::Aos::Point3(*v));
+        return 0;
     }
+
+    int Script_SetRotation(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, 2);
+        dmGameObject::SetRotation(i->m_Instance, *q);
+        return 0;
+    }
+
+    int Script_GetWorldPosition(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(i->m_Instance)));
+        return 1;
+    }
+
+    int Script_GetWorldRotation(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(i->m_Instance));
+        return 1;
+    }
+
+    static const luaL_reg Script_methods[] =
+    {
+        {"hash",                Script_Hash},
+        {"post",                Script_Post},
+        {"post_named_to",       Script_PostNamedTo},
+        {"get_position",        Script_GetPosition},
+        {"get_rotation",        Script_GetRotation},
+        {"set_position",        Script_SetPosition},
+        {"set_rotation",        Script_SetRotation},
+        {"get_world_position",  Script_GetWorldPosition},
+        {"get_world_rotation",  Script_GetWorldRotation},
+        {0, 0}
+    };
 
     void InitializeScript()
     {
@@ -674,6 +467,8 @@ namespace dmGameObject
         luaopen_math(L);
         luaopen_debug(L);
 
+        int top = lua_gettop(L);
+
         luaL_register(L, SCRIPTINSTANCE, ScriptInstance_methods);   // create methods table, add it to the globals
         int methods = lua_gettop(L);
         luaL_newmetatable(L, SCRIPTINSTANCE);                         // create metatable for Image, add it to the Lua registry
@@ -684,27 +479,15 @@ namespace dmGameObject
         lua_pushvalue(L, methods);                       // dup methods table
         lua_settable(L, metatable);
 
-        lua_pushliteral(L, "Post");
-        lua_pushcfunction(L, Script_Post);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        lua_pop(L, 2);
 
-        lua_pushliteral(L, "PostNamedTo");
-        lua_pushcfunction(L, Script_PostNamedTo);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "Hash");
-        lua_pushcfunction(L, Script_Hash);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "Transform");
-        lua_pushcfunction(L, Script_Transform);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "Rotate");
-        lua_pushcfunction(L, Script_Rotate);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        lua_pushvalue(L, LUA_GLOBALSINDEX);
+        luaL_register(L, 0x0, Script_methods);
+        lua_pop(L, 1);
 
         dmScript::RegisterVecMathLibs(L);
+
+        assert(top == lua_gettop(L));
     }
 
     void FinalizeScript()

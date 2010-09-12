@@ -434,6 +434,8 @@ namespace dmScript
 
     void RegisterVecMathLibs(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         const uint32_t type_count = 2;
         struct
         {
@@ -459,8 +461,13 @@ namespace dmScript
             lua_pushliteral(L, "__metatable");
             lua_pushvalue(L, methods);// dup methods table
             lua_settable(L, metatable);
+
+            lua_pop(L, 2);
         }
         luaL_register(L, LIB_NAME, methods);
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
     }
 
     void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v)

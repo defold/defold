@@ -5,8 +5,7 @@ function Update(self)
 end
 
 function OnEvent(self, event_hash, event)
-	assert(event_hash == Hash("test_event"), "Unknown event")
+    assert(event_hash == hash("test_event"), "Unknown event")
 end
 
 functions = { Init = Init, Update = Update, OnEvent = OnEvent }
-

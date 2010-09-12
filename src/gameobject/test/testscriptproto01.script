@@ -1,35 +1,34 @@
 function Init(self)
-	local p = self.Position
-	assert( p.X == 0 )
-	assert( p.Y == 0 )
-	assert( p.Z == 0 )
-	
-	self.Counter = 0
-	assert (self.Counter == 0)
-	
-	self.Counter = self.Counter +  1
-	assert (self.Counter == 1)
-	tmp = "1";
+    local p = get_position(self)
+    assert(p.x == 0)
+    assert(p.y == 0)
+    assert(p.z == 0)
+
+    self.counter = 0
+    assert(self.counter == 0)
+
+    self.counter = self.counter +  1
+    assert(self.counter == 1)
+    tmp = "1";
 end
 
 function Update(self)
-	assert (self.Counter == 1)		
+    assert (self.counter == 1)
 
-	local p = self.Position
-	
-	p.Y = 123.0
-	self.Position = p
-	
-	p = self.Position
-	assert(p.Y == 123.0)
-	
-	Post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
+    local p = get_position(self)
+
+    p.y = 123.0
+    set_position(self, p)
+
+    p = get_position(self)
+    assert(p.y == 123.0)
+
+    post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
 end
 
 function OnEvent(self, event_hash, event)
-	assert(event_hash == Hash("SpawnResult"))
-	assert(event.Status == 1010)
+    assert(event_hash == hash("SpawnResult"))
+    assert(event.Status == 1010)
 end
 
 functions = { Init = Init, Update = Update, OnEvent = OnEvent }
-

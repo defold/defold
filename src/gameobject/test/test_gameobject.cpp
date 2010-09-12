@@ -1015,7 +1015,7 @@ TEST(ScriptTest, TestReloadScript)
                "function Init(self)\n"
                "end\n"
                "function Update(self)\n"
-                   "self.Position = {1,2,3}\n"
+               "    set_position(self, vec_math.vector3(1,2,3))\n"
                "end\n"
                "functions = { Init = Init, Update = Update }\n");
 
@@ -1035,7 +1035,7 @@ TEST(ScriptTest, TestReloadScript)
                "function Init(self)\n"
                "end\n"
                "function Update(self)\n"
-                   "self.Position = {10,20,30}\n"
+               "    set_position(self, vec_math.vector3(10,20,30))\n"
                "end\n"
                "functions = { Init = Init, Update = Update }\n");
 
