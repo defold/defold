@@ -11,6 +11,7 @@
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 #include "../script/script_util.h"
+#include "../script/script_vec_math.h"
 
 extern "C"
 {
@@ -308,8 +309,10 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",       ScriptInstance_gc},
-        {"__tostring", ScriptInstance_tostring},
+        {"__gc",        ScriptInstance_gc},
+        {"__tostring",  ScriptInstance_tostring},
+        {"__index",     ScriptInstance_index},
+        {"__newindex",  ScriptInstance_newindex},
         {0, 0}
     };
 
@@ -671,22 +674,15 @@ namespace dmGameObject
         luaopen_math(L);
         luaopen_debug(L);
 
-        luaL_openlib(L, SCRIPTINSTANCE, ScriptInstance_methods, 0);   // create methods table, add it to the globals
+        luaL_register(L, SCRIPTINSTANCE, ScriptInstance_methods);   // create methods table, add it to the globals
+        int methods = lua_gettop(L);
         luaL_newmetatable(L, SCRIPTINSTANCE);                         // create metatable for Image, add it to the Lua registry
-        luaL_openlib(L, 0, ScriptInstance_meta, 0);                   // fill metatable
-
-        lua_pushliteral(L, "__index");
-        lua_pushcfunction(L, ScriptInstance_index);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "__newindex");
-        lua_pushcfunction(L, ScriptInstance_newindex);
-        lua_rawset(L, -3);
+        int metatable = lua_gettop(L);
+        luaL_register(L, 0, ScriptInstance_meta);                   // fill metatable
 
         lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, -3);                       // dup methods table
-        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
-        lua_pop(L, 1);                              // drop metatable
+        lua_pushvalue(L, methods);                       // dup methods table
+        lua_settable(L, metatable);
 
         lua_pushliteral(L, "Post");
         lua_pushcfunction(L, Script_Post);
@@ -707,6 +703,8 @@ namespace dmGameObject
         lua_pushliteral(L, "Rotate");
         lua_pushcfunction(L, Script_Rotate);
         lua_rawset(L, LUA_GLOBALSINDEX);
+
+        dmScript::RegisterVecMathLibs(L);
     }
 
     void FinalizeScript()

@@ -1,0 +1,26 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
+                      color='PINK',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.lua')
+def testresourcecont_file(self, node):
+    obj_ext = '.luac'
+    task = self.create_task('luascript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+def build(bld):
+    test_script_vec_math = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST DDF DLIB LUA',
+                                     uselib_local = 'script',
+                                     proto_gen_py = True,
+                                     target = 'test_script_vec_math',
+                                     source = 'test_script_vec_math.cpp')
+    test_script_vec_math.find_sources_in_dirs('.', exts = ['.lua', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.et_pb', '.it_pb', '.collection'])
+    test_script_vec_math.install_path = None
