@@ -203,6 +203,14 @@ def ToCEnum(context, pp, message_type):
 
     pp.End()
 
+def ToScriptName(name):
+    script_name = ""
+    for i in range(len(name)):
+        if i > 0 and (name[i-1:i].islower() or name[i-1:i].isdigit()) and name[i:i+1].isupper():
+            script_name += "_"
+        script_name += name[i:i+1].lower()
+    return script_name
+
 def ToDescriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
@@ -229,13 +237,14 @@ def ToDescriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     pp_cpp.Begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
 
     for name, number, type, label, msg_desc, offset in lst:
-        pp_cpp.Print('{ "%s", %d, %d, %d, %s, %s },'  % (name, number, type, label, msg_desc, offset))
+        pp_cpp.Print('{ "%s", "%s", %d, %d, %d, %s, %s },'  % (name, ToScriptName(name), number, type, label, msg_desc, offset))
 
     pp_cpp.End()
 
     pp_cpp.Begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.Print('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.Print('"%s",', message_type.name)
+    pp_cpp.Print('"%s",', ToScriptName(message_type.name))
     pp_cpp.Print('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.Print('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
     pp_cpp.Print('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
