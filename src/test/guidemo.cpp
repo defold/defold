@@ -1,6 +1,12 @@
 #include <stdio.h>
-#include <graphics/glfw/GL/glfw.h>
+#include <graphics/glfw/glfw.h>
 #include "../gui.h"
+
+#ifdef __MACH__
+#include <Carbon/Carbon.h>
+#endif
+
+GLuint checker_texture;
 
 void MyRenderNode(dmGui::HScene scene,
                   const dmGui::Node* nodes,
@@ -12,23 +18,50 @@ void MyRenderNode(dmGui::HScene scene,
         const dmGui::Node* node = &nodes[i];
 
         Vector4 pos = node->m_Properties[dmGui::PROPERTY_POSITION];
+        Vector4 rot = node->m_Properties[dmGui::PROPERTY_ROTATION];
         Vector4 ext = node->m_Properties[dmGui::PROPERTY_EXTENTS];
         Vector4 color = node->m_Properties[dmGui::PROPERTY_COLOR];
         glColor4f(color.getX(), color.getY(), color.getZ(), color.getW());
 
+        if (node->m_Texture)
+        {
+            glEnable(GL_TEXTURE_2D);
+            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+            glBindTexture(GL_TEXTURE_2D, checker_texture);
+        }
+        else
+        {
+            glDisable(GL_TEXTURE_2D);
+        }
+
+        glPushMatrix();
+
         float x = pos.getX();
         float y = pos.getY();
         float z = pos.getZ();
+
+        glTranslatef(x, y, z);
+        glRotatef(rot.getX(), 1, 0, 0);
+        glRotatef(rot.getY(), 0, 1, 0);
+        glRotatef(rot.getZ(), 0, 0, 1);
+        glTranslatef(-x, -y, -z);
+
         float dx = ext.getX() * 0.5f;
         float dy = ext.getY() * 0.5f;
         glBegin(GL_QUADS);
 
+        glTexCoord2f(0, 0);
         glVertex3f(x - dx, y - dy, z);
+        glTexCoord2f(1, 0);
         glVertex3f(x + dx, y - dy, z);
+        glTexCoord2f(1, 1);
         glVertex3f(x + dx, y + dy, z);
+        glTexCoord2f(0, 1);
         glVertex3f(x - dx, y + dy, z);
 
         glEnd();
+
+        glPopMatrix();
     }
 }
 
@@ -36,6 +69,11 @@ int main(void)
 {
     int width, height, running, x, y;
     float t;
+
+    uint8_t checker_texture_data[] = {128, 128, 128, 255,
+                                      255, 255, 255, 255,
+                                      255, 255, 255, 255,
+                                      128, 128, 128, 255};
 
     glfwInit();
 
@@ -46,7 +84,6 @@ int main(void)
     }
 
     glfwEnable(GLFW_STICKY_KEYS);
-
     glfwSwapInterval(1);
 
     dmGui::HGui gui = dmGui::New();
@@ -54,6 +91,16 @@ int main(void)
     params.m_MaxNodes = 256;
     params.m_MaxAnimations = 1024;
     dmGui::HScene scene = dmGui::NewScene(gui, &params);
+
+    glGenTextures(1, &checker_texture);
+    glBindTexture(GL_TEXTURE_2D, checker_texture);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, &checker_texture_data[0]);
 
     const char* script_file = "src/test/guidemo.lua";
     FILE*f = fopen(script_file, "rb");
@@ -69,7 +116,19 @@ int main(void)
     fread(buf, 1, file_size, f);
     fclose(f);
 
+    dmGui::AddTexture(scene, "checker", (void*) checker_texture);
     dmGui::SetSceneScript(scene, buf, file_size);
+
+#ifdef __MACH__
+    ProcessSerialNumber psn;
+    OSErr err;
+
+    // Move window to front. Required if running without application bundle.
+    err = GetCurrentProcess( &psn );
+    if (err == noErr)
+        (void) SetFrontProcess( &psn );
+#endif
+    glfwSetWindowTitle("GUI Demo");
 
     running = GL_TRUE;
     while (running)

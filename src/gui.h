@@ -10,10 +10,12 @@ namespace dmGui
 {
     /*
      * TODO:
-     * testapp
-     * Texture/Font API from lua
+     * Delete nodes from lua
      * Input/Events
      * Layers/Draw order
+     * Timers in lua
+     * More demos
+     * Pivot point for rotation
      */
 
     typedef struct Gui* HGui;

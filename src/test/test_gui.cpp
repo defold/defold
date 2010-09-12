@@ -192,6 +192,30 @@ TEST_F(dmGuiTest, AnimateNode2)
     dmGui::DeleteNode(scene, node);
 }
 
+TEST_F(dmGuiTest, AnimateNodeDelete)
+{
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+    dmGui::HNode node2 = 0;
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        if (i == 30)
+        {
+            dmGui::DeleteNode(scene, node);
+            node2 = dmGui::NewNode(scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        }
+
+        dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node2).getX(), 2.0f, 0.001f);
+    dmGui::DeleteNode(scene, node2);
+}
+
 uint32_t MyAnimationCompleteCount = 0;
 void MyAnimationComplete(dmGui::HScene scene,
                          dmGui::HNode node,
@@ -274,10 +298,10 @@ TEST_F(dmGuiTest, ScriptAnimate)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Init(self)\n"
-                    "Animate(GetNode(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0.5)\n"
+    const char* s = "function init(self)\n"
+                    "animate(get_node(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0.5)\n"
                     "end\n"
-                    "function Update(self)\n"
+                    "function update(self)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -315,12 +339,12 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function cb(node)\n"
-                    "Animate(node, POSITION, {1,0,0,0}, {2,0,0,0}, EASING_NONE, 0.5, 0)\n"
+                    "animate(node, POSITION, {1,0,0,0}, {2,0,0,0}, EASING_NONE, 0.5, 0)\n"
                     "end\n;"
-                    "function Init(self)\n"
-                    "Animate(GetNode(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0, cb)\n"
+                    "function init(self)\n"
+                    "animate(get_node(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0, cb)\n"
                     "end\n"
-                    "function Update(self)\n"
+                    "function update(self)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -352,12 +376,12 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
 
 TEST_F(dmGuiTest, ScriptOutOfNodes)
 {
-    const char* s = "function Init(self)\n"
+    const char* s = "function init(self)\n"
                     "    for i=1,10000 do\n"
-                    "       NewBoxNode({0,0,0}, {1,1,1})\n"
+                    "       new_box_node({0,0,0}, {1,1,1})\n"
                     "    end\n"
                     "end\n"
-                    "function Update(self)\n"
+                    "function update(self)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -371,7 +395,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Update(self) local n = GetNode(\"n\")\n print(n)\n end";
+    const char* s = "function update(self) local n = get_node(\"n\")\n print(n)\n end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
@@ -386,7 +410,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Update(self) local n = GetNode(\"x\")\n print(n)\n end";
+    const char* s = "function update(self) local n = get_node(\"x\")\n print(n)\n end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
@@ -401,7 +425,7 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Update(self) local n = GetNode(\"n\")\n print(n)\n end";
+    const char* s = "function update(self) local n = get_node(\"n\")\n print(n)\n end";
     dmGui::DeleteNode(scene, node);
 
     dmGui::Result r;
@@ -418,10 +442,10 @@ TEST_F(dmGuiTest, ScriptEqNode)
     dmGui::SetNodeName(scene, node1, "n");
     dmGui::SetNodeName(scene, node2, "m");
 
-    const char* s = "function Update(self)\n"
-                    "local n1 = GetNode(\"n\")\n "
-                    "local n2 = GetNode(\"n\")\n "
-                    "local m = GetNode(\"m\")\n "
+    const char* s = "function update(self)\n"
+                    "local n1 = get_node(\"n\")\n "
+                    "local n2 = get_node(\"n\")\n "
+                    "local m = get_node(\"m\")\n "
                     "assert(n1 == n2)\n"
                     "assert(m ~= n1)\n"
                     "assert(m ~= n2)\n"
@@ -441,11 +465,11 @@ TEST_F(dmGuiTest, ScriptEqNode)
 
 TEST_F(dmGuiTest, ScriptNewNode)
 {
-    const char* s = "function Init(self)\n"
-                    "    self.n1 = NewBoxNode({0,0,0}, {1,1,1})"
-                    "    self.n2 = NewTextNode({0,0,0}, \"My Node\")"
+    const char* s = "function init(self)\n"
+                    "    self.n1 = new_box_node({0,0,0}, {1,1,1})"
+                    "    self.n2 = new_text_node({0,0,0}, \"My Node\")"
                     "end\n"
-                    "function Update(self)\n"
+                    "function update(self)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -459,7 +483,7 @@ TEST_F(dmGuiTest, SaveNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Init(self) self.n = GetNode(\"n\")\n end function Update(self) print(self.n)\n end";
+    const char* s = "function init(self) self.n = get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
@@ -473,7 +497,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Init(self) self.n = GetNode(\"n\")\n end function Update(self) print(self.n)\n end";
+    const char* s = "function init(self) self.n = get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
@@ -491,18 +515,18 @@ TEST_F(dmGuiTest, NodeProperties)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
-    const char* s = "function Init(self)\n"
-                    "self.n = GetNode(\"n\")\n"
-                    "SetPosition(self.n, {1,2,3})\n"
-                    "self.n.Text = \"test\"\n"
-                    "self.n.Text = \"flipper\"\n"
+    const char* s = "function init(self)\n"
+                    "self.n = get_node(\"n\")\n"
+                    "set_position(self.n, {1,2,3})\n"
+                    "self.n.text = \"test\"\n"
+                    "self.n.text = \"flipper\"\n"
                     "end\n"
-                    "function Update(self) "
-                    "local pos = GetPosition(self.n)\n"
+                    "function update(self) "
+                    "local pos = get_position(self.n)\n"
                     "assert(pos[1] == 1)\n"
                     "assert(pos[2] == 2)\n"
                     "assert(pos[3] == 3)\n"
-                    "assert(self.n.Text == \"flipper\")\n"
+                    "assert(self.n.text == \"flipper\")\n"
                     "end";
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
@@ -565,7 +589,7 @@ TEST_F(dmGuiTest, NoScript)
 
 TEST_F(dmGuiTest, Self)
 {
-    const char* s = "function Init(self) self.x = 1122 end\n function Update(self) assert(self.x==1122) end";
+    const char* s = "function init(self) self.x = 1122 end\n function update(self) assert(self.x==1122) end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
@@ -577,8 +601,8 @@ TEST_F(dmGuiTest, Self)
 
 TEST_F(dmGuiTest, Reload)
 {
-    const char* s1 = "function Init(self) self.x = 1122 end\n function Update(self) assert(self.x==1122)\n self.x = self.x + 1 end";
-    const char* s2 = "function Init(self) self.x = 2211 end\n function Update(self) assert(self.x==2211) end";
+    const char* s1 = "function init(self) self.x = 1122 end\n function update(self) assert(self.x==1122)\n self.x = self.x + 1 end";
+    const char* s2 = "function init(self) self.x = 2211 end\n function update(self) assert(self.x==2211) end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s1, strlen(s1));
@@ -602,8 +626,8 @@ TEST_F(dmGuiTest, ScriptNamespace)
 {
     // Test that "local" per file works, default lua behavior
     // The test demonstrates how to create file local variables by using the local keyword at top scope
-    const char* s1 = "local x = 123\n local function f() return x end\n function Update(self) assert(f()==123)\n end\n";
-    const char* s2 = "local x = 456\n local function f() return x end\n function Update(self) assert(f()==456)\n return x\n end\n";
+    const char* s1 = "local x = 123\n local function f() return x end\n function update(self) assert(f()==123)\n end\n";
+    const char* s2 = "local x = 456\n local function f() return x end\n function update(self) assert(f()==456)\n return x\n end\n";
 
     dmGui::NewSceneParams params;
     dmGui::HScene scene2 = dmGui::NewScene(gui, &params);

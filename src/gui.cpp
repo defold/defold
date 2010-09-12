@@ -375,11 +375,11 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, 0);
 
         const char* key = luaL_checkstring(L, 2);
-        if (strcmp(key, "Text") == 0)
+        if (strcmp(key, "text") == 0)
         {
             lua_pushstring(L, n->m_Node.m_Text);
         }
-        else if (strcmp(key, "BlendMode") == 0)
+        else if (strcmp(key, "blend_mode") == 0)
         {
             lua_pushnumber(L, (lua_Number) n->m_Node.m_BlendMode);
         }
@@ -392,20 +392,47 @@ namespace dmGui
 
     static int NodeProxy_newindex(lua_State *L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
         const char* key = luaL_checkstring(L, 2);
 
-        if (strcmp(key, "Text") == 0)
+        if (strcmp(key, "text") == 0)
         {
             const char* text = luaL_checkstring(L, 3);
             if (n->m_Node.m_Text)
                 free((void*) n->m_Node.m_Text);
             n->m_Node.m_Text = strdup(text);
         }
-        else if (strcmp(key, "BlendMode") == 0)
+        else if (strcmp(key, "blend_mode") == 0)
         {
             int blend_mode = (int) luaL_checknumber(L, 3);
             n->m_Node.m_BlendMode = (BlendMode) blend_mode;
+        }
+        else if (strcmp(key, "texture") == 0)
+        {
+            lua_getglobal(L, "__scene__");
+            Scene* scene = (Scene*) lua_touserdata(L, -1);
+            lua_pop(L, 1);
+
+            const char* texture_name = luaL_checkstring(L, 3);
+            Result r = SetNodeTexture(scene, hnode, texture_name);
+            if (r != RESULT_OK)
+            {
+                luaL_error(L, "Texture %s is not specified in scene", texture_name);
+            }
+        }
+        else if (strcmp(key, "font") == 0)
+        {
+            lua_getglobal(L, "__scene__");
+            Scene* scene = (Scene*) lua_touserdata(L, -1);
+            lua_pop(L, 1);
+
+            const char* font_name = luaL_checkstring(L, 3);
+            Result r = SetNodeFont(scene, hnode, font_name);
+            if (r != RESULT_OK)
+            {
+                luaL_error(L, "Font %s is not specified in scene", font_name);
+            }
         }
         else
         {
@@ -469,37 +496,37 @@ namespace dmGui
         lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
         lua_pop(L, 1);                              // drop metatable
 
-        lua_pushliteral(L, "GetNode");
+        lua_pushliteral(L, "get_node");
         lua_pushcfunction(L, LuaGetNode);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "Animate");
+        lua_pushliteral(L, "animate");
         lua_pushcfunction(L, LuaAnimate);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "NewBoxNode");
+        lua_pushliteral(L, "new_box_node");
         lua_pushcfunction(L, LuaNewBoxNode);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "NewTextNode");
+        lua_pushliteral(L, "new_text_node");
         lua_pushcfunction(L, LuaNewTextNode);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-#define REGGETSET(name) \
-        lua_pushliteral(L, "Get"#name);\
+#define REGGETSET(name, luaname) \
+        lua_pushliteral(L, "get_"#luaname);\
         lua_pushcfunction(L, LuaGet##name);\
         lua_rawset(L, LUA_GLOBALSINDEX);\
 \
-        lua_pushliteral(L, "Set"#name);\
+        lua_pushliteral(L, "set_"#luaname);\
         lua_pushcfunction(L, LuaSet##name);\
         lua_rawset(L, LUA_GLOBALSINDEX);\
         \
 
-        REGGETSET(Position)
-        REGGETSET(Rotation)
-        REGGETSET(Scale)
-        REGGETSET(Color)
-        REGGETSET(Extents)
+        REGGETSET(Position, position)
+        REGGETSET(Rotation, rotation)
+        REGGETSET(Scale, scale)
+        REGGETSET(Color, color)
+        REGGETSET(Extents, extents)
 
 #undef REGGETSET
 
@@ -654,9 +681,6 @@ namespace dmGui
 
             if (anim->m_Elapsed >= anim->m_Duration)
             {
-                /*animations->EraseSwap(i);
-                i--;
-                n--;*/
                 continue;
             }
 
@@ -795,7 +819,7 @@ namespace dmGui
             goto bail;
         }
 
-        lua_getglobal(L, "Init");
+        lua_getglobal(L, "init");
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             lua_pop(L, 1);
@@ -808,7 +832,7 @@ namespace dmGui
             scene->m_InitFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
         }
 
-        lua_getglobal(L, "Update");
+        lua_getglobal(L, "update");
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             dmLogError("No update function found in script");
@@ -822,9 +846,9 @@ namespace dmGui
         scene->m_UpdateFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
 
         lua_pushnil(L);
-        lua_setglobal(L, "Init");
+        lua_setglobal(L, "init");
         lua_pushnil(L);
-        lua_setglobal(L, "Update");
+        lua_setglobal(L, "update");
 
 bail:
         assert(top == lua_gettop(L));
@@ -887,6 +911,22 @@ bail:
     void DeleteNode(HScene scene, HNode node)
     {
         InternalNode*n = GetNode(scene, node);
+
+        dmArray<Animation> *animations = &scene->m_Animations;
+        uint32_t n_anims = animations->Size();
+        for (uint32_t i = 0; i < n_anims; ++i)
+        {
+            Animation* anim = &(*animations)[i];
+
+            if (anim->m_Node == node)
+            {
+                animations->EraseSwap(i);
+                i--;
+                n_anims--;
+                continue;
+            }
+        }
+
         scene->m_NodePool.Push(n->m_Index);
         n->m_Index = 0xffff;
         n->m_NameHash = 0;
