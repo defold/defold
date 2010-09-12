@@ -13,9 +13,9 @@ namespace dmScript
     void RegisterVecMathLibs(lua_State* L);
 
     void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v);
-    bool PullVector3(lua_State* L, Vectormath::Aos::Vector3& v_out);
+    Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
     void PushQuat(lua_State* L, const Vectormath::Aos::Quat& v);
-    bool PullQuat(lua_State* L, Vectormath::Aos::Quat& v_out);
+    Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
 }
 
 #endif // DM_SCRIPT_VEC_MATH_H

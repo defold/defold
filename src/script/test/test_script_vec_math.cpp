@@ -63,6 +63,17 @@ bool RunString(lua_State* L, const char* script)
 
 TEST_F(ScriptVecMathTest, TestVector3)
 {
+    int top = lua_gettop(L);
+    Vectormath::Aos::Vector3 v(1.0f, 2.0f, 3.0f);
+    dmScript::PushVector3(L, v);
+    Vectormath::Aos::Vector3* vp = dmScript::CheckVector3(L, -1);
+    ASSERT_NE((void*)0x0, vp);
+    ASSERT_EQ(v.getX(), vp->getX());
+    ASSERT_EQ(v.getY(), vp->getY());
+    ASSERT_EQ(v.getZ(), vp->getZ());
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+
     ASSERT_TRUE(RunFile(L, "test_vector3.luac"));
 }
 
@@ -100,6 +111,18 @@ TEST_F(ScriptVecMathTest, TestVector3Fail)
 
 TEST_F(ScriptVecMathTest, TestQuat)
 {
+    int top = lua_gettop(L);
+    Vectormath::Aos::Quat q(1.0f, 2.0f, 3.0f, 4.0f);
+    dmScript::PushQuat(L, q);
+    Vectormath::Aos::Quat* qp = dmScript::CheckQuat(L, -1);
+    ASSERT_NE((void*)0x0, qp);
+    ASSERT_EQ(q.getX(), qp->getX());
+    ASSERT_EQ(q.getY(), qp->getY());
+    ASSERT_EQ(q.getZ(), qp->getZ());
+    ASSERT_EQ(q.getW(), qp->getW());
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+
     ASSERT_TRUE(RunFile(L, "test_quat.luac"));
 }
 
@@ -135,6 +158,42 @@ TEST_F(ScriptVecMathTest, TestQuatFail)
     ASSERT_FALSE(RunString(L, "local q = vec_math.slerp(1, vec_math.quat(0, 0, 0, 1), vec_math.vector3(0, 0, 0))"));
 }
 
+TEST_F(ScriptVecMathTest, TestTransform)
+{
+    int top = lua_gettop(L);
+    Vectormath::Aos::Vector3 pos(1.0f, 2.0f, 3.0f);
+    Vectormath::Aos::Quat rot(4.0f, 5.0f, 6.0f, 7.0f);
+    lua_newtable(L);
+    dmScript::PushVector3(L, pos);
+    lua_setfield(L, -2, "Position");
+    dmScript::PushQuat(L, rot);
+    lua_setfield(L, -2, "Rotation");
+
+    ASSERT_EQ(top + 1, lua_gettop(L));
+
+    lua_pushstring(L, "Position");
+    lua_rawget(L, -2);
+    Vectormath::Aos::Vector3* vp = dmScript::CheckVector3(L, -1);
+    ASSERT_NE((void*)0x0, (void*)vp);
+    ASSERT_EQ(pos.getX(), vp->getX());
+    ASSERT_EQ(pos.getY(), vp->getY());
+    ASSERT_EQ(pos.getZ(), vp->getZ());
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "Rotation");
+    lua_rawget(L, -2);
+    Vectormath::Aos::Quat* qp = dmScript::CheckQuat(L, -1);
+    ASSERT_NE((void*)0x0, (void*)qp);
+    ASSERT_EQ(rot.getX(), qp->getX());
+    ASSERT_EQ(rot.getY(), qp->getY());
+    ASSERT_EQ(rot.getZ(), qp->getZ());
+    ASSERT_EQ(rot.getW(), qp->getW());
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

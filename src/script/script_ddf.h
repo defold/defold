@@ -8,7 +8,7 @@ extern "C"
 #include <lua/lua.h>
 }
 
-namespace dmScriptUtil
+namespace dmScript
 {
     /**
      * Load DDF structure from Lua stack

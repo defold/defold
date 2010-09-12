@@ -35,21 +35,9 @@ namespace dmScript
         return result;
     }
 
-    static Vectormath::Aos::Vector3* Vector3_check(lua_State *L, int index)
-    {
-        Vectormath::Aos::Vector3* v = 0x0;
-        int type = lua_type(L, index);
-        if (type == LUA_TUSERDATA)
-        {
-            v = (Vectormath::Aos::Vector3*)luaL_checkudata(L, index, TYPE_NAME_VECTOR3);
-        }
-        if (v == 0x0) luaL_typerror(L, index, TYPE_NAME_VECTOR3);
-        return v;
-    }
-
     static int Vector3_gc(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         memset(v, 0, sizeof(*v));
         (void) v;
         assert(v);
@@ -58,14 +46,14 @@ namespace dmScript
 
     static int Vector3_tostring(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         lua_pushfstring(L, "%s: [%f, %f, %f]", TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         return 1;
     }
 
     static int Vector3_index(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -91,7 +79,7 @@ namespace dmScript
 
     static int Vector3_newindex(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -115,23 +103,23 @@ namespace dmScript
 
     static int Vector3_add(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v1 = Vector3_check(L, 1);
-        Vectormath::Aos::Vector3* v2 = Vector3_check(L, 2);
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
         PushVector3(L, *v1 + *v2);
         return 1;
     }
 
     static int Vector3_sub(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v1 = Vector3_check(L, 1);
-        Vectormath::Aos::Vector3* v2 = Vector3_check(L, 2);
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
         PushVector3(L, *v1 - *v2);
         return 1;
     }
 
     static int Vector3_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         float s = luaL_checknumber(L, 2);
         PushVector3(L, *v * s);
         return 1;
@@ -139,7 +127,7 @@ namespace dmScript
 
     static int Vector3_unm(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         PushVector3(L, - *v);
         return 1;
     }
@@ -161,21 +149,9 @@ namespace dmScript
         {0,0}
     };
 
-    static Vectormath::Aos::Quat* Quat_check(lua_State *L, int index)
-    {
-        Vectormath::Aos::Quat* q = 0x0;
-        int type = lua_type(L, index);
-        if (type == LUA_TUSERDATA)
-        {
-            q = (Vectormath::Aos::Quat*)luaL_checkudata(L, index, TYPE_NAME_QUAT);
-        }
-        if (q == 0x0) luaL_typerror(L, index, TYPE_NAME_QUAT);
-        return q;
-    }
-
     static int Quat_gc(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, 1);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
         memset(q, 0, sizeof(*q));
         (void) q;
         assert(q);
@@ -184,14 +160,14 @@ namespace dmScript
 
     static int Quat_tostring(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, 1);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
         lua_pushfstring(L, "%s: [%f, %f, %f, %f]", TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         return 1;
     }
 
     static int Quat_index(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, 1);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -223,7 +199,7 @@ namespace dmScript
 
     static int Quat_newindex(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, 1);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -251,8 +227,8 @@ namespace dmScript
 
     static int Quat_mul(lua_State *L)
     {
-        Vectormath::Aos::Quat* q1 = Quat_check(L, 1);
-        Vectormath::Aos::Quat* q2 = Quat_check(L, 2);
+        Vectormath::Aos::Quat* q1 = CheckQuat(L, 1);
+        Vectormath::Aos::Quat* q2 = CheckQuat(L, 2);
         PushQuat(L, *q1 * *q2);
         return 1;
     }
@@ -273,46 +249,36 @@ namespace dmScript
 
     static int Vector3_new(lua_State* L)
     {
-        float x = luaL_checknumber(L, 1);
-        float y = luaL_checknumber(L, 2);
-        float z = luaL_checknumber(L, 3);
-        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_newuserdata(L, sizeof(Vectormath::Aos::Vector3));
-        v->setX(x);
-        v->setY(y);
-        v->setZ(z);
-        luaL_getmetatable(L, TYPE_NAME_VECTOR3);
-        lua_setmetatable(L, -2);
+        Vectormath::Aos::Vector3 v;
+        v.setX(luaL_checknumber(L, 1));
+        v.setY(luaL_checknumber(L, 2));
+        v.setZ(luaL_checknumber(L, 3));
+        PushVector3(L, v);
         return 1;
     }
 
     static int Quat_new(lua_State* L)
     {
-        float x = luaL_checknumber(L, 1);
-        float y = luaL_checknumber(L, 2);
-        float z = luaL_checknumber(L, 3);
-        float w = luaL_checknumber(L, 4);
-        lua_pop(L, 3);
-        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)lua_newuserdata(L, sizeof(Vectormath::Aos::Quat));
-        q->setX(x);
-        q->setY(y);
-        q->setZ(z);
-        q->setW(w);
-        luaL_getmetatable(L, TYPE_NAME_QUAT);
-        lua_setmetatable(L, -2);
+        Vectormath::Aos::Quat q;
+        q.setX(luaL_checknumber(L, 1));
+        q.setY(luaL_checknumber(L, 2));
+        q.setZ(luaL_checknumber(L, 3));
+        q.setW(luaL_checknumber(L, 4));
+        PushQuat(L, q);
         return 1;
     }
 
     static int Quat_FromStartToEnd(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = Vector3_check(L, 1);
-        Vectormath::Aos::Vector3* v2 = Vector3_check(L, 2);
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
         PushQuat(L, Vectormath::Aos::Quat::rotation(*v1, *v2));
         return 1;
     }
 
     static int Quat_FromAxisAngle(lua_State* L)
     {
-        Vectormath::Aos::Vector3* axis = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
         float angle = luaL_checknumber(L, 2);
         PushQuat(L, Vectormath::Aos::Quat::rotation(angle, *axis));
         return 1;
@@ -320,9 +286,9 @@ namespace dmScript
 
     static int Quat_FromBasis(lua_State* L)
     {
-        Vectormath::Aos::Vector3* x = Vector3_check(L, 1);
-        Vectormath::Aos::Vector3* y = Vector3_check(L, 2);
-        Vectormath::Aos::Vector3* z = Vector3_check(L, 3);
+        Vectormath::Aos::Vector3* x = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* y = CheckVector3(L, 2);
+        Vectormath::Aos::Vector3* z = CheckVector3(L, 3);
         Vectormath::Aos::Matrix3 m;
         m.setCol0(*x);
         m.setCol1(*y);
@@ -354,37 +320,37 @@ namespace dmScript
 
     static int Dot(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = Vector3_check(L, 1);
-        Vectormath::Aos::Vector3* v2 = Vector3_check(L, 2);
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
         lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
         return 1;
     }
 
     static int LengthSqr(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
         return 1;
     }
 
     static int Length(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         lua_pushnumber(L, Vectormath::Aos::length(*v));
         return 1;
     }
 
     static int Normalize(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
         PushVector3(L, Vectormath::Aos::normalize(*v));
         return 1;
     }
 
     static int Cross(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = Vector3_check(L, 1);
-        Vectormath::Aos::Vector3* v2 = Vector3_check(L, 2);
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
         PushVector3(L, Vectormath::Aos::cross(*v1, *v2));
         return 1;
     }
@@ -414,8 +380,8 @@ namespace dmScript
         float t = luaL_checknumber(L, 1);
         if (Vector3_is(L, 2) && Vector3_is(L, 3))
         {
-            Vectormath::Aos::Vector3* v1 = Vector3_check(L, 2);
-            Vectormath::Aos::Vector3* v2 = Vector3_check(L, 3);
+            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
+            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
             PushVector3(L, Vectormath::Aos::slerp(t, *v1, *v2));
             return 1;
         }
@@ -431,15 +397,15 @@ namespace dmScript
 
     static int Conj(lua_State* L)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, 1);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
         PushQuat(L, Vectormath::Aos::conj(*q));
         return 1;
     }
 
     static int Rotate(lua_State* L)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, 1);
-        Vectormath::Aos::Vector3* v = Vector3_check(L, 2);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
         PushVector3(L, Vectormath::Aos::rotate(*q, *v));
         return 1;
     }
@@ -505,18 +471,14 @@ namespace dmScript
         lua_setmetatable(L, -2);
     }
 
-    bool PullVector3(lua_State* L, Vectormath::Aos::Vector3& v_out)
+    Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index)
     {
-        Vectormath::Aos::Vector3* v = Vector3_check(L, -1);
-        if (v != 0x0)
+        if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            v_out = *v;
-            return true;
+            return (Vectormath::Aos::Vector3*)luaL_checkudata(L, index, TYPE_NAME_VECTOR3);
         }
-        else
-        {
-            return false;
-        }
+        luaL_typerror(L, index, TYPE_NAME_VECTOR3);
+        return 0x0;
     }
 
     void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q)
@@ -527,17 +489,13 @@ namespace dmScript
         lua_setmetatable(L, -2);
     }
 
-    bool PullQuat(lua_State* L, Vectormath::Aos::Quat& q_out)
+    Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index)
     {
-        Vectormath::Aos::Quat* q = Quat_check(L, -1);
-        if (q != 0x0)
+        if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            q_out = *q;
-            return true;
+            return (Vectormath::Aos::Quat*)luaL_checkudata(L, index, TYPE_NAME_QUAT);
         }
-        else
-        {
-            return false;
-        }
+        luaL_typerror(L, index, TYPE_NAME_QUAT);
+        return 0x0;
     }
 }

@@ -66,16 +66,3 @@ def build(bld):
                                      source = 'test_script.cpp')
 
     test_script.install_path = None
-
-    test_script_util = bld.new_task_gen(features = 'cxx cprogram',
-                                        includes = '../../../src',
-                                        uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA',
-                                        uselib_local = 'gameobject script',
-                                        proto_gen_py = True,
-                                        target = 'test_script_util',
-                                        source = 'test_script_util.cpp test_gameobject_ddf.proto')
-
-    test_script_util.install_path = None
-
-
-

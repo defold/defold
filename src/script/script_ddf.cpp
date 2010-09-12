@@ -1,4 +1,6 @@
-#include "script_util.h"
+#include "script_ddf.h"
+#include "script_vec_math.h"
+
 #include <string.h>
 extern "C"
 {
@@ -6,8 +8,12 @@ extern "C"
 #include <lua/lauxlib.h>
 }
 
-namespace dmScriptUtil
+namespace dmScript
 {
+#define DDF_TYPE_NAME_POINT3    "Point3"
+#define DDF_TYPE_NAME_VECTOR3   "Vector3"
+#define DDF_TYPE_NAME_QUAT      "Quat"
+
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last);
 
@@ -19,28 +25,28 @@ namespace dmScriptUtil
         {
             case dmDDF::TYPE_INT32:
             {
-            	if (nil_val)
-            		*((int32_t *) &buffer[f->m_Offset]) = 0;
-            	else
-            		*((int32_t *) &buffer[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
+                if (nil_val)
+                    *((int32_t *) &buffer[f->m_Offset]) = 0;
+                else
+                    *((int32_t *) &buffer[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
             }
             break;
 
             case dmDDF::TYPE_UINT32:
             {
-            	if (nil_val)
-            		*((uint32_t *) &buffer[f->m_Offset]) = 0;
-            	else
-            		*((uint32_t *) &buffer[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
+                if (nil_val)
+                    *((uint32_t *) &buffer[f->m_Offset]) = 0;
+                else
+                    *((uint32_t *) &buffer[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
             }
             break;
 
             case dmDDF::TYPE_FLOAT:
             {
-            	if (nil_val)
-            		*((float *) &buffer[f->m_Offset]) = 0.0f;
-            	else
-            		*((float *) &buffer[f->m_Offset]) = (float) luaL_checknumber(L, -1);
+                if (nil_val)
+                    *((float *) &buffer[f->m_Offset]) = 0.0f;
+                else
+                    *((float *) &buffer[f->m_Offset]) = (float) luaL_checknumber(L, -1);
             }
             break;
 
@@ -48,7 +54,7 @@ namespace dmScriptUtil
             {
                 const char* s = "";
                 if (!nil_val)
-                	s = luaL_checkstring(L, -1);
+                    s = luaL_checkstring(L, -1);
                 int size = strlen(s) + 1;
                 if (*data_start + size > *data_end)
                 {
@@ -66,11 +72,29 @@ namespace dmScriptUtil
 
             case dmDDF::TYPE_MESSAGE:
             {
-            	if (!nil_val)
-            	{
-					const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-					DoLuaTableToDDF(L, d, &buffer[f->m_Offset], data_start, data_end);
-            	}
+                if (!nil_val)
+                {
+                    const dmDDF::Descriptor* d = f->m_MessageDescriptor;
+                    bool is_vector3 = strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0;
+                    bool is_point3 = strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0;
+                    if (is_vector3 || is_point3)
+                    {
+                        Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
+                        if (is_vector3)
+                            *((Vectormath::Aos::Vector3 *) &buffer[f->m_Offset]) = *v;
+                        else
+                            *((Vectormath::Aos::Point3 *) &buffer[f->m_Offset]) = Vectormath::Aos::Point3(*v);
+                    }
+                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
+                    {
+                        Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, -1);
+                        *((Vectormath::Aos::Quat *) &buffer[f->m_Offset]) = *q;
+                    }
+                    else
+                    {
+                        DoLuaTableToDDF(L, d, &buffer[f->m_Offset], data_start, data_end);
+                    }
+                }
             }
             break;
 
@@ -99,7 +123,7 @@ namespace dmScriptUtil
             }
             else
             {
-            	LuaValueToDDF(L, f, buffer, data_start, data_last);
+                LuaValueToDDF(L, f, buffer, data_start, data_last);
             }
             lua_pop(L, 1);
         }
@@ -152,13 +176,28 @@ namespace dmScriptUtil
             {
                 const dmDDF::Descriptor* d = f->m_MessageDescriptor;
 
-                lua_newtable(L);
-                for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+                if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0)
                 {
-                    const dmDDF::FieldDescriptor* f2 = &d->m_Fields[i];
-                    lua_pushstring(L, f2->m_Name);
-                    DDFToLuaValue(L, &d->m_Fields[i], &data[f->m_Offset]);
-                    lua_rawset(L, -3);
+                    dmScript::PushVector3(L, *((Vectormath::Aos::Vector3*) &data[f->m_Offset]));
+                }
+                else if (strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0)
+                {
+                    dmScript::PushVector3(L, Vectormath::Aos::Vector3(*((Vectormath::Aos::Vector3*) &data[f->m_Offset])));
+                }
+                else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
+                {
+                    dmScript::PushQuat(L, *((Vectormath::Aos::Quat*) &data[f->m_Offset]));
+                }
+                else
+                {
+                    lua_newtable(L);
+                    for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+                    {
+                        const dmDDF::FieldDescriptor* f2 = &d->m_Fields[i];
+                        lua_pushstring(L, f2->m_Name);
+                        DDFToLuaValue(L, &d->m_Fields[i], &data[f->m_Offset]);
+                        lua_rawset(L, -3);
+                    }
                 }
             }
             break;

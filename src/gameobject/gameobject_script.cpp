@@ -10,7 +10,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_common.h"
-#include "../script/script_util.h"
+#include "../script/script_ddf.h"
 #include "../script/script_vec_math.h"
 
 extern "C"
@@ -459,7 +459,7 @@ namespace dmGameObject
                 luaL_checktype(L, 4, LUA_TTABLE);
 
                 lua_pushvalue(L, 4);
-                dmScriptUtil::LuaTableToDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                dmScript::LuaTableToDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
                 lua_pop(L, 1);
             }
             else
@@ -532,7 +532,7 @@ namespace dmGameObject
 
         char* p = buf + sizeof(ScriptEventData);
         lua_pushvalue(L, 2);
-        dmScriptUtil::LuaTableToDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+        dmScript::LuaTableToDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
@@ -1123,7 +1123,7 @@ bail:
             }
             // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
             // lua_cpcall?
-            dmScriptUtil::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+            dmScript::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
         }
         else
         {
