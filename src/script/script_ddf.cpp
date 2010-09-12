@@ -10,9 +10,9 @@ extern "C"
 
 namespace dmScript
 {
-#define DDF_TYPE_NAME_POINT3    "Point3"
-#define DDF_TYPE_NAME_VECTOR3   "Vector3"
-#define DDF_TYPE_NAME_QUAT      "Quat"
+#define DDF_TYPE_NAME_POINT3    "point3"
+#define DDF_TYPE_NAME_VECTOR3   "vector3"
+#define DDF_TYPE_NAME_QUAT      "quat"
 
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last);
@@ -75,8 +75,8 @@ namespace dmScript
                 if (!nil_val)
                 {
                     const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-                    bool is_vector3 = strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0;
-                    bool is_point3 = strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0;
+                    bool is_vector3 = strncmp(d->m_ScriptName, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0;
+                    bool is_point3 = strncmp(d->m_ScriptName, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0;
                     if (is_vector3 || is_point3)
                     {
                         Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
@@ -85,7 +85,7 @@ namespace dmScript
                         else
                             *((Vectormath::Aos::Point3 *) &buffer[f->m_Offset]) = Vectormath::Aos::Point3(*v);
                     }
-                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
+                    else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                     {
                         Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, -1);
                         *((Vectormath::Aos::Quat *) &buffer[f->m_Offset]) = *q;
@@ -100,7 +100,7 @@ namespace dmScript
 
             default:
             {
-                luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+                luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_ScriptName);
             }
             break;
         }
@@ -115,11 +115,11 @@ namespace dmScript
         {
             const dmDDF::FieldDescriptor* f = &descriptor->m_Fields[i];
 
-            lua_pushstring(L, f->m_Name);
+            lua_pushstring(L, f->m_ScriptName);
             lua_rawget(L, -2);
             if (lua_isnil(L, -1) && f->m_Label != dmDDF::LABEL_OPTIONAL)
             {
-                luaL_error(L, "Field %s not specified in table", f->m_Name);
+                luaL_error(L, "Field %s not specified in table", f->m_ScriptName);
             }
             else
             {
@@ -135,7 +135,7 @@ namespace dmScript
 
         if (size > buffer_size)
         {
-            luaL_error(L, "sizeof(%s) > %d", descriptor->m_Name, buffer_size);
+            luaL_error(L, "sizeof(%s) > %d", descriptor->m_ScriptName, buffer_size);
         }
 
         char* data_start = buffer + size;
@@ -176,15 +176,15 @@ namespace dmScript
             {
                 const dmDDF::Descriptor* d = f->m_MessageDescriptor;
 
-                if (strncmp(d->m_Name, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0)
+                if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_VECTOR3, sizeof(DDF_TYPE_NAME_VECTOR3)) == 0)
                 {
                     dmScript::PushVector3(L, *((Vectormath::Aos::Vector3*) &data[f->m_Offset]));
                 }
-                else if (strncmp(d->m_Name, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0)
+                else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0)
                 {
                     dmScript::PushVector3(L, Vectormath::Aos::Vector3(*((Vectormath::Aos::Vector3*) &data[f->m_Offset])));
                 }
-                else if (strncmp(d->m_Name, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
+                else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                 {
                     dmScript::PushQuat(L, *((Vectormath::Aos::Quat*) &data[f->m_Offset]));
                 }
@@ -194,7 +194,7 @@ namespace dmScript
                     for (uint32_t i = 0; i < d->m_FieldCount; ++i)
                     {
                         const dmDDF::FieldDescriptor* f2 = &d->m_Fields[i];
-                        lua_pushstring(L, f2->m_Name);
+                        lua_pushstring(L, f2->m_ScriptName);
                         DDFToLuaValue(L, &d->m_Fields[i], &data[f->m_Offset]);
                         lua_rawset(L, -3);
                     }
@@ -204,7 +204,7 @@ namespace dmScript
 
             default:
             {
-                luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
+                luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_ScriptName);
             }
         }
     }
@@ -216,7 +216,7 @@ namespace dmScript
         {
             const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
 
-            lua_pushstring(L, f->m_Name);
+            lua_pushstring(L, f->m_ScriptName);
             DDFToLuaValue(L, &d->m_Fields[i], data);
             lua_rawset(L, -3);
         }

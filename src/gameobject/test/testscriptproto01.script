@@ -23,12 +23,12 @@ function Update(self)
     p = get_position(self)
     assert(p.y == 123.0)
 
-    post("Spawn", {Prototype = "test", Pos = { X=1, Y=2, Z=3 }} )
+    post("spawn", {prototype = "test", pos = vec_math.vector3(1, 2, 3)} )
 end
 
 function OnEvent(self, event_hash, event)
     assert(event_hash == hash("SpawnResult"))
-    assert(event.Status == 1010)
+    assert(event.status == 1010)
 end
 
 functions = { Init = Init, Update = Update, OnEvent = OnEvent }

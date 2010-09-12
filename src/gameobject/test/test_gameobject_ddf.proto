@@ -1,5 +1,7 @@
 package TestGameObject;
 
+import "ddf/ddf_math.proto";
+
 message PhysComponent
 {
     required float Mass = 1;
@@ -30,25 +32,18 @@ message DeleteSelfResource
     required uint32 Dummy = 1;
 }
 
-message Vec
-{
-    required float X = 1;
-    required float Y = 2;
-    required float Z = 3;
-}
-
 message GlobalData
 {
 	required uint32 UIntValue = 1;
 	required int32 IntValue = 2;
 	required string StringValue = 3;
-	required Vec VecValue = 4;
+	required dmMath.Vector3 VecValue = 4;
 }
 
 message Spawn
 {
 	required string Prototype = 1;
-	required Vec Pos = 2;
+	required dmMath.Point3 Pos = 2;
 }
 
 message SpawnResult

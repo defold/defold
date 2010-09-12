@@ -217,7 +217,7 @@ namespace dmGameObject
         }
         else
         {
-            g_Descriptors->Put(dmHashBuffer64(descriptor->m_Name, strlen(descriptor->m_Name)), descriptor);
+            g_Descriptors->Put(dmHashBuffer64(descriptor->m_ScriptName, strlen(descriptor->m_ScriptName)), descriptor);
             return RESULT_OK;
         }
     }

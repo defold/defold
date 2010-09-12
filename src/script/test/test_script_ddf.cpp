@@ -20,9 +20,9 @@ TEST(LuaTableToDDF, Transform)
 
     lua_newtable(L);
     dmScript::PushVector3(L, Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
-    lua_setfield(L, -2, "Position");
+    lua_setfield(L, -2, "position");
     dmScript::PushQuat(L, Vectormath::Aos::Quat(4.0f, 5.0f, 6.0f, 7.0f));
-    lua_setfield(L, -2, "Rotation");
+    lua_setfield(L, -2, "rotation");
 
     char* buf = new char[sizeof(TestScript::Transform)];
 
@@ -67,9 +67,9 @@ TEST(DDFToLuaTable, Transform)
     dmScript::DDFToLuaTable(L, TestScript::Transform::m_DDFDescriptor, (const char*) t);
 
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "Position");
+    lua_getfield(L, -1, "position");
     Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, -1);
-    lua_getfield(L, -2, "Rotation");
+    lua_getfield(L, -2, "rotation");
     Vectormath::Aos::Quat* rotation = dmScript::CheckQuat(L, -1);
     ASSERT_NE((void*)0x0, (void*)position);
     ASSERT_NE((void*)0x0, (void*)rotation);
@@ -100,22 +100,22 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     lua_newtable(L);
     lua_pushinteger(L, 100);
-    lua_setfield(L, -2, "UIntValue");
+    lua_setfield(L, -2, "uint_value");
 
     lua_pushinteger(L, 200);
-    lua_setfield(L, -2, "IntValue");
+    lua_setfield(L, -2, "int_value");
 
     lua_pushstring(L, "string_value");
-    lua_setfield(L, -2, "StringValue");
+    lua_setfield(L, -2, "string_value");
 
     dmScript::PushVector3(L, Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
 
-    lua_setfield(L, -2, "VecValue");
+    lua_setfield(L, -2, "vec_value");
 
     lua_newtable(L);
-    lua_pushinteger(L, 1); lua_setfield(L, -2, "UIntValue");
+    lua_pushinteger(L, 1); lua_setfield(L, -2, "uint_value");
 
-    lua_setfield(L, -2, "SubMsgValue");
+    lua_setfield(L, -2, "sub_msg_value");
 
     char* buf = new char[1024];
 
@@ -161,11 +161,11 @@ TEST(DDFToLuaTable, MessageInMessage)
 
     dmScript::DDFToLuaTable(L, TestScript::Msg::m_DDFDescriptor, (const char*) g);
 
-    lua_getfield(L, -1, "UIntValue"); ASSERT_EQ(1234, luaL_checkint(L, -1)); lua_pop(L, 1);
-    lua_getfield(L, -1, "IntValue"); ASSERT_EQ(5678, luaL_checkint(L, -1)); lua_pop(L, 1);
-    lua_getfield(L, -1, "StringValue"); ASSERT_STREQ("foo", luaL_checkstring(L, -1)); lua_pop(L, 1);
+    lua_getfield(L, -1, "uint_value"); ASSERT_EQ(1234, luaL_checkint(L, -1)); lua_pop(L, 1);
+    lua_getfield(L, -1, "int_value"); ASSERT_EQ(5678, luaL_checkint(L, -1)); lua_pop(L, 1);
+    lua_getfield(L, -1, "string_value"); ASSERT_STREQ("foo", luaL_checkstring(L, -1)); lua_pop(L, 1);
 
-    lua_getfield(L, -1, "VecValue");
+    lua_getfield(L, -1, "vec_value");
     Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
     ASSERT_NE((void*)0x0, (void*)v);
     ASSERT_EQ(1.0f, v->getX());
@@ -173,8 +173,8 @@ TEST(DDFToLuaTable, MessageInMessage)
     ASSERT_EQ(3.0f, v->getZ());
     lua_pop(L, 1);
 
-    lua_getfield(L, -1, "SubMsgValue");
-    lua_getfield(L, -1, "UIntValue"); ASSERT_EQ(1, luaL_checkint(L, -1)); lua_pop(L, 1);
+    lua_getfield(L, -1, "sub_msg_value");
+    lua_getfield(L, -1, "uint_value"); ASSERT_EQ(1, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -198,10 +198,10 @@ int ProtectedLuaDDFBufferOverflow (lua_State *L)
 
     lua_newtable(L);
     lua_pushinteger(L, 100);
-    lua_setfield(L, -2, "UIntValue");
+    lua_setfield(L, -2, "uint_value");
 
     lua_pushstring(L, "string_value");
-    lua_setfield(L, -2, "StringValue");
+    lua_setfield(L, -2, "string_value");
 
     dmScript::LuaTableToDDF(L, TestScript::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize);
 

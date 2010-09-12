@@ -803,7 +803,7 @@ void TestScript01Dispatch(dmMessage::Message *event_object, void* user_ptr)
 
     dmMessage::Post(dmGameObject::GetReplyEventSocketId(context->m_Register), event_id, reply_buf, 256);
 
-    *dispatch_result = s->m_Pos.m_X == 1.0 && s->m_Pos.m_Y == 2.0 && s->m_Pos.m_Z == 3.0 && strcmp("test", s->m_Prototype) == 0;
+    *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
 
 void TestScript01DispatchReply(dmMessage::Message *event_object, void* user_ptr)
@@ -820,9 +820,9 @@ TEST_F(GameObjectTest, TestScript01)
     global_data.m_UIntValue = 12345;
     global_data.m_IntValue = -123;
     global_data.m_StringValue = "string_value";
-    global_data.m_VecValue.m_X = 1.0f;
-    global_data.m_VecValue.m_Y = 2.0f;
-    global_data.m_VecValue.m_Z = 3.0f;
+    global_data.m_VecValue.setX(1.0f);
+    global_data.m_VecValue.setY(2.0f);
+    global_data.m_VecValue.setZ(3.0f);
 
     dmGameObject::Init(collection);
 
