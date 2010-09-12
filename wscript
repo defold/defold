@@ -30,6 +30,7 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_LUA'] = 'lua'
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
     platform = conf.env['PLATFORM']
 
@@ -39,6 +40,13 @@ def configure(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+
+    if platform == "darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit'])
+    if platform == "linux":
+        conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
+    if platform == "win32":
+        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'opengl32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GUI"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GUI"')

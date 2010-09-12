@@ -10,3 +10,12 @@ def build(bld):
                                 source = 'test_gui.cpp')
 
     test_gui.install_path = None
+
+    guidemo = bld.new_task_gen(features = 'cxx cprogram',
+                               includes = '../../../src',
+                               uselib = 'DLIB PLATFORM_SOCKET LUA DMGLFW',
+                               uselib_local = 'gui',
+                               target = 'guidemo',
+                               source = 'guidemo.cpp')
+
+    guidemo.install_path = None

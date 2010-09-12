@@ -53,17 +53,17 @@ TEST_F(dmGuiTest, Basic)
 {
     for (uint32_t i = 0; i < MAX_NODES; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0));
+        dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
         ASSERT_NE((dmGui::HNode) 0, node);
     }
 
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_EQ((dmGui::HNode) 0, node);
 }
 
 TEST_F(dmGuiTest, Name)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     dmGui::HNode get_node = dmGui::GetNodeByName(scene, "my_node");
@@ -83,7 +83,7 @@ TEST_F(dmGuiTest, TextureFont)
     dmGui::AddTexture(scene, "t2", (void*) &t2);
     dmGui::AddFont(scene, "f1", &f1);
 
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_NE((dmGui::HNode) 0, node);
 
     dmGui::Result r;
@@ -120,7 +120,7 @@ TEST_F(dmGuiTest, NewDeleteNode)
 
     for (uint32_t i = 0; i < MAX_NODES; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0));
+        dmGui::HNode node = dmGui::NewNode(scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
         ASSERT_NE((dmGui::HNode) 0, node);
         node_to_pos[node] = (float) i;
     }
@@ -143,7 +143,7 @@ TEST_F(dmGuiTest, NewDeleteNode)
         node_to_pos.erase(iter);
         dmGui::DeleteNode(scene, node_to_remove);
 
-        dmGui::HNode new_node = dmGui::NewNode(scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0));
+        dmGui::HNode new_node = dmGui::NewNode(scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
         ASSERT_NE((dmGui::HNode) 0, new_node);
         node_to_pos[new_node] = (float) i;
     }
@@ -153,8 +153,8 @@ TEST_F(dmGuiTest, AnimateNode)
 {
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
-        dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
-        dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f);
+        dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
 
@@ -175,9 +175,104 @@ TEST_F(dmGuiTest, AnimateNode)
     }
 }
 
+TEST_F(dmGuiTest, AnimateNode2)
+{
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+
+    // Animation
+    for (int i = 0; i < 200; ++i)
+    {
+        dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 1.0f, 0.001f);
+    dmGui::DeleteNode(scene, node);
+}
+
+uint32_t MyAnimationCompleteCount = 0;
+void MyAnimationComplete(dmGui::HScene scene,
+                         dmGui::HNode node,
+                         void* userdata1,
+                         void* userdata2)
+{
+    MyAnimationCompleteCount++;
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), Vector4(2,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+}
+
+TEST_F(dmGuiTest, AnimateComplete)
+{
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyAnimationComplete, (void*) node, 0);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    }
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 1.0f, 0.001f);
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    }
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 2.0f, 0.001f);
+
+    dmGui::DeleteNode(scene, node);
+}
+
+void MyPingPongComplete2(dmGui::HScene scene,
+                         dmGui::HNode node,
+                         void* userdata1,
+                         void* userdata2);
+
+uint32_t PingPongCount = 0;
+void MyPingPongComplete1(dmGui::HScene scene,
+                        dmGui::HNode node,
+                        void* userdata1,
+                        void* userdata2)
+{
+    ++PingPongCount;
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), Vector4(0,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+}
+
+void MyPingPongComplete2(dmGui::HScene scene,
+                         dmGui::HNode node,
+                         void* userdata1,
+                         void* userdata2)
+{
+    ++PingPongCount;
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+}
+
+TEST_F(dmGuiTest, PingPong)
+{
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+
+    for (int j = 0; j < 10; ++j)
+    {
+        // Animation
+        for (int i = 0; i < 60; ++i)
+        {
+            dmGui::UpdateScene(scene, 1.0f / 60.0f);
+        }
+    }
+
+    ASSERT_EQ(10U, PingPongCount);
+    dmGui::DeleteNode(scene, node);
+}
+
 TEST_F(dmGuiTest, ScriptAnimate)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Init(self)\n"
                     "Animate(GetNode(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0.5)\n"
@@ -215,9 +310,66 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::DeleteNode(scene, node);
 }
 
+TEST_F(dmGuiTest, ScriptAnimateComplete)
+{
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeName(scene, node, "n");
+    const char* s = "function cb(node)\n"
+                    "Animate(node, POSITION, {1,0,0,0}, {2,0,0,0}, EASING_NONE, 0.5, 0)\n"
+                    "end\n;"
+                    "function Init(self)\n"
+                    "Animate(GetNode(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0, cb)\n"
+                    "end\n"
+                    "function Update(self)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 1.0f, 0.001f);
+
+    // Animation
+    for (int i = 0; i < 30; ++i)
+    {
+        r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 2.0f, 0.001f);
+
+    dmGui::DeleteNode(scene, node);
+}
+
+TEST_F(dmGuiTest, ScriptOutOfNodes)
+{
+    const char* s = "function Init(self)\n"
+                    "    for i=1,10000 do\n"
+                    "       NewBoxNode({0,0,0}, {1,1,1})\n"
+                    "    end\n"
+                    "end\n"
+                    "function Update(self)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
+}
+
 TEST_F(dmGuiTest, ScriptGetNode)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Update(self) local n = GetNode(\"n\")\n print(n)\n end";
 
@@ -232,7 +384,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
 
 TEST_F(dmGuiTest, ScriptGetMissingNode)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Update(self) local n = GetNode(\"x\")\n print(n)\n end";
 
@@ -247,7 +399,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
 
 TEST_F(dmGuiTest, ScriptGetDeletedNode)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Update(self) local n = GetNode(\"n\")\n print(n)\n end";
     dmGui::DeleteNode(scene, node);
@@ -259,9 +411,53 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 }
 
+TEST_F(dmGuiTest, ScriptEqNode)
+{
+    dmGui::HNode node1 = dmGui::NewNode(scene, Point3(1,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node2 = dmGui::NewNode(scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeName(scene, node1, "n");
+    dmGui::SetNodeName(scene, node2, "m");
+
+    const char* s = "function Update(self)\n"
+                    "local n1 = GetNode(\"n\")\n "
+                    "local n2 = GetNode(\"n\")\n "
+                    "local m = GetNode(\"m\")\n "
+                    "assert(n1 == n2)\n"
+                    "assert(m ~= n1)\n"
+                    "assert(m ~= n2)\n"
+                    "assert(m ~= 1)\n"
+                    "assert(1 ~= m)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::DeleteNode(scene, node1);
+    dmGui::DeleteNode(scene, node2);
+}
+
+TEST_F(dmGuiTest, ScriptNewNode)
+{
+    const char* s = "function Init(self)\n"
+                    "    self.n1 = NewBoxNode({0,0,0}, {1,1,1})"
+                    "    self.n2 = NewTextNode({0,0,0}, \"My Node\")"
+                    "end\n"
+                    "function Update(self)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 TEST_F(dmGuiTest, SaveNode)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Init(self) self.n = GetNode(\"n\")\n end function Update(self) print(self.n)\n end";
 
@@ -275,7 +471,7 @@ TEST_F(dmGuiTest, SaveNode)
 
 TEST_F(dmGuiTest, UseDeletedNode)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Init(self) self.n = GetNode(\"n\")\n end function Update(self) print(self.n)\n end";
 
@@ -293,7 +489,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
 
 TEST_F(dmGuiTest, NodeProperties)
 {
-    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function Init(self)\n"
                     "self.n = GetNode(\"n\")\n"
@@ -324,12 +520,12 @@ TEST_F(dmGuiTest, ReplaceAnimation)
      * Internally the animation will removed an "erased-swapped". Used to test that the last animation
      * for node1 really invalidates the first animation of node1
      */
-    dmGui::HNode node1 = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
-    dmGui::HNode node2 = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0));
+    dmGui::HNode node1 = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node2 = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
 
-    dmGui::AnimateNode(scene, node2, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(123,0,0,0), dmGui::EASING_NONE, 0.5f, 0);
-    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0);
-    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(10,0,0,0), dmGui::EASING_NONE, 1.0f, 0);
+    dmGui::AnimateNode(scene, node2, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(123,0,0,0), dmGui::EASING_NONE, 0.5f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(10,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
 
     for (int i = 0; i < 60; ++i)
     {

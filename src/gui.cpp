@@ -31,6 +31,7 @@ namespace dmGui
 
     struct Animation
     {
+        HNode    m_Node;
         Vector4* m_Value;
         Vector4  m_From;
         Vector4  m_To;
@@ -38,7 +39,11 @@ namespace dmGui
         float    m_Elapsed;
         float    m_Duration;
         float    m_BezierControlPoints[4];
+        AnimationComplete m_AnimationComplete;
+        void*    m_Userdata1;
+        void*    m_Userdata2;
         uint16_t m_FirstUpdate : 1;
+        uint16_t m_AnimationCompleteCalled : 1;
     };
 
     struct Scene
@@ -149,9 +154,27 @@ namespace dmGui
         return n;
     }
 
+    static bool LuaIsNode(lua_State *L, int ud)
+    {
+        void *p = lua_touserdata(L, ud);
+        if (p != NULL)
+        {
+            if (lua_getmetatable(L, ud))
+            {
+                lua_getfield(L, LUA_REGISTRYINDEX, NODEPROXY);
+                if (lua_rawequal(L, -1, -2))
+                {
+                    lua_pop(L, 2);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static InternalNode* LuaCheckNode(lua_State*L, int index, HNode* hnode)
     {
-        NodeProxy* np = NodeProxy_Check(L, 1);
+        NodeProxy* np = NodeProxy_Check(L, index);
         if (IsValidNode(np->m_Scene, np->m_Node))
         {
             InternalNode*n = GetNode(np->m_Scene, np->m_Node);
@@ -194,6 +217,26 @@ namespace dmGui
         return 1;
     }
 
+    void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
+    {
+        lua_State* L = scene->m_Gui->m_LuaState;
+
+        int ref = (int) userdata1;
+        int node_ref = (int) userdata2;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
+
+        int ret = lua_pcall(L, 1, 0, 0);
+        if (ret != 0)
+        {
+            dmLogError("Error running animation callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+
+        lua_unref(L, ref);
+        lua_unref(L, node_ref);
+    }
+
     int LuaAnimate(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -213,8 +256,19 @@ namespace dmGui
         int easing = (int) luaL_checknumber(L, 5);
         lua_Number duration = luaL_checknumber(L, 6);
         float delay = 0.0f;
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
         if (lua_isnumber(L, 7))
+        {
             delay = (float) lua_tonumber(L, 7);
+            if (lua_isfunction(L, 8))
+            {
+                lua_pushvalue(L, 8);
+                animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                lua_pushvalue(L, 1);
+                node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            }
+        }
 
         if (property >= PROPERTY_COUNT)
         {
@@ -226,10 +280,57 @@ namespace dmGui
             luaL_error(L, "Invalid easing: %d", easing);
         }
 
-        AnimateNode(scene, hnode, (Property) property, Vector4(from), Vector4(to), (Easing) easing, (float) duration, delay);
+        if (animation_complete_ref == LUA_NOREF)
+            AnimateNode(scene, hnode, (Property) property, Vector4(from), Vector4(to), (Easing) easing, (float) duration, delay, 0, 0, 0);
+        else
+        {
+            AnimateNode(scene, hnode, (Property) property, Vector4(from), Vector4(to), (Easing) easing, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+        }
 
         assert(top== lua_gettop(L));
         return 0;
+    }
+
+    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 ext, NodeType node_type, const char* text)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        HNode node = NewNode(scene, pos, ext, node_type);
+        if (!node)
+        {
+            luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
+        }
+        SetNodeText(scene, node, text);
+
+        NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
+        node_proxy->m_Scene = scene;
+        node_proxy->m_Node = node;
+        luaL_getmetatable(L, NODEPROXY);
+        lua_setmetatable(L, -2);
+
+        assert(top + 1 == lua_gettop(L));
+
+        return 1;
+    }
+
+    static int LuaNewBoxNode(lua_State* L)
+    {
+        Vector3 pos = CheckVector3(L, 1);
+        Vector3 ext = CheckVector3(L, 2);
+        return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_BOX, 0);
+    }
+
+    static int LuaNewTextNode(lua_State* L)
+    {
+        Vector3 pos = CheckVector3(L, 1);
+        Vector3 ext = Vector3(1,1,1);
+        const char* text = luaL_checkstring(L, 2);
+        return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
 
 #define LUAGETSET(name, property) \
@@ -258,23 +359,6 @@ namespace dmGui
 
     static int NodeProxy_gc (lua_State *L)
     {
-#if 0
-        NodeProxy* np = NodeProxy_Check(L, 1);
-        assert(np);
-        Node* n = &np->m_Scene->m_Nodes[np->m_NodeIndex];
-        n->m_Enabled = 0;
-        if (n->m_Text)
-            free((void*) n->m_Text);
-        n->m_Text = 0;
-        np->m_Scene->m_NodeIndexPool.Push(np->m_NodeIndex);
-
-        np->m_Scene->m_RefCount--;
-        if (np->m_Scene->m_RefCount == 0)
-        {
-            delete np->m_Scene;
-        }
-#endif
-
         return 0;
     }
 
@@ -286,22 +370,6 @@ namespace dmGui
         return 1;
     }
 
-    static int PropertyNameToIndex(const char* name)
-    {
-        if (strcmp(name, "Position") == 0)
-            return (int) PROPERTY_POSITION;
-        else if (strcmp(name, "Rotation") == 0)
-            return (int) PROPERTY_ROTATION;
-        else if (strcmp(name, "Scale") == 0)
-            return (int) PROPERTY_SCALE;
-        else if (strcmp(name, "Color") == 0)
-            return (int) PROPERTY_COLOR;
-        else if (strcmp(name, "Extents") == 0)
-            return (int) PROPERTY_EXTENTS;
-        else
-            return -1;
-    }
-
     static int NodeProxy_index(lua_State *L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
@@ -310,6 +378,10 @@ namespace dmGui
         if (strcmp(key, "Text") == 0)
         {
             lua_pushstring(L, n->m_Node.m_Text);
+        }
+        else if (strcmp(key, "BlendMode") == 0)
+        {
+            lua_pushnumber(L, (lua_Number) n->m_Node.m_BlendMode);
         }
         else
         {
@@ -330,12 +402,41 @@ namespace dmGui
                 free((void*) n->m_Node.m_Text);
             n->m_Node.m_Text = strdup(text);
         }
+        else if (strcmp(key, "BlendMode") == 0)
+        {
+            int blend_mode = (int) luaL_checknumber(L, 3);
+            n->m_Node.m_BlendMode = (BlendMode) blend_mode;
+        }
         else
         {
             luaL_error(L, "Unknown property: '%s'", key);
         }
 
         return 0;
+    }
+
+    static int NodeProxy_eq(lua_State *L)
+    {
+        if (!LuaIsNode(L, 1))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        if (!LuaIsNode(L, 2))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        HNode hn1, hn2;
+        InternalNode* n1 = LuaCheckNode(L, 1, &hn1);
+        InternalNode* n2 = LuaCheckNode(L, 2, &hn2);
+        (void) n1;
+        (void) n2;
+
+        lua_pushboolean(L, (int) (hn1 == hn2));
+        return 1;
     }
 
     static const luaL_reg NodeProxy_methods[] =
@@ -349,6 +450,7 @@ namespace dmGui
         {"__tostring", NodeProxy_tostring},
         {"__index",    NodeProxy_index},
         {"__newindex", NodeProxy_newindex},
+        {"__eq",       NodeProxy_eq},
         {0, 0}
     };
 
@@ -373,6 +475,14 @@ namespace dmGui
 
         lua_pushliteral(L, "Animate");
         lua_pushcfunction(L, LuaAnimate);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "NewBoxNode");
+        lua_pushcfunction(L, LuaNewBoxNode);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "NewTextNode");
+        lua_pushcfunction(L, LuaNewTextNode);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
 #define REGGETSET(name) \
@@ -415,6 +525,17 @@ namespace dmGui
         SETEASING(INOUT)
 
 #undef SETEASING
+
+#define SETBLEND(name) \
+        lua_pushnumber(L, (lua_Number) BLEND_MODE_##name); \
+        lua_setglobal(L, "BLEND_MODE_"#name);\
+
+        SETBLEND(ALPHA)
+        SETBLEND(ADD)
+        SETBLEND(ADD_ALPHA)
+        SETBLEND(MULT)
+
+#undef SETBLEND
 
         luaopen_base(L);
         luaopen_table(L);
@@ -513,19 +634,29 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void RenderScene(HScene scene, RenderNode render_node, void* context)
+    {
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            InternalNode* n = &scene->m_Nodes[i];
+            render_node(scene, &n->m_Node, 1, context);
+        }
+    }
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
         uint32_t n = animations->Size();
+
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
 
             if (anim->m_Elapsed >= anim->m_Duration)
             {
-                animations->EraseSwap(i);
+                /*animations->EraseSwap(i);
                 i--;
-                n--;
+                n--;*/
                 continue;
             }
 
@@ -551,10 +682,36 @@ namespace dmGui
                           t * t * t * anim->m_BezierControlPoints[3];
 
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
+
+                if (anim->m_Elapsed + dt >= anim->m_Duration)
+                {
+                    if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                    {
+                        // NOTE: Very important to set m_AnimationCompleteCalled to 1
+                        // before invoking the call-back. The call-back could potentially
+                        // start a new animation that could reuse the same animation slot.
+                        anim->m_AnimationCompleteCalled = 1;
+                        anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
+                    }
+                }
             }
             else
             {
                 anim->m_Delay -= dt;
+            }
+        }
+
+        n = animations->Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            Animation* anim = &(*animations)[i];
+
+            if (anim->m_Elapsed >= anim->m_Duration)
+            {
+                animations->EraseSwap(i);
+                i--;
+                n--;
+                continue;
             }
         }
     }
@@ -674,7 +831,7 @@ bail:
         return res;
     }
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& extents)
+    HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type)
     {
         if (scene->m_NodePool.Remaining() == 0)
         {
@@ -696,6 +853,7 @@ bail:
             node->m_Node.m_Properties[PROPERTY_SCALE] = Vector4(1,1,1,0);
             node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,0);
             node->m_Node.m_Properties[PROPERTY_EXTENTS] = Vector4(extents, 0);
+            node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Version = version;
             node->m_Index = index;
             scene->m_NextVersionNumber = (version + 1) % (1 << 16 - 1);
@@ -760,6 +918,18 @@ bail:
         n->m_Node.m_Properties[property] = value;
     }
 
+    void SetNodeText(HScene scene, HNode node, const char* text)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_Text)
+            free((void*) n->m_Node.m_Text);
+
+        if (text)
+            n->m_Node.m_Text = strdup(text);
+        else
+            n->m_Node.m_Text = 0;
+    }
+
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_name)
     {
         uint64_t texture_hash = dmHashString64(texture_name);
@@ -792,7 +962,23 @@ bail:
         }
     }
 
-    void AnimateNode(HScene scene, HNode node, Property property, const Vector4& from, const Vector4& to, Easing easing, float duration, float delay)
+    void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_BlendMode = (uint32_t) blend_mode;
+    }
+
+    void AnimateNode(HScene scene,
+                     HNode node,
+                     Property property,
+                     const Vector4& from,
+                     const Vector4& to,
+                     Easing easing,
+                     float duration,
+                     float delay,
+                     AnimationComplete animation_complete,
+                     void* userdata1,
+                     void* userdata2)
     {
         uint16_t version = (uint16_t) (node >> 16);
         uint16_t index = node & 0xffff;
@@ -819,9 +1005,15 @@ bail:
                 animation.m_Value = &n->m_Node.m_Properties[PROPERTY_COLOR];
                 break;
 
+            case PROPERTY_EXTENTS:
+                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_EXTENTS];
+                break;
+
             default:
                 assert(0);
         }
+
+        uint32_t animation_index = 0xffffffff;
 
         // Remove old animation for the same property
         for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
@@ -829,23 +1021,34 @@ bail:
             const Animation* anim = &scene->m_Animations[i];
             if (animation.m_Value == anim->m_Value)
             {
-                scene->m_Animations.EraseSwap(i);
+                //scene->m_Animations.EraseSwap(i);
+                animation_index = i;
                 break;
             }
         }
 
-        if (scene->m_Animations.Full())
+        if (animation_index == 0xffffffff)
         {
-            dmLogWarning("Out of animation resources (%d)", scene->m_Animations.Size());
-            return;
+            if (scene->m_Animations.Full())
+            {
+                dmLogWarning("Out of animation resources (%d)", scene->m_Animations.Size());
+                return;
+            }
+            animation_index = scene->m_Animations.Size();
+            scene->m_Animations.SetSize(animation_index+1);
         }
 
+        animation.m_Node = node;
         animation.m_From = from;
         animation.m_To = to;
         animation.m_Delay = delay;
         animation.m_Elapsed = 0.0f;
         animation.m_Duration = duration;
+        animation.m_AnimationComplete = animation_complete;
+        animation.m_Userdata1 = userdata1;
+        animation.m_Userdata2 = userdata2;
         animation.m_FirstUpdate = 1;
+        animation.m_AnimationCompleteCalled = 0;
 
         switch (easing)
         {
@@ -881,6 +1084,6 @@ bail:
                 assert(0);
         }
 
-        scene->m_Animations.Push(animation);
+        scene->m_Animations[animation_index] = animation;
     }
 }  // namespace dmGui
