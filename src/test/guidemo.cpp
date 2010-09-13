@@ -23,6 +23,32 @@ void MyRenderNode(dmGui::HScene scene,
         Vector4 color = node->m_Properties[dmGui::PROPERTY_COLOR];
         glColor4f(color.getX(), color.getY(), color.getZ(), color.getW());
 
+
+        dmGui::BlendMode blend_mode = (dmGui::BlendMode) node->m_BlendMode;
+        switch (blend_mode)
+        {
+            case dmGui::BLEND_MODE_ALPHA:
+                glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+
+            case dmGui::BLEND_MODE_ADD:
+                glBlendFunc(GL_ONE, GL_ONE);
+            break;
+
+            case dmGui::BLEND_MODE_ADD_ALPHA:
+                glBlendFunc(GL_ONE, GL_SRC_ALPHA);
+                break;
+
+            case dmGui::BLEND_MODE_MULT:
+                glBlendFunc(GL_ZERO, GL_SRC_COLOR);
+                break;
+
+            default:
+                printf("Unknown blend mode: %d\n", blend_mode);
+                break;
+        }
+
+
         if (node->m_Texture)
         {
             glEnable(GL_TEXTURE_2D);
@@ -77,7 +103,7 @@ int main(void)
 
     glfwInit();
 
-    if (!glfwOpenWindow(700, 700, 0, 0, 0, 0, 0, 0, GLFW_WINDOW))
+    if (!glfwOpenWindow(700, 700, 8, 8, 8, 8, 0, 0, GLFW_WINDOW))
     {
         glfwTerminate();
         return 1;
@@ -133,6 +159,7 @@ int main(void)
     running = GL_TRUE;
     while (running)
     {
+
         dmGui::UpdateScene(scene, 1.0f / 60.0f);
 
         t = glfwGetTime();
@@ -145,6 +172,8 @@ int main(void)
 
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear( GL_COLOR_BUFFER_BIT);
+
+        glEnable (GL_BLEND);
 
         glMatrixMode( GL_PROJECTION);
         glLoadIdentity();

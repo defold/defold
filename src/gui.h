@@ -152,7 +152,6 @@ namespace dmGui
 
     void AnimateNode(HScene scene, HNode node,
                      Property property,
-                     const Vector4& from,
                      const Vector4& to,
                      Easing easing,
                      float duration,

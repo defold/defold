@@ -95,6 +95,29 @@ namespace dmGui
     // Lua API
     #define NODEPROXY "NodeProxy"
 
+    Vector4 CheckVector4(lua_State* L, int index)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+
+        lua_getfield(L, index, "X");
+        lua_pop(L, 1);
+        lua_rawgeti(L, index, 1);
+        lua_rawgeti(L, index, 2);
+        lua_rawgeti(L, index, 3);
+        lua_rawgeti(L, index, 4);
+
+        float x = luaL_checknumber(L, -4);
+        float y = luaL_checknumber(L, -3);
+        float z = luaL_checknumber(L, -2);
+        float w = 0.0f;
+        if (lua_isnumber(L, -1))
+            w = lua_tonumber(L, -1);
+
+        lua_pop(L, 4);
+
+        return Vector4(x, y, z, w);
+    }
+
     Vector3 CheckVector3(lua_State* L, int index)
     {
         luaL_checktype(L, index, LUA_TTABLE);
@@ -108,7 +131,6 @@ namespace dmGui
         float x = luaL_checknumber(L, -3);
         float y = luaL_checknumber(L, -2);
         float z = luaL_checknumber(L, -1);
-
         lua_pop(L, 3);
 
         return Vector3(x, y, z);
@@ -251,19 +273,18 @@ namespace dmGui
         (void) node;
 
         int property = (int) luaL_checknumber(L, 2);
-        Vector3 from = CheckVector3(L, 3);
-        Vector3 to = CheckVector3(L, 4);
-        int easing = (int) luaL_checknumber(L, 5);
-        lua_Number duration = luaL_checknumber(L, 6);
+        Vector4 to = CheckVector4(L, 3);
+        int easing = (int) luaL_checknumber(L, 4);
+        lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
         int node_ref = LUA_NOREF;
         int animation_complete_ref = LUA_NOREF;
-        if (lua_isnumber(L, 7))
+        if (lua_isnumber(L, 6))
         {
-            delay = (float) lua_tonumber(L, 7);
-            if (lua_isfunction(L, 8))
+            delay = (float) lua_tonumber(L, 6);
+            if (lua_isfunction(L, 7))
             {
-                lua_pushvalue(L, 8);
+                lua_pushvalue(L, 7);
                 animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
                 lua_pushvalue(L, 1);
                 node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -281,10 +302,10 @@ namespace dmGui
         }
 
         if (animation_complete_ref == LUA_NOREF)
-            AnimateNode(scene, hnode, (Property) property, Vector4(from), Vector4(to), (Easing) easing, (float) duration, delay, 0, 0, 0);
+            AnimateNode(scene, hnode, (Property) property, to, (Easing) easing, (float) duration, delay, 0, 0, 0);
         else
         {
-            AnimateNode(scene, hnode, (Property) property, Vector4(from), Vector4(to), (Easing) easing, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            AnimateNode(scene, hnode, (Property) property, to, (Easing) easing, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         assert(top== lua_gettop(L));
@@ -344,8 +365,8 @@ namespace dmGui
     int LuaSet##name(lua_State* L)\
     {\
         InternalNode* n = LuaCheckNode(L, 1, 0);\
-        Vector3 pos = CheckVector3(L, 2);\
-        n->m_Node.m_Properties[property] = Vector4(pos);\
+        Vector4 pos = CheckVector4(L, 2);\
+        n->m_Node.m_Properties[property] = pos;\
         return 0;\
     }\
 
@@ -701,13 +722,14 @@ namespace dmGui
                     t = 1;
 
                 float x = (1-t) * (1-t) * (1-t) * anim->m_BezierControlPoints[0] +
-                          3 * (1-t) * (1-t)* t * anim->m_BezierControlPoints[1] +
+                          3 * (1-t) * (1-t) * t * anim->m_BezierControlPoints[1] +
                           3 * (1-t) * t * t * anim->m_BezierControlPoints[2] +
                           t * t * t * anim->m_BezierControlPoints[3];
 
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
 
                 if (anim->m_Elapsed + dt >= anim->m_Duration)
+                //if (t >= 1)
                 {
                     if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                     {
@@ -875,7 +897,7 @@ bail:
             node->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(Vector3(position), 1);
             node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0);
             node->m_Node.m_Properties[PROPERTY_SCALE] = Vector4(1,1,1,0);
-            node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,0);
+            node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,1);
             node->m_Node.m_Properties[PROPERTY_EXTENTS] = Vector4(extents, 0);
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Version = version;
@@ -1011,7 +1033,6 @@ bail:
     void AnimateNode(HScene scene,
                      HNode node,
                      Property property,
-                     const Vector4& from,
                      const Vector4& to,
                      Easing easing,
                      float duration,
@@ -1079,7 +1100,6 @@ bail:
         }
 
         animation.m_Node = node;
-        animation.m_From = from;
         animation.m_To = to;
         animation.m_Delay = delay;
         animation.m_Elapsed = 0.0f;
@@ -1094,8 +1114,8 @@ bail:
         {
             case EASING_NONE:
                 animation.m_BezierControlPoints[0] = 0.0f;
-                animation.m_BezierControlPoints[1] = 0.25f;
-                animation.m_BezierControlPoints[2] = 0.75f;
+                animation.m_BezierControlPoints[1] = 0.333333333f;
+                animation.m_BezierControlPoints[2] = 0.666666667f;
                 animation.m_BezierControlPoints[3] = 1.0f;
                 break;
 

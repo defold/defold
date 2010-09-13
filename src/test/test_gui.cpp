@@ -154,7 +154,7 @@ TEST_F(dmGuiTest, AnimateNode)
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
         dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-        dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f, 0, 0, 0);
+        dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
 
@@ -178,7 +178,7 @@ TEST_F(dmGuiTest, AnimateNode)
 TEST_F(dmGuiTest, AnimateNode2)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
 
@@ -195,7 +195,7 @@ TEST_F(dmGuiTest, AnimateNode2)
 TEST_F(dmGuiTest, AnimateNodeDelete)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
     dmGui::HNode node2 = 0;
@@ -223,13 +223,13 @@ void MyAnimationComplete(dmGui::HScene scene,
                          void* userdata2)
 {
     MyAnimationCompleteCount++;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), Vector4(2,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(2,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
 }
 
 TEST_F(dmGuiTest, AnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyAnimationComplete, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyAnimationComplete, (void*) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
 
@@ -262,7 +262,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
                         void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), Vector4(0,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -271,13 +271,13 @@ void MyPingPongComplete2(dmGui::HScene scene,
                          void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 }
 
 TEST_F(dmGuiTest, PingPong)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
 
@@ -299,7 +299,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function init(self)\n"
-                    "animate(get_node(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0.5)\n"
+                    "animate(get_node(\"n\"), POSITION, {1,0,0,0}, EASING_NONE, 1, 0.5)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -339,10 +339,10 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function cb(node)\n"
-                    "animate(node, POSITION, {1,0,0,0}, {2,0,0,0}, EASING_NONE, 0.5, 0)\n"
+                    "animate(node, POSITION, {2,0,0,0}, EASING_NONE, 0.5, 0)\n"
                     "end\n;"
                     "function init(self)\n"
-                    "animate(get_node(\"n\"), POSITION, {0,0,0,0}, {1,0,0,0}, EASING_NONE, 1, 0, cb)\n"
+                    "animate(get_node(\"n\"), POSITION, {1,0,0,0}, EASING_NONE, 1, 0, cb)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -547,9 +547,9 @@ TEST_F(dmGuiTest, ReplaceAnimation)
     dmGui::HNode node1 = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode node2 = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
 
-    dmGui::AnimateNode(scene, node2, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(123,0,0,0), dmGui::EASING_NONE, 0.5f, 0, 0, 0, 0);
-    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
-    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), Vector4(10,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node2, dmGui::PROPERTY_POSITION, Vector4(123,0,0,0), dmGui::EASING_NONE, 0.5f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node1, dmGui::PROPERTY_POSITION, Vector4(10,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
 
     for (int i = 0; i < 60; ++i)
     {
