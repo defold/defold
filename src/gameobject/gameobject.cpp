@@ -422,10 +422,6 @@ namespace dmGameObject
                 {
                     dmLogError("Unable to set identifier for %s. Name clash?", instance_desc.m_Name);
                 }
-                else
-                {
-                    dmGameObject::SetScriptStringProperty(instance, "Id", instance_desc.m_Name);
-                }
 
                 for (uint32_t j = 0; j < instance_desc.m_ScriptProperties.m_Count; ++j)
                 {
@@ -1379,7 +1375,7 @@ bail:
                             }
                             else if (res == INPUT_RESULT_UNKNOWN_ERROR)
                             {
-                                return UPDATE_RESULT_OK;
+                                return UPDATE_RESULT_UNKNOWN_ERROR;
                             }
                         }
                     }

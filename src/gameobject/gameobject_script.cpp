@@ -69,6 +69,15 @@ namespace dmGameObject
 
         const char* key = luaL_checkstring(L, 2);
 
+        if (strcmp(key, "id") == 0)
+        {
+            char id_buf[9];
+            uint32_t id = dmGameObject::GetIdentifier(i->m_Instance);
+            DM_SNPRINTF(id_buf, 9, "%X", id);
+            lua_pushstring(L, id_buf);
+            return 1;
+        }
+
         // Try to find value in globals in update context
         lua_pushstring(L, "__update_context__");
         lua_rawget(L, LUA_GLOBALSINDEX);
@@ -295,48 +304,50 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        const char* instance_name = luaL_checkstring(L, 1);
+        const char* instance_id = luaL_checkstring(L, 1);
         const char* component_name = luaL_checkstring(L, 2);
         const char* event_name = luaL_checkstring(L, 3);
-
-        const dmDDF::Descriptor* desc = 0x0;
-        char ddf_data[SCRIPT_EVENT_MAX - sizeof(ScriptEventData)];
-
-        // Passing ddf data is optional atm
-        if (top >= 4)
-        {
-            const char* type_name = event_name;
-            uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
-            const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
-            if (desc_tmp != 0)
-            {
-                desc = *desc_tmp;
-                if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
-                {
-                    luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
-                    return 0;
-                }
-                luaL_checktype(L, 4, LUA_TTABLE);
-
-                lua_pushvalue(L, 4);
-                dmScript::LuaTableToDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
-                lua_pop(L, 1);
-            }
-            else
-            {
-                luaL_error(L, "DDF type %s has not been registered through dmGameObject::RegisterDDFType.", type_name);
-            }
-        }
 
         lua_pushstring(L, "__collection__");
         lua_rawget(L, LUA_GLOBALSINDEX);
         HCollection collection = (HCollection) lua_touserdata(L, -1);
         assert(collection);
-        lua_pop(L, 1);
+        lua_pop(L, 2);
 
-        HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(instance_name));
+        uint32_t id;
+        sscanf(instance_id, "%X", &id);
+        HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, id);
         if (instance)
         {
+            const dmDDF::Descriptor* desc = 0x0;
+            char ddf_data[SCRIPT_EVENT_MAX - sizeof(ScriptEventData)];
+
+            // Passing ddf data is optional atm
+            if (top >= 4)
+            {
+                const char* type_name = event_name;
+                uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
+                const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
+                if (desc_tmp != 0)
+                {
+                    desc = *desc_tmp;
+                    if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
+                    {
+                        luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                        return 0;
+                    }
+                    luaL_checktype(L, 4, LUA_TTABLE);
+
+                    lua_pushvalue(L, 4);
+                    dmScript::LuaTableToDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                    lua_pop(L, 1);
+                }
+                else
+                {
+                    luaL_error(L, "DDF type %s has not been registered through dmGameObject::RegisterDDFType.", type_name);
+                }
+            }
+
             dmGameObject::Result r;
             if (desc != 0x0)
                 r = dmGameObject::PostDDFEvent(instance, component_name, desc, ddf_data);
@@ -345,12 +356,12 @@ namespace dmGameObject
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
-                luaL_error(L, "Error sending event '%s' to %s/%s", event_name, instance_name, component_name);
+                luaL_error(L, "Error sending event '%s' to %X/%s", event_name, instance_id, component_name);
             }
         }
         else
         {
-            luaL_error(L, "Error sending event. Unknown instance: %s", instance_name);
+            luaL_error(L, "Error sending event. Unknown instance: %X", instance_id);
         }
         assert(top == lua_gettop(L));
 

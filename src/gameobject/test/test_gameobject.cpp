@@ -841,6 +841,8 @@ TEST_F(GameObjectTest, TestScript01)
     dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto01.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(collection, go, "my_object01"));
+
     TestGameObject::GlobalData global_data;
     global_data.m_UIntValue = 12345;
     global_data.m_IntValue = -123;
@@ -866,6 +868,17 @@ TEST_F(GameObjectTest, TestScript01)
     // Final dispatch to deallocate event data
     dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
     dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &context);
+
+    dmGameObject::AcquireInputFocus(collection, go);
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(collection, &action, 1));
 
     dmGameObject::Delete(collection, go);
 }
@@ -912,6 +925,9 @@ TEST_F(GameObjectTest, Collection)
         uint32_t go02ident = dmHashString32("go02");
         dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
         ASSERT_NE((void*) 0, go02);
+
+        dmGameObject::Init(coll);
+        dmGameObject::Update(coll, 0);
 
         ASSERT_NE(go01, go02);
 

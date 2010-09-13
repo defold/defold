@@ -1,4 +1,5 @@
 function init(self)
+    assert(self.id == hash("my_object01"), "init id mismatch")
     local p = get_position(self)
     assert(p.x == 0)
     assert(p.y == 0)
@@ -13,6 +14,7 @@ function init(self)
 end
 
 function update(self)
+    assert(self.id == hash("my_object01"), "update id mismatch")
     assert (self.counter == 1)
 
     local p = get_position(self)
@@ -27,8 +29,14 @@ function update(self)
 end
 
 function on_event(self, event_hash, event)
+    assert(self.id == hash("my_object01"), "on_event id mismatch")
     assert(event_hash == hash("spawn_result"))
     assert(event.status == 1010)
 end
 
-functions = { init = init, update = update, on_event = on_event }
+function on_input(self, action)
+    assert(self.id == hash("my_object01"), "on_input id mismatch")
+    assert(action.Id == hash("test_action"), "on_input action id mismatch")
+end
+
+functions = { init = init, update = update, on_event = on_event, on_input = on_input }
