@@ -788,20 +788,9 @@ void TestScript01Dispatch(dmMessage::Message *event_object, void* user_ptr)
     TestScript01Context* context = (TestScript01Context*)user_ptr;
     bool* dispatch_result = &context->m_Result;
 
-    uint32_t event_id = dmHashString32("spawn_result");
-
-    uint8_t reply_buf[sizeof(dmGameObject::ScriptEventData) + sizeof(TestGameObject::SpawnResult)];
-
-    TestGameObject::SpawnResult* result = (TestGameObject::SpawnResult*) (reply_buf + sizeof(dmGameObject::ScriptEventData));
-    result->m_Status = 1010;
-
-    dmGameObject::ScriptEventData* reply_script_event = (dmGameObject::ScriptEventData*) reply_buf;
-    reply_script_event->m_EventHash = dmHashString32(TestGameObject::SpawnResult::m_DDFDescriptor->m_Name);
-    reply_script_event->m_Component = 0xff;
-    reply_script_event->m_Instance = script_event_data->m_Instance;
-    reply_script_event->m_DDFDescriptor = TestGameObject::SpawnResult::m_DDFDescriptor;
-
-    dmMessage::Post(dmGameObject::GetReplyEventSocketId(context->m_Register), event_id, reply_buf, 256);
+    TestGameObject::SpawnResult result;
+    result.m_Status = 1010;
+    dmGameObject::PostDDFEvent(script_event_data->m_Instance, 0x0, TestGameObject::SpawnResult::m_DDFDescriptor, (char*)&result);
 
     *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }

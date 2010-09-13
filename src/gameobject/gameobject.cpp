@@ -1060,16 +1060,15 @@ bail:
             return 0;
     }
 
-    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    Result PostScriptEvent(const char* component_name, ScriptEventData* script_event_data)
     {
-        uint32_t event_hash = dmHashString32(event);
         uint32_t component_index = 0xffffffff;
 
         // Send to component or broadcast?
         if (component_name != 0 && *component_name != '\0')
         {
             uint32_t component_name_hash = dmHashString32(component_name);
-            Prototype* p = instance->m_Prototype;
+            Prototype* p = script_event_data->m_Instance->m_Prototype;
             for (uint32_t i = 0; i < p->m_Components.Size(); ++i)
             {
                 if (p->m_Components[i].m_NameHash == component_name_hash)
@@ -1084,25 +1083,42 @@ bail:
             }
         }
 
-        char buf[SCRIPT_EVENT_MAX];
-        ScriptEventData* e = (ScriptEventData*)buf;
-        e->m_Component = component_index & 0xff;
-        e->m_EventHash = event_hash;
-        e->m_Instance = instance;
-        e->m_DDFDescriptor = ddf_desc;
-        if (ddf_desc != 0x0)
-        {
-        	assert(ddf_data != 0x0);
-        	uint32_t max_data_size = SCRIPT_EVENT_MAX - sizeof(ScriptEventData);
-        	// TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
-        	assert(ddf_desc->m_Size < max_data_size);
-        	// TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
-        	memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
-        }
+        script_event_data->m_Component = component_index & 0xff;
 
-        dmMessage::Post(instance->m_Collection->m_Register->m_ReplyEventSocketId, instance->m_Collection->m_Register->m_EventId, buf, SCRIPT_EVENT_MAX);
+        dmMessage::Post(script_event_data->m_Instance->m_Collection->m_Register->m_ReplyEventSocketId, script_event_data->m_Instance->m_Collection->m_Register->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
 
         return RESULT_OK;
+    }
+
+    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event_name)
+    {
+        char buf[SCRIPT_EVENT_MAX];
+        ScriptEventData* e = (ScriptEventData*)buf;
+        e->m_EventHash = dmHashString32(event_name);
+        e->m_Instance = instance;
+        e->m_DDFDescriptor = 0x0;
+
+        return PostScriptEvent(component_name, e);
+    }
+
+    Result PostDDFEvent(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    {
+        assert(ddf_desc != 0x0);
+        assert(ddf_data != 0x0);
+
+        char buf[SCRIPT_EVENT_MAX];
+        ScriptEventData* e = (ScriptEventData*)buf;
+        e->m_EventHash = dmHashString32(ddf_desc->m_ScriptName);
+        e->m_Instance = instance;
+        e->m_DDFDescriptor = ddf_desc;
+
+        uint32_t max_data_size = SCRIPT_EVENT_MAX - sizeof(ScriptEventData);
+        // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
+        assert(ddf_desc->m_Size < max_data_size);
+        // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
+        memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
+
+        return PostScriptEvent(component_name, e);
     }
 
     struct DispatchEventsContext

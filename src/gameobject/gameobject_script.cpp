@@ -332,7 +332,11 @@ namespace dmGameObject
         HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(instance_name));
         if (instance)
         {
-            dmGameObject::Result r = dmGameObject::PostNamedEvent(instance, component_name, event_name, desc, ddf_data);
+            dmGameObject::Result r;
+            if (desc != 0x0)
+                r = dmGameObject::PostDDFEvent(instance, component_name, desc, ddf_data);
+            else
+                r = dmGameObject::PostNamedEvent(instance, component_name, event_name);
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string

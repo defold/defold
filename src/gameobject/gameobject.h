@@ -346,11 +346,21 @@ namespace dmGameObject
     /**
      * Post named event to component instance
      * @param instance Instance
-     * @param component_name Component name. NULL if for sending to script
-     * @param event Named event
+     * @param component_name Component name. NULL broadcasts the event to every component.
+     * @param event_name Name of the event, should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event, const dmDDF::Descriptor* ddf_desc = 0x0, char* ddf_data = 0x0);
+    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event_name);
+
+    /**
+     * Post ddf event to component instance
+     * @param instance Instance
+     * @param component_name Component name. NULL broadcasts the event to every component.
+     * @param ddf_desc Descripor of the ddf message to send
+     * @param ddf_data The actual ddf message to send
+     * @return RESULT_OK on success
+     */
+    Result PostDDFEvent(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
 
     /**
      * Set integer property in instance script

@@ -27,7 +27,7 @@ function Update(self)
 end
 
 function OnEvent(self, event_hash, event)
-    assert(event_hash == hash("SpawnResult"))
+    assert(event_hash == hash("spawn_result"))
     assert(event.status == 1010)
 end
 
