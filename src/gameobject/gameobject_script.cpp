@@ -998,23 +998,23 @@ bail:
 
             char buf[9];
             DM_SNPRINTF(buf, sizeof(buf), "%X", input_action->m_ActionId);
-            lua_pushliteral(L, "Id");
+            lua_pushliteral(L, "id");
             lua_pushstring(L, buf);
             lua_settable(L, action_table);
 
-            lua_pushliteral(L, "Value");
+            lua_pushliteral(L, "value");
             lua_pushnumber(L, input_action->m_Value);
             lua_settable(L, action_table);
 
-            lua_pushliteral(L, "Pressed");
+            lua_pushliteral(L, "pressed");
             lua_pushboolean(L, input_action->m_Pressed);
             lua_settable(L, action_table);
 
-            lua_pushliteral(L, "Released");
+            lua_pushliteral(L, "released");
             lua_pushboolean(L, input_action->m_Released);
             lua_settable(L, action_table);
 
-            lua_pushliteral(L, "Repeated");
+            lua_pushliteral(L, "repeated");
             lua_pushboolean(L, input_action->m_Repeated);
             lua_settable(L, action_table);
 
