@@ -206,7 +206,7 @@ def ToCEnum(context, pp, message_type):
 def ToScriptName(name):
     script_name = ""
     for i in range(len(name)):
-        if i > 0 and (name[i-1:i].islower() or name[i-1:i].isdigit()) and name[i:i+1].isupper():
+        if i > 0 and (name[i-1:i].islower() or name[i-1:i].isdigit() or (i+1 < len(name) and name[i+1:i+2].islower())) and name[i:i+1].isupper():
             script_name += "_"
         script_name += name[i:i+1].lower()
     return script_name
