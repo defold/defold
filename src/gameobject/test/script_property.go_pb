@@ -1,4 +1,4 @@
-Name: "ScriptProperty"
+Name: "script_property"
 Components
 {
     Resource: "script_property.scriptc"

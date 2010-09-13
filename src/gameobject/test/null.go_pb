@@ -1,4 +1,4 @@
-Name: "Null"
+Name: "null"
 Components
 {
     Resource: "null.scriptc"

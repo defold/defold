@@ -1,5 +1,4 @@
-Name: "Level 1"
-
+Name: "level1"
 Instances
 {
     Prototype: "goproto01.goc"

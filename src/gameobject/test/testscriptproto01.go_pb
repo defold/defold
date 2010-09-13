@@ -1,4 +1,4 @@
-Name: "MyObject01"
+Name: "my_object01"
 Components
 {
     Resource: "testscriptproto01.scriptc"
