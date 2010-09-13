@@ -86,7 +86,7 @@ namespace dmGameObject
 
         if (update_context)
         {
-            if (strcmp(key, "DT") == 0)
+            if (strcmp(key, "dt") == 0)
             {
                 lua_pushnumber(L, update_context->m_DT);
                 return 1;
@@ -710,7 +710,15 @@ bail:
             }
         }
 
+        lua_pushliteral(L, "__collection__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_pushliteral(L, "__update_context__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "__instance__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -888,10 +896,6 @@ bail:
         (void) top;
         int ret;
 
-        lua_pushliteral(L, "__update_context__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
         if (lua_type(L, -1) != LUA_TTABLE)
         {
@@ -949,10 +953,6 @@ bail:
             }
         }
 
-        lua_pushliteral(L, "__update_context__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
         assert(top == lua_gettop(L));
 
         return result;
@@ -970,10 +970,6 @@ bail:
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
         int ret;
-
-        lua_pushliteral(L, "__update_context__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
         if (lua_type(L, -1) != LUA_TTABLE)
@@ -1047,10 +1043,6 @@ bail:
                 lua_pop(L, 1);
             }
         }
-
-        lua_pushliteral(L, "__update_context__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
 
         assert(top == lua_gettop(L));
 
