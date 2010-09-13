@@ -24,6 +24,11 @@ namespace dmGameObject
 {
     #define SCRIPTINSTANCE "ScriptInstance"
 
+#define FUNC_NAME_INIT "init"
+#define FUNC_NAME_UPDATE "update"
+#define FUNC_NAME_ON_EVENT "on_event"
+#define FUNC_NAME_ON_INPUT "on_input"
+
     lua_State* g_LuaState = 0;
 
     ScriptWorld::ScriptWorld()
@@ -801,7 +806,7 @@ bail:
     {
         Prototype* proto = instance->m_Prototype;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
-        bool ret = RunScript(collection, script_instance->m_Script, "Init", script_instance, 0x0);
+        bool ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_INIT, script_instance, 0x0);
         if (ret)
         {
             return CREATE_RESULT_OK;
@@ -846,7 +851,7 @@ bail:
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
             Prototype* proto = script_instance->m_Instance->m_Prototype;
-            bool ret = RunScript(collection, script_instance->m_Script, "Update", script_instance, update_context);
+            bool ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_UPDATE, script_instance, update_context);
             if (!ret)
             {
                 dmLogError("The script for prototype %s failed to run.", proto->m_Name);
@@ -880,7 +885,7 @@ bail:
             return UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
-        const char* function_name = "OnEvent";
+        const char* function_name = FUNC_NAME_ON_EVENT;
         lua_getfield(L, -1, function_name);
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
@@ -960,7 +965,7 @@ bail:
             return INPUT_RESULT_UNKNOWN_ERROR;
         }
 
-        const char* function_name = "OnInput";
+        const char* function_name = FUNC_NAME_ON_INPUT;
         lua_getfield(L, -1, function_name);
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {

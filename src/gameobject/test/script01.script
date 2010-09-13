@@ -1,7 +1,7 @@
-function Init(self)
+function init(self)
 end
 
-function Update(self)
+function update(self)
 end
 
-functions = { Init = Init, Update = Update }
+functions = { init = init, update = update }

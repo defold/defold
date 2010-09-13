@@ -764,10 +764,11 @@ TEST_F(GameObjectTest, TestScriptProperty)
     dmGameObject::HInstance go = dmGameObject::New(collection, "script_property.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::SetScriptIntProperty(go, "MyIntProp", 1010);
-    dmGameObject::SetScriptFloatProperty(go, "MyFloatProp", 1.0);
-    dmGameObject::SetScriptStringProperty(go, "MyStringProp", "a string prop");
+    dmGameObject::SetScriptIntProperty(go, "my_int_prop", 1010);
+    dmGameObject::SetScriptFloatProperty(go, "my_float_prop", 1.0);
+    dmGameObject::SetScriptStringProperty(go, "my_string_prop", "a string prop");
 
+    ASSERT_TRUE(dmGameObject::Init(collection));
     ASSERT_TRUE(dmGameObject::Update(collection, 0));
 
     dmGameObject::Delete(collection, go);
@@ -1001,12 +1002,12 @@ TEST(ScriptTest, TestReloadScript)
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
     CreateFile(script_path,
-               "function Init(self)\n"
+               "function init(self)\n"
                "end\n"
-               "function Update(self)\n"
+               "function update(self)\n"
                "    set_position(self, vec_math.vector3(1,2,3))\n"
                "end\n"
-               "functions = { Init = Init, Update = Update }\n");
+               "functions = { init = init, update = update }\n");
 
     dmGameObject::HInstance go;
     go = dmGameObject::New(collection, "__go__.goc");
@@ -1021,12 +1022,12 @@ TEST(ScriptTest, TestReloadScript)
     dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     CreateFile(script_path,
-               "function Init(self)\n"
+               "function init(self)\n"
                "end\n"
-               "function Update(self)\n"
+               "function update(self)\n"
                "    set_position(self, vec_math.vector3(10,20,30))\n"
                "end\n"
-               "functions = { Init = Init, Update = Update }\n");
+               "functions = { init = init, update = update }\n");
 
 
     dmResource::FactoryResult fr = dmResource::ReloadType(factory, type);

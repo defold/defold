@@ -1,9 +1,9 @@
-function Init(self)
+function init(self)
 end
 
-function Update(self)
+function update(self)
 	assert(false)
 end
 
-functions = { Init = Init, Update = Update }
+functions = { init = init, update = update }
 

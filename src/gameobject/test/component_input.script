@@ -1,11 +1,11 @@
-function Init(self)
+function init(self)
 end
 
-function Update(self)
+function update(self)
 end
 
-function OnInput(self, action)
+function on_input(self, action)
     assert(action.Id == hash("test_action"), "Unknown action")
 end
 
-functions = { Init = Init, Update = Update, OnInput = OnInput }
+functions = { init = init, update = update, on_input = on_input }

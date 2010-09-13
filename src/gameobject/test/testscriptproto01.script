@@ -1,4 +1,4 @@
-function Init(self)
+function init(self)
     local p = get_position(self)
     assert(p.x == 0)
     assert(p.y == 0)
@@ -12,7 +12,7 @@ function Init(self)
     tmp = "1";
 end
 
-function Update(self)
+function update(self)
     assert (self.counter == 1)
 
     local p = get_position(self)
@@ -26,9 +26,9 @@ function Update(self)
     post("spawn", {prototype = "test", pos = vec_math.vector3(1, 2, 3)} )
 end
 
-function OnEvent(self, event_hash, event)
+function on_event(self, event_hash, event)
     assert(event_hash == hash("spawn_result"))
     assert(event.status == 1010)
 end
 
-functions = { Init = Init, Update = Update, OnEvent = OnEvent }
+functions = { init = init, update = update, on_event = on_event }
