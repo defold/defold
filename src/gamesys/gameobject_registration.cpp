@@ -107,11 +107,11 @@ namespace dmGameSystem
         // Broadcast to A components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
         ddf->m_Group = group_b;
-        dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEvent(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
         ddf->m_Group = group_a;
-        dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEvent(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
     }
 
     void ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
@@ -128,14 +128,14 @@ namespace dmGameSystem
         ddf->m_Distance = contact_point.m_Distance;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
         ddf->m_Group = contact_point.m_GroupB;
-        dmGameObject::PostNamedEvent(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEvent(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         ddf->m_Position = contact_point.m_PositionB;
         ddf->m_Normal = contact_point.m_Normal;
         ddf->m_Distance = contact_point.m_Distance;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
         ddf->m_Group = contact_point.m_GroupA;
-        dmGameObject::PostNamedEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
     }
 
     dmGameObject::UpdateResult UpdateCollisionObject(dmGameObject::HCollection collection,
@@ -157,7 +157,7 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        if (event_data->m_EventHash == dmHashString32("ApplyForceMessage"))
+        if (event_data->m_EventHash == dmHashString32(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_ScriptName))
         {
             dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) event_data->m_DDFData;
             dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
@@ -287,7 +287,7 @@ namespace dmGameSystem
         dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
         (void)world;
 
-        if (event_data->m_EventHash == dmHashString32("SetRenderColor"))
+        if (event_data->m_EventHash == dmHashString32(dmRender::SetRenderColor::m_DDFDescriptor->m_ScriptName))
         {
             dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
             dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)event_data->m_DDFData;
