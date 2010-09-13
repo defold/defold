@@ -12,6 +12,7 @@ namespace dmScript
 {
 #define DDF_TYPE_NAME_POINT3    "point3"
 #define DDF_TYPE_NAME_VECTOR3   "vector3"
+#define DDF_TYPE_NAME_VECTOR4   "vector4"
 #define DDF_TYPE_NAME_QUAT      "quat"
 
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
@@ -84,6 +85,11 @@ namespace dmScript
                             *((Vectormath::Aos::Vector3 *) &buffer[f->m_Offset]) = *v;
                         else
                             *((Vectormath::Aos::Point3 *) &buffer[f->m_Offset]) = Vectormath::Aos::Point3(*v);
+                    }
+                    else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_VECTOR4, sizeof(DDF_TYPE_NAME_VECTOR4)) == 0)
+                    {
+                        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, -1);
+                        *((Vectormath::Aos::Vector4 *) &buffer[f->m_Offset]) = *v;
                     }
                     else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                     {
@@ -183,6 +189,10 @@ namespace dmScript
                 else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_POINT3, sizeof(DDF_TYPE_NAME_POINT3)) == 0)
                 {
                     dmScript::PushVector3(L, Vectormath::Aos::Vector3(*((Vectormath::Aos::Vector3*) &data[f->m_Offset])));
+                }
+                else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_VECTOR4, sizeof(DDF_TYPE_NAME_VECTOR4)) == 0)
+                {
+                    dmScript::PushVector4(L, *((Vectormath::Aos::Vector4*) &data[f->m_Offset]));
                 }
                 else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                 {

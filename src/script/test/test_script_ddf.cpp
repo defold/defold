@@ -109,8 +109,10 @@ TEST(LuaTableToDDF, MessageInMessage)
     lua_setfield(L, -2, "string_value");
 
     dmScript::PushVector3(L, Vectormath::Aos::Vector3(1.0f, 2.0f, 3.0f));
+    lua_setfield(L, -2, "vec3_value");
 
-    lua_setfield(L, -2, "vec_value");
+    dmScript::PushVector4(L, Vectormath::Aos::Vector4(1.0f, 2.0f, 3.0f, 4.0f));
+    lua_setfield(L, -2, "vec4_value");
 
     lua_newtable(L);
     lua_pushinteger(L, 1); lua_setfield(L, -2, "uint_value");
@@ -128,9 +130,13 @@ TEST(LuaTableToDDF, MessageInMessage)
     ASSERT_EQ(100U, msg->m_UIntValue);
     ASSERT_EQ(200, msg->m_IntValue);
     ASSERT_STREQ("string_value", msg->m_StringValue);
-    ASSERT_EQ(1.0f, msg->m_VecValue.getX());
-    ASSERT_EQ(2.0f, msg->m_VecValue.getY());
-    ASSERT_EQ(3.0f, msg->m_VecValue.getZ());
+    ASSERT_EQ(1.0f, msg->m_Vec3Value.getX());
+    ASSERT_EQ(2.0f, msg->m_Vec3Value.getY());
+    ASSERT_EQ(3.0f, msg->m_Vec3Value.getZ());
+    ASSERT_EQ(1.0f, msg->m_Vec4Value.getX());
+    ASSERT_EQ(2.0f, msg->m_Vec4Value.getY());
+    ASSERT_EQ(3.0f, msg->m_Vec4Value.getZ());
+    ASSERT_EQ(4.0f, msg->m_Vec4Value.getW());
     ASSERT_EQ(1U, msg->m_SubMsgValue.m_UIntValue);
 
     delete[] buf;
@@ -154,9 +160,13 @@ TEST(DDFToLuaTable, MessageInMessage)
     g->m_UIntValue = 1234;
     g->m_IntValue = 5678;
     g->m_StringValue = "foo";
-    g->m_VecValue.setX(1.0f);
-    g->m_VecValue.setY(2.0f);
-    g->m_VecValue.setZ(3.0f);
+    g->m_Vec3Value.setX(1.0f);
+    g->m_Vec3Value.setY(2.0f);
+    g->m_Vec3Value.setZ(3.0f);
+    g->m_Vec4Value.setX(1.0f);
+    g->m_Vec4Value.setY(2.0f);
+    g->m_Vec4Value.setZ(3.0f);
+    g->m_Vec4Value.setW(4.0f);
     g->m_SubMsgValue.m_UIntValue = 1;
 
     dmScript::DDFToLuaTable(L, TestScript::Msg::m_DDFDescriptor, (const char*) g);
@@ -165,12 +175,21 @@ TEST(DDFToLuaTable, MessageInMessage)
     lua_getfield(L, -1, "int_value"); ASSERT_EQ(5678, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_getfield(L, -1, "string_value"); ASSERT_STREQ("foo", luaL_checkstring(L, -1)); lua_pop(L, 1);
 
-    lua_getfield(L, -1, "vec_value");
-    Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
-    ASSERT_NE((void*)0x0, (void*)v);
-    ASSERT_EQ(1.0f, v->getX());
-    ASSERT_EQ(2.0f, v->getY());
-    ASSERT_EQ(3.0f, v->getZ());
+    lua_getfield(L, -1, "vec3_value");
+    Vectormath::Aos::Vector3* v3 = dmScript::CheckVector3(L, -1);
+    ASSERT_NE((void*)0x0, (void*)v3);
+    ASSERT_EQ(1.0f, v3->getX());
+    ASSERT_EQ(2.0f, v3->getY());
+    ASSERT_EQ(3.0f, v3->getZ());
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "vec4_value");
+    Vectormath::Aos::Vector4* v4 = dmScript::CheckVector4(L, -1);
+    ASSERT_NE((void*)0x0, (void*)v4);
+    ASSERT_EQ(1.0f, v4->getX());
+    ASSERT_EQ(2.0f, v4->getY());
+    ASSERT_EQ(3.0f, v4->getZ());
+    ASSERT_EQ(4.0f, v4->getW());
     lua_pop(L, 1);
 
     lua_getfield(L, -1, "sub_msg_value");
