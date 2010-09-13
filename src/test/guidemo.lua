@@ -72,8 +72,8 @@ function init2(self)
 end
 
 function init(self)
-    --init1()
-    init2()
+    init1()
+    --init2()
 end
 
 function update(self)

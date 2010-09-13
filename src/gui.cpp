@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <dlib/array.h>
+#include <dlib/dstrings.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
 #include <dlib/hash.h>
@@ -50,6 +51,7 @@ namespace dmGui
     {
         int                   m_InitFunctionReference;
         int                   m_UpdateFunctionReference;
+        int                   m_OnInputFunctionReference;
         int                   m_SelfReference;
         uint16_t              m_RunInit : 1;
         Gui*                  m_Gui;
@@ -339,6 +341,19 @@ namespace dmGui
         return 1;
     }
 
+    static int LuaHash(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        const char* str = luaL_checkstring(L, 1);
+        char buf[16+1];
+        DM_SNPRINTF(buf, sizeof(buf), "%llX", dmHashString64(str));
+        lua_pushstring(L, buf);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static int LuaNewBoxNode(lua_State* L)
     {
         Vector3 pos = CheckVector3(L, 1);
@@ -525,6 +540,10 @@ namespace dmGui
         lua_pushcfunction(L, LuaAnimate);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
+        lua_pushliteral(L, "hash");
+        lua_pushcfunction(L, LuaHash);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_pushliteral(L, "new_box_node");
         lua_pushcfunction(L, LuaNewBoxNode);
         lua_rawset(L, LUA_GLOBALSINDEX);
@@ -614,6 +633,7 @@ namespace dmGui
         Scene* scene = new Scene();
         scene->m_InitFunctionReference = LUA_NOREF;
         scene->m_UpdateFunctionReference = LUA_NOREF;
+        scene->m_OnInputFunctionReference = LUA_NOREF;
         scene->m_SelfReference = LUA_NOREF;
         scene->m_RunInit = 0;
         scene->m_Gui = gui;
@@ -660,8 +680,63 @@ namespace dmGui
         if (scene->m_UpdateFunctionReference != LUA_NOREF)
             luaL_unref(L, LUA_REGISTRYINDEX, scene->m_UpdateFunctionReference);
 
+        if (scene->m_OnInputFunctionReference != LUA_NOREF)
+            luaL_unref(L, LUA_REGISTRYINDEX, scene->m_OnInputFunctionReference);
+
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         delete scene;
+    }
+
+    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count)
+    {
+        lua_State*L = scene->m_Gui->m_LuaState;
+
+        for (uint32_t i = 0; i < input_action_count; ++i)
+        {
+            const InputAction* ia = &input_actions[i];
+
+            if (scene->m_OnInputFunctionReference != LUA_NOREF)
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_OnInputFunctionReference);
+                assert(lua_isfunction(L, -1));
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+
+                lua_newtable(L);
+                lua_pushstring(L, "action_id");
+                char tmp[16+1];
+                DM_SNPRINTF(tmp, sizeof(tmp), "%llX", ia->m_ActionId);
+                lua_pushstring(L, tmp);
+                lua_rawset(L, -3);
+
+                lua_pushstring(L, "value");
+                lua_pushnumber(L, ia->m_Value);
+                lua_rawset(L, -3);
+
+                lua_pushstring(L, "pressed");
+                lua_pushboolean(L, ia->m_Pressed);
+                lua_rawset(L, -3);
+
+                lua_pushstring(L, "released");
+                lua_pushboolean(L, ia->m_Released);
+                lua_rawset(L, -3);
+
+                lua_pushstring(L, "repeated");
+                lua_pushboolean(L, ia->m_Repeated);
+                lua_rawset(L, -3);
+
+                int ret = lua_pcall(L, 2, 0, 0);
+
+                if (ret != 0)
+                {
+                    dmLogError("Error running script: %s", lua_tostring(L,-1));
+                    lua_pop(L, 1);
+                    return RESULT_SCRIPT_ERROR;
+                }
+            }
+
+        }
+
+        return RESULT_OK;
     }
 
     Result AddTexture(HScene scene, const char* texture_name, void* texture)
@@ -857,15 +932,26 @@ namespace dmGui
         lua_getglobal(L, "update");
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
-            dmLogError("No update function found in script");
             lua_pop(L, 1);
-            res = RESULT_MISSING_UPDATE_FUNCTION_ERROR;
-            goto bail;
+        }
+        else
+        {
+            if (scene->m_UpdateFunctionReference != LUA_NOREF)
+                luaL_unref(L, LUA_REGISTRYINDEX, scene->m_UpdateFunctionReference);
+            scene->m_UpdateFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
         }
 
-        if (scene->m_UpdateFunctionReference != LUA_NOREF)
-            luaL_unref(L, LUA_REGISTRYINDEX, scene->m_UpdateFunctionReference);
-        scene->m_UpdateFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        lua_getglobal(L, "on_input");
+        if (lua_type(L, -1) != LUA_TFUNCTION)
+        {
+            lua_pop(L, 1);
+        }
+        else
+        {
+            if (scene->m_OnInputFunctionReference != LUA_NOREF)
+                luaL_unref(L, LUA_REGISTRYINDEX, scene->m_OnInputFunctionReference);
+            scene->m_OnInputFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        }
 
         lua_pushnil(L);
         lua_setglobal(L, "init");

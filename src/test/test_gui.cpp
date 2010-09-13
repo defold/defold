@@ -1,6 +1,7 @@
 #include <map>
 #include <stdlib.h>
 #include <gtest/gtest.h>
+#include <dlib/hash.h>
 #include "../gui.h"
 
 /*
@@ -479,6 +480,30 @@ TEST_F(dmGuiTest, ScriptNewNode)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ScriptInput)
+{
+    const char* s = "function update(self)\n"
+                    "   assert(g_value == 123)\n"
+                    "end\n"
+                    "function on_input(self, input_action)\n"
+                    "   if(input_action.action_id == hash(\"SPACE\")) then\n"
+                    "       g_value = 123\n"
+                    "   end\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::InputAction input_action;
+    memset(&input_action, 0, sizeof(input_action));
+    input_action.m_ActionId = dmHashString64("SPACE");
+    dmGui::DispatchInput(scene, &input_action, 1);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 TEST_F(dmGuiTest, SaveNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -573,11 +598,20 @@ TEST_F(dmGuiTest, SyntaxError)
 
 TEST_F(dmGuiTest, MissingUpdate)
 {
-    const char* s = "function X(self) end";
+    const char* s = "function init(self) end";
 
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
-    ASSERT_EQ(dmGui::RESULT_MISSING_UPDATE_FUNCTION_ERROR, r);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, MissingInit)
+{
+    const char* s = "function update(self) end";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 TEST_F(dmGuiTest, NoScript)

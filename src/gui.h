@@ -11,7 +11,7 @@ namespace dmGui
     /*
      * TODO:
      * Delete nodes from lua
-     * Input/Events
+     * Message/Events from Lua
      * Layers/Draw order
      * Timers in lua
      * More demos
@@ -43,7 +43,6 @@ namespace dmGui
         RESULT_OK = 0,
         RESULT_SYNTAX_ERROR = -1,
         RESULT_SCRIPT_ERROR = -2,
-        RESULT_MISSING_UPDATE_FUNCTION_ERROR = -3,
         RESULT_OUT_OF_RESOURCES = -4,
         RESULT_RESOURCE_NOT_FOUND = -5,
     };
@@ -98,6 +97,23 @@ namespace dmGui
         void*       m_Font;
     };
 
+    /**
+     * Container of input related information.
+     */
+    struct InputAction
+    {
+        /// Action id, hashed action name
+        uint64_t m_ActionId;
+        /// Value of the input [0,1]
+        float    m_Value;
+        /// If the input was 0 last update
+        uint16_t m_Pressed;
+        /// If the input turned from above 0 to 0 this update
+        uint16_t m_Released;
+        /// If the input was held enough for the value to be repeated this update
+        uint16_t m_Repeated;
+    };
+
     typedef void (*RenderNode)(HScene scene,
                                const Node* nodes,
                                uint32_t node_count,
@@ -115,6 +131,8 @@ namespace dmGui
     HScene NewScene(HGui gui, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
+
+    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
 
     Result AddTexture(HScene scene, const char* texture_name, void* texture);
 
