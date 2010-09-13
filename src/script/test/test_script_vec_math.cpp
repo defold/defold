@@ -109,6 +109,33 @@ TEST_F(ScriptVecMathTest, TestVector3Fail)
     ASSERT_FALSE(RunString(L, "local v = vec_math.slerp(0, vec_math.vector3(0,0,0), 1)"));
 }
 
+TEST_F(ScriptVecMathTest, TestVector4)
+{
+    int top = lua_gettop(L);
+    Vectormath::Aos::Vector4 v(1.0f, 2.0f, 3.0f, 4.0f);
+    dmScript::PushVector4(L, v);
+    Vectormath::Aos::Vector4* vp = dmScript::CheckVector4(L, -1);
+    ASSERT_NE((void*)0x0, vp);
+    ASSERT_EQ(v.getX(), vp->getX());
+    ASSERT_EQ(v.getY(), vp->getY());
+    ASSERT_EQ(v.getZ(), vp->getZ());
+    ASSERT_EQ(v.getW(), vp->getW());
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_TRUE(RunFile(L, "test_vector4.luac"));
+}
+
+TEST_F(ScriptVecMathTest, TestVector4Fail)
+{
+    // constructor
+    ASSERT_FALSE(RunString(L, "local v = vec_math.vector4(0,0,0)"));
+    // index
+    ASSERT_FALSE(RunString(L, "local v = vec_math.vector4(0,0,0,0)\nlocal a = v.X"));
+    // new index
+    ASSERT_FALSE(RunString(L, "local v = vec_math.vector4(0,0,0,0)\nv.X = 1"));
+}
+
 TEST_F(ScriptVecMathTest, TestQuat)
 {
     int top = lua_gettop(L);

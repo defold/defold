@@ -14,6 +14,7 @@ namespace dmScript
 {
 #define LIB_NAME "vec_math"
 #define TYPE_NAME_VECTOR3 "vector3"
+#define TYPE_NAME_VECTOR4 "vector4"
 #define TYPE_NAME_QUAT "quat"
 
     static bool Vector3_is(lua_State *L, int index)
@@ -149,6 +150,94 @@ namespace dmScript
         {0,0}
     };
 
+    static int Vector4_gc(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        memset(v, 0, sizeof(*v));
+        (void) v;
+        assert(v);
+        return 0;
+    }
+
+    static int Vector4_tostring(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        lua_pushfstring(L, "%s: [%f, %f, %f, %f]", TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
+        return 1;
+    }
+
+    static int Vector4_index(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+
+        const char* key = luaL_checkstring(L, 2);
+        if (key[0] == 'x')
+        {
+            lua_pushnumber(L, v->getX());
+            return 1;
+        }
+        else if (key[0] == 'y')
+        {
+            lua_pushnumber(L, v->getY());
+            return 1;
+        }
+        else if (key[0] == 'z')
+        {
+            lua_pushnumber(L, v->getZ());
+            return 1;
+        }
+        else if (key[0] == 'w')
+        {
+            lua_pushnumber(L, v->getW());
+            return 1;
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s only has fields x, y, z, w.", LIB_NAME, TYPE_NAME_VECTOR4);
+        }
+    }
+
+    static int Vector4_newindex(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+
+        const char* key = luaL_checkstring(L, 2);
+        if (key[0] == 'x')
+        {
+            v->setX(luaL_checknumber(L, 3));
+        }
+        else if (key[0] == 'y')
+        {
+            v->setY(luaL_checknumber(L, 3));
+        }
+        else if (key[0] == 'z')
+        {
+            v->setZ(luaL_checknumber(L, 3));
+        }
+        else if (key[0] == 'w')
+        {
+            v->setW(luaL_checknumber(L, 3));
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s only has fields x, y, z, w.", LIB_NAME, TYPE_NAME_VECTOR4);
+        }
+        return 0;
+    }
+
+    static const luaL_reg Vector4_methods[] =
+    {
+        {0,0}
+    };
+    static const luaL_reg Vector4_meta[] =
+    {
+        {"__gc",        Vector4_gc},
+        {"__tostring",  Vector4_tostring},
+        {"__index",     Vector4_index},
+        {"__newindex",  Vector4_newindex},
+        {0,0}
+    };
+
     static int Quat_gc(lua_State *L)
     {
         Vectormath::Aos::Quat* q = CheckQuat(L, 1);
@@ -254,6 +343,17 @@ namespace dmScript
         v.setY(luaL_checknumber(L, 2));
         v.setZ(luaL_checknumber(L, 3));
         PushVector3(L, v);
+        return 1;
+    }
+
+    static int Vector4_new(lua_State* L)
+    {
+        Vectormath::Aos::Vector4 v;
+        v.setX(luaL_checknumber(L, 1));
+        v.setY(luaL_checknumber(L, 2));
+        v.setZ(luaL_checknumber(L, 3));
+        v.setW(luaL_checknumber(L, 4));
+        PushVector4(L, v);
         return 1;
     }
 
@@ -413,6 +513,7 @@ namespace dmScript
     static const luaL_reg methods[] =
     {
         {TYPE_NAME_VECTOR3, Vector3_new},
+        {TYPE_NAME_VECTOR4, Vector4_new},
         {TYPE_NAME_QUAT, Quat_new},
         {"quat_from_start_to_end", Quat_FromStartToEnd},
         {"quat_from_axis_angle", Quat_FromAxisAngle},
@@ -436,7 +537,7 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        const uint32_t type_count = 2;
+        const uint32_t type_count = 3;
         struct
         {
             const char* m_Name;
@@ -445,6 +546,7 @@ namespace dmScript
         } types[type_count] =
         {
             {TYPE_NAME_VECTOR3, Vector3_methods, Vector3_meta},
+            {TYPE_NAME_VECTOR4, Vector4_methods, Vector4_meta},
             {TYPE_NAME_QUAT, Quat_methods, Quat_meta}
         };
         for (uint32_t i = 0; i < type_count; ++i)
@@ -485,6 +587,24 @@ namespace dmScript
             return (Vectormath::Aos::Vector3*)luaL_checkudata(L, index, TYPE_NAME_VECTOR3);
         }
         luaL_typerror(L, index, TYPE_NAME_VECTOR3);
+        return 0x0;
+    }
+
+    void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v)
+    {
+        Vectormath::Aos::Vector4* vp = (Vectormath::Aos::Vector4*)lua_newuserdata(L, sizeof(Vectormath::Aos::Vector4));
+        *vp = v;
+        luaL_getmetatable(L, TYPE_NAME_VECTOR4);
+        lua_setmetatable(L, -2);
+    }
+
+    Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA)
+        {
+            return (Vectormath::Aos::Vector4*)luaL_checkudata(L, index, TYPE_NAME_VECTOR4);
+        }
+        luaL_typerror(L, index, TYPE_NAME_VECTOR4);
         return 0x0;
     }
 
