@@ -652,8 +652,10 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-    bool RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
+    ScriptResult RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
     {
+        ScriptResult result;
+
         DM_PROFILE(Script, "RunScript");
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
@@ -677,34 +679,33 @@ bail:
         lua_getfield(L, -1, function_name);
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
-            dmLogError("No '%s' function found", function_name);
             lua_pop(L, 2);
-            goto bail;
+            result = SCRIPT_RESULT_NO_FUNCTION;
         }
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-        ret = lua_pcall(L, 1, LUA_MULTRET, 0);
-        if (ret != 0)
+        else
         {
-            dmLogError("Error running script: %s", lua_tostring(L,-1));
-            lua_pop(L, 2);
-            goto bail;
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            ret = lua_pcall(L, 1, LUA_MULTRET, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 2);
+                result = SCRIPT_RESULT_FAILED;
+            }
+            else
+            {
+                lua_pop(L, 1);
+                result = SCRIPT_RESULT_OK;
+            }
         }
 
         lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
 
-        assert(top == lua_gettop(L));
-        return true;
-bail:
-        lua_pushliteral(L, "__update_context__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-        assert(top == lua_gettop(L));
-        return false;
+        return result;
     }
 
     dmResource::CreateResult ResCreateScript(dmResource::HFactory factory,
@@ -806,15 +807,15 @@ bail:
     {
         Prototype* proto = instance->m_Prototype;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
-        bool ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_INIT, script_instance, 0x0);
-        if (ret)
-        {
-            return CREATE_RESULT_OK;
-        }
-        else
+        ScriptResult ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_INIT, script_instance, 0x0);
+        if (ret == SCRIPT_RESULT_FAILED)
         {
             dmLogError("The script for prototype %s failed to run.", proto->m_Name);
             return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        else
+        {
+            return CREATE_RESULT_OK;
         }
     }
 
@@ -851,8 +852,8 @@ bail:
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
             Prototype* proto = script_instance->m_Instance->m_Prototype;
-            bool ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_UPDATE, script_instance, update_context);
-            if (!ret)
+            ScriptResult ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_UPDATE, script_instance, update_context);
+            if (ret == SCRIPT_RESULT_FAILED)
             {
                 dmLogError("The script for prototype %s failed to run.", proto->m_Name);
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -866,6 +867,8 @@ bail:
             void* context,
             uintptr_t* user_data)
     {
+        UpdateResult result = UPDATE_RESULT_OK;
+
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
         assert(script_event_data->m_Instance);
 
@@ -889,58 +892,59 @@ bail:
         lua_getfield(L, -1, function_name);
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
-            dmLogError("No '%s' function found", function_name);
             lua_pop(L, 2);
-            goto bail;
-        }
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-
-        char buf[9];
-        DM_SNPRINTF(buf, sizeof(buf), "%X", script_event_data->m_EventHash);
-        lua_pushstring(L, buf);
-
-        if (script_event_data->m_DDFDescriptor)
-        {
-            // adjust char ptrs to global mem space
-            char* data = (char*)script_event_data->m_DDFData;
-            for (uint8_t i = 0; i < script_event_data->m_DDFDescriptor->m_FieldCount; ++i)
-            {
-                dmDDF::FieldDescriptor* field = &script_event_data->m_DDFDescriptor->m_Fields[i];
-                uint32_t field_type = field->m_Type;
-                if (field_type == dmDDF::TYPE_STRING)
-                {
-                    *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
-                }
-            }
-            // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
-            // lua_cpcall?
-            dmScript::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
         }
         else
         {
-            // Named event
-            lua_newtable(L);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+            char buf[9];
+            DM_SNPRINTF(buf, sizeof(buf), "%X", script_event_data->m_EventHash);
+            lua_pushstring(L, buf);
+
+            if (script_event_data->m_DDFDescriptor)
+            {
+                // adjust char ptrs to global mem space
+                char* data = (char*)script_event_data->m_DDFData;
+                for (uint8_t i = 0; i < script_event_data->m_DDFDescriptor->m_FieldCount; ++i)
+                {
+                    dmDDF::FieldDescriptor* field = &script_event_data->m_DDFDescriptor->m_Fields[i];
+                    uint32_t field_type = field->m_Type;
+                    if (field_type == dmDDF::TYPE_STRING)
+                    {
+                        *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
+                    }
+                }
+                // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
+                // lua_cpcall?
+                dmScript::DDFToLuaTable(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+            }
+            else
+            {
+                // Named event
+                lua_newtable(L);
+            }
+
+            ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 2);
+                result = UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            else
+            {
+                lua_pop(L, 1);
+            }
         }
 
-        ret = lua_pcall(L, 3, LUA_MULTRET, 0);
-        if (ret != 0)
-        {
-            dmLogError("Error running script: %s", lua_tostring(L,-1));
-            lua_pop(L, 2);
-            goto bail;
-        }
-
-        lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
-        return UPDATE_RESULT_OK;
-bail:
         lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
+
         assert(top == lua_gettop(L));
-        return UPDATE_RESULT_UNKNOWN_ERROR;
+
+        return result;
     }
 
     InputResult ScriptOnInputComponent(HInstance instance,
@@ -948,6 +952,8 @@ bail:
             void* context,
             uintptr_t* user_data)
     {
+        InputResult result = INPUT_RESULT_IGNORED;
+
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
 
         lua_State* L = g_LuaState;
@@ -969,15 +975,14 @@ bail:
         lua_getfield(L, -1, function_name);
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
-            dmLogError("No '%s' function found", function_name);
             lua_pop(L, 2);
-            goto bail;
         }
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-
-        lua_createtable(L, 0, 5);
+        else
         {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+            lua_createtable(L, 0, 5);
+
             int action_table = lua_gettop(L);
 
             char buf[9];
@@ -1001,15 +1006,14 @@ bail:
             lua_pushliteral(L, "Repeated");
             lua_pushboolean(L, input_action->m_Repeated);
             lua_settable(L, action_table);
-        }
-        {
+
             int input_ret = lua_gettop(L) - 2;
             ret = lua_pcall(L, 2, LUA_MULTRET, 0);
             if (ret != 0)
             {
                 dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
                 lua_pop(L, 2);
-                goto bail;
+                result = INPUT_RESULT_UNKNOWN_ERROR;
             }
             else if (input_ret == lua_gettop(L))
             {
@@ -1017,30 +1021,28 @@ bail:
                 {
                     dmLogError("Script %s must return a boolean value (true/false), or no value at all.", function_name);
                     lua_pop(L, 2);
-                    goto bail;
+                    result = INPUT_RESULT_UNKNOWN_ERROR;
                 }
                 else
                 {
                     int input_ret = lua_toboolean(L, -1);
                     lua_pop(L, 2);
-                    assert(top == lua_gettop(L));
                     if (input_ret)
-                        return INPUT_RESULT_CONSUMED;
-                    else
-                        return INPUT_RESULT_IGNORED;
+                        result = INPUT_RESULT_CONSUMED;
                 }
             }
             else
             {
                 lua_pop(L, 1);
-                return INPUT_RESULT_IGNORED;
             }
         }
-bail:
+
         lua_pushliteral(L, "__update_context__");
         lua_pushnil(L);
         lua_rawset(L, LUA_GLOBALSINDEX);
+
         assert(top == lua_gettop(L));
-        return INPUT_RESULT_UNKNOWN_ERROR;
+
+        return result;
     }
 }

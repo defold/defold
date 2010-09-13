@@ -659,6 +659,31 @@ dmGameObject::UpdateResult GameObjectTest::EventTargetOnEvent(dmGameObject::HIns
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
+TEST_F(GameObjectTest, Null)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, "null.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_TRUE(dmGameObject::Init(collection));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedEvent(go, 0, "test"));
+
+    dmGameObject::AcquireInputFocus(collection, go);
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(collection, &action, 1));
+
+    ASSERT_TRUE(dmGameObject::Update(collection, 0));
+
+    dmGameObject::Delete(collection, go);
+}
+
 TEST_F(GameObjectTest, TestComponentEvent)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, "component_event.goc");
@@ -699,8 +724,18 @@ TEST_F(GameObjectTest, TestBroadcastEvent)
     r = dmGameObject::PostNamedEvent(go, 0, "inc");
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    dmGameObject::UpdateResult update_result = dmGameObject::DispatchInput(collection, &action, 1);
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, update_result);
+
     ASSERT_TRUE(dmGameObject::Update(collection, 0));
-    ASSERT_EQ(2U, m_EventTargetCounter);
 
     dmGameObject::Delete(collection, go);
 }

@@ -16,6 +16,13 @@ namespace dmGameObject
     struct UpdateContext;
     typedef Instance* HInstance;
 
+    enum ScriptResult
+    {
+        SCRIPT_RESULT_FAILED = -1,
+        SCRIPT_RESULT_NO_FUNCTION = 0,
+        SCRIPT_RESULT_OK = 1
+    };
+
     struct Script
     {
         int m_FunctionsReference;
@@ -47,7 +54,7 @@ namespace dmGameObject
     HScriptInstance NewScriptInstance(HScript script, HInstance instance);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    bool    RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
+    ScriptResult    RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
 
     dmResource::CreateResult ResCreateScript(dmResource::HFactory factory,
                                              void* context,
