@@ -312,7 +312,7 @@ namespace dmGameObject
         lua_rawget(L, LUA_GLOBALSINDEX);
         HCollection collection = (HCollection) lua_touserdata(L, -1);
         assert(collection);
-        lua_pop(L, 2);
+        lua_pop(L, 1);
 
         uint32_t id;
         sscanf(instance_id, "%X", &id);
