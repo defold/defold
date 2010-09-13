@@ -10,7 +10,6 @@ namespace dmGui
 {
     /*
      * TODO:
-     * Delete nodes from lua
      * Message/Events from Lua
      * Layers/Draw order
      * Timers in lua

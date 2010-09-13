@@ -241,6 +241,25 @@ namespace dmGui
         return 1;
     }
 
+    int LuaDeleteNode(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+        DeleteNode(scene, hnode);
+
+        assert(top == lua_gettop(L));
+
+        return 0;
+    }
+
     void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Gui->m_LuaState;
@@ -536,6 +555,10 @@ namespace dmGui
         lua_pushcfunction(L, LuaGetNode);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
+        lua_pushliteral(L, "delete_node");
+        lua_pushcfunction(L, LuaDeleteNode);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_pushliteral(L, "animate");
         lua_pushcfunction(L, LuaAnimate);
         lua_rawset(L, LUA_GLOBALSINDEX);
@@ -762,7 +785,10 @@ namespace dmGui
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
-            render_node(scene, &n->m_Node, 1, context);
+            if (n->m_Index != 0xffff)
+            {
+                render_node(scene, &n->m_Node, 1, context);
+            }
         }
     }
 
@@ -782,6 +808,7 @@ namespace dmGui
 
             if (anim->m_Delay <= 0)
             {
+                // TODO: Compensate m_Elapsed with Delay underflow?
                 if (anim->m_FirstUpdate)
                 {
                     anim->m_From = *anim->m_Value;

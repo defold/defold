@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <dlib/hash.h>
 #include <graphics/glfw/glfw.h>
 #include "../gui.h"
 
@@ -91,6 +92,30 @@ void MyRenderNode(dmGui::HScene scene,
     }
 }
 
+dmGui::HScene g_Scene;
+
+void OnKey(int key, int state)
+{
+    dmGui::InputAction input_action;
+    memset(&input_action, 0, sizeof(input_action));
+
+    if (key == GLFW_KEY_SPACE)
+    {
+        input_action.m_ActionId = dmHashString64("SPACE");
+        if (state)
+        {
+            input_action.m_Pressed = 1;
+            input_action.m_Released = 0;
+        }
+        else
+        {
+            input_action.m_Pressed = 0;
+            input_action.m_Released = 1;
+        }
+        dmGui::DispatchInput(g_Scene, &input_action, 1);
+    }
+}
+
 int main(void)
 {
     int width, height, running, x, y;
@@ -117,6 +142,7 @@ int main(void)
     params.m_MaxNodes = 256;
     params.m_MaxAnimations = 1024;
     dmGui::HScene scene = dmGui::NewScene(gui, &params);
+    g_Scene = scene;
 
     glGenTextures(1, &checker_texture);
     glBindTexture(GL_TEXTURE_2D, checker_texture);
@@ -159,7 +185,7 @@ int main(void)
     running = GL_TRUE;
     while (running)
     {
-
+        glfwSetKeyCallback(&OnKey);
         dmGui::UpdateScene(scene, 1.0f / 60.0f);
 
         t = glfwGetTime();
