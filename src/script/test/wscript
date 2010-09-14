@@ -34,3 +34,13 @@ def build(bld):
                                         source = 'test_script_ddf.cpp test_ddf.proto')
 
     test_script_ddf.install_path = None
+
+    test_script_ddf = bld.new_task_gen(features = 'cxx cprogram',
+                                        includes = '../../../src',
+                                        uselib = 'GTEST DDF DLIB LUA',
+                                        uselib_local = 'script',
+                                        proto_gen_py = True,
+                                        target = 'test_script_hash',
+                                        source = 'test_script_hash.cpp test_hash.lua')
+
+    test_script_ddf.install_path = None
