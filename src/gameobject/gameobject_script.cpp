@@ -72,10 +72,8 @@ namespace dmGameObject
 
         if (strcmp(key, "id") == 0)
         {
-            char id_buf[9];
             uint32_t id = dmGameObject::GetIdentifier(i->m_Instance);
-            DM_SNPRINTF(id_buf, 9, "%X", id);
-            lua_pushstring(L, id_buf);
+            dmScript::PushHash(L, id);
             return 1;
         }
 
@@ -292,7 +290,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        const char* instance_id = luaL_checkstring(L, 1);
+        uint32_t id = dmScript::CheckHash(L, 1);
         const char* component_name = luaL_checkstring(L, 2);
         const char* event_name = luaL_checkstring(L, 3);
 
@@ -302,8 +300,6 @@ namespace dmGameObject
         assert(collection);
         lua_pop(L, 1);
 
-        uint32_t id;
-        sscanf(instance_id, "%X", &id);
         HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, id);
         if (instance)
         {
@@ -344,12 +340,12 @@ namespace dmGameObject
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
-                luaL_error(L, "Error sending event '%s' to %X/%s", event_name, instance_id, component_name);
+                luaL_error(L, "Error sending event '%s' to %X/%s", event_name, id, component_name);
             }
         }
         else
         {
-            luaL_error(L, "Error sending event. Unknown instance: %X", instance_id);
+            luaL_error(L, "Error sending event. Unknown instance: %X", id);
         }
         assert(top == lua_gettop(L));
 
@@ -909,9 +905,7 @@ bail:
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            char buf[9];
-            DM_SNPRINTF(buf, sizeof(buf), "%X", script_event_data->m_EventHash);
-            lua_pushstring(L, buf);
+            dmScript::PushHash(L, script_event_data->m_EventHash);
 
             if (script_event_data->m_DDFDescriptor)
             {
@@ -1004,10 +998,8 @@ bail:
 
             int action_table = lua_gettop(L);
 
-            char buf[9];
-            DM_SNPRINTF(buf, sizeof(buf), "%X", input_action->m_ActionId);
             lua_pushliteral(L, "id");
-            lua_pushstring(L, buf);
+            dmScript::PushHash(L, input_action->m_ActionId);
             lua_settable(L, action_table);
 
             lua_pushliteral(L, "value");
