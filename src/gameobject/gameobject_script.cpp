@@ -903,6 +903,14 @@ bail:
             return UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
+        lua_pushliteral(L, "__collection__");
+        lua_pushlightuserdata(L, (void*) instance->m_Collection);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "__instance__");
+        lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         const char* function_name = FUNC_NAME_ON_EVENT;
         lua_getfield(L, -1, function_name);
         if (lua_type(L, -1) != LUA_TFUNCTION)
@@ -953,6 +961,14 @@ bail:
             }
         }
 
+        lua_pushliteral(L, "__collection__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "__instance__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         assert(top == lua_gettop(L));
 
         return result;
@@ -977,6 +993,14 @@ bail:
             dmLogError("Invalid 'SenderFunctionsReference' (%d) in OnInput.", script_instance->m_Script->m_FunctionsReference);
             return INPUT_RESULT_UNKNOWN_ERROR;
         }
+
+        lua_pushliteral(L, "__collection__");
+        lua_pushlightuserdata(L, (void*) instance->m_Collection);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "__instance__");
+        lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+        lua_rawset(L, LUA_GLOBALSINDEX);
 
         const char* function_name = FUNC_NAME_ON_INPUT;
         lua_getfield(L, -1, function_name);
@@ -1043,6 +1067,14 @@ bail:
                 lua_pop(L, 1);
             }
         }
+
+        lua_pushliteral(L, "__collection__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "__instance__");
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
 
         assert(top == lua_gettop(L));
 
