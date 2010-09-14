@@ -1015,7 +1015,7 @@ bail:
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Version = version;
             node->m_Index = index;
-            scene->m_NextVersionNumber = (version + 1) % (1 << 16 - 1);
+            scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
             return hnode;
         }
