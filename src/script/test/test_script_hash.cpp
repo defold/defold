@@ -64,9 +64,9 @@ TEST_F(ScriptHashTest, TestHash)
     int top = lua_gettop(L);
 
     const char* s = "test_value";
-    dmScript::PushHash(L, s);
-    dmScript::Hash hash = dmScript::CheckHash(L, -1);
-    ASSERT_EQ(dmHashString32(s), hash);
+    uint32_t hash = dmHashString32(s);
+    dmScript::PushHash(L, hash);
+    ASSERT_EQ(hash, dmScript::CheckHash(L, -1));
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -77,7 +77,7 @@ TEST_F(ScriptHashTest, TestHash)
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "test_hash");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    dmScript::PushHash(L, s);
+    dmScript::PushHash(L, hash);
     int result = lua_pcall(L, 1, LUA_MULTRET, 0);
     if (result == LUA_ERRRUN)
     {

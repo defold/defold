@@ -18,7 +18,7 @@ namespace dmScript
         int top = lua_gettop(L);
 
         const char* str = luaL_checkstring(L, 1);
-        PushHash(L, str);
+        PushHash(L, dmHashString32(str));
 
         assert(top + 1 == lua_gettop(L));
 
@@ -42,17 +42,17 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void PushHash(lua_State* L, const char* s)
+    void PushHash(lua_State* L, uint32_t hash)
     {
         char buf[9];
-        DM_SNPRINTF(buf, sizeof(buf), "%X", dmHashString32(s));
+        DM_SNPRINTF(buf, sizeof(buf), "%X", hash);
         lua_pushstring(L, buf);
     }
 
-    Hash CheckHash(lua_State* L, int index)
+    uint32_t CheckHash(lua_State* L, int index)
     {
         const char* str = luaL_checkstring(L, index);
-        Hash hash;
+        uint32_t hash;
         int items = sscanf(str, "%X", &hash);
         if (items != 1)
             luaL_error(L, "Hash has the wrong format: '%s'.", str);

@@ -12,12 +12,10 @@ extern "C"
 
 namespace dmScript
 {
-    typedef uint32_t Hash;
-
     void RegisterHashLib(lua_State* L);
 
-    void PushHash(lua_State* L, const char* s);
-    Hash CheckHash(lua_State* L, int index);
+    void PushHash(lua_State* L, uint32_t);
+    uint32_t CheckHash(lua_State* L, int index);
 }
 
 #endif // SCRIPT_HASH_H
