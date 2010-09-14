@@ -6,4 +6,3 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('gameobject')
-    bld.add_subdirs('script')

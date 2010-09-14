@@ -34,6 +34,7 @@ def configure(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
+    conf.env['STATICLIB_SCRIPT'] = 'script'
 
     platform = conf.env['PLATFORM']
 
