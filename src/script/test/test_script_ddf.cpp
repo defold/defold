@@ -127,7 +127,7 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     msg->m_StringValue = (const char*) ((uintptr_t) msg->m_StringValue + (uintptr_t) msg);
 
-    ASSERT_EQ(100U, msg->m_UIntValue);
+    ASSERT_EQ(100U, msg->m_UintValue);
     ASSERT_EQ(200, msg->m_IntValue);
     ASSERT_STREQ("string_value", msg->m_StringValue);
     ASSERT_EQ(1.0f, msg->m_Vec3Value.getX());
@@ -137,7 +137,7 @@ TEST(LuaTableToDDF, MessageInMessage)
     ASSERT_EQ(2.0f, msg->m_Vec4Value.getY());
     ASSERT_EQ(3.0f, msg->m_Vec4Value.getZ());
     ASSERT_EQ(4.0f, msg->m_Vec4Value.getW());
-    ASSERT_EQ(1U, msg->m_SubMsgValue.m_UIntValue);
+    ASSERT_EQ(1U, msg->m_SubMsgValue.m_UintValue);
 
     delete[] buf;
 
@@ -157,7 +157,7 @@ TEST(DDFToLuaTable, MessageInMessage)
     int top = lua_gettop(L);
 
     TestScript::Msg* g = new TestScript::Msg;
-    g->m_UIntValue = 1234;
+    g->m_UintValue = 1234;
     g->m_IntValue = 5678;
     g->m_StringValue = "foo";
     g->m_Vec3Value.setX(1.0f);
@@ -167,7 +167,7 @@ TEST(DDFToLuaTable, MessageInMessage)
     g->m_Vec4Value.setY(2.0f);
     g->m_Vec4Value.setZ(3.0f);
     g->m_Vec4Value.setW(4.0f);
-    g->m_SubMsgValue.m_UIntValue = 1;
+    g->m_SubMsgValue.m_UintValue = 1;
 
     dmScript::DDFToLuaTable(L, TestScript::Msg::m_DDFDescriptor, (const char*) g);
 
