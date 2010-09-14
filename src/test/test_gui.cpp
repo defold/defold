@@ -155,7 +155,8 @@ TEST_F(dmGuiTest, AnimateNode)
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
         dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-        dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f, 0, 0, 0);
+        // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
+        dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f + 0.001f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
 
@@ -190,6 +191,26 @@ TEST_F(dmGuiTest, AnimateNode2)
     }
 
     ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 1.0f, 0.001f);
+    dmGui::DeleteNode(scene, node);
+}
+
+TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
+{
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+
+    dmGui::UpdateScene(scene, 0.5f * (1.0f / 60.0f));
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.0f, 0.001f);
+
+    dmGui::UpdateScene(scene, 1.0f * (1.0f / 60.0f));
+    // With underflow compensation and dt: (0.5 / 60.) + dt = 1.5 / 60
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 0.75f, 0.001f);
+
+    dmGui::UpdateScene(scene, 1.0f * (1.0f / 60.0f));
+    ASSERT_NEAR(dmGui::GetNodePosition(scene, node).getX(), 1.0f, 0.001f);
+
     dmGui::DeleteNode(scene, node);
 }
 
@@ -300,7 +321,8 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function init(self)\n"
-                    "animate(get_node(\"n\"), POSITION, {1,0,0,0}, EASING_NONE, 1, 0.5)\n"
+                    // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
+                    "animate(get_node(\"n\"), POSITION, {1,0,0,0}, EASING_NONE, 1, 0.5 + 0.001)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";

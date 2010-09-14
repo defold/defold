@@ -806,13 +806,19 @@ namespace dmGui
                 continue;
             }
 
+            if (anim->m_Delay > 0)
+            {
+                anim->m_Delay -= dt;
+            }
+
             if (anim->m_Delay <= 0)
             {
-                // TODO: Compensate m_Elapsed with Delay underflow?
                 if (anim->m_FirstUpdate)
                 {
                     anim->m_From = *anim->m_Value;
                     anim->m_FirstUpdate = 0;
+                    // Compensate Elapsed with Delay underflow
+                    anim->m_Elapsed = -anim->m_Delay;
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
@@ -831,7 +837,6 @@ namespace dmGui
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
 
                 if (anim->m_Elapsed + dt >= anim->m_Duration)
-                //if (t >= 1)
                 {
                     if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                     {
@@ -842,10 +847,6 @@ namespace dmGui
                         anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
                     }
                 }
-            }
-            else
-            {
-                anim->m_Delay -= dt;
             }
         }
 
