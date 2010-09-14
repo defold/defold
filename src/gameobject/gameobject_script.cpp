@@ -342,12 +342,12 @@ namespace dmGameObject
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
-                luaL_error(L, "Error sending event '%s' to %X/%s", event_name, id, component_name);
+                luaL_error(L, "Error sending event '%s' to %p/%s", event_name, (void*)id, component_name);
             }
         }
         else
         {
-            luaL_error(L, "Error sending event. Unknown instance: %X", id);
+            luaL_error(L, "Error sending event. Unknown instance: %p", (void*)id);
         }
         assert(top == lua_gettop(L));
 
