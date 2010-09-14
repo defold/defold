@@ -11,6 +11,7 @@
 #include "gameobject_script.h"
 #include "gameobject_common.h"
 #include "../script/script_ddf.h"
+#include "../script/script_hash.h"
 #include "../script/script_vec_math.h"
 
 extern "C"
@@ -287,19 +288,6 @@ namespace dmGameObject
         }
     }
 
-    int Script_Hash(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        const char* str = luaL_checkstring(L, 1);
-        char buf[9];
-        DM_SNPRINTF(buf, sizeof(buf), "%X", dmHashString32(str));
-        lua_pushstring(L, buf);
-
-        assert(top + 1 == lua_gettop(L));
-        return 1;
-    }
-
     int Script_PostNamedTo(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -464,7 +452,6 @@ namespace dmGameObject
 
     static const luaL_reg Script_methods[] =
     {
-        {"hash",                Script_Hash},
         {"post",                Script_Post},
         {"post_named_to",       Script_PostNamedTo},
         {"get_position",        Script_GetPosition},
@@ -505,6 +492,7 @@ namespace dmGameObject
         luaL_register(L, 0x0, Script_methods);
         lua_pop(L, 1);
 
+        dmScript::RegisterHashLib(L);
         dmScript::RegisterVecMathLibs(L);
 
         assert(top == lua_gettop(L));
