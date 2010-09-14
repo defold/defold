@@ -204,6 +204,10 @@ def ToCEnum(context, pp, message_type):
     pp.End()
 
 def ToScriptName(name):
+    """Returns a lower-case separated format of the supplied name, which is supposed to be camel-case:
+    >>> ToScriptName("AbcABC01ABCAbc")
+    "abc_abc01abc_abc"
+    """
     script_name = ""
     for i in range(len(name)):
         if i > 0 and (name[i-1:i].islower() or name[i-1:i].isdigit() or (i+1 < len(name) and name[i+1:i+2].islower())) and name[i:i+1].isupper():
@@ -600,6 +604,7 @@ class CompilerContext(object):
             assert(False)
 
 if __name__ == '__main__':
+    import doctest
 
     usage = "usage: %prog [options] FILE"
     parser = OptionParser(usage = usage)
