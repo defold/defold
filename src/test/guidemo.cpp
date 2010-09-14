@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <dlib/hash.h>
 #include <graphics/glfw/glfw.h>
 #include "../gui.h"
