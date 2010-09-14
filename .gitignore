@@ -1,0 +1,14 @@
+.DS_Store
+.lock-wscript
+build
+*.pyc
+.project
+.cproject
+.pydevproject
+
+
+
+
+
+
+
