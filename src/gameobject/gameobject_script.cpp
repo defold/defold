@@ -1005,16 +1005,14 @@ bail:
                 if (!lua_isboolean(L, -1))
                 {
                     dmLogError("Script %s must return a boolean value (true/false), or no value at all.", function_name);
-                    lua_pop(L, 2);
                     result = INPUT_RESULT_UNKNOWN_ERROR;
                 }
                 else
                 {
-                    int input_ret = lua_toboolean(L, -1);
-                    lua_pop(L, 2);
-                    if (input_ret)
+                    if (lua_toboolean(L, -1))
                         result = INPUT_RESULT_CONSUMED;
                 }
+                lua_pop(L, 1);
             }
 
             lua_pushliteral(L, "__collection__");

@@ -794,6 +794,44 @@ TEST_F(GameObjectTest, TestComponentInput)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
 
+TEST_F(GameObjectTest, TestComponentInput2)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, "component_input2.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::AcquireInputFocus(collection, go);
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(collection, &action, 1);
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
+}
+
+TEST_F(GameObjectTest, TestComponentInput3)
+{
+    dmGameObject::HInstance go = dmGameObject::New(collection, "component_input3.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::AcquireInputFocus(collection, go);
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(collection, &action, 1);
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, r);
+}
+
 TEST_F(GameObjectTest, TestScriptProperty)
 {
     dmGameObject::HInstance go = dmGameObject::New(collection, "script_property.goc");
