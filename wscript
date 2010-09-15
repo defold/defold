@@ -56,6 +56,9 @@ def configure(conf):
     if sys.platform == 'linux2':
         conf.env['LIB_PTHREAD'] = 'pthread'
 
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DDF"')
+
 def build(bld):
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
     # Only required 'in' ddf-lib.
