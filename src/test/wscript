@@ -41,6 +41,6 @@ def build(bld):
                                      uselib_local = 'script',
                                      proto_gen_py = True,
                                      target = 'test_script_vec_math',
-                                     source = 'test_script_vec_math.cpp test_vector3.lua test_vector4.lua test_quat.lua')
+                                     source = 'test_script_vec_math.cpp test_vector3.lua test_vector4.lua test_point3.lua test_quat.lua')
 
     test_script_vec_math.install_path = None

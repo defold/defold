@@ -138,6 +138,47 @@ TEST_F(ScriptVecMathTest, TestVector4Fail)
     ASSERT_FALSE(RunString(L, "local v = vec_math.vector4(0,0,0,0)\nv.X = 1"));
 }
 
+TEST_F(ScriptVecMathTest, TestPoint33Fail)
+{
+    // constructor
+    ASSERT_FALSE(RunString(L, "local v = vec_math.point3(0,0)"));
+    // index
+    ASSERT_FALSE(RunString(L, "local v = vec_math.point3(0,0,0)\nlocal a = v.X"));
+    // new index
+    ASSERT_FALSE(RunString(L, "local v = vec_math.point3(0,0,0)\nv.X = 1"));
+    // add
+    ASSERT_FALSE(RunString(L, "local v = vec_math.point3(0,0,0)\nlocal v2 = v + 1"));
+    // add
+    ASSERT_FALSE(RunString(L, "local v = vec_math.point3(0,0,0)\nlocal v2 = v - 1"));
+    // mul
+    ASSERT_FALSE(RunString(L, "local v = vec_math.point3(0,0,0)\nlocal v2 = v * \"hej\""));
+    // Dot
+    ASSERT_FALSE(RunString(L, "local s = vec_math.dot(vec_math.point3(0,0,0))"));
+    ASSERT_FALSE(RunString(L, "local s = vec_math.dot(vec_math.point3(0,0,0), 1)"));
+    ASSERT_FALSE(RunString(L, "local s = vec_math.dot(vec_math.point3(0,0,0), vec_math.point3(0,0,0))"));
+    ASSERT_FALSE(RunString(L, "local s = vec_math.cross(vec_math.point3(1,0,0), vec_math.point3(0,1,0))"));
+    // Lerp
+    ASSERT_FALSE(RunString(L, "local v = vec_math.lerp(0, vec_math.point3(0,0,0), vec_math.point3(0,0,0))"));
+    // Slerp
+    ASSERT_FALSE(RunString(L, "local v = vec_math.slerp(0, vec_math.point3(0,0,0), vec_math.point3(0,0,0))"));
+}
+
+TEST_F(ScriptVecMathTest, TestPoint3)
+{
+    int top = lua_gettop(L);
+    Vectormath::Aos::Point3 v(1.0f, 2.0f, 3.0f);
+    dmScript::PushPoint3(L, v);
+    Vectormath::Aos::Point3* vp = dmScript::CheckPoint3(L, -1);
+    ASSERT_NE((void*)0x0, vp);
+    ASSERT_EQ(v.getX(), vp->getX());
+    ASSERT_EQ(v.getY(), vp->getY());
+    ASSERT_EQ(v.getZ(), vp->getZ());
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_TRUE(RunFile(L, "test_point3.luac"));
+}
+
 TEST_F(ScriptVecMathTest, TestQuat)
 {
     int top = lua_gettop(L);
