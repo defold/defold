@@ -579,6 +579,11 @@ namespace dmGameObject
             lua_pop(L, 1);
         }
 bail:
+        for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
+        {
+            lua_pushnil(L);
+            lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
+        }
         assert(top == lua_gettop(L));
         return result;
     }
