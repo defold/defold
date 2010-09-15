@@ -53,6 +53,14 @@ namespace dmScript
     uint32_t CheckHash(lua_State* L, int index);
 
     /**
+     * Check is the value at #index is a vector3
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true is value at #index is a vector3
+     */
+    bool IsVector3(lua_State *L, int index);
+
+    /**
      * Push a Vector3 value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param v Vector3 value to push
@@ -68,6 +76,14 @@ namespace dmScript
     Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
 
     /**
+     * Check is the value at #index is a vector4
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true is value at #index is a vector4
+     */
+    bool IsVector4(lua_State *L, int index);
+
+    /**
      * Push a Vector4 value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param v Vector4 value to push
@@ -81,6 +97,14 @@ namespace dmScript
      * @return The Vector4 value
      */
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
+
+    /**
+     * Check is the value at #index is a point3
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true is value at #index is a point3
+     */
+    bool IsPoint3(lua_State *L, int index);
 
     /**
      * Push a Point3 value onto the supplied lua state, will increase the stack by 1.

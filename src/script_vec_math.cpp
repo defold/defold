@@ -18,9 +18,7 @@ namespace dmScript
 #define TYPE_NAME_POINT3 "point3"
 #define TYPE_NAME_QUAT "quat"
 
-    static bool Point3_is(lua_State *L, int index);
-
-    static bool Vector3_is(lua_State *L, int index)
+    bool IsVector3(lua_State *L, int index)
     {
         void *p = lua_touserdata(L, index);
         bool result = false;
@@ -107,7 +105,7 @@ namespace dmScript
 
     static int Vector3_add(lua_State *L)
     {
-        if (Point3_is(L,2))
+        if (IsPoint3(L,2))
         {
             Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
             Vectormath::Aos::Point3* v2 = CheckPoint3(L, 2);
@@ -161,6 +159,25 @@ namespace dmScript
         {"__unm", Vector3_unm},
         {0,0}
     };
+
+    bool IsVector4(lua_State *L, int index)
+    {
+        void *p = lua_touserdata(L, index);
+        bool result = false;
+        if (p != 0x0)
+        {  /* value is a userdata? */
+            if (lua_getmetatable(L, index))
+            {  /* does it have a metatable? */
+                lua_getfield(L, LUA_REGISTRYINDEX, TYPE_NAME_VECTOR4);  /* get correct metatable */
+                if (lua_rawequal(L, -1, -2))
+                {  /* does it have the correct mt? */
+                    result = true;
+                }
+                lua_pop(L, 2);  /* remove both metatables */
+            }
+        }
+        return result;
+    }
 
     static int Vector4_gc(lua_State *L)
     {
@@ -250,7 +267,7 @@ namespace dmScript
         {0,0}
     };
 
-    static bool Point3_is(lua_State *L, int index)
+    bool IsPoint3(lua_State *L, int index)
     {
         void *p = lua_touserdata(L, index);
         bool result = false;
@@ -467,7 +484,7 @@ namespace dmScript
     static int Vector3_new(lua_State* L)
     {
         Vectormath::Aos::Vector3 v;
-        if (Point3_is(L, 1))
+        if (IsPoint3(L, 1))
         {
             Vectormath::Aos::Point3* p = CheckPoint3(L, 1);
             v = Vectormath::Aos::Vector3(*p);
@@ -604,7 +621,7 @@ namespace dmScript
     static int Lerp(lua_State* L)
     {
         float t = luaL_checknumber(L, 1);
-        if (Vector3_is(L, 2) && Vector3_is(L, 3))
+        if (IsVector3(L, 2) && IsVector3(L, 3))
         {
             Vectormath::Aos::Vector3* v1 = (Vectormath::Aos::Vector3*)luaL_checkudata(L, 2, TYPE_NAME_VECTOR3);
             Vectormath::Aos::Vector3* v2 = (Vectormath::Aos::Vector3*)luaL_checkudata(L, 3, TYPE_NAME_VECTOR3);
@@ -624,7 +641,7 @@ namespace dmScript
     static int Slerp(lua_State* L)
     {
         float t = luaL_checknumber(L, 1);
-        if (Vector3_is(L, 2) && Vector3_is(L, 3))
+        if (IsVector3(L, 2) && IsVector3(L, 3))
         {
             Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
             Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
