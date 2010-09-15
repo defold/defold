@@ -322,7 +322,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function init(self)\n"
                     // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
-                    "animate(get_node(\"n\"), POSITION, {1,0,0,0}, EASING_NONE, 1, 0.5 + 0.001)\n"
+                    "animate(get_node(\"n\"), POSITION, vec_math.vector4(1,0,0,0), EASING_NONE, 1, 0.5 + 0.001)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -362,10 +362,10 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function cb(node)\n"
-                    "animate(node, POSITION, {2,0,0,0}, EASING_NONE, 0.5, 0)\n"
+                    "animate(node, POSITION, vec_math.vector4(2,0,0,0), EASING_NONE, 0.5, 0)\n"
                     "end\n;"
                     "function init(self)\n"
-                    "animate(get_node(\"n\"), POSITION, {1,0,0,0}, EASING_NONE, 1, 0, cb)\n"
+                    "animate(get_node(\"n\"), POSITION, vec_math.vector4(1,0,0,0), EASING_NONE, 1, 0, cb)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -489,8 +489,8 @@ TEST_F(dmGuiTest, ScriptEqNode)
 TEST_F(dmGuiTest, ScriptNewNode)
 {
     const char* s = "function init(self)\n"
-                    "    self.n1 = new_box_node({0,0,0}, {1,1,1})"
-                    "    self.n2 = new_text_node({0,0,0}, \"My Node\")"
+                    "    self.n1 = new_box_node(vec_math.vector3(0,0,0), vec_math.vector3(1,1,1))"
+                    "    self.n2 = new_text_node(vec_math.vector3(0,0,0), \"My Node\")"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -564,15 +564,15 @@ TEST_F(dmGuiTest, NodeProperties)
     dmGui::SetNodeName(scene, node, "n");
     const char* s = "function init(self)\n"
                     "self.n = get_node(\"n\")\n"
-                    "set_position(self.n, {1,2,3})\n"
+                    "set_position(self.n, vec_math.vector4(1,2,3,0))\n"
                     "self.n.text = \"test\"\n"
                     "self.n.text = \"flipper\"\n"
                     "end\n"
                     "function update(self) "
                     "local pos = get_position(self.n)\n"
-                    "assert(pos[1] == 1)\n"
-                    "assert(pos[2] == 2)\n"
-                    "assert(pos[3] == 3)\n"
+                    "assert(pos.x == 1)\n"
+                    "assert(pos.y == 2)\n"
+                    "assert(pos.z == 3)\n"
                     "assert(self.n.text == \"flipper\")\n"
                     "end";
     dmGui::Result r;

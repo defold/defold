@@ -4,7 +4,7 @@ from TaskGen import extension, declare_extension
 def build(bld):
     test_gui = bld.new_task_gen(features = 'cxx cprogram',
                                 includes = '../../../src',
-                                uselib = 'GTEST DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'GTEST DLIB PLATFORM_SOCKET LUA SCRIPT',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
                                 source = 'test_gui.cpp')
@@ -13,7 +13,7 @@ def build(bld):
 
     guidemo = bld.new_task_gen(features = 'cxx cprogram',
                                includes = '../../../src',
-                               uselib = 'DLIB PLATFORM_SOCKET LUA DMGLFW',
+                               uselib = 'DLIB PLATFORM_SOCKET LUA SCRIPT DMGLFW',
                                uselib_local = 'gui',
                                target = 'guidemo',
                                source = 'guidemo.cpp')

@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <script/script.h>
 
 extern "C"
 {
@@ -96,78 +97,6 @@ namespace dmGui
 
     // Lua API
     #define NODEPROXY "NodeProxy"
-
-    Vector4 CheckVector4(lua_State* L, int index)
-    {
-        luaL_checktype(L, index, LUA_TTABLE);
-
-        lua_getfield(L, index, "X");
-        lua_pop(L, 1);
-        lua_rawgeti(L, index, 1);
-        lua_rawgeti(L, index, 2);
-        lua_rawgeti(L, index, 3);
-        lua_rawgeti(L, index, 4);
-
-        float x = luaL_checknumber(L, -4);
-        float y = luaL_checknumber(L, -3);
-        float z = luaL_checknumber(L, -2);
-        float w = 0.0f;
-        if (lua_isnumber(L, -1))
-            w = lua_tonumber(L, -1);
-
-        lua_pop(L, 4);
-
-        return Vector4(x, y, z, w);
-    }
-
-    Vector3 CheckVector3(lua_State* L, int index)
-    {
-        luaL_checktype(L, index, LUA_TTABLE);
-
-        lua_getfield(L, index, "X");
-        lua_pop(L, 1);
-        lua_rawgeti(L, index, 1);
-        lua_rawgeti(L, index, 2);
-        lua_rawgeti(L, index, 3);
-
-        float x = luaL_checknumber(L, -3);
-        float y = luaL_checknumber(L, -2);
-        float z = luaL_checknumber(L, -1);
-        lua_pop(L, 3);
-
-        return Vector3(x, y, z);
-    }
-
-    void PushVector3(lua_State* L, const Vector4& vec)
-    {
-        lua_newtable(L);
-
-        lua_pushnumber(L, vec.getX());
-        lua_rawseti(L, -2, 1);
-
-        lua_pushnumber(L, vec.getY());
-        lua_rawseti(L, -2, 2);
-
-        lua_pushnumber(L, vec.getZ());
-        lua_rawseti(L, -2, 3);
-    }
-
-    void PushVector4(lua_State* L, const Vector4& vec)
-    {
-        lua_newtable(L);
-
-        lua_pushnumber(L, vec.getX());
-        lua_rawseti(L, -2, 1);
-
-        lua_pushnumber(L, vec.getY());
-        lua_rawseti(L, -2, 2);
-
-        lua_pushnumber(L, vec.getZ());
-        lua_rawseti(L, -2, 3);
-
-        lua_pushnumber(L, vec.getW());
-        lua_rawseti(L, -2, 4);
-    }
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
@@ -294,7 +223,11 @@ namespace dmGui
         (void) node;
 
         int property = (int) luaL_checknumber(L, 2);
-        Vector4 to = CheckVector4(L, 3);
+        Vector4 to;
+        if (dmScript::IsVector3(L, 3))
+            to = Vector4(*dmScript::CheckVector3(L, 3));
+        else
+            to = *dmScript::CheckVector4(L, 3);
         int easing = (int) luaL_checknumber(L, 4);
         lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
@@ -375,14 +308,14 @@ namespace dmGui
 
     static int LuaNewBoxNode(lua_State* L)
     {
-        Vector3 pos = CheckVector3(L, 1);
-        Vector3 ext = CheckVector3(L, 2);
+        Vector3 pos = *dmScript::CheckVector3(L, 1);
+        Vector3 ext = *dmScript::CheckVector3(L, 2);
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_BOX, 0);
     }
 
     static int LuaNewTextNode(lua_State* L)
     {
-        Vector3 pos = CheckVector3(L, 1);
+        Vector3 pos = *dmScript::CheckVector3(L, 1);
         Vector3 ext = Vector3(1,1,1);
         const char* text = luaL_checkstring(L, 2);
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
@@ -392,14 +325,18 @@ namespace dmGui
     int LuaGet##name(lua_State* L)\
     {\
         InternalNode* n = LuaCheckNode(L, 1, 0);\
-        PushVector3(L, n->m_Node.m_Properties[property]);\
+        dmScript::PushVector4(L, n->m_Node.m_Properties[property]);\
         return 1;\
     }\
 \
     int LuaSet##name(lua_State* L)\
     {\
         InternalNode* n = LuaCheckNode(L, 1, 0);\
-        Vector4 pos = CheckVector4(L, 2);\
+        Vector4 pos;\
+        if (dmScript::IsVector3(L, 2))\
+            pos = Vector4(*dmScript::CheckVector3(L, 2));\
+        else\
+            pos = *dmScript::CheckVector4(L, 2);\
         n->m_Node.m_Properties[property] = pos;\
         return 0;\
     }\
@@ -541,6 +478,8 @@ namespace dmGui
         Gui* gui = new Gui();
         gui->m_LuaState = lua_open();
         lua_State *L = gui->m_LuaState;
+
+        dmScript::Initialize(L);
 
         luaL_openlib(L, NODEPROXY, NodeProxy_methods, 0);   // create methods table, add it to the globals
         luaL_newmetatable(L, NODEPROXY);                         // create metatable for Image, add it to the Lua registry
