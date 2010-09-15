@@ -661,27 +661,28 @@ bail:
 
     ScriptResult RunScript(HCollection collection, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const UpdateContext* update_context)
     {
-        ScriptResult result;
-
         DM_PROFILE(Script, "RunScript");
-        lua_State* L = g_LuaState;
-        int top = lua_gettop(L);
-        (void) top;
 
-        lua_pushliteral(L, "__collection__");
-        lua_pushlightuserdata(L, (void*) collection);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "__update_context__");
-        lua_pushlightuserdata(L, (void*) update_context);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "__instance__");
-        lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        ScriptResult result = SCRIPT_RESULT_OK;
 
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
+            lua_State* L = g_LuaState;
+            int top = lua_gettop(L);
+            (void) top;
+
+            lua_pushliteral(L, "__collection__");
+            lua_pushlightuserdata(L, (void*) collection);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__update_context__");
+            lua_pushlightuserdata(L, (void*) update_context);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__instance__");
+            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             int ret = lua_pcall(L, 1, LUA_MULTRET, 0);
@@ -691,25 +692,21 @@ bail:
                 lua_pop(L, 1);
                 result = SCRIPT_RESULT_FAILED;
             }
-            else
-            {
-                result = SCRIPT_RESULT_OK;
-            }
+
+            lua_pushliteral(L, "__collection__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__update_context__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__instance__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            assert(top == lua_gettop(L));
         }
-
-        lua_pushliteral(L, "__collection__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "__update_context__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "__instance__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        assert(top == lua_gettop(L));
 
         return result;
     }
