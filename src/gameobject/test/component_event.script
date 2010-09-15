@@ -1,11 +1,3 @@
-function init(self)
-end
-
-function update(self)
-end
-
 function on_event(self, event_hash, event)
     assert(event_hash == hash("test_event"), "Unknown event")
 end
-
-functions = { init = init, update = update, on_event = on_event }

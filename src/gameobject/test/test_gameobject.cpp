@@ -908,6 +908,13 @@ TEST_F(GameObjectTest, TestFailingScript03)
     dmGameObject::Delete(collection, go);
 }
 
+TEST_F(GameObjectTest, TestFailingScript04)
+{
+    // Test update failure
+    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto04.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
+}
+
 TEST_F(GameObjectTest, Collection)
 {
     for (int i = 0; i < 10; ++i)

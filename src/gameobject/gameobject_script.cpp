@@ -27,10 +27,13 @@ namespace dmGameObject
 {
     #define SCRIPTINSTANCE "ScriptInstance"
 
-#define FUNC_NAME_INIT "init"
-#define FUNC_NAME_UPDATE "update"
-#define FUNC_NAME_ON_EVENT "on_event"
-#define FUNC_NAME_ON_INPUT "on_input"
+    const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT] =
+    {
+            "init",
+            "update",
+            "on_event",
+            "on_input"
+    };
 
     lua_State* g_LuaState = 0;
 
@@ -522,58 +525,73 @@ namespace dmGameObject
         }
     }
 
-    static int LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename)
+    static bool LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, Script* script)
     {
+        for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
+            script->m_FunctionReferences[i] = LUA_NOREF;
+
+        bool result = false;
         int top = lua_gettop(L);
         (void) top;
-
-        int functions;
 
         LuaData data;
         data.m_Buffer = (const char*)buffer;
         data.m_Size = buffer_size;
         int ret = lua_load(L, &ReadScript, &data, filename);
-        if (ret != 0)
+        if (ret == 0)
+        {
+            ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+            if (ret == 0)
+            {
+                for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
+                {
+                    lua_getglobal(L, SCRIPT_FUNCTION_NAMES[i]);
+                    if (lua_isnil(L, -1) == 0)
+                    {
+                        if (lua_type(L, -1) == LUA_TFUNCTION)
+                        {
+                            script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
+                        }
+                        else
+                        {
+                            dmLogError("The global name '%s' in '%s' must be a function.", SCRIPT_FUNCTION_NAMES[i], filename);
+                            lua_pop(L, 1);
+                            goto bail;
+                        }
+                    }
+                    else
+                    {
+                        script->m_FunctionReferences[i] = LUA_NOREF;
+                        lua_pop(L, 1);
+                    }
+                }
+                result = true;
+            }
+            else
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+            }
+        }
+        else
         {
             dmLogError("Error running script: %s", lua_tostring(L,-1));
             lua_pop(L, 1);
-            goto bail;
         }
-
-        ret = lua_pcall(L, 0, LUA_MULTRET, 0);
-        if (ret != 0)
-        {
-            dmLogError("Error running script: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-            goto bail;
-        }
-
-        lua_getglobal(L, "functions");
-        if (lua_type(L, -1) != LUA_TTABLE)
-        {
-            dmLogError("No function table found in script: %s", filename);
-            lua_pop(L, 1);
-            goto bail;
-        }
-
-        functions = luaL_ref( L, LUA_REGISTRYINDEX );
-        assert(top == lua_gettop(L));
-
-        return functions;
 bail:
         assert(top == lua_gettop(L));
-        return -1;
+        return result;
     }
 
     HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename)
     {
         lua_State* L = g_LuaState;
 
-        int functions = LoadScript(L, buffer, buffer_size, filename);
-        if (functions != -1)
+        Script temp_script;
+        if (LoadScript(L, buffer, buffer_size, filename, &temp_script))
         {
             HScript script = new Script();
-            script->m_FunctionsReference = functions;
+            *script = temp_script;
             return script;
         }
         else
@@ -584,24 +602,17 @@ bail:
 
     bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
     {
-        lua_State* L = g_LuaState;
-
-        int functions = LoadScript(L, buffer, buffer_size, filename);
-        if (functions != -1)
-        {
-            script->m_FunctionsReference = functions;
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return LoadScript(g_LuaState, buffer, buffer_size, filename, script);
     }
 
     void DeleteScript(HScript script)
     {
         lua_State* L = g_LuaState;
-        luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
+        for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
+        {
+            if (script->m_FunctionReferences[i])
+                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+        }
         delete script;
     }
 
@@ -648,7 +659,7 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-    ScriptResult RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context)
+    ScriptResult RunScript(HCollection collection, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const UpdateContext* update_context)
     {
         ScriptResult result;
 
@@ -656,7 +667,6 @@ bail:
         lua_State* L = g_LuaState;
         int top = lua_gettop(L);
         (void) top;
-        int ret;
 
         lua_pushliteral(L, "__collection__");
         lua_pushlightuserdata(L, (void*) collection);
@@ -670,27 +680,19 @@ bail:
         lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionsReference);
-
-        lua_getfield(L, -1, function_name);
-        if (lua_type(L, -1) != LUA_TFUNCTION)
+        if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
-            lua_pop(L, 2);
-            result = SCRIPT_RESULT_NO_FUNCTION;
-        }
-        else
-        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            ret = lua_pcall(L, 1, LUA_MULTRET, 0);
+            int ret = lua_pcall(L, 1, LUA_MULTRET, 0);
             if (ret != 0)
             {
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 2);
+                lua_pop(L, 1);
                 result = SCRIPT_RESULT_FAILED;
             }
             else
             {
-                lua_pop(L, 1);
                 result = SCRIPT_RESULT_OK;
             }
         }
@@ -811,7 +813,7 @@ bail:
     {
         Prototype* proto = instance->m_Prototype;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
-        ScriptResult ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_INIT, script_instance, 0x0);
+        ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, 0x0);
         if (ret == SCRIPT_RESULT_FAILED)
         {
             dmLogError("The script for prototype %s failed to run.", proto->m_Name);
@@ -856,7 +858,7 @@ bail:
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
             Prototype* proto = script_instance->m_Instance->m_Prototype;
-            ScriptResult ret = RunScript(collection, script_instance->m_Script, FUNC_NAME_UPDATE, script_instance, update_context);
+            ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, update_context);
             if (ret == SCRIPT_RESULT_FAILED)
             {
                 dmLogError("The script for prototype %s failed to run.", proto->m_Name);
@@ -876,34 +878,23 @@ bail:
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
         assert(script_event_data->m_Instance);
 
-        lua_State* L = g_LuaState;
-        int top = lua_gettop(L);
-        (void) top;
-        int ret;
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
-        if (lua_type(L, -1) != LUA_TTABLE)
+        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONEVENT];
+        if (function_ref != LUA_NOREF)
         {
-            dmLogError("Invalid 'SenderFunctionsReference' (%d) in event", script_instance->m_Script->m_FunctionsReference);
-            return UPDATE_RESULT_UNKNOWN_ERROR;
-        }
+            lua_State* L = g_LuaState;
+            int top = lua_gettop(L);
+            (void) top;
+            int ret;
 
-        lua_pushliteral(L, "__collection__");
-        lua_pushlightuserdata(L, (void*) instance->m_Collection);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_pushliteral(L, "__collection__");
+            lua_pushlightuserdata(L, (void*) instance->m_Collection);
+            lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "__instance__");
-        lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_pushliteral(L, "__instance__");
+            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
 
-        const char* function_name = FUNC_NAME_ON_EVENT;
-        lua_getfield(L, -1, function_name);
-        if (lua_type(L, -1) != LUA_TFUNCTION)
-        {
-            lua_pop(L, 2);
-        }
-        else
-        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             dmScript::PushHash(L, script_event_data->m_EventHash);
@@ -938,22 +929,17 @@ bail:
                 lua_pop(L, 2);
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
-            else
-            {
-                lua_pop(L, 1);
-            }
+
+            lua_pushliteral(L, "__collection__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__instance__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            assert(top == lua_gettop(L));
         }
-
-        lua_pushliteral(L, "__collection__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "__instance__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        assert(top == lua_gettop(L));
-
         return result;
     }
 
@@ -966,33 +952,22 @@ bail:
 
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
 
-        lua_State* L = g_LuaState;
-        int top = lua_gettop(L);
-        int ret;
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_Script->m_FunctionsReference);
-        if (lua_type(L, -1) != LUA_TTABLE)
+        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONINPUT];
+        if (function_ref != LUA_NOREF)
         {
-            dmLogError("Invalid 'SenderFunctionsReference' (%d) in OnInput.", script_instance->m_Script->m_FunctionsReference);
-            return INPUT_RESULT_UNKNOWN_ERROR;
-        }
+            lua_State* L = g_LuaState;
+            int top = lua_gettop(L);
+            (void)top;
 
-        lua_pushliteral(L, "__collection__");
-        lua_pushlightuserdata(L, (void*) instance->m_Collection);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_pushliteral(L, "__collection__");
+            lua_pushlightuserdata(L, (void*) instance->m_Collection);
+            lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "__instance__");
-        lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_pushliteral(L, "__instance__");
+            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
 
-        const char* function_name = FUNC_NAME_ON_INPUT;
-        lua_getfield(L, -1, function_name);
-        if (lua_type(L, -1) != LUA_TFUNCTION)
-        {
-            lua_pop(L, 2);
-        }
-        else
-        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             lua_createtable(L, 0, 5);
@@ -1020,7 +995,8 @@ bail:
             lua_settable(L, action_table);
 
             int input_ret = lua_gettop(L) - 2;
-            ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+            int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+            const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
             {
                 dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
@@ -1043,22 +1019,17 @@ bail:
                         result = INPUT_RESULT_CONSUMED;
                 }
             }
-            else
-            {
-                lua_pop(L, 1);
-            }
+
+            lua_pushliteral(L, "__collection__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__instance__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            assert(top == lua_gettop(L));
         }
-
-        lua_pushliteral(L, "__collection__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "__instance__");
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        assert(top == lua_gettop(L));
-
         return result;
     }
 }

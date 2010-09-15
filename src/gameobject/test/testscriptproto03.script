@@ -1,9 +1,3 @@
-function init(self)
-end
-
 function update(self)
 	assert(false)
 end
-
-functions = { init = init, update = update }
-

@@ -42,5 +42,3 @@ function on_input(self, action)
     assert(self.dt == nil, "dt exists in init")
     assert(action.id == hash("test_action"), "on_input action id mismatch")
 end
-
-functions = { init = init, update = update, on_event = on_event, on_input = on_input }

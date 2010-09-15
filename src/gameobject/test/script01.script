@@ -1,7 +1,0 @@
-function init(self)
-end
-
-function update(self)
-end
-
-functions = { init = init, update = update }

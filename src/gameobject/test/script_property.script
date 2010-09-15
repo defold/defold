@@ -9,9 +9,3 @@ function update(self)
     assert(self.my_float_prop == 1.0)
     assert(self.my_string_prop == "a string prop")
 end
-
-function on_event(self, event_hash, event)
-end
-
-functions = { init = init, update = update, on_event = on_event }
-

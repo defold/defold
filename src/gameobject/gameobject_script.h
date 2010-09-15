@@ -23,9 +23,20 @@ namespace dmGameObject
         SCRIPT_RESULT_OK = 1
     };
 
+    enum ScriptFunction
+    {
+        SCRIPT_FUNCTION_INIT,
+        SCRIPT_FUNCTION_UPDATE,
+        SCRIPT_FUNCTION_ONEVENT,
+        SCRIPT_FUNCTION_ONINPUT,
+        MAX_SCRIPT_FUNCTION_COUNT
+    };
+
+    extern const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT];
+
     struct Script
     {
-        int m_FunctionsReference;
+        int m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
     };
     typedef Script* HScript;
 
