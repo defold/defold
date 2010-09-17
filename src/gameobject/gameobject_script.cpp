@@ -361,42 +361,42 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        const char* type_name = luaL_checkstring(L, 1);
-        luaL_checktype(L, 2, LUA_TTABLE);
-
-        uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
-        const dmDDF::Descriptor** d_tmp = g_Descriptors->Get(h);
-        if (d_tmp == 0)
-        {
-            luaL_error(L, "Unknown ddf type: %s", type_name);
-        }
-        const dmDDF::Descriptor* d = *d_tmp;
-
-        uint32_t size = sizeof(ScriptEventData) + d->m_Size;
-        if (size > SCRIPT_EVENT_MAX)
-        {
-            luaL_error(L, "sizeof(%s) > %d", type_name, d->m_Size);
-        }
+        const char* event_name = luaL_checkstring(L, 1);
 
         char buf[SCRIPT_EVENT_MAX];
         ScriptEventData* script_event_data = (ScriptEventData*) buf;
-        script_event_data->m_DDFDescriptor = d;
+        script_event_data->m_EventHash = dmHashString32(event_name);
+        script_event_data->m_DDFDescriptor = 0x0;
+
+        if (top > 1)
+        {
+            const dmDDF::Descriptor** desc = g_Descriptors->Get(dmHashString64(event_name));
+            if (desc == 0)
+            {
+                luaL_error(L, "Unknown ddf type: %s", event_name);
+            }
+            script_event_data->m_DDFDescriptor = *desc;
+
+            uint32_t size = sizeof(ScriptEventData) + script_event_data->m_DDFDescriptor->m_Size;
+            if (size > SCRIPT_EVENT_MAX)
+            {
+                luaL_error(L, "sizeof(%s) > %d", event_name, script_event_data->m_DDFDescriptor->m_Size);
+            }
+            char* p = buf + sizeof(ScriptEventData);
+            dmScript::CheckDDF(L, script_event_data->m_DDFDescriptor, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData), -1);
+        }
 
         lua_pushstring(L, "__instance__");
         lua_rawget(L, LUA_GLOBALSINDEX);
         script_event_data->m_Instance = (HInstance) lua_touserdata(L, -1);
         assert(script_event_data->m_Instance);
+        script_event_data->m_Component = 0xff;
         lua_pop(L, 1);
 
         lua_pushstring(L, "__collection__");
         lua_rawget(L, LUA_GLOBALSINDEX);
         HCollection collection = (HCollection)lua_touserdata(L, -1);
         assert(collection);
-        lua_pop(L, 1);
-
-        char* p = buf + sizeof(ScriptEventData);
-        lua_pushvalue(L, 2);
-        dmScript::CheckDDF(L, d, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData), -1);
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
