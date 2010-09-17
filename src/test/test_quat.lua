@@ -7,6 +7,13 @@ assert(q.y == 2, "q.y is not 2")
 assert(q.z == 3, "q.z is not 3")
 assert(q.w == 4, "q.w is not 4")
 
+-- copy constructor
+local q1 = vec_math.quat(q)
+-- equals
+assert(q == q1, "q != q1")
+-- concat
+print("q: " .. q)
+
 -- new index
 q.x = 5
 q.y = 6

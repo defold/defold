@@ -6,6 +6,13 @@ assert(v.x == 1, "v.x is not 1")
 assert(v.y == 2, "v.y is not 2")
 assert(v.z == 3, "v.z is not 3")
 
+-- copy constructor
+local v1 = vec_math.vector3(v)
+-- equals
+assert(v == v1, "v != v1")
+-- concat
+print("v: " .. v)
+
 -- new index
 v.x = 4
 v.y = 5

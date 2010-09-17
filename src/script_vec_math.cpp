@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/dstrings.h>
+
 extern "C"
 {
 #include <lua/lauxlib.h>
@@ -143,6 +145,26 @@ namespace dmScript
         return 1;
     }
 
+    static int Vector3_concat(lua_State *L)
+    {
+        const char* s = luaL_checkstring(L, 1);
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
+        size_t size = 32 + strlen(s);
+        char* buffer = new char[size];
+        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f]", s, v->getX(), v->getY(), v->getZ());
+        lua_pushstring(L, buffer);
+        delete [] buffer;
+        return 1;
+    }
+
+    static int Vector3_eq(lua_State *L)
+    {
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        lua_pushboolean(L, v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ());
+        return 1;
+    }
+
     static const luaL_reg Vector3_methods[] =
     {
         {0,0}
@@ -157,6 +179,8 @@ namespace dmScript
         {"__sub", Vector3_sub},
         {"__mul", Vector3_mul},
         {"__unm", Vector3_unm},
+        {"__concat", Vector3_concat},
+        {"__eq", Vector3_eq},
         {0,0}
     };
 
@@ -254,6 +278,26 @@ namespace dmScript
         return 0;
     }
 
+    static int Vector4_concat(lua_State *L)
+    {
+        const char* s = luaL_checkstring(L, 1);
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
+        size_t size = 48 + strlen(s);
+        char* buffer = new char[size];
+        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, v->getX(), v->getY(), v->getZ(), v->getW());
+        lua_pushstring(L, buffer);
+        delete [] buffer;
+        return 1;
+    }
+
+    static int Vector4_eq(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+        lua_pushboolean(L, v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ() && v1->getW() == v2->getW());
+        return 1;
+    }
+
     static const luaL_reg Vector4_methods[] =
     {
         {0,0}
@@ -264,6 +308,8 @@ namespace dmScript
         {"__tostring",  Vector4_tostring},
         {"__index",     Vector4_index},
         {"__newindex",  Vector4_newindex},
+        {"__concat",    Vector4_concat},
+        {"__eq",        Vector4_eq},
         {0,0}
     };
 
@@ -467,6 +513,26 @@ namespace dmScript
         return 1;
     }
 
+    static int Quat_concat(lua_State *L)
+    {
+        const char* s = luaL_checkstring(L, 1);
+        Vectormath::Aos::Quat* q = CheckQuat(L, 2);
+        size_t size = 48 + strlen(s);
+        char* buffer = new char[size];
+        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, q->getX(), q->getY(), q->getZ(), q->getW());
+        lua_pushstring(L, buffer);
+        delete [] buffer;
+        return 1;
+    }
+
+    static int Quat_eq(lua_State *L)
+    {
+        Vectormath::Aos::Quat* q1 = CheckQuat(L, 1);
+        Vectormath::Aos::Quat* q2 = CheckQuat(L, 2);
+        lua_pushboolean(L, q1->getX() == q2->getX() && q1->getY() == q2->getY() && q1->getZ() == q2->getZ() && q1->getW() == q2->getW());
+        return 1;
+    }
+
     static const luaL_reg Quat_methods[] =
     {
         {0,0}
@@ -478,16 +544,25 @@ namespace dmScript
         {"__index",     Quat_index},
         {"__newindex",  Quat_newindex},
         {"__mul",       Quat_mul},
+        {"__concat",    Quat_concat},
+        {"__eq",        Quat_eq},
         {0,0}
     };
 
     static int Vector3_new(lua_State* L)
     {
         Vectormath::Aos::Vector3 v;
-        if (IsPoint3(L, 1))
+        if (lua_gettop(L) == 1)
         {
-            Vectormath::Aos::Point3* p = CheckPoint3(L, 1);
-            v = Vectormath::Aos::Vector3(*p);
+            if (IsPoint3(L, 1))
+            {
+                Vectormath::Aos::Point3* p = CheckPoint3(L, 1);
+                v = Vectormath::Aos::Vector3(*p);
+            }
+            else
+            {
+                v = *CheckVector3(L, -1);
+            }
         }
         else
         {
@@ -502,10 +577,17 @@ namespace dmScript
     static int Vector4_new(lua_State* L)
     {
         Vectormath::Aos::Vector4 v;
-        v.setX(luaL_checknumber(L, 1));
-        v.setY(luaL_checknumber(L, 2));
-        v.setZ(luaL_checknumber(L, 3));
-        v.setW(luaL_checknumber(L, 4));
+        if (lua_gettop(L) == 1)
+        {
+            v = *CheckVector4(L, -1);
+        }
+        else
+        {
+            v.setX(luaL_checknumber(L, 1));
+            v.setY(luaL_checknumber(L, 2));
+            v.setZ(luaL_checknumber(L, 3));
+            v.setW(luaL_checknumber(L, 4));
+        }
         PushVector4(L, v);
         return 1;
     }
@@ -523,10 +605,17 @@ namespace dmScript
     static int Quat_new(lua_State* L)
     {
         Vectormath::Aos::Quat q;
-        q.setX(luaL_checknumber(L, 1));
-        q.setY(luaL_checknumber(L, 2));
-        q.setZ(luaL_checknumber(L, 3));
-        q.setW(luaL_checknumber(L, 4));
+        if (lua_gettop(L) == 1)
+        {
+            q = *CheckQuat(L, -1);
+        }
+        else
+        {
+            q.setX(luaL_checknumber(L, 1));
+            q.setY(luaL_checknumber(L, 2));
+            q.setZ(luaL_checknumber(L, 3));
+            q.setW(luaL_checknumber(L, 4));
+        }
         PushQuat(L, q);
         return 1;
     }
