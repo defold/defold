@@ -74,6 +74,9 @@ def configure(conf):
     conf.env['STATICLIB_GRAPHICS'] = 'graphics_null'
     conf.env['STATICLIB_DLIB'] = 'dlib'
 
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
+
 def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
