@@ -13,6 +13,12 @@ message SubMsg
     required uint32 UintValue = 1;
 }
 
+enum Enum
+{
+    ENUM_VAL0 = 0;
+    ENUM_VAL1 = 1;
+}
+
 message Msg
 {
     required uint32 UintValue = 1;
@@ -21,6 +27,7 @@ message Msg
     required dmMath.Vector3 Vec3Value = 4;
     required dmMath.Vector4 Vec4Value = 5;
     required SubMsg SubMsgValue = 6;
+    required Enum EnumValue = 7;
 }
 
 message LuaDDFBufferOverflow

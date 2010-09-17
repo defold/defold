@@ -119,6 +119,9 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     lua_setfield(L, -2, "sub_msg_value");
 
+    lua_pushinteger(L, 1);
+    lua_setfield(L, -2, "enum_value");
+
     char* buf = new char[1024];
 
     dmScript::CheckDDF(L, TestScript::Msg::m_DDFDescriptor, buf, 1024, -1);
@@ -138,6 +141,7 @@ TEST(LuaTableToDDF, MessageInMessage)
     ASSERT_EQ(3.0f, msg->m_Vec4Value.getZ());
     ASSERT_EQ(4.0f, msg->m_Vec4Value.getW());
     ASSERT_EQ(1U, msg->m_SubMsgValue.m_UintValue);
+    ASSERT_EQ(TestScript::ENUM_VAL1, msg->m_EnumValue);
 
     delete[] buf;
 
@@ -168,6 +172,7 @@ TEST(DDFToLuaTable, MessageInMessage)
     g->m_Vec4Value.setZ(3.0f);
     g->m_Vec4Value.setW(4.0f);
     g->m_SubMsgValue.m_UintValue = 1;
+    g->m_EnumValue = TestScript::ENUM_VAL1;
 
     dmScript::PushDDF(L, TestScript::Msg::m_DDFDescriptor, (const char*) g);
 
@@ -195,6 +200,8 @@ TEST(DDFToLuaTable, MessageInMessage)
     lua_getfield(L, -1, "sub_msg_value");
     lua_getfield(L, -1, "uint_value"); ASSERT_EQ(1, luaL_checkint(L, -1)); lua_pop(L, 1);
     lua_pop(L, 1);
+
+    lua_getfield(L, -1, "enum_value"); ASSERT_EQ(TestScript::ENUM_VAL1, luaL_checkint(L, -1)); lua_pop(L, 1);
 
     lua_pop(L, 1);
 

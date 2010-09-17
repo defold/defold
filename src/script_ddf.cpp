@@ -70,6 +70,15 @@ namespace dmScript
             }
             break;
 
+            case dmDDF::TYPE_ENUM:
+            {
+                if (nil_val)
+                    *((int32_t *) &buffer[f->m_Offset]) = 0;
+                else
+                    *((int32_t *) &buffer[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
+            }
+            break;
+
             case dmDDF::TYPE_MESSAGE:
             {
                 if (!nil_val)
@@ -176,6 +185,12 @@ namespace dmScript
             case dmDDF::TYPE_STRING:
             {
                 lua_pushstring(L, *((const char**) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_ENUM:
+            {
+                lua_pushinteger(L, (int) *((int32_t*) &data[f->m_Offset]));
             }
             break;
 
