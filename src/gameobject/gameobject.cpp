@@ -1337,6 +1337,7 @@ bail:
     {
         DM_PROFILE(GameObject, "DispatchInput");
         Instance* instance = 0x0;
+        // clean stack
         while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
         {
             instance = collection->m_FocusStack.Top();
@@ -1346,44 +1347,46 @@ bail:
                 instance = 0x0;
             }
         }
-        if (instance != 0x0)
+        // iterate stack from top to bottom
+        uint32_t stack_size = collection->m_FocusStack.Size();
+        for (uint32_t i = 0; i < stack_size; ++i)
         {
+            instance = collection->m_FocusStack[stack_size - 1 - i];
+            if (instance == 0x0 || instance->m_ToBeDeleted)
+                continue;
             Prototype* prototype = instance->m_Prototype;
-            // Broadcast to all components
-
-            uint32_t next_component_instance_data = 0;
             uint32_t components_size = prototype->m_Components.Size();
-            for (uint32_t i = 0; i < components_size; ++i)
+            for (uint32_t j = 0; j < input_action_count; ++j)
             {
-                ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                assert(component_type);
-                if (component_type->m_OnInputFunction)
+                if (input_action[j].m_ActionId == 0)
+                    continue;
+                InputResult res = INPUT_RESULT_IGNORED;
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t k = 0; k < components_size; ++k)
                 {
-                    uintptr_t* component_instance_data = 0;
+                    ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[k].m_ResourceType, 0x0);
+                    assert(component_type);
+                    if (component_type->m_OnInputFunction)
+                    {
+                        uintptr_t* component_instance_data = 0;
+                        if (component_type->m_InstanceHasUserData)
+                        {
+                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                        }
+                        InputResult comp_res = component_type->m_OnInputFunction(instance, &input_action[j], component_type->m_Context, component_instance_data);
+                        if (comp_res == INPUT_RESULT_CONSUMED)
+                            res = comp_res;
+                        else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
+                            return UPDATE_RESULT_UNKNOWN_ERROR;
+                    }
                     if (component_type->m_InstanceHasUserData)
                     {
-                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                    }
-                    for (uint32_t j = 0; j < input_action_count; ++j)
-                    {
-                        if (input_action[j].m_ActionId != 0)
-                        {
-                            InputResult res = component_type->m_OnInputFunction(instance, &input_action[j], component_type->m_Context, component_instance_data);
-                            if (res == INPUT_RESULT_CONSUMED)
-                            {
-                                memset(&input_action[j], 0, sizeof(InputAction));
-                            }
-                            else if (res == INPUT_RESULT_UNKNOWN_ERROR)
-                            {
-                                return UPDATE_RESULT_UNKNOWN_ERROR;
-                            }
-                        }
+                        next_component_instance_data++;
                     }
                 }
-
-                if (component_type->m_InstanceHasUserData)
+                if (res == INPUT_RESULT_CONSUMED)
                 {
-                    next_component_instance_data++;
+                    memset(&input_action[j], 0, sizeof(InputAction));
                 }
             }
         }
