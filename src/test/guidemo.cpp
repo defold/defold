@@ -75,7 +75,7 @@ void MyRenderNode(dmGui::HScene scene,
         Matrix4 m = Matrix4::translation(pos.getXYZ()) *
                     Matrix4::rotationZ(rot.getZ() * deg_to_rad) *
                     Matrix4::rotationY(rot.getY() * deg_to_rad) *
-                    Matrix4::rotationZ(rot.getZ() * deg_to_rad) *
+                    Matrix4::rotationX(rot.getX() * deg_to_rad) *
                     Matrix4::translation(-pos.getXYZ());
         glMultMatrixf((const GLfloat*) &m);
 
