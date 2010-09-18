@@ -66,6 +66,7 @@ namespace dmGui
         dmArray<Animation>    m_Animations;
         dmHashTable64<void*>  m_Textures;
         dmHashTable64<void*>  m_Fonts;
+        void*                 m_DefaultFont;
         void*                 m_UserData;
         uint16_t              m_NextVersionNumber;
     };
@@ -286,6 +287,7 @@ namespace dmGui
         {
             luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
+        GetNode(scene, node)->m_Node.m_Font = scene->m_DefaultFont;
         SetNodeText(scene, node, text);
 
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
@@ -675,6 +677,7 @@ namespace dmGui
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
+        scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
 
         scene->m_NextVersionNumber = 0;
@@ -795,6 +798,9 @@ namespace dmGui
     {
         if (scene->m_Fonts.Full())
             return RESULT_OUT_OF_RESOURCES;
+
+        if (!scene->m_DefaultFont)
+            scene->m_DefaultFont = font;
 
         scene->m_Fonts.Put(dmHashString64(font_name), font);
         return RESULT_OK;
