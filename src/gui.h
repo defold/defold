@@ -2,6 +2,7 @@
 #define DM_GUI_H
 
 #include <stdint.h>
+#include <ddf/ddf.h>
 
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
@@ -10,7 +11,6 @@ namespace dmGui
 {
     /*
      * TODO:
-     * Message/Events from Lua
      * Layers/Draw order
      * Timers in lua
      * More demos
@@ -30,11 +30,41 @@ namespace dmGui
         uint32_t m_MaxAnimations;
         uint32_t m_MaxTextures;
         uint32_t m_MaxFonts;
+        void*    m_UserData;
 
         NewSceneParams()
         {
             SetDefaultNewSceneParams(this);
         }
+    };
+
+    struct NewGuiParams;
+    void SetDefaultNewGuiParams(NewGuiParams* params);
+
+    struct NewGuiParams
+    {
+        uint32_t m_Socket;
+        uint32_t m_MaxMessageDataSize;
+        uint32_t m_MaxDDFTypes;
+
+        NewGuiParams()
+        {
+            SetDefaultNewGuiParams(this);
+        }
+    };
+
+    struct MessageData
+    {
+        /// Gui scene handle
+        HScene                   m_Scene;
+
+        /// Message hash
+        uint32_t                 m_MessageHash;
+
+        /// Pay-load DDF descriptor. NULL if not present
+        const dmDDF::Descriptor* m_DDFDescriptor;
+        /// Pay-load (DDF). Optional. Requires non-NULL m_DDFDescriptor
+        uint8_t                  m_DDFData[0];
     };
 
     enum Result
@@ -102,7 +132,7 @@ namespace dmGui
     struct InputAction
     {
         /// Action id, hashed action name
-        uint64_t m_ActionId;
+        uint32_t m_ActionId;
         /// Value of the input [0,1]
         float    m_Value;
         /// If the input was 0 last update
@@ -123,13 +153,19 @@ namespace dmGui
                                       void* userdata1,
                                       void* userdata2);
 
-    HGui New();
+    HGui New(const NewGuiParams* params);
 
     void Delete(HGui gui);
+
+    Result RegisterDDFType(HGui gui, const dmDDF::Descriptor* descriptor);
 
     HScene NewScene(HGui gui, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
+
+    void SetSceneUserData(HScene scene, void* user_data);
+
+    void* GetSceneUserData(HScene scene);
 
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
 

@@ -102,7 +102,7 @@ void OnKey(int key, int state)
 
     if (key == GLFW_KEY_SPACE)
     {
-        input_action.m_ActionId = dmHashString64("SPACE");
+        input_action.m_ActionId = dmHashString32("SPACE");
         if (state)
         {
             input_action.m_Pressed = 1;
@@ -138,7 +138,8 @@ int main(void)
     glfwEnable(GLFW_STICKY_KEYS);
     glfwSwapInterval(1);
 
-    dmGui::HGui gui = dmGui::New();
+    dmGui::NewGuiParams gui_params;
+    dmGui::HGui gui = dmGui::New(&gui_params);
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 256;
     params.m_MaxAnimations = 1024;

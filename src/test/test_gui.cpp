@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <gtest/gtest.h>
 #include <dlib/hash.h>
+#include <dlib/message.h>
 #include "../gui.h"
+#include "test_gui_ddf.h"
 
 /*
  * Basic
@@ -33,10 +35,17 @@ class dmGuiTest : public ::testing::Test
 protected:
     dmGui::HGui gui;
     dmGui::HScene scene;
+    uint32_t socket;
 
     virtual void SetUp()
     {
-        gui = dmGui::New();
+        socket = dmHashString32("test_socket");
+        dmMessage::CreateSocket(socket, 128);
+        dmGui::NewGuiParams gui_params;
+        gui_params.m_Socket = socket;
+
+        gui = dmGui::New(&gui_params);
+        dmGui::RegisterDDFType(gui, dmTestGuiDDF::AMessage::m_DDFDescriptor);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
@@ -47,6 +56,7 @@ protected:
     {
         dmGui::DeleteScene(scene);
         dmGui::Delete(gui);
+        dmMessage::DestroySocket(socket);
     }
 };
 
@@ -508,6 +518,7 @@ TEST_F(dmGuiTest, ScriptInput)
                     "   assert(g_value == 123)\n"
                     "end\n"
                     "function on_input(self, input_action)\n"
+                    " print(input_action.action_id, hash(\"SPACE\"))\n"
                     "   if(input_action.action_id == hash(\"SPACE\")) then\n"
                     "       g_value = 123\n"
                     "   end\n"
@@ -519,11 +530,82 @@ TEST_F(dmGuiTest, ScriptInput)
 
     dmGui::InputAction input_action;
     memset(&input_action, 0, sizeof(input_action));
-    input_action.m_ActionId = dmHashString64("SPACE");
+    input_action.m_ActionId = dmHashString32("SPACE");
     dmGui::DispatchInput(scene, &input_action, 1);
+    printf("...: %X\n", dmHashString32("SPACE"));
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+static void Dispatch1(dmMessage::Message* message, void* user_ptr)
+{
+    dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
+    uint32_t* mh = (uint32_t*) user_ptr;
+    *mh = md->m_MessageHash;
+}
+
+TEST_F(dmGuiTest, PostMessage1)
+{
+    const char* s = "function init(self)\n"
+                    "   post(\"my_named_message\")\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    uint32_t message_hash;
+    dmMessage::Dispatch(socket, &Dispatch1, &message_hash);
+
+    ASSERT_EQ(dmHashString32("my_named_message"), message_hash);
+}
+
+static void Dispatch2(dmMessage::Message* message, void* user_ptr)
+{
+    dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
+    assert(md->m_DDFDescriptor == dmTestGuiDDF::AMessage::m_DDFDescriptor);
+
+    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*) md->m_DDFData;
+    dmTestGuiDDF::AMessage* amessage_out = (dmTestGuiDDF::AMessage*) user_ptr;
+
+    *amessage_out = *amessage;
+}
+
+TEST_F(dmGuiTest, PostMessage2)
+{
+    const char* s = "function init(self)\n"
+                    "   post(\"a_message\", { a = 123, b = 456 })\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmTestGuiDDF::AMessage amessage;
+    dmMessage::Dispatch(socket, &Dispatch2, &amessage);
+
+    ASSERT_EQ(123, amessage.m_a);
+    ASSERT_EQ(456, amessage.m_b);
+}
+
+TEST_F(dmGuiTest, PostMessageMissingField)
+{
+    const char* s = "function init(self)\n"
+                    "   post(\"a_message\", { a = 123 })\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 }
 
 TEST_F(dmGuiTest, SaveNode)

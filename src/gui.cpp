@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/message.h>
 #include <script/script.h>
 
 extern "C"
@@ -18,9 +19,13 @@ extern "C"
 
 namespace dmGui
 {
+    const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
+
     struct Gui
     {
-        lua_State* m_LuaState;
+        lua_State*                              m_LuaState;
+        uint32_t                                m_Socket;
+        dmHashTable32<const dmDDF::Descriptor*> m_DDFDescriptors;
     };
 
     struct InternalNode
@@ -61,6 +66,7 @@ namespace dmGui
         dmArray<Animation>    m_Animations;
         dmHashTable64<void*>  m_Textures;
         dmHashTable64<void*>  m_Fonts;
+        void*                 m_UserData;
         uint16_t              m_NextVersionNumber;
     };
 
@@ -293,19 +299,6 @@ namespace dmGui
         return 1;
     }
 
-    static int LuaHash(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        const char* str = luaL_checkstring(L, 1);
-        char buf[16+1];
-        DM_SNPRINTF(buf, sizeof(buf), "%llX", dmHashString64(str));
-        lua_pushstring(L, buf);
-
-        assert(top + 1 == lua_gettop(L));
-        return 1;
-    }
-
     static int LuaNewBoxNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
@@ -320,6 +313,54 @@ namespace dmGui
         const char* text = luaL_checkstring(L, 2);
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
+
+    static int LuaPost(lua_State* L)
+    {
+        char buf[MAX_MESSAGE_DATA_SIZE];
+        MessageData* message_data = (MessageData*) buf;
+
+        int top = lua_gettop(L);
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        const char* type_name = luaL_checkstring(L, 1);
+        message_data->m_MessageHash = dmHashString32(type_name);
+        message_data->m_Scene = scene;
+
+        if (lua_istable(L, 2))
+        {
+            const dmDDF::Descriptor** d_tmp = scene->m_Gui->m_DDFDescriptors.Get(message_data->m_MessageHash);
+            if (d_tmp == 0)
+            {
+                luaL_error(L, "Unknown ddf type: %s", type_name);
+            }
+            const dmDDF::Descriptor* d = *d_tmp;
+
+            uint32_t size = sizeof(MessageData) + d->m_Size;
+            if (size > MAX_MESSAGE_DATA_SIZE)
+            {
+                luaL_error(L, "sizeof(%s) > %d", type_name, d->m_Size);
+            }
+
+            message_data->m_DDFDescriptor = d;
+
+            char* p = buf + sizeof(MessageData);
+            lua_pushvalue(L, 2);
+            dmScript::CheckDDF(L, d, p, MAX_MESSAGE_DATA_SIZE - sizeof(MessageData), -1);
+            lua_pop(L, 1);
+        }
+        else
+        {
+            message_data->m_DDFDescriptor = 0;
+        }
+
+        assert(top == lua_gettop(L));
+        dmMessage::Post(scene->m_Gui->m_Socket, message_data->m_MessageHash, buf, MAX_MESSAGE_DATA_SIZE);
+        return 0;
+    }
+
 
 #define LUAGETSET(name, property) \
     int LuaGet##name(lua_State* L)\
@@ -473,10 +514,25 @@ namespace dmGui
         {0, 0}
     };
 
-    HGui New()
+    void SetDefaultNewGuiParams(NewGuiParams* params)
     {
+        memset(params, 0, sizeof(*params));
+        params->m_MaxMessageDataSize = 128;
+        params->m_MaxDDFTypes = 32;
+    }
+
+    HGui New(const NewGuiParams* params)
+    {
+        if (params->m_MaxMessageDataSize > MAX_MESSAGE_DATA_SIZE)
+        {
+            dmLogError("m_MaxMessageDataSize > %d", MAX_MESSAGE_DATA_SIZE);
+            return 0;
+        }
+
         Gui* gui = new Gui();
         gui->m_LuaState = lua_open();
+        gui->m_Socket = params->m_Socket;
+        gui->m_DDFDescriptors.SetCapacity(2 * params->m_MaxDDFTypes, params->m_MaxDDFTypes);
         lua_State *L = gui->m_LuaState;
 
         dmScript::Initialize(L);
@@ -502,9 +558,9 @@ namespace dmGui
         lua_pushcfunction(L, LuaAnimate);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
-        lua_pushliteral(L, "hash");
+/*        lua_pushliteral(L, "hash");
         lua_pushcfunction(L, LuaHash);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        lua_rawset(L, LUA_GLOBALSINDEX);*/
 
         lua_pushliteral(L, "new_box_node");
         lua_pushcfunction(L, LuaNewBoxNode);
@@ -512,6 +568,10 @@ namespace dmGui
 
         lua_pushliteral(L, "new_text_node");
         lua_pushcfunction(L, LuaNewTextNode);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_pushliteral(L, "post");
+        lua_pushcfunction(L, LuaPost);
         lua_rawset(L, LUA_GLOBALSINDEX);
 
 #define REGGETSET(name, luaname) \
@@ -581,6 +641,16 @@ namespace dmGui
         delete gui;
     }
 
+    Result RegisterDDFType(HGui gui, const dmDDF::Descriptor* descriptor)
+    {
+        if (gui->m_DDFDescriptors.Full())
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        gui->m_DDFDescriptors.Put(dmHashString32(descriptor->m_ScriptName), descriptor);
+        return RESULT_OK;
+    }
+
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
@@ -605,6 +675,7 @@ namespace dmGui
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
+        scene->m_UserData = params->m_UserData;
 
         scene->m_NextVersionNumber = 0;
 
@@ -649,6 +720,16 @@ namespace dmGui
         delete scene;
     }
 
+    void SetSceneUserData(HScene scene, void* user_data)
+    {
+        scene->m_UserData = user_data;
+    }
+
+    void* GetSceneUserData(HScene scene)
+    {
+        return scene->m_UserData;
+    }
+
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count)
     {
         lua_State*L = scene->m_Gui->m_LuaState;
@@ -666,7 +747,7 @@ namespace dmGui
                 lua_newtable(L);
                 lua_pushstring(L, "action_id");
                 char tmp[16+1];
-                DM_SNPRINTF(tmp, sizeof(tmp), "%llX", ia->m_ActionId);
+                DM_SNPRINTF(tmp, sizeof(tmp), "%X", ia->m_ActionId);
                 lua_pushstring(L, tmp);
                 lua_rawset(L, -3);
 

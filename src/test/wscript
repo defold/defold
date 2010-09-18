@@ -3,11 +3,11 @@ from TaskGen import extension, declare_extension
 
 def build(bld):
     test_gui = bld.new_task_gen(features = 'cxx cprogram',
-                                includes = '../../../src',
+                                includes = '../../../src .',
                                 uselib = 'GTEST DLIB PLATFORM_SOCKET LUA SCRIPT',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
-                                source = 'test_gui.cpp')
+                                source = 'test_gui.cpp test_gui_ddf.proto')
 
     test_gui.install_path = None
 
