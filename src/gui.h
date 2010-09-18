@@ -14,14 +14,6 @@ using namespace Vectormath::Aos;
 
 namespace dmGui
 {
-    /*
-     * TODO:
-     * Layers/Draw order
-     * Timers in lua
-     * More demos
-     * Pivot point for rotation
-     */
-
     typedef struct Gui* HGui;
     typedef struct Scene* HScene;
     typedef uint32_t HNode;
