@@ -1,0 +1,7 @@
+function on_event(self, event_hash, event)
+    assert(event_hash == hash("message1"), "Expected message1")
+end
+
+function update(self)
+    post_to_collection(hash("postcollection2"), hash("my_object02"), "postcollection2.scriptc", "message2")
+end

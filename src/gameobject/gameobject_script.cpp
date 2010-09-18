@@ -357,6 +357,89 @@ namespace dmGameObject
         return 0;
     }
 
+    int Script_PostToCollection(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        uint32_t collection_name_hash = dmScript::CheckHash(L, 1);
+        uint32_t id = dmScript::CheckHash(L, 2);
+        const char* component_name = luaL_checkstring(L, 3);
+        const char* event_name = luaL_checkstring(L, 4);
+
+        lua_pushstring(L, "__collection__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        HCollection collection = (HCollection) lua_touserdata(L, -1);
+        assert(collection);
+        lua_pop(L, 1);
+
+        HRegister regist = collection->m_Register;
+        HCollection to_collection = 0;
+        for (uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
+        {
+            if (regist->m_Collections[i]->m_NameHash == collection_name_hash)
+            {
+                to_collection = regist->m_Collections[i];
+                break;
+            }
+        }
+
+        if (to_collection == 0)
+        {
+            luaL_error(L, "Collection %d not found", collection_name_hash);
+        }
+
+        HInstance instance = dmGameObject::GetInstanceFromIdentifier(to_collection, id);
+        if (instance)
+        {
+            const dmDDF::Descriptor* desc = 0x0;
+            char ddf_data[SCRIPT_EVENT_MAX - sizeof(ScriptEventData)];
+
+            // Passing ddf data is optional atm
+            if (top >= 5)
+            {
+                const char* type_name = event_name;
+                uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
+                const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
+                if (desc_tmp != 0)
+                {
+                    desc = *desc_tmp;
+                    if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
+                    {
+                        luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                        return 0;
+                    }
+                    luaL_checktype(L, 4, LUA_TTABLE);
+
+                    lua_pushvalue(L, 4);
+                    dmScript::CheckDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData), -1);
+                    lua_pop(L, 1);
+                }
+                else
+                {
+                    luaL_error(L, "DDF type %s has not been registered through dmGameObject::RegisterDDFType.", type_name);
+                }
+            }
+
+            dmGameObject::Result r;
+            if (desc != 0x0)
+                r = dmGameObject::PostDDFEvent(instance, component_name, desc, ddf_data);
+            else
+                r = dmGameObject::PostNamedEvent(instance, component_name, event_name);
+            if (r != dmGameObject::RESULT_OK)
+            {
+                // TODO: Translate r to string
+                luaL_error(L, "Error sending event '%s' to %p/%s", event_name, (void*)id, component_name);
+            }
+        }
+        else
+        {
+            luaL_error(L, "Error sending event. Unknown instance: %p", (void*)id);
+        }
+        assert(top == lua_gettop(L));
+
+        return 0;
+    }
+
     int Script_Post(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -455,6 +538,7 @@ namespace dmGameObject
     {
         {"post",                Script_Post},
         {"post_named_to",       Script_PostNamedTo},
+        {"post_to_collection",  Script_PostToCollection},
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"set_position",        Script_SetPosition},
@@ -928,7 +1012,7 @@ bail:
             if (ret != 0)
             {
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 2);
+                lua_pop(L, 1);
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
 

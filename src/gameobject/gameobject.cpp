@@ -20,170 +20,46 @@
 
 namespace dmGameObject
 {
-    // Internal representation of a transform
-    struct Transform
-    {
-        Point3 m_Translation;
-        Quat   m_Rotation;
-    };
-
-    // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
-    const uint32_t MAX_COMPONENT_TYPES = 255;
-
-    #define DM_GAMEOBJECT_EVENT_NAME "script_event"
-    #define DM_GAMEOBJECT_EVENT_SOCKET_NAME "script"
-    #define DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME "script_reply"
     uint32_t g_RegisterIndex = 0;
-
-    #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
-    struct Register
-    {
-        uint32_t        m_ComponentTypeCount;
-        ComponentType   m_ComponentTypes[MAX_COMPONENT_TYPES];
-        dmMutex::Mutex  m_Mutex;
-        // Current identifier path. Used during loading of collections and specifically collections in collections.
-        // Contains the current path and is *protected* by m_Mutex.
-        char            m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
-
-        // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
-        Collection*     m_CurrentCollection;
-
-        Vector3         m_AccumulatedTranslation;
-        Quat            m_AccumulatedRotation;
-
-        uint32_t        m_EventId;
-        uint32_t        m_EventSocketId;
-        uint32_t        m_ReplyEventSocketId;
-
-        Register()
-        {
-            m_ComponentTypeCount = 0;
-            m_Mutex = dmMutex::New();
-            m_CurrentIdentifierPath[0] = '\0';
-            // If m_CurrentCollection != 0 => loading sub-collection
-            m_CurrentCollection = 0;
-            // Accumulated position for child collections
-            m_AccumulatedTranslation = Vector3(0,0,0);
-            m_AccumulatedRotation = Quat::identity();
-
-            char buffer[32];
-
-            DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_NAME, g_RegisterIndex);
-            m_EventId = dmHashString32(buffer);
-
-            DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_SOCKET_NAME, g_RegisterIndex);
-            m_EventSocketId = dmHashString32(buffer);
-            dmMessage::CreateSocket(m_EventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
-
-            DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME, g_RegisterIndex);
-            m_ReplyEventSocketId = dmHashString32(buffer);
-            dmMessage::CreateSocket(m_ReplyEventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
-
-            ++g_RegisterIndex;
-        }
-
-        ~Register()
-        {
-            dmMutex::Delete(m_Mutex);
-            dmMessage::Consume(m_EventSocketId);
-            dmMessage::DestroySocket(m_EventSocketId);
-            dmMessage::Consume(m_ReplyEventSocketId);
-            dmMessage::DestroySocket(m_ReplyEventSocketId);
-        }
-    };
-
-    // Max hierarchical depth
-    // 4 is interpreted as up to four levels of child nodes including root-nodes
-    // Must be greater than zero
-    const uint32_t MAX_HIERARCHICAL_DEPTH = 4;
-    struct Collection
-    {
-        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
-        {
-            m_Factory = factory;
-            m_Register = regist;
-            m_MaxInstances = max_instances;
-            m_Instances.SetCapacity(max_instances);
-            m_Instances.SetSize(max_instances);
-            m_InstanceIndices.SetCapacity(max_instances);
-            m_LevelIndices.SetCapacity(max_instances * MAX_HIERARCHICAL_DEPTH);
-            m_LevelIndices.SetSize(max_instances * MAX_HIERARCHICAL_DEPTH);
-            m_WorldTransforms.SetCapacity(max_instances);
-            m_WorldTransforms.SetSize(max_instances);
-            m_InstancesToDelete.SetCapacity(max_instances);
-            m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
-            // TODO: Un-hard-code
-            m_FocusStack.SetCapacity(8);
-            m_InUpdate = 0;
-
-            for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
-            {
-                m_LevelIndices[i] = INVALID_INSTANCE_INDEX;
-            }
-
-            memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
-            memset(&m_WorldTransforms[0], 0xcc, sizeof(Transform) * max_instances);
-            memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
-
-            for (uint32_t i = 0; i < m_Register->m_ComponentTypeCount; ++i)
-            {
-                if (m_Register->m_ComponentTypes[i].m_NewWorldFunction)
-                    m_Register->m_ComponentTypes[i].m_NewWorldFunction(m_Register->m_ComponentTypes[i].m_Context, &m_ComponentWorlds[i]);
-            }
-        }
-        // Resource factory
-        dmResource::HFactory     m_Factory;
-
-        // GameObject component register
-        HRegister                m_Register;
-
-        // Component type specific worlds
-        void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
-
-        // Maximum number of instances
-        uint32_t                 m_MaxInstances;
-
-        // Array of instances. Zero values for free slots. Order must
-        // always be preserved. Slots are allocated using index-pool
-        // m_InstanceIndices below
-        // Size if always = max_instances (at least for now)
-        dmArray<Instance*>       m_Instances;
-
-        // Index pool for mapping Instance::m_Index to m_Instances
-        dmIndexPool16            m_InstanceIndices;
-
-        // Index array of size m_Instances.Size() * MAX_HIERARCHICAL_DEPTH
-        // Array of instance indices for each hierarchical level
-        // Used for calculating transforms in scene-graph
-        // Two dimensional table of indices with stride "max_instances"
-        // Level 0 contains root-nodes in [0..m_LevelInstanceCount[0]-1]
-        // Level 1 contains level 1 indices in [max_instances..max_instances+m_LevelInstanceCount[1]-1], ...
-        dmArray<uint16_t>        m_LevelIndices;
-
-        // Number of instances in each level
-        uint16_t                 m_LevelInstanceCount[MAX_HIERARCHICAL_DEPTH];
-
-        // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<Transform>       m_WorldTransforms;
-
-        // NOTE: Be *very* careful about m_InstancesToDelete
-        // m_InstancesToDelete is an array of instances flagged for delete during Update(.)
-        // Related code is Delete(.) and Update(.)
-        dmArray<uint16_t>        m_InstancesToDelete;
-
-        // Identifier to Instance mapping
-        dmHashTable32<Instance*> m_IDToInstance;
-
-        // Stack keeping track of which instance has the input focus
-        dmCircularArray<Instance*> m_FocusStack;
-
-        // Set to 1 if in update-loop
-        uint32_t                 m_InUpdate : 1;
-    };
-
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer32("__unnamed__", strlen("__unnamed__"));
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
+
+    Register::Register()
+    {
+        m_ComponentTypeCount = 0;
+        m_Mutex = dmMutex::New();
+        m_CurrentIdentifierPath[0] = '\0';
+        // If m_CurrentCollection != 0 => loading sub-collection
+        m_CurrentCollection = 0;
+        // Accumulated position for child collections
+        m_AccumulatedTranslation = Vector3(0,0,0);
+        m_AccumulatedRotation = Quat::identity();
+
+        char buffer[32];
+
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_NAME, g_RegisterIndex);
+        m_EventId = dmHashString32(buffer);
+
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_SOCKET_NAME, g_RegisterIndex);
+        m_EventSocketId = dmHashString32(buffer);
+        dmMessage::CreateSocket(m_EventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME, g_RegisterIndex);
+        m_ReplyEventSocketId = dmHashString32(buffer);
+        dmMessage::CreateSocket(m_ReplyEventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+        ++g_RegisterIndex;
+    }
+
+    Register::~Register()
+    {
+        dmMutex::Delete(m_Mutex);
+        dmMessage::Consume(m_EventSocketId);
+        dmMessage::DestroySocket(m_EventSocketId);
+        dmMessage::Consume(m_ReplyEventSocketId);
+        dmMessage::DestroySocket(m_ReplyEventSocketId);
+    }
 
     ComponentType::ComponentType()
     {
@@ -239,19 +115,45 @@ namespace dmGameObject
             dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX);
             return 0;
         }
-        return new Collection(factory, regist, max_instances);
+        Collection* coll = new Collection(factory, regist, max_instances);
+
+        dmMutex::Lock(regist->m_Mutex);
+        if (regist->m_Collections.Full())
+        {
+            regist->m_Collections.OffsetCapacity(4);
+        }
+        regist->m_Collections.Push(coll);
+        dmMutex::Unlock(regist->m_Mutex);
+
+        return coll;
     }
 
     void DoDeleteAll(HCollection collection);
 
     void DeleteCollection(HCollection collection)
     {
+        HRegister regist = collection->m_Register;
         DoDeleteAll(collection);
-        for (uint32_t i = 0; i < collection->m_Register->m_ComponentTypeCount; ++i)
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            if (collection->m_Register->m_ComponentTypes[i].m_DeleteWorldFunction)
-                collection->m_Register->m_ComponentTypes[i].m_DeleteWorldFunction(collection->m_Register->m_ComponentTypes[i].m_Context, collection->m_ComponentWorlds[i]);
+            if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
+                regist->m_ComponentTypes[i].m_DeleteWorldFunction(regist->m_ComponentTypes[i].m_Context, collection->m_ComponentWorlds[i]);
         }
+
+        dmMutex::Lock(regist->m_Mutex);
+        bool found = false;
+        for (uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
+        {
+            if (regist->m_Collections[i] == collection)
+            {
+                regist->m_Collections.EraseSwap(i);
+                found = true;
+                break;
+            }
+        }
+        assert(found);
+        dmMutex::Unlock(regist->m_Mutex);
+
         delete collection;
     }
 
@@ -386,6 +288,7 @@ namespace dmGameObject
             loading_root = true;
             // TODO: How to configure 1024. In collection?
             collection = NewCollection(factory, regist, 1024);
+            collection->m_NameHash = dmHashString32(collection_desc->m_Name);
             regist->m_CurrentCollection = collection;
             regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
             regist->m_AccumulatedRotation = Quat::identity();

@@ -980,6 +980,46 @@ TEST_F(GameObjectTest, Collection)
     }
 }
 
+TEST_F(GameObjectTest, PostCollection)
+{
+    for (int i = 0; i < 10; ++i)
+    {
+        dmResource::FactoryResult r;
+        dmGameObject::HCollection coll1;
+        r = dmResource::Get(factory, "postcollection1.collectionc", (void**) &coll1);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+        ASSERT_NE((void*) 0, coll1);
+
+        dmGameObject::HCollection coll2;
+        r = dmResource::Get(factory, "postcollection2.collectionc", (void**) &coll2);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+        ASSERT_NE((void*) 0, coll2);
+
+
+/*        uint32_t go01ident = dmHashString32("go01");
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
+        ASSERT_NE((void*) 0, go01);
+
+        uint32_t go02ident = dmHashString32("go02");
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
+        ASSERT_NE((void*) 0, go02);*/
+
+        bool ret;
+        dmGameObject::Init(coll1);
+        ret = dmGameObject::Update(coll1, 0);
+        ASSERT_TRUE(ret);
+
+        dmGameObject::Init(coll2);
+        ret = dmGameObject::Update(coll2, 0);
+        ASSERT_TRUE(ret);
+
+        //ASSERT_NE(go01, go02);
+
+        dmResource::Release(factory, (void*) coll1);
+        dmResource::Release(factory, (void*) coll2);
+    }
+}
+
 TEST_F(GameObjectTest, CollectionFail)
 {
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
