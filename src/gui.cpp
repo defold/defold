@@ -20,12 +20,12 @@ extern "C"
 namespace dmGui
 {
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
+    dmHashTable32<const dmDDF::Descriptor*> m_DDFDescriptors;
 
     struct Gui
     {
         lua_State*                              m_LuaState;
         uint32_t                                m_Socket;
-        dmHashTable32<const dmDDF::Descriptor*> m_DDFDescriptors;
     };
 
     struct InternalNode
@@ -334,7 +334,7 @@ namespace dmGui
 
         if (lua_istable(L, 2))
         {
-            const dmDDF::Descriptor** d_tmp = scene->m_Gui->m_DDFDescriptors.Get(message_data->m_MessageHash);
+            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_data->m_MessageHash);
             if (d_tmp == 0)
             {
                 luaL_error(L, "Unknown ddf type: %s", type_name);
@@ -521,7 +521,6 @@ namespace dmGui
     {
         memset(params, 0, sizeof(*params));
         params->m_MaxMessageDataSize = 128;
-        params->m_MaxDDFTypes = 32;
     }
 
     HGui New(const NewGuiParams* params)
@@ -535,7 +534,6 @@ namespace dmGui
         Gui* gui = new Gui();
         gui->m_LuaState = lua_open();
         gui->m_Socket = params->m_Socket;
-        gui->m_DDFDescriptors.SetCapacity(2 * params->m_MaxDDFTypes, params->m_MaxDDFTypes);
         lua_State *L = gui->m_LuaState;
 
         dmScript::Initialize(L);
@@ -644,13 +642,18 @@ namespace dmGui
         delete gui;
     }
 
-    Result RegisterDDFType(HGui gui, const dmDDF::Descriptor* descriptor)
+    Result RegisterDDFType(const dmDDF::Descriptor* descriptor)
     {
-        if (gui->m_DDFDescriptors.Full())
+        if (m_DDFDescriptors.Empty())
+        {
+            m_DDFDescriptors.SetCapacity(89, 256);
+        }
+
+        if (m_DDFDescriptors.Full())
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-        gui->m_DDFDescriptors.Put(dmHashString32(descriptor->m_ScriptName), descriptor);
+        m_DDFDescriptors.Put(dmHashString32(descriptor->m_ScriptName), descriptor);
         return RESULT_OK;
     }
 

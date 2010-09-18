@@ -45,7 +45,7 @@ protected:
         gui_params.m_Socket = socket;
 
         gui = dmGui::New(&gui_params);
-        dmGui::RegisterDDFType(gui, dmTestGuiDDF::AMessage::m_DDFDescriptor);
+        dmGui::RegisterDDFType(dmTestGuiDDF::AMessage::m_DDFDescriptor);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;

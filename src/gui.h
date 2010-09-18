@@ -45,7 +45,6 @@ namespace dmGui
     {
         uint32_t m_Socket;
         uint32_t m_MaxMessageDataSize;
-        uint32_t m_MaxDDFTypes;
 
         NewGuiParams()
         {
@@ -157,7 +156,7 @@ namespace dmGui
 
     void Delete(HGui gui);
 
-    Result RegisterDDFType(HGui gui, const dmDDF::Descriptor* descriptor);
+    Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
     HScene NewScene(HGui gui, const NewSceneParams* params);
 
