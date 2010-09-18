@@ -58,6 +58,7 @@ namespace dmGui
         int                   m_InitFunctionReference;
         int                   m_UpdateFunctionReference;
         int                   m_OnInputFunctionReference;
+        int                   m_OnMessageFunctionReference;
         int                   m_SelfReference;
         uint16_t              m_RunInit : 1;
         Gui*                  m_Gui;
@@ -668,6 +669,7 @@ namespace dmGui
         scene->m_InitFunctionReference = LUA_NOREF;
         scene->m_UpdateFunctionReference = LUA_NOREF;
         scene->m_OnInputFunctionReference = LUA_NOREF;
+        scene->m_OnMessageFunctionReference = LUA_NOREF;
         scene->m_SelfReference = LUA_NOREF;
         scene->m_RunInit = 0;
         scene->m_Gui = gui;
@@ -718,6 +720,9 @@ namespace dmGui
 
         if (scene->m_OnInputFunctionReference != LUA_NOREF)
             luaL_unref(L, LUA_REGISTRYINDEX, scene->m_OnInputFunctionReference);
+
+        if (scene->m_OnMessageFunctionReference != LUA_NOREF)
+            luaL_unref(L, LUA_REGISTRYINDEX, scene->m_OnMessageFunctionReference);
 
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         delete scene;
@@ -780,6 +785,35 @@ namespace dmGui
                 }
             }
 
+        }
+
+        return RESULT_OK;
+    }
+
+    Result DispatchMessage(HScene scene,
+                           uint32_t message_hash,
+                           const void* message,
+                           const dmDDF::Descriptor* descriptor)
+    {
+        lua_State*L = scene->m_Gui->m_LuaState;
+
+        if (scene->m_OnMessageFunctionReference != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_OnMessageFunctionReference);
+            assert(lua_isfunction(L, -1));
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+
+            dmScript::PushHash(L, message_hash);
+
+            dmScript::PushDDF(L, descriptor, (const char*) message);
+            int ret = lua_pcall(L, 3, 0, 0);
+
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+                return RESULT_SCRIPT_ERROR;
+            }
         }
 
         return RESULT_OK;
@@ -1005,6 +1039,18 @@ namespace dmGui
             if (scene->m_OnInputFunctionReference != LUA_NOREF)
                 luaL_unref(L, LUA_REGISTRYINDEX, scene->m_OnInputFunctionReference);
             scene->m_OnInputFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
+        }
+
+        lua_getglobal(L, "on_message");
+        if (lua_type(L, -1) != LUA_TFUNCTION)
+        {
+            lua_pop(L, 1);
+        }
+        else
+        {
+            if (scene->m_OnMessageFunctionReference != LUA_NOREF)
+                luaL_unref(L, LUA_REGISTRYINDEX, scene->m_OnMessageFunctionReference);
+            scene->m_OnMessageFunctionReference = luaL_ref( L, LUA_REGISTRYINDEX );
         }
 
         lua_pushnil(L);

@@ -606,6 +606,30 @@ TEST_F(dmGuiTest, PostMessageMissingField)
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 }
 
+TEST_F(dmGuiTest, PostMessageToGui)
+{
+    const char* s = "local a = 0\n"
+                    "function update(self)\n"
+                    "   assert(a == 123)\n"
+                    "end\n"
+                    "function on_message(self, message_hash, message)\n"
+                    "   assert(message_hash == hash(\"amessage\"))\n"
+                    "   a = message.a\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmTestGuiDDF::AMessage amessage;
+    amessage.m_a = 123;
+    r = dmGui::DispatchMessage(scene, dmHashString32("amessage"), &amessage, dmTestGuiDDF::AMessage::m_DDFDescriptor);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 TEST_F(dmGuiTest, SaveNode)
 {
     dmGui::HNode node = dmGui::NewNode(scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);

@@ -163,6 +163,11 @@ namespace dmGui
 
     void DeleteScene(HScene scene);
 
+    Result DispatchMessage(HScene scene,
+                           uint32_t message_hash,
+                           const void* message,
+                           const dmDDF::Descriptor* descriptor);
+
     void SetSceneUserData(HScene scene, void* user_data);
 
     void* GetSceneUserData(HScene scene);
