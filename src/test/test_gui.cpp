@@ -518,7 +518,6 @@ TEST_F(dmGuiTest, ScriptInput)
                     "   assert(g_value == 123)\n"
                     "end\n"
                     "function on_input(self, input_action)\n"
-                    " print(input_action.action_id, hash(\"SPACE\"))\n"
                     "   if(input_action.action_id == hash(\"SPACE\")) then\n"
                     "       g_value = 123\n"
                     "   end\n"
@@ -532,7 +531,6 @@ TEST_F(dmGuiTest, ScriptInput)
     memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString32("SPACE");
     dmGui::DispatchInput(scene, &input_action, 1);
-    printf("...: %X\n", dmHashString32("SPACE"));
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
