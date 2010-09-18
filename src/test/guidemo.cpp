@@ -4,6 +4,9 @@
 #include <graphics/glfw/glfw.h>
 #include "../gui.h"
 
+#include <vectormath/cpp/vectormath_aos.h>
+using namespace Vectormath::Aos;
+
 #ifdef __MACH__
 #include <Carbon/Carbon.h>
 #endif
@@ -68,11 +71,13 @@ void MyRenderNode(dmGui::HScene scene,
         float y = pos.getY();
         float z = pos.getZ();
 
-        glTranslatef(x, y, z);
-        glRotatef(rot.getX(), 1, 0, 0);
-        glRotatef(rot.getY(), 0, 1, 0);
-        glRotatef(rot.getZ(), 0, 0, 1);
-        glTranslatef(-x, -y, -z);
+        const float deg_to_rad = 3.1415926f / 180.0f;
+        Matrix4 m = Matrix4::translation(pos.getXYZ()) *
+                    Matrix4::rotationZ(rot.getZ() * deg_to_rad) *
+                    Matrix4::rotationY(rot.getY() * deg_to_rad) *
+                    Matrix4::rotationZ(rot.getZ() * deg_to_rad) *
+                    Matrix4::translation(-pos.getXYZ());
+        glMultMatrixf((const GLfloat*) &m);
 
         float dx = ext.getX() * 0.5f;
         float dy = ext.getY() * 0.5f;
