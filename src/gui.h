@@ -7,6 +7,11 @@
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
+// Workaround for evil windows #define
+#ifdef DispatchMessage
+#undef DispatchMessage
+#endif
+
 namespace dmGui
 {
     /*
