@@ -73,8 +73,11 @@ done
 
 popd > /dev/null
 
-echo "Copying src/waf_dynamo.py -> DYNAMO_HOME/ext/lib/python" 
+echo "Copying src/waf_dynamo.py -> DYNAMO_HOME/ext/lib/python"
 cp src/waf_dynamo.py $DYNAMO_HOME/ext/lib/python
+
+echo "Copying src/waf_content.py -> DYNAMO_HOME/ext/lib/python"
+cp src/waf_content.py $DYNAMO_HOME/ext/lib/python
 
 echo "Copying share/valgrind-python.supp -> DYNAMO_HOME/share"
 mkdir -p $DYNAMO_HOME/share 
