@@ -356,7 +356,10 @@ namespace dmSound
 
     Result Play(HSoundInstance sound_instance)
     {
-        assert(sound_instance->m_SourceIndex == 0xffff && "TODO: Stop...?");
+        if (sound_instance->m_SourceIndex != 0xffff)
+        {
+            return RESULT_OK;
+        }
 
         SoundSystem* sound = g_SoundSystem;
         if (sound->m_BuffersPool.Remaining() < 2)
@@ -370,8 +373,9 @@ namespace dmSound
             dmLogWarning("Out of sound sources");
             return RESULT_OUT_OF_SOURCES;
         }
-        uint16_t index = sound->m_SourcesPool.Pop();
+        sound_instance->m_CurrentBufferOffset = 0;
 
+        uint16_t index = sound->m_SourcesPool.Pop();
         sound_instance->m_SourceIndex = index;
         ALuint source = sound->m_Sources[index];
         alSourcei(source, AL_BUFFER, AL_NONE);

@@ -8,7 +8,9 @@ def build(bld):
 
     alut = bld.new_task_gen(features = 'cc cstaticlib',
                             includes = '. alut',
-                            target = 'alut')
+                            target = 'alut',
+                            install_path='${PREFIX}/lib')
+
     alut.find_sources_in_dirs('alut')
 
     if sys.platform == 'win32':
