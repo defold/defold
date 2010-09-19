@@ -4,9 +4,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
-#include <render_debug/debugrenderer.h>
 
-#include <resource/resource.h>
 #include "particle.h"
 #include "particle_private.h"
 

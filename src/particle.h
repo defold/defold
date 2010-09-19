@@ -7,10 +7,6 @@
 
 #include <ddf/ddf.h>
 
-#include <graphics/material.h>
-#include <resource/resource.h>
-#include <render/render.h>
-
 #include "particle_ddf.h"
 
 
@@ -56,11 +52,11 @@ namespace dmParticle
         }
 
         /// DDF structure read from the resource.
-        dmParticleDDF::Emitter*   m_DDF;
+        dmParticleDDF::Emitter* m_DDF;
         /// Texture to use when rendering particles.
-        dmGraphics::HTexture            m_Texture;
+        void*                   m_Texture;
         /// Material to use when rendering particles.
-        dmGraphics::HMaterial           m_Material;
+        void*                   m_Material;
     };
 
     /**
