@@ -7,6 +7,10 @@
 
 #include <particle/particle.h>
 
+#include <graphics/graphics_device.h>
+#include <graphics/material.h>
+#include <render_debug/debugrenderer.h>
+
 #include "gamesys.h"
 
 namespace dmGameSystem
@@ -85,6 +89,7 @@ namespace dmGameSystem
         {
             if (w->m_Emitters[i].m_Instance == instance)
             {
+                dmParticle::DestroyEmitter(w->m_Context, w->m_Emitters[i].m_Emitter);
                 w->m_Emitters.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
             }
@@ -92,6 +97,11 @@ namespace dmGameSystem
         dmLogError("Destroyed emitter could not be found, something is fishy.");
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
+
+    void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size);
+    void RenderTearDownCallback(void* render_context);
+    void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
+    void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
     dmGameObject::UpdateResult CompEmitterUpdate(dmGameObject::HCollection collection,
             const dmGameObject::UpdateContext* update_context,
@@ -108,10 +118,17 @@ namespace dmGameSystem
         EmitterContext* ctx = (EmitterContext*)context;
         dmParticle::Update(w->m_Context, update_context->m_DT, &ctx->m_RenderContext->m_View);
 
-//        dmParticle::Render(m_Environment.m_ParticleSystemContext);
+        dmParticle::Render(w->m_Context, ctx->m_RenderContext, RenderSetUpCallback, RenderTearDownCallback, RenderEmitterCallback);
 
-//        if (ctx->m_Debug)
-//            dmParticle::DebugRender(m_Environment.m_ParticleSystemContext, &m_Environment.m_RenderContext.m_ViewProj, RenderLine);
+        if (ctx->m_Debug)
+        {
+            dmGraphics::HContext gfx_context = ctx->m_RenderContext->m_GFXContext;
+
+            dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+            dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
+
+            dmParticle::DebugRender(w->m_Context, &ctx->m_RenderContext, RenderLineCallback);
+        }
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -131,5 +148,48 @@ namespace dmGameSystem
             dmParticle::StopEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
         }
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size)
+    {
+        dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
+        dmGraphics::HContext gfx_context = render_ctx->m_GFXContext;
+
+        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
+
+        dmGraphics::SetDepthMask(gfx_context, 0);
+
+        // positions
+        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, vertex_size, (void*)vertex_buffer);
+        // uv's
+        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[3]);
+        // alpha
+        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[5]);
+    }
+
+    void RenderTearDownCallback(void* render_context)
+    {
+        dmGraphics::SetDepthMask(((dmRender::RenderContext*)render_context)->m_GFXContext, 1);
+    }
+
+    void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+    {
+        dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
+        dmGraphics::HContext gfx_context = render_ctx->m_GFXContext;
+
+        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram((dmGraphics::HMaterial)material));
+        dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)&render_ctx->m_ViewProj, 0, 4);
+        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram((dmGraphics::HMaterial)material));
+
+        dmGraphics::SetTexture(gfx_context, (dmGraphics::HTexture)texture);
+
+        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, vertex_index, vertex_count);
+    }
+
+    void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
+    {
+        dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
+        dmRenderDebug::Line(render_ctx->m_ViewProj, start, end, color);
     }
 }

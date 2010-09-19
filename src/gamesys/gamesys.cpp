@@ -102,16 +102,6 @@ namespace dmGameSystem
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
                 &CompCollisionObjectUpdate, &CompCollisionObjectOnEvent, 0);
 
-        REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
-                &CompEmitterNewWorld, &CompEmitterDeleteWorld,
-                &CompEmitterCreate, 0, &CompEmitterDestroy,
-                &CompEmitterUpdate, &CompEmitterOnEvent, 0);
-
-        REGISTER_COMPONENT_TYPE("modelc", render_context,
-                CompModelNewWorld, CompModelDeleteWorld,
-                CompModelCreate, 0, CompModelDestroy,
-                CompModelUpdate, CompModelOnEvent, 0);
-
         REGISTER_COMPONENT_TYPE("guic", 0x0,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
@@ -121,6 +111,16 @@ namespace dmGameSystem
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, 0, CompSoundDestroy,
                 CompSoundUpdate, CompSoundOnEvent, 0);
+
+        REGISTER_COMPONENT_TYPE("modelc", render_context,
+                CompModelNewWorld, CompModelDeleteWorld,
+                CompModelCreate, 0, CompModelDestroy,
+                CompModelUpdate, CompModelOnEvent, 0);
+
+        REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
+                &CompEmitterNewWorld, &CompEmitterDeleteWorld,
+                &CompEmitterCreate, 0, &CompEmitterDestroy,
+                &CompEmitterUpdate, &CompEmitterOnEvent, 0);
 
 #undef REGISTER_COMPONENT_TYPE
 

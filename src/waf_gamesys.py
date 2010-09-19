@@ -8,6 +8,7 @@ def transform_gameobject(msg):
             c.Resource = c.Resource.replace('.camera', '.camerac')
         c.Resource = c.Resource.replace('.model', '.modelc')
         c.Resource = c.Resource.replace('.script', '.scriptc')
+        c.Resource = c.Resource.replace('.emitter', '.emitterc')
     return msg
 
 def transform_model(msg):
