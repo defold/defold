@@ -9,7 +9,6 @@
 
 #include "particle/particle_ddf.h"
 
-
 using namespace Vectormath::Aos;
 
 /**
