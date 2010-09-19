@@ -83,3 +83,15 @@ def gameobjectdesc_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
+Task.simple_task_type('emitter', 'protoc --encode=dmParticleDDF.Emitter -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/particle_ddf.proto < ${SRC} > ${TGT}',
+                      color='PINK',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.emitter')
+def gameobjectdesc_file(self, node):
+    obj_ext = '.emitterc'
+    task = self.create_task('emitter')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)

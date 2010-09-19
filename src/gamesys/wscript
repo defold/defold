@@ -18,6 +18,5 @@ def build(bld):
 
     resource.find_sources_in_dirs(['.', '../../proto'])
 
-    bld.install_files('${PREFIX}/include/gamesys', 'gameobject_registration.h')
-    bld.install_files('${PREFIX}/include/gamesys', 'resource_creation.h')
+    bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
