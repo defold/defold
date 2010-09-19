@@ -73,7 +73,6 @@ namespace dmSound
             error = alutGetError();
             if (error != ALUT_ERROR_NO_ERROR )
             {
-                printf("FOO\n");
                 dmLogError("%s", alutGetErrorString(error));
             }
         }
@@ -294,8 +293,6 @@ namespace dmSound
         alBufferData(buffer, sound_data->m_Format, p, to_buffer, sound_data->m_Frequency);
 
         instance->m_CurrentBufferOffset += to_buffer;
-
-        //printf("BUFFER... %d\n", to_buffer);
         return to_buffer;
     }
 
@@ -441,4 +438,33 @@ namespace dmSound
         sound_instance->m_Looping = (uint32_t) looping;
         return RESULT_OK;
     }
+
+    Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value)
+    {
+        switch(parameter)
+        {
+            case PARAMETER_GAIN:
+                sound_instance->m_Gain = value.getX();
+                break;
+            default:
+                dmLogError("Invalid paramter: %d\n", parameter);
+                return RESULT_INVALID_PROPERTY;
+        }
+        return RESULT_OK;
+    }
+
+    Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value)
+    {
+        switch(parameter)
+        {
+            case PARAMETER_GAIN:
+                value = Vector4(sound_instance->m_Gain, 0, 0, 0);
+                break;
+            default:
+                dmLogError("Invalid paramter: %d\n", parameter);
+                return RESULT_INVALID_PROPERTY;
+        }
+        return RESULT_OK;
+    }
+
 }

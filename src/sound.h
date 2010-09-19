@@ -17,9 +17,9 @@ namespace dmSound
         SOUND_DATA_TYPE_WAV   = 0,
     };
 
-    enum Property
+    enum Parameter
     {
-        PROPERTY_GAIN = 0,
+        PARAMETER_GAIN = 0,
     };
 
     enum Result
@@ -30,6 +30,7 @@ namespace dmSound
         RESULT_OUT_OF_INSTANCES = -3,
         RESULT_RESOURCE_LEAK    = -4,
         RESULT_OUT_OF_BUFFERS   = -5,
+        RESULT_INVALID_PROPERTY = -6,
         RESULT_UNKNOWN_ERROR    = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -73,8 +74,8 @@ namespace dmSound
 
     Result SetLooping(HSoundInstance sound_instance, bool looping);
 
-    Result SetParameter(HSoundInstance sound_instance, Property property, const Vector4& value);
-    Result GetParameter(HSoundInstance sound_instance, Property property, Vector4& value);
+    Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value);
+    Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value);
 
     Result Update();
 }
