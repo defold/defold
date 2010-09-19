@@ -85,17 +85,17 @@ namespace dmGameSystem
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 
-        REGISTER_COMPONENT_TYPE(COLLISION_OBJECT_EXT, physics_context,
+        REGISTER_COMPONENT_TYPE("collisionobject", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
                 &CompCollisionObjectUpdate, &CompCollisionObjectOnEvent);
 
-        REGISTER_COMPONENT_TYPE(EMITTER_EXT, emitter_context,
+        REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
                 &CompEmitterUpdate, &CompEmitterOnEvent);
 
-        REGISTER_COMPONENT_TYPE(MODEL_EXT, render_context,
+        REGISTER_COMPONENT_TYPE("modelc", render_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, 0, CompModelDestroy,
                 CompModelUpdate, CompModelOnEvent);
@@ -108,10 +108,10 @@ namespace dmGameSystem
     void RequestRayCast(dmGameObject::HCollection collection, const dmPhysics::RayCastRequest& request)
     {
         uint32_t type;
-        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), COLLISION_OBJECT_EXT, &type);
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobject", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
         {
-            dmLogWarning("Unable to get resource type for '%s' (%d)", COLLISION_OBJECT_EXT, fact_result);
+            dmLogWarning("Unable to get resource type for '%s' (%d)", "collisionobject", fact_result);
         }
         void* world = dmGameObject::FindWorld(collection, type);
         if (world != 0x0)

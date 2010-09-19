@@ -7,8 +7,6 @@
 
 namespace dmGameSystem
 {
-    const char* COLLISION_OBJECT_EXT = "collisionobject";
-
     dmGameObject::CreateResult CompCollisionObjectNewWorld(void* context, void** world);
 
     dmGameObject::CreateResult CompCollisionObjectDeleteWorld(void* context, void* world);

@@ -5,8 +5,6 @@
 
 namespace dmGameSystem
 {
-    const char* MODEL_EXT = "modelc";
-
     dmGameObject::CreateResult CompModelNewWorld(void* context, void** world);
 
     dmGameObject::CreateResult CompModelDeleteWorld(void* context, void* world);

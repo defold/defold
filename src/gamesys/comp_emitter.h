@@ -9,8 +9,6 @@
 
 namespace dmGameSystem
 {
-    const char* EMITTER_EXT = "emitter";
-
     dmGameObject::CreateResult CompEmitterNewWorld(void* context, void** world);
 
     dmGameObject::CreateResult CompEmitterDeleteWorld(void* context, void* world);
