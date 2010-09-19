@@ -6,12 +6,14 @@ def configure(conf):
 
 def build(bld):
     particle = bld.new_task_gen(features = 'cxx cstaticlib',
-                          includes = '.',
-                          target = 'particle',
-                          uselib = 'DDF DLIB PLATFORM_SOCKET',
-                          install_path='${PREFIX}/lib')
+                                includes = '.',
+                                proto_gen_py = True,
+                                target = 'particle',
+                                uselib = 'DDF DLIB PLATFORM_SOCKET',
+                                install_path='${PREFIX}/lib')
     particle.find_sources_in_dirs(['.'])
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
+    bld.install_files('${PREFIX}/share/proto', 'particle_ddf.proto')
 
     bld.add_subdirs('test')

@@ -31,7 +31,6 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_LUA'] = 'lua'
 
     platform = conf.env['PLATFORM']
 

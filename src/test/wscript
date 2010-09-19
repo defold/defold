@@ -17,8 +17,7 @@ create_simple_protoc_task('emitter', '.emitter', '.emitterc', 'dmParticleDDF.Emi
 def build(bld):
     test_particle = bld.new_task_gen(features = 'cc cxx cprogram',
                                      includes = '. ..',
-                                     #uselib = 'GTEST DDF GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER RENDERDEBUG PLATFORM_SOCKET LUA OPENAL SCRIPT DMGLFW',
-                                     uselib = 'GTEST GAMEOBJECT SCRIPT RESOURCE GAMESYS DDF GRAPHICS_NULL DLIB PLATFORM_SOCKET PHYSICS RENDER RENDERDEBUG DMGLFW LUA',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET',
                                      uselib_local = 'particle',
                                      proto_gen_py = True,
                                      target = 'test_particle')
