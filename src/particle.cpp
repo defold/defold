@@ -400,7 +400,7 @@ namespace dmParticle
             {
                 float height = emitter->m_Properties[EMITTER_KEY_CONE_HEIGHT] * key_weights[EMITTER_KEY_CONE_HEIGHT];
                 float radius = emitter->m_Properties[EMITTER_KEY_CONE_RADIUS] * key_weights[EMITTER_KEY_CONE_RADIUS] * key_weights[EMITTER_KEY_CONE_HEIGHT];
-                float angle = 2.0f * M_PI * dmMath::RandOpen01();
+                float angle = 2.0f * ((float) M_PI) * dmMath::RandOpen01();
 
                 local_position = Vector3(cosf(angle) * radius, sinf(angle) * radius, height);
 
@@ -659,7 +659,7 @@ namespace dmParticle
                 Vector3 vertices[segment_count + 1][3];
                 for (uint32_t j = 0; j < segment_count + 1; ++j)
                 {
-                    float angle = 2.0f * M_PI * j / segment_count;
+                    float angle = 2.0f * ((float) M_PI) * j / segment_count;
                     vertices[j][0] = Vector3(radius * cos(angle), radius * sin(angle), 0.0f);
                     vertices[j][1] = Vector3(0.0f, radius * cos(angle), radius * sin(angle));
                     vertices[j][2] = Vector3(radius * cos(angle), 0.0f, radius * sin(angle));
@@ -686,7 +686,7 @@ namespace dmParticle
                 Vector3 vertices[segment_count];
                 for (uint32_t j = 0; j < segment_count; ++j)
                 {
-                    float angle = 2.0f * M_PI * j / segment_count;
+                    float angle = 2.0f * ((float) M_PI) * j / segment_count;
                     vertices[j] = Vector3(radius * cos(angle), radius * sin(angle), height);
                 }
                 for (uint32_t j = 1; j < segment_count; ++j)
