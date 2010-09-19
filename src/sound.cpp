@@ -53,7 +53,7 @@ namespace dmSound
         dmIndexPool32          m_BuffersPool;
 
         dmArray<ALuint>        m_Sources;
-        dmArray<ALint>         m_SourceStates;
+        dmIndexPool16          m_SourcesPool;
 
         float                  m_MasterGain;
         uint32_t               m_BufferSize;
@@ -142,8 +142,7 @@ namespace dmSound
 
         sound->m_Sources.SetCapacity(max_sources);
         sound->m_Sources.SetSize(max_sources);
-        sound->m_SourceStates.SetCapacity(max_sources);
-        sound->m_SourceStates.SetSize(max_sources);
+        sound->m_SourcesPool.SetCapacity(max_sources);
 
         sound->m_MasterGain = master_gain;
         sound->m_BufferSize = params->m_BufferSize;
@@ -151,8 +150,6 @@ namespace dmSound
         for (uint32_t i = 0; i < max_sources; ++i)
         {
             alGenSources (1, &sound->m_Sources[i]);
-            CheckAndPrintError();
-            alGetSourcei (sound->m_Sources[i], AL_SOURCE_STATE, &sound->m_SourceStates[i]);
             CheckAndPrintError();
         }
 
@@ -306,15 +303,6 @@ namespace dmSound
     {
         SoundSystem* sound = g_SoundSystem;
 
-        for (uint32_t i = 0; i < sound->m_Sources.Size(); ++i)
-        {
-            //ALint prev_state = sound->m_SourceStates[i];
-            alGetSourcei (sound->m_Sources[i], AL_SOURCE_STATE, &sound->m_SourceStates[i]);
-            //if (prev_state != sound->m_SourceStates[i] )
-              //  printf("Changed state: %x -> %x\n", prev_state, sound->m_SourceStates[i]);
-            CheckAndPrintError();
-        }
-
         for (uint32_t i = 0; i < sound->m_Instances.Size(); ++i)
         {
             SoundInstance* instance = &sound->m_Instances[i];
@@ -340,6 +328,7 @@ namespace dmSound
                 instance->m_BufferIndices[0] = 0xffff;
                 instance->m_BufferIndices[1] = 0xffff;
 
+                sound->m_SourcesPool.Push(instance->m_SourceIndex);
                 instance->m_SourceIndex = 0xffff;
             }
             else
@@ -379,29 +368,22 @@ namespace dmSound
             return RESULT_OUT_OF_BUFFERS;
         }
 
-        uint32_t index = 0xffffffff;
-        for (uint32_t i = 0; i < sound->m_SourceStates.Size(); ++i)
-        {
-            if (sound->m_SourceStates[i] != AL_PLAYING)
-            {
-                index = i;
-                alSourcei(sound->m_Sources[i], AL_BUFFER, AL_NONE);
-                break;
-            }
-        }
-
-        if (index == 0xffffffff)
+        if (sound->m_SourcesPool.Remaining() == 0)
         {
             dmLogWarning("Out of sound sources");
             return RESULT_OUT_OF_SOURCES;
         }
+        uint16_t index = sound->m_SourcesPool.Pop();
 
         sound_instance->m_SourceIndex = index;
         ALuint source = sound->m_Sources[index];
+        alSourcei(source, AL_BUFFER, AL_NONE);
+
+        ALint prev_state;
+        alGetSourcei (source, AL_SOURCE_STATE, &prev_state);
 
         alSourcef(source, AL_GAIN, sound_instance->m_Gain * sound->m_MasterGain);
         CheckAndPrintError();
-        sound->m_SourceStates[index] = AL_PLAYING;
 
         SoundData* sound_data = &sound->m_SoundData[sound_instance->m_SoundDataIndex];
 
