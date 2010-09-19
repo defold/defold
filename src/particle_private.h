@@ -4,7 +4,7 @@
 #include <dlib/configfile.h>
 #include <dlib/index_pool.h>
 
-#include "particle_ddf.h"
+#include "particle/particle_ddf.h"
 
 namespace dmParticle
 {

@@ -5,15 +5,16 @@ def configure(conf):
     pass
 
 def build(bld):
-    particle = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = '.',
+    particle = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                                includes = ['.', '../build/default/proto'],
                                 proto_gen_py = True,
+                                protoc_includes = '../proto',
                                 target = 'particle',
                                 uselib = 'DDF DLIB PLATFORM_SOCKET',
-                                install_path='${PREFIX}/lib')
-    particle.find_sources_in_dirs(['.'])
+                                install_path='${PREFIX}/lib',
+                                source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
-    bld.install_files('${PREFIX}/share/proto', 'particle_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
 
     bld.add_subdirs('test')

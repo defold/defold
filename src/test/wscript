@@ -1,14 +1,14 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../src/particle_ddf.proto'):
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/particle/particle_ddf.proto'):
     def create(self, node):
         task = self.create_task(name)
         task.set_inputs(node)
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../src/test -I ../src -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    cmd = 'protoc --encode=%s -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
     declare_extension([ext], create)
 

@@ -7,7 +7,7 @@
 
 #include <ddf/ddf.h>
 
-#include "particle_ddf.h"
+#include "particle/particle_ddf.h"
 
 
 using namespace Vectormath::Aos;
