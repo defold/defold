@@ -1,12 +1,12 @@
 import sys, os
 import Task, TaskGen
 from TaskGen import extension
-from waf_gamesys import ProtoCTask
+from waf_content import proto_compile_task
 
 def configure(conf):
     conf.find_file('fontc.py', var='FONTC', mandatory = True)
 
-ProtoCTask('font', 'dmRender.FontDesc', '${DYNAMO_HOME}/share/proto/render_ddf.proto', '.font_pb', '.font', include = '${DYNAMO_HOME}/share/proto')
+proto_compile_task('font', 'render.render_ddf_pb2', 'render_ddf_pb2.FontDesc', '.font_pb', '.font')
 
 #Task.simple_task_type('ttf', 'python ${FONTC} -s ${size} -o ${TGT} ${SRC}',
 Task.simple_task_type('ttf', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.Fontc ${SRC} ${size} ${TGT}',
