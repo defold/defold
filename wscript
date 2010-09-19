@@ -6,7 +6,7 @@ APPNAME='sound'
 srcdir = '.'
 blddir = 'build'
 
-import sys
+import os, sys
 import waf_dynamo, waf_ddf
 
 def init():
@@ -58,4 +58,5 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    if os.path.exists('/dev/dsp') and sys.platform != 'win32':
+        waf_dynamo.run_gtests(valgrind = True)
