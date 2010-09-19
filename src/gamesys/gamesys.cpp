@@ -2,21 +2,23 @@
 
 #include <dlib/log.h>
 
-#include "res_collision_object.h"
-#include "res_convex_shape.h"
-#include "res_emitter.h"
-#include "res_texture.h"
-#include "res_vertex_program.h"
-#include "res_fragment_program.h"
-#include "res_image_font.h"
-#include "res_font.h"
-#include "res_model.h"
-#include "res_mesh.h"
-#include "res_material.h"
+#include "resources/res_collision_object.h"
+#include "resources/res_convex_shape.h"
+#include "resources/res_emitter.h"
+#include "resources/res_texture.h"
+#include "resources/res_vertex_program.h"
+#include "resources/res_fragment_program.h"
+#include "resources/res_image_font.h"
+#include "resources/res_font.h"
+#include "resources/res_model.h"
+#include "resources/res_mesh.h"
+#include "resources/res_material.h"
+#include "resources/res_gui.h"
 
-#include "comp_collision_object.h"
-#include "comp_emitter.h"
-#include "comp_model.h"
+#include "components/comp_collision_object.h"
+#include "components/comp_emitter.h"
+#include "components/comp_model.h"
+#include "components/comp_gui.h"
 
 #include "../proto/physics_ddf.h"
 
@@ -41,6 +43,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("modelc", ResCreateModel, ResDestroyModel, ResRecreateModel);
         REGISTER_RESOURCE_TYPE("mesh", ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
         REGISTER_RESOURCE_TYPE("materialc", ResCreateMaterial, ResDestroyMaterial, ResRecreateMaterial);
+        REGISTER_RESOURCE_TYPE("guic", ResCreateSceneDesc, ResDestroySceneDesc, 0);
+        REGISTER_RESOURCE_TYPE("gui_scriptc", ResCreateGuiScript, ResDestroyGuiScript, 0);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -62,7 +66,7 @@ namespace dmGameSystem
         dmResource::FactoryResult factory_result;
         dmGameObject::Result go_result;
 
-#define REGISTER_COMPONENT_TYPE(extension, context, new_world_func, delete_world_func, create_func, init_func, destroy_func, update_func, on_event_func)\
+#define REGISTER_COMPONENT_TYPE(extension, context, new_world_func, delete_world_func, create_func, init_func, destroy_func, update_func, on_event_func, on_input_func)\
     factory_result = dmResource::GetTypeFromExtension(factory, extension, &type);\
     if (factory_result != dmResource::FACTORY_RESULT_OK)\
     {\
@@ -80,6 +84,7 @@ namespace dmGameSystem
     component_type.m_DestroyFunction = destroy_func;\
     component_type.m_UpdateFunction = update_func;\
     component_type.m_OnEventFunction = on_event_func;\
+    component_type.m_OnInputFunction = on_input_func;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
     go_result = dmGameObject::RegisterComponentType(regist, component_type);\
     if (go_result != dmGameObject::RESULT_OK)\
@@ -88,17 +93,22 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("collisionobject", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
-                &CompCollisionObjectUpdate, &CompCollisionObjectOnEvent);
+                &CompCollisionObjectUpdate, &CompCollisionObjectOnEvent, 0);
 
         REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
-                &CompEmitterUpdate, &CompEmitterOnEvent);
+                &CompEmitterUpdate, &CompEmitterOnEvent, 0);
 
         REGISTER_COMPONENT_TYPE("modelc", render_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, 0, CompModelDestroy,
-                CompModelUpdate, CompModelOnEvent);
+                CompModelUpdate, CompModelOnEvent, 0);
+
+        REGISTER_COMPONENT_TYPE("guic", 0x0,
+                CompGuiNewWorld, CompGuiDeleteWorld,
+                CompGuiCreate, CompGuiInit, CompGuiDestroy,
+                CompGuiUpdate, CompGuiOnEvent, CompGuiOnInput);
 
 #undef REGISTER_COMPONENT_TYPE
 

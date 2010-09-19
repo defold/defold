@@ -16,7 +16,8 @@ def build(bld):
                                 ddf_jar = 'gamesys.jar',
                                 install_path='${PREFIX}/lib')
 
-    resource.find_sources_in_dirs(['.', '../../proto'])
+    resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/gui_ddf.proto')

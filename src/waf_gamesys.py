@@ -95,3 +95,16 @@ def gameobjectdesc_file(self, node):
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
+
+Task.simple_task_type('gui', 'protoc --encode=dmGuiDDF.SceneDesc -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ${DYNAMO_HOME}/share/proto/gui_ddf.proto < ${SRC} > ${TGT}',
+                      color='PINK',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.gui')
+def gameobjectdesc_file(self, node):
+    obj_ext = '.guic'
+    task = self.create_task('gui')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)

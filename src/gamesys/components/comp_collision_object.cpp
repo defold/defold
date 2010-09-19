@@ -6,7 +6,7 @@
 #include <physics/physics.h>
 
 #include "gamesys.h"
-#include "res_collision_object.h"
+#include "../resources/res_collision_object.h"
 
 #include "../proto/physics_ddf.h"
 
