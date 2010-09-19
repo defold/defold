@@ -58,5 +58,11 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
-    if os.path.exists('/dev/dsp') and sys.platform != 'win32':
+    run = False
+    if sys.platform == 'linux2' and os.path.exists('/dev/dsp'):
+        run = True
+    elif sys.platform == 'darwin':
+        run = True
+
+    if run:
         waf_dynamo.run_gtests(valgrind = True)
