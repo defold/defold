@@ -4,7 +4,7 @@
 
 TEST(dmMath, ConstantsDefined)
 {
-    ASSERT_NEAR(0.0f, cosf(M_PI_2), 0.0000001f);
+    ASSERT_NEAR(0.0f, cosf((float) M_PI_2), 0.0000001f);
 }
 
 TEST(dmMath, MinMax)
