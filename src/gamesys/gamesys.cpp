@@ -14,11 +14,13 @@
 #include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_gui.h"
+#include "resources/res_sound_data.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
 #include "components/comp_model.h"
 #include "components/comp_gui.h"
+#include "components/comp_sound.h"
 
 #include "../proto/physics_ddf.h"
 
@@ -30,7 +32,11 @@ namespace dmGameSystem
 
 #define REGISTER_RESOURCE_TYPE(extension, create_func, destroy_func, recreate_func)\
     e = dmResource::RegisterType(factory, extension, 0, create_func, destroy_func, recreate_func);\
-    if( e != dmResource::FACTORY_RESULT_OK ) return e;
+    if( e != dmResource::FACTORY_RESULT_OK )\
+    {\
+        dmLogFatal("Unable to register resource type: %s", extension);\
+        return e;\
+    }\
 
         REGISTER_RESOURCE_TYPE("collisionobject", ResCollisionObjectCreate, ResCollisionObjectDestroy, 0);
         REGISTER_RESOURCE_TYPE("convexshape", ResConvexShapeCreate, ResConvexShapeDestroy, 0);
@@ -45,6 +51,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("materialc", ResCreateMaterial, ResDestroyMaterial, ResRecreateMaterial);
         REGISTER_RESOURCE_TYPE("guic", ResCreateSceneDesc, ResDestroySceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", ResCreateGuiScript, ResDestroyGuiScript, 0);
+        REGISTER_RESOURCE_TYPE("wavc", ResSoundDataCreate, ResSoundDataDestroy, 0);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -109,6 +116,11 @@ namespace dmGameSystem
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
                 CompGuiUpdate, CompGuiOnEvent, CompGuiOnInput);
+
+        REGISTER_COMPONENT_TYPE("wavc", 0x0,
+                CompSoundNewWorld, CompSoundDeleteWorld,
+                CompSoundCreate, 0, CompSoundDestroy,
+                CompSoundUpdate, CompSoundOnEvent, 0);
 
 #undef REGISTER_COMPONENT_TYPE
 
