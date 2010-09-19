@@ -34,10 +34,10 @@ namespace dmParticle
      */
     const HEmitter INVALID_EMITTER = 0;
 
-    typedef void (*RenderSetUpCallback)(void* render_context, float* vertex_buffer);
+    typedef void (*RenderSetUpCallback)(void* render_context, float* vertex_buffer, uint32_t vertex_size);
     typedef void (*RenderTearDownCallback)(void* render_context);
     typedef void (*RenderEmitterCallback)(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
-    typedef void (*RenderLineCallback)(void* context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
+    typedef void (*RenderLineCallback)(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
     /**
      * Representation of an emitter resource.
      */

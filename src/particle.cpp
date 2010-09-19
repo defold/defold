@@ -579,7 +579,7 @@ namespace dmParticle
     {
         DM_PROFILE(Particle, "Render");
 
-        render_setup_callback(render_context, context->m_VertexBuffer);
+        render_setup_callback(render_context, context->m_VertexBuffer, VERTEX_SIZE);
 
         for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
         {
@@ -590,47 +590,10 @@ namespace dmParticle
         }
 
         render_teardown_callback(render_context);
-
-//        Matrix4* viewproj = &context->m_RenderContext->m_ViewProj;
-//
-//        dmGraphics::HContext gfx_context = context->m_RenderContext->m_GFXContext;
-//
-//        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-//        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
-//
-//        dmGraphics::SetDepthMask(gfx_context, 0);
-//
-//        // positions
-//        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, VERTEX_SIZE, (void*)context->m_VertexBuffer);
-//        // uv's
-//        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, VERTEX_SIZE, (void*)&context->m_VertexBuffer[3]);
-//        // alpha
-//        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, VERTEX_SIZE, (void*)&context->m_VertexBuffer[5]);
-//
-//        for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
-//        {
-//            Emitter* emitter = context->m_Emitters[i];
-//            if (!emitter || emitter->m_VertexCount == 0) continue;
-//
-//            dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram(emitter->m_Prototype->m_Material) );
-//            dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)viewproj, 0, 4);
-//            dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram(emitter->m_Prototype->m_Material) );
-//
-//            dmGraphics::SetTexture(gfx_context, emitter->m_Prototype->m_Texture);
-//
-//            dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, emitter->m_VertexIndex, emitter->m_VertexCount);
-//        }
-//
-//        dmGraphics::SetDepthMask(gfx_context, 1);
     }
 
     void DebugRender(HContext context, void* render_context, void (*RenderLine)(void* context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color))
     {
-//        dmGraphics::HContext gfx_context = context->m_RenderContext->m_GFXContext;
-//
-//        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-//        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
-
         for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
         {
             Emitter* e = context->m_Emitters[i];
