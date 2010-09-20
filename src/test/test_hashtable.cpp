@@ -378,6 +378,37 @@ TEST(dmHashTable, Iterate)
     }
 }
 
+TEST(dmHashTable, Grow)
+{
+    dmHashTable<uint32_t, int> ht;
+    std::map<uint32_t, int> map;
+
+    for (uint32_t table_size = 1; table_size < 41; ++table_size)
+    {
+        uint32_t n = rand() % 97;
+        for (uint32_t iter = 0; iter < n; ++iter)
+        {
+            if (ht.Full())
+            {
+                uint32_t foo = ht.Capacity();
+                ht.SetCapacity(table_size, ht.Capacity() + (rand() % 4) + 1);
+            }
+            uint32_t key = rand();
+            int val = rand();
+            ht.Put(key, val);
+            map[key] = val;
+        }
+
+        ASSERT_EQ(map.size(), ht.Size());
+        std::map<uint32_t, int>::iterator iter = map.begin();
+        for (iter = map.begin(); iter != map.end(); ++iter)
+        {
+            uint32_t key = iter->first;
+            ASSERT_EQ(map[key], *ht.Get(key));
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

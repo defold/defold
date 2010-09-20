@@ -15,7 +15,7 @@ class dmHashTable
 {
     enum STATE_FLAGS
     {
-        STATE_DEFAULT           = 0x0, 
+        STATE_DEFAULT           = 0x0,
         STATE_USER_ALLOCATED    = 0x1
     };
 
@@ -60,7 +60,7 @@ public:
     }
 
     /**
-     * Destructor. 
+     * Destructor.
      * @note If user allocated, memory is not free'd
      */
     ~dmHashTable()
@@ -98,25 +98,42 @@ public:
     }
 
     /**
-     * Set hashtable capacity. Only valid to run once initially.
+     * Set hashtable capacity. New capacity must be greater or equal to current capacity
      * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
      * @param capacity Capacity. capacity < 0xffff
      */
     void SetCapacity(uint16_t table_size, uint16_t capacity)
     {
-        assert(m_InitialEntries == 0);
-        assert(m_HashTable == 0);
         assert(table_size > 0);
         assert(table_size < 0xffff);
         assert(capacity < 0xffff);
+        assert(capacity >= Capacity());
 
-        m_HashTableSize = table_size;
-        m_HashTable = (uint16_t*) malloc(sizeof(uint16_t) * table_size);
-        memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
+        if (m_InitialEntries == 0)
+        {
+            m_HashTableSize = table_size;
+            m_HashTable = (uint16_t*) malloc(sizeof(uint16_t) * table_size);
+            memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
 
-        m_InitialEntries = (Entry*) malloc(sizeof(Entry) * capacity);
-        m_InitialEntriesNextFree = m_InitialEntries;
-        m_InitialEntriesEnd = m_InitialEntries + capacity;
+            m_InitialEntries = (Entry*) malloc(sizeof(Entry) * capacity);
+            m_InitialEntriesNextFree = m_InitialEntries;
+            m_InitialEntriesEnd = m_InitialEntries + capacity;
+        }
+        else
+        {
+            // Rehash table
+            dmHashTable<KEY, T> new_ht;
+            new_ht.SetCapacity(table_size, capacity);
+            this->Iterate(&FillCallback, &new_ht);
+
+            free(m_HashTable);
+            free(m_InitialEntries);
+            memcpy(this, &new_ht, sizeof(*this));
+
+            // Avoid double free()
+            new_ht.m_HashTable = 0;
+            new_ht.m_InitialEntries = 0;
+        }
     }
 
     /**
@@ -341,6 +358,12 @@ private:
     // Forbid assignment operator and copy-constructor
     dmHashTable(const dmHashTable<KEY, T>&);
     const dmHashTable<KEY, T>& operator=(const dmHashTable<KEY, T>&);
+
+    template <typename KEY2, typename T2>
+    static void FillCallback(dmHashTable<KEY2,T2> *ht, const KEY2* key, T2* value)
+    {
+        ht->Put(*key, *value);
+    }
 
     Entry* FindEntry(KEY key)
     {
