@@ -22,7 +22,7 @@ namespace dmGameSystem
         uint16_t m_Enabled : 1;
     };
 
-    struct World
+    struct GuiWorld
     {
         dmGui::HGui         m_Gui;
         dmArray<Component*> m_Components;
@@ -33,7 +33,7 @@ namespace dmGameSystem
     {
         char socket_name[32];
 
-        World* gui_world = new World();
+        GuiWorld* gui_world = new GuiWorld();
         DM_SNPRINTF(socket_name, sizeof(socket_name), "dmgui_from_%X", (unsigned int) gui_world);
         uint32_t socket_name_hash = dmHashString32(socket_name);
         dmMessage::Result mr = dmMessage::CreateSocket(socket_name_hash, 128); // TODO: 128
@@ -55,7 +55,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiDeleteWorld(void* context, void* world)
     {
-        World* gui_world = (World*)world;
+        GuiWorld* gui_world = (GuiWorld*)world;
         if (0 < gui_world->m_Components.Size())
         {
             dmLogWarning("%d gui component(s) were not destroyed at gui context destruction.", gui_world->m_Components.Size());
@@ -76,7 +76,7 @@ namespace dmGameSystem
                                              void* context,
                                              uintptr_t* user_data)
     {
-        World* gui_world = (World*)world;
+        GuiWorld* gui_world = (GuiWorld*)world;
 
         GuiScenePrototype* scene_prototype = (GuiScenePrototype*) resource;
 
@@ -120,7 +120,7 @@ namespace dmGameSystem
                                               void* context,
                                               uintptr_t* user_data)
     {
-        World* gui_world = (World*)world;
+        GuiWorld* gui_world = (GuiWorld*)world;
         Component* gui_component = (Component*)*user_data;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
@@ -230,7 +230,7 @@ namespace dmGameSystem
                                              void* world,
                                              void* context)
     {
-        World* gui_world = (World*)world;
+        GuiWorld* gui_world = (GuiWorld*)world;
 
         dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
         dmMessage::Dispatch(gui_world->m_Socket, &DispatchGui, regist);
