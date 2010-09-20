@@ -143,6 +143,10 @@ namespace dmGameSystem
         {
             dmParticle::StartEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
         }
+        else if (event_data->m_EventHash == dmHashString32("restart"))
+        {
+            dmParticle::RestartEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
+        }
         else if (event_data->m_EventHash == dmHashString32("stop"))
         {
             dmParticle::StopEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
