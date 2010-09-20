@@ -24,6 +24,8 @@ namespace dmGameSystem
         bool m_Debug;
     };
 
+    void RegisterDDFTypes();
+
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,

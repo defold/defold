@@ -15,17 +15,26 @@
 #include "resources/res_material.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
+#include "resources/res_camera.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
 #include "components/comp_model.h"
 #include "components/comp_gui.h"
 #include "components/comp_sound.h"
+#include "components/comp_camera.h"
 
-#include "../proto/physics_ddf.h"
+#include "camera_ddf.h"
+#include "physics_ddf.h"
 
 namespace dmGameSystem
 {
+    void RegisterDDFTypes()
+    {
+        dmGameObject::RegisterDDFType(dmCameraDDF::AddCameraTarget::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmCameraDDF::SetCamera::m_DDFDescriptor);
+    }
+
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
     {
         dmResource::FactoryResult e;
@@ -52,6 +61,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("guic", ResCreateSceneDesc, ResDestroySceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", ResCreateGuiScript, ResDestroyGuiScript, 0);
         REGISTER_RESOURCE_TYPE("wavc", ResSoundDataCreate, ResSoundDataDestroy, 0);
+        REGISTER_RESOURCE_TYPE("camerac", ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -97,15 +107,15 @@ namespace dmGameSystem
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 
+        REGISTER_COMPONENT_TYPE("camerac", render_context,
+                &CompCameraNewWorld, &CompCameraDeleteWorld,
+                &CompCameraCreate, 0, &CompCameraDestroy,
+                &CompCameraUpdate, &CompCameraOnEvent, 0);
+
         REGISTER_COMPONENT_TYPE("collisionobject", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
                 &CompCollisionObjectUpdate, &CompCollisionObjectOnEvent, 0);
-
-        REGISTER_COMPONENT_TYPE("guic", 0x0,
-                CompGuiNewWorld, CompGuiDeleteWorld,
-                CompGuiCreate, CompGuiInit, CompGuiDestroy,
-                CompGuiUpdate, CompGuiOnEvent, CompGuiOnInput);
 
         REGISTER_COMPONENT_TYPE("wavc", 0x0,
                 CompSoundNewWorld, CompSoundDeleteWorld,
@@ -121,6 +131,11 @@ namespace dmGameSystem
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
                 &CompEmitterUpdate, &CompEmitterOnEvent, 0);
+
+        REGISTER_COMPONENT_TYPE("guic", 0x0,
+                CompGuiNewWorld, CompGuiDeleteWorld,
+                CompGuiCreate, CompGuiInit, CompGuiDestroy,
+                CompGuiUpdate, CompGuiOnEvent, CompGuiOnInput);
 
 #undef REGISTER_COMPONENT_TYPE
 

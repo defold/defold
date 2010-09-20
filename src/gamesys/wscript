@@ -6,7 +6,7 @@ def configure(conf):
 
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                includes = '.',
+                                includes = '. ../../proto',
                                 proto_gen_py = True,
                                 proto_gen_java = True,
                                 protoc_includes = '../../proto',
