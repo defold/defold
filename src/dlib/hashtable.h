@@ -261,6 +261,9 @@ public:
      */
     void Erase(KEY key)
     {
+        // Avoid module division by zero
+        assert(m_HashTableSize != 0);
+
         uint16_t bucket_index = key % m_HashTableSize;
         uint16_t entry_ptr = m_HashTable[bucket_index];
 
@@ -367,6 +370,10 @@ private:
 
     Entry* FindEntry(KEY key)
     {
+        // Avoid module division by zero
+        if (!m_HashTableSize)
+            return 0;
+
         uint16_t bucket_index = key % m_HashTableSize;
         uint16_t bucket = m_HashTable[bucket_index];
 
