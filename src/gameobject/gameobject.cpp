@@ -1110,14 +1110,14 @@ bail:
         }
     }
 
-    bool DispatchEvents(HCollection collection)
+    bool DispatchEvents(HRegister reg)
     {
         DM_PROFILE(GameObject, "DispatchEvents");
 
         DispatchEventsContext ctx;
-        ctx.m_Register = collection->m_Register;
+        ctx.m_Register = reg;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(collection->m_Register->m_ReplyEventSocketId, &DispatchEventsFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(reg->m_ReplyEventSocketId, &DispatchEventsFunction, (void*) &ctx);
 
         return ctx.m_Success;
     }
@@ -1184,112 +1184,160 @@ bail:
         }
     }
 
-    bool Update(HCollection collection, const UpdateContext* update_context)
+    bool Update(HCollection* collections, const UpdateContext* update_contexts, uint32_t collection_count)
     {
         DM_PROFILE(GameObject, "Update");
-        collection->m_InUpdate = 1;
+
+        if (collection_count == 0)
+            return true;
+
+        assert(collections != 0x0);
+        HRegister reg = 0;
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            if (collections[i])
+            {
+                if (reg)
+                    assert(reg == collections[i]->m_Register);
+                else
+                    reg = collections[i]->m_Register;
+            }
+        }
+        assert(reg);
+
+        for (uint32_t i = 0; i < collection_count; ++i)
+            if (collections[i])
+                collections[i]->m_InUpdate = 1;
 
         bool ret = true;
 
-        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
+        uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            if (!DispatchEvents(collection))
+            if (!DispatchEvents(reg))
                 ret = false;
 
-            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[i];
+            ComponentType* component_type = &reg->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
             {
-                UpdateResult res = component_type->m_UpdateFunction(collection, update_context, collection->m_ComponentWorlds[i], component_type->m_Context);
-                if (res != UPDATE_RESULT_OK)
-                    ret = false;
+                for (uint32_t j = 0; j < collection_count; ++j)
+                {
+                    if (collections[j] == 0)
+                        continue;
+                    const UpdateContext* update_context = 0x0;
+                    if (update_contexts != 0)
+                        update_context = &update_contexts[j];
+                    UpdateResult res = component_type->m_UpdateFunction(collections[j], update_context, collections[j]->m_ComponentWorlds[i], component_type->m_Context);
+                    if (res != UPDATE_RESULT_OK)
+                        ret = false;
+                }
             }
             // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
             // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
             // into UpdateTrasform, then Update or similar
-            UpdateTransforms(collection);
+            for (uint32_t j = 0; j < collection_count; ++j)
+                if (collections[j])
+                    UpdateTransforms(collections[j]);
         }
 
-        collection->m_InUpdate = 0;
+        for (uint32_t i = 0; i < collection_count; ++i)
+            if (collections[i])
+                collections[i]->m_InUpdate = 0;
 
         return ret;
     }
 
-    bool PostUpdate(HCollection collection)
+    bool PostUpdate(HCollection* collections, uint32_t collection_count)
     {
-        if (collection->m_InstancesToDelete.Size() > 0)
+        for (uint32_t i = 0; i < collection_count; ++i)
         {
-            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
-            for (uint32_t i = 0; i < n_to_delete; ++i)
+            HCollection collection = collections[i];
+            if (collection == 0x0)
+                continue;
+            if (collection->m_InstancesToDelete.Size() > 0)
             {
-                uint16_t index = collection->m_InstancesToDelete[i];
-                Instance* instance = collection->m_Instances[index];
+                uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
+                for (uint32_t j = 0; j < n_to_delete; ++j)
+                {
+                    uint16_t index = collection->m_InstancesToDelete[j];
+                    Instance* instance = collection->m_Instances[index];
 
-                assert(collection->m_Instances[instance->m_Index] == instance);
-                assert(instance->m_ToBeDeleted);
-                DoDelete(collection, instance);
+                    assert(collection->m_Instances[instance->m_Index] == instance);
+                    assert(instance->m_ToBeDeleted);
+                    DoDelete(collection, instance);
+                }
+                collection->m_InstancesToDelete.SetSize(0);
             }
-            collection->m_InstancesToDelete.SetSize(0);
         }
 
         return true;
     }
 
-    UpdateResult DispatchInput(HCollection collection, InputAction* input_action, uint32_t input_action_count)
+    UpdateResult DispatchInput(HCollection* collections, uint32_t collection_count, InputAction* input_actions, uint32_t input_action_count)
     {
         DM_PROFILE(GameObject, "DispatchInput");
-        Instance* instance = 0x0;
-        // clean stack
-        while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
+        // clean stacks
+        for (uint32_t i = 0; i < collection_count; ++i)
         {
-            instance = collection->m_FocusStack.Top();
-            if (instance == 0x0 || instance->m_ToBeDeleted)
+            HCollection collection = collections[i];
+            HInstance instance = 0x0;
+            while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
             {
-                collection->m_FocusStack.Pop();
-                instance = 0x0;
+                instance = collection->m_FocusStack.Top();
+                if (instance == 0x0 || instance->m_ToBeDeleted)
+                {
+                    collection->m_FocusStack.Pop();
+                    instance = 0x0;
+                }
             }
         }
-        // iterate stack from top to bottom
-        uint32_t stack_size = collection->m_FocusStack.Size();
-        for (uint32_t i = 0; i < stack_size; ++i)
+        // iterate stacks from top to bottom
+        for (uint32_t i = 0; i < input_action_count; ++i)
         {
-            instance = collection->m_FocusStack[stack_size - 1 - i];
-            if (instance == 0x0 || instance->m_ToBeDeleted)
-                continue;
-            Prototype* prototype = instance->m_Prototype;
-            uint32_t components_size = prototype->m_Components.Size();
-            for (uint32_t j = 0; j < input_action_count; ++j)
+            InputAction& input_action = input_actions[i];
+            for (uint32_t j = 0; j < collection_count && input_action.m_ActionId != 0; ++j)
             {
-                if (input_action[j].m_ActionId == 0)
+                HCollection collection = collections[j];
+                if (collection == 0x0)
                     continue;
-                InputResult res = INPUT_RESULT_IGNORED;
-                uint32_t next_component_instance_data = 0;
-                for (uint32_t k = 0; k < components_size; ++k)
+                uint32_t stack_size = collection->m_FocusStack.Size();
+                for (uint32_t k = 0; k < stack_size && input_action.m_ActionId != 0; ++k)
                 {
-                    ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[k].m_ResourceType, 0x0);
-                    assert(component_type);
-                    if (component_type->m_OnInputFunction)
+                    HInstance instance = collection->m_FocusStack[stack_size - 1 - k];
+                    if (instance == 0x0 || instance->m_ToBeDeleted)
+                        continue;
+                    Prototype* prototype = instance->m_Prototype;
+                    uint32_t components_size = prototype->m_Components.Size();
+
+                    InputResult res = INPUT_RESULT_IGNORED;
+                    uint32_t next_component_instance_data = 0;
+                    for (uint32_t l = 0; l < components_size; ++l)
                     {
-                        uintptr_t* component_instance_data = 0;
+                        ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[l].m_ResourceType, 0x0);
+                        assert(component_type);
+                        if (component_type->m_OnInputFunction)
+                        {
+                            uintptr_t* component_instance_data = 0;
+                            if (component_type->m_InstanceHasUserData)
+                            {
+                                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                            }
+                            InputResult comp_res = component_type->m_OnInputFunction(instance, &input_action, component_type->m_Context, component_instance_data);
+                            if (comp_res == INPUT_RESULT_CONSUMED)
+                                res = comp_res;
+                            else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
+                                return UPDATE_RESULT_UNKNOWN_ERROR;
+                        }
                         if (component_type->m_InstanceHasUserData)
                         {
-                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                            next_component_instance_data++;
                         }
-                        InputResult comp_res = component_type->m_OnInputFunction(instance, &input_action[j], component_type->m_Context, component_instance_data);
-                        if (comp_res == INPUT_RESULT_CONSUMED)
-                            res = comp_res;
-                        else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
-                            return UPDATE_RESULT_UNKNOWN_ERROR;
                     }
-                    if (component_type->m_InstanceHasUserData)
+                    if (res == INPUT_RESULT_CONSUMED)
                     {
-                        next_component_instance_data++;
+                        memset(&input_action, 0, sizeof(InputAction));
                     }
-                }
-                if (res == INPUT_RESULT_CONSUMED)
-                {
-                    memset(&input_action[j], 0, sizeof(InputAction));
                 }
             }
         }

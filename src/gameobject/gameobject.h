@@ -399,22 +399,31 @@ namespace dmGameObject
     bool Init(HCollection collection);
 
     /**
-     * Update all gameobjects and its components and dispatches all event to script
-     * @param collection Gameobject collection
-     * @param update_context Update context
+     * Update all gameobjects and its components and dispatches all event to script.
+     * The order is to update each component type, one at a time, over all collections each iteration.
+     * @param collections Array of game object collections to be updated, all must share the same registry.
+     * @param update_contexts Array of update contexts, one for each collection.
+     * @param collection_count Number of collections in the array.
      * @return True on success
      */
-    bool Update(HCollection collection, const UpdateContext* update_context);
+    bool Update(HCollection* collections, const UpdateContext* update_contexts, uint32_t collection_count);
 
     /**
      * Performs clean up of the collection after update, such as deleting all instances scheduled for delete.
-     * @param collection Gameobject collection
-     * @param update_context Update context
+     * @param collections Array of game object collections
+     * @param collection_count Number of collections
      * @return True on success
      */
-    bool PostUpdate(HCollection collection);
+    bool PostUpdate(HCollection* collections, uint32_t collection_count);
 
-    UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count);
+    /**
+     * Dispatches input actions to the input focus stacks in the supplied array of game object collections.
+     * @param collections Array of game object collections
+     * @param collection_count Number of collections
+     * @param input_actions Array of input actions to dispatch
+     * @param input_action_count Number of input actions
+     */
+    UpdateResult DispatchInput(HCollection* collections, uint32_t collection_count, InputAction* input_actions, uint32_t input_action_count);
 
     void AcquireInputFocus(HCollection collection, HInstance instance);
     void ReleaseInputFocus(HCollection collection, HInstance instance);
