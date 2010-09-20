@@ -2,6 +2,7 @@
 #define DM_CIRCULAR_ARRAY_H
 
 #include <stdint.h>
+#include <string.h>
 #include <assert.h>
 
 #include "math.h"
