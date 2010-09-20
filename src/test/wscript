@@ -161,3 +161,13 @@ def build(bld):
                                         target = 'test_socks_proxy')
 
     test_socks_proxy.install_path = None
+
+    test_stringpool = bld.new_task_gen(features = 'cxx cprogram',
+                                       source = 'test_stringpool.cpp',
+                                       uselib = 'GTEST THREAD',
+                                       uselib_local = "dlib",
+                                       includes = ['../../src'],
+                                       target = 'test_stringpool')
+
+    test_stringpool.install_path = None
+
