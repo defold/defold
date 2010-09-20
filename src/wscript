@@ -1,0 +1,28 @@
+#! /usr/bin/env python
+import os
+
+def set_options(opt):
+    pass
+
+def build(bld):
+    hid = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = '.',
+                           target = 'hid',
+                           install_path='${PREFIX}/lib',
+                           source = 'hid.cpp hid_glfw.cpp')
+
+    hid_null = bld.new_task_gen(features = 'cxx cstaticlib',
+                                includes = ['. null'],
+                                proto_gen_py = True,
+                                target = 'hid_null',
+                                install_path='${PREFIX}/lib',
+                                source = 'hid.cpp hid_null.cpp')
+
+    bld.add_subdirs('test')
+
+    bld.install_files('${PREFIX}/include/hid', 'hid.h')
+    bld.install_files('${PREFIX}/include/hid', 'hid_glfw_defines.h')
+
+def configure(conf):
+    pass
+
