@@ -124,7 +124,7 @@ public:
             // Rehash table
             dmHashTable<KEY, T> new_ht;
             new_ht.SetCapacity(table_size, capacity);
-            this->Iterate(&FillCallback, &new_ht);
+            this->Iterate<dmHashTable<KEY, T> >(&FillCallback<KEY, T>, &new_ht);
 
             free(m_HashTable);
             free(m_InitialEntries);
