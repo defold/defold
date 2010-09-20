@@ -390,7 +390,6 @@ TEST(dmHashTable, Grow)
         {
             if (ht.Full())
             {
-                uint32_t foo = ht.Capacity();
                 ht.SetCapacity(table_size, ht.Capacity() + (rand() % 4) + 1);
             }
             uint32_t key = rand();
