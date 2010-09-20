@@ -17,16 +17,16 @@ namespace dmGameSystem
 {
     const uint8_t MAX_COUNT = 64;
 
-    struct World;
+    struct EmitterWorld;
 
     struct Emitter
     {
         dmGameObject::HInstance m_Instance;
         dmParticle::HEmitter m_Emitter;
-        World* m_World;
+        EmitterWorld* m_World;
     };
 
-    struct World
+    struct EmitterWorld
     {
         dmParticle::HContext m_Context;
         dmArray<Emitter> m_Emitters;
@@ -36,7 +36,7 @@ namespace dmGameSystem
     {
         assert(context);
         EmitterContext* ctx = (EmitterContext*)context;
-        World* emitter_world = new World();
+        EmitterWorld* emitter_world = new EmitterWorld();
         emitter_world->m_Context = dmParticle::CreateContext(ctx->m_ConfigFile);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
         *world = emitter_world;
@@ -45,7 +45,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompEmitterDeleteWorld(void* context, void* world)
     {
-        World* emitter_world = (World*)world;
+        EmitterWorld* emitter_world = (EmitterWorld*)world;
         dmParticle::DestroyContext(emitter_world->m_Context);
         delete emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -60,7 +60,7 @@ namespace dmGameSystem
     {
         dmParticle::Prototype* prototype = (dmParticle::Prototype*)resource;
         assert(prototype);
-        World* w = (World*)world;
+        EmitterWorld* w = (EmitterWorld*)world;
         if (w->m_Emitters.Size() < MAX_COUNT)
         {
             Emitter emitter;
@@ -84,7 +84,7 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        World* w = (World*)world;
+        EmitterWorld* w = (EmitterWorld*)world;
         for (uint8_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             if (w->m_Emitters[i].m_Instance == instance)
@@ -108,7 +108,7 @@ namespace dmGameSystem
             void* world,
             void* context)
     {
-        World* w = (World*)world;
+        EmitterWorld* w = (EmitterWorld*)world;
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             Emitter& emitter = w->m_Emitters[i];
