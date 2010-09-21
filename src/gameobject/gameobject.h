@@ -76,6 +76,8 @@ namespace dmGameObject
     {
         /// Time step
         float m_DT;
+        /// Current view projection matrix
+        Vectormath::Aos::Matrix4 m_ViewProj;
     };
 
     extern const uint32_t UNNAMED_IDENTIFIER;

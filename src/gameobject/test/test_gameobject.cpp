@@ -1648,6 +1648,17 @@ TEST_F(GameObjectTest, TestHierarchy8)
     }
 }
 
+TEST_F(GameObjectTest, TestIsVisible)
+{
+    dmGameObject::UpdateContext update_context;
+    update_context.m_DT = 1.0f / 60.0f;
+    update_context.m_ViewProj = Vectormath::Aos::Matrix4::identity();
+    dmGameObject::HInstance is_visible = dmGameObject::New(collection, "is_visible.goc");
+    ASSERT_NE((void*)0, (void*)is_visible);
+    ASSERT_TRUE(dmGameObject::Update(&collection, &update_context, 1));
+    ASSERT_TRUE(dmGameObject::PostUpdate(&collection, 1));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
