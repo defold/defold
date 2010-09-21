@@ -1,4 +1,3 @@
-Name: "my_object02"
 Components
 {
     Resource: "postcollection2.scriptc"

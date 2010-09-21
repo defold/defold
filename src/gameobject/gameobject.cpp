@@ -237,8 +237,6 @@ namespace dmGameObject
             }
         }
 
-        proto->m_Name = strdup(proto_desc->m_Name);
-
         resource->m_Resource = (void*) proto;
 
         dmDDF::FreeMessage(proto_desc);
@@ -255,7 +253,6 @@ namespace dmGameObject
             dmResource::Release(factory, proto->m_Components[i].m_Resource);
         }
 
-        free((void*) proto->m_Name);
         delete proto;
         return dmResource::CREATE_RESULT_OK;
     }
@@ -302,8 +299,6 @@ namespace dmGameObject
             loading_root = false;
             collection = regist->m_CurrentCollection;
             dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-            dmStrlCat(regist->m_CurrentIdentifierPath, collection_desc->m_Name, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-            dmStrlCat(regist->m_CurrentIdentifierPath, ".", DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
         }
 
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
@@ -319,11 +314,11 @@ namespace dmGameObject
                 dmGameObject::SetRotation(instance, rot);
 
                 dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
-                dmStrlCat(tmp_ident, instance_desc.m_Name, sizeof(tmp_ident));
+                dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
 
                 if (dmGameObject::SetIdentifier(collection, instance, tmp_ident) != dmGameObject::RESULT_OK)
                 {
-                    dmLogError("Unable to set identifier for %s. Name clash?", instance_desc.m_Name);
+                    dmLogError("Unable to set identifier %s for %s. Name clash?", tmp_ident, instance_desc.m_Id);
                 }
 
                 for (uint32_t j = 0; j < instance_desc.m_ScriptProperties.m_Count; ++j)
@@ -359,7 +354,7 @@ namespace dmGameObject
             const dmGameObject::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
             dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
-            dmStrlCat(tmp_ident, instance_desc.m_Name, sizeof(tmp_ident));
+            dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
 
             dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(tmp_ident));
             assert(parent);
@@ -372,11 +367,11 @@ namespace dmGameObject
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);
                     if (r != dmGameObject::RESULT_OK)
                     {
-                        dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Name, instance_desc.m_Children[j], r);
+                        dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
                     }
                     else
                     {
-                        dmGameObject::SetScriptStringProperty(child, "Parent", instance_desc.m_Name);
+                        dmGameObject::SetScriptStringProperty(child, "Parent", tmp_ident);
                     }
                 }
                 else
@@ -390,6 +385,10 @@ namespace dmGameObject
         for (uint32_t i = 0; i < collection_desc->m_CollectionInstances.m_Count; ++i)
         {
             dmGameObject::CollectionInstanceDesc& coll_instance_desc = collection_desc->m_CollectionInstances[i];
+
+            dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+            dmStrlCat(regist->m_CurrentIdentifierPath, coll_instance_desc.m_Id, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+            dmStrlCat(regist->m_CurrentIdentifierPath, ".", DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
 
             Collection* child_coll;
             Vector3 prev_translation = regist->m_AccumulatedTranslation;
@@ -413,6 +412,8 @@ namespace dmGameObject
                 assert(child_coll != collection);
                 dmResource::Release(factory, (void*) child_coll);
             }
+
+            dmStrlCpy(regist->m_CurrentIdentifierPath, prev_identifier_path, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
 
             regist->m_AccumulatedTranslation = prev_translation;
             regist->m_AccumulatedRotation = prev_rotation;

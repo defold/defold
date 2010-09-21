@@ -1,4 +1,3 @@
-Name: "my_object01"
 Components
 {
     Resource: "testscriptproto02.scriptc"

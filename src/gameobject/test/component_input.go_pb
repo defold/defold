@@ -1,4 +1,3 @@
-Name: "component_input"
 Components
 {
     Resource: "component_input.scriptc"

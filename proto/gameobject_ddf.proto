@@ -16,7 +16,6 @@ message ComponentDesc
 
 message PrototypeDesc
 {
-    required string Name              = 1;
     repeated ComponentDesc Components = 2;
 }
 
@@ -37,7 +36,7 @@ message Property
 message InstanceDesc
 {
     required string  Prototype = 1;
-    required string  Name      = 2;
+    required string  Id        = 2;
     repeated string  Children      = 6;
     required dmMath.Point3 Position  = 3;
     required dmMath.Quat Rotation  = 4;
@@ -49,6 +48,7 @@ message CollectionInstanceDesc
     required string         Collection  = 1;
     required dmMath.Point3  Position    = 2;
     required dmMath.Quat    Rotation    = 3;
+    required string         Id          = 4;
 }
 
 message CollectionDesc

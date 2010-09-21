@@ -1,4 +1,3 @@
-Name: "component_event"
 Components
 {
     Resource: "component_event.scriptc"

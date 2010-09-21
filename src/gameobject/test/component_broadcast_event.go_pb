@@ -1,4 +1,3 @@
-Name: "component_event"
 Components
 {
     Resource: "event_target.et"

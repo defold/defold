@@ -1054,15 +1054,25 @@ TEST_F(GameObjectTest, CollectionInCollection)
 
         ASSERT_NE(go01, go02);
 
-        uint32_t go01_sub_ident = dmHashString32("sub.go01");
-        dmGameObject::HInstance go01_sub = dmGameObject::GetInstanceFromIdentifier(coll, go01_sub_ident);
-        ASSERT_NE((void*) 0, go01_sub);
-        ASSERT_NEAR(dmGameObject::GetPosition(go01_sub).getY(), 1000.0f + 10.0f, 0.0000f);
+        uint32_t go01_sub1_ident = dmHashString32("sub1.go01");
+        dmGameObject::HInstance go01_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, go01_sub1_ident);
+        ASSERT_NE((void*) 0, go01_sub1);
+        ASSERT_NEAR(dmGameObject::GetPosition(go01_sub1).getY(), 1000.0f + 10.0f, 0.0000f);
 
-        uint32_t go02_sub_ident = dmHashString32("sub.go02");
-        dmGameObject::HInstance go02_sub = dmGameObject::GetInstanceFromIdentifier(coll, go02_sub_ident);
-        ASSERT_NE((void*) 0, go02_sub);
-        ASSERT_NEAR(dmGameObject::GetPosition(go02_sub).getY(), 1000.0f + 20.0f, 0.0000f);
+        uint32_t go02_sub1_ident = dmHashString32("sub1.go02");
+        dmGameObject::HInstance go02_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, go02_sub1_ident);
+        ASSERT_NE((void*) 0, go02_sub1);
+        ASSERT_NEAR(dmGameObject::GetPosition(go02_sub1).getY(), 1000.0f + 20.0f, 0.0000f);
+
+        uint32_t go01_sub2_ident = dmHashString32("sub2.go01");
+        dmGameObject::HInstance go01_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, go01_sub2_ident);
+        ASSERT_NE((void*) 0, go01_sub2);
+        ASSERT_NEAR(dmGameObject::GetPosition(go01_sub2).getY(), 1000.0f + 10.0f, 0.0000f);
+
+        uint32_t go02_sub2_ident = dmHashString32("sub2.go02");
+        dmGameObject::HInstance go02_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, go02_sub2_ident);
+        ASSERT_NE((void*) 0, go02_sub2);
+        ASSERT_NEAR(dmGameObject::GetPosition(go02_sub2).getY(), 1000.0f + 20.0f, 0.0000f);
 
         dmResource::Release(factory, (void*) coll);
     }
@@ -1124,7 +1134,6 @@ TEST(ScriptTest, TestReloadScript)
 
     dmGameObject::PrototypeDesc prototype;
     //memset(&prototype, 0, sizeof(prototype));
-    prototype.m_Name = "foo";
     prototype.m_Components.m_Count = 1;
     dmGameObject::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
