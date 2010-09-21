@@ -9,6 +9,7 @@ using namespace Vectormath::Aos;
 #include <dlib/index_pool.h>
 #include <dlib/circular_array.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 
 namespace dmGameObject
 {

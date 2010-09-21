@@ -580,6 +580,21 @@ namespace dmGameObject
         return 1;
     }
 
+    int Script_Delete(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+
+        lua_pushstring(L, "__collection__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        HCollection collection = (HCollection)lua_touserdata(L, -1);
+        assert(collection);
+        lua_pop(L, 1);
+
+        dmGameObject::Delete(collection, i->m_Instance);
+
+        return 0;
+    }
+
     static const luaL_reg Script_methods[] =
     {
         {"post",                Script_Post},
@@ -593,6 +608,7 @@ namespace dmGameObject
         {"get_world_rotation",  Script_GetWorldRotation},
         {"ident",               Script_Ident},
         {"is_visible",          Script_IsVisible},
+        {"delete",              Script_Delete},
         {0, 0}
     };
 

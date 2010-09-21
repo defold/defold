@@ -9,6 +9,7 @@
 #include <dlib/log.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
+#include "../gameobject_common.h"
 #include "gameobject/test/test_gameobject_ddf.h"
 #include "../proto/gameobject_ddf.h"
 
@@ -1657,6 +1658,17 @@ TEST_F(GameObjectTest, TestIsVisible)
     ASSERT_NE((void*)0, (void*)is_visible);
     ASSERT_TRUE(dmGameObject::Update(&collection, &update_context, 1));
     ASSERT_TRUE(dmGameObject::PostUpdate(&collection, 1));
+}
+
+TEST_F(GameObjectTest, TestScriptDelete)
+{
+    dmGameObject::UpdateContext update_context;
+    dmGameObject::HInstance is_visible = dmGameObject::New(collection, "delete.goc");
+    ASSERT_NE((void*)0, (void*)is_visible);
+    ASSERT_NE(0, collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::PostUpdate(&collection, 1));
+    ASSERT_EQ(0, collection->m_InstanceIndices.Size());
 }
 
 int main(int argc, char **argv)
