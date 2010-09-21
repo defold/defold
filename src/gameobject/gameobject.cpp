@@ -152,6 +152,7 @@ namespace dmGameObject
             }
         }
         assert(found);
+        dmStringPool::Delete(collection->m_StringPool);
         dmMutex::Unlock(regist->m_Mutex);
 
         delete collection;
@@ -312,6 +313,8 @@ namespace dmGameObject
 
                 dmGameObject::SetPosition(instance, Point3(pos));
                 dmGameObject::SetRotation(instance, rot);
+
+                instance->m_CollectionPath = dmStringPool::Add(regist->m_CurrentCollection->m_StringPool, regist->m_CurrentIdentifierPath);
 
                 dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
                 dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
@@ -949,6 +952,16 @@ bail:
     uint32_t GetIdentifier(HInstance instance)
     {
         return instance->m_Identifier;
+    }
+
+    uint32_t GetAbsoluteIdentifier(HInstance instance, const char* id)
+    {
+        char tmp[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
+        tmp[0] = '\0';
+
+        dmStrlCpy(tmp, instance->m_CollectionPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+        dmStrlCat(tmp, id, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+        return dmHashString32(tmp);
     }
 
     HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier)

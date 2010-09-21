@@ -534,6 +534,14 @@ namespace dmGameObject
         return 1;
     }
 
+    int Script_Ident(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        const char* ident = luaL_checkstring(L, 2);
+        dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
+        return 1;
+    }
+
     static const luaL_reg Script_methods[] =
     {
         {"post",                Script_Post},
@@ -545,6 +553,7 @@ namespace dmGameObject
         {"set_rotation",        Script_SetRotation},
         {"get_world_position",  Script_GetWorldPosition},
         {"get_world_rotation",  Script_GetWorldRotation},
+        {"ident",               Script_Ident},
         {0, 0}
     };
 

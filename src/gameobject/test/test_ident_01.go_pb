@@ -1,0 +1,6 @@
+Components
+{
+    Resource: "test_ident_script01.scriptc"
+    Position { X: 0.0 Y: 0.0 Z: 0.0 }
+    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 }
+}

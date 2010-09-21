@@ -8,6 +8,7 @@ using namespace Vectormath::Aos;
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
 #include <dlib/circular_array.h>
+#include <dlib/stringpool.h>
 
 namespace dmGameObject
 {
@@ -47,6 +48,7 @@ namespace dmGameObject
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
             m_Identifier = UNNAMED_IDENTIFIER;
+            m_CollectionPath = "";
             m_Depth = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
@@ -68,6 +70,7 @@ namespace dmGameObject
         Point3          m_Position;
         Prototype*      m_Prototype;
         uint32_t        m_Identifier;
+        const char*     m_CollectionPath;
 
         // Hard pointer to the script instance, if any
         // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
@@ -170,6 +173,7 @@ namespace dmGameObject
             m_FocusStack.SetCapacity(8);
             m_NameHash = 0;
             m_InUpdate = 0;
+            m_StringPool = dmStringPool::New();
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
             {
@@ -232,7 +236,11 @@ namespace dmGameObject
         // Stack keeping track of which instance has the input focus
         dmCircularArray<Instance*> m_FocusStack;
 
+        // Name-hash of the collection.
         uint32_t                   m_NameHash;
+
+        // Pool of strings. Used primarily for instance identifiers
+        dmStringPool::HPool        m_StringPool;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

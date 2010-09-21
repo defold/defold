@@ -1,0 +1,4 @@
+
+function update(self)
+    assert(self.id == ident(self, "go02"))
+end

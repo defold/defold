@@ -1,7 +1,7 @@
 Name: "sub"
 Instances
 {
-    Prototype: "goproto01.goc"
+    Prototype: "test_ident_01.goc"
     Id: "go01"
     Position { X: 0 Y: 10 Z: 170 }
     Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }
@@ -9,7 +9,7 @@ Instances
 
 Instances
 {
-    Prototype: "goproto02.goc"
+    Prototype: "test_ident_02.goc"
     Id: "go02"
     Position { X: 0 Y: 20 Z: 170 }
     Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }

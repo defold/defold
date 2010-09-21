@@ -1074,6 +1074,15 @@ TEST_F(GameObjectTest, CollectionInCollection)
         ASSERT_NE((void*) 0, go02_sub2);
         ASSERT_NEAR(dmGameObject::GetPosition(go02_sub2).getY(), 1000.0f + 20.0f, 0.0000f);
 
+        // Relative identifiers
+        ASSERT_EQ(dmHashString32("a"), dmGameObject::GetAbsoluteIdentifier(go01, "a"));
+        ASSERT_EQ(dmHashString32("a"), dmGameObject::GetAbsoluteIdentifier(go02, "a"));
+        ASSERT_EQ(dmHashString32("sub1.a"), dmGameObject::GetAbsoluteIdentifier(go01_sub1, "a"));
+        ASSERT_EQ(dmHashString32("sub2.a"), dmGameObject::GetAbsoluteIdentifier(go01_sub2, "a"));
+
+        bool ret = dmGameObject::Update(&coll, 0, 1);
+        ASSERT_TRUE(ret);
+
         dmResource::Release(factory, (void*) coll);
     }
 }
