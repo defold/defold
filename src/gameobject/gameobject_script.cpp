@@ -545,8 +545,9 @@ namespace dmGameObject
     static bool IsPointVisible(const Vectormath::Aos::Point3& p, const Vectormath::Aos::Matrix4 view_proj, float margin)
     {
         Vectormath::Aos::Vector4 r = view_proj * p;
-        assert(r.getW() == 1.0f);
-        return dmMath::Abs(r.getX()) <= margin && dmMath::Abs(r.getY()) <= margin && dmMath::Abs(r.getZ()) <= margin;
+        assert(r.getW() != 0.0f);
+        float r_w = 1.0f / r.getW();
+        return dmMath::Abs(r.getX() * r_w) <= margin && dmMath::Abs(r.getY() * r_w) <= margin && dmMath::Abs(r.getZ() * r_w) <= margin;
     }
 
     int Script_IsVisible(lua_State* L)
