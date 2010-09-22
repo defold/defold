@@ -1048,7 +1048,7 @@ bail:
         Instance* instance = script_event_data->m_Instance;
         if (instance->m_ToBeDeleted)
         {
-            dmLogWarning("Message sent to game object that will be deleted, message ignored.");
+            dmLogWarning("Message sent to game object (%X) that will be deleted, message ignored.", instance->m_Identifier);
             return;
         }
         Prototype* prototype = instance->m_Prototype;
