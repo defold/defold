@@ -1,6 +1,9 @@
 #include "gamesys.h"
 
+#include <dlib/dstrings.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/message.h>
 
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
@@ -33,6 +36,8 @@ namespace dmGameSystem
     {
         dmGameObject::RegisterDDFType(dmCameraDDF::AddCameraTarget::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmCameraDDF::SetCamera::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastRequest::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
@@ -142,8 +147,40 @@ namespace dmGameSystem
         return go_result;
     }
 
-    void RequestRayCast(dmGameObject::HCollection collection, const dmPhysics::RayCastRequest& request)
+    static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request)
     {
+        if (response.m_Hit)
+        {
+            dmGameObject::HCollection collection = (dmGameObject::HCollection)request.m_UserData;
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, request.m_UserId);
+
+            const uint32_t offset = sizeof(dmPhysicsDDF::RayCastResponse);
+            const uint32_t message_size = offset + 9;
+            char buffer[message_size];
+
+            dmPhysicsDDF::RayCastResponse* ddf = (dmPhysicsDDF::RayCastResponse*)&buffer;
+            DM_SNPRINTF(&buffer[offset], 9, "%X", dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData));
+            ddf->m_Fraction = response.m_Fraction;
+            ddf->m_GameObjectId = (const char*)sizeof(dmPhysicsDDF::RayCastResponse);
+            ddf->m_Group = response.m_CollisionObjectGroup;
+            ddf->m_Position = response.m_Position;
+            ddf->m_Normal = response.m_Normal;
+            dmGameObject::PostDDFEvent(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (char*)ddf);
+        }
+    }
+
+    void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
+    {
+        // Request ray cast
+        dmPhysics::RayCastRequest request;
+        request.m_From = from;
+        request.m_To = to;
+        request.m_IgnoredUserData = instance;
+        request.m_Mask = mask;
+        request.m_UserId = dmGameObject::GetIdentifier(instance);
+        request.m_UserData = (void*)collection;
+        request.m_Callback = &RayCastCallback;
+
         uint32_t type;
         dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobject", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)

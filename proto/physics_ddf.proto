@@ -73,3 +73,19 @@ message ContactPointMessage
     required string OtherGameObjectId = 4;
     required uint32 Group = 5;
 }
+
+message RayCastRequest
+{
+    required dmMath.Point3 From = 1;
+    required dmMath.Point3 To = 2;
+    required uint32 Mask = 3;
+}
+
+message RayCastResponse
+{
+    required float Fraction = 1;
+    required dmMath.Point3 Position = 2;
+    required dmMath.Vector3 Normal = 3;
+    required string GameObjectId = 4;
+    required uint32 Group = 5;
+}

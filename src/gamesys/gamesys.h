@@ -34,7 +34,7 @@ namespace dmGameSystem
                                                   PhysicsContext* physics_context,
                                                   EmitterContext* emitter_context);
 
-    void RequestRayCast(dmGameObject::HCollection collection, const dmPhysics::RayCastRequest& request);
+    void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }
 
 #endif // DM_GAMESYS_H
