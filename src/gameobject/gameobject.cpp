@@ -1293,6 +1293,8 @@ bail:
         for (uint32_t i = 0; i < collection_count; ++i)
         {
             HCollection collection = collections[i];
+            if (collection == 0x0)
+                continue;
             HInstance instance = 0x0;
             while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
             {
