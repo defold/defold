@@ -90,8 +90,7 @@ namespace dmMessage
         // mutex unlock
     }
 
-    uint32_t Dispatch(uint32_t socket_id, void(*dispatch_function)(
-            dmMessage::Message *message_object, void* user_ptr), void* user_ptr)
+    uint32_t Dispatch(uint32_t socket_id, DispatchCallback dispatch_callback, void* user_ptr)
     {
         SMessageSocket *socket = m_Sockets.Get(socket_id);
         if (!socket)
@@ -115,7 +114,7 @@ namespace dmMessage
 
         while (message_object)
         {
-            dispatch_function(message_object, user_ptr);
+            dispatch_callback(message_object, user_ptr);
             uint8_t *old_object = (uint8_t *) message_object;
             message_object = message_object->m_Next;
             delete[] old_object;

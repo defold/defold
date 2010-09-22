@@ -38,15 +38,20 @@ namespace dmMessage
             uint32_t message_data_size);
 
     /**
+     * @see Dispatch
+     */
+    typedef void(*DispatchCallback)(dmMessage::Message *message, void* user_ptr);
+
+    /**
      * Dispatch
      * @note When dispatched, the messages are considered destroyed.
      * @param socket_id Socket ID of the socket of which messages to dispatch.
-     * @param dispatch_function Dispatch_function the callback function that will be called for each message
+     * @param dispatch_callback Callback function that will be called for each message
      *        dispatched. The callbacks parameters contains a pointer to a unique Message
      *        for this post and user_ptr is the same as Dispatch called user_ptr.
      * @return Number of dispatched messages
      */
-    uint32_t Dispatch(uint32_t socket_id, void(*dispatch_function)(dmMessage::Message *message, void* user_ptr), void* user_ptr);
+    uint32_t Dispatch(uint32_t socket_id, DispatchCallback dispatch_callback, void* user_ptr);
 
     /**
      * Consume all pending messages
