@@ -8,7 +8,7 @@ using namespace Vectormath::Aos;
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
 #include <dlib/circular_array.h>
-#include <dlib/stringpool.h>
+#include <dlib/hash.h>
 
 namespace dmGameObject
 {
@@ -48,7 +48,7 @@ namespace dmGameObject
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
             m_Identifier = UNNAMED_IDENTIFIER;
-            m_CollectionPath = "";
+            dmHashInit32(&m_CollectionPathHashState);
             m_Depth = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
@@ -70,7 +70,10 @@ namespace dmGameObject
         Point3          m_Position;
         Prototype*      m_Prototype;
         uint32_t        m_Identifier;
-        const char*     m_CollectionPath;
+
+        // Collection path hash-state. Used for calculating global identifiers. Contains the hash-state for the collection-path to the instance.
+        // We might, in the future, for memory reasons, move this hash-state to a data-structure shared among all instances from the same collection.
+        HashState32     m_CollectionPathHashState;
 
         // Hard pointer to the script instance, if any
         // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
@@ -173,7 +176,6 @@ namespace dmGameObject
             m_FocusStack.SetCapacity(8);
             m_NameHash = 0;
             m_InUpdate = 0;
-            m_StringPool = dmStringPool::New();
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
             {
@@ -238,9 +240,6 @@ namespace dmGameObject
 
         // Name-hash of the collection.
         uint32_t                   m_NameHash;
-
-        // Pool of strings. Used primarily for instance identifiers
-        dmStringPool::HPool        m_StringPool;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
