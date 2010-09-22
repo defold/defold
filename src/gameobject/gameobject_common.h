@@ -129,27 +129,30 @@ namespace dmGameObject
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
     struct Register
     {
-        uint32_t        m_ComponentTypeCount;
-        ComponentType   m_ComponentTypes[MAX_COMPONENT_TYPES];
-        dmMutex::Mutex  m_Mutex;
+        uint32_t                    m_ComponentTypeCount;
+        ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
+        dmMutex::Mutex              m_Mutex;
         // Current identifier path. Used during loading of collections and specifically collections in collections.
         // Contains the current path and is *protected* by m_Mutex.
-        char            m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
+        char                        m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
 
         // All collections. Protected by m_Mutex
-        dmArray<HCollection> m_Collections;
+        dmArray<HCollection>        m_Collections;
 
         // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
-        Collection*     m_CurrentCollection;
+        Collection*                 m_CurrentCollection;
 
-        Vector3         m_AccumulatedTranslation;
-        Quat            m_AccumulatedRotation;
+        Vector3                     m_AccumulatedTranslation;
+        Quat                        m_AccumulatedRotation;
 
-        uint32_t        m_EventId;
-        uint32_t        m_EventSocketId;
-        uint32_t        m_ReplyEventSocketId;
+        uint32_t                    m_EventId;
+        uint32_t                    m_EventSocketId;
+        uint32_t                    m_ReplyEventSocketId;
 
-        Register();
+        dmMessage::DispatchCallback m_DispatchCallback;
+        void*                       m_DispatchUserdata;
+
+        Register(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata);
         ~Register();
     };
 

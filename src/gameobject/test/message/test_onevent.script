@@ -1,0 +1,8 @@
+function on_event(self, event_hash, event)
+    if event_hash == hash("post_named_to_instance") then
+    elseif event_hash == hash("test_message") then
+        assert(event.test_uint32 == 2, "wrong ddf data")
+    else
+        assert(false, "unknown event")
+    end
+end

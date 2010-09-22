@@ -339,9 +339,9 @@ namespace dmGameObject
 
             dmGameObject::Result r;
             if (desc != 0x0)
-                r = dmGameObject::PostDDFEvent(instance, component_name, desc, ddf_data);
+                r = dmGameObject::PostDDFEventTo(instance, component_name, desc, ddf_data);
             else
-                r = dmGameObject::PostNamedEvent(instance, component_name, event_name);
+                r = dmGameObject::PostNamedEventTo(instance, component_name, dmHashString32(event_name));
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
@@ -422,9 +422,9 @@ namespace dmGameObject
 
             dmGameObject::Result r;
             if (desc != 0x0)
-                r = dmGameObject::PostDDFEvent(instance, component_name, desc, ddf_data);
+                r = dmGameObject::PostDDFEventTo(instance, component_name, desc, ddf_data);
             else
-                r = dmGameObject::PostNamedEvent(instance, component_name, event_name);
+                r = dmGameObject::PostNamedEventTo(instance, component_name, dmHashString32(event_name));
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string

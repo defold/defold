@@ -259,9 +259,11 @@ namespace dmGameObject
 
     /**
      * Create a new component type register
+     * @param dispatch_callback Message dispatch function that will be called when collections belonging to this register are updated.
+     * @param dispatch_userdata User-defined data that will be passed to the dispatch_callback.
      * @return Register handle
      */
-    HRegister NewRegister();
+    HRegister NewRegister(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata);
 
     /**
      * Delete a component type register
@@ -356,23 +358,40 @@ namespace dmGameObject
     HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier);
 
     /**
-     * Post named event to component instance
-     * @param instance Instance
-     * @param component_name Component name. NULL broadcasts the event to every component.
-     * @param event_name Name of the event, should be lowercase with underscore as separator
+     * Post named event
+     * @param reg Handle to the register which defines the socket of the message.
+     * @param event_hash Hash of the event, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event_name);
+    Result PostNamedEvent(HRegister reg, uint32_t event_hash);
 
     /**
-     * Post ddf event to component instance
+     * Post ddf event
+     * @param reg Handle to the register which defines the socket of the message.
+     * @param ddf_desc Descripor of the ddf message to send
+     * @param ddf_data The actual ddf message to send
+     * @return RESULT_OK on success
+     */
+    Result PostDDFEvent(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
+
+    /**
+     * Post named event to instance
+     * @param instance Instance
+     * @param component_name Component name. NULL broadcasts the event to every component.
+     * @param event_hash Hash of the event, the original name should be lowercase with underscore as separator
+     * @return RESULT_OK on success
+     */
+    Result PostNamedEventTo(HInstance instance, const char* component_name, uint32_t event_hash);
+
+    /**
+     * Post ddf event to instance
      * @param instance Instance
      * @param component_name Component name. NULL broadcasts the event to every component.
      * @param ddf_desc Descripor of the ddf message to send
      * @param ddf_data The actual ddf message to send
      * @return RESULT_OK on success
      */
-    Result PostDDFEvent(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
+    Result PostDDFEventTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
 
     /**
      * Set integer property in instance script

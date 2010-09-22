@@ -30,7 +30,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
-        regist = dmGameObject::NewRegister();
+        regist = dmGameObject::NewRegister(0, 0);
         dmGameObject::RegisterResourceTypes(factory, regist);
         dmGameObject::RegisterComponentTypes(factory, regist);
         collection = dmGameObject::NewCollection(factory, regist, 1024);
@@ -645,7 +645,7 @@ dmGameObject::UpdateResult GameObjectTest::EventTargetOnEvent(dmGameObject::HIns
         self->m_EventTargetCounter++;
         if (self->m_EventTargetCounter == 2)
         {
-            dmGameObject::PostNamedEvent(instance, "component_event.scriptc", "test_event");
+            dmGameObject::PostNamedEventTo(instance, "component_event.scriptc", dmHashString32("test_event"));
         }
     }
     else if (event_data->m_EventHash == dmHashString32("dec"))
@@ -667,7 +667,7 @@ TEST_F(GameObjectTest, Null)
 
     ASSERT_TRUE(dmGameObject::Init(collection));
 
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedEvent(go, 0, "test"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedEventTo(go, 0, dmHashString32("test")));
 
     dmGameObject::AcquireInputFocus(collection, go);
 
@@ -694,16 +694,16 @@ TEST_F(GameObjectTest, TestComponentEvent)
 
     ASSERT_EQ(0U, m_EventTargetCounter);
 
-    r = dmGameObject::PostNamedEvent(go, "does_not_exists", "inc");
+    r = dmGameObject::PostNamedEventTo(go, "does_not_exists", dmHashString32("inc"));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, r);
 
-    r = dmGameObject::PostNamedEvent(go, "event_target.et", "inc");
+    r = dmGameObject::PostNamedEventTo(go, "event_target.et", dmHashString32("inc"));
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
     ASSERT_EQ(1U, m_EventTargetCounter);
 
-    r = dmGameObject::PostNamedEvent(go, "event_target.et", "inc");
+    r = dmGameObject::PostNamedEventTo(go, "event_target.et", dmHashString32("inc"));
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
     ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
     ASSERT_EQ(2U, m_EventTargetCounter);
@@ -722,7 +722,7 @@ TEST_F(GameObjectTest, TestBroadcastEvent)
 
     ASSERT_EQ(0U, m_EventTargetCounter);
 
-    r = dmGameObject::PostNamedEvent(go, 0, "inc");
+    r = dmGameObject::PostNamedEventTo(go, 0, dmHashString32("inc"));
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     dmGameObject::InputAction action;
@@ -865,7 +865,7 @@ void TestScript01Dispatch(dmMessage::Message *event_object, void* user_ptr)
 
     TestGameObject::SpawnResult result;
     result.m_Status = 1010;
-    dmGameObject::PostDDFEvent(script_event_data->m_Instance, 0x0, TestGameObject::SpawnResult::m_DDFDescriptor, (char*)&result);
+    dmGameObject::PostDDFEventTo(script_event_data->m_Instance, 0x0, TestGameObject::SpawnResult::m_DDFDescriptor, (char*)&result);
 
     *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
@@ -1126,7 +1126,7 @@ TEST(ScriptTest, TestReloadScript)
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
-    dmGameObject::HRegister regist = dmGameObject::NewRegister();
+    dmGameObject::HRegister regist = dmGameObject::NewRegister(0, 0);
     dmGameObject::RegisterResourceTypes(factory, regist);
     dmGameObject::RegisterComponentTypes(factory, regist);
     dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, regist, 1024);

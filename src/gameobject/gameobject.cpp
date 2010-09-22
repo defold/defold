@@ -25,7 +25,7 @@ namespace dmGameObject
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
 
-    Register::Register()
+    Register::Register(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata)
     {
         m_ComponentTypeCount = 0;
         m_Mutex = dmMutex::New();
@@ -48,6 +48,9 @@ namespace dmGameObject
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME, g_RegisterIndex);
         m_ReplyEventSocketId = dmHashString32(buffer);
         dmMessage::CreateSocket(m_ReplyEventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+        m_DispatchCallback = dispatch_callback;
+        m_DispatchUserdata = dispatch_userdata;
 
         ++g_RegisterIndex;
     }
@@ -98,9 +101,9 @@ namespace dmGameObject
         }
     }
 
-    HRegister NewRegister()
+    HRegister NewRegister(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata)
     {
-        return new Register();
+        return new Register(dispatch_callback, dispatch_userdata);
     }
 
     void DeleteRegister(HRegister regist)
@@ -971,7 +974,44 @@ bail:
             return 0;
     }
 
-    Result PostScriptEvent(const char* component_name, ScriptEventData* script_event_data)
+    Result PostEvent(HRegister reg, ScriptEventData* script_event_data)
+    {
+        script_event_data->m_Instance = 0;
+        dmMessage::Post(reg->m_EventSocketId, reg->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
+
+        return RESULT_OK;
+    }
+
+    Result PostNamedEvent(HRegister reg, uint32_t event_hash)
+    {
+        char buf[SCRIPT_EVENT_MAX];
+        ScriptEventData* e = (ScriptEventData*)buf;
+        e->m_EventHash = event_hash;
+        e->m_DDFDescriptor = 0x0;
+
+        return PostEvent(reg, e);
+    }
+
+    Result PostDDFEvent(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    {
+        assert(ddf_desc != 0x0);
+        assert(ddf_data != 0x0);
+
+        char buf[SCRIPT_EVENT_MAX];
+        ScriptEventData* e = (ScriptEventData*)buf;
+        e->m_EventHash = dmHashString32(ddf_desc->m_ScriptName);
+        e->m_DDFDescriptor = ddf_desc;
+
+        uint32_t max_data_size = SCRIPT_EVENT_MAX - sizeof(ScriptEventData);
+        // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
+        assert(ddf_desc->m_Size < max_data_size);
+        // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
+        memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
+
+        return PostEvent(reg, e);
+    }
+
+    Result PostEventTo(const char* component_name, ScriptEventData* script_event_data)
     {
         uint32_t component_index = 0xffffffff;
 
@@ -1001,18 +1041,18 @@ bail:
         return RESULT_OK;
     }
 
-    Result PostNamedEvent(HInstance instance, const char* component_name, const char* event_name)
+    Result PostNamedEventTo(HInstance instance, const char* component_name, uint32_t event_hash)
     {
         char buf[SCRIPT_EVENT_MAX];
         ScriptEventData* e = (ScriptEventData*)buf;
-        e->m_EventHash = dmHashString32(event_name);
+        e->m_EventHash = event_hash;
         e->m_Instance = instance;
         e->m_DDFDescriptor = 0x0;
 
-        return PostScriptEvent(component_name, e);
+        return PostEventTo(component_name, e);
     }
 
-    Result PostDDFEvent(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    Result PostDDFEventTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
     {
         assert(ddf_desc != 0x0);
         assert(ddf_data != 0x0);
@@ -1029,7 +1069,7 @@ bail:
         // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
         memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
 
-        return PostScriptEvent(component_name, e);
+        return PostEventTo(component_name, e);
     }
 
     struct DispatchEventsContext
@@ -1130,6 +1170,9 @@ bail:
         ctx.m_Register = reg;
         ctx.m_Success = true;
         (void) dmMessage::Dispatch(reg->m_ReplyEventSocketId, &DispatchEventsFunction, (void*) &ctx);
+
+        if (reg->m_DispatchCallback)
+            (void) dmMessage::Dispatch(reg->m_EventSocketId, reg->m_DispatchCallback, reg->m_DispatchUserdata);
 
         return ctx.m_Success;
     }

@@ -56,3 +56,12 @@ def build(bld):
                                      source = 'test_gameobject.cpp test_gameobject_ddf.proto')
     test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.et_pb', '.it_pb', '.collection'])
     test_gameobject.install_path = None
+
+    test_gameobject_message = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                     uselib_local = 'gameobject',
+                                     proto_gen_py = True,
+                                     target = 'message/test_gameobject_message',
+                                     source = 'message/test_gameobject_message.cpp message/test_gameobject_message_ddf.proto message/test_onevent.go_pb message/test_onevent.script')
+    test_gameobject_message.install_path = None

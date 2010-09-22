@@ -1,0 +1,6 @@
+package dmTestGameObject;
+
+message TestMessage
+{
+    required uint32 TestUint32 = 1;
+}
