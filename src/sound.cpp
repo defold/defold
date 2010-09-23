@@ -271,7 +271,6 @@ namespace dmSound
         if (sound_instance->m_SourceIndex != 0xffff)
         {
             ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
-            ALint state;
             alSourceStop(source);
             CheckAndPrintError();
             if (sound_instance->m_BufferIndices[0] != 0xffff);
