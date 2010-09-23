@@ -267,9 +267,20 @@ namespace dmSound
 
     Result DeleteSoundInstance(HSoundInstance sound_instance)
     {
-        SoundSystem* ss = g_SoundSystem;
+        SoundSystem* sound = g_SoundSystem;
+        if (sound_instance->m_SourceIndex != 0xffff)
+        {
+            ALuint source = sound->m_Sources[sound_instance->m_SourceIndex];
+            ALint state;
+            alSourceStop(source);
+            CheckAndPrintError();
+            if (sound_instance->m_BufferIndices[0] != 0xffff);
+                sound->m_BuffersPool.Push(sound_instance->m_BufferIndices[0]);
+            if (sound_instance->m_BufferIndices[1] != 0xffff);
+                sound->m_BuffersPool.Push(sound_instance->m_BufferIndices[1]);
+        }
         uint16_t index = sound_instance->m_Index;
-        ss->m_InstancesPool.Push(index);
+        sound->m_InstancesPool.Push(index);
         sound_instance->m_Index = 0xffff;
         sound_instance->m_SoundDataIndex = 0xffff;
 
@@ -305,7 +316,7 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
 
             if (instance->m_SourceIndex == 0xffff)
-                break;
+                continue;
 
             SoundData* sound_data = &sound->m_SoundData[instance->m_SoundDataIndex];
 
