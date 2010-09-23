@@ -1,4 +1,3 @@
-Name: "test_spawn"
 Components
 {
     Resource: "test_spawn.scriptc"
