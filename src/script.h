@@ -38,6 +38,25 @@ namespace dmScript
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
 
     /**
+     * Serialize a table to a buffer
+     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER and LUA_TSTRING
+     * Keys must be strings
+     * @param L Lua state
+     * @param buffer Buffer that will be written to
+     * @param buffer_size Buffer size
+     * @param index Index of the table
+     * @return Number of bytes used in buffer
+     */
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
+
+    /**
+     * Push a serialized table to the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param data Buffer with serialized table to push
+     */
+    void PushTable(lua_State*L, const char* data);
+
+    /**
      * Push a hash value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param hash Hash value to push

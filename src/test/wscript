@@ -44,3 +44,13 @@ def build(bld):
                                      source = 'test_script_vec_math.cpp test_vector3.lua test_vector4.lua test_point3.lua test_quat.lua')
 
     test_script_vec_math.install_path = None
+
+    test_script_table = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '.. .',
+                                     uselib = 'GTEST DDF DLIB LUA',
+                                     uselib_local = 'script',
+                                     proto_gen_py = True,
+                                     target = 'test_script_table',
+                                     source = 'test_script_table.cpp')
+
+    test_script_table.install_path = None
