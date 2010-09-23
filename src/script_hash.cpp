@@ -38,7 +38,7 @@ namespace dmScript
         uint32_t hash;
         int items = sscanf(str, "%X", &hash);
         if (items != 1)
-            luaL_error(L, "Hash has the wrong format: '%s'.", str);
+            return luaL_error(L, "Hash has the wrong format: '%s'.", str);
         return hash;
     }
 
