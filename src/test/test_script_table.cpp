@@ -228,6 +228,8 @@ TEST_F(LuaTableTest, Stress)
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
+
+            delete[] buf;
         }
     }
 }
