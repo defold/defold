@@ -165,7 +165,7 @@ namespace dmGameSystem
             ddf->m_Group = response.m_CollisionObjectGroup;
             ddf->m_Position = response.m_Position;
             ddf->m_Normal = response.m_Normal;
-            dmGameObject::PostDDFEvent(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (char*)ddf);
+            dmGameObject::PostDDFEventTo(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (char*)ddf);
         }
     }
 

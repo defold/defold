@@ -101,11 +101,11 @@ namespace dmGameSystem
         // Broadcast to A components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
         ddf->m_Group = group_b;
-        dmGameObject::PostDDFEvent(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEventTo(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
         ddf->m_Group = group_a;
-        dmGameObject::PostDDFEvent(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEventTo(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
     }
 
     void ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
@@ -122,14 +122,14 @@ namespace dmGameSystem
         ddf->m_Distance = contact_point.m_Distance;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
         ddf->m_Group = contact_point.m_GroupB;
-        dmGameObject::PostDDFEvent(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEventTo(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         ddf->m_Position = contact_point.m_PositionB;
         ddf->m_Normal = contact_point.m_Normal;
         ddf->m_Distance = contact_point.m_Distance;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
         ddf->m_Group = contact_point.m_GroupA;
-        dmGameObject::PostDDFEvent(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
+        dmGameObject::PostDDFEventTo(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
     }
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(dmGameObject::HCollection collection,
