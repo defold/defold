@@ -1335,7 +1335,14 @@ bail:
 
     bool PostUpdate(HCollection* collections, uint32_t collection_count)
     {
-        (void) dmMessage::Dispatch(collections[0]->m_Register->m_SpawnSocketId, DispatchCallback, collections[0]->m_Register);
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            if (collections[i])
+            {
+                (void) dmMessage::Dispatch(collections[i]->m_Register->m_SpawnSocketId, DispatchCallback, collections[i]->m_Register);
+                break;
+            }
+        }
         for (uint32_t i = 0; i < collection_count; ++i)
         {
             HCollection collection = collections[i];
