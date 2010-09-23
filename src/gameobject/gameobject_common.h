@@ -122,9 +122,22 @@ namespace dmGameObject
     // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
-    #define DM_GAMEOBJECT_EVENT_NAME "script_event"
-    #define DM_GAMEOBJECT_EVENT_SOCKET_NAME "script"
-    #define DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME "script_reply"
+    #define DM_GAMEOBJECT_EVENT_NAME "go_event"
+    #define DM_GAMEOBJECT_SOCKET_NAME "go_socket"
+    #define DM_GAMEOBJECT_SPAWN_EVENT_NAME "spawn_event"
+    #define DM_GAMEOBJECT_SPAWN_SOCKET_NAME "go_spawn_socket"
+    #define DM_GAMEOBJECT_REPLY_SOCKET_NAME "go_reply_socket"
+
+    /**
+     * TODO: This needs a revisit once the collection refactoring is done
+     */
+    struct SpawnMessage
+    {
+        HCollection m_Collection;
+        char m_Prototype[64];
+        Vectormath::Aos::Point3 m_Position;
+        Vectormath::Aos::Quat m_Rotation;
+    };
 
     #define DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX (512)
     struct Register
@@ -146,8 +159,10 @@ namespace dmGameObject
         Quat                        m_AccumulatedRotation;
 
         uint32_t                    m_EventId;
-        uint32_t                    m_EventSocketId;
-        uint32_t                    m_ReplyEventSocketId;
+        uint32_t                    m_SocketId;
+        uint32_t                    m_SpawnEventId;
+        uint32_t                    m_SpawnSocketId;
+        uint32_t                    m_ReplySocketId;
 
         dmMessage::DispatchCallback m_DispatchCallback;
         void*                       m_DispatchUserdata;

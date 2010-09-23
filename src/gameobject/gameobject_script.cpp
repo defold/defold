@@ -596,6 +596,28 @@ namespace dmGameObject
         return 0;
     }
 
+    int Script_Spawn(lua_State* L)
+    {
+        const char* prototype = luaL_checkstring(L, 1);
+        Vectormath::Aos::Point3* position = dmScript::CheckPoint3(L, 2);
+        Vectormath::Aos::Quat* rotation = dmScript::CheckQuat(L, 3);
+
+        lua_pushstring(L, "__collection__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        HCollection collection = (HCollection)lua_touserdata(L, -1);
+        assert(collection);
+        lua_pop(L, 1);
+
+        dmGameObject::SpawnMessage spawn_message;
+        spawn_message.m_Collection = collection;
+        dmStrlCpy(spawn_message.m_Prototype, prototype, sizeof(spawn_message.m_Prototype));
+        spawn_message.m_Position = *position;
+        spawn_message.m_Rotation = *rotation;
+        dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnEventId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
+
+        return 0;
+    }
+
     static const luaL_reg Script_methods[] =
     {
         {"post",                Script_Post},
@@ -610,6 +632,7 @@ namespace dmGameObject
         {"ident",               Script_Ident},
         {"is_visible",          Script_IsVisible},
         {"delete",              Script_Delete},
+        {"spawn",               Script_Spawn},
         {0, 0}
     };
 

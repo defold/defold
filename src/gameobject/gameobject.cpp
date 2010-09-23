@@ -41,13 +41,20 @@ namespace dmGameObject
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_NAME, g_RegisterIndex);
         m_EventId = dmHashString32(buffer);
 
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_SOCKET_NAME, g_RegisterIndex);
-        m_EventSocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_EventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SOCKET_NAME, g_RegisterIndex);
+        m_SocketId = dmHashString32(buffer);
+        dmMessage::CreateSocket(m_SocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_EVENT_SOCKET_NAME, g_RegisterIndex);
-        m_ReplyEventSocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_ReplyEventSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_EVENT_NAME, g_RegisterIndex);
+        m_SpawnEventId = dmHashString32(buffer);
+
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_SOCKET_NAME, g_RegisterIndex);
+        m_SpawnSocketId = dmHashString32(buffer);
+        dmMessage::CreateSocket(m_SpawnSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, g_RegisterIndex);
+        m_ReplySocketId = dmHashString32(buffer);
+        dmMessage::CreateSocket(m_ReplySocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
 
         m_DispatchCallback = dispatch_callback;
         m_DispatchUserdata = dispatch_userdata;
@@ -58,10 +65,12 @@ namespace dmGameObject
     Register::~Register()
     {
         dmMutex::Delete(m_Mutex);
-        dmMessage::Consume(m_EventSocketId);
-        dmMessage::DestroySocket(m_EventSocketId);
-        dmMessage::Consume(m_ReplyEventSocketId);
-        dmMessage::DestroySocket(m_ReplyEventSocketId);
+        dmMessage::Consume(m_SocketId);
+        dmMessage::DestroySocket(m_SocketId);
+        dmMessage::Consume(m_SpawnSocketId);
+        dmMessage::DestroySocket(m_SpawnSocketId);
+        dmMessage::Consume(m_ReplySocketId);
+        dmMessage::DestroySocket(m_ReplySocketId);
     }
 
     ComponentType::ComponentType()
@@ -977,7 +986,7 @@ bail:
     Result PostEvent(HRegister reg, ScriptEventData* script_event_data)
     {
         script_event_data->m_Instance = 0;
-        dmMessage::Post(reg->m_EventSocketId, reg->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
+        dmMessage::Post(reg->m_SocketId, reg->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
 
         return RESULT_OK;
     }
@@ -1036,7 +1045,7 @@ bail:
 
         script_event_data->m_Component = component_index & 0xff;
 
-        dmMessage::Post(script_event_data->m_Instance->m_Collection->m_Register->m_ReplyEventSocketId, script_event_data->m_Instance->m_Collection->m_Register->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
+        dmMessage::Post(script_event_data->m_Instance->m_Collection->m_Register->m_ReplySocketId, script_event_data->m_Instance->m_Collection->m_Register->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
 
         return RESULT_OK;
     }
@@ -1169,10 +1178,10 @@ bail:
         DispatchEventsContext ctx;
         ctx.m_Register = reg;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(reg->m_ReplyEventSocketId, &DispatchEventsFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(reg->m_ReplySocketId, &DispatchEventsFunction, (void*) &ctx);
 
         if (reg->m_DispatchCallback)
-            (void) dmMessage::Dispatch(reg->m_EventSocketId, reg->m_DispatchCallback, reg->m_DispatchUserdata);
+            (void) dmMessage::Dispatch(reg->m_SocketId, reg->m_DispatchCallback, reg->m_DispatchUserdata);
 
         return ctx.m_Success;
     }
@@ -1303,8 +1312,30 @@ bail:
         return ret;
     }
 
+    void DispatchCallback(dmMessage::Message *message, void* user_ptr)
+    {
+        HRegister reg = (HRegister)user_ptr;
+        if (message->m_ID == reg->m_SpawnEventId)
+        {
+            SpawnMessage* spawn_message = (SpawnMessage*)message->m_Data;
+            dmGameObject::HInstance instance = dmGameObject::New(spawn_message->m_Collection, spawn_message->m_Prototype);
+            if (instance != 0)
+            {
+                dmGameObject::SetPosition(instance, spawn_message->m_Position);
+                dmGameObject::SetRotation(instance, spawn_message->m_Rotation);
+                char id[32];
+                static int spawn_count = 0;
+                DM_SNPRINTF(id, 32, "spawn%d", ++spawn_count);
+                dmGameObject::SetIdentifier(spawn_message->m_Collection, instance, id);
+                dmGameObject::SetScriptStringProperty(instance, "Id", id);
+                dmGameObject::Init(spawn_message->m_Collection, instance);
+            }
+        }
+    }
+
     bool PostUpdate(HCollection* collections, uint32_t collection_count)
     {
+        (void) dmMessage::Dispatch(collections[0]->m_Register->m_SpawnSocketId, DispatchCallback, collections[0]->m_Register);
         for (uint32_t i = 0; i < collection_count; ++i)
         {
             HCollection collection = collections[i];
@@ -1430,7 +1461,7 @@ bail:
     uint32_t GetEventSocketId(HRegister reg)
     {
         if (reg)
-            return reg->m_EventSocketId;
+            return reg->m_SocketId;
         else
             return 0;
     }
@@ -1438,7 +1469,7 @@ bail:
     uint32_t GetReplyEventSocketId(HRegister reg)
     {
         if (reg)
-            return reg->m_ReplyEventSocketId;
+            return reg->m_ReplySocketId;
         else
             return 0;
     }

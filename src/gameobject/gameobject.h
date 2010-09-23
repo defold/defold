@@ -1,8 +1,10 @@
 #ifndef GAMEOBJECT_H
 #define GAMEOBJECT_H
 
-#include <ddf/ddf.h>
 #include <vectormath/cpp/vectormath_aos.h>
+
+#include <dlib/message.h>
+#include <ddf/ddf.h>
 
 #include <resource/resource.h>
 
