@@ -429,6 +429,25 @@ namespace dmScript
         {0,0}
     };
 
+    bool IsQuat(lua_State *L, int index)
+    {
+        void *p = lua_touserdata(L, index);
+        bool result = false;
+        if (p != 0x0)
+        {  /* value is a userdata? */
+            if (lua_getmetatable(L, index))
+            {  /* does it have a metatable? */
+                lua_getfield(L, LUA_REGISTRYINDEX, TYPE_NAME_QUAT);  /* get correct metatable */
+                if (lua_rawequal(L, -1, -2))
+                {  /* does it have the correct mt? */
+                    result = true;
+                }
+                lua_pop(L, 2);  /* remove both metatables */
+            }
+        }
+        return result;
+    }
+
     static int Quat_gc(lua_State *L)
     {
         Vectormath::Aos::Quat* q = CheckQuat(L, 1);

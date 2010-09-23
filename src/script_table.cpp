@@ -22,7 +22,17 @@ namespace dmScript
      * char[] key (null terminated string)
      * T      value
      * ...
+     * if value is of type Point3, Vector3, Vector4 or Quat, ie LUA_TUSERDATA, the first byte in value is the SubType
      */
+
+    enum SubType
+    {
+        SUB_TYPE_VECTOR3 = 0,
+        SUB_TYPE_VECTOR4 = 1,
+        SUB_TYPE_POINT3  = 2,
+        SUB_TYPE_QUAT    = 3,
+    };
+
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
     {
         char* buffer_start = buffer;
@@ -32,7 +42,7 @@ namespace dmScript
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
-        if (buffer_end - buffer < 1)
+        if (buffer_size == 0)
         {
             luaL_error(L, "table too large");
         }
@@ -114,6 +124,90 @@ namespace dmScript
                 }
                 break;
 
+                case LUA_TUSERDATA:
+                {
+                    if (buffer_end - buffer < 1)
+                        luaL_error(L, "table too large");
+
+                    char* sub_type = buffer++;
+
+                    // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
+                    intptr_t offset = buffer - buffer_start;
+                    intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
+                    intptr_t align_size = aligned_buffer - (intptr_t) offset;
+
+                    if (buffer_end - buffer < align_size)
+                        luaL_error(L, "table too large");
+
+                    buffer += align_size;
+
+                    float* f = (float*) (buffer);
+                    if (IsVector3(L, -1))
+                    {
+                        Vectormath::Aos::Vector3* v = CheckVector3(L, -1);
+
+                        if (buffer_end - buffer < int32_t(sizeof(float) * 3))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_VECTOR3;
+                        *f++ = v->getX();
+                        *f++ = v->getY();
+                        *f++ = v->getZ();
+
+                        buffer += sizeof(float) * 3;
+                    }
+                    else if (IsVector4(L, -1))
+                    {
+                        Vectormath::Aos::Vector4* v = CheckVector4(L, -1);
+
+                        if (buffer_end - buffer < int32_t(sizeof(float) * 4))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_VECTOR4;
+                        *f++ = v->getX();
+                        *f++ = v->getY();
+                        *f++ = v->getZ();
+                        *f++ = v->getW();
+
+                        buffer += sizeof(float) * 4;
+                    }
+                    else if (IsQuat(L, -1))
+                    {
+                        Vectormath::Aos::Quat* v = CheckQuat(L, -1);
+
+                        if (buffer_end - buffer < int32_t(sizeof(float) * 4))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_QUAT;
+                        *f++ = v->getX();
+                        *f++ = v->getY();
+                        *f++ = v->getZ();
+                        *f++ = v->getW();
+
+                        buffer += sizeof(float) * 4;
+                    }
+                    else if (IsPoint3(L, -1))
+                    {
+                        Vectormath::Aos::Point3* v = CheckPoint3(L, -1);
+
+                        if (buffer_end - buffer < int32_t(sizeof(float) * 3))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_POINT3;
+                        *f++ = v->getX();
+                        *f++ = v->getY();
+                        *f++ = v->getZ();
+
+                        buffer += sizeof(float) * 3;
+                    }
+
+                    else
+                    {
+                        luaL_error(L, "unsupported value type in table", lua_typename(L, value_type));
+                    }
+                }
+                break;
+
                 default:
                     luaL_error(L, "unsupported value type in table", lua_typename(L, value_type));
             }
@@ -170,8 +264,49 @@ namespace dmScript
                 }
                 break;
 
+                case LUA_TUSERDATA:
+                {
+                    char sub_type = *buffer++;
+
+                    // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
+                    intptr_t offset = buffer - buffer_start;
+                    intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
+                    intptr_t align_size = aligned_buffer - (intptr_t) offset;
+                    buffer += align_size;
+
+                    if (sub_type == (char) SUB_TYPE_VECTOR3)
+                    {
+                        float* f = (float*) buffer;
+                        dmScript::PushVector3(L, Vectormath::Aos::Vector3(f[0], f[1], f[2]));
+                        buffer += sizeof(float) * 3;
+                    }
+                    else if (sub_type == (char) SUB_TYPE_VECTOR4)
+                    {
+                        float* f = (float*) buffer;
+                        dmScript::PushVector4(L, Vectormath::Aos::Vector4(f[0], f[1], f[2], f[3]));
+                        buffer += sizeof(float) * 4;
+                    }
+                    else if (sub_type == (char) SUB_TYPE_POINT3)
+                    {
+                        float* f = (float*) buffer;
+                        dmScript::PushPoint3(L, Vectormath::Aos::Point3(f[0], f[1], f[2]));
+                        buffer += sizeof(float) * 3;
+                    }
+                    else if (sub_type == (char) SUB_TYPE_QUAT)
+                    {
+                        float* f = (float*) buffer;
+                        dmScript::PushQuat(L, Vectormath::Aos::Quat(f[0], f[1], f[2], f[3]));
+                        buffer += sizeof(float) * 4;
+                    }
+                    else
+                    {
+                        assert(0);
+                    }
+                }
+                break;
+
                 default:
-                    luaL_error(L, "unsupported value type in table", lua_typename(L, value_type));
+                    assert(0);
             }
             lua_setfield(L, -2, key);
         }

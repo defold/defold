@@ -39,7 +39,7 @@ namespace dmScript
 
     /**
      * Serialize a table to a buffer
-     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER and LUA_TSTRING
+     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, Point3, Vector3, Vector4 and Quat
      * Keys must be strings
      * @param L Lua state
      * @param buffer Buffer that will be written to
@@ -139,6 +139,14 @@ namespace dmScript
      * @return The Point3 value
      */
     Vectormath::Aos::Point3* CheckPoint3(lua_State* L, int index);
+
+    /**
+     * Check is the value at #index is a quat
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true is value at #index is a quat
+     */
+    bool IsQuat(lua_State *L, int index);
 
     /**
      * Push a quaternion value onto the supplied lua state, will increase the stack by 1.
