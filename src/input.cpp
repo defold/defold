@@ -39,6 +39,94 @@ namespace dmInput
         delete context;
     }
 
+    HBinding NewBinding(HContext context, dmInputDDF::InputBinding* ddf)
+    {
+        Binding* binding = new Binding();
+        memset(binding, 0, sizeof(Binding));
+        binding->m_Context = context;
+        binding->m_Actions.SetCapacity(64, 256);
+        Action action;
+        memset(&action, 0, sizeof(Action));
+        if (ddf->m_KeyTrigger.m_Count > 0)
+        {
+            binding->m_KeyboardBinding = new KeyboardBinding();
+            memset(binding->m_KeyboardBinding, 0, sizeof(*binding->m_KeyboardBinding));
+            binding->m_KeyboardBinding->m_Triggers.SetCapacity(ddf->m_KeyTrigger.m_Count);
+            for (uint32_t i = 0; i < ddf->m_KeyTrigger.m_Count; ++i)
+            {
+                const dmInputDDF::KeyTrigger& ddf_trigger = ddf->m_KeyTrigger[i];
+                dmInput::KeyTrigger trigger;
+                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
+                trigger.m_Input = ddf_trigger.m_Input;
+                binding->m_KeyboardBinding->m_Triggers.Push(trigger);
+                binding->m_Actions.Put(trigger.m_ActionId, action);
+            }
+        }
+        if (ddf->m_MouseTrigger.m_Count > 0)
+        {
+            binding->m_MouseBinding = new MouseBinding();
+            memset(binding->m_MouseBinding, 0, sizeof(*binding->m_MouseBinding));
+            binding->m_MouseBinding->m_Triggers.SetCapacity(ddf->m_MouseTrigger.m_Count);
+            for (uint32_t i = 0; i < ddf->m_MouseTrigger.m_Count; ++i)
+            {
+                const dmInputDDF::MouseTrigger& ddf_trigger = ddf->m_MouseTrigger[i];
+                dmInput::MouseTrigger trigger;
+                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
+                trigger.m_Input = ddf_trigger.m_Input;
+                binding->m_MouseBinding->m_Triggers.Push(trigger);
+                binding->m_Actions.Put(trigger.m_ActionId, action);
+            }
+        }
+        if (ddf->m_GamepadTrigger.m_Count > 0)
+        {
+            uint8_t gamepad_index = context->m_GamepadIndices.Pop();
+            dmHID::HGamepad gamepad = dmHID::GetGamepad(gamepad_index);
+            const char* device_name = 0x0;
+            dmHID::GetGamepadDeviceName(gamepad, &device_name);
+            if (device_name == 0x0)
+            {
+                dmLogWarning("Gamepad %d is not connected.", gamepad_index);
+            }
+            else
+            {
+                GamepadConfig* config = context->m_GamepadMaps.Get(dmHashString32(device_name));
+                if (config == 0x0)
+                {
+                    dmLogWarning("No gamepad map found for gamepad %d (%s), it will not be used.", gamepad_index, device_name);
+                }
+            }
+            binding->m_GamepadBinding = new GamepadBinding();
+            memset(binding->m_GamepadBinding, 0, sizeof(*binding->m_GamepadBinding));
+            binding->m_GamepadBinding->m_Gamepad = gamepad;
+            binding->m_GamepadBinding->m_Index = gamepad_index;
+            binding->m_GamepadBinding->m_Triggers.SetCapacity(ddf->m_GamepadTrigger.m_Count);
+            for (uint32_t i = 0; i < ddf->m_GamepadTrigger.m_Count; ++i)
+            {
+                const dmInputDDF::GamepadTrigger& ddf_trigger = ddf->m_GamepadTrigger[i];
+                dmInput::GamepadTrigger trigger;
+                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
+                trigger.m_Input = ddf_trigger.m_Input;
+                binding->m_GamepadBinding->m_Triggers.Push(trigger);
+                binding->m_Actions.Put(trigger.m_ActionId, action);
+            }
+        }
+        return binding;
+    }
+
+    void DeleteBinding(HBinding binding)
+    {
+        if (binding->m_KeyboardBinding != 0x0)
+            delete binding->m_KeyboardBinding;
+        if (binding->m_MouseBinding != 0x0)
+            delete binding->m_MouseBinding;
+        if (binding->m_GamepadBinding != 0x0)
+        {
+            binding->m_Context->m_GamepadIndices.Push(binding->m_GamepadBinding->m_Index);
+            delete binding->m_GamepadBinding;
+        }
+        delete binding;
+    }
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf)
     {
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
@@ -101,7 +189,7 @@ namespace dmInput
         // TODO: Update repeated
     }
 
-    void UpdateBinding(HContext context, HBinding binding)
+    void UpdateBinding(HBinding binding)
     {
         DM_PROFILE(Input, "UpdateContext");
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
@@ -180,7 +268,7 @@ namespace dmInput
             binding->m_GamepadBinding->m_Connected = connected;
             if (binding->m_GamepadBinding->m_Connected)
             {
-                GamepadConfig* config = context->m_GamepadMaps.Get(binding->m_GamepadBinding->m_DeviceId);
+                GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(binding->m_GamepadBinding->m_DeviceId);
                 if (config != 0x0)
                 {
                     dmHID::GetGamepadPacket(binding->m_GamepadBinding->m_Gamepad, &binding->m_GamepadBinding->m_Packet);
@@ -313,94 +401,6 @@ namespace dmInput
             break;
         }
         return v;
-    }
-
-    HBinding NewBinding(HContext context, dmInputDDF::InputBinding* ddf)
-    {
-        Binding* binding = new Binding();
-        memset(binding, 0, sizeof(Binding));
-        binding->m_Context = context;
-        binding->m_Actions.SetCapacity(64, 256);
-        Action action;
-        memset(&action, 0, sizeof(Action));
-        if (ddf->m_KeyTrigger.m_Count > 0)
-        {
-            binding->m_KeyboardBinding = new KeyboardBinding();
-            memset(binding->m_KeyboardBinding, 0, sizeof(*binding->m_KeyboardBinding));
-            binding->m_KeyboardBinding->m_Triggers.SetCapacity(ddf->m_KeyTrigger.m_Count);
-            for (uint32_t i = 0; i < ddf->m_KeyTrigger.m_Count; ++i)
-            {
-                const dmInputDDF::KeyTrigger& ddf_trigger = ddf->m_KeyTrigger[i];
-                dmInput::KeyTrigger trigger;
-                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
-                trigger.m_Input = ddf_trigger.m_Input;
-                binding->m_KeyboardBinding->m_Triggers.Push(trigger);
-                binding->m_Actions.Put(trigger.m_ActionId, action);
-            }
-        }
-        if (ddf->m_MouseTrigger.m_Count > 0)
-        {
-            binding->m_MouseBinding = new MouseBinding();
-            memset(binding->m_MouseBinding, 0, sizeof(*binding->m_MouseBinding));
-            binding->m_MouseBinding->m_Triggers.SetCapacity(ddf->m_MouseTrigger.m_Count);
-            for (uint32_t i = 0; i < ddf->m_MouseTrigger.m_Count; ++i)
-            {
-                const dmInputDDF::MouseTrigger& ddf_trigger = ddf->m_MouseTrigger[i];
-                dmInput::MouseTrigger trigger;
-                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
-                trigger.m_Input = ddf_trigger.m_Input;
-                binding->m_MouseBinding->m_Triggers.Push(trigger);
-                binding->m_Actions.Put(trigger.m_ActionId, action);
-            }
-        }
-        if (ddf->m_GamepadTrigger.m_Count > 0)
-        {
-            uint8_t gamepad_index = context->m_GamepadIndices.Pop();
-            dmHID::HGamepad gamepad = dmHID::GetGamepad(gamepad_index);
-            const char* device_name = 0x0;
-            dmHID::GetGamepadDeviceName(gamepad, &device_name);
-            if (device_name == 0x0)
-            {
-                dmLogWarning("Gamepad %d is not connected.", gamepad_index);
-            }
-            else
-            {
-                GamepadConfig* config = context->m_GamepadMaps.Get(dmHashString32(device_name));
-                if (config == 0x0)
-                {
-                    dmLogWarning("No gamepad map found for gamepad %d (%s), it will not be used.", gamepad_index, device_name);
-                }
-            }
-            binding->m_GamepadBinding = new GamepadBinding();
-            memset(binding->m_GamepadBinding, 0, sizeof(*binding->m_GamepadBinding));
-            binding->m_GamepadBinding->m_Gamepad = gamepad;
-            binding->m_GamepadBinding->m_Index = gamepad_index;
-            binding->m_GamepadBinding->m_Triggers.SetCapacity(ddf->m_GamepadTrigger.m_Count);
-            for (uint32_t i = 0; i < ddf->m_GamepadTrigger.m_Count; ++i)
-            {
-                const dmInputDDF::GamepadTrigger& ddf_trigger = ddf->m_GamepadTrigger[i];
-                dmInput::GamepadTrigger trigger;
-                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
-                trigger.m_Input = ddf_trigger.m_Input;
-                binding->m_GamepadBinding->m_Triggers.Push(trigger);
-                binding->m_Actions.Put(trigger.m_ActionId, action);
-            }
-        }
-        return binding;
-    }
-
-    void DeleteBinding(HBinding binding)
-    {
-        if (binding->m_KeyboardBinding != 0x0)
-            delete binding->m_KeyboardBinding;
-        if (binding->m_MouseBinding != 0x0)
-            delete binding->m_MouseBinding;
-        if (binding->m_GamepadBinding != 0x0)
-        {
-            binding->m_Context->m_GamepadIndices.Push(binding->m_GamepadBinding->m_Index);
-            delete binding->m_GamepadBinding;
-        }
-        delete binding;
     }
 
     void InitKeyMap()

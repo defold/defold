@@ -81,9 +81,6 @@ namespace dmInput
         dmIndexPool8 m_GamepadIndices;
         dmHashTable32< GamepadConfig > m_GamepadMaps;
     };
-
-    HBinding NewBinding(HContext context, dmInputDDF::InputBinding* binding);
-    void DeleteBinding(HBinding binding);
 }
 
 #endif // DM_INPUT_PRIVATE_H

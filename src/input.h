@@ -33,9 +33,12 @@ namespace dmInput
     HContext NewContext();
     void DeleteContext(HContext context);
 
+    HBinding NewBinding(HContext context, dmInputDDF::InputBinding* binding);
+    void DeleteBinding(HBinding binding);
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf);
 
-    void UpdateBinding(HContext context, HBinding binding);
+    void UpdateBinding(HBinding binding);
 
     float GetValue(HBinding binding, uint32_t action_id);
     bool Pressed(HBinding binding, uint32_t action_id);
