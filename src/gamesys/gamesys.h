@@ -32,7 +32,8 @@ namespace dmGameSystem
                                                   dmGameObject::HRegister regist,
                                                   dmRender::RenderContext* render_context,
                                                   PhysicsContext* physics_context,
-                                                  EmitterContext* emitter_context);
+                                                  EmitterContext* emitter_context,
+                                                  dmRender::HRenderWorld render_world);
 
     void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }

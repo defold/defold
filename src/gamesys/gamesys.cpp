@@ -81,7 +81,8 @@ namespace dmGameSystem
                                                 dmGameObject::HRegister regist,
                                                 dmRender::RenderContext* render_context,
                                                 PhysicsContext* physics_context,
-                                                EmitterContext* emitter_context)
+                                                EmitterContext* emitter_context,
+                                                dmRender::HRenderWorld render_world)
     {
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
@@ -131,7 +132,7 @@ namespace dmGameSystem
                 CompSoundCreate, 0, CompSoundDestroy,
                 CompSoundUpdate, CompSoundOnMessage, 0);
 
-        REGISTER_COMPONENT_TYPE("modelc", render_context,
+        REGISTER_COMPONENT_TYPE("modelc", render_world,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, 0, CompModelDestroy,
                 CompModelUpdate, CompModelOnMessage, 0);
@@ -141,7 +142,7 @@ namespace dmGameSystem
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
                 &CompEmitterUpdate, &CompEmitterOnMessage, 0);
 
-        REGISTER_COMPONENT_TYPE("guic", 0x0,
+        REGISTER_COMPONENT_TYPE("guic", render_world,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
                 CompGuiUpdate, CompGuiOnMessage, CompGuiOnInput);

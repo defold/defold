@@ -41,7 +41,7 @@ namespace dmGameSystem
         dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
 
 
-        dmRender::HRenderObject ro = NewRenderObjectInstance(render_world, (void*)prototype, (void*)instance, dmRender::RENDEROBJECT_TYPE_MODEL);
+        dmRender::HRenderObject ro = NewRenderObjectInstance(render_world, (void*)prototype, (void*)instance, 1, dmRender::RENDEROBJECT_TYPE_MODEL);
         *user_data = (uintptr_t) ro;
 
         return dmGameObject::CREATE_RESULT_OK;
@@ -67,10 +67,10 @@ namespace dmGameSystem
                          void* world,
                          void* context)
     {
-        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
-        // TODO: Not the best way, but it works for now.
-        dmRender::UpdateContext(render_world, (dmRender::RenderContext*)context);
-        dmRender::Update(render_world, update_context->m_DT);
+        dmRender::HRenderWorld render_collection = (dmRender::HRenderWorld)world;
+        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)context;
+
+        dmRender::AddToRender(render_collection, render_world);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
