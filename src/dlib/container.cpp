@@ -223,7 +223,10 @@ namespace dmContainer
         object->m_InstanceHead = 0;
         Instance *inst = object->m_NextFreeInstance;
         for(uint32_t i = 0; i < const_reserve-1; i++)
-            inst->m_NextFree = (inst++)+1;
+        {
+            inst->m_NextFree = inst + 1;
+            ++inst;
+        }
         inst->m_NextFree = 0;
 
         return SUCCESS;
@@ -260,7 +263,10 @@ namespace dmContainer
         object->m_InstanceHead = 0;
         Instance *inst = object->m_NextFreeInstance;
         for(uint32_t i = 0; i < const_reserve-1; i++)
-            inst->m_NextFree = (inst++)+1;
+        {
+            inst->m_NextFree = inst + 1;
+            ++inst;
+        }
         inst->m_NextFree = 0;
 
         return SUCCESS;
@@ -499,5 +505,4 @@ namespace dmContainer
 
         return SUCCESS;
     }
-
 }
