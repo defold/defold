@@ -19,6 +19,8 @@
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
 #include "resources/res_camera.h"
+#include "resources/res_input_binding.h"
+#include "resources/res_gamepad_map.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -67,6 +69,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("gui_scriptc", ResCreateGuiScript, ResDestroyGuiScript, 0);
         REGISTER_RESOURCE_TYPE("wavc", ResSoundDataCreate, ResSoundDataDestroy, 0);
         REGISTER_RESOURCE_TYPE("camerac", ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
+        REGISTER_RESOURCE_TYPE("input_bindingc", ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
+        REGISTER_RESOURCE_TYPE("gamepadsc", ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 

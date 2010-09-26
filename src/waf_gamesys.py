@@ -32,6 +32,8 @@ proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexsha
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject_pb', '.collisionobject')
 proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic')
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
+proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
+proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
 
 Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
                       color='PINK',
