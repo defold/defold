@@ -13,6 +13,7 @@ namespace dmInput
     {
         float m_Value;
         float m_PrevValue;
+        float m_RepeatTimer;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
@@ -32,13 +33,14 @@ namespace dmInput
 
     HContext NewContext();
     void DeleteContext(HContext context);
+    void SetRepeat(HContext context, float delay, float interval);
 
     HBinding NewBinding(HContext context, dmInputDDF::InputBinding* binding);
     void DeleteBinding(HBinding binding);
 
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf);
 
-    void UpdateBinding(HBinding binding);
+    void UpdateBinding(HBinding binding, float dt);
 
     float GetValue(HBinding binding, uint32_t action_id);
     bool Pressed(HBinding binding, uint32_t action_id);

@@ -80,6 +80,8 @@ namespace dmInput
     {
         dmIndexPool8 m_GamepadIndices;
         dmHashTable32< GamepadConfig > m_GamepadMaps;
+        float m_RepeatDelay;
+        float m_RepeatInterval;
     };
 }
 

@@ -31,12 +31,20 @@ namespace dmInput
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
         context->m_GamepadMaps.SetCapacity(8, 16);
+        context->m_RepeatDelay = 0.5f;
+        context->m_RepeatInterval = 0.2f;
         return context;
     }
 
     void DeleteContext(HContext context)
     {
         delete context;
+    }
+
+    void SetRepeat(HContext context, float delay, float interval)
+    {
+        context->m_RepeatDelay = delay;
+        context->m_RepeatInterval = interval;
     }
 
     HBinding NewBinding(HContext context, dmInputDDF::InputBinding* ddf)
@@ -182,14 +190,38 @@ namespace dmInput
         action->m_Value = 0.0f;
     }
 
-    void UpdateAction(void*, const uint32_t* id, Action* action)
+    struct UpdateContext
+    {
+        float m_DT;
+        Context* m_Context;
+    };
+
+    void UpdateAction(void* context, const uint32_t* id, Action* action)
     {
         action->m_Pressed = (action->m_PrevValue == 0.0f && action->m_Value > 0.0f) ? 1 : 0;
         action->m_Released = (action->m_PrevValue > 0.0f && action->m_Value == 0.0f) ? 1 : 0;
-        // TODO: Update repeated
+        action->m_Repeated = false;
+        if (action->m_Value > 0.0f)
+        {
+            UpdateContext* update_context = (UpdateContext*)context;
+            if (action->m_Pressed)
+            {
+                action->m_Repeated = true;
+                action->m_RepeatTimer = update_context->m_Context->m_RepeatDelay;
+            }
+            else
+            {
+                action->m_RepeatTimer -= update_context->m_DT;
+                if (action->m_RepeatTimer <= 0.0f)
+                {
+                    action->m_Repeated = true;
+                    action->m_RepeatTimer += update_context->m_Context->m_RepeatInterval;
+                }
+            }
+        }
     }
 
-    void UpdateBinding(HBinding binding)
+    void UpdateBinding(HBinding binding, float dt)
     {
         DM_PROFILE(Input, "UpdateContext");
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
@@ -326,8 +358,10 @@ namespace dmInput
                 }
             }
         }
-
-        binding->m_Actions.Iterate<void>(UpdateAction, 0x0);
+        UpdateContext context;
+        context.m_DT = dt;
+        context.m_Context = binding->m_Context;
+        binding->m_Actions.Iterate<void>(UpdateAction, &context);
     }
 
     float GetValue(HBinding binding, uint32_t action_id)
@@ -357,9 +391,13 @@ namespace dmInput
             return false;
     }
 
-    bool Repeated(HContext context, uint32_t action_id)
+    bool Repeated(HBinding binding, uint32_t action_id)
     {
-        return false;
+        Action* action = binding->m_Actions.Get(action_id);
+        if (action != 0x0)
+            return action->m_Repeated;
+        else
+            return false;
     }
 
     struct CallbackData

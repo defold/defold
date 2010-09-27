@@ -25,6 +25,7 @@ protected:
         dmDDF::FreeMessage(gamepad_maps);
         dmDDF::LoadMessageFromFile("build/default/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
         dmDDF::LoadMessageFromFile("build/default/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
+        m_DT = 1.0f / 60.0f;
     }
 
     virtual void TearDown()
@@ -38,6 +39,7 @@ protected:
     dmInput::HContext m_Context;
     dmInputDDF::InputBinding* m_TestDDF;
     dmInputDDF::InputBinding* m_ComboDDF;
+    float m_DT;
 };
 
 TEST_F(InputTest, CreateContext)
@@ -60,7 +62,7 @@ TEST_F(InputTest, Keyboard)
     float v = dmInput::GetValue(binding, key_0_id);
     ASSERT_EQ(0.0f, v);
 
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     v = dmInput::GetValue(binding, key_0_id);
     ASSERT_EQ(1.0f, v);
@@ -70,13 +72,13 @@ TEST_F(InputTest, Keyboard)
     dmHID::SetKey(dmHID::KEY_0, false);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_FALSE(dmInput::Pressed(binding, key_0_id));
     ASSERT_TRUE(dmInput::Released(binding, key_0_id));
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_FALSE(dmInput::Pressed(binding, key_0_id));
     ASSERT_FALSE(dmInput::Released(binding, key_0_id));
@@ -97,7 +99,7 @@ TEST_F(InputTest, Mouse)
     float v = dmInput::GetValue(binding, mouse_up_id);
     ASSERT_EQ(0.0f, v);
 
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     v = dmInput::GetValue(binding, mouse_up_id);
     ASSERT_EQ(1.0f, v);
@@ -105,13 +107,13 @@ TEST_F(InputTest, Mouse)
     ASSERT_FALSE(dmInput::Released(binding, mouse_up_id));
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_FALSE(dmInput::Pressed(binding, mouse_up_id));
     ASSERT_TRUE(dmInput::Released(binding, mouse_up_id));
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_FALSE(dmInput::Pressed(binding, mouse_up_id));
     ASSERT_FALSE(dmInput::Released(binding, mouse_up_id));
@@ -136,14 +138,14 @@ TEST_F(InputTest, Gamepad)
     ASSERT_GT(dmHID::GetGamepadAxisCount(binding->m_GamepadBinding->m_Gamepad), index);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
 
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 1.0f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action_id));
     ASSERT_TRUE(dmInput::Pressed(binding, action_id));
@@ -152,13 +154,13 @@ TEST_F(InputTest, Gamepad)
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 0.0f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_FALSE(dmInput::Pressed(binding, action_id));
     ASSERT_TRUE(dmInput::Released(binding, action_id));
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_FALSE(dmInput::Pressed(binding, action_id));
     ASSERT_FALSE(dmInput::Released(binding, action_id));
@@ -171,7 +173,7 @@ TEST_F(InputTest, Gamepad)
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, 2, 1.0f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(0.0f, dmInput::GetValue(binding, up_id));
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, down_id));
@@ -179,7 +181,7 @@ TEST_F(InputTest, Gamepad)
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, 2, -1.0f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, up_id));
     ASSERT_EQ(0.0f, dmInput::GetValue(binding, down_id));
@@ -198,7 +200,7 @@ TEST_F(InputTest, ForEachActive)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     float value = 0.0f;
 
@@ -209,7 +211,7 @@ TEST_F(InputTest, ForEachActive)
     dmHID::SetKey(dmHID::KEY_0, true);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     dmInput::ForEachActive(binding, ActionCallback, &value);
     ASSERT_EQ(1.0f, value);
@@ -227,7 +229,7 @@ TEST_F(InputTest, Combinations)
     dmHID::SetKey(dmHID::KEY_0, true);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action0));
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action1));
@@ -236,7 +238,7 @@ TEST_F(InputTest, Combinations)
     dmHID::SetKey(dmHID::KEY_1, true);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action0));
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action1));
@@ -259,23 +261,65 @@ TEST_F(InputTest, DeadZone)
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 0.05f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
 
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 0.1f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
 
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 1.0f);
 
     dmHID::Update();
-    dmInput::UpdateBinding(binding);
+    dmInput::UpdateBinding(binding, m_DT);
 
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, action_id));
+
+    dmInput::DeleteBinding(binding);
+}
+
+TEST_F(InputTest, TestRepeat)
+{
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+
+    dmHID::SetKey(dmHID::KEY_0, true);
+
+    dmHID::Update();
+
+    uint32_t key_0_id = dmHashString32("KEY_0");
+
+    float v = dmInput::GetValue(binding, key_0_id);
+    ASSERT_EQ(0.0f, v);
+
+    ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
+
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_TRUE(dmInput::Repeated(binding, key_0_id));
+
+    for (int i = 0; i < 29; ++i)
+    {
+        dmInput::UpdateBinding(binding, m_DT);
+        ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
+    }
+
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_TRUE(dmInput::Repeated(binding, key_0_id));
+
+    for (int i = 0; i < 11; ++i)
+    {
+        dmInput::UpdateBinding(binding, m_DT);
+        ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
+    }
+
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_TRUE(dmInput::Repeated(binding, key_0_id));
+
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
 
     dmInput::DeleteBinding(binding);
 }
