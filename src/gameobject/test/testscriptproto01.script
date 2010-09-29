@@ -37,8 +37,8 @@ function on_event(self, event_hash, event)
     assert(event.status == 1010)
 end
 
-function on_input(self, action)
+function on_input(self, action_id, action)
     assert(self.id == hash("my_object01"), "on_input id mismatch")
     assert(self.dt == nil, "dt exists in init")
-    assert(action.id == hash("test_action"), "on_input action id mismatch")
+    assert(action_id == hash("test_action"), "on_input action id mismatch")
 end

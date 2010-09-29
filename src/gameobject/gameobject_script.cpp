@@ -1144,13 +1144,11 @@ bail:
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
+            dmScript::PushHash(L, input_action->m_ActionId);
+
             lua_createtable(L, 0, 5);
 
             int action_table = lua_gettop(L);
-
-            lua_pushliteral(L, "id");
-            dmScript::PushHash(L, input_action->m_ActionId);
-            lua_settable(L, action_table);
 
             lua_pushliteral(L, "value");
             lua_pushnumber(L, input_action->m_Value);
@@ -1168,8 +1166,9 @@ bail:
             lua_pushboolean(L, input_action->m_Repeated);
             lua_settable(L, action_table);
 
-            int input_ret = lua_gettop(L) - 2;
-            int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+            int arg_count = 3;
+            int input_ret = lua_gettop(L) - arg_count;
+            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
             {

@@ -1,3 +1,3 @@
-function on_input(self, action)
-    assert(action.id == hash("test_action"), "Unknown action")
+function on_input(self, action_id, action)
+    assert(action_id == hash("test_action"), "Unknown action")
 end
