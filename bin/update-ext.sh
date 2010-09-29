@@ -84,5 +84,7 @@ cp src/waf_content.py $DYNAMO_HOME/lib/python
 echo "Copying share/valgrind-python.supp -> DYNAMO_HOME/share"
 mkdir -p $DYNAMO_HOME/share 
 cp share/valgrind-python.supp $DYNAMO_HOME/share
+echo "Copying share/valgrind-libasound.supp -> DYNAMO_HOME/share"
+cp share/valgrind-libasound.supp $DYNAMO_HOME/share
 
 

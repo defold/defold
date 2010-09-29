@@ -1,0 +1,40 @@
+{
+   libasound-leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/libasound.so.*
+   ...
+}
+{
+   dl-leaks-1
+   Memcheck:Leak
+   fun:malloc
+   fun:local_strdup
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_error
+   fun:_dl_map_object_deps
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_error
+   fun:_dlerror_run
+}
+{
+   dl-leaks-2
+   Memcheck:Leak
+   ...
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_error
+   fun:_dl_map_object_deps
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_error
+}
+
