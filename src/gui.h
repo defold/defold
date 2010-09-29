@@ -55,7 +55,7 @@ namespace dmGui
         HScene                   m_Scene;
 
         /// Message hash
-        uint32_t                 m_MessageHash;
+        uint32_t                 m_MessageId;
 
         /// Pay-load DDF descriptor. NULL if not present
         const dmDDF::Descriptor* m_DDFDescriptor;
@@ -160,7 +160,7 @@ namespace dmGui
     void DeleteScene(HScene scene);
 
     Result DispatchMessage(HScene scene,
-                           uint32_t message_hash,
+                           uint32_t message_id,
                            const void* message,
                            const dmDDF::Descriptor* descriptor);
 

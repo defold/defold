@@ -539,7 +539,7 @@ static void Dispatch1(dmMessage::Message* message, void* user_ptr)
 {
     dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
     uint32_t* mh = (uint32_t*) user_ptr;
-    *mh = md->m_MessageHash;
+    *mh = md->m_MessageId;
 }
 
 TEST_F(dmGuiTest, PostMessage1)
@@ -555,10 +555,10 @@ TEST_F(dmGuiTest, PostMessage1)
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    uint32_t message_hash;
-    dmMessage::Dispatch(socket, &Dispatch1, &message_hash);
+    uint32_t message_id;
+    dmMessage::Dispatch(socket, &Dispatch1, &message_id);
 
-    ASSERT_EQ(dmHashString32("my_named_message"), message_hash);
+    ASSERT_EQ(dmHashString32("my_named_message"), message_id);
 }
 
 static void Dispatch2(dmMessage::Message* message, void* user_ptr)
@@ -612,8 +612,8 @@ TEST_F(dmGuiTest, PostMessageToGui)
                     "function update(self)\n"
                     "   assert(a == 123)\n"
                     "end\n"
-                    "function on_message(self, message_hash, message)\n"
-                    "   assert(message_hash == hash(\"amessage\"))\n"
+                    "function on_message(self, message_id, message)\n"
+                    "   assert(message_id == hash(\"amessage\"))\n"
                     "   a = message.a\n"
                     "end\n";
 

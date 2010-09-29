@@ -329,12 +329,12 @@ namespace dmGui
         lua_pop(L, 1);
 
         const char* type_name = luaL_checkstring(L, 1);
-        message_data->m_MessageHash = dmHashString32(type_name);
+        message_data->m_MessageId = dmHashString32(type_name);
         message_data->m_Scene = scene;
 
         if (lua_istable(L, 2))
         {
-            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_data->m_MessageHash);
+            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_data->m_MessageId);
             if (d_tmp == 0)
             {
                 luaL_error(L, "Unknown ddf type: %s", type_name);
@@ -360,7 +360,7 @@ namespace dmGui
         }
 
         assert(top == lua_gettop(L));
-        dmMessage::Post(scene->m_Gui->m_Socket, message_data->m_MessageHash, buf, MAX_MESSAGE_DATA_SIZE);
+        dmMessage::Post(scene->m_Gui->m_Socket, message_data->m_MessageId, buf, MAX_MESSAGE_DATA_SIZE);
         return 0;
     }
 
@@ -791,7 +791,7 @@ namespace dmGui
     }
 
     Result DispatchMessage(HScene scene,
-                           uint32_t message_hash,
+                           uint32_t message_id,
                            const void* message,
                            const dmDDF::Descriptor* descriptor)
     {
@@ -803,7 +803,7 @@ namespace dmGui
             assert(lua_isfunction(L, -1));
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
 
-            dmScript::PushHash(L, message_hash);
+            dmScript::PushHash(L, message_id);
 
             dmScript::PushDDF(L, descriptor, (const char*) message);
             int ret = lua_pcall(L, 3, 0, 0);
