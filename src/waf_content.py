@@ -1,25 +1,29 @@
 import Task
 from TaskGen import extension
-import hashlib
+import hashlib, sys
 
 proto_module_sigs = {}
 def proto_compile_task(name, module, msg_type, input_ext, output_ext, transformer = None, append_to_all = False):
 
     def compile(task):
-        import google.protobuf.text_format
-        mod = __import__(module)
-        # NOTE: We can't use getattr. msg_type could of form "foo.bar"
-        msg = eval('mod.' + msg_type)() # Call constructor on message type
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
+        try:
+            import google.protobuf.text_format
+            mod = __import__(module)
+            # NOTE: We can't use getattr. msg_type could of form "foo.bar"
+            msg = eval('mod.' + msg_type)() # Call constructor on message type
+            with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+                google.protobuf.text_format.Merge(in_f.read(), msg)
 
-        if transformer:
-            msg = transformer(msg)
+            if transformer:
+                msg = transformer(msg)
 
-        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
-            out_f.write(msg.SerializeToString())
+            with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+                out_f.write(msg.SerializeToString())
 
-        return 0
+            return 0
+        except google.protobuf.text_format.ParseError,e:
+            print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+            return 1
 
     task = Task.task_type_from_func(name,
                                     func    = compile,
