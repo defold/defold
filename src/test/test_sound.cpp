@@ -56,6 +56,7 @@ public:
     virtual void TearDown()
     {
         free(m_DrumLoop);
+        free(m_OneFootStep);
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
