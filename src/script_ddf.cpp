@@ -58,7 +58,7 @@ namespace dmScript
                 int size = strlen(s) + 1;
                 if (*data_start + size > *data_end)
                 {
-                    luaL_error(L, "Event data doesn't fit");
+                    luaL_error(L, "Message data doesn't fit");
                 }
                 else
                 {
