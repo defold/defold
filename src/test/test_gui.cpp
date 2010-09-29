@@ -517,8 +517,8 @@ TEST_F(dmGuiTest, ScriptInput)
     const char* s = "function update(self)\n"
                     "   assert(g_value == 123)\n"
                     "end\n"
-                    "function on_input(self, input_action)\n"
-                    "   if(input_action.action_id == hash(\"SPACE\")) then\n"
+                    "function on_input(self, action_id, action)\n"
+                    "   if(action_id == hash(\"SPACE\")) then\n"
                     "       g_value = 123\n"
                     "   end\n"
                     "end\n";

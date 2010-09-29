@@ -49,7 +49,7 @@ function rotate_cb(node)
     animate(node, ROTATION, to, EASING_NONE, 30/60, 0, rotate_cb)
 end
 
-function on_input(self, input_action)
+function on_input(self, action_id, action)
     for i, n in ipairs(nodes) do
         delete_node(n)
     end

@@ -755,12 +755,9 @@ namespace dmGui
                 assert(lua_isfunction(L, -1));
                 lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
 
+                dmScript::PushHash(L, ia->m_ActionId);
+
                 lua_newtable(L);
-                lua_pushstring(L, "action_id");
-                char tmp[16+1];
-                DM_SNPRINTF(tmp, sizeof(tmp), "%X", ia->m_ActionId);
-                lua_pushstring(L, tmp);
-                lua_rawset(L, -3);
 
                 lua_pushstring(L, "value");
                 lua_pushnumber(L, ia->m_Value);
@@ -778,7 +775,7 @@ namespace dmGui
                 lua_pushboolean(L, ia->m_Repeated);
                 lua_rawset(L, -3);
 
-                int ret = lua_pcall(L, 2, 0, 0);
+                int ret = lua_pcall(L, 3, 0, 0);
 
                 if (ret != 0)
                 {
@@ -1060,6 +1057,10 @@ namespace dmGui
         lua_setglobal(L, "init");
         lua_pushnil(L);
         lua_setglobal(L, "update");
+        lua_pushnil(L);
+        lua_setglobal(L, "on_event");
+        lua_pushnil(L);
+        lua_setglobal(L, "on_input");
 
 bail:
         assert(top == lua_gettop(L));
