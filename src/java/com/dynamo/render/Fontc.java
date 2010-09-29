@@ -39,7 +39,7 @@ class Glyph implements Comparable<Glyph>
     int m_Index;
     int m_LeftBearing;
     int m_RightBearing;
-    
+
     @Override
     public int compareTo(Glyph o)
     {
@@ -110,7 +110,7 @@ public class Fontc
             Shape shape = glyph_vector.getOutline(0, 0);
             Rectangle visual_bounds = glyph_vector.getGlyphVisualBounds(0).getBounds();
             GlyphMetrics metrics = glyph_vector.getGlyphMetrics(0);
-                
+
             Glyph glyph = new Glyph();
             glyph.m_C = s.charAt(0);
             glyph.m_Width = visual_bounds.width;
@@ -135,7 +135,7 @@ public class Fontc
 
         Rectangle2D max_bounds = font.getMaxCharBounds(m_FontRendererContext);
         int max_layout_width = m_ImageWidth-((int) max_bounds.getWidth());
-            
+
         int i = 0;
         int y = 0;
         int margin = 4;
@@ -202,12 +202,12 @@ public class Fontc
             image_font.m_Glyphs.add(image_glyph);
             image_glyph.m_LeftBearing = g.m_LeftBearing;
             image_glyph.m_RightBearing = g.m_RightBearing;
-            
+
             if (g.m_C == ' ')
             {
                 // Skip for ' '. Currently incorrect
                 image_glyph.m_LeftBearing = 0;
-                image_glyph.m_RightBearing = 0;                
+                image_glyph.m_RightBearing = 0;
             }
         }
 
@@ -226,6 +226,7 @@ public class Fontc
 
     public static void main(String[] args) throws FontFormatException, IOException
     {
+        System.setProperty("java.awt.headless", "true");
         if (args.length != 3)
         {
             System.err.println("Usage: fontc fontfile size outfile");
