@@ -31,7 +31,7 @@ namespace dmGameObject
     {
             "init",
             "update",
-            "on_event",
+            "on_message",
             "on_input"
     };
 
@@ -192,7 +192,7 @@ namespace dmGameObject
     extern dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors;
     extern uint32_t g_Socket;
     extern uint32_t g_ReplySocket;
-    extern uint32_t g_EventID;
+    extern uint32_t g_MessageID;
 
     static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
                              char* message, char** buffer, char** buffer_last);
@@ -238,7 +238,7 @@ namespace dmGameObject
 				int size = strlen(s) + 1;
 				if (*buffer + size > *buffer_last)
 				{
-					luaL_error(L, "Event data doesn't fit (payload max: %d)", SCRIPT_EVENT_MAX);
+					luaL_error(L, "Message data doesn't fit (payload max: %d)", INSTANCE_MESSAGE_MAX);
 				}
 				else
 				{
@@ -297,7 +297,7 @@ namespace dmGameObject
 
         uint32_t id = dmScript::CheckHash(L, 1);
         const char* component_name = luaL_checkstring(L, 2);
-        const char* event_name = luaL_checkstring(L, 3);
+        const char* message_name = luaL_checkstring(L, 3);
 
         lua_pushstring(L, "__collection__");
         lua_rawget(L, LUA_GLOBALSINDEX);
@@ -309,26 +309,26 @@ namespace dmGameObject
         if (instance)
         {
             const dmDDF::Descriptor* desc = 0x0;
-            char ddf_data[SCRIPT_EVENT_MAX - sizeof(ScriptEventData)];
+            char ddf_data[INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData)];
 
             // Passing ddf data is optional atm
             if (top >= 4)
             {
-                const char* type_name = event_name;
+                const char* type_name = message_name;
                 uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
                 const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
                 if (desc_tmp != 0)
                 {
                     desc = *desc_tmp;
-                    if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
+                    if (desc->m_Size > INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData))
                     {
-                        luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                        luaL_error(L, "sizeof(%s) > %d", type_name, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData));
                         return 0;
                     }
                     luaL_checktype(L, 4, LUA_TTABLE);
 
                     lua_pushvalue(L, 4);
-                    dmScript::CheckDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData), -1);
+                    dmScript::CheckDDF(L, desc, ddf_data, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData), -1);
                     lua_pop(L, 1);
                 }
                 else
@@ -339,18 +339,18 @@ namespace dmGameObject
 
             dmGameObject::Result r;
             if (desc != 0x0)
-                r = dmGameObject::PostDDFEventTo(instance, component_name, desc, ddf_data);
+                r = dmGameObject::PostDDFMessageTo(instance, component_name, desc, ddf_data);
             else
-                r = dmGameObject::PostNamedEventTo(instance, component_name, dmHashString32(event_name));
+                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name));
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
-                luaL_error(L, "Error sending event '%s' to %p/%s", event_name, (void*)id, component_name);
+                luaL_error(L, "Error sending message '%s' to %p/%s", message_name, (void*)id, component_name);
             }
         }
         else
         {
-            luaL_error(L, "Error sending event. Unknown instance: %p", (void*)id);
+            luaL_error(L, "Error sending message. Unknown instance: %p", (void*)id);
         }
         assert(top == lua_gettop(L));
 
@@ -364,7 +364,7 @@ namespace dmGameObject
         uint32_t collection_name_hash = dmScript::CheckHash(L, 1);
         uint32_t id = dmScript::CheckHash(L, 2);
         const char* component_name = luaL_checkstring(L, 3);
-        const char* event_name = luaL_checkstring(L, 4);
+        const char* message_name = luaL_checkstring(L, 4);
 
         lua_pushstring(L, "__collection__");
         lua_rawget(L, LUA_GLOBALSINDEX);
@@ -392,26 +392,26 @@ namespace dmGameObject
         if (instance)
         {
             const dmDDF::Descriptor* desc = 0x0;
-            char ddf_data[SCRIPT_EVENT_MAX - sizeof(ScriptEventData)];
+            char ddf_data[INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData)];
 
             // Passing ddf data is optional atm
             if (top >= 5)
             {
-                const char* type_name = event_name;
+                const char* type_name = message_name;
                 uint64_t h = dmHashBuffer64(type_name, strlen(type_name));
                 const dmDDF::Descriptor** desc_tmp = g_Descriptors->Get(h);
                 if (desc_tmp != 0)
                 {
                     desc = *desc_tmp;
-                    if (desc->m_Size > SCRIPT_EVENT_MAX - sizeof(ScriptEventData))
+                    if (desc->m_Size > INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData))
                     {
-                        luaL_error(L, "sizeof(%s) > %d", type_name, SCRIPT_EVENT_MAX - sizeof(ScriptEventData));
+                        luaL_error(L, "sizeof(%s) > %d", type_name, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData));
                         return 0;
                     }
                     luaL_checktype(L, 4, LUA_TTABLE);
 
                     lua_pushvalue(L, 4);
-                    dmScript::CheckDDF(L, desc, ddf_data, SCRIPT_EVENT_MAX - sizeof(ScriptEventData), -1);
+                    dmScript::CheckDDF(L, desc, ddf_data, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData), -1);
                     lua_pop(L, 1);
                 }
                 else
@@ -422,18 +422,18 @@ namespace dmGameObject
 
             dmGameObject::Result r;
             if (desc != 0x0)
-                r = dmGameObject::PostDDFEventTo(instance, component_name, desc, ddf_data);
+                r = dmGameObject::PostDDFMessageTo(instance, component_name, desc, ddf_data);
             else
-                r = dmGameObject::PostNamedEventTo(instance, component_name, dmHashString32(event_name));
+                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name));
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
-                luaL_error(L, "Error sending event '%s' to %p/%s", event_name, (void*)id, component_name);
+                luaL_error(L, "Error sending message '%s' to %p/%s", message_name, (void*)id, component_name);
             }
         }
         else
         {
-            luaL_error(L, "Error sending event. Unknown instance: %p", (void*)id);
+            luaL_error(L, "Error sending message. Unknown instance: %p", (void*)id);
         }
         assert(top == lua_gettop(L));
 
@@ -444,36 +444,36 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        const char* event_name = luaL_checkstring(L, 1);
+        const char* message_name = luaL_checkstring(L, 1);
 
-        char buf[SCRIPT_EVENT_MAX];
-        ScriptEventData* script_event_data = (ScriptEventData*) buf;
-        script_event_data->m_EventHash = dmHashString32(event_name);
-        script_event_data->m_DDFDescriptor = 0x0;
+        char buf[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* instance_message_data = (InstanceMessageData*) buf;
+        instance_message_data->m_MessageId = dmHashString32(message_name);
+        instance_message_data->m_DDFDescriptor = 0x0;
 
         if (top > 1)
         {
-            const dmDDF::Descriptor** desc = g_Descriptors->Get(dmHashString64(event_name));
+            const dmDDF::Descriptor** desc = g_Descriptors->Get(dmHashString64(message_name));
             if (desc == 0)
             {
-                luaL_error(L, "Unknown ddf type: %s", event_name);
+                luaL_error(L, "Unknown ddf type: %s", message_name);
             }
-            script_event_data->m_DDFDescriptor = *desc;
+            instance_message_data->m_DDFDescriptor = *desc;
 
-            uint32_t size = sizeof(ScriptEventData) + script_event_data->m_DDFDescriptor->m_Size;
-            if (size > SCRIPT_EVENT_MAX)
+            uint32_t size = sizeof(InstanceMessageData) + instance_message_data->m_DDFDescriptor->m_Size;
+            if (size > INSTANCE_MESSAGE_MAX)
             {
-                luaL_error(L, "sizeof(%s) > %d", event_name, script_event_data->m_DDFDescriptor->m_Size);
+                luaL_error(L, "sizeof(%s) > %d", message_name, instance_message_data->m_DDFDescriptor->m_Size);
             }
-            char* p = buf + sizeof(ScriptEventData);
-            dmScript::CheckDDF(L, script_event_data->m_DDFDescriptor, p, SCRIPT_EVENT_MAX - sizeof(ScriptEventData), -1);
+            char* p = buf + sizeof(InstanceMessageData);
+            dmScript::CheckDDF(L, instance_message_data->m_DDFDescriptor, p, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData), -1);
         }
 
         lua_pushstring(L, "__instance__");
         lua_rawget(L, LUA_GLOBALSINDEX);
-        script_event_data->m_Instance = (HInstance) lua_touserdata(L, -1);
-        assert(script_event_data->m_Instance);
-        script_event_data->m_Component = 0xff;
+        instance_message_data->m_Instance = (HInstance) lua_touserdata(L, -1);
+        assert(instance_message_data->m_Instance);
+        instance_message_data->m_Component = 0xff;
         lua_pop(L, 1);
 
         lua_pushstring(L, "__collection__");
@@ -485,7 +485,7 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
 
         dmGameObject::HRegister reg = dmGameObject::GetRegister(collection);
-        dmMessage::Post(dmGameObject::GetEventSocketId(reg), dmGameObject::GetEventId(reg), buf, SCRIPT_EVENT_MAX);
+        dmMessage::Post(dmGameObject::GetMessageSocketId(reg), dmGameObject::GetMessageId(reg), buf, INSTANCE_MESSAGE_MAX);
 
         return 0;
     }
@@ -613,7 +613,7 @@ namespace dmGameObject
         dmStrlCpy(spawn_message.m_Prototype, prototype, sizeof(spawn_message.m_Prototype));
         spawn_message.m_Position = *position;
         spawn_message.m_Rotation = *rotation;
-        dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnEventId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
+        dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnMessageId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
 
         return 0;
     }
@@ -1042,17 +1042,17 @@ bail:
         return result;
     }
 
-    UpdateResult ScriptOnEventComponent(HInstance instance,
-            const ScriptEventData* script_event_data,
+    UpdateResult ScriptOnMessageComponent(HInstance instance,
+            const InstanceMessageData* instance_message_data,
             void* context,
             uintptr_t* user_data)
     {
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
-        assert(script_event_data->m_Instance);
+        assert(instance_message_data->m_Instance);
 
-        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONEVENT];
+        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
         if (function_ref != LUA_NOREF)
         {
             lua_State* L = g_LuaState;
@@ -1071,15 +1071,15 @@ bail:
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            dmScript::PushHash(L, script_event_data->m_EventHash);
+            dmScript::PushHash(L, instance_message_data->m_MessageId);
 
-            if (script_event_data->m_DDFDescriptor)
+            if (instance_message_data->m_DDFDescriptor)
             {
                 // adjust char ptrs to global mem space
-                char* data = (char*)script_event_data->m_DDFData;
-                for (uint8_t i = 0; i < script_event_data->m_DDFDescriptor->m_FieldCount; ++i)
+                char* data = (char*)instance_message_data->m_DDFData;
+                for (uint8_t i = 0; i < instance_message_data->m_DDFDescriptor->m_FieldCount; ++i)
                 {
-                    dmDDF::FieldDescriptor* field = &script_event_data->m_DDFDescriptor->m_Fields[i];
+                    dmDDF::FieldDescriptor* field = &instance_message_data->m_DDFDescriptor->m_Fields[i];
                     uint32_t field_type = field->m_Type;
                     if (field_type == dmDDF::TYPE_STRING)
                     {
@@ -1088,11 +1088,11 @@ bail:
                 }
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
-                dmScript::PushDDF(L, script_event_data->m_DDFDescriptor, (const char*) script_event_data->m_DDFData);
+                dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_DDFData);
             }
             else
             {
-                // Named event
+                // Named message
                 lua_newtable(L);
             }
 

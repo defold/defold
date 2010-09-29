@@ -85,12 +85,12 @@ namespace dmGameObject
     extern const uint32_t UNNAMED_IDENTIFIER;
 
     // TODO: Configurable?
-    const uint32_t SCRIPT_EVENT_MAX = 256;
+    const uint32_t INSTANCE_MESSAGE_MAX = 256;
 
     /**
-     * Game script event data
+     * Game script message data
      */
-    struct ScriptEventData
+    struct InstanceMessageData
     {
         /// Subject
         HInstance m_Instance;
@@ -99,8 +99,8 @@ namespace dmGameObject
         uint8_t   m_Component;
         uint8_t   m_Pad[3];
 
-        /// Eventhash
-        uint32_t  m_EventHash;
+        /// Message id
+        uint32_t  m_MessageId;
 
         /// Pay-load DDF descriptor. NULL if not present
         const dmDDF::Descriptor* m_DDFDescriptor;
@@ -199,13 +199,13 @@ namespace dmGameObject
                                      void* context);
 
     /**
-     * Component on-event function. Called when event is sent to this component
+     * Component on-message function. Called when message is sent to this component
      * @param instance Instance handle
      * @param context User context
      * @param user_data User data storage pointer
      */
-    typedef UpdateResult (*ComponentOnEvent)(HInstance instance,
-                                     const ScriptEventData* event_data,
+    typedef UpdateResult (*ComponentOnMessage)(HInstance instance,
+                                     const InstanceMessageData* message_data,
                                      void* context,
                                      uintptr_t* user_data);
 
@@ -237,7 +237,7 @@ namespace dmGameObject
         ComponentInit           m_InitFunction;
         ComponentDestroy        m_DestroyFunction;
         ComponentsUpdate        m_UpdateFunction;
-        ComponentOnEvent        m_OnEventFunction;
+        ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
         uint32_t                m_InstanceHasUserData : 1;
     };
@@ -360,40 +360,40 @@ namespace dmGameObject
     HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier);
 
     /**
-     * Post named event
+     * Post named message
      * @param reg Handle to the register which defines the socket of the message.
-     * @param event_hash Hash of the event, the original name should be lowercase with underscore as separator
+     * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedEvent(HRegister reg, uint32_t event_hash);
+    Result PostNamedMessage(HRegister reg, uint32_t message_id);
 
     /**
-     * Post ddf event
+     * Post ddf message
      * @param reg Handle to the register which defines the socket of the message.
      * @param ddf_desc Descripor of the ddf message to send
      * @param ddf_data The actual ddf message to send
      * @return RESULT_OK on success
      */
-    Result PostDDFEvent(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
+    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
 
     /**
-     * Post named event to instance
+     * Post named message to instance
      * @param instance Instance
-     * @param component_name Component name. NULL broadcasts the event to every component.
-     * @param event_hash Hash of the event, the original name should be lowercase with underscore as separator
+     * @param component_name Component name. NULL broadcasts the message to every component.
+     * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedEventTo(HInstance instance, const char* component_name, uint32_t event_hash);
+    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id);
 
     /**
-     * Post ddf event to instance
+     * Post ddf message to instance
      * @param instance Instance
-     * @param component_name Component name. NULL broadcasts the event to every component.
+     * @param component_name Component name. NULL broadcasts the message to every component.
      * @param ddf_desc Descripor of the ddf message to send
      * @param ddf_data The actual ddf message to send
      * @return RESULT_OK on success
      */
-    Result PostDDFEventTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
+    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
 
     /**
      * Set integer property in instance script
@@ -432,7 +432,7 @@ namespace dmGameObject
     bool Init(HCollection collection);
 
     /**
-     * Update all gameobjects and its components and dispatches all event to script.
+     * Update all gameobjects and its components and dispatches all message to script.
      * The order is to update each component type, one at a time, over all collections each iteration.
      * @param collections Array of game object collections to be updated, all must share the same registry.
      * @param update_contexts Array of update contexts, one for each collection.
@@ -476,25 +476,25 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
-     * Retrieve the event socket id for the specified register.
+     * Retrieve the message socket id for the specified register.
      * @param reg Register handle
-     * @return The event socket id of the specified collection
+     * @return The message socket id of the specified collection
      */
-    uint32_t GetEventSocketId(HRegister reg);
+    uint32_t GetMessageSocketId(HRegister reg);
 
     /**
-     * Retrieve the reply event socket id for the specified register.
+     * Retrieve the reply message socket id for the specified register.
      * @param reg Register handle
-     * @return The reply event socket id of the specified collection
+     * @return The reply message socket id of the specified collection
      */
-    uint32_t GetReplyEventSocketId(HRegister reg);
+    uint32_t GetReplyMessageSocketId(HRegister reg);
 
     /**
-     * Retrieve the designated event id for game object events for the specified register.
+     * Retrieve the designated message id for game object messages for the specified register.
      * @param reg Register handle
-     * @return The event id of the specified collection
+     * @return The message id of the specified collection
      */
-    uint32_t GetEventId(HRegister reg);
+    uint32_t GetMessageId(HRegister reg);
 
     /**
      * Set gameobject instance position

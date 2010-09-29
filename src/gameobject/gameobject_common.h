@@ -14,7 +14,7 @@ using namespace Vectormath::Aos;
 namespace dmGameObject
 {
     // TODO: Configurable?
-    const uint32_t SCRIPT_EVENT_SOCKET_BUFFER_SIZE = 0x8000;
+    const uint32_t INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE = 0x8000;
 
     struct Prototype
     {
@@ -119,12 +119,12 @@ namespace dmGameObject
         Quat   m_Rotation;
     };
 
-    // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named events
+    // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named messages
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
-    #define DM_GAMEOBJECT_EVENT_NAME "go_event"
+    #define DM_GAMEOBJECT_MESSAGE_NAME "go_message"
     #define DM_GAMEOBJECT_SOCKET_NAME "go_socket"
-    #define DM_GAMEOBJECT_SPAWN_EVENT_NAME "spawn_event"
+    #define DM_GAMEOBJECT_SPAWN_MESSAGE_NAME "spawn_message"
     #define DM_GAMEOBJECT_SPAWN_SOCKET_NAME "go_spawn_socket"
     #define DM_GAMEOBJECT_REPLY_SOCKET_NAME "go_reply_socket"
 
@@ -158,9 +158,9 @@ namespace dmGameObject
         Vector3                     m_AccumulatedTranslation;
         Quat                        m_AccumulatedRotation;
 
-        uint32_t                    m_EventId;
+        uint32_t                    m_MessageId;
         uint32_t                    m_SocketId;
-        uint32_t                    m_SpawnEventId;
+        uint32_t                    m_SpawnMessageId;
         uint32_t                    m_SpawnSocketId;
         uint32_t                    m_ReplySocketId;
 

@@ -1,5 +1,5 @@
-function on_event(self, event_hash, event)
-    assert(event_hash == hash("message2"), "Expected message2")
+function on_message(self, message_id, message)
+    assert(message_id == hash("message2"), "Expected message2")
 end
 
 function update(self)

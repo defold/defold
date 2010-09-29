@@ -1,0 +1,3 @@
+function on_message(self, message_id, message)
+    assert(message_id == hash("test_message"), "Unknown message")
+end

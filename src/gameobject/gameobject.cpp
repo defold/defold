@@ -38,23 +38,23 @@ namespace dmGameObject
 
         char buffer[32];
 
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_EVENT_NAME, g_RegisterIndex);
-        m_EventId = dmHashString32(buffer);
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_MESSAGE_NAME, g_RegisterIndex);
+        m_MessageId = dmHashString32(buffer);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SOCKET_NAME, g_RegisterIndex);
         m_SocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_SocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        dmMessage::CreateSocket(m_SocketId, INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE);
 
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_EVENT_NAME, g_RegisterIndex);
-        m_SpawnEventId = dmHashString32(buffer);
+        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_MESSAGE_NAME, g_RegisterIndex);
+        m_SpawnMessageId = dmHashString32(buffer);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_SOCKET_NAME, g_RegisterIndex);
         m_SpawnSocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_SpawnSocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        dmMessage::CreateSocket(m_SpawnSocketId, INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, g_RegisterIndex);
         m_ReplySocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_ReplySocketId, SCRIPT_EVENT_SOCKET_BUFFER_SIZE);
+        dmMessage::CreateSocket(m_ReplySocketId, INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE);
 
         m_DispatchCallback = dispatch_callback;
         m_DispatchUserdata = dispatch_userdata;
@@ -503,7 +503,7 @@ bail:
         script_component.m_InitFunction = &ScriptInitComponent;
         script_component.m_DestroyFunction = &ScriptDestroyComponent;
         script_component.m_UpdateFunction = &ScriptUpdateComponent;
-        script_component.m_OnEventFunction = &ScriptOnEventComponent;
+        script_component.m_OnMessageFunction = &ScriptOnMessageComponent;
         script_component.m_OnInputFunction = &ScriptOnInputComponent;
         script_component.m_InstanceHasUserData = true;
         return RegisterComponentType(regist, script_component);
@@ -983,44 +983,44 @@ bail:
             return 0;
     }
 
-    Result PostEvent(HRegister reg, ScriptEventData* script_event_data)
+    Result PostMessage(HRegister reg, InstanceMessageData* instance_message_data)
     {
-        script_event_data->m_Instance = 0;
-        dmMessage::Post(reg->m_SocketId, reg->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
+        instance_message_data->m_Instance = 0;
+        dmMessage::Post(reg->m_SocketId, reg->m_MessageId, (void*)instance_message_data, INSTANCE_MESSAGE_MAX);
 
         return RESULT_OK;
     }
 
-    Result PostNamedEvent(HRegister reg, uint32_t event_hash)
+    Result PostNamedMessage(HRegister reg, uint32_t message_id)
     {
-        char buf[SCRIPT_EVENT_MAX];
-        ScriptEventData* e = (ScriptEventData*)buf;
-        e->m_EventHash = event_hash;
+        char buf[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* e = (InstanceMessageData*)buf;
+        e->m_MessageId = message_id;
         e->m_DDFDescriptor = 0x0;
 
-        return PostEvent(reg, e);
+        return PostMessage(reg, e);
     }
 
-    Result PostDDFEvent(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
     {
         assert(ddf_desc != 0x0);
         assert(ddf_data != 0x0);
 
-        char buf[SCRIPT_EVENT_MAX];
-        ScriptEventData* e = (ScriptEventData*)buf;
-        e->m_EventHash = dmHashString32(ddf_desc->m_ScriptName);
+        char buf[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* e = (InstanceMessageData*)buf;
+        e->m_MessageId = dmHashString32(ddf_desc->m_ScriptName);
         e->m_DDFDescriptor = ddf_desc;
 
-        uint32_t max_data_size = SCRIPT_EVENT_MAX - sizeof(ScriptEventData);
+        uint32_t max_data_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
         // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
         assert(ddf_desc->m_Size < max_data_size);
         // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
-        memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
+        memcpy(buf + sizeof(InstanceMessageData), ddf_data, max_data_size);
 
-        return PostEvent(reg, e);
+        return PostMessage(reg, e);
     }
 
-    Result PostEventTo(const char* component_name, ScriptEventData* script_event_data)
+    Result PostMessageTo(const char* component_name, InstanceMessageData* instance_message_data)
     {
         uint32_t component_index = 0xffffffff;
 
@@ -1028,7 +1028,7 @@ bail:
         if (component_name != 0 && *component_name != '\0')
         {
             uint32_t component_name_hash = dmHashString32(component_name);
-            Prototype* p = script_event_data->m_Instance->m_Prototype;
+            Prototype* p = instance_message_data->m_Instance->m_Prototype;
             for (uint32_t i = 0; i < p->m_Components.Size(); ++i)
             {
                 if (p->m_Components[i].m_NameHash == component_name_hash)
@@ -1043,58 +1043,58 @@ bail:
             }
         }
 
-        script_event_data->m_Component = component_index & 0xff;
+        instance_message_data->m_Component = component_index & 0xff;
 
-        dmMessage::Post(script_event_data->m_Instance->m_Collection->m_Register->m_ReplySocketId, script_event_data->m_Instance->m_Collection->m_Register->m_EventId, (void*)script_event_data, SCRIPT_EVENT_MAX);
+        dmMessage::Post(instance_message_data->m_Instance->m_Collection->m_Register->m_ReplySocketId, instance_message_data->m_Instance->m_Collection->m_Register->m_MessageId, (void*)instance_message_data, INSTANCE_MESSAGE_MAX);
 
         return RESULT_OK;
     }
 
-    Result PostNamedEventTo(HInstance instance, const char* component_name, uint32_t event_hash)
+    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id)
     {
-        char buf[SCRIPT_EVENT_MAX];
-        ScriptEventData* e = (ScriptEventData*)buf;
-        e->m_EventHash = event_hash;
+        char buf[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* e = (InstanceMessageData*)buf;
+        e->m_MessageId = message_id;
         e->m_Instance = instance;
         e->m_DDFDescriptor = 0x0;
 
-        return PostEventTo(component_name, e);
+        return PostMessageTo(component_name, e);
     }
 
-    Result PostDDFEventTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
     {
         assert(ddf_desc != 0x0);
         assert(ddf_data != 0x0);
 
-        char buf[SCRIPT_EVENT_MAX];
-        ScriptEventData* e = (ScriptEventData*)buf;
-        e->m_EventHash = dmHashString32(ddf_desc->m_ScriptName);
+        char buf[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* e = (InstanceMessageData*)buf;
+        e->m_MessageId = dmHashString32(ddf_desc->m_ScriptName);
         e->m_Instance = instance;
         e->m_DDFDescriptor = ddf_desc;
 
-        uint32_t max_data_size = SCRIPT_EVENT_MAX - sizeof(ScriptEventData);
+        uint32_t max_data_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
         // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
         assert(ddf_desc->m_Size < max_data_size);
         // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
-        memcpy(buf + sizeof(ScriptEventData), ddf_data, max_data_size);
+        memcpy(buf + sizeof(InstanceMessageData), ddf_data, max_data_size);
 
-        return PostEventTo(component_name, e);
+        return PostMessageTo(component_name, e);
     }
 
-    struct DispatchEventsContext
+    struct DispatchMessagesContext
     {
         HRegister m_Register;
         bool m_Success;
     };
 
-    void DispatchEventsFunction(dmMessage::Message *event_object, void* user_ptr)
+    void DispatchMessagesFunction(dmMessage::Message *message_object, void* user_ptr)
     {
-        DispatchEventsContext* context = (DispatchEventsContext*) user_ptr;
+        DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
 
-        dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*) event_object->m_Data;
-        assert(script_event_data->m_Instance);
+        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
+        assert(instance_message_data->m_Instance);
 
-        Instance* instance = script_event_data->m_Instance;
+        Instance* instance = instance_message_data->m_Instance;
         if (instance->m_ToBeDeleted)
         {
             dmLogWarning("Message sent to game object (%X) that will be deleted, message ignored.", instance->m_Identifier);
@@ -1102,7 +1102,7 @@ bail:
         }
         Prototype* prototype = instance->m_Prototype;
         // Broadcast to all components
-        if (script_event_data->m_Component == 0xff)
+        if (instance_message_data->m_Component == 0xff)
         {
             uint32_t next_component_instance_data = 0;
             uint32_t components_size = prototype->m_Components.Size();
@@ -1110,7 +1110,7 @@ bail:
             {
                 ComponentType* component_type = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
                 assert(component_type);
-                if (component_type->m_OnEventFunction)
+                if (component_type->m_OnMessageFunction)
                 {
                     uintptr_t* component_instance_data = 0;
                     if (component_type->m_InstanceHasUserData)
@@ -1118,8 +1118,8 @@ bail:
                         component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                     }
                     {
-                        DM_PROFILE(GameObject, "OnEventFunction");
-                        UpdateResult res = component_type->m_OnEventFunction(instance, script_event_data, component_type->m_Context, component_instance_data);
+                        DM_PROFILE(GameObject, "OnMessageFunction");
+                        UpdateResult res = component_type->m_OnMessageFunction(instance, instance_message_data, component_type->m_Context, component_instance_data);
                         if (res != UPDATE_RESULT_OK)
                             context->m_Success = false;
                     }
@@ -1133,15 +1133,15 @@ bail:
         }
         else
         {
-            uint32_t resource_type = prototype->m_Components[script_event_data->m_Component].m_ResourceType;
+            uint32_t resource_type = prototype->m_Components[instance_message_data->m_Component].m_ResourceType;
             ComponentType* component_type = FindComponentType(context->m_Register, resource_type, 0x0);
             assert(component_type);
 
-            if (component_type->m_OnEventFunction)
+            if (component_type->m_OnMessageFunction)
             {
                 // TODO: Not optimal way to find index of component instance data
                 uint32_t next_component_instance_data = 0;
-                for (uint32_t i = 0; i < script_event_data->m_Component; ++i)
+                for (uint32_t i = 0; i < instance_message_data->m_Component; ++i)
                 {
                     ComponentType* ct = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
                     assert(component_type);
@@ -1157,8 +1157,8 @@ bail:
                     component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                 }
                 {
-                    DM_PROFILE(GameObject, "OnEventFunction");
-                    UpdateResult res = component_type->m_OnEventFunction(instance, script_event_data, component_type->m_Context, component_instance_data);
+                    DM_PROFILE(GameObject, "OnMessageFunction");
+                    UpdateResult res = component_type->m_OnMessageFunction(instance, instance_message_data, component_type->m_Context, component_instance_data);
                     if (res != UPDATE_RESULT_OK)
                         context->m_Success = false;
                 }
@@ -1166,19 +1166,19 @@ bail:
             else
             {
                 // TODO User-friendly error message here...
-                dmLogWarning("Component type is missing OnEvent function");
+                dmLogWarning("Component type is missing OnMessage function");
             }
         }
     }
 
-    bool DispatchEvents(HRegister reg)
+    bool DispatchMessages(HRegister reg)
     {
-        DM_PROFILE(GameObject, "DispatchEvents");
+        DM_PROFILE(GameObject, "DispatchMessages");
 
-        DispatchEventsContext ctx;
+        DispatchMessagesContext ctx;
         ctx.m_Register = reg;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(reg->m_ReplySocketId, &DispatchEventsFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(reg->m_ReplySocketId, &DispatchMessagesFunction, (void*) &ctx);
 
         if (reg->m_DispatchCallback)
             (void) dmMessage::Dispatch(reg->m_SocketId, reg->m_DispatchCallback, reg->m_DispatchUserdata);
@@ -1278,7 +1278,7 @@ bail:
         uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            if (!DispatchEvents(reg))
+            if (!DispatchMessages(reg))
                 ret = false;
 
             ComponentType* component_type = &reg->m_ComponentTypes[i];
@@ -1315,7 +1315,7 @@ bail:
     void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     {
         HRegister reg = (HRegister)user_ptr;
-        if (message->m_ID == reg->m_SpawnEventId)
+        if (message->m_ID == reg->m_SpawnMessageId)
         {
             SpawnMessage* spawn_message = (SpawnMessage*)message->m_Data;
             dmGameObject::HInstance instance = dmGameObject::New(spawn_message->m_Collection, spawn_message->m_Prototype);
@@ -1465,7 +1465,7 @@ bail:
             return 0x0;
     }
 
-    uint32_t GetEventSocketId(HRegister reg)
+    uint32_t GetMessageSocketId(HRegister reg)
     {
         if (reg)
             return reg->m_SocketId;
@@ -1473,7 +1473,7 @@ bail:
             return 0;
     }
 
-    uint32_t GetReplyEventSocketId(HRegister reg)
+    uint32_t GetReplyMessageSocketId(HRegister reg)
     {
         if (reg)
             return reg->m_ReplySocketId;
@@ -1481,10 +1481,10 @@ bail:
             return 0;
     }
 
-    uint32_t GetEventId(HRegister reg)
+    uint32_t GetMessageId(HRegister reg)
     {
         if (reg)
-            return reg->m_EventId;
+            return reg->m_MessageId;
         else
             return 0;
     }

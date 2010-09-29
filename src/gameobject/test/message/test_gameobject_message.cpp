@@ -40,15 +40,15 @@ const static uint32_t POST_DDF_TO_INST_ID = dmHashString32(dmTestGameObject::Tes
 void DispatchCallback(dmMessage::Message *message, void* user_ptr)
 {
     TestGameObjectMessage* test = (TestGameObjectMessage*)user_ptr;
-    assert(test->m_Register->m_EventId == message->m_ID);
-    dmGameObject::ScriptEventData* script_event_data = (dmGameObject::ScriptEventData*)message->m_Data;
-    if (script_event_data->m_EventHash == POST_NAMED_ID)
+    assert(test->m_Register->m_MessageId == message->m_ID);
+    dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*)message->m_Data;
+    if (instance_message_data->m_MessageId == POST_NAMED_ID)
     {
         test->m_MessageMap[POST_NAMED_ID] = 1;
     }
-    else if (script_event_data->m_EventHash == POST_DDF_ID)
+    else if (instance_message_data->m_MessageId == POST_DDF_ID)
     {
-        dmTestGameObject::TestMessage* ddf = (dmTestGameObject::TestMessage*)script_event_data->m_DDFData;
+        dmTestGameObject::TestMessage* ddf = (dmTestGameObject::TestMessage*)instance_message_data->m_DDFData;
         test->m_MessageMap[POST_DDF_ID] = ddf->m_TestUint32;
     }
 }
@@ -72,7 +72,7 @@ void TestGameObjectMessage::SetUp()
 
 TEST_F(TestGameObjectMessage, TestPostNamed)
 {
-    dmGameObject::PostNamedEvent(m_Register, POST_NAMED_ID);
+    dmGameObject::PostNamedMessage(m_Register, POST_NAMED_ID);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_EQ(1U, m_MessageMap[POST_NAMED_ID]);
 }
@@ -81,24 +81,24 @@ TEST_F(TestGameObjectMessage, TestPostDDF)
 {
     dmTestGameObject::TestMessage ddf;
     ddf.m_TestUint32 = 2;
-    dmGameObject::PostDDFEvent(m_Register, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
+    dmGameObject::PostDDFMessage(m_Register, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_EQ(2U, m_MessageMap[POST_DDF_ID]);
 }
 
 TEST_F(TestGameObjectMessage, TestPostNamedTo)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onevent.goc");
-    dmGameObject::PostNamedEventTo(instance, 0, POST_NAMED_TO_INST_ID);
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
+    dmGameObject::PostNamedMessageTo(instance, 0, POST_NAMED_TO_INST_ID);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 }
 
 TEST_F(TestGameObjectMessage, TestPostDDFTo)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onevent.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
     dmTestGameObject::TestMessage ddf;
     ddf.m_TestUint32 = 2;
-    dmGameObject::PostDDFEventTo(instance, 0, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
+    dmGameObject::PostDDFMessageTo(instance, 0, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 }
 

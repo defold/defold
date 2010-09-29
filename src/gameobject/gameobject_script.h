@@ -27,7 +27,7 @@ namespace dmGameObject
     {
         SCRIPT_FUNCTION_INIT,
         SCRIPT_FUNCTION_UPDATE,
-        SCRIPT_FUNCTION_ONEVENT,
+        SCRIPT_FUNCTION_ONMESSAGE,
         SCRIPT_FUNCTION_ONINPUT,
         MAX_SCRIPT_FUNCTION_COUNT
     };
@@ -101,8 +101,8 @@ namespace dmGameObject
             const UpdateContext* update_context,
             void* world,
             void* context);
-    UpdateResult ScriptOnEventComponent(HInstance instance,
-            const ScriptEventData* event_data,
+    UpdateResult ScriptOnMessageComponent(HInstance instance,
+            const InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data);
     InputResult ScriptOnInputComponent(HInstance instance,

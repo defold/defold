@@ -1,3 +1,0 @@
-function on_event(self, event_hash, event)
-    assert(event_hash == hash("test_event"), "Unknown event")
-end
