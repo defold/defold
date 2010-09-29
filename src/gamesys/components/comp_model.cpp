@@ -74,18 +74,18 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompModelOnEvent(dmGameObject::HInstance instance,
-            const dmGameObject::ScriptEventData* event_data,
+    dmGameObject::UpdateResult CompModelOnMessage(dmGameObject::HInstance instance,
+            const dmGameObject::InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data)
     {
         dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
         (void)world;
 
-        if (event_data->m_EventHash == dmHashString32(dmRender::SetRenderColor::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString32(dmRender::SetRenderColor::m_DDFDescriptor->m_ScriptName))
         {
             dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)event_data->m_DDFData;
+            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)message_data->m_DDFData;
             dmRender::ColorType color_type = (dmRender::ColorType)ddf->m_ColorType;
             dmRender::SetColor(ro, ddf->m_Color, color_type);
         }

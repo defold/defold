@@ -143,25 +143,25 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompCameraOnEvent(dmGameObject::HInstance instance,
-            const dmGameObject::ScriptEventData* event_data,
+    dmGameObject::UpdateResult CompCameraOnMessage(dmGameObject::HInstance instance,
+            const dmGameObject::InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data)
     {
         Camera* camera = (Camera*)*user_data;
-        if (event_data->m_DDFDescriptor == dmCameraDDF::SetCamera::m_DDFDescriptor)
+        if (message_data->m_DDFDescriptor == dmCameraDDF::SetCamera::m_DDFDescriptor)
         {
-            dmCameraDDF::SetCamera* ddf = (dmCameraDDF::SetCamera*)event_data->m_DDFData;
+            dmCameraDDF::SetCamera* ddf = (dmCameraDDF::SetCamera*)message_data->m_DDFData;
             camera->m_AspectRatio = ddf->m_AspectRatio;
             camera->m_FOV = ddf->m_FOV;
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
         }
-        else if (event_data->m_EventHash == dmHashString32("acquire_camera_focus"))
+        else if (message_data->m_MessageId == dmHashString32("acquire_camera_focus"))
         {
             camera->m_World->m_FocusStack.Push(camera);
         }
-        else if (event_data->m_EventHash == dmHashString32("release_camera_focus"))
+        else if (message_data->m_MessageId == dmHashString32("release_camera_focus"))
         {
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
             {

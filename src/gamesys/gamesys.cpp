@@ -92,7 +92,7 @@ namespace dmGameSystem
         dmResource::FactoryResult factory_result;
         dmGameObject::Result go_result;
 
-#define REGISTER_COMPONENT_TYPE(extension, context, new_world_func, delete_world_func, create_func, init_func, destroy_func, update_func, on_event_func, on_input_func)\
+#define REGISTER_COMPONENT_TYPE(extension, context, new_world_func, delete_world_func, create_func, init_func, destroy_func, update_func, on_message_func, on_input_func)\
     factory_result = dmResource::GetTypeFromExtension(factory, extension, &type);\
     if (factory_result != dmResource::FACTORY_RESULT_OK)\
     {\
@@ -109,7 +109,7 @@ namespace dmGameSystem
     component_type.m_InitFunction = init_func;\
     component_type.m_DestroyFunction = destroy_func;\
     component_type.m_UpdateFunction = update_func;\
-    component_type.m_OnEventFunction = on_event_func;\
+    component_type.m_OnMessageFunction = on_message_func;\
     component_type.m_OnInputFunction = on_input_func;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
     go_result = dmGameObject::RegisterComponentType(regist, component_type);\
@@ -119,32 +119,32 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("camerac", render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, 0, &CompCameraDestroy,
-                &CompCameraUpdate, &CompCameraOnEvent, 0);
+                &CompCameraUpdate, &CompCameraOnMessage, 0);
 
         REGISTER_COMPONENT_TYPE("collisionobject", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
-                &CompCollisionObjectUpdate, &CompCollisionObjectOnEvent, 0);
+                &CompCollisionObjectUpdate, &CompCollisionObjectOnMessage, 0);
 
         REGISTER_COMPONENT_TYPE("wavc", 0x0,
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, 0, CompSoundDestroy,
-                CompSoundUpdate, CompSoundOnEvent, 0);
+                CompSoundUpdate, CompSoundOnMessage, 0);
 
         REGISTER_COMPONENT_TYPE("modelc", render_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, 0, CompModelDestroy,
-                CompModelUpdate, CompModelOnEvent, 0);
+                CompModelUpdate, CompModelOnMessage, 0);
 
         REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
-                &CompEmitterUpdate, &CompEmitterOnEvent, 0);
+                &CompEmitterUpdate, &CompEmitterOnMessage, 0);
 
         REGISTER_COMPONENT_TYPE("guic", 0x0,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
-                CompGuiUpdate, CompGuiOnEvent, CompGuiOnInput);
+                CompGuiUpdate, CompGuiOnMessage, CompGuiOnInput);
 
 #undef REGISTER_COMPONENT_TYPE
 
@@ -169,7 +169,7 @@ namespace dmGameSystem
             ddf->m_Group = response.m_CollisionObjectGroup;
             ddf->m_Position = response.m_Position;
             ddf->m_Normal = response.m_Normal;
-            dmGameObject::PostDDFEventTo(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (char*)ddf);
+            dmGameObject::PostDDFMessageTo(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (char*)ddf);
         }
     }
 

@@ -27,8 +27,8 @@ namespace dmGameSystem
                          void* world,
                          void* context);
 
-    dmGameObject::UpdateResult CompModelOnEvent(dmGameObject::HInstance instance,
-            const dmGameObject::ScriptEventData* event_data,
+    dmGameObject::UpdateResult CompModelOnMessage(dmGameObject::HInstance instance,
+            const dmGameObject::InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data);
 }

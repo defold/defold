@@ -139,23 +139,23 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void DispatchGui(dmMessage::Message *event_object, void* user_ptr)
+    void DispatchGui(dmMessage::Message *message_object, void* user_ptr)
     {
         DM_PROFILE(Game, "DispatchGui");
 
         dmGameObject::HRegister regist = (dmGameObject::HRegister) user_ptr;
-        dmGui::MessageData* gui_message = (dmGui::MessageData*) event_object->m_Data;
+        dmGui::MessageData* gui_message = (dmGui::MessageData*) message_object->m_Data;
         dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData(gui_message->m_Scene);
         assert(instance);
 
-        dmGameObject::ScriptEventData data;
+        dmGameObject::InstanceMessageData data;
         data.m_Component = 0xff;
         data.m_DDFDescriptor = 0x0;
-        data.m_EventHash = gui_message->m_MessageHash;
+        data.m_MessageId = gui_message->m_MessageId;
         data.m_Instance = instance;
-        uint32_t socket = dmGameObject::GetReplyEventSocketId(regist);
-        uint32_t event = dmGameObject::GetEventId(regist);
-        dmMessage::Post(socket, event, &data, sizeof(dmGameObject::ScriptEventData));
+        uint32_t socket = dmGameObject::GetReplyMessageSocketId(regist);
+        uint32_t message = dmGameObject::GetMessageId(regist);
+        dmMessage::Post(socket, message, &data, sizeof(dmGameObject::InstanceMessageData));
     }
 
     void RenderNode(dmGui::HScene scene,
@@ -264,23 +264,23 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompGuiOnEvent(dmGameObject::HInstance instance,
-            const dmGameObject::ScriptEventData* event_data,
+    dmGameObject::UpdateResult CompGuiOnMessage(dmGameObject::HInstance instance,
+            const dmGameObject::InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data)
     {
         Component* gui_component = (Component*)*user_data;
-        if (event_data->m_EventHash == dmHashString32("enable"))
+        if (message_data->m_MessageId == dmHashString32("enable"))
         {
             gui_component->m_Enabled = 1;
         }
-        else if (event_data->m_EventHash == dmHashString32("disable"))
+        else if (message_data->m_MessageId == dmHashString32("disable"))
         {
             gui_component->m_Enabled = 0;
         }
-        else if (event_data->m_DDFDescriptor)
+        else if (message_data->m_DDFDescriptor)
         {
-            dmGui::DispatchMessage(gui_component->m_Scene, event_data->m_EventHash, (const void*) event_data->m_DDFData, event_data->m_DDFDescriptor);
+            dmGui::DispatchMessage(gui_component->m_Scene, message_data->m_MessageId, (const void*) message_data->m_DDFData, message_data->m_DDFDescriptor);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

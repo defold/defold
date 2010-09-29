@@ -56,12 +56,12 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSoundOnEvent(dmGameObject::HInstance instance,
-                                                const dmGameObject::ScriptEventData* event_data,
+    dmGameObject::UpdateResult CompSoundOnMessage(dmGameObject::HInstance instance,
+                                                const dmGameObject::InstanceMessageData* message_data,
                                                 void* context,
                                                 uintptr_t* user_data)
     {
-        if (event_data->m_EventHash == dmHashString32("play_sound"))
+        if (message_data->m_MessageId == dmHashString32("play_sound"))
         {
             dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*user_data;
             dmSound::Result r = dmSound::Play(sound_instance);
