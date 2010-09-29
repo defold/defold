@@ -1058,7 +1058,7 @@ namespace dmGui
         lua_pushnil(L);
         lua_setglobal(L, "update");
         lua_pushnil(L);
-        lua_setglobal(L, "on_event");
+        lua_setglobal(L, "on_message");
         lua_pushnil(L);
         lua_setglobal(L, "on_input");
 
