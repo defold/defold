@@ -18,7 +18,7 @@ protected:
     virtual void SetUp()
     {
         dmHID::Initialize();
-        m_Context = dmInput::NewContext();
+        m_Context = dmInput::NewContext(0.5f, 0.2f);
         dmInputDDF::GamepadMaps* gamepad_maps;
         assert(dmDDF::RESULT_OK == dmDDF::LoadMessageFromFile("build/default/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps));
         dmInput::RegisterGamepads(m_Context, gamepad_maps);

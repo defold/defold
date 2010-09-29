@@ -20,7 +20,7 @@ namespace dmInput
     void InitMouseButtonMap();
     bool g_Init = false;
 
-    HContext NewContext()
+    HContext NewContext(float repeat_delay, float repeat_interval)
     {
         if (!g_Init)
         {
@@ -31,8 +31,8 @@ namespace dmInput
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
         context->m_GamepadMaps.SetCapacity(8, 16);
-        context->m_RepeatDelay = 0.5f;
-        context->m_RepeatInterval = 0.2f;
+        context->m_RepeatDelay = repeat_delay;
+        context->m_RepeatInterval = repeat_interval;
         return context;
     }
 

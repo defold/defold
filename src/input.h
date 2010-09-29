@@ -31,7 +31,7 @@ namespace dmInput
      */
     const HBinding INVALID_BINDING = 0;
 
-    HContext NewContext();
+    HContext NewContext(float repeat_delay, float repeat_interval);
     void DeleteContext(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 
