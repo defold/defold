@@ -1022,6 +1022,7 @@ bail:
 
     Result PostMessageTo(const char* component_name, InstanceMessageData* instance_message_data)
     {
+        assert(instance_message_data->m_BufferSize + sizeof(InstanceMessageData) <= INSTANCE_MESSAGE_MAX);
         uint32_t component_index = 0xffffffff;
 
         // Send to component or broadcast?
@@ -1045,18 +1046,21 @@ bail:
 
         instance_message_data->m_Component = component_index & 0xff;
 
-        dmMessage::Post(instance_message_data->m_Instance->m_Collection->m_Register->m_ReplySocketId, instance_message_data->m_Instance->m_Collection->m_Register->m_MessageId, (void*)instance_message_data, INSTANCE_MESSAGE_MAX);
+        dmMessage::Post(instance_message_data->m_Instance->m_Collection->m_Register->m_ReplySocketId, instance_message_data->m_Instance->m_Collection->m_Register->m_MessageId, (void*)instance_message_data, instance_message_data->m_BufferSize + sizeof(InstanceMessageData));
 
         return RESULT_OK;
     }
 
-    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id)
+    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id, char* buffer, uint32_t buffer_size)
     {
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
         e->m_MessageId = message_id;
         e->m_Instance = instance;
         e->m_DDFDescriptor = 0x0;
+        e->m_BufferSize = buffer_size;
+        if (buffer_size > 0)
+            memcpy(e->m_Buffer, buffer, buffer_size);
 
         return PostMessageTo(component_name, e);
     }
@@ -1072,11 +1076,11 @@ bail:
         e->m_Instance = instance;
         e->m_DDFDescriptor = ddf_desc;
 
-        uint32_t max_data_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
+        e->m_BufferSize = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
         // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
-        assert(ddf_desc->m_Size < max_data_size);
+        assert(ddf_desc->m_Size < e->m_BufferSize);
         // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
-        memcpy(buf + sizeof(InstanceMessageData), ddf_data, max_data_size);
+        memcpy(e->m_Buffer, ddf_data, e->m_BufferSize);
 
         return PostMessageTo(component_name, e);
     }

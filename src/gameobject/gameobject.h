@@ -104,8 +104,10 @@ namespace dmGameObject
 
         /// Pay-load DDF descriptor. NULL if not present
         const dmDDF::Descriptor* m_DDFDescriptor;
-        /// Pay-load (DDF). Optional. Requires non-NULL m_DDFDescriptor
-        uint8_t                  m_DDFData[0];
+        /// Pay-load size
+        uint32_t                 m_BufferSize;
+        /// Pay-load
+        uint8_t                  m_Buffer[0];
     };
 
     /**
@@ -383,7 +385,7 @@ namespace dmGameObject
      * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id);
+    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id, char* buffer, uint32_t buffer_size);
 
     /**
      * Post ddf message to instance

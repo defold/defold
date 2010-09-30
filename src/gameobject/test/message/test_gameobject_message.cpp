@@ -48,7 +48,7 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     }
     else if (instance_message_data->m_MessageId == POST_DDF_ID)
     {
-        dmTestGameObject::TestMessage* ddf = (dmTestGameObject::TestMessage*)instance_message_data->m_DDFData;
+        dmTestGameObject::TestMessage* ddf = (dmTestGameObject::TestMessage*)instance_message_data->m_Buffer;
         test->m_MessageMap[POST_DDF_ID] = ddf->m_TestUint32;
     }
 }
@@ -89,7 +89,7 @@ TEST_F(TestGameObjectMessage, TestPostDDF)
 TEST_F(TestGameObjectMessage, TestPostNamedTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
-    dmGameObject::PostNamedMessageTo(instance, 0, POST_NAMED_TO_INST_ID);
+    dmGameObject::PostNamedMessageTo(instance, 0, POST_NAMED_TO_INST_ID, 0x0, 0);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 }
 
@@ -100,6 +100,15 @@ TEST_F(TestGameObjectMessage, TestPostDDFTo)
     ddf.m_TestUint32 = 2;
     dmGameObject::PostDDFMessageTo(instance, 0, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+}
+
+TEST_F(TestGameObjectMessage, TestTable)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_table.goc");
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_table_instance"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    dmGameObject::Delete(m_Collection, instance);
 }
 
 int main(int argc, char **argv)

@@ -1,0 +1,12 @@
+Components
+{
+    Resource: "test_tablereceiver.scriptc"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+Components
+{
+    Resource: "test_tablesender.scriptc"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}

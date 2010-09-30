@@ -645,7 +645,7 @@ dmGameObject::UpdateResult GameObjectTest::MessageTargetOnMessage(dmGameObject::
         self->m_MessageTargetCounter++;
         if (self->m_MessageTargetCounter == 2)
         {
-            dmGameObject::PostNamedMessageTo(instance, "component_message.scriptc", dmHashString32("test_message"));
+            dmGameObject::PostNamedMessageTo(instance, "component_message.scriptc", dmHashString32("test_message"), 0x0, 0);
         }
     }
     else if (message_data->m_MessageId == dmHashString32("dec"))
@@ -667,7 +667,7 @@ TEST_F(GameObjectTest, Null)
 
     ASSERT_TRUE(dmGameObject::Init(collection));
 
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("test")));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("test"), 0x0, 0));
 
     dmGameObject::AcquireInputFocus(collection, go);
 
@@ -694,16 +694,16 @@ TEST_F(GameObjectTest, TestComponentMessage)
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, "does_not_exists", dmHashString32("inc"));
+    r = dmGameObject::PostNamedMessageTo(go, "does_not_exists", dmHashString32("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, r);
 
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"));
+    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"));
+    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
     ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
     ASSERT_EQ(2U, m_MessageTargetCounter);
@@ -722,7 +722,7 @@ TEST_F(GameObjectTest, TestBroadcastMessage)
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("inc"));
+    r = dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     dmGameObject::InputAction action;
@@ -857,7 +857,7 @@ struct TestScript01Context
 void TestScript01Dispatch(dmMessage::Message *message_object, void* user_ptr)
 {
     dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-    TestGameObject::Spawn* s = (TestGameObject::Spawn*) instance_message_data->m_DDFData;
+    TestGameObject::Spawn* s = (TestGameObject::Spawn*) instance_message_data->m_Buffer;
     // NOTE: We relocate the string here (from offset to pointer)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
     TestScript01Context* context = (TestScript01Context*)user_ptr;

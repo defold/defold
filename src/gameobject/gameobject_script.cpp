@@ -194,103 +194,6 @@ namespace dmGameObject
     extern uint32_t g_ReplySocket;
     extern uint32_t g_MessageID;
 
-    static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
-                             char* message, char** buffer, char** buffer_last);
-
-    static void PullDDFValue(lua_State* L, const dmDDF::FieldDescriptor* f,
-                             char* message, char** buffer, char** buffer_last)
-    {
-    	bool nil_val = lua_isnil(L, -1);
-		switch (f->m_Type)
-		{
-			case dmDDF::TYPE_INT32:
-			{
-				if (nil_val)
-					*((int32_t *) &message[f->m_Offset]) = 0;
-				else
-					*((int32_t *) &message[f->m_Offset]) = (int32_t) luaL_checkinteger(L, -1);
-			}
-			break;
-
-			case dmDDF::TYPE_UINT32:
-			{
-				if (nil_val)
-					*((uint32_t *) &message[f->m_Offset]) = 0;
-				else
-					*((uint32_t *) &message[f->m_Offset]) = (uint32_t) luaL_checkinteger(L, -1);
-			}
-			break;
-
-			case dmDDF::TYPE_FLOAT:
-			{
-				if (nil_val)
-					*((float *) &message[f->m_Offset]) = 0.0f;
-				else
-					*((float *) &message[f->m_Offset]) = (float) luaL_checknumber(L, -1);
-			}
-			break;
-
-			case dmDDF::TYPE_STRING:
-			{
-				const char* s = "";
-				if (!nil_val)
-					s = luaL_checkstring(L, -1);
-				int size = strlen(s) + 1;
-				if (*buffer + size > *buffer_last)
-				{
-					luaL_error(L, "Message data doesn't fit (payload max: %d)", INSTANCE_MESSAGE_MAX);
-				}
-				else
-				{
-					memcpy(*buffer, s, size);
-					// NOTE: We store offset here an relocate later...
-					*((const char**) &message[f->m_Offset]) = (const char*) (*buffer - message);
-				}
-				*buffer += size;
-			}
-			break;
-
-			case dmDDF::TYPE_MESSAGE:
-			{
-				if (!nil_val)
-				{
-					const dmDDF::Descriptor* d = f->m_MessageDescriptor;
-					PullDDFTable(L, d, &message[f->m_Offset], buffer, buffer_last);
-				}
-			}
-			break;
-
-			default:
-			{
-				luaL_error(L, "Unsupported type %d in field %s", f->m_Type, f->m_Name);
-			}
-			break;
-		}
-    }
-
-    static void PullDDFTable(lua_State* L, const dmDDF::Descriptor* d,
-                             char* message, char** buffer, char** buffer_last)
-    {
-        luaL_checktype(L, -1, LUA_TTABLE);
-
-        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
-        {
-            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
-
-            lua_pushstring(L, f->m_Name);
-            lua_rawget(L, -2);
-            if (lua_isnil(L, -1) && f->m_Label != dmDDF::LABEL_OPTIONAL)
-            {
-                luaL_error(L, "Field %s not specified in table", f->m_Name);
-            }
-            else
-            {
-            	PullDDFValue(L, f, message, buffer, buffer_last);
-            }
-            lua_pop(L, 1);
-        }
-    }
-
     int Script_PostNamedTo(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -309,7 +212,10 @@ namespace dmGameObject
         if (instance)
         {
             const dmDDF::Descriptor* desc = 0x0;
-            char ddf_data[INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData)];
+            const uint32_t buffer_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
+            char buffer[buffer_size];
+            dmGameObject::Result r;
+            uint32_t actual_buffer_size = 0;
 
             // Passing ddf data is optional atm
             if (top >= 4)
@@ -320,32 +226,30 @@ namespace dmGameObject
                 if (desc_tmp != 0)
                 {
                     desc = *desc_tmp;
-                    if (desc->m_Size > INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData))
+                    if (desc->m_Size > buffer_size)
                     {
-                        luaL_error(L, "sizeof(%s) > %d", type_name, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData));
+                        luaL_error(L, "sizeof(%s) > %d", type_name, buffer_size);
                         return 0;
                     }
                     luaL_checktype(L, 4, LUA_TTABLE);
 
                     lua_pushvalue(L, 4);
-                    dmScript::CheckDDF(L, desc, ddf_data, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData), -1);
+                    dmScript::CheckDDF(L, desc, buffer, buffer_size, -1);
                     lua_pop(L, 1);
+                    r = dmGameObject::PostDDFMessageTo(instance, component_name, desc, buffer);
                 }
                 else
                 {
-                    luaL_error(L, "DDF type %s has not been registered through dmGameObject::RegisterDDFType.", type_name);
+                    actual_buffer_size = dmScript::CheckTable(L, buffer, sizeof(buffer), 4);
                 }
             }
 
-            dmGameObject::Result r;
-            if (desc != 0x0)
-                r = dmGameObject::PostDDFMessageTo(instance, component_name, desc, ddf_data);
-            else
-                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name));
+            if (desc == 0x0)
+                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name), buffer, actual_buffer_size);
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
-                luaL_error(L, "Error sending message '%s' to %p/%s", message_name, (void*)id, component_name);
+                luaL_error(L, "Error %d when sending message '%s' to %p/%s", r, message_name, (void*)id, component_name);
             }
         }
         else
@@ -392,9 +296,12 @@ namespace dmGameObject
         if (instance)
         {
             const dmDDF::Descriptor* desc = 0x0;
-            char ddf_data[INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData)];
+            const uint32_t buffer_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
+            char buffer[buffer_size];
+            uint32_t actual_buffer_size = 0;
 
-            // Passing ddf data is optional atm
+            dmGameObject::Result r;
+            // Passing data is optional atm
             if (top >= 5)
             {
                 const char* type_name = message_name;
@@ -403,28 +310,26 @@ namespace dmGameObject
                 if (desc_tmp != 0)
                 {
                     desc = *desc_tmp;
-                    if (desc->m_Size > INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData))
+                    if (desc->m_Size > buffer_size)
                     {
-                        luaL_error(L, "sizeof(%s) > %d", type_name, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData));
+                        luaL_error(L, "sizeof(%s) > %d", type_name, buffer_size);
                         return 0;
                     }
-                    luaL_checktype(L, 4, LUA_TTABLE);
+                    luaL_checktype(L, 5, LUA_TTABLE);
 
-                    lua_pushvalue(L, 4);
-                    dmScript::CheckDDF(L, desc, ddf_data, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData), -1);
+                    lua_pushvalue(L, 5);
+                    dmScript::CheckDDF(L, desc, buffer, buffer_size, -1);
                     lua_pop(L, 1);
+                    r = dmGameObject::PostDDFMessageTo(instance, component_name, desc, buffer);
                 }
                 else
                 {
-                    luaL_error(L, "DDF type %s has not been registered through dmGameObject::RegisterDDFType.", type_name);
+                    actual_buffer_size = dmScript::CheckTable(L, buffer, buffer_size, 5);
                 }
             }
 
-            dmGameObject::Result r;
-            if (desc != 0x0)
-                r = dmGameObject::PostDDFMessageTo(instance, component_name, desc, ddf_data);
-            else
-                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name));
+            if (desc == 0x0)
+                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name), buffer, actual_buffer_size);
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
@@ -1076,7 +981,7 @@ bail:
             if (instance_message_data->m_DDFDescriptor)
             {
                 // adjust char ptrs to global mem space
-                char* data = (char*)instance_message_data->m_DDFData;
+                char* data = (char*)instance_message_data->m_Buffer;
                 for (uint8_t i = 0; i < instance_message_data->m_DDFDescriptor->m_FieldCount; ++i)
                 {
                     dmDDF::FieldDescriptor* field = &instance_message_data->m_DDFDescriptor->m_Fields[i];
@@ -1088,12 +993,14 @@ bail:
                 }
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
-                dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_DDFData);
+                dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_Buffer);
             }
             else
             {
-                // Named message
-                lua_newtable(L);
+                if (instance_message_data->m_BufferSize > 0)
+                    dmScript::PushTable(L, (const char*)instance_message_data->m_Buffer);
+                else
+                    lua_newtable(L);
             }
 
             ret = lua_pcall(L, 3, LUA_MULTRET, 0);
