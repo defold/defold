@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 VERSION='0.1'
-APPNAME='gamesys'
+APPNAME='gameobject'
 
 srcdir = '.'
 blddir = 'build'
