@@ -15,8 +15,8 @@ namespace dmGameSystem
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
-        dmRender::FontDesc* font_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRender::FontDesc>(buffer, buffer_size, &font_desc);
+        dmRenderDDF::FontDesc* font_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontDesc>(buffer, buffer_size, &font_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
