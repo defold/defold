@@ -280,7 +280,7 @@ namespace dmGameSystem
         }
         else if (message_data->m_DDFDescriptor)
         {
-            dmGui::DispatchMessage(gui_component->m_Scene, message_data->m_MessageId, (const void*) message_data->m_DDFData, message_data->m_DDFDescriptor);
+            dmGui::DispatchMessage(gui_component->m_Scene, message_data->m_MessageId, (const void*) message_data->m_Buffer, message_data->m_DDFDescriptor);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

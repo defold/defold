@@ -151,7 +151,7 @@ namespace dmGameSystem
         Camera* camera = (Camera*)*user_data;
         if (message_data->m_DDFDescriptor == dmCameraDDF::SetCamera::m_DDFDescriptor)
         {
-            dmCameraDDF::SetCamera* ddf = (dmCameraDDF::SetCamera*)message_data->m_DDFData;
+            dmCameraDDF::SetCamera* ddf = (dmCameraDDF::SetCamera*)message_data->m_Buffer;
             camera->m_AspectRatio = ddf->m_AspectRatio;
             camera->m_FOV = ddf->m_FOV;
             camera->m_NearZ = ddf->m_NearZ;

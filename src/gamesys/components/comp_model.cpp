@@ -85,7 +85,7 @@ namespace dmGameSystem
         if (message_data->m_MessageId == dmHashString32(dmRender::SetRenderColor::m_DDFDescriptor->m_ScriptName))
         {
             dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)message_data->m_DDFData;
+            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)message_data->m_Buffer;
             dmRender::ColorType color_type = (dmRender::ColorType)ddf->m_ColorType;
             dmRender::SetColor(ro, ddf->m_Color, color_type);
         }

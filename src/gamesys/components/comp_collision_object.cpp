@@ -153,7 +153,7 @@ namespace dmGameSystem
     {
         if (message_data->m_MessageId == dmHashString32(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_ScriptName))
         {
-            dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) message_data->m_DDFData;
+            dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) message_data->m_Buffer;
             dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
             dmPhysics::ApplyForce(collision_object, af->m_Force, af->m_Position);
         }
