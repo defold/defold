@@ -18,9 +18,9 @@ create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObject.CResource'
 create_simple_protoc_task('physcomp', '.pc_pb', '.pc', 'TestGameObject.PhysComponent', before='cc cxx')
 create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObject.MessageTarget', before='cc cxx')
 create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObject.InputTarget', before='cc cxx')
-create_simple_protoc_task('collection', '.collection', '.collectionc', 'dmGameObject.CollectionDesc', before='cc cxx', proto_file = '../proto/gameobject_ddf.proto')
+create_simple_protoc_task('collection', '.collection', '.collectionc', 'dmGameObjectDDF.CollectionDesc', before='cc cxx', proto_file = '../proto/gameobject_ddf.proto')
 
-Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObject.PrototypeDesc -I ../proto -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
+Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObjectDDF.PrototypeDesc -I ../proto -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK',
                       before='cc cxx',
                       shell=True)

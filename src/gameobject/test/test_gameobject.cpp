@@ -1142,17 +1142,17 @@ TEST(ScriptTest, TestReloadScript)
     char go_file_name[512];
     DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", tmp_dir, "__go__.goc");
 
-    dmGameObject::PrototypeDesc prototype;
+    dmGameObjectDDF::PrototypeDesc prototype;
     //memset(&prototype, 0, sizeof(prototype));
     prototype.m_Components.m_Count = 1;
-    dmGameObject::ComponentDesc component_desc;
+    dmGameObjectDDF::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
     component_desc.m_Resource = script_file_name;
     component_desc.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     component_desc.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     prototype.m_Components.m_Data = &component_desc;
 
-    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObject::PrototypeDesc::m_DDFDescriptor, go_file_name);
+    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name);
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
     CreateFile(script_path,

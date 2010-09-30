@@ -1,4 +1,4 @@
-package dmGameObject;
+package dmGameObjectDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
@@ -56,4 +56,41 @@ message CollectionDesc
     required string                 Name = 1;
     repeated InstanceDesc           Instances = 2;
     repeated CollectionInstanceDesc CollectionInstances = 3;
+}
+
+message LoadCollection
+{
+    required string Collection = 1;
+}
+
+message UnloadCollection
+{
+    required string Collection = 1;
+}
+
+message ActivateCollection
+{
+    required string Collection = 1;
+}
+
+message AcquireInputFocus
+{
+    required string GameObjectId = 1;
+}
+
+message ReleaseInputFocus
+{
+    required string GameObjectId = 1;
+}
+
+message GameObjectTransformQuery
+{
+    required string GameObjectId = 1;
+}
+
+message GameObjectTransformResult
+{
+    required string GameObjectId = 1;
+    required dmMath.Point3 Position = 2;
+    required dmMath.Quat Rotation = 3;
 }

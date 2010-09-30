@@ -217,9 +217,9 @@ namespace dmGameObject
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
     {
-        PrototypeDesc* proto_desc;
+        dmGameObjectDDF::PrototypeDesc* proto_desc;
 
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObject_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -284,8 +284,8 @@ namespace dmGameObject
         char prev_identifier_path[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
         char tmp_ident[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
 
-        CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObject::CollectionDesc>(buffer, buffer_size, &collection_desc);
+        dmGameObjectDDF::CollectionDesc* collection_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(buffer, buffer_size, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -320,7 +320,7 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
-            const dmGameObject::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
             dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
             if (instance != 0x0)
             {
@@ -343,18 +343,18 @@ namespace dmGameObject
 
                 for (uint32_t j = 0; j < instance_desc.m_ScriptProperties.m_Count; ++j)
                 {
-                    const dmGameObject::Property& p = instance_desc.m_ScriptProperties[j];
+                    const dmGameObjectDDF::Property& p = instance_desc.m_ScriptProperties[j];
                     switch (p.m_Type)
                     {
-                        case dmGameObject::Property::STRING:
+                        case dmGameObjectDDF::Property::STRING:
                             dmGameObject::SetScriptStringProperty(instance, p.m_Key, p.m_Value);
                         break;
 
-                        case dmGameObject::Property::INTEGER:
+                        case dmGameObjectDDF::Property::INTEGER:
                             dmGameObject::SetScriptIntProperty(instance, p.m_Key, atoi(p.m_Value));
                         break;
 
-                        case dmGameObject::Property::FLOAT:
+                        case dmGameObjectDDF::Property::FLOAT:
                             dmGameObject::SetScriptFloatProperty(instance, p.m_Key, atof(p.m_Value));
                         break;
                     }
@@ -371,7 +371,7 @@ namespace dmGameObject
         // Setup hierarchy
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
-            const dmGameObject::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
             dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
             dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
@@ -404,7 +404,7 @@ namespace dmGameObject
         // Load sub collections
         for (uint32_t i = 0; i < collection_desc->m_CollectionInstances.m_Count; ++i)
         {
-            dmGameObject::CollectionInstanceDesc& coll_instance_desc = collection_desc->m_CollectionInstances[i];
+            dmGameObjectDDF::CollectionInstanceDesc& coll_instance_desc = collection_desc->m_CollectionInstances[i];
 
             dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
             dmStrlCat(regist->m_CurrentIdentifierPath, coll_instance_desc.m_Id, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
