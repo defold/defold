@@ -35,6 +35,8 @@ proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camera
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
 
+TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
+
 Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
                       color='PINK',
                       before='cc cxx',
@@ -44,6 +46,46 @@ Task.simple_task_type('luascript', 'cat < ${SRC} > ${TGT}',
 def testresourcecont_file(self, node):
     obj_ext = '.scriptc'
     task = self.create_task('luascript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+Task.simple_task_type('wav', 'cat < ${SRC} > ${TGT}',
+                      color='PINK',
+                      shell=True)
+
+@extension('.wav')
+def testresourcecont_file(self, node):
+    obj_ext = '.wavc'
+    task = self.create_task('wav')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+Task.simple_task_type('mesh', 'python ../tools/modelc.py ${SRC} -o ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.dae')
+def dae_file(self, node):
+    obj_ext = '.mesh'
+    mesh = self.create_task('mesh')
+    mesh.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    mesh.set_outputs(out)
+
+
+Task.simple_task_type('gui_script', 'cat < ${SRC} > ${TGT}',
+                      color='PINK',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.gui_script')
+def testresourcecont_file(self, node):
+    obj_ext = '.gui_scriptc'
+    task = self.create_task('gui_script')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
