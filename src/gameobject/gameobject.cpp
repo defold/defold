@@ -25,6 +25,11 @@ namespace dmGameObject
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
 
+    InstanceMessageData::InstanceMessageData()
+    {
+        memset(this, 0, sizeof(InstanceMessageData));
+    }
+
     Register::Register(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata)
     {
         m_ComponentTypeCount = 0;

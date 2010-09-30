@@ -92,6 +92,8 @@ namespace dmGameObject
      */
     struct InstanceMessageData
     {
+        InstanceMessageData();
+
         /// Subject
         HInstance m_Instance;
 
