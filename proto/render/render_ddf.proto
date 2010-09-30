@@ -1,6 +1,7 @@
-package dmRender;
+package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Font";
@@ -30,4 +31,17 @@ message ImageFont
     required uint32 ImageWidth = 3;
     required uint32 ImageHeight = 4;
     required bytes ImageData = 2;
+}
+
+message DrawString
+{
+    required dmMath.Point3 Position = 1;
+    required string Text = 2;
+}
+
+message DrawLine
+{
+    required dmMath.Point3 StartPoint = 1;
+    required dmMath.Point3 EndPoint = 2;
+    required dmMath.Vector4 Color = 3;
 }

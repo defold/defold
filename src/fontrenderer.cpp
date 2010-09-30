@@ -26,7 +26,7 @@ namespace dmRender
             dmGraphics::DestroyTexture(m_Texture);
         }
 
-        ImageFont*                   m_Font;
+        dmRenderDDF::ImageFont*      m_Font;
         dmGraphics::HTexture         m_Texture;
         dmGraphics::HVertexProgram   m_VertexProgram;
         dmGraphics::HFragmentProgram m_FragmentProgram;
@@ -46,8 +46,8 @@ namespace dmRender
 
     HImageFont NewImageFont(const void* font, uint32_t font_size)
     {
-        ImageFont* f;
-        dmDDF::Result e = dmDDF::LoadMessage<ImageFont>(font, font_size, &f);
+        dmRenderDDF::ImageFont* f;
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ImageFont>(font, font_size, &f);
         if (e != dmDDF::RESULT_OK)
         {
             return 0;
@@ -65,7 +65,7 @@ namespace dmRender
         SFont*ret = new SFont();
         ret->m_VertexProgram = 0;
         ret->m_FragmentProgram = 0;
-        ret->m_Font = (dmRender::ImageFont*) image_font;
+        ret->m_Font = (dmRenderDDF::ImageFont*) image_font;
         ret->m_Texture = dmGraphics::CreateTexture(ret->m_Font->m_ImageWidth,
                                                    ret->m_Font->m_ImageHeight,
                                                    dmGraphics::TEXTURE_FORMAT_LUMINANCE);
@@ -140,7 +140,7 @@ namespace dmRender
         {
             char c = string[i];
 
-            const ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
+            const dmRenderDDF::ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
 
             int kearning = 0;
 #if 0
