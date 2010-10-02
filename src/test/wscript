@@ -144,6 +144,15 @@ def build(bld):
 
     test_http_client.install_path = None
 
+    test_http_server = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_httpserver.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_httpserver')
+
+    test_http_server.install_path = None
+
     test_uri = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_uri.cpp',
                                  uselib = 'GTEST THREAD',

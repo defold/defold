@@ -57,7 +57,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
 def shutdown():
-    if not Options.commands['build']:
+    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Fix support for win32

@@ -57,7 +57,7 @@ namespace dmHttpClient
     };
 
     /**
-     * Set NewParsms default values
+     * Set NewParams default values
      * @param params Pointer to NewParams
      */
     void SetDefaultParams(struct NewParams* params);
