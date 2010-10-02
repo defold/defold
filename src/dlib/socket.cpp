@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "math.h"
 
 #include <fcntl.h>
 
@@ -7,6 +8,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 #endif
 #include "log.h"
 
@@ -100,10 +102,10 @@ namespace dmSocket
         }
         else
         {
-            return RESULT_OK;        
+            return RESULT_OK;
         }
 #else
-        return RESULT_OK;        
+        return RESULT_OK;
 #endif
     }
 
@@ -296,6 +298,52 @@ namespace dmSocket
         }
     }
 
+    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        FD_CLR(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
+        FD_SET(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        return FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    void SelectorZero(Selector* selector)
+    {
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
+        selector->m_Nfds = 0;
+    }
+
+    Result Select(Selector* selector, int32_t timeout)
+    {
+        timeval timeout_val;
+        timeout_val.tv_sec = 0;
+        timeout_val.tv_usec = timeout;
+
+        int r;
+        if (timeout < 0)
+            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
+        else
+            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
+
+        if (r < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            return RESULT_OK;
+        }
+    }
+
     Result SetBlocking(Socket socket, bool blocking)
     {
 #if defined(__linux__) || defined(__MACH__)
@@ -344,6 +392,20 @@ namespace dmSocket
         }
 
 #endif
+    }
+
+    Result SetNoDelay(Socket socket, bool no_delay)
+    {
+        int flag = 1;
+        int r = setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+        if (r < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            return RESULT_OK;
+        }
     }
 
     Address AddressFromIPString(const char* address)
