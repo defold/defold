@@ -36,7 +36,7 @@ def configure(conf):
         conf.fatal("Unable to determine platform")
 
     if platform == "darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lX11', '-lGL'])
     if platform == "win32":
