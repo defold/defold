@@ -60,7 +60,7 @@ namespace dmRender
                            sizeof(SFontVertex),
                            (void*) colour);
 
-        dmGraphics::SetTexture(context, dmRender::GetTexture(font));
+        dmGraphics::SetTexture(context, GetTexture(font));
 
         dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
