@@ -1,0 +1,32 @@
+#! /usr/bin/env python
+import os
+
+def set_options(opt):
+    pass
+
+def build(bld):
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                          includes = '../proto .',
+                          target = 'engine',
+                          proto_gen_py = True,
+                          protoc_includes = '../proto',
+                          install_path='${PREFIX}/lib',
+                          source='engine.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+    bld.install_files('${PREFIX}/include/engine', 'engine.h')
+    bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
+
+    obj = bld.new_task_gen(
+        features = 'cc cxx cprogram',
+        uselib = 'GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER RENDERDEBUG PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DMGLFW PARTICLE GUI SOUND ALUT',
+        uselib_local = 'engine',
+        includes = '../build ../proto .',
+        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+        defines = '_XBOX',
+        proto_gen_py = True,
+        protoc_includes = '../proto',
+        target = 'dmengine',
+        source='main.cpp')
+
+def configure(conf):
+    pass
+
