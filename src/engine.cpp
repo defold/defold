@@ -196,6 +196,12 @@ namespace dmEngine
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
 
+        engine->m_RenderWorld = dmRender::NewRenderWorld(100, 100, 0x0);
+
+        dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 100, 1, 0x0, 0x0);
+        engine->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
+        dmRender::AddRenderPass(engine->m_RenderWorld, engine->m_RenderPass);
+
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(engine->m_Config, "resource.uri", "build/default/content"));
 
         dmPhysics::SetDebugRenderer(&engine->m_RenderContext, PhysicsDebugRender::RenderLine);
@@ -210,7 +216,7 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             return false;
 
-        dmGameObject::Result res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, &engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext);
+        dmGameObject::Result res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, &engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, engine->m_RenderWorld);
         if (res != dmGameObject::RESULT_OK)
             return false;
 
@@ -384,6 +390,8 @@ namespace dmEngine
             if (engine->m_ShowProfile)
                 dmProfileRender::Draw(engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
 
+            dmRender::SetViewProjectionMatrix(engine->m_RenderPass, &engine->m_RenderContext.m_ViewProj);
+            dmRender::Update(engine->m_RenderWorld, 0.0f);
             dmGraphics::Flip();
 
             uint64_t new_time_stamp, delta;
@@ -648,9 +656,9 @@ namespace dmEngine
             return false;
         }
 
-        engine->m_FontRenderer = dmRender::NewFontRenderer(engine->m_Font, engine->m_ScreenWidth,
+        engine->m_FontRenderer = dmRender::NewFontRenderer(engine->m_Font, engine->m_RenderWorld, engine->m_ScreenWidth,
             engine->m_ScreenHeight, 2048 * 4);
-        engine->m_SmallFontRenderer = dmRender::NewFontRenderer(engine->m_SmallFont, engine->m_ScreenWidth,
+        engine->m_SmallFontRenderer = dmRender::NewFontRenderer(engine->m_SmallFont, engine->m_RenderWorld, engine->m_ScreenWidth,
             engine->m_ScreenHeight, 2048 * 4);
 
         // debug renderer needs vertex/fragment programs, load them here (perhaps they need to be moved into render/debug?)
@@ -711,6 +719,9 @@ namespace dmEngine
             dmResource::Release(engine->m_Factory, (void*) engine->m_RenderdebugFragmentProgram);
         if (engine->m_GameInputBinding)
             dmInput::DeleteBinding(engine->m_GameInputBinding);
+
+        dmRender::DeleteRenderPass(engine->m_RenderPass);
+        dmRender::DeleteRenderWorld(engine->m_RenderWorld);
     }
 }
 

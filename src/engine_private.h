@@ -64,6 +64,8 @@ namespace dmEngine
         dmGraphics::HFragmentProgram                m_RenderdebugFragmentProgram;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
+        dmRender::HRenderWorld                      m_RenderWorld;
+        dmRender::HRenderPass                       m_RenderPass;
     };
 
     void ReloadResources(HEngine engine, const char* extension);
