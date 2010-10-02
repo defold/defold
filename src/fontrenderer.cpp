@@ -7,17 +7,13 @@
 
 #include "fontrenderer.h"
 #include "render/render_ddf.h"
+//#include "render.h"
+#include "rendertypes/rendertypetext.h"
 
 using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-    struct SFontVertex
-    {
-        float m_Position[3];
-        float m_UV[2];
-        float m_Colour[4];
-    };
 
     struct SFont
     {
@@ -40,9 +36,12 @@ namespace dmRender
 
         SFont*                    m_Font;
         dmArray<SFontVertex>      m_Vertices;
-        Matrix4                   m_Projection;
         uint32_t                  m_MaxCharacters;
+        dmRender::HRenderWorld    m_RenderWorld;
+        dmRender::HRenderWorld    m_RenderCollection;
+        dmRender::HRenderObject   m_RenderObject;
     };
+
 
     HImageFont NewImageFont(const void* font, uint32_t font_size)
     {
@@ -82,6 +81,11 @@ namespace dmRender
         return font->m_Font;
     }
 
+    dmGraphics::HTexture GetTexture(HFont font)
+    {
+        return font->m_Texture;
+    }
+
     void SetVertexProgram(HFont font, dmGraphics::HVertexProgram program)
     {
         font->m_VertexProgram = program;
@@ -107,20 +111,27 @@ namespace dmRender
         delete font;
     }
 
-    HFontRenderer NewFontRenderer(HFont font,
+    HFontRenderer NewFontRenderer(HFont font, void* renderworld,
                                   uint32_t width, uint32_t height,
                                   uint32_t max_characters)
     {
+        dmRender::HRenderWorld collection = dmRender::NewRenderWorld(100, 10, 0x0);
+
         SFontRenderer* fr = new SFontRenderer();
         fr->m_Vertices.SetCapacity(max_characters*6);
         fr->m_Font = font;
-        fr->m_Projection = Matrix4::orthographic( 0, width, height, 0, 10, -10 );
         fr->m_MaxCharacters = max_characters;
+        fr->m_RenderCollection = collection;
+        fr->m_RenderWorld = (dmRender::HRenderWorld)renderworld;
+        fr->m_RenderObject = dmRender::NewRenderObjectInstance((dmRender::HRenderWorld)collection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_TEXT);
+//        NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type)
+
         return fr;
     }
 
     void DeleteFontRenderer(HFontRenderer renderer)
     {
+        dmRender::DeleteRenderWorld(renderer->m_RenderCollection);
         delete renderer;
     }
 
@@ -209,45 +220,17 @@ namespace dmRender
         if (renderer->m_Vertices.Size() == 0)
             return;
 
-        dmGraphics::HContext context = dmGraphics::GetContext();
-        Matrix4 ident = Matrix4::identity();
 
-        if (renderer->m_Font->m_VertexProgram)
-            dmGraphics::SetVertexProgram(context, renderer->m_Font->m_VertexProgram);
-        if (renderer->m_Font->m_FragmentProgram)
-            dmGraphics::SetFragmentProgram(context, renderer->m_Font->m_FragmentProgram);
+        dmRender::SetData(renderer->m_RenderObject, renderer->m_Font);
+        dmRender::SetGameObject(renderer->m_RenderObject, &renderer->m_Vertices);
 
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&renderer->m_Projection, 0, 4);
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
+        dmRender::AddToRender(renderer->m_RenderCollection, renderer->m_RenderWorld);
+    }
 
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) &renderer->m_Vertices[0].m_Position[0]);
 
-        dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) &renderer->m_Vertices[0].m_UV[0]);
-
-        dmGraphics::SetVertexStream(context, 2, 4, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) &renderer->m_Vertices[0].m_Colour[0]);
-
-        dmGraphics::SetTexture(context, renderer->m_Font->m_Texture);
-
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
-
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, renderer->m_Vertices.Size());
-
-        dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::DisableState(context, dmGraphics::BLEND);
-
-        dmGraphics::DisableVertexStream(context, 0);
-        dmGraphics::DisableVertexStream(context, 1);
-        dmGraphics::DisableVertexStream(context, 2);
-
-        renderer->m_Vertices.SetSize(0);
+    void FontRendererAddToRenderPass(HRenderPass renderpass, HFontRenderer renderer)
+    {
+//        AddRenderObject(renderpass, renderer->m_RenderObject);
     }
 
 }

@@ -2,7 +2,7 @@
 #define RENDERINTERNAL_H
 
 #include <vectormath/cpp/vectormath_aos.h>
-#include "render.h"
+#include "render/render.h"
 
 
 namespace dmRender
@@ -14,6 +14,7 @@ namespace dmRender
 		Vector4				m_Colour[MAX_COLOR];
 		Point3				m_Pos;
 		Quat				m_Rot;
+		uint64_t            m_Mask;
 		RenderObjectType	m_Type;
 		void*				m_Go;
 		void*				m_Data;

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics_device.h>
+#include <render/render.h>
 
 namespace dmRender
 {
@@ -45,6 +46,8 @@ namespace dmRender
      * @return HImageFont handle
      */
     HImageFont GetImageFont(HFont font);
+
+    dmGraphics::HTexture GetTexture(HFont font);
 
     /**
      * Set font vertex program
@@ -88,13 +91,14 @@ namespace dmRender
     /**
      * Create a new font renderer
      * @param font Font
+     * @param render_world Render world context
      * @param width Width
      * @param height Height
      * @param max_characters Max characters to render
      * @return Font renderer handle
      *
      */
-    HFontRenderer NewFontRenderer(HFont font,
+    HFontRenderer NewFontRenderer(HFont font, void* render_world,
                                   uint32_t width, uint32_t height,
                                   uint32_t max_characters);
     /**
@@ -120,6 +124,8 @@ namespace dmRender
      * @param renderer Font renderer handle
      */
     void FontRendererFlush(HFontRenderer renderer);
+
+    void FontRendererAddToRenderPass(HRenderPass renderpass, HFontRenderer renderer);
 
 }
 

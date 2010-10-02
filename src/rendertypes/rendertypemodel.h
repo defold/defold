@@ -1,7 +1,7 @@
 #ifndef RENDERTYPEMODEL_H
 #define RENDERTYPEMODEL_H
 
-#include "render.h"
+#include "render/render.h"
 #include "renderinternal.h"
 
 namespace dmRender

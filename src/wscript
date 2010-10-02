@@ -17,7 +17,7 @@ def build(bld):
                            ddf_jar = 'render.jar',
                            install_path='${PREFIX}/lib')
 
-    obj.find_sources_in_dirs('. ../proto/render model rendertypes')
+    obj.find_sources_in_dirs('. ../proto/render model render rendertypes')
     #obj.source.append('../proto/render_ddf.proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
@@ -33,7 +33,7 @@ def build(bld):
                  'default/proto/render/generated']
 
     bld.add_group()
-    bld.add_subdirs('test')
+#    bld.add_subdirs('test')
 
     bld.new_task_gen(features='javac seq',
                      classpath=os.pathsep.join(classpath),
@@ -48,7 +48,8 @@ def build(bld):
     bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
     bld.install_files('${PREFIX}/include/render_debug', 'debug/debugrenderer.h')
     bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
-    bld.install_files('${PREFIX}/include/render', 'render.h')
+    bld.install_files('${PREFIX}/include/render', 'render/render.h')
+    bld.install_files('${PREFIX}/include/render', 'rendertypes/rendertypedata.h')
 
     bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/share/java', 'fontc.jar')

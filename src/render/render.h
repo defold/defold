@@ -16,6 +16,7 @@ namespace dmRender
 	{
 		RENDEROBJECT_TYPE_MODEL = 0,
 		RENDEROBJECT_TYPE_PARTICLE = 1,
+		RENDEROBJECT_TYPE_TEXT = 2
 	};
 
     enum ColorType
@@ -44,32 +45,13 @@ namespace dmRender
 
 
 
-    struct ModeltypeDesc
-    {
-        ModeltypeDesc(const char* name, void* userdata, uint32_t renderpass, void (*beginfunc)(const void* userdata), void (*endfunc)(const void* userdata), void (*updatefunc)(const void* userdata))
-        {
-            strncpy(m_Name, name, sizeof(m_Name));
-            m_UserData = userdata;
-            m_Renderpass = renderpass;
-            m_BeginFunc = beginfunc;
-            m_EndFunc = endfunc;
-            m_UpdateFunc = updatefunc;
-        }
-
-        char    m_Name[128];
-        void*   m_UserData;
-        uint32_t m_Renderpass;
-        void    (*m_BeginFunc)(const void* userdata);
-        void    (*m_EndFunc)(const void* userdata);
-        void    (*m_UpdateFunc)(const void* userdata);
-    };
-
     struct RenderPassDesc
     {
         RenderPassDesc(){}
-        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, void (*beginfunc)(const dmRender::RenderContext* rendercontext, const void* userdata), void (*endfunc)(const dmRender::RenderContext* rendercontext, const void* userdata))
+        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, uint64_t predicate, void (*beginfunc)(const dmRender::RenderContext* rendercontext, const void* userdata), void (*endfunc)(const dmRender::RenderContext* rendercontext, const void* userdata))
         {
             strncpy(m_Name, name, sizeof(m_Name));
+            m_Predicate = predicate;
             m_UserData = userdata;
             m_Index = index;
             m_Capacity = capacity;
@@ -78,6 +60,7 @@ namespace dmRender
         }
 
         char        m_Name[128];
+        uint64_t    m_Predicate;
         void*       m_UserData;
         uint32_t    m_Index;
         uint32_t    m_Capacity;
@@ -90,11 +73,16 @@ namespace dmRender
     void DeleteRenderWorld(HRenderWorld world);
     void AddRenderPass(HRenderWorld world, HRenderPass renderpass);
 
+    void AddToRender(HRenderWorld local_world, HRenderWorld world);
+
 
     void Update(HRenderWorld world, float dt);
     void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
-    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, RenderObjectType type);
+    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type);
     void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
+    void SetData(HRenderObject ro, void* data);
+    void SetGameObject(HRenderObject ro, void* go);
+
     void Disable(HRenderObject ro);
     void Enable(HRenderObject ro);
     bool IsEnabled(HRenderObject ro);
@@ -104,11 +92,16 @@ namespace dmRender
     void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
 
 
-    void RenderPassBegin(RenderContext* rendercontext, RenderPass* rp);
-    void RenderPassEnd(RenderContext* rendercontext, RenderPass* rp);
+//    void RenderPassBegin(RenderContext* rendercontext, RenderPass* rp);
+//    void RenderPassEnd(RenderContext* rendercontext, RenderPass* rp);
+
+    void SetViewProjectionMatrix(HRenderPass renderpass, Matrix4* viewprojectionmatrix);
+
     HRenderPass NewRenderPass(RenderPassDesc* desc);
     void DeleteRenderPass(HRenderPass renderpass);
     void AddRenderObject(HRenderPass renderpass, HRenderObject renderobject);
+    void SetViewMatrix(HRenderPass renderpass, Matrix4* viewmatrix);
+    void SetProjectionMatrix(HRenderPass renderpass, Matrix4* projectionmatrix);
 
     void DisableRenderPass(HRenderPass renderpass);
     void EnableRenderPass(HRenderPass renderpass);

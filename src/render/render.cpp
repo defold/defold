@@ -7,9 +7,19 @@
 
 
 #include "rendertypes/rendertypemodel.h"
+#include "rendertypes/rendertypetext.h"
+#include "rendertypes/rendertypeparticle.h"
 
 namespace dmRender
 {
+    struct RenderPass
+    {
+        RenderPassDesc          m_Desc;
+        RenderContext           m_RenderContext;
+        dmArray<RenderObject*>  m_InstanceList[2];
+        uint16_t                m_RenderBuffer;
+        uint16_t                m_InUse:1;
+    };
 
     struct RenderWorld
     {
@@ -20,13 +30,6 @@ namespace dmRender
         SetObjectModel			m_SetObjectModel;
     };
 
-    struct RenderPass
-    {
-        RenderPassDesc          m_Desc;
-        dmArray<RenderObject*>  m_InstanceList[2];
-        uint16_t                m_RenderBuffer;
-        uint16_t                m_InUse:1;
-    };
 
 
     void FrameBeginDraw(RenderContext* rendercontext)
@@ -34,6 +37,16 @@ namespace dmRender
     }
     void FrameEndDraw(RenderContext* rendercontext)
     {
+    }
+
+    void RenderPassBegin(RenderPass* rp)
+    {
+        rp->m_RenderBuffer = 1 - rp->m_RenderBuffer;
+    }
+
+    void RenderPassEnd(RenderPass* rp)
+    {
+        rp->m_InstanceList[rp->m_RenderBuffer].SetSize(0);
     }
 
 
@@ -46,6 +59,14 @@ namespace dmRender
     			RenderTypeModelSetup(rendercontext);
     			break;
     		}
+    		case RENDEROBJECT_TYPE_TEXT:
+    		{
+    		    RenderTypeTextSetup(rendercontext);
+    		}
+            case RENDEROBJECT_TYPE_PARTICLE:
+            {
+                RenderTypeParticleSetup(rendercontext);
+            }
     		default:
     		{
     			break;
@@ -66,8 +87,6 @@ namespace dmRender
     {
     }
 
-    HRenderPass testrp;
-
 
     HRenderWorld NewRenderWorld(uint32_t max_instances, uint32_t max_renderpasses, SetObjectModel set_object_model)
     {
@@ -76,10 +95,7 @@ namespace dmRender
         world->m_RenderObjectInstanceList.SetCapacity(max_instances);
         world->m_RenderPasses.SetCapacity(max_renderpasses);
         world->m_SetObjectModel = set_object_model;
-
-        RenderPassDesc rp("rptest", 0x0, 0, 100, rptestBegin, rptestEnd);
-        testrp = NewRenderPass(&rp);
-        AddRenderPass(world, testrp);
+        world->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
 
         return world;
     }
@@ -99,60 +115,72 @@ namespace dmRender
         world->m_RenderContext = *rendercontext;
     }
 
+    // this needs to go...
     static void UpdateDeletedInstances(HRenderWorld world)
     {
-    	uint32_t size = world->m_RenderObjectInstanceList.Size();
-    	RenderObject** mem = new RenderObject*[size+1];
+        uint32_t size = world->m_RenderObjectInstanceList.Size();
+        RenderObject** mem = new RenderObject*[size+1];
 
-    	dmArray<RenderObject*> temp_list(mem, 0, size+1);
+        dmArray<RenderObject*> temp_list(mem, 0, size+1);
 
-    	for (uint32_t i=0; i<size; i++)
-    	{
-   			RenderObject* ro = world->m_RenderObjectInstanceList[i];
-    		if (ro->m_MarkForDelete)
-    		{
-    	    	delete ro;
-    		}
-    		else
-    		{
-    			temp_list.Push(ro);
-    		}
-    	}
+        for (uint32_t i=0; i<size; i++)
+        {
+            RenderObject* ro = world->m_RenderObjectInstanceList[i];
+            if (ro->m_MarkForDelete)
+            {
+                delete ro;
+            }
+            else
+            {
+                temp_list.Push(ro);
+            }
+        }
 
-    	size = temp_list.Size();
-    	world->m_RenderObjectInstanceList.SetSize(size);
-    	for (uint32_t i=0; i<size; i++)
-    	{
-    	    world->m_RenderObjectInstanceList[i] = temp_list[i];
-    	}
+        size = temp_list.Size();
+        world->m_RenderObjectInstanceList.SetSize(size);
+        for (uint32_t i=0; i<size; i++)
+        {
+            world->m_RenderObjectInstanceList[i] = temp_list[i];
+        }
 
         delete [] mem;
     }
+
+
+    void AddToRender(HRenderWorld local_world, HRenderWorld world)
+    {
+        UpdateDeletedInstances(local_world);
+
+        for (uint32_t i=0; i<local_world->m_RenderObjectInstanceList.Size(); i++)
+        {
+            RenderObject* ro = local_world->m_RenderObjectInstanceList[i];
+            assert(ro->m_MarkForDelete == 0);
+
+            for (uint32_t j=0; j<world->m_RenderPasses.Size(); j++)
+            {
+                RenderPass* rp = world->m_RenderPasses[j];
+                if (rp->m_Desc.m_Predicate & ro->m_Mask)
+                {
+                    if (local_world->m_SetObjectModel)
+                        local_world->m_SetObjectModel(0x0, ro->m_Go, &ro->m_Rot, &ro->m_Pos);
+                    AddRenderObject(rp, ro);
+                }
+            }
+        }
+    }
+
 
 
     void Update(HRenderWorld world, float dt)
     {
         DM_PROFILE(Render, "Update");
 
-    	UpdateDeletedInstances(world);
-
-
-    	for (uint32_t i=0; i<world->m_RenderObjectInstanceList.Size(); i++)
-        {
-			RenderObject* ro = world->m_RenderObjectInstanceList[i];
-			assert(!ro->m_MarkForDelete);
-
-    		AddRenderObject(testrp, ro);
-
-        }
-
-
     	FrameBeginDraw(&world->m_RenderContext);
 
     	for (uint32_t pass=0; pass<world->m_RenderPasses.Size(); pass++)
     	{
     		RenderPass* rp = world->m_RenderPasses[pass];
-    		RenderPassBegin(&world->m_RenderContext, rp);
+    		RenderPassBegin(rp);
 
     		if (rp->m_Desc.m_BeginFunc)
     			rp->m_Desc.m_BeginFunc(&world->m_RenderContext, 0x0);
@@ -170,20 +198,31 @@ namespace dmRender
 					if (!ro->m_Enabled)
 					    continue;
 
+					// ro's can be marked for delete between this code and being added for rendering
+					if (ro->m_MarkForDelete)
+					    continue;
+
 					// check if we need to change render type and run its setup func
 					if (old_type != (int)ro->m_Type)
 					{
 						// change type
-						RenderTypeBegin(&world->m_RenderContext, ro->m_Type);
+						RenderTypeBegin(&rp->m_RenderContext, ro->m_Type);
 					}
 					switch (ro->m_Type)
 					{
 						case RENDEROBJECT_TYPE_MODEL:
 						{
-						    world->m_SetObjectModel(0x0, ro->m_Go, &ro->m_Rot, &ro->m_Pos);
-							RenderTypeModelDraw(&world->m_RenderContext, ro);
+							RenderTypeModelDraw(&rp->m_RenderContext, ro);
 							break;
 						}
+						case RENDEROBJECT_TYPE_TEXT:
+						{
+						    RenderTypeTextDraw(&rp->m_RenderContext, ro);
+						}
+                        case RENDEROBJECT_TYPE_PARTICLE:
+                        {
+                            RenderTypeParticleDraw(&rp->m_RenderContext, ro);
+                        }
 						default:
 						{
 							break;
@@ -192,7 +231,7 @@ namespace dmRender
 
 					if (old_type != (int)ro->m_Type)
 					{
-						RenderTypeEnd(&world->m_RenderContext, ro->m_Type);
+						RenderTypeEnd(&rp->m_RenderContext, ro->m_Type);
 						old_type = ro->m_Type;
 					}
 
@@ -203,16 +242,17 @@ namespace dmRender
     		if (rp->m_Desc.m_EndFunc)
     			rp->m_Desc.m_EndFunc(&world->m_RenderContext, 0x0);
 
-    		RenderPassEnd(&world->m_RenderContext, rp);
+    		RenderPassEnd(rp);
     	}
 
     	FrameEndDraw(&world->m_RenderContext);
 
+    	world->m_RenderObjectInstanceList.SetSize(0);
     	return;
 
     }
 
-    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, RenderObjectType type)
+    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type)
     {
     	RenderObject* ro = new RenderObject;
     	ro->m_Data = resource;
@@ -220,6 +260,7 @@ namespace dmRender
     	ro->m_Go = go;
     	ro->m_MarkForDelete = 0;
     	ro->m_Enabled = 1;
+    	ro->m_Mask = mask;
 
     	if (type == RENDEROBJECT_TYPE_MODEL)
     	{
@@ -237,6 +278,16 @@ namespace dmRender
 
     	world->m_RenderObjectInstanceList.Push(ro);
     	return ro;
+    }
+
+    void SetData(HRenderObject ro, void* data)
+    {
+        ro->m_Data = data;
+    }
+
+    void SetGameObject(HRenderObject ro, void* go)
+    {
+        ro->m_Go = go;
     }
 
     void Disable(HRenderObject ro)
@@ -274,16 +325,16 @@ namespace dmRender
     }
 
 
-
-    void RenderPassBegin(RenderContext* rendercontext, RenderPass* rp)
+    void SetViewMatrix(HRenderPass renderpass, Matrix4* viewmatrix)
     {
-        rp->m_RenderBuffer = 1 - rp->m_RenderBuffer;
+        renderpass->m_RenderContext.m_View = *viewmatrix;
     }
 
-    void RenderPassEnd(RenderContext* rendercontext, RenderPass* rp)
+    void SetViewProjectionMatrix(HRenderPass renderpass, Matrix4* viewprojectionmatrix)
     {
-        rp->m_InstanceList[rp->m_RenderBuffer].SetSize(0);
+        renderpass->m_RenderContext.m_ViewProj = *viewprojectionmatrix;
     }
+
 
     HRenderPass NewRenderPass(RenderPassDesc* desc)
     {
@@ -296,6 +347,8 @@ namespace dmRender
         rp->m_InstanceList[0].SetCapacity(desc->m_Capacity);
         rp->m_InstanceList[1].SetCapacity(desc->m_Capacity);
 
+        // separate context per renderpass possibly?
+        rp->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
         return rp;
     }
 

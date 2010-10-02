@@ -1,6 +1,6 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <graphics/graphics_device.h>
-#include "render.h"
+#include "render/render.h"
 #include "renderinternal.h"
 #include "rendertypemodel.h"
 #include "../model/model.h"
@@ -40,7 +40,7 @@ namespace dmRender
 
         dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material) );
 
-#if 0
+#if 1
         for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
             uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
