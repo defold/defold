@@ -1,4 +1,4 @@
-#include <engine/engine.h>
+#include "engine.h"
 
 #ifdef __MACH__
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
