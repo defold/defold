@@ -39,6 +39,7 @@ namespace dmPhysics
         /// Always A->B
         Vectormath::Aos::Vector3 m_Normal;
         float m_Distance;
+        float m_AppliedImpulse;
     };
 
     typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);

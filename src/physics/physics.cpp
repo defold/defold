@@ -253,6 +253,7 @@ namespace dmPhysics
                         const btVector3& normal = pt.m_normalWorldOnB;
                         point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
                         point.m_Distance = pt.getDistance();
+                        point.m_AppliedImpulse = pt.getAppliedImpulse();
                         contact_point_callback(point, contact_point_callback_user_data);
                     }
                 }
