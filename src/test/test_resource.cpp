@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <dlib/socket.h>
 #include <dlib/http_client.h>
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
@@ -640,7 +641,10 @@ TEST(FilenameTest, FilenameTest)
 
 int main(int argc, char **argv)
 {
+    dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmSocket::Finalize();
+    return ret;
 }
 
