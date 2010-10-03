@@ -26,7 +26,7 @@ namespace dmRender
         HFont font = (HFont)ro->m_Data;
         dmArray<SFontVertex>* vertex_data = (dmArray<SFontVertex>*)ro->m_Go;
 
-        if (!font || !vertex_data)
+        if (!font || !vertex_data || vertex_data->Size() == 0)
             return;
 
 
