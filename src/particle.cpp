@@ -580,6 +580,19 @@ namespace dmParticle
         return emitter->m_VertexCount;
     }
 
+    void SetRenderProperties(HContext context, HEmitter emitter, dmRender::SParticleRenderData* renderdata)
+    {
+        Emitter* emitter_ = GetEmitter(context, emitter);
+
+        renderdata->m_Material = emitter_->m_Prototype->m_Material;
+        renderdata->m_Texture = emitter_->m_Prototype->m_Texture;
+        renderdata->m_VertexCount = emitter_->m_VertexCount;
+        renderdata->m_VertexData = context->m_VertexBuffer;
+        renderdata->m_VertexIndex = emitter_->m_VertexIndex;
+        renderdata->m_VertexStride = VERTEX_SIZE;
+    }
+
+
     void Render(HContext context, void* render_context, RenderSetUpCallback render_setup_callback, RenderTearDownCallback render_teardown_callback, RenderEmitterCallback render_emitter_callback)
     {
         DM_PROFILE(Particle, "Render");

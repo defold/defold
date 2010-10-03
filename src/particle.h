@@ -2,11 +2,10 @@
 #define DM_PARTICLE_H
 
 #include <vectormath/cpp/vectormath_aos.h>
-
 #include <dlib/configfile.h>
-
 #include <ddf/ddf.h>
-
+#include <graphics/material.h>
+#include <render/rendertypedata.h>
 #include "particle/particle_ddf.h"
 
 using namespace Vectormath::Aos;
@@ -58,9 +57,9 @@ namespace dmParticle
         /// DDF structure read from the resource.
         dmParticleDDF::Emitter* m_DDF;
         /// Texture to use when rendering particles.
-        void*                   m_Texture;
+        dmGraphics::HTexture    m_Texture;
         /// Material to use when rendering particles.
-        void*                   m_Material;
+        dmGraphics::HMaterial   m_Material;
     };
 
     /**
@@ -160,6 +159,10 @@ namespace dmParticle
      * @param dt Time step.
      */
     void                    Update(HContext context, float dt, Matrix4* view);
+
+
+    void                    SetRenderProperties(HContext context, HEmitter emitter, dmRender::SParticleRenderData* renderdata);
+
     /**
      * Render the emitters within the specified context.
      * @param context Context of the emitters to render.
