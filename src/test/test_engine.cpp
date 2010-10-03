@@ -26,6 +26,12 @@ TEST_F(EngineTest, EmptyNewDelete)
 {
 }
 
+TEST_F(EngineTest, ProjectFail)
+{
+    const char* argv[] = {"test_engine", "test.projectc"};
+    dmEngine::Init(m_Engine, 2, (char**)argv);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

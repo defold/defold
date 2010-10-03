@@ -137,15 +137,8 @@ namespace dmEngine
     {
         const char* project_file;
 
-        if (argc > 1)
-        {
-            // Last argument is the config file
-            // Somewhat budget solution.
-            if (argv[argc-1][0] != '-')
-                project_file = argv[argc-1];
-            else
-                project_file = "build/default/content/game.projectc";
-        }
+        if (argc > 1 && argv[argc-1][0] != '-')
+            project_file = argv[argc-1];
         else
             project_file = "build/default/content/game.projectc";
 
