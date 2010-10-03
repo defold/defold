@@ -577,7 +577,8 @@ namespace dmGameObject
 
     void FinalizeScript()
     {
-        lua_close(g_LuaState);
+        if (g_LuaState)
+            lua_close(g_LuaState);
         g_LuaState = 0;
     }
 
