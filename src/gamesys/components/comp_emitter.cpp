@@ -37,7 +37,7 @@ namespace dmGameSystem
         assert(context);
         EmitterContext* ctx = (EmitterContext*)context;
         EmitterWorld* emitter_world = new EmitterWorld();
-        emitter_world->m_Context = dmParticle::CreateContext(ctx->m_ConfigFile);
+        emitter_world->m_Context = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
         *world = emitter_world;
         return dmGameObject::CREATE_RESULT_OK;

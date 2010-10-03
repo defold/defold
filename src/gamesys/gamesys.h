@@ -20,7 +20,8 @@ namespace dmGameSystem
     struct EmitterContext
     {
         dmRender::RenderContext* m_RenderContext;
-        dmConfigFile::HConfig m_ConfigFile;
+        uint32_t m_MaxEmitterCount;
+        uint32_t m_MaxParticleCount;
         bool m_Debug;
     };
 
