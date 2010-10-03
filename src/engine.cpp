@@ -189,12 +189,14 @@ namespace dmEngine
         dmSound::InitializeParams sound_params;
         dmSound::Initialize(config, &sound_params);
 
+        engine->m_RenderWorld = dmRender::NewRenderWorld(100, 100, 0x0);
         engine->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
 
         engine->m_EmitterContext.m_RenderContext = &engine->m_RenderContext;
         engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
         engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
         engine->m_EmitterContext.m_Debug = false;
+        engine->m_EmitterContext.m_RenderWorld = engine->m_RenderWorld;
 
         const uint32_t max_resources = 256;
 
@@ -203,7 +205,6 @@ namespace dmEngine
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
 
-        engine->m_RenderWorld = dmRender::NewRenderWorld(100, 100, 0x0);
 
         dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 100, 1, 0x0, 0x0);
         engine->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
