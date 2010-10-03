@@ -7,20 +7,20 @@
 
 int main(int argc, char *argv[])
 {
-#ifdef __MACH__
-    ProcessSerialNumber psn;
-    OSErr err;
-
-    // Move window to front. Required if running without application bundle.
-    err = GetCurrentProcess( &psn );
-    if (err == noErr)
-        (void) SetFrontProcess( &psn );
-#endif
-
     dmEngine::HEngine engine = dmEngine::New();
     int32_t exit_code = 1;
     if (dmEngine::Init(engine, argc, argv))
     {
+#ifdef __MACH__
+        ProcessSerialNumber psn;
+        OSErr err;
+
+        // Move window to front. Required if running without application bundle.
+        err = GetCurrentProcess( &psn );
+        if (err == noErr)
+            (void) SetFrontProcess( &psn );
+#endif
+
         exit_code = dmEngine::Run(engine);
     }
 
