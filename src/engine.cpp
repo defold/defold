@@ -200,7 +200,7 @@ namespace dmEngine
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max_resources;
-        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
 
         engine->m_RenderWorld = dmRender::NewRenderWorld(100, 100, 0x0);
@@ -309,6 +309,7 @@ namespace dmEngine
             dmProfile::Begin();
             {
                 DM_PROFILE(Main, "Frame");
+                dmResource::UpdateFactory(engine->m_Factory);
                 Reload(engine);
 
                 dmHID::Update();
