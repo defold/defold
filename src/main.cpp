@@ -1,3 +1,4 @@
+#include <dlib/socket.h>
 #include "engine.h"
 
 #ifdef __MACH__
@@ -7,6 +8,8 @@
 
 int main(int argc, char *argv[])
 {
+    dmSocket::Initialize();
+
     dmEngine::HEngine engine = dmEngine::New();
     int32_t exit_code = 1;
     if (dmEngine::Init(engine, argc, argv))
@@ -25,6 +28,7 @@ int main(int argc, char *argv[])
     }
 
     dmEngine::Delete(engine);
+    dmSocket::Finalize();
 
     return exit_code;
 }
