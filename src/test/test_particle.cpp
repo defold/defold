@@ -13,7 +13,7 @@ class ParticleTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_Context = dmParticle::CreateContext(0x0);
+        m_Context = dmParticle::CreateContext(64, 1024);
         assert(m_Context != 0);
         m_Prototype.m_DDF = 0;
         m_Prototype.m_Material = 0;

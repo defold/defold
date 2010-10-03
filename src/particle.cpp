@@ -12,6 +12,11 @@ namespace dmParticle
 {
     using namespace dmParticleDDF;
 
+    /// Config key to use for tweaking maximum number of emitters in a context.
+    const char* MAX_EMITTER_COUNT_KEY        = "particle_system.max_emitter_count";
+    /// Config key to use for tweaking the total maximum number of particles in a context.
+    const char* MAX_PARTICLE_COUNT_KEY       = "particle_system.max_particle_count";
+
     uint32_t PARTICLE_PROPERTY_INDICES[dmParticleDDF::PARTICLE_KEY_COUNT] =
     {
         0, // PARTICLE_KEY_VELOCITY
@@ -19,9 +24,9 @@ namespace dmParticle
         4 // PARTICLE_KEY_ALPHA
     };
 
-    HContext CreateContext(dmConfigFile::HConfig config)
+    HContext CreateContext(uint32_t max_emitter_count, uint32_t max_particle_count)
     {
-        return new Context(config);
+        return new Context(max_emitter_count, max_particle_count);
     }
 
     void DestroyContext(HContext context)

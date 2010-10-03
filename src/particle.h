@@ -34,6 +34,11 @@ namespace dmParticle
      */
     const HEmitter INVALID_EMITTER = 0;
 
+    /// Config key to use for tweaking maximum number of emitters in a context.
+    extern const char* MAX_EMITTER_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context.
+    extern const char* MAX_PARTICLE_COUNT_KEY;
+
     typedef void (*RenderSetUpCallback)(void* render_context, float* vertex_buffer, uint32_t vertex_size);
     typedef void (*RenderTearDownCallback)(void* render_context);
     typedef void (*RenderEmitterCallback)(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
@@ -61,10 +66,11 @@ namespace dmParticle
     /**
      * Create a context.
      * @param render_context Context for use when rendering.
-     * @param config Configuration of the context.
+     * @param max_emitter_count Max number of emitters
+     * @param max_particle_count Max number of particles
      * @return Context handle, or INVALID_CONTEXT when out of memory.
      */
-    HContext                CreateContext(dmConfigFile::HConfig config);
+    HContext                CreateContext(uint32_t max_emitter_count, uint32_t max_particle_count);
     /**
      * Destroy a context.
      * @param context Context to destroy. This will also destroy any remaining emitters.

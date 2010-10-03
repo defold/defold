@@ -12,10 +12,6 @@ namespace dmParticle
     static const uint32_t VERTEX_FIELD_COUNT        = 6;
     /// Byte size of a vertex.
     static const uint32_t VERTEX_SIZE               = sizeof(float) * VERTEX_FIELD_COUNT;
-    /// Config key to use for tweaking maximum number of emitters in a context.
-    static const char* MAX_EMITTER_COUNT_KEY        = "particle_system.max_emitter_count";
-    /// Config key to use for tweaking the total maximum number of particles in a context.
-    static const char* MAX_PARTICLE_COUNT_KEY       = "particle_system.max_particle_count";
     /// Index of different particle properties in the property buffer.
     extern uint32_t PARTICLE_PROPERTY_INDICES[dmParticleDDF::PARTICLE_KEY_COUNT];
     /// Maximum number of float fields which define all properties of a particle.
@@ -108,16 +104,9 @@ namespace dmParticle
      */
     struct Context
     {
-        Context(dmConfigFile::HConfig config)
+        Context(uint32_t max_emitter_count, uint32_t max_particle_count)
         : m_NextVersionNumber(1)
         {
-            int32_t max_emitter_count = 64;
-            int32_t max_particle_count = 1024;
-            if (config != 0x0)
-            {
-                max_emitter_count = dmConfigFile::GetInt(config, MAX_EMITTER_COUNT_KEY, max_emitter_count);
-                max_particle_count = dmConfigFile::GetInt(config, MAX_PARTICLE_COUNT_KEY, max_particle_count);
-            }
             m_Emitters.SetCapacity(max_emitter_count);
             m_Emitters.SetSize(max_emitter_count);
             for (uint32_t i = 0; i < m_Emitters.Size(); ++i)
