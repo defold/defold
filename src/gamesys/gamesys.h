@@ -22,6 +22,7 @@ namespace dmGameSystem
         dmRender::RenderContext* m_RenderContext;
         uint32_t m_MaxEmitterCount;
         uint32_t m_MaxParticleCount;
+        dmRender::HRenderWorld m_RenderWorld;
         bool m_Debug;
     };
 

@@ -9,13 +9,14 @@
 
 #include <graphics/graphics_device.h>
 #include <graphics/material.h>
+#include <render/rendertypedata.h>
 #include <render_debug/debugrenderer.h>
 
 #include "gamesys.h"
 
 namespace dmGameSystem
 {
-    const uint8_t MAX_COUNT = 64;
+    const uint32_t MAX_COUNT = 64;
 
     struct EmitterWorld;
 
@@ -23,6 +24,8 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance m_Instance;
         dmParticle::HEmitter m_Emitter;
+        dmRender::HRenderObject m_RenderObject;
+        dmRender::SParticleRenderData m_RenderProperties;
         EmitterWorld* m_World;
     };
 
@@ -30,6 +33,7 @@ namespace dmGameSystem
     {
         dmParticle::HContext m_Context;
         dmArray<Emitter> m_Emitters;
+        dmRender::HRenderWorld m_RenderCollection;
     };
 
     dmGameObject::CreateResult CompEmitterNewWorld(void* context, void** world)
@@ -39,6 +43,7 @@ namespace dmGameSystem
         EmitterWorld* emitter_world = new EmitterWorld();
         emitter_world->m_Context = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
+        emitter_world->m_RenderCollection = dmRender::NewRenderWorld(100, 10, 0x0);
         *world = emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -47,6 +52,7 @@ namespace dmGameSystem
     {
         EmitterWorld* emitter_world = (EmitterWorld*)world;
         dmParticle::DestroyContext(emitter_world->m_Context);
+        dmRender::DeleteRenderWorld(emitter_world->m_RenderCollection);
         delete emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -67,6 +73,7 @@ namespace dmGameSystem
             emitter.m_Instance = instance;
             emitter.m_Emitter = dmParticle::CreateEmitter(w->m_Context, prototype);
             emitter.m_World = w;
+            emitter.m_RenderObject = dmRender::NewRenderObjectInstance(w->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLE);
             w->m_Emitters.Push(emitter);
             *user_data = (uintptr_t)&w->m_Emitters[w->m_Emitters.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
@@ -85,15 +92,18 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         EmitterWorld* w = (EmitterWorld*)world;
-        for (uint8_t i = 0; i < w->m_Emitters.Size(); ++i)
+        for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             if (w->m_Emitters[i].m_Instance == instance)
             {
                 dmParticle::DestroyEmitter(w->m_Context, w->m_Emitters[i].m_Emitter);
+                dmRender::DeleteRenderObject(w->m_RenderCollection, w->m_Emitters[i].m_RenderObject);
                 w->m_Emitters.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
             }
         }
+
+
         dmLogError("Destroyed emitter could not be found, something is fishy.");
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
@@ -108,6 +118,7 @@ namespace dmGameSystem
             void* world,
             void* context)
     {
+
         EmitterWorld* w = (EmitterWorld*)world;
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
@@ -118,8 +129,17 @@ namespace dmGameSystem
         EmitterContext* ctx = (EmitterContext*)context;
         dmParticle::Update(w->m_Context, update_context->m_DT, &ctx->m_RenderContext->m_View);
 
-        dmParticle::Render(w->m_Context, ctx->m_RenderContext, RenderSetUpCallback, RenderTearDownCallback, RenderEmitterCallback);
+        for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
+        {
+            Emitter& emitter = w->m_Emitters[i];
+            dmParticle::SetRenderProperties(w->m_Context, emitter.m_Emitter, &emitter.m_RenderProperties);
+            dmRender::SetData(emitter.m_RenderObject, (void*)&emitter.m_RenderProperties);
+        }
+        if (w->m_Emitters.Size())
+            dmRender::AddToRender(w->m_RenderCollection, ctx->m_RenderWorld);
 
+
+#if 0
         if (ctx->m_Debug)
         {
             dmGraphics::HContext gfx_context = ctx->m_RenderContext->m_GFXContext;
@@ -129,7 +149,7 @@ namespace dmGameSystem
 
             dmParticle::DebugRender(w->m_Context, &ctx->m_RenderContext, RenderLineCallback);
         }
-
+#endif
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
