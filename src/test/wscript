@@ -1,0 +1,18 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+import os, sys
+import waf_gamesys
+
+def build(bld):
+    obj = bld.new_task_gen(
+        features = 'cc cxx cprogram',
+        uselib = 'GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER RENDERDEBUG PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DMGLFW PARTICLE GUI SOUND ALUT',
+        uselib_local = 'engine',
+        includes = '../build ../proto .',
+        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+        defines = '_XBOX',
+        proto_gen_py = True,
+        protoc_includes = '../proto',
+        target = 'test_engine')
+    obj.find_sources_in_dirs('.')
+    obj.install_path = None

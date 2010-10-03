@@ -27,6 +27,7 @@ def build(bld):
         target = 'dmengine',
         source='main.cpp')
 
+    bld.add_subdirs('test')
+
 def configure(conf):
     pass
-

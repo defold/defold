@@ -18,6 +18,8 @@
 
 #include <gui/gui.h>
 
+#include <particle/particle.h>
+
 #include <gameobject/gameobject_ddf.h>
 
 #include <gamesys/physics_ddf.h>
@@ -72,6 +74,7 @@ namespace dmEngine
     , m_WarpTimeStep(false)
     , m_TimeStepFactor(1.0f)
     , m_TimeStepMode(dmEngineDDF::TIME_STEP_MODE_DISCRETE)
+    , m_Factory(0x0)
     , m_Font(0x0)
     , m_FontRenderer(0x0)
     , m_SmallFont(0x0)
@@ -80,6 +83,8 @@ namespace dmEngine
     , m_RenderdebugFragmentProgram(0x0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
+    , m_RenderWorld(0x0)
+    , m_RenderPass(0x0)
     {
         m_Register = dmGameObject::NewRegister(Dispatch, this);
         m_Collections.SetCapacity(16, 32);
@@ -102,7 +107,8 @@ namespace dmEngine
     void Delete(HEngine engine)
     {
         engine->m_Collections.Iterate<Engine>(DeleteCollection, engine);
-        dmResource::Release(engine->m_Factory, engine->m_MainCollection);
+        if (engine->m_MainCollection)
+            dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::DeleteRegister(engine->m_Register);
 
         UnloadBootstrapContent(engine);
@@ -115,15 +121,14 @@ namespace dmEngine
 
         dmGameObject::Finalize();
 
-        dmResource::DeleteFactory(engine->m_Factory);
+        if (engine->m_Factory)
+            dmResource::DeleteFactory(engine->m_Factory);
 
         dmGraphics::DestroyDevice();
 
         glfwTerminate();
 
         dmProfile::Finalize();
-
-        dmConfigFile::Delete(engine->m_Config);
 
         delete engine;
     }
@@ -144,7 +149,8 @@ namespace dmEngine
         else
             project_file = "build/default/content/game.projectc";
 
-        dmConfigFile::Result config_result = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
+        dmConfigFile::HConfig config;
+        dmConfigFile::Result config_result = dmConfigFile::Load(project_file, argc, (const char**) argv, &config);
         if (config_result != dmConfigFile::RESULT_OK)
         {
             dmLogError("Unable to load %s", project_file);
@@ -159,8 +165,8 @@ namespace dmEngine
         dmGraphics::HDevice device;
         dmGraphics::CreateDeviceParams graphics_params;
 
-        graphics_params.m_DisplayWidth = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
-        graphics_params.m_DisplayHeight = dmConfigFile::GetInt(engine->m_Config, "display.height", 540);
+        graphics_params.m_DisplayWidth = dmConfigFile::GetInt(config, "display.width", 960);
+        graphics_params.m_DisplayHeight = dmConfigFile::GetInt(config, "display.height", 540);
         graphics_params.m_AppTitle = "After Man: Fall of the Sentinels";
         graphics_params.m_Fullscreen = false;
         graphics_params.m_PrintDeviceInfo = false;
@@ -181,12 +187,13 @@ namespace dmEngine
         dmHID::Initialize();
 
         dmSound::InitializeParams sound_params;
-        dmSound::Initialize(engine->m_Config, &sound_params);
+        dmSound::Initialize(config, &sound_params);
 
         engine->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
 
         engine->m_EmitterContext.m_RenderContext = &engine->m_RenderContext;
-        engine->m_EmitterContext.m_ConfigFile = engine->m_Config;
+        engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
+        engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
         engine->m_EmitterContext.m_Debug = false;
 
         const uint32_t max_resources = 256;
@@ -202,7 +209,7 @@ namespace dmEngine
         engine->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
         dmRender::AddRenderPass(engine->m_RenderWorld, engine->m_RenderPass);
 
-        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(engine->m_Config, "resource.uri", "build/default/content"));
+        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
         dmPhysics::SetDebugRenderer(&engine->m_RenderContext, PhysicsDebugRender::RenderLine);
 
@@ -220,17 +227,17 @@ namespace dmEngine
         if (res != dmGameObject::RESULT_OK)
             return false;
 
-        float repeat_delay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
-        float repeat_interval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
+        float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
+        float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
 
-        if (!LoadBootstrapContent(engine, engine->m_Config))
+        if (!LoadBootstrapContent(engine, config))
         {
             dmLogWarning("Unable to load bootstrap data.");
             return false;
         }
 
-        dmResource::FactoryResult fact_e = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
+        dmResource::FactoryResult fact_e = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_e != dmResource::FACTORY_RESULT_OK)
             return false;
         dmGameObject::Init(engine->m_MainCollection);
@@ -241,6 +248,8 @@ namespace dmEngine
         {
             engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
         }
+
+        dmConfigFile::Delete(config);
 
         return true;
     }
