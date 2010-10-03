@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <dlib/http_client.h>
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <dlib/thread.h>
-#include <dlib/http_client.h>
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
