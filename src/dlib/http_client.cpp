@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "math.h"
 #include "./socket.h"
 #include "./socks_proxy.h"
 #include "http_client.h"
@@ -19,7 +20,12 @@ namespace dmHttpClient
         int m_Major;
         int m_Minor;
         int m_Status;
+
+        // Offset to actual content in Client.m_Buffer,
+        // ie after meta-data such as http-headers or chunk-size for transferring data with chunked encoding.
         int m_ContentOffset;
+        // Total amount of data received in Client.m_Buffer
+        int m_TotalReceived;
 
         // Headers
         int      m_ContentLength;
@@ -31,10 +37,22 @@ namespace dmHttpClient
             m_Client = client;
             m_ContentLength = -1;
             m_ContentOffset = -1;
+            m_TotalReceived = 0;
             m_Chunked = 0;
             m_CloseConnection = 0;
         }
     };
+
+    /*
+     Client.m_Buffer layout
+
+     |-------------------------------------------------------------------------|
+     |                    |                               |                    |
+     |      Meta-data     |        Content                |                    |X (extra byte for null termination)
+     |                    |                               |                    |
+     |-------------------------------------------------------------------------|
+         m_ContentOffset ->             m_TotalReceived ->          BUFFER_SIZE->
+     */
 
     struct Client
     {
@@ -50,7 +68,7 @@ namespace dmHttpClient
         int                 m_MaxGetRetries;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
-        char              m_Buffer[BUFFER_SIZE + 1];
+        char                m_Buffer[BUFFER_SIZE + 1];
     };
 
     static void DefaultHttpContentData(HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
@@ -206,16 +224,15 @@ namespace dmHttpClient
     static void HandleHeader(void* user_data, const char* key, const char* value)
     {
         Response* resp = (Response*) user_data;
-
         if (strcmp(key, "Content-Length") == 0)
         {
             resp->m_ContentLength = strtol(value, 0, 10);
         }
-        else if (strcmp(key, "Transfer-Encoding") == 0 && strcmp(key, "chunked") == 0)
+        else if (strcmp(key, "Transfer-Encoding") == 0 && strcmp(value, "chunked") == 0)
         {
             resp->m_Chunked = 1;
         }
-        else if (strcmp(key, "Connection") == 0 && strcmp(key, "close") == 0)
+        else if (strcmp(key, "Connection") == 0 && strcmp(value, "close") == 0)
         {
             resp->m_CloseConnection = 1;
         }
@@ -233,9 +250,9 @@ namespace dmHttpClient
         resp->m_ContentOffset = offset;
     }
 
-    static Result RecvAndParseHeaders(HClient client, Response* response, int* total_recv_out)
+    static Result RecvAndParseHeaders(HClient client, Response* response)
     {
-        *total_recv_out = 0;
+        response->m_TotalReceived = 0;
         int total_recv = 0;
 
         while (1)
@@ -252,14 +269,13 @@ namespace dmHttpClient
             if (r == dmSocket::RESULT_TRY_AGAIN)
                 continue;
 
-            total_recv += recv_bytes;
-
             if (r != dmSocket::RESULT_OK)
             {
                 client->m_SocketResult = r;
                 return RESULT_SOCKET_ERROR;
             }
 
+            total_recv += recv_bytes;
 
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
             client->m_Buffer[total_recv] = '\0';
@@ -289,7 +305,7 @@ namespace dmHttpClient
             }
         }
 
-        *total_recv_out = total_recv;
+        response->m_TotalReceived = total_recv;
         return RESULT_OK;
     }
 
@@ -318,10 +334,77 @@ bail:
         return sock_res;
     }
 
+    static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content)
+    {
+        int total_transferred = 0;
+
+        while (true)
+        {
+            int n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
+            http_content(client, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
+            total_transferred += n;
+            assert(total_transferred <= to_transfer);
+            response->m_ContentOffset += n;
+
+            if (total_transferred == to_transfer)
+            {
+                // Move "extra" bytes to buffer start
+                memmove(client->m_Buffer, client->m_Buffer + response->m_ContentOffset, response->m_TotalReceived - response->m_ContentOffset);
+                response->m_TotalReceived = response->m_TotalReceived - response->m_ContentOffset;
+                response->m_ContentOffset = 0;
+                break;
+            }
+
+            assert(response->m_TotalReceived - response->m_ContentOffset == 0);
+            response->m_ContentOffset = 0;
+            response->m_TotalReceived = 0;
+
+            int recv_bytes;
+            dmSocket::Result sock_res = dmSocket::Receive(client->m_Socket, client->m_Buffer, BUFFER_SIZE, &recv_bytes);
+            if (sock_res == dmSocket::RESULT_OK)
+            {
+                if (recv_bytes == 0)
+                {
+                    break;
+                }
+                else
+                {
+                    response->m_TotalReceived = recv_bytes;
+                }
+            }
+            else if (sock_res == dmSocket::RESULT_TRY_AGAIN)
+            {
+
+            }
+            else
+            {
+                return RESULT_SOCKET_ERROR;
+            }
+        }
+        assert(total_transferred <= to_transfer);
+
+        if (total_transferred != to_transfer)
+        {
+            return RESULT_PARTIAL_CONTENT;
+        }
+        else
+        {
+            return RESULT_OK;
+        }
+    }
+
+    static void HttpContentConsume(HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    {
+        (void) client;
+        (void) user_data;
+        (void) status_code;
+        (void) content_data;
+        (void) content_data_size;
+    }
+
     Result DoGet(HClient client, const char* path)
     {
         Response response(client);
-        int total_content;
 
         client->m_SocketResult = dmSocket::RESULT_OK;
         Result r = Connect(client);
@@ -333,11 +416,12 @@ bail:
 
         if (sock_res != dmSocket::RESULT_OK)
         {
-            goto bail;
+            dmSocket::Delete(client->m_Socket);
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            return RESULT_SOCKET_ERROR;
         }
 
-        int total_recv;
-        r = RecvAndParseHeaders(client, &response, &total_recv);
+        r = RecvAndParseHeaders(client, &response);
         if (r != RESULT_OK)
         {
             dmSocket::Delete(client->m_Socket);
@@ -347,69 +431,114 @@ bail:
 
         if (response.m_Chunked)
         {
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-            return RESULT_UNSUPPORTED_TRANSFER_ENCODING;
+            // Ok
         }
-
-        if (response.m_ContentLength == -1)
+        else if (response.m_ContentLength == -1)
         {
+            // If not chunked we require Content-Length attribute to be set.
             dmSocket::Delete(client->m_Socket);
             client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_MISSING_CONTENT_LENGTH;
         }
 
-        assert(response.m_ContentOffset != -1);
-        client->m_HttpContent(client, client->m_Userdata, response.m_Status, client->m_Buffer + response.m_ContentOffset, total_recv - response.m_ContentOffset);
-
-        total_content = total_recv - response.m_ContentOffset;
-        while (total_content < response.m_ContentLength)
+        if (response.m_Chunked)
         {
-            int recv_bytes;
-            sock_res = dmSocket::Receive(client->m_Socket, client->m_Buffer, BUFFER_SIZE, &recv_bytes);
-            if (sock_res == dmSocket::RESULT_OK)
+            // Chunked encoding
+            // Move actual data to the beginning of the buffer
+            memmove(client->m_Buffer, client->m_Buffer + response.m_ContentOffset, response.m_TotalReceived - response.m_ContentOffset);
+
+            response.m_TotalReceived = response.m_TotalReceived - response.m_ContentOffset;
+            response.m_ContentOffset = 0;
+
+            int chunk_size;
+            int chunk_number = 0;
+            while(true)
             {
-                if (recv_bytes == 0)
+                chunk_size = 0;
+                // NOTE: We have an extra byte for null-termination so no buffer overrun here.
+                client->m_Buffer[response.m_TotalReceived] = '\0';
+
+                char* chunk_size_end = strstr(client->m_Buffer, "\r\n");
+                if (chunk_size_end)
                 {
-                    break;
+                    // We found a chunk
+                    sscanf(client->m_Buffer, "%x", &chunk_size);
+                    chunk_size_end += 2; // "\r\n"
+
+                    // Move content-offset after chunk termination, ie after "\r\n"
+                    response.m_ContentOffset = chunk_size_end - client->m_Buffer;
+                    r = DoTransfer(client, &response, chunk_size, client->m_HttpContent);
+                    if (r != RESULT_OK)
+                        break;
+
+                    // Consume \r\n"
+                    r = DoTransfer(client, &response, 2, &HttpContentConsume);
+                    if (r != RESULT_OK)
+                        break;
+
+                    if (chunk_size == 0)
+                    {
+                        r = RESULT_OK;
+                        break;
+                    }
+
+                    ++chunk_number;
                 }
                 else
                 {
-                    client->m_HttpContent(client, client->m_Userdata, response.m_Status, client->m_Buffer, recv_bytes);
-                    total_content += recv_bytes;
+                    // We need more data
+                    int max_to_recv = BUFFER_SIZE - response.m_TotalReceived;
+
+                    if (max_to_recv <= 0)
+                    {
+                        dmSocket::Delete(client->m_Socket);
+                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                        return RESULT_HTTP_HEADERS_ERROR;
+                    }
+
+                    int recv_bytes;
+                    dmSocket::Result sock_r = dmSocket::Receive(client->m_Socket, client->m_Buffer + response.m_TotalReceived, max_to_recv, &recv_bytes);
+                    if (sock_r == dmSocket::RESULT_TRY_AGAIN)
+                        continue;
+
+                    if (sock_r != dmSocket::RESULT_OK)
+                    {
+                        dmSocket::Delete(client->m_Socket);
+                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                        return RESULT_SOCKET_ERROR;
+                    }
+                    response.m_TotalReceived += recv_bytes;
                 }
             }
-            else if (sock_res == dmSocket::RESULT_TRY_AGAIN)
-            {
-
-            }
-            else
-            {
-                goto bail;
-            }
         }
-
-        if (response.m_CloseConnection)
-        {
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-        }
-
-        if (total_content != response.m_ContentLength)
-        {
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-            return RESULT_PARTIAL_CONTENT;
-        }
-
-        if (response.m_Status == 200)
-            return RESULT_OK;
         else
-            return RESULT_NOT_200_OK;
-bail:
-        dmSocket::Delete(client->m_Socket);
-        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-        return RESULT_SOCKET_ERROR;
+        {
+            // "Regular" transfer, single chunk
+            assert(response.m_ContentOffset != -1);
+            r = DoTransfer(client, &response, response.m_ContentLength, client->m_HttpContent);
+        }
+
+        assert(response.m_TotalReceived == 0);
+
+        if (r == RESULT_OK)
+        {
+            if (response.m_CloseConnection)
+            {
+                dmSocket::Delete(client->m_Socket);
+                client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            }
+
+            if (response.m_Status == 200)
+                return RESULT_OK;
+            else
+                return RESULT_NOT_200_OK;
+        }
+        else
+        {
+            dmSocket::Delete(client->m_Socket);
+            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+        return r;
     }
 
     Result Get(HClient client, const char* path)

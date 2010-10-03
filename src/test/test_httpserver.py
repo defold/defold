@@ -15,8 +15,9 @@ class TestHttpServer(unittest.TestCase):
             self.assertEqual(200, r.status)
             buf = r.read()
             self.assertEqual(l, len(buf))
-            for x in buf:
-                self.assertEqual(x, 'x')
+            for i, x in enumerate(buf):
+                char = ord('a') + ((i*97 + l) % (ord('z') - ord('a')))
+                self.assertEqual(x, chr(char))
 
     def testMulNumbers(self):
         c = httplib.HTTPConnection('localhost:8500')

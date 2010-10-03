@@ -10,7 +10,7 @@
 #include "../dlib/dstrings.h"
 #include "../dlib/http_server.h"
 #include "../dlib/http_server_private.h"
-
+#include "../dlib/http_client.h"
 
 class dmHttpServerTest: public ::testing::Test
 {
@@ -21,7 +21,9 @@ public:
     int m_Major, m_Minor;
     int m_ContentOffset;
     std::string m_RequestMethod, m_Resource;
-    bool m_Quit;
+    volatile bool m_Quit;
+    std::string m_ClientData;
+    volatile bool m_ServerStarted;
 
     static void HttpHeader(void* user_data, const char* key, const char* value)
     {
@@ -41,17 +43,22 @@ public:
         {
             int n;
             sscanf(self->m_Resource.c_str(), "/respond_with_n/%d", &n);
-            char buf[17];
-            for (uint32_t i = 0; i < sizeof(buf); ++i)
+
+            std::string buf;
+            for (int i = 0; i < n; ++i)
             {
-                buf[i] = 'x';
+                int c = (n + i*97) % ('z' - 'a');
+                char s[2] = { 'a' + c, '\0' };
+                buf.append(s, 1);
             }
 
+            int sent_bytes = 0;
             while (n > 0)
             {
-                int n_to_send = dmMath::Min((int) sizeof(buf), n);
-                dmHttpServer::Send(request, buf, n_to_send);
+                int n_to_send = dmMath::Min(17, n);
+                dmHttpServer::Send(request, buf.c_str() + sent_bytes, n_to_send);
                 n -= n_to_send;
+                sent_bytes += n_to_send;
             }
         }
         else if (strstr(self->m_Resource.c_str(), "/mul/"))
@@ -79,9 +86,31 @@ public:
         }
     }
 
+    static void ClientHttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    {
+        dmHttpServerTest* self = (dmHttpServerTest*) user_data;
+        self->m_ClientData.append((const char*) content_data, content_data_size);
+    }
+
+    static void ServerThread(void* user_data)
+    {
+        dmHttpServerTest* self = (dmHttpServerTest*) user_data;
+        self->m_ServerStarted = true;
+        int iter = 0;
+        while (!self->m_Quit && iter < 10000)
+        {
+            dmHttpServer::Update(self->m_Server);
+            dmTime::Sleep(1000 * 10);
+            ++iter;
+        }
+        ASSERT_LE(iter, 10000);
+    }
+
     virtual void SetUp()
     {
         m_Quit = false;
+        m_ServerStarted = false;
+        m_ClientData = "";
         dmHttpServer::NewParams params;
         params.m_ConnectionTimeout = 20;
         params.m_Userdata = this;
@@ -200,7 +229,6 @@ void RunPythonThread(void*)
 TEST_F(dmHttpServerTest, TestServer)
 {
     dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0);
-    //ASSERT_EQ(0, ret);
     int iter = 0;
     while (!m_Quit && iter < 1000)
     {
@@ -209,6 +237,50 @@ TEST_F(dmHttpServerTest, TestServer)
         ++iter;
     }
     ASSERT_LE(iter, 1000);
+    dmThread::Join(thread);
+}
+
+TEST_F(dmHttpServerTest, TestServerClient)
+{
+    dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this);
+
+    while (!m_ServerStarted)
+    {
+        dmTime::Sleep(10 * 1000);
+    }
+
+    dmHttpClient::NewParams client_params;
+    client_params.m_HttpContent = &ClientHttpContent;
+    client_params.m_Userdata = this;
+    dmHttpClient::HClient client = dmHttpClient::New(&client_params, "localhost", 8500);
+
+    dmHttpClient::Result r;
+    m_ClientData = "";
+    r = dmHttpClient::Get(client, "/mul/10/20");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_STREQ("30", m_ClientData.c_str());
+
+    for (int i = 0; i < 5000; i += 97)
+    {
+        char uri[64];
+        DM_SNPRINTF(uri, sizeof(uri), "/respond_with_n/%d", i);
+        m_ClientData = "";
+
+        r = dmHttpClient::Get(client, uri);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+
+        ASSERT_EQ(i, (int) m_ClientData.size());
+
+        for (int j = 0; j < i; ++j)
+        {
+            int c = 'a' + ((i + j*97) % ('z' - 'a'));
+            ASSERT_EQ((char) c, m_ClientData[j]);
+        }
+    }
+
+    r = dmHttpClient::Get(client, "/quit");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+
     dmThread::Join(thread);
 }
 
