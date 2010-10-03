@@ -17,6 +17,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/http_client.h>
+#include <dlib/http_server.h>
 #include <dlib/uri.h>
 
 #include "resource.h"
@@ -54,6 +55,8 @@ const uint32_t RESOURCE_PATH_MAX = 1024;
 
 const uint32_t MAX_RESOURCE_TYPES = 128;
 
+static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* resource_size);
+
 struct SResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
@@ -77,6 +80,9 @@ struct SResourceFactory
     uint32_t                                     m_HttpTotalBytesStreamed;
     int                                          m_HttpStatus;
     FactoryResult                                m_HttpFactoryResult;
+
+    // HTTP server
+    dmHttpServer::HServer                        m_HttpServer;
 };
 
 static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -146,6 +152,92 @@ static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code,
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
+struct HtmlStatusContext
+{
+    HFactory                     m_Factory;
+    const dmHttpServer::Request* m_Request;
+};
+
+void SentHtmlStatus(HtmlStatusContext* context, const uint64_t* resource_hash, const char** file_name)
+{
+    SResourceDescriptor* rd = context->m_Factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+
+    char tmp[32];
+    DM_SNPRINTF(tmp, sizeof(tmp), "%d", rd->m_ReferenceCount);
+
+    dmHttpServer::Send(context->m_Request, "<td>", strlen("<td>"));
+    dmHttpServer::Send(context->m_Request, *file_name, strlen(*file_name));
+
+    dmHttpServer::Send(context->m_Request, "<td>", strlen("<td>"));
+    dmHttpServer::Send(context->m_Request, tmp, strlen(tmp));
+
+    dmHttpServer::Send(context->m_Request, "<tr/>", strlen("<tr/>"));
+}
+
+void HttpServerHeader(void* user_data, const char* key, const char* value)
+{
+    (void) user_data;
+    (void) key;
+    (void) value;
+}
+
+void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
+{
+    SResourceFactory* factory = (SResourceFactory*) user_data;
+
+    if (strncmp(request->m_Resource, "/reload/", strlen("/reload/")) == 0)
+    {
+        const char* name = request->m_Resource + strlen("/reload/");
+
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+
+        uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
+
+        SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+        if (rd)
+        {
+            SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+            if (!resource_type->m_RecreateFunction)
+            {
+                dmLogWarning("Reloading of resource type %s not supported", resource_type->m_Extension);
+                return;
+            }
+
+            uint32_t file_size;
+            FactoryResult result = LoadResource(factory, canonical_path, &file_size);
+            if (result != FACTORY_RESULT_OK)
+            {
+                return;
+            }
+
+            CreateResult create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
+            (void) create_result;
+        }
+        else
+        {
+            dmLogWarning("Unable to reload resource %s. Resource not loaded", name);
+        }
+    }
+    else if(strcmp("/", request->m_Resource) == 0)
+    {
+        HtmlStatusContext context;
+        context.m_Factory = factory;
+        context.m_Request = request;
+        if (factory->m_ResourceHashToFilename)
+        {
+            dmHttpServer::Send(request, "<table>", strlen("<table>"));
+
+            const char* th = "<td><b>Filename</b></td><td><b>Reference count</b></td><tr/>";
+            dmHttpServer::Send(request, th, strlen(th));
+
+            factory->m_ResourceHashToFilename->Iterate(&SentHtmlStatus, &context);
+            dmHttpServer::Send(request, "</table>", strlen("</table>"));
+        }
+    }
+}
+
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
     // NOTE: We need an extra byte for null-termination.
@@ -207,6 +299,26 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
     factory->m_ResourceToHash->SetCapacity(table_size, params->m_MaxResources);
 
+
+    factory->m_HttpServer = 0;
+    if (params->m_Flags & RESOURCE_FACTORY_FLAGS_HTTP_SERVER)
+    {
+        // http support implies this flag implicitly
+        params->m_Flags |= RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+        uint16_t port = 8001;
+        dmHttpServer::NewParams http_server_params;
+        http_server_params.m_Userdata = factory;
+        http_server_params.m_HttpHeader = HttpServerHeader;
+        http_server_params.m_HttpResponse = HttpServerResponse;
+
+        dmHttpServer::Result r = dmHttpServer::New(&http_server_params, port, &factory->m_HttpServer);
+        if (r != dmHttpServer::RESULT_OK)
+        {
+            dmLogWarning("Unable to start http server on port: %d", port);
+        }
+    }
+
     if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
         factory->m_ResourceHashToFilename = new dmHashTable<uint64_t, const char*>();
@@ -227,10 +339,20 @@ void DeleteFactory(HFactory factory)
     {
         dmHttpClient::Delete(factory->m_HttpClient);
     }
+    if (factory->m_HttpServer)
+    {
+        dmHttpServer::Delete(factory->m_HttpServer);
+    }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     delete factory->m_ResourceHashToFilename;
     delete factory;
+}
+
+void UpdateFactory(HFactory factory)
+{
+    if (factory->m_HttpServer)
+        dmHttpServer::Update(factory->m_HttpServer);
 }
 
 FactoryResult RegisterType(HFactory factory,

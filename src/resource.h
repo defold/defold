@@ -10,12 +10,23 @@
 
 namespace dmResource
 {
+    /**
+     * Empty flags
+     */
+    #define RESOURCE_FACTORY_FLAGS_EMPTY            (0)
 
     /**
-     * Factory flags
+     * Enable resource reloading support. Both over files and http.
      */
-    #define RESOURCE_FACTORY_FLAGS_EMPTY            (0)    //!< FACTORY_FLAGS_EMPTY
-    #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0) //!< FACTORY_FLAGS_RELOAD_SUPPORT
+    #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
+
+    /**
+     * Enable internal http server support. Added this flag implicitly implies #RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
+     * URI:s supported
+     *   Reload resource:  http://host:8001/reload/PATH
+     *   Resources loaded: http://host:8001/
+     */
+    #define RESOURCE_FACTORY_FLAGS_HTTP_SERVER    (1 << 1)
 
     /**
      * Factory result
@@ -174,6 +185,12 @@ namespace dmResource
      * @param factory Factory handle
      */
     void DeleteFactory(HFactory factory);
+
+    /**
+     * Update resource factory. Required to be called periodically when http server support is enabled.
+     * @param factory Factory handle
+     */
+    void UpdateFactory(HFactory factory);
 
     /**
      * Register a resource type

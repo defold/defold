@@ -3,6 +3,8 @@
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <dlib/thread.h>
+#include <dlib/http_client.h>
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
@@ -160,6 +162,7 @@ dmResource::CreateResult ResourceContainerCreate(dmResource::HFactory factory,
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename)
 {
+    (void) factory;
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_ResourceContainerCreateCallCount++;
 
@@ -462,6 +465,79 @@ TEST(RecreateTest, RecreateTest)
     fclose(f);
 
     fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    ASSERT_EQ(456, *resource);
+
+    unlink(file_name);
+    fr = dmResource::ReloadType(factory, type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+
+    dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
+}
+
+volatile bool SendReloadDone = false;
+void SendReloadThread(void*)
+{
+    dmHttpClient::NewParams params;
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 8001);
+    dmHttpClient::Get(client, "/reload/__testrecreate__.foo");
+    dmHttpClient::Delete(client);
+    SendReloadDone = true;
+}
+
+TEST(RecreateTest, RecreateTestHttp)
+{
+    const char* tmp_dir = 0;
+#if defined(_MSC_VER)
+    tmp_dir = ".";
+#else
+    tmp_dir = "/tmp";
+#endif
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::FactoryResult e;
+    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    uint32_t type;
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    char file_name[512];
+    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, "__testrecreate__.foo");
+
+    FILE* f;
+
+    f = fopen(file_name, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "123");
+    fclose(f);
+
+    int* resource;
+    dmResource::FactoryResult fr = dmResource::Get(factory, "__testrecreate__.foo", (void**) &resource);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    ASSERT_EQ(123, *resource);
+
+    f = fopen(file_name, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "456");
+    fclose(f);
+
+    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
+
+    while (!SendReloadDone)
+    {
+        dmTime::Sleep(1000 * 10);
+        dmResource::UpdateFactory(factory);
+    }
+    dmThread::Join(send_thread);
+
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(456, *resource);
 
