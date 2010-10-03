@@ -93,7 +93,9 @@ namespace dmRender
         RenderWorld* world = new RenderWorld;
 
         world->m_RenderObjectInstanceList.SetCapacity(max_instances);
+        world->m_RenderObjectInstanceList.SetSize(0);
         world->m_RenderPasses.SetCapacity(max_renderpasses);
+        world->m_RenderPasses.SetSize(0);
         world->m_SetObjectModel = set_object_model;
         world->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
 

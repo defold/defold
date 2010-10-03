@@ -1,20 +1,19 @@
 #ifndef RENDERTYPEDATA_H_
 #define RENDERTYPEDATA_H_
-#if 0
+
+#include <graphics/material.h>
+
 namespace dmRender
 {
-    struct FontRenderObject
+    struct SParticleRenderData
     {
-        HFontRenderer   m_Fontrenderer;
-        const char*     m_String;
-        uint16_t        m_X0;
-        uint16_t        m_Y0;
-        float           m_Red;
-        float           m_Green;
-        float           m_Blue;
-        float           m_Alpha;
+        dmGraphics::HMaterial   m_Material;
+        dmGraphics::HTexture    m_Texture;
+        float*                  m_VertexData;
+        uint32_t                m_VertexStride;
+        uint32_t                m_VertexIndex;
+        uint32_t                m_VertexCount;
     };
 
 }
-#endif
 #endif /* RENDERTYPEDATA_H_ */

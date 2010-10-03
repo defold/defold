@@ -23,61 +23,44 @@ namespace dmRender
 
     void RenderTypeParticleDraw(RenderContext* rendercontext, RenderObject* ro)
     {
-#if 0
-        HFont font = (HFont)ro->m_Data;
-        dmArray<SFontVertex>* vertex_data = (dmArray<SFontVertex>*)ro->m_Go;
+        SParticleRenderData* renderdata = (SParticleRenderData*)ro->m_Data;
 
-        if (!font || !vertex_data)
+        if (renderdata->m_VertexCount == 0 || renderdata->m_VertexData == 0)
             return;
 
 
+        dmGraphics::HContext gfx_context = rendercontext->m_GFXContext;
 
-        SFontVertex* data = &vertex_data->Front();
-        float* pos = data->m_Position;
-        float* colour = data->m_Colour;
-        float* uv = data->m_UV;
+        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
+
+        dmGraphics::SetDepthMask(gfx_context, 0);
+
+        float* pos = &renderdata->m_VertexData[0];
+        float* uvs = &renderdata->m_VertexData[3];
+        float* alpha = &renderdata->m_VertexData[5];
 
 
-        dmGraphics::HContext context = rendercontext->m_GFXContext;
-        Matrix4 ident = Matrix4::identity();
+        // positions
+        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, renderdata->m_VertexStride, (void*)pos);
+        // uv's
+        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, renderdata->m_VertexStride, (void*)uvs);
+        // alpha
+        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, renderdata->m_VertexStride, (void*)alpha);
 
-        dmGraphics::SetVertexProgram(context, GetVertexProgram(font));
-        dmGraphics::SetFragmentProgram(context, GetFragmentProgram(font));
 
-        Matrix4 mat = Matrix4::orthographic( 0, 960, 480, 0, 10, -10 );
 
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
+        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram(renderdata->m_Material));
+        dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)&rendercontext->m_ViewProj, 0, 4);
+        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram(renderdata->m_Material));
 
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) pos);
+        dmGraphics::SetTexture(gfx_context, renderdata->m_Texture);
 
-        dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) uv);
+        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, renderdata->m_VertexIndex, renderdata->m_VertexCount);
 
-        dmGraphics::SetVertexStream(context, 2, 4, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) colour);
+        dmGraphics::SetDepthMask(gfx_context, 1);
 
-        dmGraphics::SetTexture(context, GetTexture(font));
 
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
-
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
-
-        dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::DisableState(context, dmGraphics::BLEND);
-
-        dmGraphics::DisableVertexStream(context, 0);
-        dmGraphics::DisableVertexStream(context, 1);
-        dmGraphics::DisableVertexStream(context, 2);
-
-        vertex_data->SetSize(0);
-#endif
     }
 
 }
