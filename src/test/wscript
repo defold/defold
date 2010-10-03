@@ -20,7 +20,7 @@ def build(bld):
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET LUA',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
                                      target = 'test_resource',
