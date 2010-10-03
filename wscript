@@ -29,6 +29,9 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
 
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
+
 def build(bld):
     bld.add_subdirs('src')
     
