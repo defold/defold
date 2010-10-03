@@ -281,6 +281,8 @@ TEST_F(dmHttpServerTest, TestServerClient)
     r = dmHttpClient::Get(client, "/quit");
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
 
+    dmHttpClient::Delete(client);
+
     dmThread::Join(thread);
 }
 
