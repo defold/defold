@@ -52,10 +52,18 @@ namespace dmGameSystem
     {
         assert(user_data);
 
-        CollisionObjectPrototype* collision_object_prototype = (CollisionObjectPrototype*) resource;
+        CollisionObjectPrototype* prototype = (CollisionObjectPrototype*) resource;
         dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
-
-        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, collision_object_prototype->m_CollisionShape, collision_object_prototype->m_Mass, collision_object_prototype->m_Type, collision_object_prototype->m_Group, collision_object_prototype->m_Mask, instance);
+        dmPhysics::CollisionObjectData data;
+        data.m_Shape = prototype->m_CollisionShape;
+        data.m_UserData = instance;
+        data.m_Type = prototype->m_Type;
+        data.m_Mass = prototype->m_Mass;
+        data.m_Friction = prototype->m_Friction;
+        data.m_Restitution = prototype->m_Restitution;
+        data.m_Group = prototype->m_Group;
+        data.m_Mask = prototype->m_Mask;
+        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, data);
         *user_data = (uintptr_t) collision_object;
         return dmGameObject::CREATE_RESULT_OK;
     }

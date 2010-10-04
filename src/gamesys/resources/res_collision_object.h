@@ -9,8 +9,10 @@ namespace dmGameSystem
     struct CollisionObjectPrototype
     {
         dmPhysics::HCollisionShape m_CollisionShape;
-        float m_Mass;
         dmPhysics::CollisionObjectType m_Type;
+        float m_Mass;
+        float m_Friction;
+        float m_Restitution;
         uint16_t m_Group;
         uint16_t m_Mask;
     };

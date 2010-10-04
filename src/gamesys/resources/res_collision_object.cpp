@@ -28,8 +28,10 @@ namespace dmGameSystem
 
         CollisionObjectPrototype* collision_object_prototype = new CollisionObjectPrototype();
         collision_object_prototype->m_CollisionShape = collision_shape;
-        collision_object_prototype->m_Mass = collision_object_desc->m_Mass;
         collision_object_prototype->m_Type = (dmPhysics::CollisionObjectType)collision_object_desc->m_Type;
+        collision_object_prototype->m_Mass = collision_object_desc->m_Mass;
+        collision_object_prototype->m_Friction = collision_object_desc->m_Friction;
+        collision_object_prototype->m_Restitution = collision_object_desc->m_Restitution;
         collision_object_prototype->m_Group = (uint16_t)collision_object_desc->m_Group;
         collision_object_prototype->m_Mask = 0;
         for (uint32_t i = 0; i < collision_object_desc->m_Mask.m_Count; ++i)
