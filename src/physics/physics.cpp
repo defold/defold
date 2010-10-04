@@ -241,19 +241,39 @@ namespace dmPhysics
                     for (int j = 0; j < num_contacts; ++j)
                     {
                         btManifoldPoint& pt = contact_manifold->getContactPoint(j);
+                        btRigidBody* body_a = btRigidBody::upcast(object_a);
+                        btRigidBody* body_b = btRigidBody::upcast(object_b);
                         ContactPoint point;
                         const btVector3& pt_a = pt.getPositionWorldOnA();
                         point.m_PositionA = Vectormath::Aos::Point3(pt_a.getX(), pt_a.getY(), pt_a.getZ());
                         point.m_UserDataA = object_a->getUserPointer();
                         point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
+                        if (body_a)
+                            point.m_InvMassA = body_a->getInvMass();
                         const btVector3& pt_b = pt.getPositionWorldOnB();
                         point.m_PositionB = Vectormath::Aos::Point3(pt_b.getX(), pt_b.getY(), pt_b.getZ());
                         point.m_UserDataB = object_b->getUserPointer();
                         point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
+                        if (body_b)
+                            point.m_InvMassB = body_b->getInvMass();
                         const btVector3& normal = pt.m_normalWorldOnB;
                         point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
                         point.m_Distance = pt.getDistance();
                         point.m_AppliedImpulse = pt.getAppliedImpulse();
+                        Vectormath::Aos::Vector3 vel_a(0.0f, 0.0f, 0.0f);
+                        if (body_a)
+                        {
+                            const btVector3& v = body_a->getLinearVelocity();
+                            vel_a = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
+                        }
+                        Vectormath::Aos::Vector3 vel_b(0.0f, 0.0f, 0.0f);
+                        if (body_b)
+                        {
+                            const btVector3& v = body_b->getLinearVelocity();
+                            vel_b = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
+                        }
+                        point.m_RelativeVelocity = vel_b - vel_a;
+                        point.m_LifeTime = pt.getLifeTime();
                         contact_point_callback(point, contact_point_callback_user_data);
                     }
                 }

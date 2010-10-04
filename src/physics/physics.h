@@ -31,15 +31,20 @@ namespace dmPhysics
     struct ContactPoint
     {
         Vectormath::Aos::Point3 m_PositionA;
-        void* m_UserDataA;
-        uint16_t m_GroupA;
         Vectormath::Aos::Point3 m_PositionB;
-        void* m_UserDataB;
-        uint16_t m_GroupB;
         /// Always A->B
         Vectormath::Aos::Vector3 m_Normal;
+        Vectormath::Aos::Vector3 m_RelativeVelocity;
+        void* m_UserDataA;
+        void* m_UserDataB;
         float m_Distance;
         float m_AppliedImpulse;
+        /// Lifetime in frames
+        int m_LifeTime;
+        float m_InvMassA;
+        float m_InvMassB;
+        uint16_t m_GroupA;
+        uint16_t m_GroupB;
     };
 
     typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
