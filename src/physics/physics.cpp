@@ -481,6 +481,30 @@ namespace dmPhysics
         return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
     }
 
+    Vectormath::Aos::Vector3 GetLinearVelocity(HCollisionObject collision_object)
+    {
+        Vectormath::Aos::Vector3 linear_velocity(0.0f, 0.0f, 0.0f);
+        btRigidBody* body = btRigidBody::upcast(collision_object);
+        if (body != 0x0)
+        {
+            const btVector3& v = body->getLinearVelocity();
+            linear_velocity = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
+        }
+        return linear_velocity;
+    }
+
+    Vectormath::Aos::Vector3 GetAngularVelocity(HCollisionObject collision_object)
+    {
+        Vectormath::Aos::Vector3 angular_velocity(0.0f, 0.0f, 0.0f);
+        btRigidBody* body = btRigidBody::upcast(collision_object);
+        if (body != 0x0)
+        {
+            const btVector3& v = body->getAngularVelocity();
+            angular_velocity = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
+        }
+        return angular_velocity;
+    }
+
     RayCastRequest::RayCastRequest()
     : m_From(0.0f, 0.0f, 0.0f)
     , m_To(0.0f, 0.0f, 0.0f)

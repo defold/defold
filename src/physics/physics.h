@@ -205,6 +205,20 @@ namespace dmPhysics
      */
     Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
 
+    /**
+     * Return the linear velocity of the collision object.
+     * @param collision_object
+     * @return The linear velocity.
+     */
+    Vectormath::Aos::Vector3 GetLinearVelocity(HCollisionObject collision_object);
+
+    /**
+     * Return the linear velocity of the collision object.
+     * @param collision_object
+     * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
+     */
+    Vectormath::Aos::Vector3 GetAngularVelocity(HCollisionObject collision_object);
+
     struct RayCastRequest;
     struct RayCastResponse;
 
