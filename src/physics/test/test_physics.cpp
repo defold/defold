@@ -547,11 +547,6 @@ TEST_F(PhysicsTest, EmptyRayCasting)
 
     dmPhysics::RequestRayCast(m_World, request);
 
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
-    request.m_UserId = 1;
-
-    dmPhysics::RequestRayCast(m_World, request);
-
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
     ASSERT_FALSE(result.m_Response.m_Hit);
@@ -615,14 +610,14 @@ TEST_F(PhysicsTest, InsideRayCasting)
     data.m_UserData = &vo;
     dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, data);
 
-    RayCastResult result;
-    memset(&result, 0, sizeof(RayCastResult));
+    RayCastResult result[2];
+    memset(result, 0, sizeof(result));
 
     dmPhysics::RayCastRequest request;
     request.m_From = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     request.m_To = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     request.m_UserId = 0;
-    request.m_UserData = &result;
+    request.m_UserData = result;
     request.m_Callback = &RayCastCallback;
 
     dmPhysics::RequestRayCast(m_World, request);
@@ -634,7 +629,8 @@ TEST_F(PhysicsTest, InsideRayCasting)
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
 
-    ASSERT_FALSE(result.m_Response.m_Hit);
+    ASSERT_FALSE(result[0].m_Response.m_Hit);
+    ASSERT_FALSE(result[1].m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
     dmPhysics::DeleteCollisionShape(data.m_Shape);
@@ -661,11 +657,6 @@ TEST_F(PhysicsTest, IgnoreRayCasting)
     request.m_IgnoredUserData = &vo;
     request.m_UserData = &result;
     request.m_Callback = &RayCastCallback;
-
-    dmPhysics::RequestRayCast(m_World, request);
-
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
-    request.m_UserId = 1;
 
     dmPhysics::RequestRayCast(m_World, request);
 
@@ -697,11 +688,6 @@ TEST_F(PhysicsTest, TriggerRayCasting)
     request.m_UserId = 0;
     request.m_UserData = &result;
     request.m_Callback = &RayCastCallback;
-
-    dmPhysics::RequestRayCast(m_World, request);
-
-    request.m_To = Vectormath::Aos::Point3(0.0f, 0.49f, 0.0f);
-    request.m_UserId = 1;
 
     dmPhysics::RequestRayCast(m_World, request);
 
