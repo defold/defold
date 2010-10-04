@@ -2,6 +2,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/math.h>
 
 #include <physics/physics.h>
 
@@ -116,19 +117,30 @@ namespace dmGameSystem
         dmPhysicsDDF::ContactPointMessage* ddf = (dmPhysicsDDF::ContactPointMessage*)&data;
         ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysicsDDF::ContactPointMessage);
         char* id = &data[sizeof(dmPhysicsDDF::ContactPointMessage)];
+        float mass_a = dmMath::Select(-contact_point.m_InvMassA, 0.0f, 1.0f / contact_point.m_InvMassA);
+        float mass_b = dmMath::Select(-contact_point.m_InvMassB, 0.0f, 1.0f / contact_point.m_InvMassB);
         // Broadcast to A components
         ddf->m_Position = contact_point.m_PositionA;
         ddf->m_Normal = -contact_point.m_Normal;
+        ddf->m_RelativeVelocity = -contact_point.m_RelativeVelocity;
         ddf->m_Distance = contact_point.m_Distance;
+        ddf->m_AppliedImpulse = contact_point.m_AppliedImpulse;
+        ddf->m_Mass = mass_a;
+        ddf->m_OtherMass = mass_b;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
         ddf->m_Group = contact_point.m_GroupB;
         dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
         // Broadcast to B components
         ddf->m_Position = contact_point.m_PositionB;
         ddf->m_Normal = contact_point.m_Normal;
+        ddf->m_RelativeVelocity = contact_point.m_RelativeVelocity;
         ddf->m_Distance = contact_point.m_Distance;
+        ddf->m_AppliedImpulse = contact_point.m_AppliedImpulse;
+        ddf->m_Mass = mass_b;
+        ddf->m_OtherMass = mass_a;
         DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
         ddf->m_Group = contact_point.m_GroupA;
+        ddf->m_LifeTime = contact_point.m_LifeTime;
         dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
     }
 

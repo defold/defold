@@ -69,9 +69,14 @@ message ContactPointMessage
 {
     required dmMath.Point3 Position = 1;
     required dmMath.Vector3 Normal = 2;
-    required float Distance = 3;
-    required string OtherGameObjectId = 4;
-    required uint32 Group = 5;
+    required dmMath.Vector3 RelativeVelocity = 3;
+    required float Distance = 4;
+    required float AppliedImpulse = 5;
+    required float LifeTime = 6;
+    required float Mass = 7;
+    required float OtherMass = 8;
+    required string OtherGameObjectId = 9;
+    required uint32 Group = 10;
 }
 
 message RayCastRequest
