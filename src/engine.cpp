@@ -255,9 +255,7 @@ namespace dmEngine
         {
             engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
             ReloadResources(engine, "scriptc");
-            ReloadResources(engine, "camera_directorc");
             ReloadResources(engine, "emitterc");
-            ReloadResources(engine, "playerc");
         }
     }
 
