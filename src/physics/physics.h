@@ -128,24 +128,37 @@ namespace dmPhysics
     void DeleteCollisionShape(HCollisionShape shape);
 
     /**
+     * Data for collision object construction.
+     */
+    struct CollisionObjectData
+    {
+        CollisionObjectData();
+
+        /// Shape
+        HCollisionShape m_Shape;
+        /// User data
+        void* m_UserData;
+        /// Type of collision object, default is COLLISION_OBJECT_TYPE_DYNAMIC
+        CollisionObjectType m_Type;
+        /// Mass, must be positive for COLLISION_OBJECT_TYPE_DYNAMIC and zero for all other types, default is 1
+        float m_Mass;
+        /// Friction, should be positive for best result, default is 0.5
+        float m_Friction;
+        /// Restitution, should be 0 for best results, default is 0
+        float m_Restitution;
+        /// Collision filter group. Two objects a and b are tested for collision if a.group & b.mask != 0 && a.mask & b.group != 0. Default is 1
+        uint16_t m_Group;
+        /// Collision filter mask @see m_Group. Default is 1.
+        uint16_t m_Mask;
+    };
+
+    /**
      * Create a new collision object
      * @param world Physics world
-     * @param shape Shape
-     * @param rotation Initial rotation
-     * @param position Initial position
-     * @param mass Mass, must be positive for COLLISION_OBJECT_TYPE_DYNAMIC and zero for all other types
-     * @param collision_object_type Type of collision object
-     * @param group Collision filter group. Two objects a and b are tested for collision if a.group & b.mask != 0 && a.mask & b.group != 0.
-     * @param mask Collision filter mask @see group
-     * @param user_data User data
+     * @param data @see CollisionObjectData
      * @return A new collision object
      */
-    HCollisionObject NewCollisionObject(HWorld world, HCollisionShape shape,
-                            float mass,
-                            CollisionObjectType collision_object_type,
-                            uint16_t group,
-                            uint16_t mask,
-                            void* user_data);
+    HCollisionObject NewCollisionObject(HWorld world, const CollisionObjectData& data);
 
     /**
      * Delete a collision object

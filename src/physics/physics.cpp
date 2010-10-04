@@ -326,30 +326,37 @@ namespace dmPhysics
         delete shape;
     }
 
-    HCollisionObject NewCollisionObject(HWorld world,
-            HCollisionShape shape,
-            float mass,
-            CollisionObjectType collision_object_type,
-            uint16_t group,
-            uint16_t mask,
-            void* user_data)
+    CollisionObjectData::CollisionObjectData()
+    : m_Shape(0x0)
+    , m_UserData(0x0)
+    , m_Type(COLLISION_OBJECT_TYPE_DYNAMIC)
+    , m_Mass(1.0f)
+    , m_Friction(0.5f)
+    , m_Restitution(0.0f)
+    , m_Group(1)
+    , m_Mask(1)
     {
-        if (shape == 0x0)
+
+    }
+
+    HCollisionObject NewCollisionObject(HWorld world, const CollisionObjectData& data)
+    {
+        if (data.m_Shape == 0x0)
         {
             dmLogError("Collision objects must have a shape.");
             return 0x0;
         }
-        switch (collision_object_type)
+        switch (data.m_Type)
         {
         case COLLISION_OBJECT_TYPE_DYNAMIC:
-            if (mass == 0.0f)
+            if (data.m_Mass == 0.0f)
             {
                 dmLogError("Collision objects can not be dynamic and have zero mass.");
                 return 0x0;
             }
             break;
         default:
-            if (mass > 0.0f)
+            if (data.m_Mass > 0.0f)
             {
                 dmLogError("Only dynamic collision objects can have a positive mass.");
                 return 0x0;
@@ -358,18 +365,20 @@ namespace dmPhysics
         }
 
         btVector3 local_inertia(0.0f, 0.0f, 0.0f);
-        if (collision_object_type == COLLISION_OBJECT_TYPE_DYNAMIC)
+        if (data.m_Type == COLLISION_OBJECT_TYPE_DYNAMIC)
         {
-            shape->calculateLocalInertia(mass, local_inertia);
+            data.m_Shape->calculateLocalInertia(data.m_Mass, local_inertia);
         }
 
         btCollisionObject* collision_object = 0x0;
-        if (collision_object_type != COLLISION_OBJECT_TYPE_TRIGGER)
+        if (data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
         {
-            MotionState* motion_state = new MotionState(user_data, world->m_GetWorldTransform, world->m_SetWorldTransform);
-            btRigidBody::btRigidBodyConstructionInfo rb_info(mass, motion_state, shape, local_inertia);
+            MotionState* motion_state = new MotionState(data.m_UserData, world->m_GetWorldTransform, world->m_SetWorldTransform);
+            btRigidBody::btRigidBodyConstructionInfo rb_info(data.m_Mass, motion_state, data.m_Shape, local_inertia);
+            rb_info.m_friction = data.m_Friction;
+            rb_info.m_restitution = data.m_Restitution;
             btRigidBody* body = new btRigidBody(rb_info);
-            switch (collision_object_type)
+            switch (data.m_Type)
             {
             case COLLISION_OBJECT_TYPE_KINEMATIC:
                 body->setCollisionFlags(body->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
@@ -383,8 +392,8 @@ namespace dmPhysics
             }
 
             world->m_DynamicsWorld->addRigidBody(body);
-            body->getBroadphaseHandle()->m_collisionFilterGroup = group;
-            body->getBroadphaseHandle()->m_collisionFilterMask = mask;
+            body->getBroadphaseHandle()->m_collisionFilterGroup = data.m_Group;
+            body->getBroadphaseHandle()->m_collisionFilterMask = data.m_Mask;
 
             collision_object = body;
         }
@@ -396,7 +405,7 @@ namespace dmPhysics
             {
                 Vectormath::Aos::Point3 position;
                 Vectormath::Aos::Quat rotation;
-                world->m_GetWorldTransform(user_data, position, rotation);
+                world->m_GetWorldTransform(data.m_UserData, position, rotation);
                 world_transform = btTransform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), btVector3(position.getX(), position.getY(), position.getZ()));
             }
             else
@@ -404,11 +413,11 @@ namespace dmPhysics
                 world_transform = btTransform::getIdentity();
             }
             collision_object->setWorldTransform(world_transform);
-            collision_object->setCollisionShape(shape);
+            collision_object->setCollisionShape(data.m_Shape);
             collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
-            world->m_DynamicsWorld->addCollisionObject(collision_object, group, mask);
+            world->m_DynamicsWorld->addCollisionObject(collision_object, data.m_Group, data.m_Mask);
         }
-        collision_object->setUserPointer(user_data);
+        collision_object->setUserPointer(data.m_UserData);
         return collision_object;
     }
 

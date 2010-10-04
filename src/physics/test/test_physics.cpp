@@ -53,81 +53,95 @@ protected:
 
 TEST_F(PhysicsTest, Simple)
 {
-    dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, 0x0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, data);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
-    dmPhysics::DeleteCollisionShape(shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, DynamicConstruction)
 {
-    dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, 0x0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    data.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    co = dmPhysics::NewCollisionObject(m_World, shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, 0x0);
+    data.m_Mass = 1.0f;
+    co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_NE((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    dmPhysics::DeleteCollisionShape(shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, KinematicConstruction)
 {
-    dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, 0x0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, 0x0);
+    data.m_Mass = 0.0f;
+    co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_NE((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    dmPhysics::DeleteCollisionShape(shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, StaticConstruction)
 {
-    dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, 0x0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, 0x0);
+    data.m_Mass = 0.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_NE((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    dmPhysics::DeleteCollisionShape(shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, TriggerConstruction)
 {
-    dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, 0x0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    dmPhysics::HCollisionObject co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ((void*)0, (void*)co);
 
-    co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, 0x0);
+    data.m_Mass = 0.0f;
+    co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_NE((void*)0, (void*)co);
 
     dmPhysics::DeleteCollisionObject(m_World, co);
 
-    dmPhysics::DeleteCollisionShape(shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, WorldTransformCallbacks)
@@ -138,9 +152,10 @@ TEST_F(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionShape shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
-
-    dmPhysics::HCollisionObject dynamic_co = dmPhysics::NewCollisionObject(m_World, shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &vo);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(1.0f, 1.0f, 1.0f));
+    data.m_UserData = &vo;
+    dmPhysics::HCollisionObject dynamic_co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
     ASSERT_EQ(0.0f, dmPhysics::GetWorldPosition(dynamic_co).getY());
@@ -156,7 +171,9 @@ TEST_F(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionObject kinematic_co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &vo);
+    data.m_Mass = 0.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    dmPhysics::HCollisionObject kinematic_co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
     ASSERT_EQ(0.0f, dmPhysics::GetWorldPosition(kinematic_co).getY());
@@ -174,7 +191,8 @@ TEST_F(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionObject static_co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, &vo);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    dmPhysics::HCollisionObject static_co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
     ASSERT_EQ(0.0f, dmPhysics::GetWorldPosition(static_co).getY());
@@ -192,7 +210,8 @@ TEST_F(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionObject trigger_co = dmPhysics::NewCollisionObject(m_World, shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, &vo);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    dmPhysics::HCollisionObject trigger_co = dmPhysics::NewCollisionObject(m_World, data);
 
     ASSERT_EQ(0.0f, vo.m_Position.getY());
     ASSERT_EQ(0.0f, dmPhysics::GetWorldPosition(trigger_co).getY());
@@ -206,7 +225,7 @@ TEST_F(PhysicsTest, WorldTransformCallbacks)
 
     dmPhysics::DeleteCollisionObject(m_World, trigger_co);
 
-    dmPhysics::DeleteCollisionShape(shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, GroundBoxCollision)
@@ -215,12 +234,18 @@ TEST_F(PhysicsTest, GroundBoxCollision)
     float box_half_ext = 0.5f;
 
     VisualObject ground_visual_object;
-    dmPhysics::HCollisionShape ground_shape = dmPhysics::NewBoxShape(Vector3(100, ground_height_half_ext, 100));
-    dmPhysics::HCollisionObject ground_co = dmPhysics::NewCollisionObject(m_World, ground_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, &ground_visual_object);
+    dmPhysics::CollisionObjectData ground_data;
+    ground_data.m_Shape = dmPhysics::NewBoxShape(Vector3(100, ground_height_half_ext, 100));
+    ground_data.m_Mass = 0.0f;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_UserData = &ground_visual_object;
+    dmPhysics::HCollisionObject ground_co = dmPhysics::NewCollisionObject(m_World, ground_data);
 
     VisualObject box_visual_object;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &box_visual_object);
+    dmPhysics::CollisionObjectData box_data;
+    box_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    box_data.m_UserData = &box_visual_object;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_data);
     dmPhysics::SetCollisionObjectInitialTransform(box_co, Point3(0, 10.0f, 0), Quat::identity());
 
     for (int i = 0; i < 200; ++i)
@@ -232,8 +257,8 @@ TEST_F(PhysicsTest, GroundBoxCollision)
 
     dmPhysics::DeleteCollisionObject(m_World, ground_co);
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(ground_shape);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(ground_data.m_Shape);
+    dmPhysics::DeleteCollisionShape(box_data.m_Shape);
 }
 
 void CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
@@ -258,13 +283,19 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     float box_half_ext = 0.5f;
 
     VisualObject ground_visual_object;
-    dmPhysics::HCollisionShape ground_shape = dmPhysics::NewBoxShape(Vector3(100, ground_height_half_ext, 100));
-    dmPhysics::HCollisionObject ground_co = dmPhysics::NewCollisionObject(m_World, ground_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, &ground_visual_object);
+    dmPhysics::CollisionObjectData ground_data;
+    ground_data.m_Shape = dmPhysics::NewBoxShape(Vector3(100, ground_height_half_ext, 100));
+    ground_data.m_Mass = 0.0f;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_UserData = &ground_visual_object;
+    dmPhysics::HCollisionObject ground_co = dmPhysics::NewCollisionObject(m_World, ground_data);
 
     VisualObject box_visual_object;
     box_visual_object.m_Position = Point3(0, 10, 0);
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &box_visual_object);
+    dmPhysics::CollisionObjectData box_data;
+    box_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    box_data.m_UserData = &box_visual_object;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_data);
 
     int collision_count = 0;
     int contact_point_count = 0;
@@ -296,8 +327,8 @@ TEST_F(PhysicsTest, CollisionCallbacks)
 
     dmPhysics::DeleteCollisionObject(m_World, ground_co);
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(ground_shape);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(ground_data.m_Shape);
+    dmPhysics::DeleteCollisionShape(box_data.m_Shape);
 }
 
 void TriggerCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
@@ -317,14 +348,20 @@ TEST_F(PhysicsTest, TriggerCollisions)
     VisualObject static_vo;
     static_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     static_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionShape static_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject static_co = dmPhysics::NewCollisionObject(m_World, static_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, &static_vo);
+    dmPhysics::CollisionObjectData static_data;
+    static_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    static_data.m_Mass = 0.0f;
+    static_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    static_data.m_UserData = &static_vo;
+    dmPhysics::HCollisionObject static_co = dmPhysics::NewCollisionObject(m_World, static_data);
 
     VisualObject dynamic_vo;
     dynamic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     dynamic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionShape dynamic_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject dynamic_co = dmPhysics::NewCollisionObject(m_World, dynamic_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &dynamic_vo);
+    dmPhysics::CollisionObjectData dynamic_data;
+    dynamic_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    dynamic_data.m_UserData = &dynamic_vo;
+    dmPhysics::HCollisionObject dynamic_co = dmPhysics::NewCollisionObject(m_World, dynamic_data);
 
     for (int i = 0; i < 20; ++i)
     {
@@ -335,7 +372,7 @@ TEST_F(PhysicsTest, TriggerCollisions)
     ASSERT_EQ(0.0f, static_vo.m_Position.getY());
 
     dmPhysics::DeleteCollisionObject(m_World, static_co);
-    dmPhysics::DeleteCollisionShape(static_shape);
+    dmPhysics::DeleteCollisionShape(static_data.m_Shape);
 
     dmPhysics::DeleteCollisionObject(m_World, dynamic_co);
 
@@ -343,13 +380,17 @@ TEST_F(PhysicsTest, TriggerCollisions)
 
     dynamic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
     dynamic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dynamic_co = dmPhysics::NewCollisionObject(m_World, dynamic_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, &dynamic_vo);
+    dynamic_co = dmPhysics::NewCollisionObject(m_World, dynamic_data);
 
     VisualObject trigger_vo;
     trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
-    dmPhysics::HCollisionShape trigger_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, &trigger_vo);
+    dmPhysics::CollisionObjectData trigger_data;
+    trigger_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    trigger_data.m_Mass = 0.0f;
+    trigger_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    trigger_data.m_UserData = &trigger_vo;
+    dmPhysics::HCollisionObject trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_data);
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
     dmPhysics::ForEachCollision(m_World, &TriggerCollisionCallback, 0x0, 0x0, 0x0);
@@ -368,20 +409,20 @@ TEST_F(PhysicsTest, TriggerCollisions)
     ASSERT_LT(0, trigger_vo.m_CollisionCount);
 
     dmPhysics::DeleteCollisionObject(m_World, dynamic_co);
-    dmPhysics::DeleteCollisionShape(dynamic_shape);
+    dmPhysics::DeleteCollisionShape(dynamic_data.m_Shape);
 
     dmPhysics::DeleteCollisionObject(m_World, trigger_co);
 
     // Test trigger collision: dynamic body moving into trigger
 
     static_vo = VisualObject();
-    static_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    static_co = dmPhysics::NewCollisionObject(m_World, static_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, 1, 1, &static_vo);
+    static_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    static_co = dmPhysics::NewCollisionObject(m_World, static_data);
 
     trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
     trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     trigger_vo.m_CollisionCount = 0;
-    trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, &trigger_vo);
+    trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_data);
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
     dmPhysics::ForEachCollision(m_World, &TriggerCollisionCallback, 0x0, 0x0, 0x0);
@@ -407,7 +448,7 @@ TEST_F(PhysicsTest, TriggerCollisions)
     dmPhysics::DeleteCollisionObject(m_World, trigger_co);
 
     dmPhysics::DeleteCollisionObject(m_World, static_co);
-    dmPhysics::DeleteCollisionShape(static_shape);
+    dmPhysics::DeleteCollisionShape(static_data.m_Shape);
 
     // Test trigger collision: kinematic body moved into trigger
 
@@ -415,13 +456,17 @@ TEST_F(PhysicsTest, TriggerCollisions)
     kinematic_vo.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     kinematic_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     kinematic_vo.m_CollisionCount = 0;
-    dmPhysics::HCollisionShape kinematic_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject kinematic_co = dmPhysics::NewCollisionObject(m_World, kinematic_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &kinematic_vo);
+    dmPhysics::CollisionObjectData kinematic_data;
+    kinematic_data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    kinematic_data.m_Mass = 0.0f;
+    kinematic_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    kinematic_data.m_UserData = &kinematic_vo;
+    dmPhysics::HCollisionObject kinematic_co = dmPhysics::NewCollisionObject(m_World, kinematic_data);
 
     trigger_vo.m_Position = Vectormath::Aos::Point3(0.0f, 1.1f, 0.0f);
     trigger_vo.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     trigger_vo.m_CollisionCount = 0;
-    trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, &trigger_vo);
+    trigger_co = dmPhysics::NewCollisionObject(m_World, trigger_data);
 
     dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
     dmPhysics::ForEachCollision(m_World, &TriggerCollisionCallback, 0x0, 0x0, 0x0);
@@ -449,17 +494,18 @@ TEST_F(PhysicsTest, TriggerCollisions)
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
 
     dmPhysics::DeleteCollisionObject(m_World, kinematic_co);
-    dmPhysics::DeleteCollisionShape(kinematic_shape);
+    dmPhysics::DeleteCollisionShape(kinematic_data.m_Shape);
 
     dmPhysics::DeleteCollisionObject(m_World, trigger_co);
-    dmPhysics::DeleteCollisionShape(trigger_shape);
+    dmPhysics::DeleteCollisionShape(trigger_data.m_Shape);
 }
 
 TEST_F(PhysicsTest, ApplyForce)
 {
     float box_half_ext = 0.5f;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, 1, 1, 0x0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, data);
     dmPhysics::SetCollisionObjectInitialTransform(box_co, Point3(0, 10.0f, 0), Quat::identity());
     Vector3 force(1.0f, 0.0f, 0.0f);
     dmPhysics::ApplyForce(box_co, force, Point3(0.0f, 0.0f, 0.0f));
@@ -469,7 +515,7 @@ TEST_F(PhysicsTest, ApplyForce)
     ASSERT_NEAR(total_force.getZ(), force.getZ(), 0.01f);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 struct RayCastResult
@@ -514,9 +560,13 @@ TEST_F(PhysicsTest, EmptyRayCasting)
 TEST_F(PhysicsTest, RayCasting)
 {
     float box_half_ext = 0.5f;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo;
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &vo);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data.m_Mass = 0.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_UserData = &vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, data);
 
     RayCastResult result[2];
     memset(result, 0, sizeof(RayCastResult) * 2);
@@ -551,15 +601,19 @@ TEST_F(PhysicsTest, RayCasting)
     ASSERT_EQ(1, result[1].m_Response.m_CollisionObjectGroup);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, InsideRayCasting)
 {
     float box_half_ext = 0.5f;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo;
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &vo);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data.m_Mass = 0.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_UserData = &vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, data);
 
     RayCastResult result;
     memset(&result, 0, sizeof(RayCastResult));
@@ -583,15 +637,19 @@ TEST_F(PhysicsTest, InsideRayCasting)
     ASSERT_FALSE(result.m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, IgnoreRayCasting)
 {
     float box_half_ext = 0.5f;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo;
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, 1, 1, &vo);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data.m_Mass = 0.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_UserData = &vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, data);
 
     RayCastResult result;
     memset(&result, 0, sizeof(RayCastResult));
@@ -616,15 +674,19 @@ TEST_F(PhysicsTest, IgnoreRayCasting)
     ASSERT_FALSE(result.m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, TriggerRayCasting)
 {
     float box_half_ext = 0.5f;
-    dmPhysics::HCollisionShape box_shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo;
-    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, box_shape, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, 1, 1, &vo);
+    dmPhysics::CollisionObjectData data;
+    data.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data.m_Mass = 0.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    data.m_UserData = &vo;
+    dmPhysics::HCollisionObject box_co = dmPhysics::NewCollisionObject(m_World, data);
 
     RayCastResult result;
     memset(&result, 0, sizeof(RayCastResult));
@@ -649,7 +711,7 @@ TEST_F(PhysicsTest, TriggerRayCasting)
     ASSERT_FALSE(result.m_Response.m_Hit);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co);
-    dmPhysics::DeleteCollisionShape(box_shape);
+    dmPhysics::DeleteCollisionShape(data.m_Shape);
 }
 
 TEST_F(PhysicsTest, FilteredRayCasting)
@@ -662,14 +724,26 @@ TEST_F(PhysicsTest, FilteredRayCasting)
         GROUP_B = 1 << 1
     };
 
-    dmPhysics::HCollisionShape box_shape_a = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_a;
-    dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, box_shape_a, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, GROUP_A, GROUP_A, &vo_a);
+    dmPhysics::CollisionObjectData data_a;
+    data_a.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data_a.m_Mass = 0.0f;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_a.m_Group = GROUP_A;
+    data_a.m_Mask = GROUP_A;
+    data_a.m_UserData = &vo_a;
+    dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, data_a);
 
-    dmPhysics::HCollisionShape box_shape_b = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_b;
     vo_b.m_Position.setY(-1.0f);
-    dmPhysics::HCollisionObject box_co_b = dmPhysics::NewCollisionObject(m_World, box_shape_b, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, GROUP_B, GROUP_B, &vo_b);
+    dmPhysics::CollisionObjectData data_b;
+    data_b.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data_b.m_Mass = 0.0f;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_b.m_Group = GROUP_B;
+    data_b.m_Mask = GROUP_B;
+    data_b.m_UserData = &vo_b;
+    dmPhysics::HCollisionObject box_co_b = dmPhysics::NewCollisionObject(m_World, data_b);
 
     RayCastResult result;
     memset(&result, 0, sizeof(RayCastResult));
@@ -690,10 +764,10 @@ TEST_F(PhysicsTest, FilteredRayCasting)
     ASSERT_EQ(GROUP_B, result.m_Response.m_CollisionObjectGroup);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_a);
-    dmPhysics::DeleteCollisionShape(box_shape_a);
+    dmPhysics::DeleteCollisionShape(data_a.m_Shape);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_b);
-    dmPhysics::DeleteCollisionShape(box_shape_b);
+    dmPhysics::DeleteCollisionShape(data_b.m_Shape);
 }
 
 enum FilterGroup
@@ -748,26 +822,36 @@ TEST_F(PhysicsTest, CollisionFiltering)
 {
     float box_half_ext = 0.5f;
 
-    dmPhysics::HCollisionShape box_shape_a = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_a;
     vo_a.m_Position.setY(1.1f);
-    uint16_t group = 1 << FILTER_GROUP_A;
-    uint16_t mask = 1 << FILTER_GROUP_B;
-    dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, box_shape_a, 1.0f, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, group, mask, &vo_a);
+    dmPhysics::CollisionObjectData data_a;
+    data_a.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data_a.m_Group = 1 << FILTER_GROUP_A;
+    data_a.m_Mask = 1 << FILTER_GROUP_B;
+    data_a.m_UserData = &vo_a;
+    dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, data_a);
 
-    dmPhysics::HCollisionShape box_shape_b = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_b;
     vo_b.m_Position.setX(-0.6f);
-    group = 1 << FILTER_GROUP_B;
-    mask = 1 << FILTER_GROUP_A;
-    dmPhysics::HCollisionObject box_co_b = dmPhysics::NewCollisionObject(m_World, box_shape_b, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, group, mask, &vo_b);
+    dmPhysics::CollisionObjectData data_b;
+    data_b.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data_b.m_Group = 1 << FILTER_GROUP_B;
+    data_b.m_Mask = 1 << FILTER_GROUP_A;
+    data_b.m_Mass = 0.0f;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data_b.m_UserData = &vo_b;
+    dmPhysics::HCollisionObject box_co_b = dmPhysics::NewCollisionObject(m_World, data_b);
 
-    dmPhysics::HCollisionShape box_shape_c = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
     VisualObject vo_c;
     vo_c.m_Position.setX(0.6f);
-    group = 1 << FILTER_GROUP_C;
-    mask = 1 << FILTER_GROUP_C;
-    dmPhysics::HCollisionObject box_co_c = dmPhysics::NewCollisionObject(m_World, box_shape_c, 0.0f, dmPhysics::COLLISION_OBJECT_TYPE_STATIC, group, mask, &vo_c);
+    dmPhysics::CollisionObjectData data_c;
+    data_c.m_Shape = dmPhysics::NewBoxShape(Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data_c.m_Group = 1 << FILTER_GROUP_C;
+    data_c.m_Mask = 1 << FILTER_GROUP_C;
+    data_c.m_Mass = 0.0f;
+    data_c.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data_c.m_UserData = &vo_c;
+    dmPhysics::HCollisionObject box_co_c = dmPhysics::NewCollisionObject(m_World, data_c);
 
     int collision_count[FILTER_GROUP_COUNT];
     memset(collision_count, 0, FILTER_GROUP_COUNT * sizeof(int));
@@ -787,13 +871,13 @@ TEST_F(PhysicsTest, CollisionFiltering)
     ASSERT_EQ(0, contact_point_count[FILTER_GROUP_C]);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_a);
-    dmPhysics::DeleteCollisionShape(box_shape_a);
+    dmPhysics::DeleteCollisionShape(data_a.m_Shape);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_b);
-    dmPhysics::DeleteCollisionShape(box_shape_b);
+    dmPhysics::DeleteCollisionShape(data_b.m_Shape);
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_c);
-    dmPhysics::DeleteCollisionShape(box_shape_c);
+    dmPhysics::DeleteCollisionShape(data_c.m_Shape);
 }
 
 int main(int argc, char **argv)
