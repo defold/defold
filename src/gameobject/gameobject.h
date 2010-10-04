@@ -466,6 +466,13 @@ namespace dmGameObject
     void ReleaseInputFocus(HCollection collection, HInstance instance);
 
     /**
+     * Retrieve a collection from the specified instance
+     * @param instance Game object instance
+     * @return The collection the specified instance belongs to
+     */
+    HCollection GetCollection(HInstance instance);
+
+    /**
      * Retrieve a factory from the specified collection
      * @param collection Game object collection
      * @return The resource factory bound to the specified collection

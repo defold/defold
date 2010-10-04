@@ -1458,6 +1458,11 @@ bail:
         collection->m_FocusStack.Pop();
     }
 
+    HCollection GetCollection(HInstance instance)
+    {
+        return instance->m_Collection;
+    }
+
     dmResource::HFactory GetFactory(HCollection collection)
     {
         if (collection != 0x0)
