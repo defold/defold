@@ -40,6 +40,8 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmCameraDDF::SetCamera::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastRequest::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)

@@ -94,3 +94,14 @@ message RayCastResponse
     required string GameObjectId = 4;
     required uint32 Group = 5;
 }
+
+message VelocityRequest
+{
+    required string ClientId = 1;
+}
+
+message VelocityResponse
+{
+    required dmMath.Vector3 LinearVelocity = 1;
+    required dmMath.Vector3 AngularVelocity = 2;
+}

@@ -169,6 +169,21 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
             dmPhysics::ApplyForce(collision_object, af->m_Force, af->m_Position);
         }
+        if (message_data->m_MessageId == dmHashString32(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_ScriptName))
+        {
+            dmPhysicsDDF::VelocityRequest* request = (dmPhysicsDDF::VelocityRequest*)message_data->m_Buffer;
+            request->m_ClientId = (const char*)((uintptr_t)request + (uintptr_t)request->m_ClientId);
+            uint32_t id;
+            if (sscanf(request->m_ClientId, "%X", &id) > 0)
+            {
+                dmGameObject::HInstance client = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), id);
+                dmPhysicsDDF::VelocityResponse response;
+                dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject)*user_data;
+                response.m_LinearVelocity = dmPhysics::GetLinearVelocity(collision_object);
+                response.m_AngularVelocity = dmPhysics::GetAngularVelocity(collision_object);
+                dmGameObject::PostDDFMessageTo(client, 0x0, dmPhysicsDDF::VelocityResponse::m_DDFDescriptor, (char*)&response);
+            }
+        }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 }
