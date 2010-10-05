@@ -36,7 +36,7 @@ else
 fi
 
 cp /tmp/pde_build/I.Editor/*.zip $CR
-chmod +x -R $CR/*
-chmod +r -R $CR/*
+chmod 775 -R $CR/*
+
 
 
