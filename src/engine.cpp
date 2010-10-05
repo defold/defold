@@ -160,7 +160,7 @@ namespace dmEngine
 
         graphics_params.m_DisplayWidth = dmConfigFile::GetInt(config, "display.width", 960);
         graphics_params.m_DisplayHeight = dmConfigFile::GetInt(config, "display.height", 540);
-        graphics_params.m_AppTitle = "After Man: Fall of the Sentinels";
+        graphics_params.m_AppTitle = dmConfigFile::GetString(config, "project.title", "TestTitle");
         graphics_params.m_Fullscreen = false;
         graphics_params.m_PrintDeviceInfo = false;
 
@@ -207,33 +207,36 @@ namespace dmEngine
 
         dmPhysics::SetDebugRenderer(&engine->m_RenderContext, PhysicsDebugRender::RenderLine);
 
-        dmResource::FactoryResult fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
-            return false;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
-            return false;
-
-        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
-            return false;
-
-        dmGameObject::Result res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, &engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, engine->m_RenderWorld);
-        if (res != dmGameObject::RESULT_OK)
-            return false;
-
         float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
 
+        dmResource::FactoryResult fact_result;
+        dmGameObject::Result res;
+
+        fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+            goto bail;
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+            goto bail;
+
+        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
+            goto bail;
+
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, &engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, engine->m_RenderWorld);
+        if (res != dmGameObject::RESULT_OK)
+            goto bail;
+
         if (!LoadBootstrapContent(engine, config))
         {
             dmLogWarning("Unable to load bootstrap data.");
-            return false;
+            goto bail;
         }
 
-        dmResource::FactoryResult fact_e = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
-        if (fact_e != dmResource::FACTORY_RESULT_OK)
-            return false;
+        fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+            goto bail;
         dmGameObject::Init(engine->m_MainCollection);
 
         engine->m_LastReloadMTime = 0;
@@ -244,8 +247,11 @@ namespace dmEngine
         }
 
         dmConfigFile::Delete(config);
-
         return true;
+
+bail:
+        dmConfigFile::Delete(config);
+        return false;
     }
 
     void Reload(HEngine engine)
@@ -650,15 +656,13 @@ namespace dmEngine
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
-        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory,
-                "fonts/VeraMoBd.font", (void**) &engine->m_Font);
+        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.font", "fonts/VeraMoBd.fontc"), (void**) &engine->m_Font);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
             return false;
         }
 
-        fact_error = dmResource::Get(engine->m_Factory, "fonts/VeraMoBd2.font",
-                (void**) &engine->m_SmallFont);
+        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.small_font", "fonts/VeraMoBd2.fontc"), (void**) &engine->m_SmallFont);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
             return false;
@@ -670,7 +674,7 @@ namespace dmEngine
             engine->m_ScreenHeight, 2048 * 4);
 
         // debug renderer needs vertex/fragment programs, load them here (perhaps they need to be moved into render/debug?)
-        fact_error = dmResource::Get(engine->m_Factory, "materials/debug.arbvp",
+        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.debug_vp", "materials/debug.arbvp"),
                 (void**) &engine->m_RenderdebugVertexProgram);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
@@ -678,7 +682,7 @@ namespace dmEngine
         }
         dmRenderDebug::SetVertexProgram(engine->m_RenderdebugVertexProgram);
 
-        fact_error = dmResource::Get(engine->m_Factory, "materials/debug.arbfp",
+        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.debug_fp", "materials/debug.arbfp"),
                 (void**) &engine->m_RenderdebugFragmentProgram);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
