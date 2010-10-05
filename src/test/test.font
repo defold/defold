@@ -1,0 +1,3 @@
+Font: "test.ttf"
+VertexProgram: "font"
+FragmentProgram: "font"

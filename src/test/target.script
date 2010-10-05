@@ -1,0 +1,17 @@
+function init(self)
+    local min_r = 5
+    local max_r = 10
+    local a = 2 * math.pi * math.random()
+    local r = min_r + math.random() * (max_r - min_r)
+    set_position(self, vec_math.vector3(r * math.cos(a), r * math.sin(a), 0))
+    self.health = 1
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("hit") then
+        self.health = self.health - message.damage
+        if self.health < 0 then
+            post("exit", { code = 0 })
+        end
+    end
+end

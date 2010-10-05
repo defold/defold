@@ -4,9 +4,15 @@ import os, sys
 import waf_gamesys
 
 def build(bld):
+    fonts = bld.new_task_gen(
+        features = '',
+        size = 24,
+        imagefont='test.imagefontc',
+        source='test.ttf')
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
-        uselib = 'GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER RENDERDEBUG PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DMGLFW PARTICLE GUI SOUND ALUT',
+        uselib = 'GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL DLIB PHYSICS RENDER RENDERDEBUG PLATFORM_SOCKET LUA OPENAL SCRIPT HID_NULL INPUT DMGLFW PARTICLE GUI SOUND ALUT',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -14,5 +20,5 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'test_engine')
-    obj.find_sources_in_dirs('.')
+    obj.find_sources_in_dirs('.', exts = ['.cpp', '.project', '.font', '.vp', '.fp', '.gamepads', '.input_binding', '.collection', '.script', '.go', '.collisionobject', '.convexshape'])
     obj.install_path = None

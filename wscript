@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys
-import waf_dynamo, waf_ddf, waf_graphics, waf_physics, waf_render
+import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render
 
 if sys.platform == "win32":
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto"
@@ -24,6 +24,7 @@ def set_options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('java')
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
     conf.check_tool('waf_dynamo')
