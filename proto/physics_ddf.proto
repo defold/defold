@@ -46,13 +46,13 @@ enum CollisionObjectType
 
 message CollisionObjectDesc
 {
-    required float Mass = 1;
-    required string CollisionShape = 2;
-    required CollisionObjectType Type = 3;
-    required uint32 Group = 4;
-    repeated uint32 Mask = 5;
-    required float Friction = 6;
-    required float Restitution = 7;
+    required string CollisionShape = 1;
+    required CollisionObjectType Type = 2;
+    required float Mass = 3;
+    required float Friction = 4;
+    required float Restitution = 5;
+    required uint32 Group = 6;
+    repeated uint32 Mask = 7;
 }
 
 message ApplyForceMessage
