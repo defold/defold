@@ -513,7 +513,7 @@ bail:
                 const uint32_t offset = sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameObjectDDF::GameObjectTransformResult);
                 char buf[offset + 9];
                 dmGameObject::InstanceMessageData* out_instance_message_data = (dmGameObject::InstanceMessageData*)buf;
-                out_instance_message_data->m_MessageId = dmHashString32(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_Name);
+                out_instance_message_data->m_MessageId = dmHashString32(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_ScriptName);
                 out_instance_message_data->m_Instance = instance_message_data->m_Instance;
                 out_instance_message_data->m_Component = 0xff;
                 out_instance_message_data->m_DDFDescriptor = dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
