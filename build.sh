@@ -11,9 +11,9 @@ export PYTHONPATH=$DYNAMO_HOME/lib/python:$DYNAMO_HOME/ext/lib/python
 # NOTE: We clean manually here due to follow symlink problem in ant. Check build.xml
 rm -rf /tmp/pde_build
 
-rm -rf pde_build
-mkdir  pde_build
-cd pde_build
+rm -rf projects
+mkdir  projects
+cd projects
 PROJECTS="com.dynamo.cr.common com.dynamo.cr.editor com.dynamo.cr.luaeditor"
 
 for P in $PROJECTS; do

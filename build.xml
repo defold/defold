@@ -21,16 +21,16 @@
         <mkdir dir="${buildDirectory}/features" />
 
         <copy todir="${buildDirectory}/plugins">
-            <fileset dir="..">
+            <fileset dir="projects">
                 <include name="com.dynamo.cr.common/**" />
             </fileset>
-            <fileset dir="..">
+            <fileset dir="projects">
                 <include name="com.dynamo.cr.luaeditor/**" />
             </fileset>
         </copy>
 
         <copy todir="${buildDirectory}/plugins">
-            <fileset dir="..">
+            <fileset dir="projects">
                 <include name="com.dynamo.cr.editor/**" />
             </fileset>
         </copy>
