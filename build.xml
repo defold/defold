@@ -34,7 +34,14 @@
                 <include name="com.dynamo.cr.editor/**" />
             </fileset>
         </copy>
-    	<!--
+
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.common"
+              executable="sh">
+              <arg value="scripts/build_proto.sh"/>
+       </exec>
+
+
+       <!--
         <copy todir="${buildDirectory}/features">
             <fileset dir="../../">
                 <include name="de.vogella.build.feature/**" />
