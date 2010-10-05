@@ -322,7 +322,10 @@ bail:
                 dmHID::KeyboardPacket keybdata;
                 dmHID::GetKeyboardPacket(&keybdata);
                 if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC))
+                {
+                    engine->m_Alive = false;
                     break;
+                }
 
                 float fixed_dt = 1.0f / fps;
                 float dt = fixed_dt;
@@ -378,9 +381,6 @@ bail:
                 dmGameObject::Update(collections, update_contexts, 2);
 
                 dmGameObject::PostUpdate(collections, 2);
-
-                if (glfwGetKey(GLFW_KEY_ESC) || !glfwGetWindowParam(GLFW_OPENED))
-                    engine->m_Alive = false;
 
                 if (engine->m_ShowFPS)
                 {
