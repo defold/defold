@@ -220,10 +220,12 @@ namespace dmRender
 						case RENDEROBJECT_TYPE_TEXT:
 						{
 						    RenderTypeTextDraw(&rp->m_RenderContext, ro);
+						    break;
 						}
                         case RENDEROBJECT_TYPE_PARTICLE:
                         {
                             RenderTypeParticleDraw(&rp->m_RenderContext, ro);
+                            break;
                         }
 						default:
 						{
