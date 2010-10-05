@@ -44,7 +44,7 @@ Task.simple_task_type('texture', 'python ${DDSC} ${SRC} -o ${TGT} %s' % NULL,
 
 @extension('.dds')
 def dds_file(self, node):
-    obj_ext = '.texture'
+    obj_ext = '.texturec'
     texture = self.create_task('texture')
     texture.set_inputs(node)
     out = node.change_ext(obj_ext)
