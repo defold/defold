@@ -73,7 +73,7 @@ namespace dmGameSystem
             emitter.m_Instance = instance;
             emitter.m_Emitter = dmParticle::CreateEmitter(w->m_Context, prototype);
             emitter.m_World = w;
-            emitter.m_RenderObject = dmRender::NewRenderObjectInstance(w->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLE);
+            emitter.m_RenderObject = dmRender::NewRenderObject(w->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLE);
             w->m_Emitters.Push(emitter);
             *user_data = (uintptr_t)&w->m_Emitters[w->m_Emitters.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;

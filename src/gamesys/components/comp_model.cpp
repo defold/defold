@@ -41,7 +41,7 @@ namespace dmGameSystem
         dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
 
 
-        dmRender::HRenderObject ro = NewRenderObjectInstance(render_world, (void*)prototype, (void*)instance, 1, dmRender::RENDEROBJECT_TYPE_MODEL);
+        dmRender::HRenderObject ro = NewRenderObject(render_world, (void*)prototype, (void*)instance, 1, dmRender::RENDEROBJECT_TYPE_MODEL);
         *user_data = (uintptr_t) ro;
 
         return dmGameObject::CREATE_RESULT_OK;
