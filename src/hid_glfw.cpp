@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include <dlib/log.h>
+
 #include <graphics/glfw/glfw.h>
 
 #include "hid_private.h"
@@ -28,6 +30,39 @@ namespace dmHID
             GLFW_JOYSTICK_15,
             GLFW_JOYSTICK_16
     };
+
+    Context* s_Context = 0x0;
+
+    void Initialize()
+    {
+        if (glfwInit() == GL_FALSE)
+        {
+            dmLogFatal("glfw could not be initialized.");
+            return;
+        }
+        if (s_Context == 0x0)
+        {
+            s_Context = new Context();
+            s_Context->m_KeyboardConnected = 0;
+            s_Context->m_MouseConnected = 0;
+            for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+            {
+                Gamepad& gamepad = s_Context->m_Gamepads[i];
+                gamepad.m_Index = i;
+                gamepad.m_Connected = 0;
+                gamepad.m_AxisCount = 0;
+                gamepad.m_ButtonCount = 0;
+                memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
+            }
+        }
+    }
+
+    void Finalize()
+    {
+        glfwTerminate();
+        delete s_Context;
+        s_Context = 0x0;
+    }
 
     void Update()
     {
