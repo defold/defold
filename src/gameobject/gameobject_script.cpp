@@ -73,37 +73,11 @@ namespace dmGameObject
         (void) i;
         assert(i);
 
-        const char* key = luaL_checkstring(L, 2);
-
-        if (strcmp(key, "id") == 0)
-        {
-            uint32_t id = dmGameObject::GetIdentifier(i->m_Instance);
-            dmScript::PushHash(L, id);
-            return 1;
-        }
-
-        // Try to find value in globals in update context
-        lua_pushstring(L, "__update_context__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        UpdateContext* update_context = (UpdateContext*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        if (update_context)
-        {
-            if (strcmp(key, "dt") == 0)
-            {
-                lua_pushnumber(L, update_context->m_DT);
-                return 1;
-            }
-        }
-
         // Try to find value in instance data
-        {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
-            lua_pushvalue(L, 2);
-            lua_gettable(L, -2);
-            return 1;
-        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ScriptDataReference);
+        lua_pushvalue(L, 2);
+        lua_gettable(L, -2);
+        return 1;
     }
 
     static int ScriptInstance_newindex(lua_State *L)
@@ -118,10 +92,11 @@ namespace dmGameObject
         lua_pushvalue(L, 2);
         lua_pushvalue(L, 3);
         lua_settable(L, -3);
+        lua_pop(L, 1);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top == lua_gettop(L));
 
-        return 1;
+        return 0;
     }
 
     void SetScriptIntProperty(HInstance instance, const char* key, int32_t value)
@@ -194,7 +169,7 @@ namespace dmGameObject
     extern uint32_t g_ReplySocket;
     extern uint32_t g_MessageID;
 
-    int Script_PostNamedTo(lua_State* L)
+    int Script_PostTo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -439,11 +414,18 @@ namespace dmGameObject
         return 1;
     }
 
-    int Script_Ident(lua_State* L)
+    int Script_GetId(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        const char* ident = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
+        if (lua_gettop(L) > 1)
+        {
+            const char* ident = luaL_checkstring(L, 2);
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
+        }
+        else
+        {
+            dmScript::PushHash(L, i->m_Instance->m_Identifier);
+        }
         return 1;
     }
 
@@ -526,7 +508,7 @@ namespace dmGameObject
     static const luaL_reg Script_methods[] =
     {
         {"post",                Script_Post},
-        {"post_named_to",       Script_PostNamedTo},
+        {"post_to",             Script_PostTo},
         {"post_to_collection",  Script_PostToCollection},
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
@@ -534,7 +516,7 @@ namespace dmGameObject
         {"set_rotation",        Script_SetRotation},
         {"get_world_position",  Script_GetWorldPosition},
         {"get_world_rotation",  Script_GetWorldRotation},
-        {"ident",               Script_Ident},
+        {"get_id",              Script_GetId},
         {"is_visible",          Script_IsVisible},
         {"delete",              Script_Delete},
         {"spawn",               Script_Spawn},
@@ -566,8 +548,7 @@ namespace dmGameObject
 
         lua_pop(L, 2);
 
-        lua_pushvalue(L, LUA_GLOBALSINDEX);
-        luaL_register(L, 0x0, Script_methods);
+        luaL_register(L, "go", Script_methods);
         lua_pop(L, 1);
 
         dmScript::Initialize(L);
@@ -766,6 +747,16 @@ bail:
             lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
+            lua_pushliteral(L, "go");
+            lua_rawget(L, LUA_GLOBALSINDEX);
+            lua_pushliteral(L, "dt");
+            if (update_context != 0x0)
+                lua_pushnumber(L, update_context->m_DT);
+            else
+                lua_pushnil(L);
+            lua_rawset(L, -3);
+            lua_pop(L, 1);
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             int ret = lua_pcall(L, 1, LUA_MULTRET, 0);
@@ -787,6 +778,13 @@ bail:
             lua_pushliteral(L, "__instance__");
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "go");
+            lua_rawget(L, LUA_GLOBALSINDEX);
+            lua_pushliteral(L, "dt");
+            lua_pushnil(L);
+            lua_rawset(L, -3);
+            lua_pop(L, 1);
 
             assert(top == lua_gettop(L));
         }

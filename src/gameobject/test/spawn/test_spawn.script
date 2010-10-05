@@ -1,6 +1,6 @@
 function update(self)
     if not self.spawned then
-        spawn("test_spawnee.goc", vec_math.point3(0, 0, 0), vec_math.quat(0, 0, 0, 1))
+        go.spawn("test_spawnee.goc", vec_math.point3(0, 0, 0), vec_math.quat(0, 0, 0, 1))
         self.spawned = true
     end
 end

@@ -1156,12 +1156,9 @@ TEST(ScriptTest, TestReloadScript)
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
     CreateFile(script_path,
-               "function init(self)\n"
-               "end\n"
                "function update(self)\n"
-               "    set_position(self, vec_math.vector3(1,2,3))\n"
-               "end\n"
-               "functions = { init = init, update = update }\n");
+               "    go.set_position(self, vec_math.vector3(1,2,3))\n"
+               "end\n");
 
     dmGameObject::HInstance go;
     go = dmGameObject::New(collection, "__go__.goc");
@@ -1176,12 +1173,9 @@ TEST(ScriptTest, TestReloadScript)
     dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     CreateFile(script_path,
-               "function init(self)\n"
-               "end\n"
                "function update(self)\n"
-               "    set_position(self, vec_math.vector3(10,20,30))\n"
-               "end\n"
-               "functions = { init = init, update = update }\n");
+               "    go.set_position(self, vec_math.vector3(10,20,30))\n"
+               "end\n");
 
 
     dmResource::FactoryResult fr = dmResource::ReloadType(factory, type);
