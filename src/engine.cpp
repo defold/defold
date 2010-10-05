@@ -152,10 +152,6 @@ namespace dmEngine
 
         dmProfile::Initialize(256, 1024);
 
-        int ret = glfwInit();
-        if (ret != GL_TRUE)
-            dmLogWarning("glfw could not be properly initialized.");
-
         dmGraphics::HDevice device;
         dmGraphics::CreateDeviceParams graphics_params;
 
