@@ -56,16 +56,16 @@ namespace dmGameSystem
         return e;\
     }\
 
-        REGISTER_RESOURCE_TYPE("collisionobject", ResCollisionObjectCreate, ResCollisionObjectDestroy, 0);
-        REGISTER_RESOURCE_TYPE("convexshape", ResConvexShapeCreate, ResConvexShapeDestroy, 0);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", ResCollisionObjectCreate, ResCollisionObjectDestroy, 0);
+        REGISTER_RESOURCE_TYPE("convexshapec", ResConvexShapeCreate, ResConvexShapeDestroy, 0);
         REGISTER_RESOURCE_TYPE("emitterc", ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
-        REGISTER_RESOURCE_TYPE("texture", ResTextureCreate, ResTextureDestroy, 0);
+        REGISTER_RESOURCE_TYPE("texturec", ResTextureCreate, ResTextureDestroy, 0);
         REGISTER_RESOURCE_TYPE("arbvp", ResVertexProgramCreate, ResVertexProgramDestroy, 0);
         REGISTER_RESOURCE_TYPE("arbfp", ResFragmentProgramCreate, ResFragmentProgramDestroy, 0);
-        REGISTER_RESOURCE_TYPE("imagefont", ResImageFontCreate, ResImageFontDestroy, 0);
-        REGISTER_RESOURCE_TYPE("font", ResFontCreate, ResFontDestroy, 0);
+        REGISTER_RESOURCE_TYPE("imagefontc", ResImageFontCreate, ResImageFontDestroy, 0);
+        REGISTER_RESOURCE_TYPE("fontc", ResFontCreate, ResFontDestroy, 0);
         REGISTER_RESOURCE_TYPE("modelc", ResCreateModel, ResDestroyModel, ResRecreateModel);
-        REGISTER_RESOURCE_TYPE("mesh", ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
+        REGISTER_RESOURCE_TYPE("meshc", ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
         REGISTER_RESOURCE_TYPE("materialc", ResCreateMaterial, ResDestroyMaterial, ResRecreateMaterial);
         REGISTER_RESOURCE_TYPE("guic", ResCreateSceneDesc, ResDestroySceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", ResCreateGuiScript, ResDestroyGuiScript, 0);
@@ -124,7 +124,7 @@ namespace dmGameSystem
                 &CompCameraCreate, 0, &CompCameraDestroy,
                 &CompCameraUpdate, &CompCameraOnMessage, 0);
 
-        REGISTER_COMPONENT_TYPE("collisionobject", physics_context,
+        REGISTER_COMPONENT_TYPE("collisionobjectc", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
                 &CompCollisionObjectUpdate, &CompCollisionObjectOnMessage, 0);
@@ -189,10 +189,10 @@ namespace dmGameSystem
         request.m_Callback = &RayCastCallback;
 
         uint32_t type;
-        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobject", &type);
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
         {
-            dmLogWarning("Unable to get resource type for '%s' (%d)", "collisionobject", fact_result);
+            dmLogWarning("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
         }
         void* world = dmGameObject::FindWorld(collection, type);
         if (world != 0x0)

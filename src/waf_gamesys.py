@@ -2,35 +2,55 @@ import Task, TaskGen, Utils, re, os
 from TaskGen import extension
 from waf_content import proto_compile_task
 
-def transform_gameobject(msg):
-    for c in msg.Components:
-        if (c.Resource.endswith('.camera')):
-            c.Resource = c.Resource.replace('.camera', '.camerac')
-        c.Resource = c.Resource.replace('.model', '.modelc')
-        c.Resource = c.Resource.replace('.script', '.scriptc')
-        c.Resource = c.Resource.replace('.emitter', '.emitterc')
+def transform_collection(msg):
+    for i in msg.Instances:
+        i.Prototype = i.Prototype.replace('.go', '.goc')
+    for c in msg.CollectionInstances:
+        c.Collection = c.Collection.replace('.collection', '.collectionc')
     return msg
 
-def transform_model(msg):
-    msg.Material = msg.Material.replace('.material', '.materialc')
-    msg.Texture0 = msg.Texture0.replace('.png', '.texture')
-    msg.Texture0 = msg.Texture0.replace('.tga', '.texture')
+def transform_collisionobject(msg):
+    msg.CollisionShape = msg.CollisionShape.replace('.convexshape', '.convexshapec')
     return msg
 
 def transform_emitter(msg):
     msg.Material = msg.Material.replace('.material', '.materialc')
-    msg.Texture.Name = msg.Texture.Name.replace('.png', '.texture')
-    msg.Texture.Name = msg.Texture.Name.replace('.tga', '.texture')
+    msg.Texture.Name = msg.Texture.Name.replace('.png', '.texturec')
+    msg.Texture.Name = msg.Texture.Name.replace('.tga', '.texturec')
     return msg
 
-proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc')
+def transform_gameobject(msg):
+    for c in msg.Components:
+        c.Resource = c.Resource.replace('.camera', '.camerac')
+        c.Resource = c.Resource.replace('.collisionobject', '.collisionobjectc')
+        c.Resource = c.Resource.replace('.emitter', '.emitterc')
+        c.Resource = c.Resource.replace('.gui', '.guic')
+        c.Resource = c.Resource.replace('.model', '.modelc')
+        c.Resource = c.Resource.replace('.script', '.scriptc')
+        c.Resource = c.Resource.replace('.wav', '.wavc')
+    return msg
+
+def transform_model(msg):
+    msg.Mesh = msg.Mesh.replace('.dae', '.meshc')
+    msg.Material = msg.Material.replace('.material', '.materialc')
+    msg.Texture0 = msg.Texture0.replace('.png', '.texturec')
+    msg.Texture0 = msg.Texture0.replace('.tga', '.texturec')
+    return msg
+
+def transform_gui(msg):
+    msg.Script = msg.Script.replace('.gui_script', '.gui_scriptc')
+    for f in msg.Fonts:
+        f.Font = f.Font.replace('.font', '.fontc')
+    return msg
+
+proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc')
 proto_compile_task('emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.emitter', '.emitterc', transform_emitter)
 proto_compile_task('model', 'render.model_ddf_pb2', 'model_ddf_pb2.ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('gameobject',  'gameobject_ddf_pb2', 'PrototypeDesc', '.go', '.goc', transform_gameobject)
-proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape_pb', '.convexshape')
-proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject_pb', '.collisionobject')
-proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic')
+proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
+proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)
+proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transform_gui)
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
@@ -70,7 +90,7 @@ Task.simple_task_type('mesh', 'python ../tools/modelc.py ${SRC} -o ${TGT}',
 
 @extension('.dae')
 def dae_file(self, node):
-    obj_ext = '.mesh'
+    obj_ext = '.meshc'
     mesh = self.create_task('mesh')
     mesh.set_inputs(node)
     out = node.change_ext(obj_ext)
