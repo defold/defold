@@ -6,6 +6,6 @@ def configure(conf):
 
 def build(bld):
     script = bld.new_task_gen(features = 'cc cxx cprogram',
-                              uselib = 'DDF DLIB PLATFORM_SOCKET HID INPUT DMGLFW ',
+                              uselib = 'DDF PLATFORM_SOCKET HID DLIB INPUT DMGLFW ',
                               source = 'main.cpp',
                               target = 'gdc')

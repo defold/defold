@@ -10,7 +10,6 @@
 #include <dlib/platform.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
-#include <graphics/glfw/glfw.h>
 
 #include <hid/hid.h>
 #include <input/input_ddf.h>
@@ -57,13 +56,6 @@ int main(int argc, char *argv[])
     const char* filename = "default.gamepads";
     if (argc > 1)
         filename = argv[1];
-
-    if (glfwInit() == GL_FALSE)
-    {
-        dmLogError("glfw could not be initialized.");
-        result = 1;
-        goto bail;
-    }
 
     dmHID::Initialize();
     dmHID::Update();
@@ -213,7 +205,6 @@ int main(int argc, char *argv[])
 
 bail:
     dmHID::Finalize();
-    glfwTerminate();
     if (out != 0x0)
         fclose(out);
 
