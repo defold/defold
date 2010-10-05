@@ -16,7 +16,8 @@ namespace dmRender
 	{
 		RENDEROBJECT_TYPE_MODEL = 0,
 		RENDEROBJECT_TYPE_PARTICLE = 1,
-		RENDEROBJECT_TYPE_TEXT = 2
+		RENDEROBJECT_TYPE_TEXT = 2,
+		RENDEROBJECT_TYPE_MAX
 	};
 
     enum ColorType
@@ -42,6 +43,9 @@ namespace dmRender
     typedef struct RenderWorld* HRenderWorld;
     typedef struct RenderPass* HRenderPass;
     typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
+
+    typedef void (*RenderTypeInstanceFunc)(const RenderContext* rendercontext, const HRenderObject* ro, uint32_t count);
+    typedef void (*RenderTypeSetupFunc)(const RenderContext* rendercontext);
 
 
 
@@ -74,12 +78,13 @@ namespace dmRender
     void AddRenderPass(HRenderWorld world, HRenderPass renderpass);
 
     void AddToRender(HRenderWorld local_world, HRenderWorld world);
+    void RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeSetupFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance);
 
 
     void Update(HRenderWorld world, float dt);
     void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
     void UpdateDeletedInstances(HRenderWorld world);
-    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type);
+    HRenderObject NewRenderObject(HRenderWorld world, void* resource, void* go, uint64_t mask, uint32_t type);
     void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
     void SetData(HRenderObject ro, void* data);
     void SetGameObject(HRenderObject ro, void* go);
@@ -91,6 +96,7 @@ namespace dmRender
     void SetPosition(HRenderObject ro, Vector4 pos);
     void SetRotation(HRenderObject ro, Quat rot);
     void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
+    void* GetData(HRenderObject ro);
 
 
 //    void RenderPassBegin(RenderContext* rendercontext, RenderPass* rp);

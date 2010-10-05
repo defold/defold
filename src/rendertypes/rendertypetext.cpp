@@ -12,7 +12,7 @@ namespace dmRender
     using namespace Vectormath::Aos;
 
 
-    void RenderTypeTextSetup(RenderContext* rendercontext)
+    void RenderTypeTextSetup(const RenderContext* rendercontext)
     {
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
@@ -21,8 +21,11 @@ namespace dmRender
         dmGraphics::EnableState(context, dmGraphics::BLEND);
     }
 
-    void RenderTypeTextDraw(RenderContext* rendercontext, RenderObject* ro)
+    void RenderTypeTextDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
     {
+        RenderObject* ro = (RenderObject*)*ro_;
+
+
         HFont font = (HFont)ro->m_Data;
         dmArray<SFontVertex>* vertex_data = (dmArray<SFontVertex>*)ro->m_Go;
 

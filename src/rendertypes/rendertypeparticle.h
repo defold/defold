@@ -9,11 +9,8 @@
 
 namespace dmRender
 {
-
-
-
-    void RenderTypeParticleSetup(RenderContext* rendercontext);
-    void RenderTypeParticleDraw(RenderContext* rendercontext, RenderObject* ro);
+    void RenderTypeParticleSetup(const RenderContext* rendercontext);
+    void RenderTypeParticleDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count);
 }
 
 

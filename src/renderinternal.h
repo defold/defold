@@ -15,7 +15,7 @@ namespace dmRender
 		Point3				m_Pos;
 		Quat				m_Rot;
 		uint64_t            m_Mask;
-		RenderObjectType	m_Type;
+		uint32_t        	m_Type;
 		void*				m_Go;
 		void*				m_Data;
 		uint16_t			m_MarkForDelete:1;

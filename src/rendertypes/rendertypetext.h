@@ -14,10 +14,8 @@ namespace dmRender
         float m_Colour[4];
     };
 
-
-
-    void RenderTypeTextSetup(RenderContext* rendercontext);
-    void RenderTypeTextDraw(RenderContext* rendercontext, RenderObject* ro);
+    void RenderTypeTextSetup(const RenderContext* rendercontext);
+    void RenderTypeTextDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count);
 }
 
 

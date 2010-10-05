@@ -12,7 +12,7 @@ namespace dmRender
     using namespace Vectormath::Aos;
 
 
-    void RenderTypeParticleSetup(RenderContext* rendercontext)
+    void RenderTypeParticleSetup(const RenderContext* rendercontext)
     {
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
@@ -21,8 +21,10 @@ namespace dmRender
         dmGraphics::EnableState(context, dmGraphics::BLEND);
     }
 
-    void RenderTypeParticleDraw(RenderContext* rendercontext, RenderObject* ro)
+    void RenderTypeParticleDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
     {
+        RenderObject* ro = (RenderObject*)*ro_;
+
         SParticleRenderData* renderdata = (SParticleRenderData*)ro->m_Data;
 
         if (renderdata->m_VertexCount == 0 || renderdata->m_VertexData == 0)

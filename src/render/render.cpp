@@ -23,8 +23,16 @@ namespace dmRender
 
     struct RenderWorld
     {
+        struct Renderer
+        {
+            RenderTypeInstanceFunc  m_InstanceFunc;
+            RenderTypeSetupFunc     m_SetupFunc;
+        };
+
         dmArray<RenderObject*>  m_RenderObjectInstanceList;
         dmArray<RenderPass*>  	m_RenderPasses;
+        dmArray<Renderer>       m_RenderTypeList;
+
         RenderContext           m_RenderContext;
 
         SetObjectModel			m_SetObjectModel;
@@ -50,31 +58,12 @@ namespace dmRender
     }
 
 
-    void RenderTypeBegin(RenderContext* rendercontext, RenderObjectType type)
+    void RenderTypeBegin(RenderWorld* world, RenderContext* rendercontext, uint32_t type)
     {
-    	switch (type)
-    	{
-    		case RENDEROBJECT_TYPE_MODEL:
-    		{
-    			RenderTypeModelSetup(rendercontext);
-    			break;
-    		}
-    		case RENDEROBJECT_TYPE_TEXT:
-    		{
-    		    RenderTypeTextSetup(rendercontext);
-    		}
-            case RENDEROBJECT_TYPE_PARTICLE:
-            {
-                RenderTypeParticleSetup(rendercontext);
-            }
-    		default:
-    		{
-    			break;
-    		}
-    	}
+        world->m_RenderTypeList[type].m_SetupFunc(rendercontext);
     }
 
-    void RenderTypeEnd(RenderContext* rendercontext, RenderObjectType type)
+    void RenderTypeEnd(RenderWorld* world, RenderContext* rendercontext, uint32_t type)
     {
 
     }
@@ -88,6 +77,7 @@ namespace dmRender
     }
 
 
+
     HRenderWorld NewRenderWorld(uint32_t max_instances, uint32_t max_renderpasses, SetObjectModel set_object_model)
     {
         RenderWorld* world = new RenderWorld;
@@ -96,8 +86,17 @@ namespace dmRender
         world->m_RenderObjectInstanceList.SetSize(0);
         world->m_RenderPasses.SetCapacity(max_renderpasses);
         world->m_RenderPasses.SetSize(0);
+
+        const uint32_t max_renderers = 100;
+        world->m_RenderTypeList.SetCapacity(max_renderers);
+        world->m_RenderTypeList.SetSize(max_renderers);
+
         world->m_SetObjectModel = set_object_model;
         world->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
+
+        RegisterRenderer(world, RENDEROBJECT_TYPE_MODEL,    RenderTypeModelSetup,       RenderTypeModelDraw);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_TEXT,     RenderTypeTextSetup,        RenderTypeTextDraw);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_PARTICLE, RenderTypeParticleSetup,    RenderTypeParticleDraw);
 
         return world;
     }
@@ -107,10 +106,21 @@ namespace dmRender
         delete world;
     }
 
+    void RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeSetupFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance)
+    {
+        RenderWorld::Renderer renderer;
+        renderer.m_InstanceFunc = rendertype_instance;
+        renderer.m_SetupFunc = rendertype_setup;
+
+        world->m_RenderTypeList[type] = renderer;
+    }
+
     void AddRenderPass(HRenderWorld world, HRenderPass renderpass)
     {
         world->m_RenderPasses.Push(renderpass);
     }
+
+
 
     void UpdateContext(HRenderWorld world, RenderContext* rendercontext)
     {
@@ -208,34 +218,15 @@ namespace dmRender
 					if (old_type != (int)ro->m_Type)
 					{
 						// change type
-						RenderTypeBegin(&rp->m_RenderContext, ro->m_Type);
+						RenderTypeBegin(world, &rp->m_RenderContext, ro->m_Type);
 					}
-					switch (ro->m_Type)
-					{
-						case RENDEROBJECT_TYPE_MODEL:
-						{
-							RenderTypeModelDraw(&rp->m_RenderContext, ro);
-							break;
-						}
-						case RENDEROBJECT_TYPE_TEXT:
-						{
-						    RenderTypeTextDraw(&rp->m_RenderContext, ro);
-						    break;
-						}
-                        case RENDEROBJECT_TYPE_PARTICLE:
-                        {
-                            RenderTypeParticleDraw(&rp->m_RenderContext, ro);
-                            break;
-                        }
-						default:
-						{
-							break;
-						}
-					}
+
+					// dispatch
+					world->m_RenderTypeList[ro->m_Type].m_InstanceFunc(&rp->m_RenderContext, &ro, 1);
 
 					if (old_type != (int)ro->m_Type)
 					{
-						RenderTypeEnd(&rp->m_RenderContext, ro->m_Type);
+						RenderTypeEnd(world, &rp->m_RenderContext, ro->m_Type);
 						old_type = ro->m_Type;
 					}
 
@@ -256,7 +247,7 @@ namespace dmRender
 
     }
 
-    HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type)
+    HRenderObject NewRenderObject(HRenderWorld world, void* resource, void* go, uint64_t mask, uint32_t type)
     {
     	RenderObject* ro = new RenderObject;
     	ro->m_Data = resource;
@@ -322,6 +313,12 @@ namespace dmRender
     {
     	// double buffering
     }
+
+    void* GetData(HRenderObject ro)
+    {
+        return ro->m_Data;
+    }
+
 
     void SetColor(HRenderObject ro, Vector4 color, ColorType color_type)
     {

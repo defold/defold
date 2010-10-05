@@ -36,7 +36,7 @@ TEST(dmRenderTest, InitializeFinalize)
     dmRender::HRenderObject ro[n_ro];
     for (uint32_t i=0; i<n_ro; i++)
     {
-        ro[i] = NewRenderObjectInstance(world, (void*)model[i], (void*)0x0, dmRender::RENDEROBJECT_TYPE_PARTICLE);
+        ro[i] = NewRenderObject(world, (void*)model[i], (void*)0x0, dmRender::RENDEROBJECT_TYPE_PARTICLE);
     }
 
     for (uint32_t i=0; i<n_ro; i++)

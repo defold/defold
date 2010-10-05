@@ -6,8 +6,8 @@
 
 namespace dmRender
 {
-	void RenderTypeModelSetup(RenderContext* rendercontext);
-    void RenderTypeModelDraw(RenderContext* rendercontext, RenderObject* ro);
+	void RenderTypeModelSetup(const RenderContext* rendercontext);
+    void RenderTypeModelDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count);
 }
 
 

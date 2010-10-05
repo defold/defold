@@ -10,7 +10,7 @@ namespace dmRender
 {
 	using namespace Vectormath::Aos;
 
-	void RenderTypeModelSetup(RenderContext* rendercontext)
+	void RenderTypeModelSetup(const RenderContext* rendercontext)
 	{
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
@@ -21,8 +21,9 @@ namespace dmRender
 	}
 
 
-    void RenderTypeModelDraw(RenderContext* rendercontext, RenderObject* ro)
+    void RenderTypeModelDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
     {
+        RenderObject* ro = (RenderObject*)*ro_;
     	dmModel::HModel model = (dmModel::HModel)ro->m_Data;
     	Quat rotation = ro->m_Rot;
     	Point3 position = ro->m_Pos;

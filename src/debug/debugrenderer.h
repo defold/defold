@@ -10,6 +10,10 @@ using namespace Vectormath::Aos;
 namespace dmRenderDebug
 {
 
+    void Initialize(dmRender::HRenderWorld renderworld);
+    void Finalize();
+    void Update();
+
     /**
      * SetFragmentProgram Assign a fragment program to renderer
      * @param program Fragment program
