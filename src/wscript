@@ -22,12 +22,19 @@ def build(bld):
     sound = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                              includes = '. alut',
                              target = 'sound',
-                             install_path='${PREFIX}/lib')
-    sound.find_sources_in_dirs('.')
+                             install_path='${PREFIX}/lib',
+                             source = 'sound.cpp')
+
+    sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                             includes = '.',
+                             target = 'sound_null',
+                             install_path='${PREFIX}/lib',
+                             source = 'sound_null.cpp')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         sound.defines = '_XBOX'
+        sound_null.defines = '_XBOX'
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/sound', 'sound.h')
