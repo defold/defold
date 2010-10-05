@@ -78,6 +78,7 @@ namespace dmRender
 
     void Update(HRenderWorld world, float dt);
     void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
+    void UpdateDeletedInstances(HRenderWorld world);
     HRenderObject NewRenderObjectInstance(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type);
     void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
     void SetData(HRenderObject ro, void* data);

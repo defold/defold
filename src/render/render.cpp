@@ -118,7 +118,7 @@ namespace dmRender
     }
 
     // this needs to go...
-    static void UpdateDeletedInstances(HRenderWorld world)
+    void UpdateDeletedInstances(HRenderWorld world)
     {
         uint32_t size = world->m_RenderObjectInstanceList.Size();
         RenderObject** mem = new RenderObject*[size+1];

@@ -131,6 +131,8 @@ namespace dmRender
 
     void DeleteFontRenderer(HFontRenderer renderer)
     {
+        dmRender::DeleteRenderObject(renderer->m_RenderCollection, renderer->m_RenderObject);
+        dmRender::UpdateDeletedInstances(renderer->m_RenderCollection);
         dmRender::DeleteRenderWorld(renderer->m_RenderCollection);
         delete renderer;
     }
