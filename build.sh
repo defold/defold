@@ -8,6 +8,9 @@ export PATH=$DYNAMO_HOME/ext/bin:$DYNAMO_HOME/ext/bin/linux:$PATH
 export LD_LIBRARY_PATH=$DYNAMO_HOME/lib:$DYNAMO_HOME/ext/lib/linux
 export PYTHONPATH=$DYNAMO_HOME/lib/python:$DYNAMO_HOME/ext/lib/python
 
+# NOTE: We clean manually here due to follow symlink problem in ant. Check build.xml
+rm -rf /tmp/pde_build
+
 rm -rf pde_build
 mkdir  pde_build
 cd pde_build
@@ -33,3 +36,7 @@ else
 fi
 
 cp /tmp/pde_build/I.Editor/*.zip $CR
+chmod +x -R $CR/*
+chmod +r -R $CR/*
+
+
