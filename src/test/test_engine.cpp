@@ -29,7 +29,15 @@ TEST_F(EngineTest, EmptyNewDelete)
 TEST_F(EngineTest, ProjectFail)
 {
     const char* argv[] = {"test_engine", "test.projectc"};
-    dmEngine::Init(m_Engine, 2, (char**)argv);
+    ASSERT_FALSE(dmEngine::Init(m_Engine, 2, (char**)argv));
+}
+
+TEST_F(EngineTest, Project)
+{
+    const char* argv[] = {"test_engine", "build/default/src/test/test.projectc"};
+    ASSERT_TRUE(dmEngine::Init(m_Engine, 2, (char**)argv));
+
+    ASSERT_EQ(0, dmEngine::Run(m_Engine));
 }
 
 int main(int argc, char **argv)
