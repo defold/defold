@@ -126,8 +126,6 @@ namespace dmEngine
 
         dmGraphics::DestroyDevice();
 
-        glfwTerminate();
-
         dmProfile::Finalize();
 
         delete engine;
