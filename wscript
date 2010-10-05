@@ -82,6 +82,7 @@ def configure(conf):
     conf.env['STATICLIB_GUI'] = 'gui'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_SOUND'] = 'sound'
+    conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
     conf.env['STATICLIB_ALUT'] = 'alut'
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
