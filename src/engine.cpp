@@ -605,7 +605,6 @@ bail:
         if (r == dmResource::FACTORY_RESULT_OK)
         {
             engine->m_Collections.Put(dmHashString32(collection_name), collection);
-            dmGameObject::Init(collection);
         }
     }
 
