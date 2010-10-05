@@ -301,6 +301,12 @@ namespace dmEngine
             dmProfile::Begin();
             {
                 DM_PROFILE(Main, "Frame");
+
+                // We had buffering problems with the output when running the engine inside the editor
+                // Flushing stdout/stderr solves this problem.
+                fflush(stdout);
+                fflush(stderr);
+
                 dmResource::UpdateFactory(engine->m_Factory);
                 Reload(engine);
 
