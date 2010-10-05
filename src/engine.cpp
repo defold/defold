@@ -117,6 +117,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
+        dmRenderDebug::Finalize();
         dmHID::Finalize();
 
         dmGameObject::Finalize();
@@ -167,7 +168,6 @@ namespace dmEngine
         dmGraphics::HContext context = dmGraphics::GetContext();
 
         dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
-
         dmGameObject::Initialize();
 
         RegisterDDFTypes();
@@ -186,7 +186,11 @@ namespace dmEngine
         engine->m_EmitterContext.m_Debug = false;
         engine->m_EmitterContext.m_RenderWorld = engine->m_RenderWorld;
 
+        dmRenderDebug::Initialize(engine->m_RenderWorld);
+
         const uint32_t max_resources = 256;
+
+        dmRenderDebug::Initialize(engine->m_RenderWorld);
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max_resources;
@@ -399,7 +403,9 @@ bail:
             if (engine->m_ShowProfile)
                 dmProfileRender::Draw(engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
 
+
             dmRender::SetViewProjectionMatrix(engine->m_RenderPass, &engine->m_RenderContext.m_ViewProj);
+            dmRenderDebug::Update();
             dmRender::Update(engine->m_RenderWorld, 0.0f);
             dmGraphics::Flip();
 
