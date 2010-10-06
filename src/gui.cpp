@@ -19,6 +19,8 @@ extern "C"
 
 namespace dmGui
 {
+#define LIB_NAME "gui"
+
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
     dmHashTable32<const dmDDF::Descriptor*> m_DDFDescriptors;
 
@@ -150,6 +152,77 @@ namespace dmGui
 
         return 0; // Never reaached
     }
+
+    static int NodeProxy_gc (lua_State *L)
+    {
+        return 0;
+    }
+
+    static int NodeProxy_tostring (lua_State *L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
+        lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
+        return 1;
+    }
+
+    static int NodeProxy_index(lua_State *L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        (void)n;
+
+        const char* key = luaL_checkstring(L, 2);
+        return luaL_error(L, "Illegal operation, try %s.get_%s(<node>)", LIB_NAME, key);
+    }
+
+    static int NodeProxy_newindex(lua_State *L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+        const char* key = luaL_checkstring(L, 2);
+
+        return luaL_error(L, "Illegal operation, try %s.set_%s(<node>, <value>)", LIB_NAME, key);
+    }
+
+    static int NodeProxy_eq(lua_State *L)
+    {
+        if (!LuaIsNode(L, 1))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        if (!LuaIsNode(L, 2))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        HNode hn1, hn2;
+        InternalNode* n1 = LuaCheckNode(L, 1, &hn1);
+        InternalNode* n2 = LuaCheckNode(L, 2, &hn2);
+        (void) n1;
+        (void) n2;
+
+        lua_pushboolean(L, (int) (hn1 == hn2));
+        return 1;
+    }
+
+    static const luaL_reg NodeProxy_methods[] =
+    {
+        {0, 0}
+    };
+
+    static const luaL_reg NodeProxy_meta[] =
+    {
+        {"__gc",       NodeProxy_gc},
+        {"__tostring", NodeProxy_tostring},
+        {"__index",    NodeProxy_index},
+        {"__newindex", NodeProxy_newindex},
+        {"__eq",       NodeProxy_eq},
+        {0, 0}
+    };
 
     int LuaGetNode(lua_State* L)
     {
@@ -364,6 +437,77 @@ namespace dmGui
         return 0;
     }
 
+    static int LuaGetText(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushstring(L, n->m_Node.m_Text);
+        return 1;
+    }
+
+    static int LuaSetText(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        const char* text = luaL_checkstring(L, 2);
+        if (n->m_Node.m_Text)
+            free((void*) n->m_Node.m_Text);
+        n->m_Node.m_Text = strdup(text);
+        return 0;
+    }
+
+    static int LuaGetBlendMode(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushnumber(L, (lua_Number) n->m_Node.m_BlendMode);
+        return 1;
+    }
+
+    static int LuaSetBlendMode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int blend_mode = (int) luaL_checknumber(L, 2);
+        n->m_Node.m_BlendMode = (BlendMode) blend_mode;
+        return 0;
+    }
+
+    static int LuaSetTexture(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+        const char* texture_name = luaL_checkstring(L, 2);
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        Result r = SetNodeTexture(scene, hnode, texture_name);
+        if (r != RESULT_OK)
+        {
+            luaL_error(L, "Texture %s is not specified in scene", texture_name);
+        }
+        return 0;
+    }
+
+    static int LuaSetFont(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+        const char* font_name = luaL_checkstring(L, 3);
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        Result r = SetNodeFont(scene, hnode, font_name);
+        if (r != RESULT_OK)
+        {
+            luaL_error(L, "Font %s is not specified in scene", font_name);
+        }
+        return 0;
+    }
 
 #define LUAGETSET(name, property) \
     int LuaGet##name(lua_State* L)\
@@ -393,130 +537,6 @@ namespace dmGui
 
 #undef LUAGETSET
 
-    static int NodeProxy_gc (lua_State *L)
-    {
-        return 0;
-    }
-
-    static int NodeProxy_tostring (lua_State *L)
-    {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-        Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
-        lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
-        return 1;
-    }
-
-    static int NodeProxy_index(lua_State *L)
-    {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-
-        const char* key = luaL_checkstring(L, 2);
-        if (strcmp(key, "text") == 0)
-        {
-            lua_pushstring(L, n->m_Node.m_Text);
-        }
-        else if (strcmp(key, "blend_mode") == 0)
-        {
-            lua_pushnumber(L, (lua_Number) n->m_Node.m_BlendMode);
-        }
-        else
-        {
-            luaL_error(L, "Unknown property: '%s'", key);
-        }
-        return 1;
-    }
-
-    static int NodeProxy_newindex(lua_State *L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        const char* key = luaL_checkstring(L, 2);
-
-        if (strcmp(key, "text") == 0)
-        {
-            const char* text = luaL_checkstring(L, 3);
-            if (n->m_Node.m_Text)
-                free((void*) n->m_Node.m_Text);
-            n->m_Node.m_Text = strdup(text);
-        }
-        else if (strcmp(key, "blend_mode") == 0)
-        {
-            int blend_mode = (int) luaL_checknumber(L, 3);
-            n->m_Node.m_BlendMode = (BlendMode) blend_mode;
-        }
-        else if (strcmp(key, "texture") == 0)
-        {
-            lua_getglobal(L, "__scene__");
-            Scene* scene = (Scene*) lua_touserdata(L, -1);
-            lua_pop(L, 1);
-
-            const char* texture_name = luaL_checkstring(L, 3);
-            Result r = SetNodeTexture(scene, hnode, texture_name);
-            if (r != RESULT_OK)
-            {
-                luaL_error(L, "Texture %s is not specified in scene", texture_name);
-            }
-        }
-        else if (strcmp(key, "font") == 0)
-        {
-            lua_getglobal(L, "__scene__");
-            Scene* scene = (Scene*) lua_touserdata(L, -1);
-            lua_pop(L, 1);
-
-            const char* font_name = luaL_checkstring(L, 3);
-            Result r = SetNodeFont(scene, hnode, font_name);
-            if (r != RESULT_OK)
-            {
-                luaL_error(L, "Font %s is not specified in scene", font_name);
-            }
-        }
-        else
-        {
-            luaL_error(L, "Unknown property: '%s'", key);
-        }
-
-        return 0;
-    }
-
-    static int NodeProxy_eq(lua_State *L)
-    {
-        if (!LuaIsNode(L, 1))
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        if (!LuaIsNode(L, 2))
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        HNode hn1, hn2;
-        InternalNode* n1 = LuaCheckNode(L, 1, &hn1);
-        InternalNode* n2 = LuaCheckNode(L, 2, &hn2);
-        (void) n1;
-        (void) n2;
-
-        lua_pushboolean(L, (int) (hn1 == hn2));
-        return 1;
-    }
-
-    static const luaL_reg NodeProxy_methods[] =
-    {
-        {0, 0}
-    };
-
-    static const luaL_reg NodeProxy_meta[] =
-    {
-        {"__gc",       NodeProxy_gc},
-        {"__tostring", NodeProxy_tostring},
-        {"__index",    NodeProxy_index},
-        {"__newindex", NodeProxy_newindex},
-        {"__eq",       NodeProxy_eq},
-        {0, 0}
-    };
-
     void SetDefaultNewGuiParams(NewGuiParams* params)
     {
         memset(params, 0, sizeof(*params));
@@ -535,6 +555,12 @@ namespace dmGui
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"post",            LuaPost},
+        {"get_text",        LuaGetText},
+        {"set_text",        LuaSetText},
+        {"get_blend_mode",  LuaGetBlendMode},
+        {"set_blend_mode",  LuaSetBlendMode},
+        {"set_texture",     LuaSetTexture},
+        {"set_font",        LuaSetFont},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -574,7 +600,7 @@ namespace dmGui
         lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
         lua_pop(L, 1);                              // drop metatable
 
-        luaL_register(L, "gui", Gui_methods);
+        luaL_register(L, LIB_NAME, Gui_methods);
 
 #define SETPROP(name) \
         lua_pushnumber(L, (lua_Number) PROPERTY_##name); \

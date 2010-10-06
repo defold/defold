@@ -27,7 +27,7 @@ local function init1(self)
 --        nodes[i] = gui.new_box_node({0.5 + 2 * math.cos(6.24 * (i-1)/63), 0.5 + 2 * math.sin(6.24 * (i-1)/63), 0}, {w, h, 0})
         nodes[i] = gui.new_box_node(vmath.vector3(0.5 + 8 * dx, 0.5 + 8 * dy, 0), vmath.vector3(w*6, h*6, 0))
         local n = nodes[i]
-        n.texture = "checker"
+        gui.set_texture(n, "checker")
         gui.set_color(n, vmath.vector4(0, 0, 0, 0))
         local d = math.random() * 0.2
         gui.animate(n, gui.POSITION, vmath.vector3(x, y, 0), gui.EASING_IN, 0.65 + d, 0.1, call_back1)
@@ -68,7 +68,7 @@ function init2(self)
         nodes[i] = gui.new_box_node(vmath.vector3(x, y, 0), vmath.vector3(w, h, 0))
         gui.set_rotation(nodes[i], vmath.vector3(0, 0, i * 120))
         rotate_cb(nodes[i])
-        nodes[i].blend_mode = gui.BLEND_MODE_ADD
+        gui.set_blend_mode(nodes[i], gui.BLEND_MODE_ADD)
 
         if (i == 0) then
             gui.set_color(nodes[i], vmath.vector4(1, 0, 0, 1))

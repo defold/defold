@@ -669,15 +669,15 @@ TEST_F(dmGuiTest, NodeProperties)
     const char* s = "function init(self)\n"
                     "self.n = gui.get_node(\"n\")\n"
                     "gui.set_position(self.n, vmath.vector4(1,2,3,0))\n"
-                    "self.n.text = \"test\"\n"
-                    "self.n.text = \"flipper\"\n"
+                    "gui.set_text(self.n, \"test\")\n"
+                    "gui.set_text(self.n, \"flipper\")\n"
                     "end\n"
                     "function update(self) "
                     "local pos = gui.get_position(self.n)\n"
                     "assert(pos.x == 1)\n"
                     "assert(pos.y == 2)\n"
                     "assert(pos.z == 3)\n"
-                    "assert(self.n.text == \"flipper\")\n"
+                    "assert(gui.get_text(self.n) == \"flipper\")\n"
                     "end";
     dmGui::Result r;
     r = dmGui::SetSceneScript(scene, s, strlen(s));
