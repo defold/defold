@@ -1,7 +1,6 @@
 function init(self)
-    assert(self.id == hash("my_object01"), "init id mismatch")
-    assert(self.dt == nil, "dt exists in init")
-    local p = get_position(self)
+    assert(go.get_id(self) == hash("my_object01"), "init id mismatch")
+    local p = go.get_position(self)
     assert(p.x == 0)
     assert(p.y == 0)
     assert(p.z == 0)
@@ -14,31 +13,29 @@ function init(self)
     tmp = "1";
 end
 
-function update(self)
-    assert(self.id == hash("my_object01"), "update id mismatch")
-    assert(self.dt > 0, "no dt in update")
-    assert (self.counter == 1)
+function update(self, dt)
+    assert(go.get_id(self) == hash("my_object01"), "update id mismatch")
+    assert(dt > 0, "no dt in update")
+    assert(self.counter == 1)
 
-    local p = get_position(self)
+    local p = go.get_position(self)
 
     p.y = 123.0
-    set_position(self, p)
+    go.set_position(self, p)
 
-    p = get_position(self)
+    p = go.get_position(self)
     assert(p.y == 123.0)
 
-    post("spawn", {prototype = "test", pos = vec_math.vector3(1, 2, 3)} )
+    go.post("spawn", {prototype = "test", pos = vmath.vector3(1, 2, 3)} )
 end
 
 function on_message(self, message_id, message)
-    assert(self.id == hash("my_object01"), "on_message id mismatch")
-    assert(self.dt == nil, "dt exists in init")
+    assert(go.get_id(self) == hash("my_object01"), "on_message id mismatch")
     assert(message_id == hash("spawn_result"))
     assert(message.status == 1010)
 end
 
 function on_input(self, action_id, action)
-    assert(self.id == hash("my_object01"), "on_input id mismatch")
-    assert(self.dt == nil, "dt exists in init")
+    assert(go.get_id(self) == hash("my_object01"), "on_input id mismatch")
     assert(action_id == hash("test_action"), "on_input action id mismatch")
 end
