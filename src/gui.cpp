@@ -523,6 +523,28 @@ namespace dmGui
         params->m_MaxMessageDataSize = 128;
     }
 
+#define REGGETSET(name, luaname) \
+        {"get_"#luaname, LuaGet##name},\
+        {"set_"#luaname, LuaSet##name},\
+
+    static const luaL_reg Gui_methods[] =
+    {
+        {"get_node",        LuaGetNode},
+        {"delete_node",     LuaDeleteNode},
+        {"animate",         LuaAnimate},
+        {"new_box_node",    LuaNewBoxNode},
+        {"new_text_node",   LuaNewTextNode},
+        {"post",            LuaPost},
+        REGGETSET(Position, position)
+        REGGETSET(Rotation, rotation)
+        REGGETSET(Scale, scale)
+        REGGETSET(Color, color)
+        REGGETSET(Extents, extents)
+        {0, 0}
+    };
+
+#undef REGGETSET
+
     HGui New(const NewGuiParams* params)
     {
         if (params->m_MaxMessageDataSize > MAX_MESSAGE_DATA_SIZE)
@@ -536,66 +558,27 @@ namespace dmGui
         gui->m_Socket = params->m_Socket;
         lua_State *L = gui->m_LuaState;
 
+        int top = lua_gettop(L);
+        (void)top;
+
         dmScript::Initialize(L);
 
-        luaL_openlib(L, NODEPROXY, NodeProxy_methods, 0);   // create methods table, add it to the globals
+        luaL_register(L, NODEPROXY, NodeProxy_methods);   // create methods table, add it to the globals
+        lua_pop(L, 1);
+
         luaL_newmetatable(L, NODEPROXY);                         // create metatable for Image, add it to the Lua registry
-        luaL_openlib(L, 0, NodeProxy_meta, 0);                   // fill metatable
+        luaL_register(L, 0, NodeProxy_meta);                   // fill metatable
 
         lua_pushliteral(L, "__metatable");
         lua_pushvalue(L, -3);                       // dup methods table
         lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
         lua_pop(L, 1);                              // drop metatable
 
-        lua_pushliteral(L, "get_node");
-        lua_pushcfunction(L, LuaGetNode);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "delete_node");
-        lua_pushcfunction(L, LuaDeleteNode);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "animate");
-        lua_pushcfunction(L, LuaAnimate);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-/*        lua_pushliteral(L, "hash");
-        lua_pushcfunction(L, LuaHash);
-        lua_rawset(L, LUA_GLOBALSINDEX);*/
-
-        lua_pushliteral(L, "new_box_node");
-        lua_pushcfunction(L, LuaNewBoxNode);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "new_text_node");
-        lua_pushcfunction(L, LuaNewTextNode);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_pushliteral(L, "post");
-        lua_pushcfunction(L, LuaPost);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-#define REGGETSET(name, luaname) \
-        lua_pushliteral(L, "get_"#luaname);\
-        lua_pushcfunction(L, LuaGet##name);\
-        lua_rawset(L, LUA_GLOBALSINDEX);\
-\
-        lua_pushliteral(L, "set_"#luaname);\
-        lua_pushcfunction(L, LuaSet##name);\
-        lua_rawset(L, LUA_GLOBALSINDEX);\
-        \
-
-        REGGETSET(Position, position)
-        REGGETSET(Rotation, rotation)
-        REGGETSET(Scale, scale)
-        REGGETSET(Color, color)
-        REGGETSET(Extents, extents)
-
-#undef REGGETSET
+        luaL_register(L, "gui", Gui_methods);
 
 #define SETPROP(name) \
         lua_pushnumber(L, (lua_Number) PROPERTY_##name); \
-        lua_setglobal(L, #name);\
+        lua_setfield(L, -2, #name);\
 
         SETPROP(POSITION)
         SETPROP(ROTATION)
@@ -607,7 +590,7 @@ namespace dmGui
 
 #define SETEASING(name) \
         lua_pushnumber(L, (lua_Number) EASING_##name); \
-        lua_setglobal(L, "EASING_"#name);\
+        lua_setfield(L, -2, "EASING_"#name);\
 
         SETEASING(NONE)
         SETEASING(IN)
@@ -618,7 +601,7 @@ namespace dmGui
 
 #define SETBLEND(name) \
         lua_pushnumber(L, (lua_Number) BLEND_MODE_##name); \
-        lua_setglobal(L, "BLEND_MODE_"#name);\
+        lua_setfield(L, -2, "BLEND_MODE_"#name);\
 
         SETBLEND(ALPHA)
         SETBLEND(ADD)
@@ -626,6 +609,10 @@ namespace dmGui
         SETBLEND(MULT)
 
 #undef SETBLEND
+
+        lua_pop(L, 1);
+
+        assert(lua_gettop(L) == top);
 
         luaopen_base(L);
         luaopen_table(L);
