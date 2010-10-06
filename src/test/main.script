@@ -1,12 +1,12 @@
 function init(self)
-    post("load_collection", { collection = "test.collectionc" })
-    post("activate_collection", { collection = "test.collectionc" })
+    go.post("load_collection", { collection = "test.collectionc" })
+    go.post("activate_collection", { collection = "test.collectionc" })
     self.timer = 4
 end
 
 function update(self)
-    self.timer = self.timer - self.dt
+    self.timer = self.timer - go.dt
     if self.timer < 0 then
-        post("exit", { code = 1 })
+        go.post("exit", { code = 1 })
     end
 end

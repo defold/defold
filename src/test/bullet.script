@@ -8,25 +8,25 @@ function init(self)
 end
 
 function update(self)
-    local rot = get_world_rotation(self)
+    local rot = go.get_world_rotation(self)
     local expired = false
     if self.hit_response then
         expired = true
-        post_named_to(self.hit_response.game_object_id, "", "hit", { damage = self.impact_damage })
+        go.post_to(self.hit_response.game_object_id, "", "hit", { damage = self.impact_damage })
     else
-        local pos = get_world_position(self)
+        local pos = go.get_world_position(self)
         -- prediction for CD
-        local prev_pos = vec_math.vector3(pos)
-        local velocity = vec_math.vector3(self.speed, 0, 0)
-        local dp = vec_math.rotate(rot, velocity) * self.dt
+        local prev_pos = vmath.vector3(pos)
+        local velocity = vmath.vector3(self.speed, 0, 0)
+        local dp = vmath.rotate(rot, velocity) * go.dt
         pos = pos + dp
         local next_pos = pos + dp
-        set_position(self, pos)
+        go.set_position(self, pos)
         -- request ray cast
-        post("ray_cast_request", {from = prev_pos, to = next_pos, ignored_game_object_id = self.id, mask = self.mask})
+        go.post("ray_cast_request", {from = prev_pos, to = next_pos, ignored_game_object_id = self.id, mask = self.mask})
     end
     if expired then
-        delete(self)
+        go.delete(self)
     end
 end
 

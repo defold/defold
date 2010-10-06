@@ -1,9 +1,9 @@
 function update(self)
-    post("game_object_transform_query", { game_object_id = ident(self, "target") })
+    go.post("game_object_transform_query", { game_object_id = go.get_id(self, "target") })
     if self.target_pos then
-        local pos = get_position(self)
-        local dir = vec_math.normalize(self.target_pos - pos)
-        spawn("bullet.goc", vec_math.point3(pos.x, pos.y, pos.z), vec_math.quat_from_start_to_end(vec_math.vector3(1, 0, 0), dir))
+        local pos = go.get_position(self)
+        local dir = vmath.normalize(self.target_pos - pos)
+        go.spawn("bullet.goc", pos, vmath.quat_from_to(vmath.vector3(1, 0, 0), dir))
     end
 end
 
