@@ -1157,7 +1157,7 @@ TEST(ScriptTest, TestReloadScript)
 
     CreateFile(script_path,
                "function update(self)\n"
-               "    go.set_position(self, vec_math.vector3(1,2,3))\n"
+               "    go.set_position(self, vmath.vector3(1,2,3))\n"
                "end\n");
 
     dmGameObject::HInstance go;
@@ -1174,7 +1174,7 @@ TEST(ScriptTest, TestReloadScript)
 
     CreateFile(script_path,
                "function update(self)\n"
-               "    go.set_position(self, vec_math.vector3(10,20,30))\n"
+               "    go.set_position(self, vmath.vector3(10,20,30))\n"
                "end\n");
 
 

@@ -486,7 +486,7 @@ namespace dmGameObject
     int Script_Spawn(lua_State* L)
     {
         const char* prototype = luaL_checkstring(L, 1);
-        Vectormath::Aos::Point3* position = dmScript::CheckPoint3(L, 2);
+        Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 2);
         Vectormath::Aos::Quat* rotation = dmScript::CheckQuat(L, 3);
 
         lua_pushstring(L, "__collection__");
@@ -498,7 +498,7 @@ namespace dmGameObject
         dmGameObject::SpawnMessage spawn_message;
         spawn_message.m_Collection = collection;
         dmStrlCpy(spawn_message.m_Prototype, prototype, sizeof(spawn_message.m_Prototype));
-        spawn_message.m_Position = *position;
+        spawn_message.m_Position = Vectormath::Aos::Point3(*position);
         spawn_message.m_Rotation = *rotation;
         dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnMessageId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
 

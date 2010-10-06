@@ -27,7 +27,7 @@ function update(self)
     p = go.get_position(self)
     assert(p.y == 123.0)
 
-    go.post("spawn", {prototype = "test", pos = vec_math.vector3(1, 2, 3)} )
+    go.post("spawn", {prototype = "test", pos = vmath.vector3(1, 2, 3)} )
 end
 
 function on_message(self, message_id, message)
