@@ -35,15 +35,15 @@ def build(bld):
 
     test_script_hash.install_path = None
 
-    test_script_vec_math = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_vmath = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '.. .',
                                      uselib = 'GTEST DDF DLIB LUA',
                                      uselib_local = 'script',
                                      proto_gen_py = True,
-                                     target = 'test_script_vec_math',
-                                     source = 'test_script_vec_math.cpp test_vector3.lua test_vector4.lua test_point3.lua test_quat.lua')
+                                     target = 'test_script_vmath',
+                                     source = 'test_script_vmath.cpp test_vector3.lua test_vector4.lua test_quat.lua')
 
-    test_script_vec_math.install_path = None
+    test_script_vmath.install_path = None
 
     test_script_table = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '.. .',

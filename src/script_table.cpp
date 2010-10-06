@@ -29,8 +29,7 @@ namespace dmScript
     {
         SUB_TYPE_VECTOR3 = 0,
         SUB_TYPE_VECTOR4 = 1,
-        SUB_TYPE_POINT3  = 2,
-        SUB_TYPE_QUAT    = 3,
+        SUB_TYPE_QUAT    = 2,
     };
 
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
@@ -186,21 +185,6 @@ namespace dmScript
 
                         buffer += sizeof(float) * 4;
                     }
-                    else if (IsPoint3(L, -1))
-                    {
-                        Vectormath::Aos::Point3* v = CheckPoint3(L, -1);
-
-                        if (buffer_end - buffer < int32_t(sizeof(float) * 3))
-                            luaL_error(L, "table too large");
-
-                        *sub_type = (char) SUB_TYPE_POINT3;
-                        *f++ = v->getX();
-                        *f++ = v->getY();
-                        *f++ = v->getZ();
-
-                        buffer += sizeof(float) * 3;
-                    }
-
                     else
                     {
                         luaL_error(L, "unsupported value type in table", lua_typename(L, value_type));
@@ -285,12 +269,6 @@ namespace dmScript
                         float* f = (float*) buffer;
                         dmScript::PushVector4(L, Vectormath::Aos::Vector4(f[0], f[1], f[2], f[3]));
                         buffer += sizeof(float) * 4;
-                    }
-                    else if (sub_type == (char) SUB_TYPE_POINT3)
-                    {
-                        float* f = (float*) buffer;
-                        dmScript::PushPoint3(L, Vectormath::Aos::Point3(f[0], f[1], f[2]));
-                        buffer += sizeof(float) * 3;
                     }
                     else if (sub_type == (char) SUB_TYPE_QUAT)
                     {

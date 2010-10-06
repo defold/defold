@@ -14,10 +14,9 @@ extern "C"
 
 namespace dmScript
 {
-#define LIB_NAME "vec_math"
+#define LIB_NAME "vmath"
 #define TYPE_NAME_VECTOR3 "vector3"
 #define TYPE_NAME_VECTOR4 "vector4"
-#define TYPE_NAME_POINT3 "point3"
 #define TYPE_NAME_QUAT "quat"
 
     bool IsVector3(lua_State *L, int index)
@@ -107,18 +106,9 @@ namespace dmScript
 
     static int Vector3_add(lua_State *L)
     {
-        if (IsPoint3(L,2))
-        {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-            Vectormath::Aos::Point3* v2 = CheckPoint3(L, 2);
-            PushPoint3(L, *v1 + *v2);
-        }
-        else
-        {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
-            PushVector3(L, *v1 + *v2);
-        }
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        PushVector3(L, *v1 + *v2);
         return 1;
     }
 
@@ -313,122 +303,6 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsPoint3(lua_State *L, int index)
-    {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, TYPE_NAME_POINT3);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
-    }
-
-    static int Point3_gc(lua_State *L)
-    {
-        Vectormath::Aos::Point3* v = CheckPoint3(L, 1);
-        memset(v, 0, sizeof(*v));
-        (void) v;
-        assert(v);
-        return 0;
-    }
-
-    static int Point3_tostring(lua_State *L)
-    {
-        Vectormath::Aos::Point3* v = CheckPoint3(L, 1);
-        lua_pushfstring(L, "%s: [%f, %f, %f]", TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ());
-        return 1;
-    }
-
-    static int Point3_index(lua_State *L)
-    {
-        Vectormath::Aos::Point3* v = CheckPoint3(L, 1);
-
-        const char* key = luaL_checkstring(L, 2);
-        if (key[0] == 'x')
-        {
-            lua_pushnumber(L, v->getX());
-            return 1;
-        }
-        else if (key[0] == 'y')
-        {
-            lua_pushnumber(L, v->getY());
-            return 1;
-        }
-        else if (key[0] == 'z')
-        {
-            lua_pushnumber(L, v->getZ());
-            return 1;
-        }
-        else
-        {
-            return luaL_error(L, "%s.%s only has fields x, y, z.", LIB_NAME, TYPE_NAME_POINT3);
-        }
-    }
-
-    static int Point3_newindex(lua_State *L)
-    {
-        Vectormath::Aos::Point3* v = CheckPoint3(L, 1);
-
-        const char* key = luaL_checkstring(L, 2);
-        if (key[0] == 'x')
-        {
-            v->setX(luaL_checknumber(L, 3));
-        }
-        else if (key[0] == 'y')
-        {
-            v->setY(luaL_checknumber(L, 3));
-        }
-        else if (key[0] == 'z')
-        {
-            v->setZ(luaL_checknumber(L, 3));
-        }
-        else
-        {
-            return luaL_error(L, "%s.%s only has fields x, y, z.", LIB_NAME, TYPE_NAME_POINT3);
-        }
-        return 0;
-    }
-
-    static int Point3_add(lua_State *L)
-    {
-        Vectormath::Aos::Point3* v1 = CheckPoint3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
-        PushPoint3(L, *v1 + *v2);
-        return 1;
-    }
-
-    static int Point3_sub(lua_State *L)
-    {
-        Vectormath::Aos::Point3* v1 = CheckPoint3(L, 1);
-        Vectormath::Aos::Point3* v2 = CheckPoint3(L, 2);
-        PushVector3(L, *v1 - *v2);
-        return 1;
-    }
-
-    static const luaL_reg Point3_methods[] =
-    {
-        {0,0}
-    };
-    static const luaL_reg Point3_meta[] =
-    {
-        {"__gc",        Point3_gc},
-        {"__tostring",  Point3_tostring},
-        {"__index",     Point3_index},
-        {"__newindex",  Point3_newindex},
-        {"__add",       Point3_add},
-        {"__sub",       Point3_sub},
-        {0,0}
-    };
-
     bool IsQuat(lua_State *L, int index)
     {
         void *p = lua_touserdata(L, index);
@@ -573,15 +447,7 @@ namespace dmScript
         Vectormath::Aos::Vector3 v;
         if (lua_gettop(L) == 1)
         {
-            if (IsPoint3(L, 1))
-            {
-                Vectormath::Aos::Point3* p = CheckPoint3(L, 1);
-                v = Vectormath::Aos::Vector3(*p);
-            }
-            else
-            {
-                v = *CheckVector3(L, -1);
-            }
+            v = *CheckVector3(L, -1);
         }
         else
         {
@@ -608,16 +474,6 @@ namespace dmScript
             v.setW(luaL_checknumber(L, 4));
         }
         PushVector4(L, v);
-        return 1;
-    }
-
-    static int Point3_new(lua_State* L)
-    {
-        Vectormath::Aos::Point3 v;
-        v.setX(luaL_checknumber(L, 1));
-        v.setY(luaL_checknumber(L, 2));
-        v.setZ(luaL_checknumber(L, 3));
-        PushPoint3(L, v);
         return 1;
     }
 
@@ -781,11 +637,21 @@ namespace dmScript
         return 1;
     }
 
+    static int Project(lua_State* L)
+    {
+        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+        float sq_len = Vectormath::Aos::lengthSqr(*v2);
+        if (sq_len == 0.0f)
+            return luaL_error(L, "The second %s.%s to %s.%s must have a length bigger than 0.", LIB_NAME, TYPE_NAME_VECTOR3, LIB_NAME, "project");
+        lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2) / sq_len);
+        return 1;
+    }
+
     static const luaL_reg methods[] =
     {
         {TYPE_NAME_VECTOR3, Vector3_new},
         {TYPE_NAME_VECTOR4, Vector4_new},
-        {TYPE_NAME_POINT3, Point3_new},
         {TYPE_NAME_QUAT, Quat_new},
         {"quat_from_start_to_end", Quat_FromStartToEnd},
         {"quat_from_axis_angle", Quat_FromAxisAngle},
@@ -802,14 +668,15 @@ namespace dmScript
         {"slerp", Slerp},
         {"conj", Conj},
         {"rotate", Rotate},
+        {"project", Project},
         {0, 0}
     };
 
-    void InitializeVecMath(lua_State* L)
+    void InitializeVmath(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        const uint32_t type_count = 4;
+        const uint32_t type_count = 3;
         struct
         {
             const char* m_Name;
@@ -819,7 +686,6 @@ namespace dmScript
         {
             {TYPE_NAME_VECTOR3, Vector3_methods, Vector3_meta},
             {TYPE_NAME_VECTOR4, Vector4_methods, Vector4_meta},
-            {TYPE_NAME_POINT3, Point3_methods, Point3_meta},
             {TYPE_NAME_QUAT, Quat_methods, Quat_meta}
         };
         for (uint32_t i = 0; i < type_count; ++i)
@@ -878,24 +744,6 @@ namespace dmScript
             return (Vectormath::Aos::Vector4*)luaL_checkudata(L, index, TYPE_NAME_VECTOR4);
         }
         luaL_typerror(L, index, TYPE_NAME_VECTOR4);
-        return 0x0;
-    }
-
-    void PushPoint3(lua_State* L, const Vectormath::Aos::Point3& v)
-    {
-        Vectormath::Aos::Point3* vp = (Vectormath::Aos::Point3*)lua_newuserdata(L, sizeof(Vectormath::Aos::Point3));
-        *vp = v;
-        luaL_getmetatable(L, TYPE_NAME_POINT3);
-        lua_setmetatable(L, -2);
-    }
-
-    Vectormath::Aos::Point3* CheckPoint3(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (Vectormath::Aos::Point3*)luaL_checkudata(L, index, TYPE_NAME_POINT3);
-        }
-        luaL_typerror(L, index, TYPE_NAME_POINT3);
         return 0x0;
     }
 

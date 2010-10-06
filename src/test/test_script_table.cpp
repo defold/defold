@@ -214,32 +214,6 @@ TEST_F(LuaTableTest, Vector4)
     lua_pop(L, 1);
 }
 
-TEST_F(LuaTableTest, Point3)
-{
-    // Create table
-    lua_newtable(L);
-    dmScript::PushPoint3(L, Vectormath::Aos::Point3(1,2,3));
-    lua_setfield(L, -2, "v");
-
-    char buf[256];
-
-    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
-    (void) buffer_used;
-    lua_pop(L, 1);
-
-    dmScript::PushTable(L, buf);
-
-    lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsPoint3(L, -1));
-    Vectormath::Aos::Point3* v = dmScript::CheckPoint3(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
-    lua_pop(L, 1);
-
-    lua_pop(L, 1);
-}
-
 TEST_F(LuaTableTest, Quat)
 {
     // Create table
@@ -315,7 +289,7 @@ TEST_F(LuaTableTest, Stress)
             for (int i = 0; i < n; ++i)
             {
                 std::string key = RandomString(11);
-                int value_type = rand() % 4;
+                int value_type = rand() % 3;
                 if (value_type == 0)
                 {
                     lua_pushboolean(L, 1);
@@ -327,10 +301,6 @@ TEST_F(LuaTableTest, Stress)
                 else if (value_type == 2)
                 {
                     lua_pushstring(L, RandomString(15).c_str());
-                }
-                else if (value_type == 3)
-                {
-                    dmScript::PushPoint3(L, Vectormath::Aos::Point3(1,2,3));
                 }
 
                 lua_setfield(L, -2, key.c_str());

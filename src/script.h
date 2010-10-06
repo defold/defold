@@ -118,29 +118,6 @@ namespace dmScript
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
 
     /**
-     * Check is the value at #index is a point3
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true is value at #index is a point3
-     */
-    bool IsPoint3(lua_State *L, int index);
-
-    /**
-     * Push a Point3 value onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param v Point3 value to push
-     */
-    void PushPoint3(lua_State* L, const Vectormath::Aos::Point3& v);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a Point3.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The Point3 value
-     */
-    Vectormath::Aos::Point3* CheckPoint3(lua_State* L, int index);
-
-    /**
      * Check is the value at #index is a quat
      * @param L Lua state
      * @param index Index of the value

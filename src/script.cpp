@@ -1,7 +1,7 @@
 #include "script.h"
 
 #include "script_hash.h"
-#include "script_vec_math.h"
+#include "script_vmath.h"
 
 extern "C"
 {
@@ -14,6 +14,6 @@ namespace dmScript
     void Initialize(lua_State* L)
     {
         InitializeHash(L);
-        InitializeVecMath(L);
+        InitializeVmath(L);
     }
 }

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include "../script.h"
-#include "../script_vec_math.h"
 #include "test/test_ddf.h"
 
 extern "C"
