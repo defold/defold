@@ -48,7 +48,6 @@ namespace dmGameSystem
         GuiScenePrototype* scene_prototype = new GuiScenePrototype();
         scene_prototype->m_SceneDesc = scene_desc;
         scene_prototype->m_Script = script;
-
         scene_prototype->m_Fonts.SetCapacity(scene_desc->m_Fonts.m_Count);
         for (uint32_t i = 0; i < scene_desc->m_Fonts.m_Count; ++i)
         {
@@ -67,7 +66,7 @@ namespace dmGameSystem
             }
             scene_prototype->m_Fonts.Push(font);
         }
-
+        scene_prototype->m_Path = strdup(scene_desc->m_Script);
 
         resource->m_Resource = (void*) scene_prototype;
 
@@ -87,6 +86,7 @@ namespace dmGameSystem
 
         dmResource::Release(factory, (void*) scene_prototype->m_Script);
         dmDDF::FreeMessage(scene_prototype->m_SceneDesc);
+        free((void*)scene_prototype->m_Path);
         delete scene_prototype;
 
         return dmResource::CREATE_RESULT_OK;

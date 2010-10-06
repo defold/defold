@@ -14,6 +14,7 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc*     m_SceneDesc;
         const char*              m_Script;
         dmArray<dmRender::HFont> m_Fonts;
+        const char*              m_Path;
     };
 
     dmResource::CreateResult ResCreateSceneDesc(dmResource::HFactory factory,

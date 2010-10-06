@@ -89,7 +89,7 @@ namespace dmGameSystem
         dmGui::HScene scene = dmGui::NewScene(gui_world->m_Gui, &params);
 
         // NOTE: We ignore errors here in order to be able to reload invalid scripts
-        dmGui::SetSceneScript(scene, scene_prototype->m_Script, strlen(scene_prototype->m_Script));
+        dmGui::SetSceneScript(scene, scene_prototype->m_Script, strlen(scene_prototype->m_Script), scene_prototype->m_Path);
 
         Component* gui_component = new Component();
         gui_component->m_Scene = scene;
