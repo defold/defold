@@ -28,28 +28,28 @@ assert(q.w == 8, "q.w is not 8")
 q = vmath.quat(math.sin(math.pi/4), 0, 0, math.cos(math.pi/4)) * vmath.quat(math.sin(math.pi/4), 0, 0, math.cos(math.pi/4))
 assert(math.abs(q.x - 1) < 0.000001 and q.y == 0 and q.z == 0 and q.w == 0, "quat * quat")
 
--- quat_from_start_to_end
-q = vmath.quat_from_start_to_end(vmath.vector3(1, 0, 0), vmath.vector3(0, 1, 0))
+-- quat_from_to
+q = vmath.quat_from_to(vmath.vector3(1, 0, 0), vmath.vector3(0, 1, 0))
 assert(q.x == 0 and q.y == 0 and math.abs(q.z - math.sin(math.pi/4)) < 0.000001 and math.abs(q.w - math.cos(math.pi/4)) < 0.000001, "quat_from_start_to_end")
 
--- quat_from_axis_angle
-q = vmath.quat_from_axis_angle(vmath.vector3(0, 0, 1), math.pi/2)
+-- quat_axis_angle
+q = vmath.quat_axis_angle(vmath.vector3(0, 0, 1), math.pi/2)
 assert(q.x == 0 and q.y == 0 and math.abs(q.z - math.sin(math.pi/4)) < 0.000001 and math.abs(q.w - math.cos(math.pi/4)) < 0.000001, "quat_from_axis_angle")
 
--- quat_from_basis
-q = vmath.quat_from_basis(vmath.vector3(1, 0, 0), vmath.vector3(0, 1, 0), vmath.vector3(0, 0, 1))
+-- quat_basis
+q = vmath.quat_basis(vmath.vector3(1, 0, 0), vmath.vector3(0, 1, 0), vmath.vector3(0, 0, 1))
 assert(q.x == 0 and q.y == 0 and q.z == 0 and q.w == 1, "quat_from_basis")
 
--- quat_from_rotation_x
-q = vmath.quat_from_rotation_x(math.pi)
+-- quat_rotation_x
+q = vmath.quat_rotation_x(math.pi)
 assert(q.x == 1 and q.y == 0 and q.z == 0 and math.abs(q.w) < 0.000001, "quat_from_rotation_x")
 
--- quat_from_rotation_y
-q = vmath.quat_from_rotation_y(math.pi)
+-- quat_rotation_y
+q = vmath.quat_rotation_y(math.pi)
 assert(q.x == 0 and q.y == 1 and q.z == 0 and math.abs(q.w) < 0.000001, "quat_from_rotation_y")
 
--- quat_from_rotation_z
-q = vmath.quat_from_rotation_z(math.pi)
+-- quat_rotation_z
+q = vmath.quat_rotation_z(math.pi)
 assert(q.x == 0 and q.y == 0 and q.z == 1 and math.abs(q.w) < 0.000001, "quat_from_rotation_z")
 
 -- conj

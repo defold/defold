@@ -495,7 +495,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Quat_FromStartToEnd(lua_State* L)
+    static int Quat_FromTo(lua_State* L)
     {
         Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
         Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
@@ -503,7 +503,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Quat_FromAxisAngle(lua_State* L)
+    static int Quat_AxisAngle(lua_State* L)
     {
         Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
         float angle = luaL_checknumber(L, 2);
@@ -511,7 +511,7 @@ namespace dmScript
         return 1;
     }
 
-    static int Quat_FromBasis(lua_State* L)
+    static int Quat_Basis(lua_State* L)
     {
         Vectormath::Aos::Vector3* x = CheckVector3(L, 1);
         Vectormath::Aos::Vector3* y = CheckVector3(L, 2);
@@ -524,21 +524,21 @@ namespace dmScript
         return 1;
     }
 
-    static int Quat_FromRotationX(lua_State* L)
+    static int Quat_RotationX(lua_State* L)
     {
         float angle = luaL_checknumber(L, 1);
         PushQuat(L, Vectormath::Aos::Quat::rotationX(angle));
         return 1;
     }
 
-    static int Quat_FromRotationY(lua_State* L)
+    static int Quat_RotationY(lua_State* L)
     {
         float angle = luaL_checknumber(L, 1);
         PushQuat(L, Vectormath::Aos::Quat::rotationY(angle));
         return 1;
     }
 
-    static int Quat_FromRotationZ(lua_State* L)
+    static int Quat_RotationZ(lua_State* L)
     {
         float angle = luaL_checknumber(L, 1);
         PushQuat(L, Vectormath::Aos::Quat::rotationZ(angle));
@@ -653,12 +653,12 @@ namespace dmScript
         {TYPE_NAME_VECTOR3, Vector3_new},
         {TYPE_NAME_VECTOR4, Vector4_new},
         {TYPE_NAME_QUAT, Quat_new},
-        {"quat_from_start_to_end", Quat_FromStartToEnd},
-        {"quat_from_axis_angle", Quat_FromAxisAngle},
-        {"quat_from_basis", Quat_FromBasis},
-        {"quat_from_rotation_x", Quat_FromRotationX},
-        {"quat_from_rotation_y", Quat_FromRotationY},
-        {"quat_from_rotation_z", Quat_FromRotationZ},
+        {"quat_from_to", Quat_FromTo},
+        {"quat_axis_angle", Quat_AxisAngle},
+        {"quat_basis", Quat_Basis},
+        {"quat_rotation_x", Quat_RotationX},
+        {"quat_rotation_y", Quat_RotationY},
+        {"quat_rotation_z", Quat_RotationZ},
         {"dot", Dot},
         {"length_sqr", LengthSqr},
         {"length", Length},
