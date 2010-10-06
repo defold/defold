@@ -495,7 +495,7 @@ namespace dmGui
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void)n;
-        const char* font_name = luaL_checkstring(L, 3);
+        const char* font_name = luaL_checkstring(L, 2);
 
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
