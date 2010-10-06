@@ -3,9 +3,9 @@ package dmGameObjectDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-option java_package = "com.dynamo.gamesys.proto";
+option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
-option (ddf_java_package) = "com.dynamo.gamesys.ddf";
+option (ddf_java_package) = "com.dynamo.gameobject.ddf";
 
 message ComponentDesc
 {
