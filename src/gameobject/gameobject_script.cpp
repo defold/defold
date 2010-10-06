@@ -747,19 +747,18 @@ bail:
             lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "go");
-            lua_rawget(L, LUA_GLOBALSINDEX);
-            lua_pushliteral(L, "dt");
-            if (update_context != 0x0)
-                lua_pushnumber(L, update_context->m_DT);
-            else
-                lua_pushnil(L);
-            lua_rawset(L, -3);
-            lua_pop(L, 1);
-
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            int ret = lua_pcall(L, 1, LUA_MULTRET, 0);
+
+            int arg_count = 1;
+
+            if (update_context != 0x0)
+            {
+                lua_pushnumber(L, update_context->m_DT);
+                ++arg_count;
+            }
+
+            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
             if (ret != 0)
             {
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
@@ -778,13 +777,6 @@ bail:
             lua_pushliteral(L, "__instance__");
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "go");
-            lua_rawget(L, LUA_GLOBALSINDEX);
-            lua_pushliteral(L, "dt");
-            lua_pushnil(L);
-            lua_rawset(L, -3);
-            lua_pop(L, 1);
 
             assert(top == lua_gettop(L));
         }
