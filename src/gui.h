@@ -178,7 +178,7 @@ namespace dmGui
 
     Result UpdateScene(HScene scene, float dt);
 
-    Result SetSceneScript(HScene scene, const char* script, uint32_t script_length);
+    Result SetSceneScript(HScene scene, const char* script, uint32_t script_length, const char* path = "script");
 
     HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type);
 

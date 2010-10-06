@@ -991,14 +991,15 @@ namespace dmGui
         return result;
     }
 
-    Result SetSceneScript(HScene scene, const char* script, uint32_t script_length)
+    Result SetSceneScript(HScene scene, const char* script, uint32_t script_length, const char* path)
     {
         lua_State*L = scene->m_Gui->m_LuaState;
         int top = lua_gettop(L);
         (void) top;
 
         Result res = RESULT_OK;
-        int ret = luaL_loadbuffer(L, script, script_length, "script");
+
+        int ret = luaL_loadbuffer(L, script, script_length, path);
 
         if (ret != 0)
         {
