@@ -7,7 +7,7 @@ function init(self)
     self.hit_response = nil
 end
 
-function update(self)
+function update(self, dt)
     local rot = go.get_world_rotation(self)
     local expired = false
     if self.hit_response then
@@ -18,7 +18,7 @@ function update(self)
         -- prediction for CD
         local prev_pos = vmath.vector3(pos)
         local velocity = vmath.vector3(self.speed, 0, 0)
-        local dp = vmath.rotate(rot, velocity) * go.dt
+        local dp = vmath.rotate(rot, velocity) * dt
         pos = pos + dp
         local next_pos = pos + dp
         go.set_position(self, pos)

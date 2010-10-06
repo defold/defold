@@ -4,8 +4,8 @@ function init(self)
     self.timer = 4
 end
 
-function update(self)
-    self.timer = self.timer - go.dt
+function update(self, dt)
+    self.timer = self.timer - dt
     if self.timer < 0 then
         go.post("exit", { code = 1 })
     end
