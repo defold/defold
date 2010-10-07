@@ -13,6 +13,8 @@
 #include "gameobject/test/test_gameobject_ddf.h"
 #include "../proto/gameobject_ddf.h"
 
+using namespace Vectormath::Aos;
+
 class GameObjectTest : public ::testing::Test
 {
 protected:

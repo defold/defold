@@ -1,15 +1,13 @@
 #ifndef GAMEOBJECT_COMMON_H
 #define GAMEOBJECT_COMMON_H
 
-#include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
-using namespace Vectormath::Aos;
-#include <dlib/array.h>
-#include <dlib/mutex.h>
-#include <dlib/index_pool.h>
 #include <dlib/circular_array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/index_pool.h>
+#include <dlib/mutex.h>
+
+#include "gameobject.h"
 
 extern "C"
 {
@@ -31,7 +29,7 @@ namespace dmGameObject
                 m_Resource(resource),
                 m_ResourceType(resource_type)
             {
-                m_NameHash = dmHashBuffer32(name, strlen(name));
+                m_NameHash = dmHashString32(name);
             }
 
             void*    m_Resource;
