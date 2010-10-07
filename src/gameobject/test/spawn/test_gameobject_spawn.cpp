@@ -7,7 +7,7 @@
 #include <dlib/message.h>
 
 #include "../gameobject.h"
-#include "../gameobject_common.h"
+#include "../gameobject_private.h"
 
 class TestGameObjectSpawn : public ::testing::Test
 {

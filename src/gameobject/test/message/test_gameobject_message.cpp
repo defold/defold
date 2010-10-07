@@ -7,7 +7,7 @@
 #include <dlib/message.h>
 
 #include "../gameobject.h"
-#include "../gameobject_common.h"
+#include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
 
 class TestGameObjectMessage : public ::testing::Test

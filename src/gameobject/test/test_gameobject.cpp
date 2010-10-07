@@ -9,7 +9,7 @@
 #include <dlib/log.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
-#include "../gameobject_common.h"
+#include "../gameobject_private.h"
 #include "gameobject/test/test_gameobject_ddf.h"
 #include "../proto/gameobject_ddf.h"
 

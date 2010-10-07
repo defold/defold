@@ -14,7 +14,8 @@
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
-#include "gameobject_common.h"
+#include "gameobject_private.h"
+#include "res_script.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -485,7 +486,7 @@ bail:
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ResCreateScript, &ResDestroyScript, &ResRecreateScript);
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
@@ -494,24 +495,6 @@ bail:
             return ret;
 
         return ret;
-    }
-
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
-    {
-        ComponentType script_component;
-        dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
-        script_component.m_Name = "scriptc";
-        script_component.m_Context = 0x0;
-        script_component.m_NewWorldFunction = &ScriptNewWorld;
-        script_component.m_DeleteWorldFunction = &ScriptDeleteWorld;
-        script_component.m_CreateFunction = &ScriptCreateComponent;
-        script_component.m_InitFunction = &ScriptInitComponent;
-        script_component.m_DestroyFunction = &ScriptDestroyComponent;
-        script_component.m_UpdateFunction = &ScriptUpdateComponent;
-        script_component.m_OnMessageFunction = &ScriptOnMessageComponent;
-        script_component.m_OnInputFunction = &ScriptOnInputComponent;
-        script_component.m_InstanceHasUserData = true;
-        return RegisterComponentType(regist, script_component);
     }
 
     static void EraseSwapLevelIndex(HCollection collection, HInstance instance)

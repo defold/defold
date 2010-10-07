@@ -11,8 +11,15 @@ using namespace Vectormath::Aos;
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 
+extern "C"
+{
+#include <lua/lua.h>
+}
+
 namespace dmGameObject
 {
+    extern lua_State* g_LuaState;
+
     // TODO: Configurable?
     const uint32_t INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE = 0x8000;
 
