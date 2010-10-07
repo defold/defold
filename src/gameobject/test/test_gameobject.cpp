@@ -26,37 +26,37 @@ protected:
         m_MessageTargetCounter = 0;
         m_InputCounter = 0;
 
-        update_context.m_DT = 1.0f / 60.0f;
+        m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
-        regist = dmGameObject::NewRegister(0, 0);
-        dmGameObject::RegisterResourceTypes(factory, regist);
-        dmGameObject::RegisterComponentTypes(factory, regist);
-        collection = dmGameObject::NewCollection(factory, regist, 1024);
+        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
+        m_Register = dmGameObject::NewRegister(0, 0);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
         dmResource::FactoryResult e;
-        e = dmResource::RegisterType(factory, "pc", this, PhysCreate, PhysDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "pc", this, PhysCreate, PhysDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "a", this, ACreate, ADestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "b", this, BCreate, BDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "b", this, BCreate, BDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "c", this, CCreate, CDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "c", this, CCreate, CDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "mt", this, MessageTargetCreate, MessageTargetDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "mt", this, MessageTargetCreate, MessageTargetDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "deleteself", this, DeleteSelfCreate, DeleteSelfDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "deleteself", this, DeleteSelfCreate, DeleteSelfDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "it", this, InputTargetCreate, InputTargetDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "it", this, InputTargetCreate, InputTargetDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
         uint32_t resource_type;
 
-        e = dmResource::GetTypeFromExtension(factory, "pc", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "pc", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType pc_type;
         pc_type.m_Name = "pc";
@@ -66,11 +66,11 @@ protected:
         pc_type.m_InitFunction = PhysComponentInit;
         pc_type.m_DestroyFunction = PhysComponentDestroy;
         pc_type.m_UpdateFunction = PhysComponentsUpdate;
-        dmGameObject::Result result = dmGameObject::RegisterComponentType(regist, pc_type);
+        dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, pc_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // A has component_user_data
-        e = dmResource::GetTypeFromExtension(factory, "a", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "a", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType a_type;
         a_type.m_Name = "a";
@@ -81,11 +81,11 @@ protected:
         a_type.m_DestroyFunction = AComponentDestroy;
         a_type.m_UpdateFunction = AComponentsUpdate;
         a_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(regist, a_type);
+        result = dmGameObject::RegisterComponentType(m_Register, a_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
-        e = dmResource::GetTypeFromExtension(factory, "b", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "b", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType b_type;
         b_type.m_Name = "b";
@@ -95,11 +95,11 @@ protected:
         b_type.m_InitFunction = BComponentInit;
         b_type.m_DestroyFunction = BComponentDestroy;
         b_type.m_UpdateFunction = BComponentsUpdate;
-        result = dmGameObject::RegisterComponentType(regist, b_type);
+        result = dmGameObject::RegisterComponentType(m_Register, b_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // C has component_user_data
-        e = dmResource::GetTypeFromExtension(factory, "c", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "c", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType c_type;
         c_type.m_Name = "c";
@@ -110,11 +110,11 @@ protected:
         c_type.m_DestroyFunction = CComponentDestroy;
         c_type.m_UpdateFunction = CComponentsUpdate;
         c_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(regist, c_type);
+        result = dmGameObject::RegisterComponentType(m_Register, c_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // MessageTargetComponent
-        e = dmResource::GetTypeFromExtension(factory, "mt", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "mt", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType mt_type;
         mt_type.m_Name = "mt";
@@ -126,10 +126,10 @@ protected:
         mt_type.m_UpdateFunction = MessageTargetComponentsUpdate;
         mt_type.m_OnMessageFunction = &MessageTargetOnMessage;
         mt_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(regist, mt_type);
+        result = dmGameObject::RegisterComponentType(m_Register, mt_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        e = dmResource::GetTypeFromExtension(factory, "deleteself", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType ds_type;
         ds_type.m_Name = "deleteself";
@@ -139,11 +139,11 @@ protected:
         ds_type.m_InitFunction = DeleteSelfComponentInit;
         ds_type.m_DestroyFunction = DeleteSelfComponentDestroy;
         ds_type.m_UpdateFunction = DeleteSelfComponentsUpdate;
-        result = dmGameObject::RegisterComponentType(regist, ds_type);
+        result = dmGameObject::RegisterComponentType(m_Register, ds_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // InputTargetComponent
-        e = dmResource::GetTypeFromExtension(factory, "it", &resource_type);
+        e = dmResource::GetTypeFromExtension(m_Factory, "it", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType it_type;
         it_type.m_Name = "it";
@@ -155,7 +155,7 @@ protected:
         it_type.m_UpdateFunction = InputTargetComponentsUpdate;
         it_type.m_OnInputFunction = &InputTargetOnInput;
         it_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(regist, it_type);
+        result = dmGameObject::RegisterComponentType(m_Register, it_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         m_MaxComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash] = 1000000;
@@ -163,9 +163,9 @@ protected:
 
     virtual void TearDown()
     {
-        dmGameObject::DeleteCollection(collection);
-        dmResource::DeleteFactory(factory);
-        dmGameObject::DeleteRegister(regist);
+        dmGameObject::DeleteCollection(m_Collection);
+        dmResource::DeleteFactory(m_Factory);
+        dmGameObject::DeleteRegister(m_Register);
         dmGameObject::Finalize();
     }
 
@@ -253,10 +253,10 @@ public:
     std::vector<int> m_DeleteSelfIndices;
     std::map<int, dmGameObject::HInstance> m_DeleteSelfIndexToInstance;
 
-    dmGameObject::UpdateContext update_context;
-    dmGameObject::HRegister regist;
-    dmGameObject::HCollection collection;
-    dmResource::HFactory factory;
+    dmGameObject::UpdateContext m_UpdateContext;
+    dmGameObject::HRegister m_Register;
+    dmGameObject::HCollection m_Collection;
+    dmResource::HFactory m_Factory;
 };
 
 template <typename T>
@@ -405,16 +405,16 @@ dmGameObject::ComponentsUpdate GameObjectTest::InputTargetComponentsUpdate = Gen
 
 TEST_F(GameObjectTest, Test01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto01.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret;
-    ret = dmGameObject::Update(&collection, &update_context, 1);
+    ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::Update(&collection, &update_context, 1);
+    ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::Update(&collection, &update_context, 1);
+    ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
     ASSERT_TRUE(ret);
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -424,8 +424,8 @@ TEST_F(GameObjectTest, Test01)
 
 TEST_F(GameObjectTest, TestIdentifier)
 {
-    dmGameObject::HInstance go1 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance go2 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "goproto01.goc");
     ASSERT_NE((void*) 0, (void*) go1);
     ASSERT_NE((void*) 0, (void*) go2);
 
@@ -433,27 +433,27 @@ TEST_F(GameObjectTest, TestIdentifier)
     ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
 
     dmGameObject::Result r;
-    r = dmGameObject::SetIdentifier(collection, go1, "go1");
+    r = dmGameObject::SetIdentifier(m_Collection, go1, "go1");
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
     ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
 
-    r = dmGameObject::SetIdentifier(collection, go1, "go1");
+    r = dmGameObject::SetIdentifier(m_Collection, go1, "go1");
     ASSERT_NE(dmGameObject::RESULT_OK, r);
     ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
 
-    r = dmGameObject::SetIdentifier(collection, go2, "go1");
+    r = dmGameObject::SetIdentifier(m_Collection, go2, "go1");
     ASSERT_EQ(dmGameObject::RESULT_IDENTIFIER_IN_USE, r);
     ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
 
-    r = dmGameObject::SetIdentifier(collection, go2, "go2");
+    r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
     ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
 
-    r = dmGameObject::SetIdentifier(collection, go2, "go2");
+    r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
     ASSERT_NE(dmGameObject::RESULT_OK, r);
 
-    dmGameObject::Delete(collection, go1);
-    dmGameObject::Delete(collection, go2);
+    dmGameObject::Delete(m_Collection, go1);
+    dmGameObject::Delete(m_Collection, go2);
 
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -463,16 +463,16 @@ TEST_F(GameObjectTest, TestIdentifier)
 
 TEST_F(GameObjectTest, TestUpdate)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto02.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto02.goc");
     ASSERT_NE((void*) 0, (void*) go);
-    bool ret = dmGameObject::Update(&collection, &update_context, 1);
+    bool ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::PostUpdate(&collection, 1);
+    ret = dmGameObject::PostUpdate(&m_Collection, 1);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
 
-    dmGameObject::Delete(collection, go);
-    ret = dmGameObject::PostUpdate(&collection, 1);
+    dmGameObject::Delete(m_Collection, go);
+    ret = dmGameObject::PostUpdate(&m_Collection, 1);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -482,7 +482,7 @@ TEST_F(GameObjectTest, TestUpdate)
 
 TEST_F(GameObjectTest, TestPostDeleteUpdate)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto02.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto02.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     uint32_t message_id = dmHashString32("test");
@@ -492,17 +492,17 @@ TEST_F(GameObjectTest, TestPostDeleteUpdate)
     data.m_Component = 0xff;
     data.m_Instance = go;
     data.m_DDFDescriptor = 0x0;
-    dmMessage::Post(dmGameObject::GetReplyMessageSocketId(regist), message_id, (void*)&data, sizeof(dmGameObject::InstanceMessageData));
+    dmMessage::Post(dmGameObject::GetReplyMessageSocketId(m_Register), message_id, (void*)&data, sizeof(dmGameObject::InstanceMessageData));
 
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 
-    bool ret = dmGameObject::Update(&collection, &update_context, 1);
+    bool ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
     ASSERT_TRUE(ret);
 }
 
 TEST_F(GameObjectTest, TestNonexistingComponent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto03.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto03.goc");
     ASSERT_EQ((void*) 0, (void*) go);
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -513,7 +513,7 @@ TEST_F(GameObjectTest, TestNonexistingComponent)
 
 TEST_F(GameObjectTest, TestPartialNonexistingComponent1)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto04.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto04.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     // First one exists
@@ -528,7 +528,7 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
 {
     // Only succeed creating the first component
     m_MaxComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash] = 1;
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto05.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto05.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
@@ -541,11 +541,11 @@ TEST_F(GameObjectTest, TestPartialFailingComponent)
 
 TEST_F(GameObjectTest, TestComponentUserdata)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "goproto06.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto06.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::Delete(collection, go);
-    bool ret = dmGameObject::PostUpdate(&collection, 1);
+    dmGameObject::Delete(m_Collection, go);
+    bool ret = dmGameObject::PostUpdate(&m_Collection, 1);
     ASSERT_TRUE(ret);
     // Two a:s
     ASSERT_EQ(2, m_ComponentUserDataAcc[TestGameObject::AResource::m_DDFHash]);
@@ -559,12 +559,12 @@ TEST_F(GameObjectTest, AutoDelete)
 {
     for (int i = 0; i < 512; ++i)
     {
-        dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto01.goc");
         ASSERT_NE((void*) 0, (void*) go);
     }
 }
 
-dmGameObject::UpdateResult GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
+dmGameObject::UpdateResult GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection m_Collection,
                                                 const dmGameObject::UpdateContext* update_context,
                                                 void* world,
                                                 void* context)
@@ -573,9 +573,9 @@ dmGameObject::UpdateResult GameObjectTest::DeleteSelfComponentsUpdate(dmGameObje
 
     for (uint32_t i = 0; i < game_object_test->m_SelfInstancesToDelete.size(); ++i)
     {
-        dmGameObject::Delete(game_object_test->collection, game_object_test->m_SelfInstancesToDelete[i]);
+        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i]);
         // Test "double delete"
-        dmGameObject::Delete(game_object_test->collection, game_object_test->m_SelfInstancesToDelete[i]);
+        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i]);
     }
 
     for (uint32_t i = 0; i < game_object_test->m_DeleteSelfIndices.size(); ++i)
@@ -604,7 +604,7 @@ TEST_F(GameObjectTest, DeleteSelf)
 
         for (int i = 0; i < 512; ++i)
         {
-            dmGameObject::HInstance go = dmGameObject::New(collection, "goproto01.goc");
+            dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto01.goc");
             dmGameObject::SetPosition(go, Point3(i,i,i));
             ASSERT_NE((void*) 0, (void*) go);
             m_DeleteSelfInstances.push_back(go);
@@ -621,9 +621,9 @@ TEST_F(GameObjectTest, DeleteSelf)
                 int index = *(m_DeleteSelfIndices.end() - i - 1);
                 m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
             }
-            bool ret = dmGameObject::Update(&collection, 0, 1);
+            bool ret = dmGameObject::Update(&m_Collection, 0, 1);
             ASSERT_TRUE(ret);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
             for (int i = 0; i < 16; ++i)
             {
@@ -664,14 +664,14 @@ dmGameObject::UpdateResult GameObjectTest::MessageTargetOnMessage(dmGameObject::
 
 TEST_F(GameObjectTest, Null)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "null.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "null.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    ASSERT_TRUE(dmGameObject::Init(collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("test"), 0x0, 0));
 
-    dmGameObject::AcquireInputFocus(collection, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString32("test_action");
@@ -680,16 +680,16 @@ TEST_F(GameObjectTest, Null)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&collection, 1, &action, 1));
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
 
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 }
 
 TEST_F(GameObjectTest, TestComponentMessage)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_message.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Result r;
@@ -702,22 +702,22 @@ TEST_F(GameObjectTest, TestComponentMessage)
     r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
     r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 }
 
 TEST_F(GameObjectTest, TestBroadcastMessage)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_broadcast_message.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_broadcast_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Result r;
@@ -734,13 +734,13 @@ TEST_F(GameObjectTest, TestBroadcastMessage)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    dmGameObject::UpdateResult update_result = dmGameObject::DispatchInput(&collection, 1, &action, 1);
+    dmGameObject::UpdateResult update_result = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, update_result);
 
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 }
 
 dmGameObject::InputResult GameObjectTest::InputTargetOnInput(dmGameObject::HInstance instance,
@@ -764,10 +764,10 @@ dmGameObject::InputResult GameObjectTest::InputTargetOnInput(dmGameObject::HInst
 
 TEST_F(GameObjectTest, TestComponentInput)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_input.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::AcquireInputFocus(collection, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::UpdateResult r;
 
@@ -780,7 +780,7 @@ TEST_F(GameObjectTest, TestComponentInput)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    r = dmGameObject::DispatchInput(&collection, 1, &action, 1);
+    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
 
     ASSERT_EQ(1U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
@@ -791,7 +791,7 @@ TEST_F(GameObjectTest, TestComponentInput)
     action.m_Released = 1;
     action.m_Repeated = 0;
 
-    r = dmGameObject::DispatchInput(&collection, 1, &action, 1);
+    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
 
     ASSERT_EQ(2U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
@@ -799,10 +799,10 @@ TEST_F(GameObjectTest, TestComponentInput)
 
 TEST_F(GameObjectTest, TestComponentInput2)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_input2.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input2.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::AcquireInputFocus(collection, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString32("test_action");
@@ -811,17 +811,17 @@ TEST_F(GameObjectTest, TestComponentInput2)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&collection, 1, &action, 1);
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
 
 TEST_F(GameObjectTest, TestComponentInput3)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "component_input3.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input3.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::AcquireInputFocus(collection, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString32("test_action");
@@ -830,24 +830,24 @@ TEST_F(GameObjectTest, TestComponentInput3)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&collection, 1, &action, 1);
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, r);
 }
 
 TEST_F(GameObjectTest, TestScriptProperty)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "script_property.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "script_property.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::SetScriptIntProperty(go, "my_int_prop", 1010);
     dmGameObject::SetScriptFloatProperty(go, "my_float_prop", 1.0);
     dmGameObject::SetScriptStringProperty(go, "my_string_prop", "a string prop");
 
-    ASSERT_TRUE(dmGameObject::Init(collection));
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 }
 
 struct TestScript01Context
@@ -879,10 +879,10 @@ void TestScript01DispatchReply(dmMessage::Message *message_object, void* user_pt
 
 TEST_F(GameObjectTest, TestScript01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto01.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "testscriptproto01.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(collection, go, "my_object01"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "my_object01"));
 
     TestGameObject::GlobalData global_data;
     global_data.m_UIntValue = 12345;
@@ -892,25 +892,25 @@ TEST_F(GameObjectTest, TestScript01)
     global_data.m_VecValue.setY(2.0f);
     global_data.m_VecValue.setZ(3.0f);
 
-    dmGameObject::Init(collection);
+    dmGameObject::Init(m_Collection);
 
-    ASSERT_TRUE(dmGameObject::Update(&collection, &update_context, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 
-    uint32_t socket = dmGameObject::GetMessageSocketId(regist);
-    uint32_t reply_socket = dmGameObject::GetReplyMessageSocketId(regist);
+    uint32_t socket = dmGameObject::GetMessageSocketId(m_Register);
+    uint32_t reply_socket = dmGameObject::GetReplyMessageSocketId(m_Register);
     TestScript01Context context;
-    context.m_Register = regist;
+    context.m_Register = m_Register;
     context.m_Result = false;
     dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
 
     ASSERT_TRUE(context.m_Result);
 
-    ASSERT_TRUE(dmGameObject::Update(&collection, &update_context, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     // Final dispatch to deallocate message data
     dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
     dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &context);
 
-    dmGameObject::AcquireInputFocus(collection, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString32("test_action");
@@ -919,9 +919,9 @@ TEST_F(GameObjectTest, TestScript01)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&collection, 1, &action, 1));
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
 
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 }
 
 TEST_F(GameObjectTest, TestFailingScript02)
@@ -930,8 +930,8 @@ TEST_F(GameObjectTest, TestFailingScript02)
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    dmGameObject::New(collection, "testscriptproto02.goc");
-    bool result = dmGameObject::Init(collection);
+    dmGameObject::New(m_Collection, "testscriptproto02.goc");
+    bool result = dmGameObject::Init(m_Collection);
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     ASSERT_FALSE(result);
 }
@@ -939,20 +939,20 @@ TEST_F(GameObjectTest, TestFailingScript02)
 TEST_F(GameObjectTest, TestFailingScript03)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto03.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "testscriptproto03.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    ASSERT_FALSE(dmGameObject::Update(&collection, &update_context, 1));
+    ASSERT_FALSE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
-    dmGameObject::Delete(collection, go);
+    dmGameObject::Delete(m_Collection, go);
 }
 
 TEST_F(GameObjectTest, TestFailingScript04)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(collection, "testscriptproto04.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "testscriptproto04.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
@@ -960,9 +960,9 @@ TEST_F(GameObjectTest, Collection)
 {
     for (int i = 0; i < 10; ++i)
     {
-        // NOTE: Coll is local and not collection in GameObjectTest
+        // NOTE: Coll is local and not m_Collection in GameObjectTest
         dmGameObject::HCollection coll;
-        dmResource::FactoryResult r = dmResource::Get(factory, "level1.collectionc", (void**) &coll);
+        dmResource::FactoryResult r = dmResource::Get(m_Factory, "level1.collectionc", (void**) &coll);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -979,7 +979,7 @@ TEST_F(GameObjectTest, Collection)
 
         ASSERT_NE(go01, go02);
 
-        dmResource::Release(factory, (void*) coll);
+        dmResource::Release(m_Factory, (void*) coll);
     }
 }
 
@@ -989,12 +989,12 @@ TEST_F(GameObjectTest, PostCollection)
     {
         dmResource::FactoryResult r;
         dmGameObject::HCollection coll1;
-        r = dmResource::Get(factory, "postcollection1.collectionc", (void**) &coll1);
+        r = dmResource::Get(m_Factory, "postcollection1.collectionc", (void**) &coll1);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll1);
 
         dmGameObject::HCollection coll2;
-        r = dmResource::Get(factory, "postcollection2.collectionc", (void**) &coll2);
+        r = dmResource::Get(m_Factory, "postcollection2.collectionc", (void**) &coll2);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll2);
 
@@ -1017,8 +1017,8 @@ TEST_F(GameObjectTest, PostCollection)
 
         //ASSERT_NE(go01, go02);
 
-        dmResource::Release(factory, (void*) coll1);
-        dmResource::Release(factory, (void*) coll2);
+        dmResource::Release(m_Factory, (void*) coll1);
+        dmResource::Release(m_Factory, (void*) coll2);
     }
 }
 
@@ -1029,7 +1029,7 @@ TEST_F(GameObjectTest, CollectionFail)
     {
         // NOTE: Coll is local and not collection in GameObjectTest
         dmGameObject::HCollection coll;
-        dmResource::FactoryResult r = dmResource::Get(factory, "failing_sub.collectionc", (void**) &coll);
+        dmResource::FactoryResult r = dmResource::Get(m_Factory, "failing_sub.collectionc", (void**) &coll);
         ASSERT_NE(dmResource::FACTORY_RESULT_OK, r);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
@@ -1041,7 +1041,7 @@ TEST_F(GameObjectTest, CollectionInCollection)
     {
         // NOTE: Coll is local and not collection in GameObjectTest
         dmGameObject::HCollection coll;
-        dmResource::FactoryResult r = dmResource::Get(factory, "root.collectionc", (void**) &coll);
+        dmResource::FactoryResult r = dmResource::Get(m_Factory, "root.collectionc", (void**) &coll);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -1086,7 +1086,7 @@ TEST_F(GameObjectTest, CollectionInCollection)
         bool ret = dmGameObject::Update(&coll, 0, 1);
         ASSERT_TRUE(ret);
 
-        dmResource::Release(factory, (void*) coll);
+        dmResource::Release(m_Factory, (void*) coll);
     }
 }
 
@@ -1097,7 +1097,7 @@ TEST_F(GameObjectTest, CollectionInCollectionChildFail)
     {
         // NOTE: Coll is local and not collection in GameObjectTest
         dmGameObject::HCollection coll;
-        dmResource::FactoryResult r = dmResource::Get(factory, "root2.collectionc", (void**) &coll);
+        dmResource::FactoryResult r = dmResource::Get(m_Factory, "root2.collectionc", (void**) &coll);
         ASSERT_NE(dmResource::FACTORY_RESULT_OK, r);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
@@ -1128,10 +1128,10 @@ TEST(ScriptTest, TestReloadScript)
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
-    dmGameObject::HRegister regist = dmGameObject::NewRegister(0, 0);
-    dmGameObject::RegisterResourceTypes(factory, regist);
-    dmGameObject::RegisterComponentTypes(factory, regist);
-    dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, regist, 1024);
+    dmGameObject::HRegister m_Register = dmGameObject::NewRegister(0, 0);
+    dmGameObject::RegisterResourceTypes(factory, m_Register);
+    dmGameObject::RegisterComponentTypes(factory, m_Register);
+    dmGameObject::HCollection collection = dmGameObject::NewCollection(factory, m_Register, 1024);
 
     uint32_t type;
     dmResource::FactoryResult e = dmResource::GetTypeFromExtension(factory, "scriptc", &type);
@@ -1198,7 +1198,7 @@ TEST(ScriptTest, TestReloadScript)
     dmGameObject::Delete(collection, go);
     dmGameObject::DeleteCollection(collection);
     dmResource::DeleteFactory(factory);
-    dmGameObject::DeleteRegister(regist);
+    dmGameObject::DeleteRegister(m_Register);
     dmGameObject::Finalize();
 }
 
@@ -1206,8 +1206,8 @@ TEST_F(GameObjectTest, TestHierarchy1)
 {
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-        dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance child = dmGameObject::New(m_Collection, "goproto01.goc");
 
         const float parent_rot = 3.14159265f / 4.0f;
 
@@ -1236,9 +1236,9 @@ TEST_F(GameObjectTest, TestHierarchy1)
         ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
 
         bool ret;
-        ret = dmGameObject::Update(&collection, 0, 1);
+        ret = dmGameObject::Update(&m_Collection, 0, 1);
         ASSERT_TRUE(ret);
-        ret = dmGameObject::PostUpdate(&collection, 1);
+        ret = dmGameObject::PostUpdate(&m_Collection, 1);
         ASSERT_TRUE(ret);
 
         Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
@@ -1248,24 +1248,24 @@ TEST_F(GameObjectTest, TestHierarchy1)
 
         if (i % 2 == 0)
         {
-            dmGameObject::Delete(collection, parent);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, parent);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
             ASSERT_EQ(0U, dmGameObject::GetDepth(child));
             ASSERT_EQ(0U, dmGameObject::GetChildCount(child));
-            dmGameObject::Delete(collection, child);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
         else
         {
-            dmGameObject::Delete(collection, child);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(0U, dmGameObject::GetChildCount(parent));
-            dmGameObject::Delete(collection, parent);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, parent);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
     }
@@ -1274,9 +1274,9 @@ TEST_F(GameObjectTest, TestHierarchy1)
 TEST_F(GameObjectTest, TestHierarchy2)
 {
     // Test transform
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child_child = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child_child = dmGameObject::New(m_Collection, "goproto01.goc");
 
     const float parent_rot = 3.14159265f / 4.0f;
     const float child_rot = 3.14159265f / 5.0f;
@@ -1311,7 +1311,7 @@ TEST_F(GameObjectTest, TestHierarchy2)
     ASSERT_EQ(2U, dmGameObject::GetDepth(child_child));
 
     bool ret;
-    ret = dmGameObject::Update(&collection, 0, 1);
+    ret = dmGameObject::Update(&m_Collection, 0, 1);
     ASSERT_TRUE(ret);
 
     Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
@@ -1323,9 +1323,9 @@ TEST_F(GameObjectTest, TestHierarchy2)
     ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child_child) - expected_child_child_pos), 0.001f);
     ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child_child) - expected_child_child_pos2), 0.001f);
 
-    dmGameObject::Delete(collection, parent);
-    dmGameObject::Delete(collection, child);
-    dmGameObject::Delete(collection, child_child);
+    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, child);
+    dmGameObject::Delete(m_Collection, child_child);
 }
 
 TEST_F(GameObjectTest, TestHierarchy3)
@@ -1333,9 +1333,9 @@ TEST_F(GameObjectTest, TestHierarchy3)
     // Test with siblings
     for (int i = 0; i < 3; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-        dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
-        dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
 
         ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
         ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
@@ -1362,69 +1362,69 @@ TEST_F(GameObjectTest, TestHierarchy3)
         ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
 
         bool ret;
-        ret = dmGameObject::Update(&collection, 0, 1);
+        ret = dmGameObject::Update(&m_Collection, 0, 1);
         ASSERT_TRUE(ret);
-        ret = dmGameObject::PostUpdate(&collection, 1);
+        ret = dmGameObject::PostUpdate(&m_Collection, 1);
         ASSERT_TRUE(ret);
 
         // Test all possible delete orders in this configuration
         if (i == 0)
         {
-            dmGameObject::Delete(collection, parent);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, parent);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
-            dmGameObject::Delete(collection, child1);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child1);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
-            dmGameObject::Delete(collection, child2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
         else if (i == 1)
         {
-            dmGameObject::Delete(collection, child1);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child1);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
 
-            dmGameObject::Delete(collection, parent);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, parent);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
-            dmGameObject::Delete(collection, child2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
         else if (i == 2)
         {
-            dmGameObject::Delete(collection, child2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
 
-            dmGameObject::Delete(collection, parent);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, parent);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
 
-            dmGameObject::Delete(collection, child1);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, child1);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
         else
@@ -1438,11 +1438,11 @@ TEST_F(GameObjectTest, TestHierarchy4)
 {
     // Test RESULT_MAXIMUM_HIEARCHICAL_DEPTH
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child4 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child4 = dmGameObject::New(m_Collection, "goproto01.goc");
 
     dmGameObject::Result r;
 
@@ -1460,21 +1460,21 @@ TEST_F(GameObjectTest, TestHierarchy4)
 
     ASSERT_EQ(0U, dmGameObject::GetChildCount(child3));
 
-    dmGameObject::Delete(collection, parent);
-    dmGameObject::Delete(collection, child1);
-    dmGameObject::Delete(collection, child2);
-    dmGameObject::Delete(collection, child3);
-    dmGameObject::Delete(collection, child4);
+    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, child1);
+    dmGameObject::Delete(m_Collection, child2);
+    dmGameObject::Delete(m_Collection, child3);
+    dmGameObject::Delete(m_Collection, child4);
 }
 
 TEST_F(GameObjectTest, TestHierarchy5)
 {
     // Test parent subtree
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "goproto01.goc");
 
     dmGameObject::SetParent(child1, parent);
     dmGameObject::SetParent(child3, child2);
@@ -1485,10 +1485,10 @@ TEST_F(GameObjectTest, TestHierarchy5)
     ASSERT_EQ(child1, dmGameObject::GetParent(child2));
     ASSERT_EQ(child2, dmGameObject::GetParent(child3));
 
-    dmGameObject::Delete(collection, parent);
-    dmGameObject::Delete(collection, child1);
-    dmGameObject::Delete(collection, child2);
-    dmGameObject::Delete(collection, child3);
+    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, child1);
+    dmGameObject::Delete(m_Collection, child2);
+    dmGameObject::Delete(m_Collection, child3);
 }
 
 TEST_F(GameObjectTest, TestHierarchy6)
@@ -1496,8 +1496,8 @@ TEST_F(GameObjectTest, TestHierarchy6)
     // Test invalid reparent.
     // Test that the child node is not present in the upward trace from parent
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
 
     // parent -> child1
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child1, parent));
@@ -1509,17 +1509,17 @@ TEST_F(GameObjectTest, TestHierarchy6)
 
     ASSERT_EQ(parent, dmGameObject::GetParent(child1));
 
-    dmGameObject::Delete(collection, parent);
-    dmGameObject::Delete(collection, child1);
+    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, child1);
 }
 
 TEST_F(GameObjectTest, TestHierarchy7)
 {
     // Test remove interior node
 
-    dmGameObject::HInstance parent = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(collection, "goproto01.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
 
     dmGameObject::SetParent(child1, parent);
     dmGameObject::SetParent(child2, child1);
@@ -1527,14 +1527,14 @@ TEST_F(GameObjectTest, TestHierarchy7)
     ASSERT_EQ(parent, dmGameObject::GetParent(child1));
     ASSERT_EQ(child1, dmGameObject::GetParent(child2));
 
-    dmGameObject::Delete(collection, child1);
-    bool ret = dmGameObject::PostUpdate(&collection, 1);
+    dmGameObject::Delete(m_Collection, child1);
+    bool ret = dmGameObject::PostUpdate(&m_Collection, 1);
     ASSERT_TRUE(ret);
     ASSERT_EQ(parent, dmGameObject::GetParent(child2));
     ASSERT_TRUE(dmGameObject::IsChildOf(child2, parent));
 
-    dmGameObject::Delete(collection, parent);
-    dmGameObject::Delete(collection, child2);
+    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, child2);
 }
 
 TEST_F(GameObjectTest, TestHierarchy8)
@@ -1554,10 +1554,10 @@ TEST_F(GameObjectTest, TestHierarchy8)
 
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance a1 = dmGameObject::New(collection, "goproto01.goc");
-        dmGameObject::HInstance b2 = dmGameObject::New(collection, "goproto01.goc");
-        dmGameObject::HInstance c2 = dmGameObject::New(collection, "goproto01.goc");
-        dmGameObject::HInstance d3 = dmGameObject::New(collection, "goproto01.goc");
+        dmGameObject::HInstance a1 = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance b2 = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance c2 = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance d3 = dmGameObject::New(m_Collection, "goproto01.goc");
 
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(d3, b2));
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, a1));
@@ -1568,9 +1568,9 @@ TEST_F(GameObjectTest, TestHierarchy8)
         ASSERT_EQ(b2, dmGameObject::GetParent(d3));
 
         bool ret;
-        ret = dmGameObject::Update(&collection, 0, 1);
+        ret = dmGameObject::Update(&m_Collection, 0, 1);
         ASSERT_TRUE(ret);
-        ret = dmGameObject::PostUpdate(&collection, 1);
+        ret = dmGameObject::PostUpdate(&m_Collection, 1);
         ASSERT_TRUE(ret);
 
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, c2));
@@ -1596,50 +1596,50 @@ TEST_F(GameObjectTest, TestHierarchy8)
         if (i == 0)
         {
             ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
-            dmGameObject::Delete(collection, a1);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, a1);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
-            dmGameObject::Delete(collection, c2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, c2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(b2));
-            dmGameObject::Delete(collection, b2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, b2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
-            dmGameObject::Delete(collection, d3);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, d3);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
         else
         {
             ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
             ASSERT_EQ(3U, dmGameObject::GetDepth(d3));
-            dmGameObject::Delete(collection, a1);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, a1);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetDepth(b2));
             ASSERT_EQ(2U, dmGameObject::GetDepth(d3));
-            dmGameObject::Delete(collection, b2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, b2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
             ASSERT_EQ(c2, dmGameObject::GetParent(d3));
             ASSERT_TRUE(dmGameObject::IsChildOf(d3, c2));
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
             ASSERT_EQ(1U, dmGameObject::GetDepth(d3));
-            dmGameObject::Delete(collection, c2);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, c2);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
-            dmGameObject::Delete(collection, d3);
-            ret = dmGameObject::PostUpdate(&collection, 1);
+            dmGameObject::Delete(m_Collection, d3);
+            ret = dmGameObject::PostUpdate(&m_Collection, 1);
             ASSERT_TRUE(ret);
         }
     }
@@ -1647,24 +1647,24 @@ TEST_F(GameObjectTest, TestHierarchy8)
 
 TEST_F(GameObjectTest, TestIsVisible)
 {
-    dmGameObject::UpdateContext update_context;
-    update_context.m_DT = 1.0f / 60.0f;
-    update_context.m_ViewProj = Vectormath::Aos::Matrix4::identity();
-    dmGameObject::HInstance is_visible = dmGameObject::New(collection, "is_visible.goc");
+    dmGameObject::UpdateContext m_UpdateContext;
+    m_UpdateContext.m_DT = 1.0f / 60.0f;
+    m_UpdateContext.m_ViewProj = Vectormath::Aos::Matrix4::identity();
+    dmGameObject::HInstance is_visible = dmGameObject::New(m_Collection, "is_visible.goc");
     ASSERT_NE((void*)0, (void*)is_visible);
-    ASSERT_TRUE(dmGameObject::Update(&collection, &update_context, 1));
-    ASSERT_TRUE(dmGameObject::PostUpdate(&collection, 1));
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
 }
 
 TEST_F(GameObjectTest, TestScriptDelete)
 {
-    dmGameObject::UpdateContext update_context;
-    dmGameObject::HInstance is_visible = dmGameObject::New(collection, "delete.goc");
+    dmGameObject::UpdateContext m_UpdateContext;
+    dmGameObject::HInstance is_visible = dmGameObject::New(m_Collection, "delete.goc");
     ASSERT_NE((void*)0, (void*)is_visible);
-    ASSERT_NE(0, collection->m_InstanceIndices.Size());
-    ASSERT_TRUE(dmGameObject::Update(&collection, 0, 1));
-    ASSERT_TRUE(dmGameObject::PostUpdate(&collection, 1));
-    ASSERT_EQ(0, collection->m_InstanceIndices.Size());
+    ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
+    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
 }
 
 int main(int argc, char **argv)
