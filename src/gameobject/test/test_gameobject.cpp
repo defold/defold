@@ -23,7 +23,6 @@ protected:
         dmGameObject::Initialize();
         dmGameObject::RegisterDDFType(TestGameObject::Spawn::m_DDFDescriptor);
 
-        m_MessageTargetCounter = 0;
         m_InputCounter = 0;
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -46,8 +45,6 @@ protected:
         e = dmResource::RegisterType(m_Factory, "b", this, BCreate, BDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         e = dmResource::RegisterType(m_Factory, "c", this, CCreate, CDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "mt", this, MessageTargetCreate, MessageTargetDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         e = dmResource::RegisterType(m_Factory, "deleteself", this, DeleteSelfCreate, DeleteSelfDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
@@ -113,22 +110,6 @@ protected:
         result = dmGameObject::RegisterComponentType(m_Register, c_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        // MessageTargetComponent
-        e = dmResource::GetTypeFromExtension(m_Factory, "mt", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        dmGameObject::ComponentType mt_type;
-        mt_type.m_Name = "mt";
-        mt_type.m_ResourceType = resource_type;
-        mt_type.m_Context = this;
-        mt_type.m_CreateFunction = MessageTargetComponentCreate;
-        mt_type.m_InitFunction = MessageTargetComponentInit;
-        mt_type.m_DestroyFunction = MessageTargetComponentDestroy;
-        mt_type.m_UpdateFunction = MessageTargetComponentsUpdate;
-        mt_type.m_OnMessageFunction = &MessageTargetOnMessage;
-        mt_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(m_Register, mt_type);
-        ASSERT_EQ(dmGameObject::RESULT_OK, result);
-
         e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         dmGameObject::ComponentType ds_type;
@@ -169,13 +150,6 @@ protected:
         dmGameObject::Finalize();
     }
 
-    uint32_t m_MessageTargetCounter;
-
-    static dmGameObject::UpdateResult MessageTargetOnMessage(dmGameObject::HInstance instance,
-                                   const dmGameObject::InstanceMessageData* message_data,
-                                   void* context,
-                                   uintptr_t* user_data);
-
     uint32_t m_InputCounter;
     static dmGameObject::InputResult InputTargetOnInput(dmGameObject::HInstance instance,
                                             const dmGameObject::InputAction* input_action,
@@ -209,13 +183,6 @@ protected:
     static dmGameObject::ComponentInit    CComponentInit;
     static dmGameObject::ComponentDestroy CComponentDestroy;
     static dmGameObject::ComponentsUpdate CComponentsUpdate;
-
-    static dmResource::FResourceCreate    MessageTargetCreate;
-    static dmResource::FResourceDestroy   MessageTargetDestroy;
-    static dmGameObject::ComponentCreate  MessageTargetComponentCreate;
-    static dmGameObject::ComponentInit    MessageTargetComponentInit;
-    static dmGameObject::ComponentDestroy MessageTargetComponentDestroy;
-    static dmGameObject::ComponentsUpdate MessageTargetComponentsUpdate;
 
     static dmResource::FResourceCreate    DeleteSelfCreate;
     static dmResource::FResourceDestroy   DeleteSelfDestroy;
@@ -382,13 +349,6 @@ dmGameObject::ComponentCreate GameObjectTest::CComponentCreate   = GenericCompon
 dmGameObject::ComponentInit GameObjectTest::CComponentInit       = GenericComponentInit<TestGameObject::CResource>;
 dmGameObject::ComponentDestroy GameObjectTest::CComponentDestroy = GenericComponentDestroy<TestGameObject::CResource>;
 dmGameObject::ComponentsUpdate GameObjectTest::CComponentsUpdate = GenericComponentsUpdate<TestGameObject::CResource>;
-
-dmResource::FResourceCreate GameObjectTest::MessageTargetCreate              = GenericDDFCreate<TestGameObject::MessageTarget>;
-dmResource::FResourceDestroy GameObjectTest::MessageTargetDestroy            = GenericDDFDestory<TestGameObject::MessageTarget>;
-dmGameObject::ComponentCreate GameObjectTest::MessageTargetComponentCreate   = GenericComponentCreate<TestGameObject::MessageTarget, -1>;
-dmGameObject::ComponentInit GameObjectTest::MessageTargetComponentInit       = GenericComponentInit<TestGameObject::MessageTarget>;
-dmGameObject::ComponentDestroy GameObjectTest::MessageTargetComponentDestroy = GenericComponentDestroy<TestGameObject::MessageTarget>;
-dmGameObject::ComponentsUpdate GameObjectTest::MessageTargetComponentsUpdate = GenericComponentsUpdate<TestGameObject::MessageTarget>;
 
 dmResource::FResourceCreate GameObjectTest::DeleteSelfCreate              = GenericDDFCreate<TestGameObject::DeleteSelfResource>;
 dmResource::FResourceDestroy GameObjectTest::DeleteSelfDestroy            = GenericDDFDestory<TestGameObject::DeleteSelfResource>;
@@ -635,33 +595,6 @@ TEST_F(GameObjectTest, DeleteSelf)
     }
 }
 
-dmGameObject::UpdateResult GameObjectTest::MessageTargetOnMessage(dmGameObject::HInstance instance,
-                                        const dmGameObject::InstanceMessageData* message_data,
-                                        void* context,
-                                        uintptr_t* user_data)
-{
-    GameObjectTest* self = (GameObjectTest*) context;
-
-    if (message_data->m_MessageId == dmHashString32("inc"))
-    {
-        self->m_MessageTargetCounter++;
-        if (self->m_MessageTargetCounter == 2)
-        {
-            dmGameObject::PostNamedMessageTo(instance, "component_message.scriptc", dmHashString32("test_message"), 0x0, 0);
-        }
-    }
-    else if (message_data->m_MessageId == dmHashString32("dec"))
-    {
-        self->m_MessageTargetCounter--;
-    }
-    else
-    {
-        assert(0);
-        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-    }
-    return dmGameObject::UPDATE_RESULT_OK;
-}
-
 TEST_F(GameObjectTest, Null)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "null.goc");
@@ -681,62 +614,6 @@ TEST_F(GameObjectTest, Null)
     action.m_Repeated = 1;
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
-
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
-
-    dmGameObject::Delete(m_Collection, go);
-}
-
-TEST_F(GameObjectTest, TestComponentMessage)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_message.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::Result r;
-
-    ASSERT_EQ(0U, m_MessageTargetCounter);
-
-    r = dmGameObject::PostNamedMessageTo(go, "does_not_exists", dmHashString32("inc"), 0x0, 0);
-    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, r);
-
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
-    ASSERT_EQ(1U, m_MessageTargetCounter);
-
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
-    ASSERT_EQ(2U, m_MessageTargetCounter);
-
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
-
-    dmGameObject::Delete(m_Collection, go);
-}
-
-TEST_F(GameObjectTest, TestBroadcastMessage)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_broadcast_message.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::Result r;
-
-    ASSERT_EQ(0U, m_MessageTargetCounter);
-
-    r = dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("inc"), 0x0, 0);
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-
-    dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
-    action.m_Value = 1.0f;
-    action.m_Pressed = 1;
-    action.m_Released = 0;
-    action.m_Repeated = 1;
-
-    dmGameObject::UpdateResult update_result = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
-
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, update_result);
 
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 

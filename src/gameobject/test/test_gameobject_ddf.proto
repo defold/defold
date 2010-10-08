@@ -57,11 +57,6 @@ message LuaDDFBufferOverflow
 	required string StringValue = 3;
 }
 
-message MessageTarget
-{
-	required uint32 Value = 1;
-}
-
 message InputTarget
 {
     required float Value = 1;

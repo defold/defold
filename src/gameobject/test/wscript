@@ -54,7 +54,7 @@ def build(bld):
                                      proto_gen_py = True,
                                      target = 'test_gameobject',
                                      source = 'test_gameobject.cpp test_gameobject_ddf.proto')
-    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.mt_pb', '.it_pb', '.collection'])
+    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.it_pb', '.collection'])
     test_gameobject.install_path = None
 
     test_gameobject_message = bld.new_task_gen(features = 'cxx cprogram',
@@ -63,7 +63,7 @@ def build(bld):
                                      uselib_local = 'gameobject',
                                      proto_gen_py = True,
                                      target = 'message/test_gameobject_message')
-    test_gameobject_message.find_sources_in_dirs('message', exts = ['.go_pb', '.script', '.cpp', '.proto'])
+    test_gameobject_message.find_sources_in_dirs('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
     test_gameobject_message.install_path = None
 
     test_gameobject_spawn = bld.new_task_gen(features = 'cxx cprogram',
