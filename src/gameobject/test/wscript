@@ -85,6 +85,16 @@ def build(bld):
     test_gameobject_message.find_sources_in_dirs('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
     test_gameobject_message.install_path = None
 
+    test_gameobject_script = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                     uselib_local = 'gameobject',
+                                     proto_gen_py = True,
+                                     target = 'script/test_gameobject_script',
+                                     source = 'script/test_gameobject_script.cpp test_gameobject_ddf.proto')
+    test_gameobject_script.find_sources_in_dirs('script', exts = ['.go_pb', '.script'])
+    test_gameobject_script.install_path = None
+
     test_gameobject_spawn = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src . ../../../proto',
                                      uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
