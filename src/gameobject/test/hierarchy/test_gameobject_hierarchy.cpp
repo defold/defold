@@ -27,7 +27,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test");
+        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/hierarchy");
         m_Register = dmGameObject::NewRegister(0, 0);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
@@ -54,8 +54,8 @@ TEST_F(HierarchyTest, TestHierarchy1)
 {
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-        dmGameObject::HInstance child = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance child = dmGameObject::New(m_Collection, "go.goc");
 
         const float parent_rot = 3.14159265f / 4.0f;
 
@@ -122,9 +122,9 @@ TEST_F(HierarchyTest, TestHierarchy1)
 TEST_F(HierarchyTest, TestHierarchy2)
 {
     // Test transform
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child_child = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child_child = dmGameObject::New(m_Collection, "go.goc");
 
     const float parent_rot = 3.14159265f / 4.0f;
     const float child_rot = 3.14159265f / 5.0f;
@@ -181,9 +181,9 @@ TEST_F(HierarchyTest, TestHierarchy3)
     // Test with siblings
     for (int i = 0; i < 3; ++i)
     {
-        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-        dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
-        dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "go.goc");
 
         ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
         ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
@@ -286,11 +286,11 @@ TEST_F(HierarchyTest, TestHierarchy4)
 {
     // Test RESULT_MAXIMUM_HIEARCHICAL_DEPTH
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child4 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child4 = dmGameObject::New(m_Collection, "go.goc");
 
     dmGameObject::Result r;
 
@@ -319,10 +319,10 @@ TEST_F(HierarchyTest, TestHierarchy5)
 {
     // Test parent subtree
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "go.goc");
 
     dmGameObject::SetParent(child1, parent);
     dmGameObject::SetParent(child3, child2);
@@ -344,8 +344,8 @@ TEST_F(HierarchyTest, TestHierarchy6)
     // Test invalid reparent.
     // Test that the child node is not present in the upward trace from parent
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "go.goc");
 
     // parent -> child1
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child1, parent));
@@ -365,9 +365,9 @@ TEST_F(HierarchyTest, TestHierarchy7)
 {
     // Test remove interior node
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "goproto01.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "go.goc");
 
     dmGameObject::SetParent(child1, parent);
     dmGameObject::SetParent(child2, child1);
@@ -402,10 +402,10 @@ TEST_F(HierarchyTest, TestHierarchy8)
 
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HInstance a1 = dmGameObject::New(m_Collection, "goproto01.goc");
-        dmGameObject::HInstance b2 = dmGameObject::New(m_Collection, "goproto01.goc");
-        dmGameObject::HInstance c2 = dmGameObject::New(m_Collection, "goproto01.goc");
-        dmGameObject::HInstance d3 = dmGameObject::New(m_Collection, "goproto01.goc");
+        dmGameObject::HInstance a1 = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance b2 = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance c2 = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance d3 = dmGameObject::New(m_Collection, "go.goc");
 
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(d3, b2));
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, a1));

@@ -72,9 +72,9 @@ def build(bld):
                                      uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
                                      uselib_local = 'gameobject',
                                      proto_gen_py = True,
-                                     target = 'test_gameobject_hierarchy',
-                                     source = 'test_gameobject_hierarchy.cpp test_gameobject_ddf.proto')
-    test_gameobject_hierarchy.find_sources_in_dirs('.', exts = ['.go_pb', '.script'])
+                                     target = 'hierarchy/test_gameobject_hierarchy',
+                                     source = 'hierarchy/test_gameobject_hierarchy.cpp')
+    test_gameobject_hierarchy.find_sources_in_dirs('hierarchy', exts = ['.go_pb', '.script'])
     test_gameobject_hierarchy.install_path = None
 
     test_gameobject_input = bld.new_task_gen(features = 'cxx cprogram',
