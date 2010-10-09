@@ -1005,9 +1005,6 @@ namespace dmGameObject
         uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            if (!DispatchMessages(reg))
-                ret = false;
-
             ComponentType* component_type = &reg->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
@@ -1030,6 +1027,9 @@ namespace dmGameObject
             for (uint32_t j = 0; j < collection_count; ++j)
                 if (collections[j])
                     UpdateTransforms(collections[j]);
+
+            if (!DispatchMessages(reg))
+                ret = false;
         }
 
         for (uint32_t i = 0; i < collection_count; ++i)
