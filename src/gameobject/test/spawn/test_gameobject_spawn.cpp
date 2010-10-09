@@ -9,7 +9,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
-class TestGameObjectSpawn : public ::testing::Test
+class SpawnTest : public ::testing::Test
 {
 protected:
     virtual void SetUp()
@@ -44,7 +44,7 @@ public:
     dmResource::HFactory m_Factory;
 };
 
-TEST_F(TestGameObjectSpawn, TestSpawn)
+TEST_F(SpawnTest, TestSpawn)
 {
     (void)dmGameObject::New(m_Collection, "test_spawn.goc");
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
