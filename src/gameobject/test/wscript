@@ -57,6 +57,16 @@ def build(bld):
     test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.it_pb', '.collection'])
     test_gameobject.install_path = None
 
+    test_gameobject_collection = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                     uselib_local = 'gameobject',
+                                     proto_gen_py = True,
+                                     target = 'collection/test_gameobject_collection',
+                                     source = 'collection/test_gameobject_collection.cpp')
+    test_gameobject_collection.find_sources_in_dirs('collection', exts = ['.go_pb', '.script', '.collection'])
+    test_gameobject_collection.install_path = None
+
     test_gameobject_hierarchy = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',
                                      uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
