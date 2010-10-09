@@ -23,8 +23,6 @@ protected:
         dmGameObject::Initialize();
         dmGameObject::RegisterDDFType(TestGameObject::Spawn::m_DDFDescriptor);
 
-        m_InputCounter = 0;
-
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
@@ -47,8 +45,6 @@ protected:
         e = dmResource::RegisterType(m_Factory, "c", this, CCreate, CDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         e = dmResource::RegisterType(m_Factory, "deleteself", this, DeleteSelfCreate, DeleteSelfDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "it", this, InputTargetCreate, InputTargetDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
         uint32_t resource_type;
@@ -123,22 +119,6 @@ protected:
         result = dmGameObject::RegisterComponentType(m_Register, ds_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        // InputTargetComponent
-        e = dmResource::GetTypeFromExtension(m_Factory, "it", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        dmGameObject::ComponentType it_type;
-        it_type.m_Name = "it";
-        it_type.m_ResourceType = resource_type;
-        it_type.m_Context = this;
-        it_type.m_CreateFunction = InputTargetComponentCreate;
-        it_type.m_InitFunction = InputTargetComponentInit;
-        it_type.m_DestroyFunction = InputTargetComponentDestroy;
-        it_type.m_UpdateFunction = InputTargetComponentsUpdate;
-        it_type.m_OnInputFunction = &InputTargetOnInput;
-        it_type.m_InstanceHasUserData = true;
-        result = dmGameObject::RegisterComponentType(m_Register, it_type);
-        ASSERT_EQ(dmGameObject::RESULT_OK, result);
-
         m_MaxComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash] = 1000000;
     }
 
@@ -149,12 +129,6 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
         dmGameObject::Finalize();
     }
-
-    uint32_t m_InputCounter;
-    static dmGameObject::InputResult InputTargetOnInput(dmGameObject::HInstance instance,
-                                            const dmGameObject::InputAction* input_action,
-                                            void* context,
-                                            uintptr_t* user_data);
 
     static dmResource::FResourceCreate    PhysCreate;
     static dmResource::FResourceDestroy   PhysDestroy;
@@ -193,13 +167,6 @@ protected:
                                            const dmGameObject::UpdateContext* update_context,
                                            void* world,
                                            void* context);
-
-    static dmResource::FResourceCreate    InputTargetCreate;
-    static dmResource::FResourceDestroy   InputTargetDestroy;
-    static dmGameObject::ComponentCreate  InputTargetComponentCreate;
-    static dmGameObject::ComponentInit    InputTargetComponentInit;
-    static dmGameObject::ComponentDestroy InputTargetComponentDestroy;
-    static dmGameObject::ComponentsUpdate InputTargetComponentsUpdate;
 
 public:
 
@@ -355,13 +322,6 @@ dmResource::FResourceDestroy GameObjectTest::DeleteSelfDestroy            = Gene
 dmGameObject::ComponentCreate GameObjectTest::DeleteSelfComponentCreate   = GenericComponentCreate<TestGameObject::DeleteSelfResource, -1>;
 dmGameObject::ComponentInit GameObjectTest::DeleteSelfComponentInit       = GenericComponentInit<TestGameObject::DeleteSelfResource>;
 dmGameObject::ComponentDestroy GameObjectTest::DeleteSelfComponentDestroy = GenericComponentDestroy<TestGameObject::DeleteSelfResource>;
-
-dmResource::FResourceCreate GameObjectTest::InputTargetCreate              = GenericDDFCreate<TestGameObject::InputTarget>;
-dmResource::FResourceDestroy GameObjectTest::InputTargetDestroy            = GenericDDFDestory<TestGameObject::InputTarget>;
-dmGameObject::ComponentCreate GameObjectTest::InputTargetComponentCreate   = GenericComponentCreate<TestGameObject::InputTarget, -1>;
-dmGameObject::ComponentInit GameObjectTest::InputTargetComponentInit       = GenericComponentInit<TestGameObject::InputTarget>;
-dmGameObject::ComponentDestroy GameObjectTest::InputTargetComponentDestroy = GenericComponentDestroy<TestGameObject::InputTarget>;
-dmGameObject::ComponentsUpdate GameObjectTest::InputTargetComponentsUpdate = GenericComponentsUpdate<TestGameObject::InputTarget>;
 
 TEST_F(GameObjectTest, Test01)
 {
@@ -618,98 +578,6 @@ TEST_F(GameObjectTest, Null)
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 
     dmGameObject::Delete(m_Collection, go);
-}
-
-dmGameObject::InputResult GameObjectTest::InputTargetOnInput(dmGameObject::HInstance instance,
-                                        const dmGameObject::InputAction* input_action,
-                                        void* context,
-                                        uintptr_t* user_data)
-{
-    GameObjectTest* self = (GameObjectTest*) context;
-
-    if (input_action->m_ActionId == dmHashString32("test_action"))
-    {
-        self->m_InputCounter++;
-        return dmGameObject::INPUT_RESULT_CONSUMED;
-    }
-    else
-    {
-        assert(0);
-        return dmGameObject::INPUT_RESULT_UNKNOWN_ERROR;
-    }
-}
-
-TEST_F(GameObjectTest, TestComponentInput)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::AcquireInputFocus(m_Collection, go);
-
-    dmGameObject::UpdateResult r;
-
-    ASSERT_EQ(0U, m_InputCounter);
-
-    dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
-    action.m_Value = 1.0f;
-    action.m_Pressed = 1;
-    action.m_Released = 0;
-    action.m_Repeated = 1;
-
-    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
-
-    ASSERT_EQ(1U, m_InputCounter);
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
-
-    action.m_ActionId = dmHashString32("test_action");
-    action.m_Value = 0.0f;
-    action.m_Pressed = 0;
-    action.m_Released = 1;
-    action.m_Repeated = 0;
-
-    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
-
-    ASSERT_EQ(2U, m_InputCounter);
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
-}
-
-TEST_F(GameObjectTest, TestComponentInput2)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input2.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::AcquireInputFocus(m_Collection, go);
-
-    dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
-    action.m_Value = 1.0f;
-    action.m_Pressed = 1;
-    action.m_Released = 0;
-    action.m_Repeated = 1;
-
-    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
-
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
-}
-
-TEST_F(GameObjectTest, TestComponentInput3)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input3.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::AcquireInputFocus(m_Collection, go);
-
-    dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
-    action.m_Value = 1.0f;
-    action.m_Pressed = 1;
-    action.m_Released = 0;
-    action.m_Repeated = 1;
-
-    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
-
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, r);
 }
 
 TEST_F(GameObjectTest, TestScriptProperty)

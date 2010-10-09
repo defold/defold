@@ -12,13 +12,13 @@
 
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
-class TestGameObjectMessage : public ::testing::Test
+class MessageTest : public ::testing::Test
 {
 protected:
     virtual void SetUp()
     {
         dmGameObject::Initialize();
-        dmGameObject::RegisterDDFType(dmTestGameObject::TestMessage::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(TestGameObjectDDF::TestMessage::m_DDFDescriptor);
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -98,14 +98,14 @@ public:
 };
 
 const static uint32_t POST_NAMED_ID = dmHashString32("post_named");
-const static uint32_t POST_DDF_ID = dmHashString32(dmTestGameObject::TestMessage::m_DDFDescriptor->m_ScriptName);
+const static uint32_t POST_DDF_ID = dmHashString32(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
 const static uint32_t POST_NAMED_TO_INST_ID = dmHashString32("post_named_to_instance");
-const static uint32_t POST_DDF_TO_INST_ID = dmHashString32(dmTestGameObject::TestMessage::m_DDFDescriptor->m_ScriptName);
+const static uint32_t POST_DDF_TO_INST_ID = dmHashString32(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
 
-dmResource::CreateResult TestGameObjectMessage::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::CreateResult MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
-    dmTestGameObject::MessageTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<dmTestGameObject::MessageTarget>(buffer, buffer_size, &obj);
+    TestGameObjectDDF::MessageTarget* obj;
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(buffer, buffer_size, &obj);
     if (e == dmDDF::RESULT_OK)
     {
         resource->m_Resource = (void*) obj;
@@ -117,13 +117,13 @@ dmResource::CreateResult TestGameObjectMessage::ResMessageTargetCreate(dmResourc
     }
 }
 
-dmResource::CreateResult TestGameObjectMessage::ResMessageTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+dmResource::CreateResult MessageTest::ResMessageTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
 {
     dmDDF::FreeMessage((void*) resource->m_Resource);
     return dmResource::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult TestGameObjectMessage::CompMessageTargetCreate(dmGameObject::HCollection collection,
+dmGameObject::CreateResult MessageTest::CompMessageTargetCreate(dmGameObject::HCollection collection,
                                                          dmGameObject::HInstance instance,
                                                          void* resource,
                                                          void* world,
@@ -133,7 +133,7 @@ dmGameObject::CreateResult TestGameObjectMessage::CompMessageTargetCreate(dmGame
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult TestGameObjectMessage::CompMessageTargetDestroy(dmGameObject::HCollection collection,
+dmGameObject::CreateResult MessageTest::CompMessageTargetDestroy(dmGameObject::HCollection collection,
                                                           dmGameObject::HInstance instance,
                                                           void* world,
                                                           void* context,
@@ -142,12 +142,12 @@ dmGameObject::CreateResult TestGameObjectMessage::CompMessageTargetDestroy(dmGam
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::UpdateResult TestGameObjectMessage::CompMessageTargetOnMessage(dmGameObject::HInstance instance,
+dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(dmGameObject::HInstance instance,
                                         const dmGameObject::InstanceMessageData* message_data,
                                         void* context,
                                         uintptr_t* user_data)
 {
-    TestGameObjectMessage* self = (TestGameObjectMessage*) context;
+    MessageTest* self = (MessageTest*) context;
 
     if (message_data->m_MessageId == dmHashString32("inc"))
     {
@@ -171,7 +171,7 @@ dmGameObject::UpdateResult TestGameObjectMessage::CompMessageTargetOnMessage(dmG
 
 void DispatchCallback(dmMessage::Message *message, void* user_ptr)
 {
-    TestGameObjectMessage* test = (TestGameObjectMessage*)user_ptr;
+    MessageTest* test = (MessageTest*)user_ptr;
     assert(test->m_Register->m_MessageId == message->m_ID);
     dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*)message->m_Data;
     if (instance_message_data->m_MessageId == POST_NAMED_ID)
@@ -180,44 +180,44 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     }
     else if (instance_message_data->m_MessageId == POST_DDF_ID)
     {
-        dmTestGameObject::TestMessage* ddf = (dmTestGameObject::TestMessage*)instance_message_data->m_Buffer;
+        TestGameObjectDDF::TestMessage* ddf = (TestGameObjectDDF::TestMessage*)instance_message_data->m_Buffer;
         test->m_MessageMap[POST_DDF_ID] = ddf->m_TestUint32;
     }
 }
 
-TEST_F(TestGameObjectMessage, TestPostNamed)
+TEST_F(MessageTest, TestPostNamed)
 {
     dmGameObject::PostNamedMessage(m_Register, POST_NAMED_ID);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_EQ(1U, m_MessageMap[POST_NAMED_ID]);
 }
 
-TEST_F(TestGameObjectMessage, TestPostDDF)
+TEST_F(MessageTest, TestPostDDF)
 {
-    dmTestGameObject::TestMessage ddf;
+    TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
-    dmGameObject::PostDDFMessage(m_Register, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
+    dmGameObject::PostDDFMessage(m_Register, TestGameObjectDDF::TestMessage::m_DDFDescriptor, (char*)&ddf);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_EQ(2U, m_MessageMap[POST_DDF_ID]);
 }
 
-TEST_F(TestGameObjectMessage, TestPostNamedTo)
+TEST_F(MessageTest, TestPostNamedTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
     dmGameObject::PostNamedMessageTo(instance, 0, POST_NAMED_TO_INST_ID, 0x0, 0);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 }
 
-TEST_F(TestGameObjectMessage, TestPostDDFTo)
+TEST_F(MessageTest, TestPostDDFTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
-    dmTestGameObject::TestMessage ddf;
+    TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
-    dmGameObject::PostDDFMessageTo(instance, 0, dmTestGameObject::TestMessage::m_DDFDescriptor, (char*)&ddf);
+    dmGameObject::PostDDFMessageTo(instance, 0, TestGameObjectDDF::TestMessage::m_DDFDescriptor, (char*)&ddf);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 }
 
-TEST_F(TestGameObjectMessage, TestTable)
+TEST_F(MessageTest, TestTable)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_table.goc");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_table_instance"));
@@ -226,7 +226,7 @@ TEST_F(TestGameObjectMessage, TestTable)
     dmGameObject::Delete(m_Collection, instance);
 }
 
-TEST_F(TestGameObjectMessage, TestComponentMessage)
+TEST_F(MessageTest, TestComponentMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
@@ -254,7 +254,7 @@ TEST_F(TestGameObjectMessage, TestComponentMessage)
     dmGameObject::Delete(m_Collection, go);
 }
 
-TEST_F(TestGameObjectMessage, TestBroadcastMessage)
+TEST_F(MessageTest, TestBroadcastMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_broadcast_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
