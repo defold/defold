@@ -881,12 +881,10 @@ bail:
             void* context,
             uintptr_t* user_data)
     {
-        Prototype* proto = instance->m_Prototype;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
         ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, 0x0);
         if (ret == SCRIPT_RESULT_FAILED)
         {
-            dmLogError("The script for prototype %s failed to run.", proto->m_Name);
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
         else
@@ -927,11 +925,9 @@ bail:
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            Prototype* proto = script_instance->m_Instance->m_Prototype;
             ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, update_context);
             if (ret == SCRIPT_RESULT_FAILED)
             {
-                dmLogError("The script for prototype %s failed to run.", proto->m_Name);
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }

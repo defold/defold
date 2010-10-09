@@ -32,7 +32,6 @@ namespace dmGameObject
             uint32_t m_NameHash;
         };
 
-        const char*            m_Name;
         dmArray<Component>     m_Components;
     };
 
