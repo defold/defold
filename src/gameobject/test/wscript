@@ -67,6 +67,16 @@ def build(bld):
     test_gameobject_collection.find_sources_in_dirs('collection', exts = ['.go_pb', '.script', '.collection'])
     test_gameobject_collection.install_path = None
 
+    test_gameobject_delete = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                     uselib_local = 'gameobject',
+                                     proto_gen_py = True,
+                                     target = 'delete/test_gameobject_delete',
+                                     source = 'delete/test_gameobject_delete.cpp delete/test_gameobject_delete_ddf.proto')
+    test_gameobject_delete.find_sources_in_dirs('delete', exts = ['.go_pb', '.script'])
+    test_gameobject_delete.install_path = None
+
     test_gameobject_hierarchy = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',
                                      uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
@@ -76,6 +86,15 @@ def build(bld):
                                      source = 'hierarchy/test_gameobject_hierarchy.cpp')
     test_gameobject_hierarchy.find_sources_in_dirs('hierarchy', exts = ['.go_pb', '.script'])
     test_gameobject_hierarchy.install_path = None
+
+    test_gameobject_id = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                     uselib_local = 'gameobject',
+                                     proto_gen_py = True,
+                                     target = 'id/test_gameobject_id')
+    test_gameobject_id.find_sources_in_dirs('id', exts = ['.go_pb', '.script', '.cpp'])
+    test_gameobject_id.install_path = None
 
     test_gameobject_input = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',

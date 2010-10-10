@@ -342,45 +342,6 @@ TEST_F(GameObjectTest, Test01)
     ASSERT_EQ((uint32_t) 0, m_ComponentDestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
 }
 
-TEST_F(GameObjectTest, TestIdentifier)
-{
-    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "goproto01.goc");
-    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "goproto01.goc");
-    ASSERT_NE((void*) 0, (void*) go1);
-    ASSERT_NE((void*) 0, (void*) go2);
-
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
-
-    dmGameObject::Result r;
-    r = dmGameObject::SetIdentifier(m_Collection, go1, "go1");
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
-
-    r = dmGameObject::SetIdentifier(m_Collection, go1, "go1");
-    ASSERT_NE(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
-
-    r = dmGameObject::SetIdentifier(m_Collection, go2, "go1");
-    ASSERT_EQ(dmGameObject::RESULT_IDENTIFIER_IN_USE, r);
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
-
-    r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
-
-    r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
-    ASSERT_NE(dmGameObject::RESULT_OK, r);
-
-    dmGameObject::Delete(m_Collection, go1);
-    dmGameObject::Delete(m_Collection, go2);
-
-    ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
-    ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
-    ASSERT_EQ((uint32_t) 0, m_ComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash]);
-    ASSERT_EQ((uint32_t) 0, m_ComponentDestroyCountMap[TestGameObject::PhysComponent::m_DDFHash]);
-}
-
 TEST_F(GameObjectTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto02.goc");
