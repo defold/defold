@@ -7,7 +7,7 @@
     <property name="eclipseLocation" value="${baseLocation}" />
     <property environment="env"/>
 
-    <!-- NOTE: We skip clean. Ant *follows* symlinks - dangerous ! 
+    <!-- NOTE: We skip clean. Ant *follows* symlinks - dangerous !
 	 build.sh takes care of cleaning
       -->
 
@@ -26,6 +26,9 @@
             </fileset>
             <fileset dir="projects">
                 <include name="com.dynamo.cr.luaeditor/**" />
+            </fileset>
+            <fileset dir="projects">
+                <include name="com.dynamo.cr.contenteditor/**" />
             </fileset>
         </copy>
 

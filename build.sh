@@ -14,7 +14,7 @@ rm -rf /tmp/pde_build
 rm -rf projects
 mkdir  projects
 cd projects
-PROJECTS="com.dynamo.cr.common com.dynamo.cr.editor com.dynamo.cr.luaeditor"
+PROJECTS="com.dynamo.cr.common com.dynamo.cr.editor com.dynamo.cr.contenteditor com.dynamo.cr.luaeditor"
 
 for P in $PROJECTS; do
     git clone overrated.dyndns.org:/repo/$P
