@@ -12,10 +12,9 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
     Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
     declare_extension([ext], create)
 
-create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObject.AResource', before='cc cxx')
-create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObject.BResource', before='cc cxx')
-create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObject.CResource', before='cc cxx')
-create_simple_protoc_task('physcomp', '.pc_pb', '.pc', 'TestGameObject.PhysComponent', before='cc cxx')
+create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
 create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='cc cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
 create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='cc cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
 create_simple_protoc_task('collection', '.collection', '.collectionc', 'dmGameObjectDDF.CollectionDesc', before='cc cxx', proto_file = '../proto/gameobject_ddf.proto')
@@ -66,6 +65,16 @@ def build(bld):
                                      source = 'collection/test_gameobject_collection.cpp')
     test_gameobject_collection.find_sources_in_dirs('collection', exts = ['.go_pb', '.script', '.collection'])
     test_gameobject_collection.install_path = None
+
+    test_gameobject_component = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '../../../src .',
+                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                     uselib_local = 'gameobject',
+                                     proto_gen_py = True,
+                                     target = 'component/test_gameobject_component',
+                                     source = 'component/test_gameobject_component.cpp component/test_gameobject_component_ddf.proto')
+    test_gameobject_component.find_sources_in_dirs('component', exts = ['.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
+    test_gameobject_component.install_path = None
 
     test_gameobject_delete = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src .',
