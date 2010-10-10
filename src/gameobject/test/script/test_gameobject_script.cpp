@@ -10,7 +10,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
-#include "gameobject/test/test_gameobject_ddf.h"
+#include "gameobject/test/script/test_gameobject_script_ddf.h"
 #include "../proto/gameobject_ddf.h"
 
 using namespace Vectormath::Aos;
@@ -21,7 +21,7 @@ protected:
     virtual void SetUp()
     {
         dmGameObject::Initialize();
-        dmGameObject::RegisterDDFType(TestGameObject::Spawn::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(TestGameObjectDDF::Spawn::m_DDFDescriptor);
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -77,15 +77,15 @@ struct TestScript01Context
 void TestScript01Dispatch(dmMessage::Message *message_object, void* user_ptr)
 {
     dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-    TestGameObject::Spawn* s = (TestGameObject::Spawn*) instance_message_data->m_Buffer;
+    TestGameObjectDDF::Spawn* s = (TestGameObjectDDF::Spawn*) instance_message_data->m_Buffer;
     // NOTE: We relocate the string here (from offset to pointer)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
     TestScript01Context* context = (TestScript01Context*)user_ptr;
     bool* dispatch_result = &context->m_Result;
 
-    TestGameObject::SpawnResult result;
+    TestGameObjectDDF::SpawnResult result;
     result.m_Status = 1010;
-    dmGameObject::PostDDFMessageTo(instance_message_data->m_Instance, 0x0, TestGameObject::SpawnResult::m_DDFDescriptor, (char*)&result);
+    dmGameObject::PostDDFMessageTo(instance_message_data->m_Instance, 0x0, TestGameObjectDDF::SpawnResult::m_DDFDescriptor, (char*)&result);
 
     *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
@@ -97,12 +97,12 @@ void TestScript01DispatchReply(dmMessage::Message *message_object, void* user_pt
 
 TEST_F(ScriptTest, TestScript01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "testscriptproto01.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "my_object01"));
 
-    TestGameObject::GlobalData global_data;
+    TestGameObjectDDF::GlobalData global_data;
     global_data.m_UIntValue = 12345;
     global_data.m_IntValue = -123;
     global_data.m_StringValue = "string_value";
@@ -148,7 +148,7 @@ TEST_F(ScriptTest, TestFailingScript02)
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    dmGameObject::New(m_Collection, "testscriptproto02.goc");
+    dmGameObject::New(m_Collection, "go2.goc");
     bool result = dmGameObject::Init(m_Collection);
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     ASSERT_FALSE(result);
@@ -157,7 +157,7 @@ TEST_F(ScriptTest, TestFailingScript02)
 TEST_F(ScriptTest, TestFailingScript03)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "testscriptproto03.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go3.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     // Avoid logging expected errors. Better solution?
@@ -170,7 +170,7 @@ TEST_F(ScriptTest, TestFailingScript03)
 TEST_F(ScriptTest, TestFailingScript04)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "testscriptproto04.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go4.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
@@ -243,6 +243,43 @@ TEST_F(ScriptTest, TestReload)
     ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
 
     unlink(go_file_name);
+}
+
+
+TEST_F(ScriptTest, Null)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "null.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("test"), 0x0, 0));
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
+
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(ScriptTest, TestIsVisible)
+{
+    dmGameObject::UpdateContext m_UpdateContext;
+    m_UpdateContext.m_DT = 1.0f / 60.0f;
+    m_UpdateContext.m_ViewProj = Vectormath::Aos::Matrix4::identity();
+    dmGameObject::HInstance is_visible = dmGameObject::New(m_Collection, "is_visible.goc");
+    ASSERT_NE((void*)0, (void*)is_visible);
+    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
 }
 
 int main(int argc, char **argv)

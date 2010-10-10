@@ -1,7 +1,7 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../src/gameobject/test/test_gameobject_ddf.proto'):
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = ''):
     def create(self, node):
         task = self.create_task(name)
         task.set_inputs(node)
@@ -46,98 +46,22 @@ def testresourcecont_file(self, node):
     task.set_outputs(out)
 
 def build(bld):
-    test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'test_gameobject',
-                                     source = 'test_gameobject.cpp test_gameobject_ddf.proto')
-    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.it_pb', '.collection'])
-    test_gameobject.install_path = None
+    def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
+        test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
+                                         includes = '../../../src .',
+                                         uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                         uselib_local = 'gameobject',
+                                         proto_gen_py = True,
+                                         target = '%s/test_gameobject_%s' % (dir, dir))
+        test_task_gen.find_sources_in_dirs(dir, exts)
+        test_task_gen.install_path = None
 
-    test_gameobject_collection = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'collection/test_gameobject_collection',
-                                     source = 'collection/test_gameobject_collection.cpp')
-    test_gameobject_collection.find_sources_in_dirs('collection', exts = ['.go_pb', '.script', '.collection'])
-    test_gameobject_collection.install_path = None
-
-    test_gameobject_component = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'component/test_gameobject_component',
-                                     source = 'component/test_gameobject_component.cpp component/test_gameobject_component_ddf.proto')
-    test_gameobject_component.find_sources_in_dirs('component', exts = ['.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
-    test_gameobject_component.install_path = None
-
-    test_gameobject_delete = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'delete/test_gameobject_delete',
-                                     source = 'delete/test_gameobject_delete.cpp delete/test_gameobject_delete_ddf.proto')
-    test_gameobject_delete.find_sources_in_dirs('delete', exts = ['.go_pb', '.script'])
-    test_gameobject_delete.install_path = None
-
-    test_gameobject_hierarchy = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'hierarchy/test_gameobject_hierarchy',
-                                     source = 'hierarchy/test_gameobject_hierarchy.cpp')
-    test_gameobject_hierarchy.find_sources_in_dirs('hierarchy', exts = ['.go_pb', '.script'])
-    test_gameobject_hierarchy.install_path = None
-
-    test_gameobject_id = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'id/test_gameobject_id')
-    test_gameobject_id.find_sources_in_dirs('id', exts = ['.go_pb', '.script', '.cpp'])
-    test_gameobject_id.install_path = None
-
-    test_gameobject_input = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'input/test_gameobject_input')
-    test_gameobject_input.find_sources_in_dirs('input', exts = ['.go_pb', '.script', '.cpp', '.proto', '.it_pb'])
-    test_gameobject_input.install_path = None
-
-    test_gameobject_message = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'message/test_gameobject_message')
-    test_gameobject_message.find_sources_in_dirs('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
-    test_gameobject_message.install_path = None
-
-    test_gameobject_script = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'script/test_gameobject_script',
-                                     source = 'script/test_gameobject_script.cpp test_gameobject_ddf.proto')
-    test_gameobject_script.find_sources_in_dirs('script', exts = ['.go_pb', '.script'])
-    test_gameobject_script.install_path = None
-
-    test_gameobject_spawn = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src . ../../../proto',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'spawn/test_gameobject_spawn',
-                                     source = 'spawn/test_gameobject_spawn.cpp spawn/test_spawn.go_pb spawn/test_spawn.script spawn/test_spawnee.go_pb')
-    test_gameobject_spawn.install_path = None
+    new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection'])
+    new_test('component', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
+    new_test('delete')
+    new_test('hierarchy')
+    new_test('id')
+    new_test('input', exts = ['.go_pb', '.script', '.cpp', '.proto', '.it_pb'])
+    new_test('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
+    new_test('script')
+    new_test('spawn')
