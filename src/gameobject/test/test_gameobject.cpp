@@ -44,8 +44,6 @@ protected:
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
         e = dmResource::RegisterType(m_Factory, "c", this, CCreate, CDestroy, 0);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "deleteself", this, DeleteSelfCreate, DeleteSelfDestroy, 0);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
         uint32_t resource_type;
 
@@ -106,19 +104,6 @@ protected:
         result = dmGameObject::RegisterComponentType(m_Register, c_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
-        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
-        dmGameObject::ComponentType ds_type;
-        ds_type.m_Name = "deleteself";
-        ds_type.m_ResourceType = resource_type;
-        ds_type.m_Context = this;
-        ds_type.m_CreateFunction = DeleteSelfComponentCreate;
-        ds_type.m_InitFunction = DeleteSelfComponentInit;
-        ds_type.m_DestroyFunction = DeleteSelfComponentDestroy;
-        ds_type.m_UpdateFunction = DeleteSelfComponentsUpdate;
-        result = dmGameObject::RegisterComponentType(m_Register, ds_type);
-        ASSERT_EQ(dmGameObject::RESULT_OK, result);
-
         m_MaxComponentCreateCountMap[TestGameObject::PhysComponent::m_DDFHash] = 1000000;
     }
 
@@ -158,16 +143,6 @@ protected:
     static dmGameObject::ComponentDestroy CComponentDestroy;
     static dmGameObject::ComponentsUpdate CComponentsUpdate;
 
-    static dmResource::FResourceCreate    DeleteSelfCreate;
-    static dmResource::FResourceDestroy   DeleteSelfDestroy;
-    static dmGameObject::ComponentCreate  DeleteSelfComponentCreate;
-    static dmGameObject::ComponentInit    DeleteSelfComponentInit;
-    static dmGameObject::ComponentDestroy DeleteSelfComponentDestroy;
-    static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
-                                           const dmGameObject::UpdateContext* update_context,
-                                           void* world,
-                                           void* context);
-
 public:
 
     std::map<uint64_t, uint32_t> m_CreateCountMap;
@@ -180,12 +155,6 @@ public:
     std::map<uint64_t, uint32_t> m_MaxComponentCreateCountMap;
 
     std::map<uint64_t, int>      m_ComponentUserDataAcc;
-
-    // Data DeleteSelf test
-    std::vector<dmGameObject::HInstance> m_SelfInstancesToDelete;
-    std::vector<dmGameObject::HInstance> m_DeleteSelfInstances;
-    std::vector<int> m_DeleteSelfIndices;
-    std::map<int, dmGameObject::HInstance> m_DeleteSelfIndexToInstance;
 
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
@@ -317,12 +286,6 @@ dmGameObject::ComponentInit GameObjectTest::CComponentInit       = GenericCompon
 dmGameObject::ComponentDestroy GameObjectTest::CComponentDestroy = GenericComponentDestroy<TestGameObject::CResource>;
 dmGameObject::ComponentsUpdate GameObjectTest::CComponentsUpdate = GenericComponentsUpdate<TestGameObject::CResource>;
 
-dmResource::FResourceCreate GameObjectTest::DeleteSelfCreate              = GenericDDFCreate<TestGameObject::DeleteSelfResource>;
-dmResource::FResourceDestroy GameObjectTest::DeleteSelfDestroy            = GenericDDFDestory<TestGameObject::DeleteSelfResource>;
-dmGameObject::ComponentCreate GameObjectTest::DeleteSelfComponentCreate   = GenericComponentCreate<TestGameObject::DeleteSelfResource, -1>;
-dmGameObject::ComponentInit GameObjectTest::DeleteSelfComponentInit       = GenericComponentInit<TestGameObject::DeleteSelfResource>;
-dmGameObject::ComponentDestroy GameObjectTest::DeleteSelfComponentDestroy = GenericComponentDestroy<TestGameObject::DeleteSelfResource>;
-
 TEST_F(GameObjectTest, Test01)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto01.goc");
@@ -436,86 +399,6 @@ TEST_F(GameObjectTest, TestComponentUserdata)
     ASSERT_EQ(30, m_ComponentUserDataAcc[TestGameObject::CResource::m_DDFHash]);
 }
 
-TEST_F(GameObjectTest, AutoDelete)
-{
-    for (int i = 0; i < 512; ++i)
-    {
-        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto01.goc");
-        ASSERT_NE((void*) 0, (void*) go);
-    }
-}
-
-dmGameObject::UpdateResult GameObjectTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection m_Collection,
-                                                const dmGameObject::UpdateContext* update_context,
-                                                void* world,
-                                                void* context)
-{
-    GameObjectTest* game_object_test = (GameObjectTest*) context;
-
-    for (uint32_t i = 0; i < game_object_test->m_SelfInstancesToDelete.size(); ++i)
-    {
-        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i]);
-        // Test "double delete"
-        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i]);
-    }
-
-    for (uint32_t i = 0; i < game_object_test->m_DeleteSelfIndices.size(); ++i)
-    {
-        int index = game_object_test->m_DeleteSelfIndices[i];
-
-        dmGameObject::HInstance go = game_object_test->m_DeleteSelfIndexToInstance[index];
-        if (index != (int)dmGameObject::GetPosition(go).getX())
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-    }
-
-    return dmGameObject::UPDATE_RESULT_OK;
-}
-
-TEST_F(GameObjectTest, DeleteSelf)
-{
-    /*
-     * NOTE: We do not have any .deleteself resources on disk even though we register the type
-     * Component instances of type 'A' is used here. We need a specific ComponentUpdate though. (DeleteSelfComponentsUpdate)
-     * See New(..., goproto01.goc") below.
-     */
-    for (int iter = 0; iter < 4; ++iter)
-    {
-        m_DeleteSelfInstances.clear();
-        m_DeleteSelfIndexToInstance.clear();
-
-        for (int i = 0; i < 512; ++i)
-        {
-            dmGameObject::HInstance go = dmGameObject::New(m_Collection, "goproto01.goc");
-            dmGameObject::SetPosition(go, Point3(i,i,i));
-            ASSERT_NE((void*) 0, (void*) go);
-            m_DeleteSelfInstances.push_back(go);
-            m_DeleteSelfIndexToInstance[i] = go;
-            m_DeleteSelfIndices.push_back(i);
-        }
-
-        std::random_shuffle(m_DeleteSelfIndices.begin(), m_DeleteSelfIndices.end());
-
-        while (m_DeleteSelfIndices.size() > 0)
-        {
-            for (int i = 0; i < 16; ++i)
-            {
-                int index = *(m_DeleteSelfIndices.end() - i - 1);
-                m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
-            }
-            bool ret = dmGameObject::Update(&m_Collection, 0, 1);
-            ASSERT_TRUE(ret);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
-            ASSERT_TRUE(ret);
-            for (int i = 0; i < 16; ++i)
-            {
-                m_DeleteSelfIndices.pop_back();
-            }
-
-            m_SelfInstancesToDelete.clear();
-        }
-    }
-}
-
 TEST_F(GameObjectTest, Null)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "null.goc");
@@ -550,17 +433,6 @@ TEST_F(GameObjectTest, TestIsVisible)
     ASSERT_NE((void*)0, (void*)is_visible);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
-}
-
-TEST_F(GameObjectTest, TestScriptDelete)
-{
-    dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HInstance is_visible = dmGameObject::New(m_Collection, "delete.goc");
-    ASSERT_NE((void*)0, (void*)is_visible);
-    ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
-    ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
-    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
 }
 
 int main(int argc, char **argv)

@@ -25,13 +25,6 @@ message CResource
     required uint32 C = 1;
 }
 
-// No resource created for this type
-// See comment in TEST_F(GameObjectTest, DeleteSelf)
-message DeleteSelfResource
-{
-    required uint32 Dummy = 1;
-}
-
 message GlobalData
 {
 	required uint32 UIntValue = 1;
