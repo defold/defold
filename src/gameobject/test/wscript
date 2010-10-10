@@ -1,23 +1,22 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
-def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../src/gameobject/test/test_gameobject_ddf.proto'):
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = ''):
     def create(self, node):
         task = self.create_task(name)
         task.set_inputs(node)
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
     declare_extension([ext], create)
 
-create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObject.AResource', before='cc cxx')
-create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObject.BResource', before='cc cxx')
-create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObject.CResource', before='cc cxx')
-create_simple_protoc_task('physcomp', '.pc_pb', '.pc', 'TestGameObject.PhysComponent', before='cc cxx')
-create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObject.MessageTarget', before='cc cxx')
-create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObject.InputTarget', before='cc cxx')
+create_simple_protoc_task('aresource', '.a_pb', '.a', 'TestGameObjectDDF.AResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
+create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='cc cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
+create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='cc cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
 create_simple_protoc_task('collection', '.collection', '.collectionc', 'dmGameObjectDDF.CollectionDesc', before='cc cxx', proto_file = '../proto/gameobject_ddf.proto')
 
 Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObjectDDF.PrototypeDesc -I ../proto -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
@@ -47,30 +46,22 @@ def testresourcecont_file(self, node):
     task.set_outputs(out)
 
 def build(bld):
-    test_gameobject = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'test_gameobject',
-                                     source = 'test_gameobject.cpp test_gameobject_ddf.proto')
-    test_gameobject.find_sources_in_dirs('.', exts = ['.go_pb', '.pc_pb', '.script', '.a_pb', '.b_pb', '.c_pb', '.mt_pb', '.it_pb', '.collection'])
-    test_gameobject.install_path = None
+    def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
+        test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
+                                         includes = '../../../src .',
+                                         uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
+                                         uselib_local = 'gameobject',
+                                         proto_gen_py = True,
+                                         target = '%s/test_gameobject_%s' % (dir, dir))
+        test_task_gen.find_sources_in_dirs(dir, exts)
+        test_task_gen.install_path = None
 
-    test_gameobject_message = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src .',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'message/test_gameobject_message')
-    test_gameobject_message.find_sources_in_dirs('message', exts = ['.go_pb', '.script', '.cpp', '.proto'])
-    test_gameobject_message.install_path = None
-
-    test_gameobject_spawn = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '../../../src . ../../../proto',
-                                     uselib = 'GTEST RESOURCE DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD LUA SCRIPT',
-                                     uselib_local = 'gameobject',
-                                     proto_gen_py = True,
-                                     target = 'spawn/test_gameobject_spawn',
-                                     source = 'spawn/test_gameobject_spawn.cpp spawn/test_spawn.go_pb spawn/test_spawn.script spawn/test_spawnee.go_pb')
-    test_gameobject_spawn.install_path = None
+    new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection'])
+    new_test('component', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
+    new_test('delete')
+    new_test('hierarchy')
+    new_test('id')
+    new_test('input', exts = ['.go_pb', '.script', '.cpp', '.proto', '.it_pb'])
+    new_test('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
+    new_test('script')
+    new_test('spawn')

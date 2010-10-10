@@ -64,51 +64,6 @@ namespace dmGameObject
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance);
     void            DeleteScriptInstance(HScriptInstance script_instance);
-
-    ScriptResult    RunScript(HCollection collection, HScript script, const char* function_name, HScriptInstance script_instance, const UpdateContext* update_context);
-
-    dmResource::CreateResult ResCreateScript(dmResource::HFactory factory,
-                                             void* context,
-                                             const void* buffer, uint32_t buffer_size,
-                                             dmResource::SResourceDescriptor* resource,
-                                             const char* filename);
-    dmResource::CreateResult ResDestroyScript(dmResource::HFactory factory,
-                                             void* context,
-                                             dmResource::SResourceDescriptor* resource);
-    dmResource::CreateResult ResRecreateScript(dmResource::HFactory factory,
-                                               void* context,
-                                               const void* buffer, uint32_t buffer_size,
-                                               dmResource::SResourceDescriptor* resource,
-                                               const char* filename);
-    CreateResult ScriptNewWorld(void* context, void** world);
-    CreateResult ScriptDeleteWorld(void* context, void* world);
-    CreateResult ScriptCreateComponent(HCollection collection,
-            HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
-    CreateResult ScriptInitComponent(HCollection collection,
-            HInstance instance,
-            void* context,
-            uintptr_t* user_data);
-    CreateResult ScriptDestroyComponent(HCollection collection,
-            HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
-    UpdateResult ScriptUpdateComponent(HCollection collection,
-            const UpdateContext* update_context,
-            void* world,
-            void* context);
-    UpdateResult ScriptOnMessageComponent(HInstance instance,
-            const InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
-    InputResult ScriptOnInputComponent(HInstance instance,
-            const InputAction* input_action,
-            void* context,
-            uintptr_t* user_data);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

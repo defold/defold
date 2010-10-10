@@ -1,0 +1,7 @@
+function on_message(self, message_id, message)
+    assert(message_id == hash("message2"), "Expected message2")
+end
+
+function update(self)
+    go.post_to_collection(hash("post1"), hash("go1"), "post1.scriptc", "message1")
+end

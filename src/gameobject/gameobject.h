@@ -1,17 +1,19 @@
 #ifndef GAMEOBJECT_H
 #define GAMEOBJECT_H
 
+#include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/message.h>
+
 #include <ddf/ddf.h>
 
 #include <resource/resource.h>
 
-using namespace Vectormath::Aos;
-
 namespace dmGameObject
 {
+    using namespace Vectormath::Aos;
+
     /// Instance handle
     typedef struct Instance* HInstance;
 

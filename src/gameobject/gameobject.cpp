@@ -14,7 +14,10 @@
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
-#include "gameobject_common.h"
+#include "gameobject_private.h"
+#include "res_collection.h"
+#include "res_prototype.h"
+#include "res_script.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -211,307 +214,22 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    dmResource::CreateResult ResCreatePrototype(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
-    {
-        dmGameObjectDDF::PrototypeDesc* proto_desc;
-
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-
-        Prototype* proto = new Prototype();
-        proto->m_Components.SetCapacity(proto_desc->m_Components.m_Count);
-
-        for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
-        {
-            const char* component_resource = proto_desc->m_Components[i].m_Resource;
-            void* component;
-            dmResource::FactoryResult fact_e = dmResource::Get(factory, component_resource, (void**) &component);
-
-            if (fact_e != dmResource::FACTORY_RESULT_OK)
-            {
-                // Error, release created
-                for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
-                {
-                    dmResource::Release(factory, proto->m_Components[j].m_Resource);
-                }
-                delete proto;
-                dmDDF::FreeMessage(proto_desc);
-                return dmResource::CREATE_RESULT_UNKNOWN;
-            }
-            else
-            {
-                uint32_t resource_type;
-                fact_e = dmResource::GetType(factory, component, &resource_type);
-                assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.Push(Prototype::Component(component, resource_type, component_resource));
-            }
-        }
-
-        resource->m_Resource = (void*) proto;
-
-        dmDDF::FreeMessage(proto_desc);
-        return dmResource::CREATE_RESULT_OK;
-    }
-
-    dmResource::CreateResult ResDestroyPrototype(dmResource::HFactory factory,
-                                                 void* context,
-                                                 dmResource::SResourceDescriptor* resource)
-    {
-        Prototype* proto = (Prototype*) resource->m_Resource;
-        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
-        {
-            dmResource::Release(factory, proto->m_Components[i].m_Resource);
-        }
-
-        delete proto;
-        return dmResource::CREATE_RESULT_OK;
-    }
-
-    dmResource::CreateResult ResCreateCollection(dmResource::HFactory factory,
-                                                void* context,
-                                                const void* buffer, uint32_t buffer_size,
-                                                dmResource::SResourceDescriptor* resource,
-                                                const char* filename)
-    {
-        Register* regist = (Register*) context;
-        char prev_identifier_path[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
-        char tmp_ident[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
-
-        dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(buffer, buffer_size, &collection_desc);
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-        dmResource::CreateResult res = dmResource::CREATE_RESULT_OK;
-
-        // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
-        dmMutex::Lock(regist->m_Mutex);
-
-        HCollection collection;
-        bool loading_root;
-        if (regist->m_CurrentCollection == 0)
-        {
-            loading_root = true;
-            // TODO: How to configure 1024. In collection?
-            collection = NewCollection(factory, regist, 1024);
-            collection->m_NameHash = dmHashString32(collection_desc->m_Name);
-            regist->m_CurrentCollection = collection;
-            regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
-            regist->m_AccumulatedRotation = Quat::identity();
-
-            // NOTE: Root-collection name is not prepended to identifier
-            prev_identifier_path[0] = '\0';
-            regist->m_CurrentIdentifierPath[0] = '\0';
-        }
-        else
-        {
-            loading_root = false;
-            collection = regist->m_CurrentCollection;
-            dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-        }
-
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
-        {
-            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
-            dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
-            if (instance != 0x0)
-            {
-                Quat rot = regist->m_AccumulatedRotation * instance_desc.m_Rotation;
-                Vector3 pos = rotate(regist->m_AccumulatedRotation, Vector3(instance_desc.m_Position)) + regist->m_AccumulatedTranslation;
-
-                dmGameObject::SetPosition(instance, Point3(pos));
-                dmGameObject::SetRotation(instance, rot);
-
-                dmHashInit32(&instance->m_CollectionPathHashState);
-                dmHashUpdateBuffer32(&instance->m_CollectionPathHashState, regist->m_CurrentIdentifierPath, strlen(regist->m_CurrentIdentifierPath));
-
-                dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
-                dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
-
-                if (dmGameObject::SetIdentifier(collection, instance, tmp_ident) != dmGameObject::RESULT_OK)
-                {
-                    dmLogError("Unable to set identifier %s for %s. Name clash?", tmp_ident, instance_desc.m_Id);
-                }
-
-                for (uint32_t j = 0; j < instance_desc.m_ScriptProperties.m_Count; ++j)
-                {
-                    const dmGameObjectDDF::Property& p = instance_desc.m_ScriptProperties[j];
-                    switch (p.m_Type)
-                    {
-                        case dmGameObjectDDF::Property::STRING:
-                            dmGameObject::SetScriptStringProperty(instance, p.m_Key, p.m_Value);
-                        break;
-
-                        case dmGameObjectDDF::Property::INTEGER:
-                            dmGameObject::SetScriptIntProperty(instance, p.m_Key, atoi(p.m_Value));
-                        break;
-
-                        case dmGameObjectDDF::Property::FLOAT:
-                            dmGameObject::SetScriptFloatProperty(instance, p.m_Key, atof(p.m_Value));
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
-                res = dmResource::CREATE_RESULT_UNKNOWN;
-                goto bail;
-            }
-        }
-
-        // Setup hierarchy
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
-        {
-            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
-
-            dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
-            dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
-
-            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(tmp_ident));
-            assert(parent);
-
-            for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
-            {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(instance_desc.m_Children[j]));
-                if (child)
-                {
-                    dmGameObject::Result r = dmGameObject::SetParent(child, parent);
-                    if (r != dmGameObject::RESULT_OK)
-                    {
-                        dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
-                    }
-                    else
-                    {
-                        dmGameObject::SetScriptStringProperty(child, "Parent", tmp_ident);
-                    }
-                }
-                else
-                {
-                    dmLogError("Child not found: %s", instance_desc.m_Children[j]);
-                }
-            }
-        }
-
-        // Load sub collections
-        for (uint32_t i = 0; i < collection_desc->m_CollectionInstances.m_Count; ++i)
-        {
-            dmGameObjectDDF::CollectionInstanceDesc& coll_instance_desc = collection_desc->m_CollectionInstances[i];
-
-            dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-            dmStrlCat(regist->m_CurrentIdentifierPath, coll_instance_desc.m_Id, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-            dmStrlCat(regist->m_CurrentIdentifierPath, ".", DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-
-            Collection* child_coll;
-            Vector3 prev_translation = regist->m_AccumulatedTranslation;
-            Quat prev_rotation = regist->m_AccumulatedRotation;
-
-            Quat rot = regist->m_AccumulatedRotation * coll_instance_desc.m_Rotation;
-            Vector3 trans = (regist->m_AccumulatedRotation * Quat(Vector3(coll_instance_desc.m_Position), 0.0f) * conj(regist->m_AccumulatedRotation)).getXYZ()
-                       + regist->m_AccumulatedTranslation;
-
-            regist->m_AccumulatedRotation = rot;
-            regist->m_AccumulatedTranslation = trans;
-
-            dmResource::FactoryResult r = dmResource::Get(factory, coll_instance_desc.m_Collection, (void**) &child_coll);
-            if (r != dmResource::FACTORY_RESULT_OK)
-            {
-                res = dmResource::CREATE_RESULT_UNKNOWN;
-                goto bail;
-            }
-            else
-            {
-                assert(child_coll != collection);
-                dmResource::Release(factory, (void*) child_coll);
-            }
-
-            dmStrlCpy(regist->m_CurrentIdentifierPath, prev_identifier_path, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-
-            regist->m_AccumulatedTranslation = prev_translation;
-            regist->m_AccumulatedRotation = prev_rotation;
-        }
-
-        if (loading_root)
-        {
-            resource->m_Resource = (void*) collection;
-        }
-        else
-        {
-            // We must create a child collection. We can't return "collection" and release.
-            // The root collection is not yet created.
-            resource->m_Resource = (void*) NewCollection(factory, regist, 1);
-        }
-bail:
-        dmDDF::FreeMessage(collection_desc);
-        dmStrlCpy(regist->m_CurrentIdentifierPath, prev_identifier_path, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-
-        if (loading_root && res != dmResource::CREATE_RESULT_OK)
-        {
-            // Loading of root-collection is responsible for deleting
-            DeleteCollection(collection);
-        }
-
-        if (loading_root)
-        {
-            // We must reset this to next load.
-            regist->m_CurrentCollection = 0;
-        }
-
-        dmMutex::Unlock(regist->m_Mutex);
-        return res;
-    }
-
-    dmResource::CreateResult ResDestroyCollection(dmResource::HFactory factory,
-                                                 void* context,
-                                                 dmResource::SResourceDescriptor* resource)
-    {
-        HCollection collection = (HCollection) resource->m_Resource;
-        DeleteCollection(collection);
-        return dmResource::CREATE_RESULT_OK;
-    }
-
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
     {
         dmResource::FactoryResult ret = dmResource::FACTORY_RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", 0, &ResCreatePrototype, &ResDestroyPrototype, 0);
+        ret = dmResource::RegisterType(factory, "goc", 0, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ResCreateScript, &ResDestroyScript, &ResRecreateScript);
+        ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCreateCollection, &ResDestroyCollection, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionCreate, &ResCollectionDestroy, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
         return ret;
-    }
-
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
-    {
-        ComponentType script_component;
-        dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
-        script_component.m_Name = "scriptc";
-        script_component.m_Context = 0x0;
-        script_component.m_NewWorldFunction = &ScriptNewWorld;
-        script_component.m_DeleteWorldFunction = &ScriptDeleteWorld;
-        script_component.m_CreateFunction = &ScriptCreateComponent;
-        script_component.m_InitFunction = &ScriptInitComponent;
-        script_component.m_DestroyFunction = &ScriptDestroyComponent;
-        script_component.m_UpdateFunction = &ScriptUpdateComponent;
-        script_component.m_OnMessageFunction = &ScriptOnMessageComponent;
-        script_component.m_OnInputFunction = &ScriptOnInputComponent;
-        script_component.m_InstanceHasUserData = true;
-        return RegisterComponentType(regist, script_component);
     }
 
     static void EraseSwapLevelIndex(HCollection collection, HInstance instance)
@@ -1287,9 +1005,6 @@ bail:
         uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            if (!DispatchMessages(reg))
-                ret = false;
-
             ComponentType* component_type = &reg->m_ComponentTypes[i];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
@@ -1312,6 +1027,9 @@ bail:
             for (uint32_t j = 0; j < collection_count; ++j)
                 if (collections[j])
                     UpdateTransforms(collections[j]);
+
+            if (!DispatchMessages(reg))
+                ret = false;
         }
 
         for (uint32_t i = 0; i < collection_count; ++i)

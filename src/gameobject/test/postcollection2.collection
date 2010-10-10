@@ -1,8 +1,0 @@
-Name: "postcollection2"
-Instances
-{
-    Prototype: "postcollection2.goc"
-    Id: "my_object02"
-    Position { X: 123 Y: 0 Z: 0 }
-    Rotation { X: 0.0 Y: 1.0 Z: 0.0 W: 0.0 }
-}
