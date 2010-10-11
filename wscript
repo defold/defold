@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import sys
-import waf_dynamo, waf_ddf
+import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render
 
 def init():
     pass
@@ -25,8 +25,27 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
+    waf_graphics.configure(conf)
+    waf_physics.configure(conf)
+    waf_render.configure(conf)
 
     conf.sub_config('src')
+
+    if sys.platform == "darwin":
+        platform = "darwin"
+    elif sys.platform == "linux2":
+        platform = "linux"
+    elif sys.platform == "win32":
+        platform = "win32"
+    else:
+        conf.fatal("Unable to determine platform")
+
+    if platform == "darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
+    if platform == "linux":
+        conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
+    if platform == "win32":
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib'])
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'
@@ -34,6 +53,16 @@ def configure(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
+    conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
+    conf.env['STATICLIB_LUA'] = 'lua'
+    conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_RENDER'] = 'render'
+    conf.env['STATICLIB_RENDERDEBUG'] = 'render_debug'
+    conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
+    conf.env['STATICLIB_PARTICLE'] = 'particle'
+    conf.env['STATICLIB_GUI'] = 'gui'
+    conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
+    conf.env['STATICLIB_INPUT'] = 'input'
 
     platform = conf.env['PLATFORM']
 

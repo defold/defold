@@ -64,8 +64,12 @@ namespace dmGameSystem
         data.m_Group = prototype->m_Group;
         data.m_Mask = prototype->m_Mask;
         dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, data);
-        *user_data = (uintptr_t) collision_object;
-        return dmGameObject::CREATE_RESULT_OK;
+        if (collision_object != 0x0)
+        {
+            *user_data = (uintptr_t) collision_object;
+            return dmGameObject::CREATE_RESULT_OK;
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
     dmGameObject::CreateResult CompCollisionObjectInit(dmGameObject::HCollection collection,
@@ -157,6 +161,8 @@ namespace dmGameSystem
                          void* world,
                          void* context)
     {
+        if (world == 0x0)
+            return dmGameObject::UPDATE_RESULT_OK;
         dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
         dmPhysics::StepWorld(physics_world, update_context->m_DT);
         dmPhysics::ForEachCollision(physics_world, CollisionCallback, 0x0, ContactPointCallback, 0x0);
