@@ -7,15 +7,6 @@
 #include <resource/resource.h>
 
 #include "../gameobject.h"
-//#include "../gameobject_private.h"
-
-//#include <algorithm>
-//#include <map>
-//#include <dlib/message.h>
-//#include <dlib/dstrings.h>
-//#include <dlib/time.h>
-//#include <dlib/log.h>
-//#include "../proto/gameobject_ddf.h"
 
 #include "gameobject/test/input/test_gameobject_input_ddf.h"
 
@@ -226,6 +217,31 @@ TEST_F(InputTest, TestComponentInput3)
     dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, r);
+}
+
+TEST_F(InputTest, TestDeleteFocusInstance)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::PostUpdate(&m_Collection, 1);
+
+    dmGameObject::UpdateResult r;
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString32("test_action");
+    action.m_Value = 1.0f;
+    action.m_Pressed = 1;
+    action.m_Released = 0;
+    action.m_Repeated = 1;
+
+    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
 
 int main(int argc, char **argv)

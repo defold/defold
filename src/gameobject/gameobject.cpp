@@ -633,6 +633,16 @@ namespace dmGameObject
         collection->m_InstanceIndices.Push(instance->m_Index);
         collection->m_Instances[instance->m_Index] = 0;
 
+        // Erase from input stack
+        for (uint32_t i = 0; i < collection->m_FocusStack.Size(); ++i)
+        {
+            if (collection->m_FocusStack[i] == instance)
+            {
+                collection->m_FocusStack[i] = 0x0;
+                break;
+            }
+        }
+
         instance->~Instance();
         void* instance_memory = (void*) instance;
 
