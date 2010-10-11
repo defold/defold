@@ -78,6 +78,7 @@ def configure(conf):
 
 def build(bld):
     sys.path.append(bld.path.find_dir('src').abspath())
+    sys.path.append('default/proto')
 
     bld.add_subdirs('src')
 
