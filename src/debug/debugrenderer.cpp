@@ -15,7 +15,7 @@ namespace dmRenderDebug
 
     struct State
     {
-        State(): m_VertexProgram(0), m_FragmentProgram(0)
+        State(): m_VertexProgram(0), m_FragmentProgram(0), m_RenderWorld(0), m_RenderCollection(0)
         {
 
         }
@@ -47,6 +47,7 @@ namespace dmRenderDebug
 
     void Finalize()
     {
+        // really need a collection class here
         for (uint32_t i=0; i < m_State.m_ROs[0].Size(); i++)
             dmRender::DeleteRenderObject(m_State.m_RenderCollection, m_State.m_ROs[0][i]);
 
@@ -119,12 +120,6 @@ namespace dmRenderDebug
 
         dmRender::SetData(ro, info);
     }
-
-    void Plane(Matrix4* view_proj, const float* vertices, Vector4 color)
-    {
-    }
-
-
 
 
     static void SetupLines(RenderMode mode, Point3* vertices, uint32_t vertex_count, Vector4 color)
