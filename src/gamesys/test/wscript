@@ -1,8 +1,6 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
-import waf_gamesys
-
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go']):
         test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
