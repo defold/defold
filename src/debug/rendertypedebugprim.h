@@ -15,9 +15,16 @@ namespace dmRenderDebug
         DEBUG_RENDER_TYPE_LINES
     };
 
+    enum RenderMode
+    {
+        RENDERMODE_2D,
+        RENDERMODE_3D
+    };
+
     struct DebugRenderInfo
     {
         DebugRenderType m_Type;
+        RenderMode      m_Mode;
         void*           m_Data0;
         void*           m_Data1;
         void*           m_Data2;

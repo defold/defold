@@ -14,6 +14,7 @@ namespace dmRender
 		Vector4				m_Colour[MAX_COLOR];
 		Point3				m_Pos;
 		Quat				m_Rot;
+		Vector3             m_Size;
 		uint64_t            m_Mask;
 		uint32_t        	m_Type;
 		void*				m_Go;

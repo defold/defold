@@ -124,15 +124,12 @@ namespace dmRender
         fr->m_RenderCollection = collection;
         fr->m_RenderWorld = (dmRender::HRenderWorld)renderworld;
         fr->m_RenderObject = dmRender::NewRenderObject((dmRender::HRenderWorld)collection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_TEXT);
-//        NewRenderObject(HRenderWorld world, void* resource, void* go, uint64_t mask, RenderObjectType type)
-
         return fr;
     }
 
     void DeleteFontRenderer(HFontRenderer renderer)
     {
         dmRender::DeleteRenderObject(renderer->m_RenderCollection, renderer->m_RenderObject);
-        dmRender::UpdateDeletedInstances(renderer->m_RenderCollection);
         dmRender::DeleteRenderWorld(renderer->m_RenderCollection);
         delete renderer;
     }

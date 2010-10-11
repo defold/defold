@@ -101,34 +101,8 @@ namespace dmRender
         return world;
     }
 
-    void DeleteRenderWorld(HRenderWorld world)
-    {
-        delete world;
-    }
-
-    void RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeSetupFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance)
-    {
-        RenderWorld::Renderer renderer;
-        renderer.m_InstanceFunc = rendertype_instance;
-        renderer.m_SetupFunc = rendertype_setup;
-
-        world->m_RenderTypeList[type] = renderer;
-    }
-
-    void AddRenderPass(HRenderWorld world, HRenderPass renderpass)
-    {
-        world->m_RenderPasses.Push(renderpass);
-    }
-
-
-
-    void UpdateContext(HRenderWorld world, RenderContext* rendercontext)
-    {
-        world->m_RenderContext = *rendercontext;
-    }
-
     // this needs to go...
-    void UpdateDeletedInstances(HRenderWorld world)
+    static void UpdateDeletedInstances(HRenderWorld world)
     {
         uint32_t size = world->m_RenderObjectInstanceList.Size();
         RenderObject** mem = new RenderObject*[size+1];
@@ -157,6 +131,35 @@ namespace dmRender
 
         delete [] mem;
     }
+
+
+    void DeleteRenderWorld(HRenderWorld world)
+    {
+        UpdateDeletedInstances(world);
+        delete world;
+    }
+
+    void RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeSetupFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance)
+    {
+        RenderWorld::Renderer renderer;
+        renderer.m_InstanceFunc = rendertype_instance;
+        renderer.m_SetupFunc = rendertype_setup;
+
+        world->m_RenderTypeList[type] = renderer;
+    }
+
+    void AddRenderPass(HRenderWorld world, HRenderPass renderpass)
+    {
+        world->m_RenderPasses.Push(renderpass);
+    }
+
+
+
+    void UpdateContext(HRenderWorld world, RenderContext* rendercontext)
+    {
+        world->m_RenderContext = *rendercontext;
+    }
+
 
 
     void AddToRender(HRenderWorld local_world, HRenderWorld world)
@@ -305,24 +308,48 @@ namespace dmRender
     	ro->m_MarkForDelete = 1;
     }
 
-    void SetPosition(HRenderObject ro, Vector4 pos)
+    void SetPosition(HRenderObject ro, Point3 pos)
     {
-    	// double buffering
+        ro->m_Pos = pos;
     }
     void SetRotation(HRenderObject ro, Quat rot)
     {
-    	// double buffering
+        ro->m_Rot = rot;
     }
 
-    void* GetData(HRenderObject ro)
+    void SetSize(HRenderObject ro, Vector3 size)
     {
-        return ro->m_Data;
+        ro->m_Size = size;
     }
+
+
 
 
     void SetColor(HRenderObject ro, Vector4 color, ColorType color_type)
     {
         ro->m_Colour[color_type] = color;
+    }
+    void* GetData(HRenderObject ro)
+    {
+        return ro->m_Data;
+    }
+
+    Point3 GetPosition(HRenderObject ro)
+    {
+        return ro->m_Pos;
+    }
+
+    Quat GetRotation(HRenderObject ro)
+    {
+        return ro->m_Rot;
+    }
+    Vector4 GetColor(HRenderObject ro, ColorType color_type)
+    {
+        return ro->m_Colour[color_type];
+    }
+    Vector3 GetSize(HRenderObject ro)
+    {
+        return ro->m_Size;
     }
 
 

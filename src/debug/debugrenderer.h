@@ -33,7 +33,7 @@ namespace dmRenderDebug
      * @param size Size
      * @param color Color
      */
-    void Square(Matrix4 view_proj, Point3 position, Vector3 size, Vector4 color);
+    void Square(Point3 position, Vector3 size, Vector4 color);
 
     void Plane(Matrix4* view_proj, const float* vertices, Vector4 color);
 
@@ -51,7 +51,7 @@ namespace dmRenderDebug
      * @param end End point
      * @param color Color
      */
-    void Line(Matrix4 view_proj, Point3 start, Point3 end, Vector4 color);
+//    void Line(Matrix4 view_proj, Point3 start, Point3 end, Vector4 color);
 
     /**
      * Lines Render debug lines (line strip)
@@ -60,7 +60,12 @@ namespace dmRenderDebug
      * @param vertex_count Number of points (>1)
      * @param color Color
      */
-    void Lines(Matrix4 view_proj, Point3* vertices, int vertex_count, Vector4 color);
+//    void Lines(Matrix4 view_proj, Point3* vertices, int vertex_count, Vector4 color);
+
+    void Lines2D(Point3* vertices, uint32_t vertex_count, Vector4 color);
+    void Lines3D(Point3* vertices, uint32_t vertex_count, Vector4 color);
+    void Line2D(Point3 start, Point3 end, Vector4 color);
+    void Line3D(Point3 start, Point3 end, Vector4 color);
 
 }
 

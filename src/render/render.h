@@ -83,7 +83,6 @@ namespace dmRender
 
     void Update(HRenderWorld world, float dt);
     void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
-    void UpdateDeletedInstances(HRenderWorld world);
     HRenderObject NewRenderObject(HRenderWorld world, void* resource, void* go, uint64_t mask, uint32_t type);
     void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
     void SetData(HRenderObject ro, void* data);
@@ -93,9 +92,16 @@ namespace dmRender
     void Enable(HRenderObject ro);
     bool IsEnabled(HRenderObject ro);
 
-    void SetPosition(HRenderObject ro, Vector4 pos);
+    void SetPosition(HRenderObject ro, Point3 pos);
     void SetRotation(HRenderObject ro, Quat rot);
     void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
+    void SetSize(HRenderObject ro, Vector3 size);
+
+    Point3 GetPosition(HRenderObject ro);
+    Quat GetRotation(HRenderObject ro);
+    Vector4 GetColor(HRenderObject ro, ColorType color_type);
+    Vector3 GetSize(HRenderObject ro);
+
     void* GetData(HRenderObject ro);
 
 
