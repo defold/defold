@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import sys
-import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render
+import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 
 def init():
     pass
