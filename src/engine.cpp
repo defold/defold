@@ -186,8 +186,6 @@ namespace dmEngine
         engine->m_EmitterContext.m_Debug = false;
         engine->m_EmitterContext.m_RenderWorld = engine->m_RenderWorld;
 
-        dmRenderDebug::Initialize(engine->m_RenderWorld);
-
         const uint32_t max_resources = 256;
 
         dmRenderDebug::Initialize(engine->m_RenderWorld);
@@ -198,13 +196,13 @@ namespace dmEngine
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
 
 
-        dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 100, 1, 0x0, 0x0);
+        dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 1000, 1, 0x0, 0x0);
         engine->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
         dmRender::AddRenderPass(engine->m_RenderWorld, engine->m_RenderPass);
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
-        dmPhysics::SetDebugRenderer(&engine->m_RenderContext, PhysicsDebugRender::RenderLine);
+        dmPhysics::SetDebugRenderer(PhysicsDebugRender::RenderLine);
 
         float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
@@ -541,7 +539,7 @@ bail:
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {
             dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*) instance_message_data->m_Buffer;
-            dmRenderDebug::Line(self->m_RenderContext.m_ViewProj, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color);
+            dmRenderDebug::Line3D(dl->m_StartPoint, dl->m_EndPoint, dl->m_Color);
         }
         else if (instance_message_data->m_DDFDescriptor == dmEngineDDF::SetTimeStep::m_DDFDescriptor)
         {
@@ -732,8 +730,10 @@ bail:
         if (engine->m_GameInputBinding)
             dmInput::DeleteBinding(engine->m_GameInputBinding);
 
-        dmRender::DeleteRenderPass(engine->m_RenderPass);
-        dmRender::DeleteRenderWorld(engine->m_RenderWorld);
+        if (engine->m_RenderPass)
+            dmRender::DeleteRenderPass(engine->m_RenderPass);
+        if (engine->m_RenderWorld)
+            dmRender::DeleteRenderWorld(engine->m_RenderWorld);
     }
 }
 
