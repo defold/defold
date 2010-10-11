@@ -6,7 +6,6 @@ namespace dmPhysics
 {
     DebugDraw::DebugDraw()
     : m_DebugMode(0)
-    , m_RenderContext(0x0)
     , m_RenderLine(0x0)
     {
         m_DebugMode = DBG_NoDebug
@@ -31,7 +30,7 @@ namespace dmPhysics
     {
         if (m_RenderLine != 0x0)
         {
-            (*m_RenderLine)(m_RenderContext, Vectormath::Aos::Point3(from.getX(), from.getY(), from.getZ()), Vectormath::Aos::Point3(to.getX(), to.getY(), to.getZ()), Vectormath::Aos::Vector4(color.getX(), color.getY(), color.getZ(), 1.0f));
+            (*m_RenderLine)(Vectormath::Aos::Point3(from.getX(), from.getY(), from.getZ()), Vectormath::Aos::Point3(to.getX(), to.getY(), to.getZ()), Vectormath::Aos::Vector4(color.getX(), color.getY(), color.getZ(), 1.0f));
         }
     }
 
@@ -58,11 +57,11 @@ namespace dmPhysics
         // lifetime measures number of frames the contact point has existed (max 127)
         float alpha = 1.0f - (lifeTime/255.0f);
         Vector4 c(color.getX(), color.getY(), color.getZ(), alpha);
-        (*m_RenderLine)(m_RenderContext, p, p + n - t1, c);
-        (*m_RenderLine)(m_RenderContext, p, p + n + t1, c);
-        (*m_RenderLine)(m_RenderContext, p, p + n - t2, c);
-        (*m_RenderLine)(m_RenderContext, p, p + n + t2, c);
-        (*m_RenderLine)(m_RenderContext, p, p + distance * n, c);
+        (*m_RenderLine)(p, p + n - t1, c);
+        (*m_RenderLine)(p, p + n + t1, c);
+        (*m_RenderLine)(p, p + n - t2, c);
+        (*m_RenderLine)(p, p + n + t2, c);
+        (*m_RenderLine)(p, p + distance * n, c);
     }
 
     void DebugDraw::reportErrorWarning(const char *warningString)
@@ -85,9 +84,8 @@ namespace dmPhysics
         return m_DebugMode;
     }
 
-    void DebugDraw::SetRenderLine(void* ctx, RenderLine render_line)
+    void DebugDraw::SetRenderLine(RenderLine render_line)
     {
-        m_RenderContext = ctx;
         m_RenderLine = render_line;
     }
 }

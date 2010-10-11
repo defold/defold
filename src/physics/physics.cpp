@@ -545,8 +545,8 @@ namespace dmPhysics
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request.", world->m_RayCastRequests.Capacity());
     }
 
-    void SetDebugRenderer(void* ctx, RenderLine render_line)
+    void SetDebugRenderer(RenderLine render_line)
     {
-        m_DebugDraw.SetRenderLine(ctx, render_line);
+        m_DebugDraw.SetRenderLine(render_line);
     }
 }

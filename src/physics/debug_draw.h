@@ -20,11 +20,10 @@ namespace dmPhysics
         virtual void setDebugMode(int debugMode);
         virtual int getDebugMode() const;
 
-        void SetRenderLine(void* ctx, RenderLine render_line);
+        void SetRenderLine(RenderLine render_line);
 
     private:
         int m_DebugMode;
-        void* m_RenderContext;
         RenderLine m_RenderLine;
     };
 }
