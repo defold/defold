@@ -9,11 +9,6 @@ blddir = 'build'
 import sys, os
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 
-if sys.platform == "win32":
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";../src/gamesys"
-else:
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":../src/gamesys"
-
 def init():
     pass
 
@@ -82,6 +77,8 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
 
 def build(bld):
+    sys.path.append(bld.path.find_dir('src').abspath())
+
     bld.add_subdirs('src')
 
 import Build, Options
