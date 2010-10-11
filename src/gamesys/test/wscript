@@ -1,6 +1,8 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
+import waf_gamesys
+
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go']):
         test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
@@ -12,4 +14,4 @@ def build(bld):
         test_task_gen.find_sources_in_dirs(dir, exts)
         test_task_gen.install_path = None
 
-    new_test('collisionobject', exts = ['.cpp', '.go', '.collisionobject'])
+    new_test('collisionobject', exts = ['.cpp', '.go', '.collisionobject', '.convexshape'])

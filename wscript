@@ -6,8 +6,13 @@ APPNAME='gamesys'
 srcdir = '.'
 blddir = 'build'
 
-import sys
+import sys, os
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
+
+if sys.platform == "win32":
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";../src/gamesys"
+else:
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":../src/gamesys"
 
 def init():
     pass
