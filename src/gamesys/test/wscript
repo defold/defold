@@ -1,5 +1,12 @@
+import sys, os
+
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+
+if sys.platform == "win32":
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";../src"
+else:
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":../src"
 
 import waf_gamesys
 
