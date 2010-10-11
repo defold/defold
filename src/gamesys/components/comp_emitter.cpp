@@ -214,6 +214,6 @@ namespace dmGameSystem
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
     {
         dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
-        dmRenderDebug::Line(render_ctx->m_ViewProj, start, end, color);
+        dmRenderDebug::Line3D(start, end, color);
     }
 }

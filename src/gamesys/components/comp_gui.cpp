@@ -214,7 +214,7 @@ namespace dmGameSystem
                 s.setX(s.getX() / 960.0f);
                 s.setY(s.getY() / 540.0f);
 
-                dmRenderDebug::Square(m, p, s, color);
+                dmRenderDebug::Square(p, s, color);
             }
             else if(node->m_NodeType == dmGui::NODE_TYPE_TEXT)
             {
