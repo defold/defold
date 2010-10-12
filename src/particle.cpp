@@ -585,6 +585,9 @@ namespace dmParticle
     {
         DM_PROFILE(Particle, "Render");
 
+        if (context->m_Emitters.Size() == 0)
+            return;
+
         render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE);
 
         for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
