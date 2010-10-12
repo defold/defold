@@ -24,8 +24,6 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance m_Instance;
         dmParticle::HEmitter m_Emitter;
-        dmRender::HRenderObject m_RenderObject;
-        dmRender::SParticleRenderData m_RenderProperties;
         EmitterWorld* m_World;
     };
 
@@ -73,7 +71,6 @@ namespace dmGameSystem
             emitter.m_Instance = instance;
             emitter.m_Emitter = dmParticle::CreateEmitter(w->m_Context, prototype);
             emitter.m_World = w;
-            emitter.m_RenderObject = dmRender::NewRenderObject(w->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLE);
             w->m_Emitters.Push(emitter);
             *user_data = (uintptr_t)&w->m_Emitters[w->m_Emitters.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
@@ -97,7 +94,6 @@ namespace dmGameSystem
             if (w->m_Emitters[i].m_Instance == instance)
             {
                 dmParticle::DestroyEmitter(w->m_Context, w->m_Emitters[i].m_Emitter);
-                dmRender::DeleteRenderObject(w->m_RenderCollection, w->m_Emitters[i].m_RenderObject);
                 w->m_Emitters.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
             }
@@ -111,7 +107,7 @@ namespace dmGameSystem
     void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size);
     void RenderTearDownCallback(void* render_context);
     void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
-    void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
+    void RenderLineCallback(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
     dmGameObject::UpdateResult CompEmitterUpdate(dmGameObject::HCollection collection,
             const dmGameObject::UpdateContext* update_context,
@@ -120,6 +116,9 @@ namespace dmGameSystem
     {
 
         EmitterWorld* w = (EmitterWorld*)world;
+
+        dmRender::ClearWorld(w->m_RenderCollection);
+
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             Emitter& emitter = w->m_Emitters[i];
@@ -128,28 +127,13 @@ namespace dmGameSystem
         }
         EmitterContext* ctx = (EmitterContext*)context;
         dmParticle::Update(w->m_Context, update_context->m_DT, &ctx->m_RenderContext->m_View);
+        dmParticle::Render(w->m_Context, w, RenderSetUpCallback, RenderTearDownCallback, RenderEmitterCallback);
+        dmRender::AddToRender(w->m_RenderCollection, ctx->m_RenderWorld);
 
-        for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
-        {
-            Emitter& emitter = w->m_Emitters[i];
-            dmParticle::SetRenderProperties(w->m_Context, emitter.m_Emitter, &emitter.m_RenderProperties);
-            dmRender::SetData(emitter.m_RenderObject, (void*)&emitter.m_RenderProperties);
-        }
-        if (w->m_Emitters.Size())
-            dmRender::AddToRender(w->m_RenderCollection, ctx->m_RenderWorld);
-
-
-#if 0
         if (ctx->m_Debug)
         {
-            dmGraphics::HContext gfx_context = ctx->m_RenderContext->m_GFXContext;
-
-            dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-            dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
-
-            dmParticle::DebugRender(w->m_Context, &ctx->m_RenderContext, RenderLineCallback);
+            dmParticle::DebugRender(w->m_Context, RenderLineCallback);
         }
-#endif
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -174,46 +158,33 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size)
+    void RenderSetUpCallback(void* context, float* vertex_buffer, uint32_t vertex_size)
     {
-        dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
-        dmGraphics::HContext gfx_context = render_ctx->m_GFXContext;
+        EmitterWorld* world = (EmitterWorld*)context;
 
-        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
+        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLESETUP);
 
-        dmGraphics::SetDepthMask(gfx_context, 0);
-
-        // positions
-        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, vertex_size, (void*)vertex_buffer);
-        // uv's
-        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[3]);
-        // alpha
-        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[5]);
+        dmRender::SetUserData(ro, 0, (uint32_t)vertex_buffer);
+        dmRender::SetUserData(ro, 1, (uint32_t)vertex_size);
     }
 
     void RenderTearDownCallback(void* render_context)
     {
-        dmGraphics::SetDepthMask(((dmRender::RenderContext*)render_context)->m_GFXContext, 1);
     }
 
-    void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+    void RenderEmitterCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
-        dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
-        dmGraphics::HContext gfx_context = render_ctx->m_GFXContext;
+        EmitterWorld* world = (EmitterWorld*)context;
 
-        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram((dmGraphics::HMaterial)material));
-        dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)&render_ctx->m_ViewProj, 0, 4);
-        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram((dmGraphics::HMaterial)material));
-
-        dmGraphics::SetTexture(gfx_context, (dmGraphics::HTexture)texture);
-
-        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, vertex_index, vertex_count);
+        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLE);
+        dmRender::SetUserData(ro, 0, (uint32_t)material);
+        dmRender::SetUserData(ro, 1, (uint32_t)texture);
+        dmRender::SetUserData(ro, 2, (uint32_t)vertex_count);
+        dmRender::SetUserData(ro, 3, (uint32_t)vertex_index);
     }
 
-    void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
+    void RenderLineCallback(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
     {
-        dmRender::RenderContext* render_ctx = (dmRender::RenderContext*)render_context;
         dmRenderDebug::Line3D(start, end, color);
     }
 }
