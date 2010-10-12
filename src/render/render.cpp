@@ -26,7 +26,8 @@ namespace dmRender
         struct Renderer
         {
             RenderTypeInstanceFunc  m_InstanceFunc;
-            RenderTypeSetupFunc     m_SetupFunc;
+            RenderTypeOnceFunc      m_SetupFunc;
+            RenderTypeOnceFunc      m_EndFunc;
         };
 
         dmArray<RenderObject*>  m_RenderObjectInstanceList;
@@ -60,22 +61,15 @@ namespace dmRender
 
     void RenderTypeBegin(RenderWorld* world, RenderContext* rendercontext, uint32_t type)
     {
-        world->m_RenderTypeList[type].m_SetupFunc(rendercontext);
+        if (world->m_RenderTypeList[type].m_SetupFunc)
+            world->m_RenderTypeList[type].m_SetupFunc(rendercontext);
     }
 
     void RenderTypeEnd(RenderWorld* world, RenderContext* rendercontext, uint32_t type)
     {
-
+        if (world->m_RenderTypeList[type].m_EndFunc)
+            world->m_RenderTypeList[type].m_EndFunc(rendercontext);
     }
-
-    void rptestBegin(const RenderContext* rendercontext, const void* userdata)
-    {
-    }
-
-    void rptestEnd(const RenderContext* rendercontext, const void* userdata)
-    {
-    }
-
 
 
     HRenderWorld NewRenderWorld(uint32_t max_instances, uint32_t max_renderpasses, SetObjectModel set_object_model)
@@ -94,9 +88,10 @@ namespace dmRender
         world->m_SetObjectModel = set_object_model;
         world->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
 
-        RegisterRenderer(world, RENDEROBJECT_TYPE_MODEL,    RenderTypeModelSetup,       RenderTypeModelDraw);
-        RegisterRenderer(world, RENDEROBJECT_TYPE_TEXT,     RenderTypeTextSetup,        RenderTypeTextDraw);
-        RegisterRenderer(world, RENDEROBJECT_TYPE_PARTICLE, RenderTypeParticleSetup,    RenderTypeParticleDraw);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_MODEL,            RenderTypeModelSetup,    RenderTypeModelDraw,     0x0);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_TEXT,             RenderTypeTextSetup,     RenderTypeTextDraw,      0x0);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_PARTICLE,         0x0,                     RenderTypeParticleDraw,  0x0);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_PARTICLESETUP,    0x0,                     RenderTypeParticleSetup, RenderTypeParticleEnd);
 
         return world;
     }
@@ -133,24 +128,52 @@ namespace dmRender
     }
 
 
-    void DeleteRenderWorld(HRenderWorld world)
+    Result ClearWorld(HRenderWorld world)
     {
+        if (world == 0x0) return RESULT_INVALID_WORLD;
+
+        for (uint32_t i=0; i<world->m_RenderObjectInstanceList.Size(); i++)
+        {
+            RenderObject* ro = world->m_RenderObjectInstanceList[i];
+            DeleteRenderObject(world, ro);
+
+        }
         UpdateDeletedInstances(world);
-        delete world;
+
+        return RESULT_OK;
     }
 
-    void RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeSetupFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance)
+    Result DeleteRenderWorld(HRenderWorld world)
     {
+        if (world == 0x0) return RESULT_INVALID_WORLD;
+
+        UpdateDeletedInstances(world);
+        delete world;
+
+        return RESULT_OK;
+    }
+
+    Result RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeOnceFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance, RenderTypeOnceFunc rendertype_end)
+    {
+        if (world == 0x0) return RESULT_INVALID_WORLD;
+
         RenderWorld::Renderer renderer;
         renderer.m_InstanceFunc = rendertype_instance;
         renderer.m_SetupFunc = rendertype_setup;
+        renderer.m_EndFunc = rendertype_end;
 
         world->m_RenderTypeList[type] = renderer;
+
+        return RESULT_OK;
     }
 
-    void AddRenderPass(HRenderWorld world, HRenderPass renderpass)
+    Result AddRenderPass(HRenderWorld world, HRenderPass renderpass)
     {
+        if (world == 0x0) return RESULT_INVALID_WORLD;
+
         world->m_RenderPasses.Push(renderpass);
+
+        return RESULT_OK;
     }
 
 
@@ -162,8 +185,10 @@ namespace dmRender
 
 
 
-    void AddToRender(HRenderWorld local_world, HRenderWorld world)
+    Result AddToRender(HRenderWorld local_world, HRenderWorld world)
     {
+        if (world == 0x0) return RESULT_INVALID_WORLD;
+
         UpdateDeletedInstances(local_world);
 
         for (uint32_t i=0; i<local_world->m_RenderObjectInstanceList.Size(); i++)
@@ -182,13 +207,16 @@ namespace dmRender
                 }
             }
         }
+        return RESULT_OK;
     }
 
 
 
-    void Update(HRenderWorld world, float dt)
+    Result Update(HRenderWorld world, float dt)
     {
         DM_PROFILE(Render, "Update");
+
+        if (world == 0x0) return RESULT_INVALID_WORLD;
 
     	FrameBeginDraw(&world->m_RenderContext);
 
@@ -225,7 +253,8 @@ namespace dmRender
 					}
 
 					// dispatch
-					world->m_RenderTypeList[ro->m_Type].m_InstanceFunc(&rp->m_RenderContext, &ro, 1);
+					if (world->m_RenderTypeList[ro->m_Type].m_InstanceFunc)
+					    world->m_RenderTypeList[ro->m_Type].m_InstanceFunc(&rp->m_RenderContext, &ro, 1);
 
 					if (old_type != (int)ro->m_Type)
 					{
@@ -246,7 +275,7 @@ namespace dmRender
     	FrameEndDraw(&world->m_RenderContext);
 
     	world->m_RenderObjectInstanceList.SetSize(0);
-    	return;
+    	return RESULT_OK;
 
     }
 
@@ -350,6 +379,18 @@ namespace dmRender
     Vector3 GetSize(HRenderObject ro)
     {
         return ro->m_Size;
+    }
+
+    uint32_t GetUserData(HRenderObject ro, uint32_t index)
+    {
+        assert(index < 4);
+        return ro->m_UserData[index];
+    }
+
+    void SetUserData(HRenderObject ro, uint32_t index, uint32_t value)
+    {
+        assert(index < 4);
+        ro->m_UserData[index] = value;
     }
 
 

@@ -19,6 +19,7 @@ namespace dmRender
 		uint32_t        	m_Type;
 		void*				m_Go;
 		void*				m_Data;
+		uint32_t            m_UserData[4];
 		uint16_t			m_MarkForDelete:1;
 		uint16_t            m_Enabled:1;
 	};

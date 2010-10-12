@@ -14,11 +14,8 @@ namespace dmRender
 
     void RenderTypeTextSetup(const RenderContext* rendercontext)
     {
-        dmGraphics::HContext context = rendercontext->m_GFXContext;
+        (void)rendercontext;
 
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
     }
 
     void RenderTypeTextDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
@@ -41,6 +38,11 @@ namespace dmRender
 
 
         dmGraphics::HContext context = rendercontext->m_GFXContext;
+        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
+        dmGraphics::EnableState(context, dmGraphics::BLEND);
+
+
         Matrix4 ident = Matrix4::identity();
 
         dmGraphics::SetVertexProgram(context, GetVertexProgram(font));

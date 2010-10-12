@@ -41,7 +41,7 @@ namespace dmRenderDebug
         m_State.m_ROs[1].SetCapacity(1000);
         m_State.m_WorldIndex = 0;
         m_State.m_RenderWorld = renderworld;
-        dmRender::RegisterRenderer(renderworld, 4, RenderTypeDebugPrimSetup, RenderTypeDebugPrimDraw);
+        dmRender::RegisterRenderer(renderworld, 25, RenderTypeDebugPrimSetup, RenderTypeDebugPrimDraw, 0x0);
 
     }
 
@@ -86,7 +86,7 @@ namespace dmRenderDebug
 
     static dmRender::HRenderObject NewRO()
     {
-        dmRender::HRenderObject ro = dmRender::NewRenderObject(m_State.m_RenderCollection, 0x0, 0x0, 1, 4);
+        dmRender::HRenderObject ro = dmRender::NewRenderObject(m_State.m_RenderCollection, 0x0, 0x0, 1, 25);
         m_State.m_ROs[m_State.m_WorldIndex].Push(ro);
         dmRender::SetData(ro, 0x0);
         return ro;

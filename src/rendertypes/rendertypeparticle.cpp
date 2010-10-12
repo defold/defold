@@ -12,24 +12,13 @@ namespace dmRender
     using namespace Vectormath::Aos;
 
 
-    void RenderTypeParticleSetup(const RenderContext* rendercontext)
-    {
-        dmGraphics::HContext context = rendercontext->m_GFXContext;
 
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
-    }
-
-    void RenderTypeParticleDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
+    void RenderTypeParticleSetup(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
     {
         RenderObject* ro = (RenderObject*)*ro_;
 
-        SParticleRenderData* renderdata = (SParticleRenderData*)ro->m_Data;
-
-        if (renderdata->m_VertexCount == 0 || renderdata->m_VertexData == 0)
-            return;
-
+        float* vertex_buffer = (float*)dmRender::GetUserData(ro, 0);
+        uint32_t vertex_size = GetUserData(ro, 1);
 
         dmGraphics::HContext gfx_context = rendercontext->m_GFXContext;
 
@@ -38,31 +27,37 @@ namespace dmRender
 
         dmGraphics::SetDepthMask(gfx_context, 0);
 
-        float* pos = &renderdata->m_VertexData[0];
-        float* uvs = &renderdata->m_VertexData[3];
-        float* alpha = &renderdata->m_VertexData[5];
-
-
         // positions
-        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, renderdata->m_VertexStride, (void*)pos);
+        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, vertex_size, (void*)vertex_buffer);
         // uv's
-        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, renderdata->m_VertexStride, (void*)uvs);
+        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[3]);
         // alpha
-        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, renderdata->m_VertexStride, (void*)alpha);
+        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[5]);
+    }
+
+    void RenderTypeParticleDraw(const RenderContext* rendercontext, const HRenderObject* ro_, uint32_t count)
+    {
+        RenderObject* ro = (RenderObject*)*ro_;
+
+        dmGraphics::HContext gfx_context = rendercontext->m_GFXContext;
 
 
+        dmGraphics::HMaterial material = (dmGraphics::HMaterial)GetUserData(ro, 0);
+        dmGraphics::HTexture texture = (dmGraphics::HTexture)GetUserData(ro, 1);
 
-        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram(renderdata->m_Material));
+        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram(material));
         dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)&rendercontext->m_ViewProj, 0, 4);
-        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram(renderdata->m_Material));
+        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram(material));
 
-        dmGraphics::SetTexture(gfx_context, renderdata->m_Texture);
+        dmGraphics::SetTexture(gfx_context, texture);
 
-        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, renderdata->m_VertexIndex, renderdata->m_VertexCount);
+        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, GetUserData(ro, 3), GetUserData(ro, 2));
 
-        dmGraphics::SetDepthMask(gfx_context, 1);
+    }
 
-
+    void RenderTypeParticleEnd(const RenderContext* rendercontext)
+    {
+        dmGraphics::SetDepthMask(rendercontext->m_GFXContext, 1);
     }
 
 }

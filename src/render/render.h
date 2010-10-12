@@ -9,14 +9,21 @@
 
 namespace dmRender
 {
-
 	using namespace Vectormath::Aos;
+
+    enum Result
+    {
+        RESULT_OK = 0,
+        RESULT_INVALID_WORLD = -1,
+    };
+
 
 	enum RenderObjectType
 	{
 		RENDEROBJECT_TYPE_MODEL = 0,
 		RENDEROBJECT_TYPE_PARTICLE = 1,
 		RENDEROBJECT_TYPE_TEXT = 2,
+		RENDEROBJECT_TYPE_PARTICLESETUP = 3,
 		RENDEROBJECT_TYPE_MAX
 	};
 
@@ -45,7 +52,7 @@ namespace dmRender
     typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
 
     typedef void (*RenderTypeInstanceFunc)(const RenderContext* rendercontext, const HRenderObject* ro, uint32_t count);
-    typedef void (*RenderTypeSetupFunc)(const RenderContext* rendercontext);
+    typedef void (*RenderTypeOnceFunc)(const RenderContext* rendercontext);
 
 
 
@@ -74,14 +81,15 @@ namespace dmRender
 
 
     HRenderWorld NewRenderWorld(uint32_t max_instances, uint32_t max_renderpasses, SetObjectModel set_object_model);
-    void DeleteRenderWorld(HRenderWorld world);
-    void AddRenderPass(HRenderWorld world, HRenderPass renderpass);
+    Result DeleteRenderWorld(HRenderWorld world);
+    Result ClearWorld(HRenderWorld world);
+    Result AddRenderPass(HRenderWorld world, HRenderPass renderpass);
 
-    void AddToRender(HRenderWorld local_world, HRenderWorld world);
-    void RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeSetupFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance);
+    Result AddToRender(HRenderWorld local_world, HRenderWorld world);
+    Result RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeOnceFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance, RenderTypeOnceFunc rendertype_end);
 
 
-    void Update(HRenderWorld world, float dt);
+    Result Update(HRenderWorld world, float dt);
     void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
     HRenderObject NewRenderObject(HRenderWorld world, void* resource, void* go, uint64_t mask, uint32_t type);
     void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
@@ -101,12 +109,10 @@ namespace dmRender
     Quat GetRotation(HRenderObject ro);
     Vector4 GetColor(HRenderObject ro, ColorType color_type);
     Vector3 GetSize(HRenderObject ro);
-
     void* GetData(HRenderObject ro);
+    uint32_t GetUserData(HRenderObject ro, uint32_t index);
+    void SetUserData(HRenderObject ro, uint32_t index, uint32_t value);
 
-
-//    void RenderPassBegin(RenderContext* rendercontext, RenderPass* rp);
-//    void RenderPassEnd(RenderContext* rendercontext, RenderPass* rp);
 
     void SetViewProjectionMatrix(HRenderPass renderpass, Matrix4* viewprojectionmatrix);
 

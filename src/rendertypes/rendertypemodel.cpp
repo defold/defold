@@ -14,10 +14,8 @@ namespace dmRender
 	{
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
-		dmGraphics::SetDepthMask(context, true);
-		dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
+        dmGraphics::SetDepthMask(context, true);
 
-        dmGraphics::DisableState(context, dmGraphics::BLEND);
 	}
 
 
@@ -36,12 +34,15 @@ namespace dmRender
 
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
+        dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
+
+        dmGraphics::DisableState(context, dmGraphics::BLEND);
+
         dmGraphics::SetTexture(context, dmModel::GetTexture0(model));
 
 
         dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material) );
 
-#if 1
         for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
             uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
@@ -51,7 +52,6 @@ namespace dmRender
                 dmGraphics::SetFragmentConstant(context, &v, i);
             }
         }
-#endif
 
         dmGraphics::SetFragmentConstant(context, &ro->m_Colour[0], 0);
 
