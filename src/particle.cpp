@@ -580,37 +580,25 @@ namespace dmParticle
         return emitter->m_VertexCount;
     }
 
-    void SetRenderProperties(HContext context, HEmitter emitter, dmRender::SParticleRenderData* renderdata)
-    {
-        Emitter* emitter_ = GetEmitter(context, emitter);
 
-        renderdata->m_Material = emitter_->m_Prototype->m_Material;
-        renderdata->m_Texture = emitter_->m_Prototype->m_Texture;
-        renderdata->m_VertexCount = emitter_->m_VertexCount;
-        renderdata->m_VertexData = context->m_VertexBuffer;
-        renderdata->m_VertexIndex = emitter_->m_VertexIndex;
-        renderdata->m_VertexStride = VERTEX_SIZE;
-    }
-
-
-    void Render(HContext context, void* render_context, RenderSetUpCallback render_setup_callback, RenderTearDownCallback render_teardown_callback, RenderEmitterCallback render_emitter_callback)
+    void Render(HContext context, void* usercontext, RenderSetUpCallback render_setup_callback, RenderTearDownCallback render_teardown_callback, RenderEmitterCallback render_emitter_callback)
     {
         DM_PROFILE(Particle, "Render");
 
-        render_setup_callback(render_context, context->m_VertexBuffer, VERTEX_SIZE);
+        render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE);
 
         for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
         {
             Emitter* emitter = context->m_Emitters[i];
             if (!emitter || emitter->m_VertexCount == 0) continue;
 
-            render_emitter_callback(render_context, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+            render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
         }
 
-        render_teardown_callback(render_context);
+        render_teardown_callback(usercontext);
     }
 
-    void DebugRender(HContext context, void* render_context, void (*RenderLine)(void* context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color))
+    void DebugRender(HContext context, void (*RenderLine)(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color))
     {
         for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
         {
@@ -648,7 +636,7 @@ namespace dmParticle
                 for (uint32_t j = 1; j < segment_count + 1; ++j)
                 {
                     for (uint32_t k = 0; k < 3; ++k)
-                        RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, vertices[j-1][k]), e->m_Position + rotate(e->m_Rotation, vertices[j][k]), color);
+                        RenderLine(e->m_Position + rotate(e->m_Rotation, vertices[j-1][k]), e->m_Position + rotate(e->m_Rotation, vertices[j][k]), color);
                 }
                 break;
             }
@@ -658,10 +646,10 @@ namespace dmParticle
                 const float height = e->m_Properties[EMITTER_KEY_CONE_HEIGHT];
 
                 // 4 pillars
-                RenderLine(render_context, e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(radius, 0.0f, height)), color);
-                RenderLine(render_context, e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(-radius, 0.0f, height)), color);
-                RenderLine(render_context, e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(0.0f, radius, height)), color);
-                RenderLine(render_context, e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(0.0f, -radius, height)), color);
+                RenderLine(e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(radius, 0.0f, height)), color);
+                RenderLine(e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(-radius, 0.0f, height)), color);
+                RenderLine(e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(0.0f, radius, height)), color);
+                RenderLine(e->m_Position, e->m_Position + rotate(e->m_Rotation, Vector3(0.0f, -radius, height)), color);
                 // circle
                 const uint32_t segment_count = 16;
                 Vector3 vertices[segment_count];
@@ -672,9 +660,9 @@ namespace dmParticle
                 }
                 for (uint32_t j = 1; j < segment_count; ++j)
                 {
-                    RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, vertices[j-1]), e->m_Position + rotate(e->m_Rotation, vertices[j]), color);
+                    RenderLine(e->m_Position + rotate(e->m_Rotation, vertices[j-1]), e->m_Position + rotate(e->m_Rotation, vertices[j]), color);
                 }
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, vertices[segment_count - 1]), e->m_Position + rotate(e->m_Rotation, vertices[0]), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, vertices[segment_count - 1]), e->m_Position + rotate(e->m_Rotation, vertices[0]), color);
                 break;
             }
             case EMITTER_TYPE_BOX:
@@ -683,20 +671,20 @@ namespace dmParticle
                 const float y_ext = 0.5f * e->m_Properties[EMITTER_KEY_BOX_HEIGHT];
                 const float z_ext = 0.5f * e->m_Properties[EMITTER_KEY_BOX_DEPTH];
 
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, -z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, -z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), color);
 
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, z_ext)), color);
 
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, z_ext)), color);
-                RenderLine(render_context, e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, -y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, -y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(x_ext, y_ext, z_ext)), color);
+                RenderLine(e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, -z_ext)), e->m_Position + rotate(e->m_Rotation, Vector3(-x_ext, y_ext, z_ext)), color);
 
                 break;
             }
