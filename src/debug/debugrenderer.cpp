@@ -21,8 +21,8 @@ namespace dmRenderDebug
         }
         dmGraphics::HVertexProgram      m_VertexProgram;
         dmGraphics::HFragmentProgram    m_FragmentProgram;
-        dmRender::HRenderWorld          m_RenderCollection;
         dmRender::HRenderWorld          m_RenderWorld;
+        dmRender::HRenderWorld          m_RenderCollection;
         dmArray<dmRender::HRenderObject> m_ROs[2];
         uint32_t                        m_WorldIndex;
         DebugRenderInfo                 m_RenderData;
