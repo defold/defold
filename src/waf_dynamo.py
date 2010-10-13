@@ -9,13 +9,9 @@ def embed_build(task):
     out_file = open(task.outputs[0].abspath(task.env), 'wb')
 
     cpp_str = """
-#if defined(__MACH__)
 char %s[] =
-#else
-const char %s[] =
-#endif
 """
-    out_file.write(cpp_str % (symbol, symbol))
+    out_file.write(cpp_str % (symbol))
     out_file.write('{\n    ')
 
     data = in_file.read()
