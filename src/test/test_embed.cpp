@@ -5,7 +5,7 @@
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 
-extern const char TEST_EMBED[];
+extern char TEST_EMBED[];
 
 TEST(dlib, Embed)
 {
