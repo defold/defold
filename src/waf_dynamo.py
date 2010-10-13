@@ -1,6 +1,49 @@
 import os, sys, subprocess
-import Build, Options, Utils
+import Build, Options, Utils, Task
 from Configure import conf
+from TaskGen import feature, after, before
+
+def embed_build(task):
+    symbol = task.inputs[0].name.upper().replace('.', '_')
+    in_file = open(task.inputs[0].abspath(), 'rb')
+    out_file = open(task.outputs[0].abspath(task.env), 'wb')
+
+    out_file.write('char %s[] = \n' % symbol)
+    out_file.write('{\n    ')
+
+    data = in_file.read()
+    for i,x in enumerate(data):
+        out_file.write('0x%X, ' % ord(x))
+        if i > 0 and i % 4 == 0:
+            out_file.write('\n    ')
+    out_file.write('\n};')
+
+    out_file.close()
+
+    m = Utils.md5()
+    m.update(data)
+
+    task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
+    return 0
+
+Task.task_type_from_func('embed_file',
+                         func = embed_build,
+                         vars = ['SRC', 'DST'],
+                         color = 'RED',
+                         before  = 'cc cxx')
+
+@feature('embed')
+@before('apply_core')
+def embed_file(self):
+    Utils.def_attrs(self, embed_source=[])
+    for name in Utils.to_list(self.embed_source):
+        node = self.path.find_resource(name)
+        cc_out = node.change_ext('.embed.cpp')
+
+        task = self.create_task('embed_file')
+        task.set_inputs(node)
+        task.set_outputs(cc_out)
+        self.allnodes.append(cc_out)
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
