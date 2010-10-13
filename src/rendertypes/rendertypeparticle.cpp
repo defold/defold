@@ -25,7 +25,7 @@ namespace dmRender
         dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
 
-        dmGraphics::SetDepthMask(gfx_context, 0);
+        dmGraphics::SetDepthMask(gfx_context, true);
 
         // positions
         dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, vertex_size, (void*)vertex_buffer);
@@ -57,7 +57,7 @@ namespace dmRender
 
     void RenderTypeParticleEnd(const RenderContext* rendercontext)
     {
-        dmGraphics::SetDepthMask(rendercontext->m_GFXContext, 1);
+        dmGraphics::SetDepthMask(rendercontext->m_GFXContext, true);
     }
 
 }

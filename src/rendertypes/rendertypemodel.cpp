@@ -96,5 +96,12 @@ namespace dmRender
         dmGraphics::DisableVertexStream(context, 2);
     }
 
+    void RenderTypeModelEnd(const RenderContext* rendercontext)
+    {
+        dmGraphics::HContext context = rendercontext->m_GFXContext;
+
+        dmGraphics::SetDepthMask(context, true);
+
+    }
 
 }

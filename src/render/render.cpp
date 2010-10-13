@@ -88,7 +88,7 @@ namespace dmRender
         world->m_SetObjectModel = set_object_model;
         world->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
 
-        RegisterRenderer(world, RENDEROBJECT_TYPE_MODEL,            RenderTypeModelSetup,    RenderTypeModelDraw,     0x0);
+        RegisterRenderer(world, RENDEROBJECT_TYPE_MODEL,            RenderTypeModelSetup,    RenderTypeModelDraw,     RenderTypeModelEnd);
         RegisterRenderer(world, RENDEROBJECT_TYPE_TEXT,             RenderTypeTextSetup,     RenderTypeTextDraw,      0x0);
         RegisterRenderer(world, RENDEROBJECT_TYPE_PARTICLE,         0x0,                     RenderTypeParticleDraw,  0x0);
         RegisterRenderer(world, RENDEROBJECT_TYPE_PARTICLESETUP,    0x0,                     RenderTypeParticleSetup, RenderTypeParticleEnd);
