@@ -180,3 +180,14 @@ def build(bld):
 
     test_stringpool.install_path = None
 
+    test_embed = bld.new_task_gen(features = 'cxx cprogram embed',
+                                  source = 'test_embed.cpp',
+                                  embed_source = 'data/test.embed',
+                                  uselib = 'GTEST THREAD',
+                                  uselib_local = "dlib",
+                                  includes = ['../../src'],
+                                  target = 'test_embed')
+
+    test_embed.install_path = None
+
+
