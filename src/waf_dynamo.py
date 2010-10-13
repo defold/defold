@@ -8,7 +8,14 @@ def embed_build(task):
     in_file = open(task.inputs[0].abspath(), 'rb')
     out_file = open(task.outputs[0].abspath(task.env), 'wb')
 
-    out_file.write('char %s[] = \n' % symbol)
+    cpp_str = """
+#if defined(__MACH__)
+char %s[] =
+#else
+const char %s[] =
+#endif
+"""
+    out_file.write(cpp_str % (symbol, symbol))
     out_file.write('{\n    ')
 
     data = in_file.read()
