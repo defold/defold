@@ -180,9 +180,14 @@ def build(bld):
 
     test_stringpool.install_path = None
 
+    bld.new_task_gen(rule = 'echo generated data > ${TGT}',
+                     target = 'generated.embed')
+
+    bld.add_group()
+
     test_embed = bld.new_task_gen(features = 'cxx cprogram embed',
                                   source = 'test_embed.cpp',
-                                  embed_source = 'data/test.embed',
+                                  embed_source = 'data/test.embed generated.embed',
                                   uselib = 'GTEST THREAD',
                                   uselib_local = "dlib",
                                   includes = ['../../src'],

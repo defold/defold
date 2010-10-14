@@ -6,13 +6,19 @@
 #include "../dlib/log.h"
 
 extern char TEST_EMBED[];
+extern char GENERATED_EMBED[];
 
 TEST(dlib, Embed)
 {
     const char* test_embed = (const char*) TEST_EMBED;
+    const char* generated_embed = (const char*) GENERATED_EMBED;
 
     std::string test_embed_str(test_embed, strlen("embedded message"));
     ASSERT_STREQ("embedded message", test_embed_str.c_str());
+
+    std::string generated_embed_str(generated_embed, strlen("generated data"));
+    ASSERT_STREQ("generated data", generated_embed_str.c_str());
+
 }
 
 int main(int argc, char **argv)
