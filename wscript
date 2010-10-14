@@ -100,6 +100,8 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
 
 def build(bld):
+    bld.add_subdirs('content')
+    bld.add_group()
     bld.add_subdirs('src')
 
 import Options

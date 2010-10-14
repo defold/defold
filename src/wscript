@@ -5,12 +5,13 @@ def set_options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib embed',
                           includes = '../proto .',
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
                           install_path='${PREFIX}/lib',
+                          embed_source='../content/materials/debug.arbvp ../content/materials/debug.arbfp',
                           source='engine.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')

@@ -7,6 +7,12 @@
 
 #include <resource/resource.h>
 
+// Embedded resources
+extern char DEBUG_ARBVP[];
+extern uint32_t DEBUG_ARBVP_SIZE;
+extern char DEBUG_ARBFP[];
+extern uint32_t DEBUG_ARBFP_SIZE;
+
 namespace dmEngine
 {
     typedef struct Engine* HEngine;

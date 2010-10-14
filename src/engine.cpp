@@ -672,20 +672,12 @@ bail:
             engine->m_ScreenHeight, 2048 * 4);
 
         // debug renderer needs vertex/fragment programs, load them here (perhaps they need to be moved into render/debug?)
-        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.debug_vp", "materials/debug.arbvp"),
-                (void**) &engine->m_RenderdebugVertexProgram);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
-        {
-            return false;
-        }
+        engine->m_RenderdebugVertexProgram = dmGraphics::CreateVertexProgram((const void*) ::DEBUG_ARBVP, ::DEBUG_ARBVP_SIZE);
+        assert(engine->m_RenderdebugVertexProgram);
         dmRenderDebug::SetVertexProgram(engine->m_RenderdebugVertexProgram);
 
-        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.debug_fp", "materials/debug.arbfp"),
-                (void**) &engine->m_RenderdebugFragmentProgram);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
-        {
-            return false;
-        }
+        engine->m_RenderdebugFragmentProgram = dmGraphics::CreateFragmentProgram((const void*) ::DEBUG_ARBFP, ::DEBUG_ARBFP_SIZE);
+        assert(engine->m_RenderdebugFragmentProgram);
         dmRenderDebug::SetFragmentProgram(engine->m_RenderdebugFragmentProgram);
 
         const char* gamepads = dmConfigFile::GetString(config, "bootstrap.gamepads", "input/default.gamepadsc");
@@ -724,9 +716,10 @@ bail:
             dmResource::Release(engine->m_Factory, engine->m_SmallFont);
 
         if (engine->m_RenderdebugVertexProgram)
-            dmResource::Release(engine->m_Factory, (void*) engine->m_RenderdebugVertexProgram);
+            dmGraphics::DestroyVertexProgram(engine->m_RenderdebugVertexProgram);
         if (engine->m_RenderdebugFragmentProgram)
-            dmResource::Release(engine->m_Factory, (void*) engine->m_RenderdebugFragmentProgram);
+            dmGraphics::DestroyFragmentProgram(engine->m_RenderdebugFragmentProgram);
+
         if (engine->m_GameInputBinding)
             dmInput::DeleteBinding(engine->m_GameInputBinding);
 
