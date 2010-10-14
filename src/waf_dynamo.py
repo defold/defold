@@ -5,8 +5,8 @@ from TaskGen import feature, after, before
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_')
-    in_file = open(task.inputs[0].abspath(), 'rb')
-    out_file = open(task.outputs[0].abspath(task.env), 'wb')
+    in_file = open(task.inputs[0].bldpath(task.env), 'rb')
+    out_file = open(task.outputs[0].bldpath(task.env), 'wb')
 
     cpp_str = """
 char %s[] =
