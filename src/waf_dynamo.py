@@ -9,6 +9,7 @@ def embed_build(task):
     out_file = open(task.outputs[0].bldpath(task.env), 'wb')
 
     cpp_str = """
+#include <stdint.h>
 char %s[] =
 """
     out_file.write(cpp_str % (symbol))
@@ -19,7 +20,8 @@ char %s[] =
         out_file.write('0x%X, ' % ord(x))
         if i > 0 and i % 4 == 0:
             out_file.write('\n    ')
-    out_file.write('\n};')
+    out_file.write('\n};\n')
+    out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
 
     out_file.close()
 
@@ -41,7 +43,7 @@ def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     for name in Utils.to_list(self.embed_source):
         node = self.path.find_resource(name)
-        cc_out = node.change_ext('.embed.cpp')
+        cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
 
         task = self.create_task('embed_file')
         task.set_inputs(node)
