@@ -1,8 +1,11 @@
 #include <string.h>
+#include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include <dlib/log.h>
 #include <dlib/array.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
+
 #include <graphics/graphics_device.h>
 
 #include "fontrenderer.h"
@@ -152,65 +155,57 @@ namespace dmRender
 
             const dmRenderDDF::ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
 
-            int kearning = 0;
-#if 0
-            // TODO: Bearing-info from Fontc.java seems to be incorrect
-            if (i != 0)
+            if (g.m_Width != 0)
             {
-                const ImageFont::Glyph& last_g = renderer->m_Font->m_Font->m_Glyphs[string[i-1]];
-                kearning = last_g.m_RightBearing + g.m_LeftBearing;
+                SFontVertex v1, v2, v3, v4;
+
+                v1.m_Position[0] = x + g.m_LeftBearing;
+                v1.m_Position[1] = y - g.m_Descent;
+                v1.m_Position[2] = 0;
+
+                v2.m_Position[0] = x + g.m_LeftBearing + g.m_Width;
+                v2.m_Position[1] = y - g.m_Descent;
+                v2.m_Position[2] = 0;
+
+                v3.m_Position[0] = x + g.m_LeftBearing + g.m_Width;
+                v3.m_Position[1] = y + g.m_Ascent;
+                v3.m_Position[2] = 0;
+
+                v4.m_Position[0] = x + g.m_LeftBearing;
+                v4.m_Position[1] = y + g.m_Ascent;
+                v4.m_Position[2] = 0;
+
+                float im_recip = 1.0f / renderer->m_Font->m_Font->m_ImageWidth;
+                float ih_recip = 1.0f / renderer->m_Font->m_Font->m_ImageHeight;
+
+                v1.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
+                v1.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
+
+                v2.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
+                v2.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
+
+                v3.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
+                v3.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
+
+                v4.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
+                v4.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
+
+
+                v1.m_Colour[0] = red; v1.m_Colour[1] = green; v1.m_Colour[2] = blue; v1.m_Colour[3] = alpha;
+                v2.m_Colour[0] = red; v2.m_Colour[1] = green; v2.m_Colour[2] = blue; v2.m_Colour[3] = alpha;
+                v3.m_Colour[0] = red; v3.m_Colour[1] = green; v3.m_Colour[2] = blue; v3.m_Colour[3] = alpha;
+                v4.m_Colour[0] = red; v4.m_Colour[1] = green; v4.m_Colour[2] = blue; v4.m_Colour[3] = alpha;
+
+
+                renderer->m_Vertices.Push(v1);
+                renderer->m_Vertices.Push(v2);
+                renderer->m_Vertices.Push(v3);
+
+                renderer->m_Vertices.Push(v3);
+                renderer->m_Vertices.Push(v4);
+                renderer->m_Vertices.Push(v1);
             }
-#endif
-
-            SFontVertex v1, v2, v3, v4;
-
-            v1.m_Position[0] = x;
-            v1.m_Position[1] = y + g.m_YOffset;
-            v1.m_Position[2] = 0;
-
-            v2.m_Position[0] = x + g.m_Width;
-            v2.m_Position[1] = y + g.m_YOffset;
-            v2.m_Position[2] = 0;
-
-            v3.m_Position[0] = x + g.m_Width;
-            v3.m_Position[1] = y + g.m_Height + g.m_YOffset;
-            v3.m_Position[2] = 0;
-
-            v4.m_Position[0] = x;
-            v4.m_Position[1] = y + g.m_Height + g.m_YOffset;
-            v4.m_Position[2] = 0;
-
-            float im_recip = 1.0f / renderer->m_Font->m_Font->m_ImageWidth;
-            float ih_recip = 1.0f / renderer->m_Font->m_Font->m_ImageHeight;
-
-            v1.m_UV[0] = (g.m_X) * im_recip;
-            v1.m_UV[1] = (g.m_Y) * ih_recip;
-
-            v2.m_UV[0] = (g.m_X + g.m_Width) * im_recip;
-            v2.m_UV[1] = (g.m_Y) * ih_recip;
-
-            v3.m_UV[0] = (g.m_X + g.m_Width) * im_recip;
-            v3.m_UV[1] = (g.m_Y + g.m_Height) * ih_recip;
-
-            v4.m_UV[0] = (g.m_X) * im_recip;
-            v4.m_UV[1] = (g.m_Y + g.m_Height) * ih_recip;
-
-
-            v1.m_Colour[0] = red; v1.m_Colour[1] = green; v1.m_Colour[2] = blue; v1.m_Colour[3] = alpha;
-            v2.m_Colour[0] = red; v2.m_Colour[1] = green; v2.m_Colour[2] = blue; v2.m_Colour[3] = alpha;
-            v3.m_Colour[0] = red; v3.m_Colour[1] = green; v3.m_Colour[2] = blue; v3.m_Colour[3] = alpha;
-            v4.m_Colour[0] = red; v4.m_Colour[1] = green; v4.m_Colour[2] = blue; v4.m_Colour[3] = alpha;
-
-
-            renderer->m_Vertices.Push(v1);
-            renderer->m_Vertices.Push(v2);
-            renderer->m_Vertices.Push(v3);
-
-            renderer->m_Vertices.Push(v3);
-            renderer->m_Vertices.Push(v4);
-            renderer->m_Vertices.Push(v1);
-
-            x += g.m_Width + kearning;
+            x += g.m_Advance;
         }
     }
 

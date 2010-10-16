@@ -71,8 +71,14 @@ def configure(conf):
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
     conf.env['LIB_GTEST'] = 'gtest'
-    conf.env['STATICLIB_GRAPHICS'] = 'graphics_null'
+    conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
+    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_RESOURCE'] = 'resource'
+    conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STATICLIB_HID'] = 'hid'
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')

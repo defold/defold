@@ -26,27 +26,18 @@ import javax.imageio.ImageIO;
 import com.dynamo.ddf.DDF;
 import com.dynamo.render.ddf.Font.ImageFont;
 
-class Glyph implements Comparable<Glyph>
+class Glyph
 {
+    int m_Index;
     char m_C;
+    int m_Width;
+    int m_Advance;
+    int m_LeftBearing;
+    int m_Ascent;
+    int m_Descent;
     int m_X;
     int m_Y;
-    int m_Width;
-    int m_Height;
-    int m_YOffset;
-    Shape m_Shape;
-    Rectangle m_VisualBounds;
-    int m_Index;
-    int m_LeftBearing;
-    int m_RightBearing;
-
-    @Override
-    public int compareTo(Glyph o)
-    {
-        Integer a = m_Height;
-        Integer b = o.m_Height;
-        return b.compareTo(a);
-    }
+    GlyphVector m_Vector;
 };
 
 class OrderComparator implements Comparator<Glyph>
@@ -87,88 +78,77 @@ public class Fontc
         Graphics2D image_g = image.createGraphics();
         image_g.setPaint(Color.white);
 
-        if (true)
-        {
-            image_g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
-            image_g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-            image_g.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_DISABLE);
-            image_g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            image_g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-
-            image_g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            image_g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            image_g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-            image_g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        }
-
         ArrayList<Glyph> glyphs = new ArrayList<Glyph>();
         for (int i = 0; i < m_Characters.length(); ++i)
         {
             String s = m_Characters.substring(i, i+1);
 
             GlyphVector glyph_vector = font.createGlyphVector(m_FontRendererContext, s);
-            Shape shape = glyph_vector.getOutline(0, 0);
-            Rectangle visual_bounds = glyph_vector.getGlyphVisualBounds(0).getBounds();
+            Rectangle visual_bounds = glyph_vector.getOutline().getBounds();
             GlyphMetrics metrics = glyph_vector.getGlyphMetrics(0);
 
             Glyph glyph = new Glyph();
-            glyph.m_C = s.charAt(0);
-            glyph.m_Width = visual_bounds.width;
-            glyph.m_Height = visual_bounds.height;
-            glyph.m_Shape = shape;
-            glyph.m_VisualBounds = visual_bounds;
-            glyph.m_Index = i;
-            glyph.m_LeftBearing = (int) metrics.getLSB();
-            glyph.m_RightBearing = Math.round(metrics.getRSB() + (glyph.m_LeftBearing - metrics.getLSB()));
-
-            if (glyph.m_Width == 0)
-            {
-                glyph.m_Width = (int) (metrics.getAdvance());
-            }
 
             TextLayout layout = new TextLayout(s, font, m_FontRendererContext);
-            glyph.m_YOffset = (int) layout.getAscent();
+            glyph.m_Ascent = (int)Math.ceil(layout.getAscent());
+            glyph.m_Descent = (int)Math.ceil(layout.getDescent());
+
+            glyph.m_C = s.charAt(0);
+            glyph.m_Index = i;
+            glyph.m_Advance = (int)Math.ceil(metrics.getAdvance());
+            glyph.m_LeftBearing = (int)Math.floor(metrics.getLSB());
+            glyph.m_Width = visual_bounds.width;
+
+            glyph.m_Vector = glyph_vector;
 
             glyphs.add(glyph);
         }
-        Collections.sort(glyphs);
-
-        Rectangle2D max_bounds = font.getMaxCharBounds(m_FontRendererContext);
-        int max_layout_width = m_ImageWidth-((int) max_bounds.getWidth());
 
         int i = 0;
-        int y = 0;
-        int margin = 4;
+        float y = 0.0f;
+        int margin = 0;
         while (i < m_Characters.length())
         {
-            int x = 0;
-            int max_y = 0;
+            float x = 0;
+            float max_y = 0.0f;
             int j = i;
-            while (j < m_Characters.length() && x < max_layout_width )
+            while (j < m_Characters.length() && x < m_ImageWidth )
             {
                 Glyph g = glyphs.get(j);
-                max_y = Math.max(max_y, g.m_Height);
-                x += g.m_Width + margin;
+                if (x + g.m_Width + margin < m_ImageWidth)
+                {
+                    max_y = Math.max(max_y, g.m_Ascent + g.m_Descent + margin);
+                    x += g.m_Width + margin;
+                }
+                else
+                {
+                    break;
+                }
                 ++j;
             }
 
-            x = 0;
+            image_g.translate(0, margin);
+
             for (int k = i; k < j; ++k)
             {
                 Glyph g = glyphs.get(k);
 
-                int dx = x - g.m_VisualBounds.x;
-                int dy = y - g.m_VisualBounds.y;
-                g.m_X = x;
-                g.m_Y = y;
+                image_g.translate(margin, 0);
 
-                image_g.setPaint(Color.white);
+                double dx = -g.m_LeftBearing;
+                double dy = g.m_Ascent;
+
                 image_g.translate(dx, dy);
-                image_g.fill(g.m_Shape);
+
+                image_g.drawGlyphVector(g.m_Vector, 0, 0);
+                g.m_X = (int)Math.round(image_g.getTransform().getTranslateX());
+                g.m_Y = (int)Math.round(image_g.getTransform().getTranslateY());
 
                 image_g.translate(-dx, -dy);
-                x += g.m_Width + margin;
+
+                image_g.translate(g.m_Width, 0);
             }
+            image_g.translate(-image_g.getTransform().getTranslateX(), max_y - margin);
             y += max_y + margin;
             i = j;
         }
@@ -176,8 +156,6 @@ public class Fontc
         int new_height = (int) (Math.log(y) / Math.log(2));
         new_height = (int) Math.pow(2, new_height + 1);
         image = image.getSubimage(0, 0, m_ImageWidth, new_height);
-
-        Collections.sort(glyphs, new OrderComparator());
 
         ImageFont image_font = new ImageFont();
         image_font.m_ImageWidth = m_ImageWidth;
@@ -194,21 +172,14 @@ public class Fontc
         for (Glyph g : glyphs)
         {
             com.dynamo.render.ddf.Font.ImageFont.Glyph image_glyph = new com.dynamo.render.ddf.Font.ImageFont.Glyph();
+            image_glyph.m_Width = g.m_Width;
+            image_glyph.m_Advance = g.m_Advance;
+            image_glyph.m_LeftBearing = g.m_LeftBearing;
+            image_glyph.m_Ascent = g.m_Ascent;
+            image_glyph.m_Descent = g.m_Descent;
             image_glyph.m_X = g.m_X;
             image_glyph.m_Y = g.m_Y;
-            image_glyph.m_Width = g.m_Width;
-            image_glyph.m_Height = g.m_Height;
-            image_glyph.m_YOffset = g.m_VisualBounds.y;
             image_font.m_Glyphs.add(image_glyph);
-            image_glyph.m_LeftBearing = g.m_LeftBearing;
-            image_glyph.m_RightBearing = g.m_RightBearing;
-
-            if (g.m_C == ' ')
-            {
-                // Skip for ' '. Currently incorrect
-                image_glyph.m_LeftBearing = 0;
-                image_glyph.m_RightBearing = 0;
-            }
         }
 
         image_font.m_ImageData = new byte[m_ImageWidth * new_height];

@@ -18,13 +18,13 @@ message ImageFont
 {
     message Glyph
     {
-        required uint32 X = 1;
-        required uint32 Y = 2;
-        required uint32 Width = 3;
-        required uint32 Height = 4;
-        required int32  YOffset = 5;
-        required int32  LeftBearing = 6;
-        required int32  RightBearing = 7;
+        required uint32 Width = 1;
+        required uint32 Advance = 3;
+        required int32 LeftBearing = 4;
+        required uint32 Ascent = 6;
+        required uint32 Descent = 7;
+        required int32 X = 8;
+        required int32 Y = 9;
     }
 
     repeated Glyph Glyphs = 1;

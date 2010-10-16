@@ -6,6 +6,9 @@ import waf_graphics, waf_dynamo
 def set_options(opt):
     pass
 
+def configure(cont):
+    conf.sub_config('test')
+
 def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                            includes = ['.', '../build/default/proto'],
@@ -33,7 +36,7 @@ def build(bld):
                  'default/proto/render/generated']
 
     bld.add_group()
-#    bld.add_subdirs('test')
+    bld.add_subdirs('test')
 
     bld.new_task_gen(features='javac seq',
                      classpath=os.pathsep.join(classpath),
@@ -43,7 +46,6 @@ def build(bld):
     bld.new_task_gen(features='jar seq',
                      basedir='java',
                      destfile='fontc.jar')
-
 
     bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
     bld.install_files('${PREFIX}/include/render_debug', 'debug/debugrenderer.h')
