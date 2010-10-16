@@ -38,7 +38,7 @@ def build(bld):
     sys.path.insert(0, "default/proto")
     font_viewer = bld.new_task_gen(features = 'cc cxx cprogram',
                                     source = 'fontview.cpp DejaVuSans.font VeraMoBd.font font.vp font.fp',
-                                    uselib = 'DDF HID GRAPHICS DMGLFW RESOURCE DLIB',
+                                    uselib = 'DDF HID GRAPHICS DMGLFW RESOURCE DLIB PLATFORM_SOCKET',
                                     uselib_local = 'render',
                                     includes = ['../../../src', '../../../build'],
                                     target = 'fontview')
