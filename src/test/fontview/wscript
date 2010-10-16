@@ -33,8 +33,9 @@ def ttf_file(self, node):
     font.set_inputs(node)
     out_node = node.parent.find_or_declare(self.imagefont)
     font.set_outputs(out_node)
-    
+
 def build(bld):
+    sys.path.insert(0, "default/proto")
     font_viewer = bld.new_task_gen(features = 'cc cxx cprogram',
                                     source = 'fontview.cpp DejaVuSans.font VeraMoBd.font font.vp font.fp',
                                     uselib = 'DDF HID GRAPHICS DMGLFW RESOURCE DLIB',
