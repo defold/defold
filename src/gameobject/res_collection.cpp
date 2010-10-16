@@ -60,7 +60,7 @@ namespace dmGameObject
             dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
             if (instance != 0x0)
             {
-                Quat rot = instance_desc.m_Rotation * regist->m_AccumulatedRotation;
+                Quat rot = regist->m_AccumulatedRotation * instance_desc.m_Rotation;
                 Vector3 pos = rotate(regist->m_AccumulatedRotation, Vector3(instance_desc.m_Position)) + regist->m_AccumulatedTranslation;
 
                 dmGameObject::SetPosition(instance, Point3(pos));
@@ -123,7 +123,7 @@ namespace dmGameObject
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);
                     // Reverse transform
                     Quat inv_acc_rot = conj(regist->m_AccumulatedRotation);
-                    Quat rot = dmGameObject::GetRotation(child) * inv_acc_rot;
+                    Quat rot = inv_acc_rot * dmGameObject::GetRotation(child);
                     Point3 pos = Point3(rotate(inv_acc_rot, Vector3(dmGameObject::GetPosition(child) - regist->m_AccumulatedTranslation)));
                     dmGameObject::SetPosition(child, pos);
                     dmGameObject::SetRotation(child, rot);

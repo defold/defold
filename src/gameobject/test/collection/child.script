@@ -1,0 +1,3 @@
+function update(self)
+    assert(go.get_id(self) == go.get_id(self, "child"))
+end
