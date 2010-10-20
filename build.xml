@@ -30,6 +30,9 @@
             <fileset dir="projects">
                 <include name="com.dynamo.cr.contenteditor/**" />
             </fileset>
+            <fileset dir="projects">
+                <include name="com.dynamo.cr.server/**" />
+            </fileset>
         </copy>
 
         <copy todir="${buildDirectory}/plugins">
@@ -71,6 +74,9 @@
             <arg value="-buildfile" />
             <arg value="${eclipseLocation}/plugins/org.eclipse.pde.build_${pdeBuildPluginVersion}/scripts/productBuild/productBuild.xml" />
             <arg value="-Dtimestamp=${timestamp}" />
+            <arg value="-DbaseLocation=${baseLocation}" />
+            <arg value="-DbuildDirectory=${buildDirectory}" />
+            <arg value="-DbuildProperties=${buildProperties}" />
             <classpath>
                 <pathelement location="${baseLocation}/plugins/org.eclipse.equinox.launcher_${equinoxLauncherPluginVersion}.jar" />
             </classpath>
