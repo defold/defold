@@ -49,15 +49,15 @@ if [ ! -z $DEPLOY_DIRECTORY ]; then
 
     if [ $DEPLOY_DIRECTORY/repository -ef $DEPLOY_DIRECTORY/repository-a ]; then
         rm -rf $DEPLOY_DIRECTORY/repository-b
-        mv /tmp/pde_build/repository $DEPLOY_DIRECTORY/repository-b
+        mv ${BUILD_DIRECTORY}/repository $DEPLOY_DIRECTORY/repository-b
         ln -sfn $DEPLOY_DIRECTORY/repository-b $DEPLOY_DIRECTORY/repository
     else
         rm -rf $DEPLOY_DIRECTORY/repository-a
-        mv /tmp/pde_build/repository $DEPLOY_DIRECTORY/repository-a
+        mv ${BUILD_DIRECTORY}/repository $DEPLOY_DIRECTORY/repository-a
         ln -sfn $DEPLOY_DIRECTORY/repository-a $DEPLOY_DIRECTORY/repository
     fi
 
-    cp /tmp/pde_build/I.Editor/*.zip $DEPLOY_DIRECTORY
+    cp ${BUILD_DIRECTORY}/I.*/*.zip $DEPLOY_DIRECTORY
     chmod 775 -R $DEPLOY_DIRECTORY/*
 fi
 
