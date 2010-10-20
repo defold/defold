@@ -3,8 +3,8 @@
 //     graphics_device.h - Graphics device interface
 //
 ///////////////////////////////////////////////////////////////////////////////////
-#ifndef __GRAPHICSDEVICE_H__
-#define __GRAPHICSDEVICE_H__
+#ifndef GRAPHICSDEVICE_H
+#define GRAPHICSDEVICE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,4 +147,4 @@ namespace dmGraphics
 
 }
 
-#endif // __GRAPHICSDEVICE_H__
+#endif // GRAPHICSDEVICE_H
