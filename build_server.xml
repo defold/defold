@@ -25,19 +25,7 @@
                 <include name="com.dynamo.cr.common/**" />
             </fileset>
             <fileset dir="projects">
-                <include name="com.dynamo.cr.luaeditor/**" />
-            </fileset>
-            <fileset dir="projects">
-                <include name="com.dynamo.cr.contenteditor/**" />
-            </fileset>
-            <fileset dir="projects">
                 <include name="com.dynamo.cr.server/**" />
-            </fileset>
-        </copy>
-
-        <copy todir="${buildDirectory}/plugins">
-            <fileset dir="projects">
-                <include name="com.dynamo.cr.editor/**" />
             </fileset>
         </copy>
 
@@ -52,14 +40,6 @@
               <arg value="${env.DYNAMO_HOME}"/>
               <arg value="DYNAMO_HOME"/>
         </exec>
-
-        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.contenteditor"
-              executable="ln">
-              <arg value="-s"/>
-              <arg value="${env.DYNAMO_HOME}"/>
-              <arg value="DYNAMO_HOME"/>
-        </exec>
-
     </target>
 
 
@@ -83,11 +63,30 @@
         </java>
     </target>
 
-    <!--This target is responsible for cleaning up the build-directory
+    <target name="test">
+
+        <!-- ant copy doesn't preserve permissions... -->
+    	<chmod dir="${buildDirectory}/plugins/com.dynamo.cr.server" perm="+x" includes="scripts/*.sh"/>
+
+        <java classname="org.eclipse.equinox.launcher.Main" fork="true" failonerror="true" dir="${buildDirectory}/plugins/com.dynamo.cr.server">
+            <arg value="-application" />
+            <arg value="org.eclipse.ant.core.antRunner" />
+            <arg value="-buildfile" />
+            <arg value="test.xml" />
+            <arg value="-DECLIPSE_HOME=${eclipseLocation}" />
+            <arg value="GitTest" />
+            <arg value="junitreport" />
+            <classpath>
+                <pathelement location="${baseLocation}/plugins/org.eclipse.equinox.launcher_${equinoxLauncherPluginVersion}.jar" />
+            </classpath>
+        </java>
+    </target>
+
+	<!--This target is responsible for cleaning up the build-directory
     <target name="clean">
         <delete dir="${buildDirectory}" />
     </target>-->
 
     <!--This target defines the run-order of the targets-->
-    <target name="build" depends="clean, init, pde-build" />
+    <target name="build" depends="clean, init, pde-build, test" />
 </project>
