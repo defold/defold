@@ -88,5 +88,5 @@
     </target>-->
 
     <!--This target defines the run-order of the targets-->
-    <target name="build" depends="clean, init, pde-build, test" />
+    <target name="build" depends="clean, init, pde-build" />
 </project>
