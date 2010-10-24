@@ -10,25 +10,11 @@
     <!-- NOTE: We skip clean. Ant *follows* symlinks - dangerous !
 	 build.sh takes care of cleaning
       -->
-
     <target name="clean">
       <!-- <delete dir="${buildDirectory}" />-->
     </target>
 
     <target name="init">
-        <mkdir dir="${buildDirectory}" />
-        <mkdir dir="${buildDirectory}/plugins" />
-        <mkdir dir="${buildDirectory}/features" />
-
-        <copy todir="${buildDirectory}/plugins">
-            <fileset dir="projects">
-                <include name="com.dynamo.cr.common/**" />
-            </fileset>
-            <fileset dir="projects">
-                <include name="com.dynamo.cr.server/**" />
-            </fileset>
-        </copy>
-
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.common"
               executable="sh">
               <arg value="scripts/build_proto.sh"/>
@@ -41,7 +27,6 @@
               <arg value="DYNAMO_HOME"/>
         </exec>
     </target>
-
 
     <!--
         This target actually executes the PDE Build process by launching the

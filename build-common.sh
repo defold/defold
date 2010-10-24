@@ -2,10 +2,7 @@ function prebuild {
 
     [ -z $DYNAMO_HOME ] && echo "DYNAMO_HOME not set" && exit 1
 
-    if [ -z $BUILD_DIRECTORY ]; then
-        echo "warning: BUILD_DIRECTORY not set, defaulting to /tmp/pde_build"
-        export BUILD_DIRECTORY=/tmp/pde_build
-    fi
+    export BUILD_DIRECTORY=`pwd`/build
 
     if [ -z $BASE_LOCATION ]; then
         echo "warning: BASE_LOCATION not set, defaulting to $HOME/eclipse"
@@ -28,14 +25,14 @@ function prebuild {
 }
 
 function gitclone {
-    rm -rf projects
-    mkdir  projects
-    cd projects
+    mkdir -p $BUILD_DIRECTORY/plugins
+    mkdir -p $BUILD_DIRECTORY/features
+    pushd $BUILD_DIRECTORY/plugins
 
     for P in $PROJECTS; do
         git clone overrated.dyndns.org:/repo/$P
     done
-    cd ..
+    popd
 }
 
 function build {
