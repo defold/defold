@@ -9,8 +9,6 @@ function prebuild {
         export BASE_LOCATION=$HOME/eclipse
     fi
 
-    export BUILD_PROPERTIES=`pwd`/$BUILD_PROPERTIES
-
     set -e
     os=`uname | awk '{ print tolower($0) }'`
 
@@ -40,7 +38,7 @@ function build {
      -buildfile $1\
      -DbaseLocation=$BASE_LOCATION\
      -DbuildDirectory=$BUILD_DIRECTORY\
-     -DbuildProperties=$BUILD_PROPERTIES
+     -DbuildProperties=`pwd`/$2
 }
 
 function postbuild {
