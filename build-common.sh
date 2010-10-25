@@ -18,13 +18,12 @@ function prebuild {
     export PATH=$DYNAMO_HOME/ext/bin:$DYNAMO_HOME/ext/bin/${os}:$PATH
     export LD_LIBRARY_PATH=$DYNAMO_HOME/lib:$DYNAMO_HOME/ext/lib/${os}
     export PYTHONPATH=$DYNAMO_HOME/lib/python:$DYNAMO_HOME/ext/lib/python
-
-    # NOTE: We clean manually here due to follow symlink problem in ant. Check build.xml
-    rm -rf $BUILD_DIRECTORY
-
 }
 
 function gitclone {
+    # NOTE: We clean manually here due to follow symlink problem in ant. Check build.xml
+    rm -rf $BUILD_DIRECTORY
+
     mkdir -p $BUILD_DIRECTORY/plugins
     mkdir -p $BUILD_DIRECTORY/features
     pushd $BUILD_DIRECTORY/plugins
