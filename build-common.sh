@@ -24,12 +24,12 @@ function gitclone {
 
     mkdir -p $BUILD_DIRECTORY/plugins
     mkdir -p $BUILD_DIRECTORY/features
-    pushd $BUILD_DIRECTORY/plugins
+    pushd $BUILD_DIRECTORY/plugins > /dev/null
 
     for P in $PROJECTS; do
         git clone overrated.dyndns.org:/repo/$P
     done
-    popd
+    popd > /dev/null
 }
 
 function build {
