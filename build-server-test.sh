@@ -11,24 +11,20 @@ gitclone
 cp -r features/com.dynamo.cr.server.test.feature $BUILD_DIRECTORY/features
 build build_server_test.xml server-test.properties
 
-rm -rf tmp
-mkdir -p tmp/configuration
-mkdir -p tmp/plugins
-cp *.jar tmp
-for p in $( ls $BUILD_DIRECTORY/buildRepo/plugins/*.jar ); do
-    base=`basename $p`
-    mkdir -p tmp/plugins/$base
-    pushd tmp/plugins/$base  > /dev/null
-    jar xf $p
-    popd > /dev/null
-done
-test_bundle=`ls $BUILD_DIRECTORY/buildRepo/plugins/com.dynamo.cr.test_*.jar`
-c=tmp/configuration/config.ini
-echo "osgi.bundles=org.eclipse.equinox.common_3.6.0.v20100503.jar@start,org.eclipse.update.configurator_3.3.100.v20100512.jar@start,${test_bundle}@start" > $c
-pushd tmp  > /dev/null
+CLASSPATH=.:`pwd`/junit-4.8.2.jar
+CLASSPATH=$CLASSPATH:`pwd`/build/plugins/com.dynamo.cr.test/lib/org.hamcrest.core_1.1.0.v20090501071000.jar
+CLASSPATH=$CLASSPATH:$DYNAMO_HOME/ext/share/java/protobuf-java-2.3.0.jar
 
-java -DtestBundle=com.dynamo.cr.server.test\
-     -DtestClass=com.dynamo.cr.server.git.test.GitTest\
-     -jar org.eclipse.osgi_3.6.1.R36x_v20100806.jar\
-     -configuration configuration
-popd > /dev/null
+for j in $( ls `pwd`/build/plugins/com.dynamo.cr.server/ext/*.jar ); do
+    CLASSPATH=$CLASSPATH:$j
+done
+for j in $( ls `pwd`/build/buildRepo/plugins/*.jar ); do
+    CLASSPATH=$CLASSPATH:$j
+done
+
+export CLASSPATH
+
+pushd build/plugins/com.dynamo.cr.server > /dev/null
+java org.junit.runner.JUnitCore com.dynamo.cr.server.resources.test.ProjectResourceTest
+java org.junit.runner.JUnitCore com.dynamo.cr.server.git.test.GitTest
+popd >/dev/null
