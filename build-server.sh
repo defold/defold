@@ -4,7 +4,7 @@ set -e
 rm -rf build
 . ./build-common.sh
 
-PROJECTS="com.dynamo.cr.common com.dynamo.cr.server com.dynamo.cr.server.test com.dynamo.cr.test"
+PROJECTS="com.dynamo.cr.common com.dynamo.cr.server"
 
 prebuild
 gitclone
