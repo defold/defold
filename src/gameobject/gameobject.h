@@ -311,12 +311,22 @@ namespace dmGameObject
     Result RegisterComponentType(HRegister regist, const ComponentType& type);
 
     /**
-     * Create a new gameobject instane
+     * Create a new gameobject instance
+     * @note Calling this function during update is not permitted. Use #Spawn instead for deferred creation
      * @param collection Gameobject collection
      * @param prototype_name Prototype file name
      * @return New gameobject instance. NULL if any error occured
      */
     HInstance New(HCollection collection, const char* prototype_name);
+
+    /**
+     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
+     * @param collection Gameobject collection
+     * @param prototype_name Prototype file name
+     * @param position Position of the spawed object
+     * @param rotation Rotation of the spawned object
+     */
+    void Spawn(HCollection collection, const char* prototype_name, const Point3& position, const Quat& rotation);
 
     /**
      * Delete gameobject instance

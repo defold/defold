@@ -494,14 +494,7 @@ namespace dmGameObject
         HCollection collection = (HCollection)lua_touserdata(L, -1);
         assert(collection);
         lua_pop(L, 1);
-
-        dmGameObject::SpawnMessage spawn_message;
-        spawn_message.m_Collection = collection;
-        dmStrlCpy(spawn_message.m_Prototype, prototype, sizeof(spawn_message.m_Prototype));
-        spawn_message.m_Position = Vectormath::Aos::Point3(*position);
-        spawn_message.m_Rotation = *rotation;
-        dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnMessageId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
-
+        Spawn(collection, prototype, Vectormath::Aos::Point3(*position), *rotation);
         return 0;
     }
 

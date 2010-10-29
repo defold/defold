@@ -380,6 +380,16 @@ namespace dmGameObject
         return instance;
     }
 
+    void Spawn(HCollection collection, const char* prototype_name, const Point3& position, const Quat& rotation)
+    {
+        dmGameObject::SpawnMessage spawn_message;
+        spawn_message.m_Collection = collection;
+        dmStrlCpy(spawn_message.m_Prototype, prototype_name, sizeof(spawn_message.m_Prototype));
+        spawn_message.m_Position = position;
+        spawn_message.m_Rotation = rotation;
+        dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnMessageId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
+    }
+
     static void Unlink(Collection* collection, Instance* instance)
     {
         // Unlink "me" from parent
