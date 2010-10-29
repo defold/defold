@@ -59,8 +59,8 @@ def shutdown():
     from Logs import warn, error
     import urllib2, time, atexit
 
-    os.system('scripts/start_http_server.sh')
-    atexit.register(os.system, 'scripts/stop_http_server.sh')
+    os.system('sh scripts/start_http_server.sh')
+    atexit.register(os.system, 'sh scripts/stop_http_server.sh')
 
     start = time.time()
     while True:
