@@ -59,23 +59,20 @@ def shutdown():
     from Logs import warn, error
     import urllib2, time, atexit
 
-    if sys.platform != 'win32':
-        os.system('scripts/start_http_server.sh')
-        atexit.register(os.system, 'scripts/stop_http_server.sh')
+    os.system('scripts/start_http_server.sh')
+    atexit.register(os.system, 'scripts/stop_http_server.sh')
 
-        start = time.time()
-        while True:
-            if time.time() - start > 5:
-                error('HTTP server failed to start within 5 seconds')
-                sys.exit(1)
-            try:
-                urllib2.urlopen('http://localhost:6123')
-                break
-            except urllib2.URLError:
-                print('Waiting for HTTP testserver to start...')
-                sys.stdout.flush()
-                time.sleep(0.5)
-    else:
-        warn('HTTP tests not supported on Win32 yet')
+    start = time.time()
+    while True:
+        if time.time() - start > 5:
+            error('HTTP server failed to start within 5 seconds')
+            sys.exit(1)
+        try:
+            urllib2.urlopen('http://localhost:6123')
+            break
+        except urllib2.URLError:
+            print('Waiting for HTTP testserver to start...')
+            sys.stdout.flush()
+            time.sleep(0.5)
 
     waf_dynamo.run_gtests(valgrind = True)

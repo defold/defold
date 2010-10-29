@@ -263,21 +263,9 @@ TEST_P(GetResourceTest, GetTestResource)
     ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, e);
 }
 
-#ifdef _WIN32
-
-// NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
-
-INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
-                        GetResourceTest,
-                        ::testing::Values("build/default/src/test/"));
-
-#else
-
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
                         ::testing::Values("build/default/src/test/", "http://localhost:6123"));
-
-#endif // #ifdef _WIN32
 
 TEST_P(GetResourceTest, GetReference1)
 {
