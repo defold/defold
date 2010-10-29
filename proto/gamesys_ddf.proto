@@ -1,0 +1,19 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.gamesystem.proto";
+option java_outer_classname = "GameSystem";
+option (ddf_java_package) = "com.dynamo.gamesystem.ddf";
+
+message SpawnPointDesc
+{
+    required string Prototype = 1;
+}
+
+message SpawnObject
+{
+    required dmMath.Point3 Position = 1;
+    required dmMath.Quat   Rotation = 2;
+}

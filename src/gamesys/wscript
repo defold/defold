@@ -23,3 +23,4 @@ def build(bld):
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/gui_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/gamesys_ddf.proto')

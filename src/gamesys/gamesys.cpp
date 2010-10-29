@@ -21,6 +21,7 @@
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
 #include "resources/res_gamepad_map.h"
+#include "resources/res_spawn_point.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -28,6 +29,7 @@
 #include "components/comp_gui.h"
 #include "components/comp_sound.h"
 #include "components/comp_camera.h"
+#include "components/comp_spawn_point.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -42,6 +44,7 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
@@ -73,6 +76,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("camerac", ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
         REGISTER_RESOURCE_TYPE("input_bindingc", ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
         REGISTER_RESOURCE_TYPE("gamepadsc", ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
+        REGISTER_RESOURCE_TYPE("spawnpointc", ResSpawnPointCreate, ResSpawnPointDestroy, 0);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -149,7 +153,12 @@ namespace dmGameSystem
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
                 CompGuiUpdate, CompGuiOnMessage, CompGuiOnInput);
 
-#undef REGISTER_COMPONENT_TYPE
+        REGISTER_COMPONENT_TYPE("spawnpointc", render_world,
+                CompSpawnPointNewWorld, CompSpawnPointDeleteWorld,
+                CompSpawnPointCreate, 0, CompSpawnPointDestroy,
+                CompSpawnPointUpdate, CompSpawnPointOnMessage, 0);
+
+        #undef REGISTER_COMPONENT_TYPE
 
         return go_result;
     }

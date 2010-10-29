@@ -28,6 +28,7 @@ def transform_gameobject(msg):
         c.Resource = c.Resource.replace('.model', '.modelc')
         c.Resource = c.Resource.replace('.script', '.scriptc')
         c.Resource = c.Resource.replace('.wav', '.wavc')
+        c.Resource = c.Resource.replace('.spawnpoint', '.spawnpointc')
     return msg
 
 def transform_model(msg):
@@ -43,6 +44,10 @@ def transform_gui(msg):
         f.Font = f.Font.replace('.font', '.fontc')
     return msg
 
+def transform_spawnpoint(msg):
+    msg.Prototype = msg.Prototype.replace('.go', '.goc')
+    return msg
+
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc')
 proto_compile_task('emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.emitter', '.emitterc', transform_emitter)
@@ -54,6 +59,7 @@ proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transfor
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
+proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoint', '.spawnpointc', transform_spawnpoint)
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 
