@@ -22,7 +22,7 @@ def set_options(opt):
 def configure(conf):
     conf.check_tool('waf_dynamo')
     waf_ddf.configure(conf)
-    
+
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
     conf.sub_config('src')
@@ -62,11 +62,14 @@ def configure(conf):
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
-    
+
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
 
     conf.env['LIB_GTEST'] = 'gtest'
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
 def build(bld):
     bld.add_subdirs('src')
