@@ -3,7 +3,7 @@ from TaskGen import extension
 from waf_content import proto_compile_task
 
 def configure(conf):
-    conf.find_program('modelc.py', var='MODELC', mandatory = True)
+    conf.find_file('modelc.py', var='MODELC', mandatory = True)
 
 def transform_collection(msg):
     for i in msg.Instances:
