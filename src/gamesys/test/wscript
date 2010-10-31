@@ -17,3 +17,6 @@ def build(bld):
         test_task_gen.install_path = None
 
     new_test('collisionobject', exts = ['.cpp', '.go', '.collisionobject', '.convexshape'])
+
+    bld.add_subdirs('fontview')
+

@@ -8,7 +8,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::CreateResult ResCreateMaterial(dmResource::HFactory factory,
+    dmResource::CreateResult ResMaterialCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
@@ -21,14 +21,9 @@ namespace dmGameSystem
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        char vertex_program_buf[1024];
-        DM_SNPRINTF(vertex_program_buf, sizeof(vertex_program_buf), "%s.arbvp", material_desc->m_VertexProgram);
-        char fragment_program_buf[1024];
-        DM_SNPRINTF(fragment_program_buf, sizeof(fragment_program_buf), "%s.arbfp", material_desc->m_FragmentProgram);
-
         dmResource::FactoryResult factory_e;
         dmGraphics::HVertexProgram vertex_program;
-        factory_e = dmResource::Get(factory, vertex_program_buf, (void**) &vertex_program);
+        factory_e = dmResource::Get(factory, material_desc->m_VertexProgram, (void**) &vertex_program);
         if ( factory_e != dmResource::FACTORY_RESULT_OK)
         {
             dmDDF::FreeMessage((void*) material_desc);
@@ -37,7 +32,7 @@ namespace dmGameSystem
         }
 
         dmGraphics::HFragmentProgram fragment_program;
-        factory_e = dmResource::Get(factory, fragment_program_buf, (void**) &fragment_program);
+        factory_e = dmResource::Get(factory, material_desc->m_FragmentProgram, (void**) &fragment_program);
         if ( factory_e != dmResource::FACTORY_RESULT_OK)
         {
             dmDDF::FreeMessage((void*) material_desc);
@@ -111,7 +106,7 @@ namespace dmGameSystem
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult ResDestroyMaterial(dmResource::HFactory factory,
+    dmResource::CreateResult ResMaterialDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
@@ -125,7 +120,7 @@ namespace dmGameSystem
         return dmResource::CREATE_RESULT_OK;
     }
 
-    dmResource::CreateResult ResRecreateMaterial(dmResource::HFactory factory,
+    dmResource::CreateResult ResMaterialRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,

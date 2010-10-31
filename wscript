@@ -29,8 +29,6 @@ def configure(conf):
     waf_physics.configure(conf)
     waf_render.configure(conf)
 
-    conf.sub_config('src')
-
     if sys.platform == "darwin":
         platform = "darwin"
     elif sys.platform == "linux2":
@@ -63,6 +61,9 @@ def configure(conf):
     conf.env['STATICLIB_GUI'] = 'gui'
     conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
     conf.env['STATICLIB_INPUT'] = 'input'
+    conf.env['STATICLIB_HID'] = 'hid'
+    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
     platform = conf.env['PLATFORM']
 

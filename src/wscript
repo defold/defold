@@ -1,9 +1,6 @@
 def set_options(opt):
     pass
 
-def configure(conf):
-    pass
-
 def build(bld):
     bld.add_subdirs('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
