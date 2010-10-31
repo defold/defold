@@ -180,13 +180,21 @@ namespace dmEngine
         return 1;
     }
 
-    int RenderScript_SetViewProj(lua_State* L)
+    int RenderScript_SetView(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        (void)i;
-        // TODO: Check matrix
-        //Vectormath::Aos::Matrix4 viewproj = *dmScript::CheckMatrix4(L, 2);
-        //dmRender::SetViewProjectionMatrix(0x0, viewproj);
+        Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 2);
+        i->m_RenderContext->m_View = view;
+        i->m_RenderContext->m_ViewProj = i->m_RenderContext->m_Projection * view;
+        return 0;
+    }
+
+    int RenderScript_SetProjection(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 2);
+        i->m_RenderContext->m_Projection = projection;
+        i->m_RenderContext->m_ViewProj = projection * i->m_RenderContext->m_View;
         return 0;
     }
 
@@ -194,7 +202,8 @@ namespace dmEngine
     {
         {"clear",           RenderScript_Clear},
         {"draw",            RenderScript_Draw},
-        {"set_viewproj",    RenderScript_SetViewProj},
+        {"set_view",        RenderScript_SetView},
+        {"set_projection",  RenderScript_SetProjection},
         {0, 0}
     };
 
