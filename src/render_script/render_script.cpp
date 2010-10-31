@@ -3,8 +3,12 @@
 #include <string.h>
 
 #include <dlib/log.h>
+#include <dlib/hash.h>
+#include <dlib/message.h>
 
 #include <script/script.h>
+#include <gameobject/gameobject.h>
+#include <gamesys/gamesys_ddf.h>
 
 extern "C"
 {
@@ -15,6 +19,7 @@ extern "C"
 
 namespace dmEngine
 {
+    #define RENDER_SCRIPT_SOCKET_NAME "render"
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
 
     #define RENDER_SCRIPT_LIB_NAME "render"
@@ -30,6 +35,7 @@ namespace dmEngine
     };
 
     lua_State* g_LuaState = 0;
+    uint32_t g_Socket = 0;
 
     #define MAX_TAG_COUNT 8
     struct Predicate
@@ -192,8 +198,11 @@ namespace dmEngine
         {0, 0}
     };
 
-    void InitializeScript()
+    void InitializeRenderScript()
     {
+        g_Socket = dmHashString32(RENDER_SCRIPT_SOCKET_NAME);
+        dmMessage::CreateSocket(g_Socket, 4 * 1024);
+
         lua_State *L = lua_open();
         g_LuaState = L;
 
@@ -225,11 +234,30 @@ namespace dmEngine
         assert(top == lua_gettop(L));
     }
 
-    void FinalizeScript()
+    void FinalizeRenderScript()
     {
+        dmMessage::DestroySocket(g_Socket);
         if (g_LuaState)
             lua_close(g_LuaState);
         g_LuaState = 0;
+    }
+
+    static void Dispatch(dmMessage::Message *message, void* user_ptr)
+    {
+        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message->m_Data;
+
+        if (instance_message_data->m_DDFDescriptor == dmGameSystemDDF::SetLight::m_DDFDescriptor)
+        {
+            dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*) instance_message_data->m_Buffer;
+            (void) set_light;
+            // Do something useful here
+        }
+
+    }
+
+    void UpdateRenderScript()
+    {
+        dmMessage::Dispatch(g_Socket, &Dispatch, 0);
     }
 
     struct LuaData

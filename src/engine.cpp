@@ -26,6 +26,7 @@
 
 #include "physics_debug_render.h"
 #include "profile_render.h"
+#include "render_script/render_script.h"
 
 using namespace Vectormath::Aos;
 
@@ -118,6 +119,8 @@ namespace dmEngine
         dmInput::DeleteContext(engine->m_InputContext);
 
         dmRenderDebug::Finalize();
+        dmEngine::FinalizeRenderScript();
+
         dmHID::Finalize();
 
         dmGameObject::Finalize();
@@ -199,6 +202,8 @@ namespace dmEngine
         dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 1000, 1, 0x0, 0x0);
         engine->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
         dmRender::AddRenderPass(engine->m_RenderWorld, engine->m_RenderPass);
+
+        dmEngine::InitializeRenderScript();
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
@@ -353,6 +358,8 @@ bail:
                         break;
                     }
                 }
+
+                dmEngine::UpdateRenderScript();
 
                 dmGraphics::HContext context = dmGraphics::GetContext();
                 dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);

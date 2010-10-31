@@ -49,6 +49,8 @@ namespace dmEngine
     void    InitializeRenderScript();
     void    FinalizeRenderScript();
 
+    void    UpdateRenderScript();
+
     HRenderScript NewRenderScript(const void* buffer, uint32_t buffer_size, const char* filename);
     bool    ReloadRenderScript(HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename);
     void    DeleteRenderScript(HRenderScript render_script);
