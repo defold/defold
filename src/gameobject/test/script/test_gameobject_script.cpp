@@ -198,8 +198,6 @@ TEST_F(ScriptTest, TestReload)
     dmGameObjectDDF::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
     component_desc.m_Resource = script_file_name;
-    component_desc.m_Position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-    component_desc.m_Rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
     prototype.m_Components.m_Data = &component_desc;
 
     dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name);

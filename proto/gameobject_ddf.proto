@@ -10,8 +10,6 @@ option (ddf_java_package) = "com.dynamo.gameobject.ddf";
 message ComponentDesc
 {
     required string Resource = 1;
-    required dmMath.Point3 Position = 2;
-    required dmMath.Quat Rotation = 3;
 }
 
 message PrototypeDesc
