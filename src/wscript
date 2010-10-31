@@ -12,7 +12,7 @@ def build(bld):
                           protoc_includes = '../proto',
                           install_path='${PREFIX}/lib',
                           embed_source='../content/materials/debug.arbvp ../content/materials/debug.arbfp',
-                          source='engine.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+                          source='engine.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto render_script/res_render_script.cpp render_script/render_script.cpp')
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
