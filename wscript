@@ -33,6 +33,7 @@ def configure(conf):
     waf_ddf.configure(conf)
     waf_physics.configure(conf)
     waf_render.configure(conf)
+    waf_gamesys.configure(conf)
 
     conf.sub_config('src')
 

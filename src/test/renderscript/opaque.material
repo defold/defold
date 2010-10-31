@@ -1,0 +1,17 @@
+Name: "Opaque"
+VertexProgram: "simple"
+FragmentProgram: "simple"
+FragmentParameters
+{
+    Name: "color"
+    Type: VECTOR3
+    Semantic: DIFFUSE_COLOR
+    Register: 0
+    Value
+    {
+        x: 1
+        y: 0
+        z: 0
+        w: 0
+    }
+}

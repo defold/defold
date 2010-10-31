@@ -1,0 +1,15 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+import os, sys
+import waf_gamesys
+
+def build(bld):
+    fonts = bld.new_task_gen(
+        features = '',
+        size = 24,
+        imagefont='test.imagefontc',
+        source='test.ttf')
+
+    obj = bld.new_task_gen()
+    obj.find_sources_in_dirs('.', exts = ['.fp', '.vp', '.gamepads', '.input_binding', '.collection', '.dae', '.model', '.go', '.font', '.material', '.png', '.camera', '.script'])
+    obj.install_path = None

@@ -1,0 +1,12 @@
+[project]
+title = test_renderscript
+[bootstrap]
+main_collection = test.collectionc
+font = test.fontc
+small_font = test.fontc
+debug_fp = debug.arbfp
+debug_vp = debug.arbvp
+gamepads = default.gamepadsc
+game_binding = default.input_bindingc
+[resource]
+uri = build/default/src/test/renderscript
