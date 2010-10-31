@@ -32,6 +32,7 @@ def transform_gameobject(msg):
         c.Resource = c.Resource.replace('.script', '.scriptc')
         c.Resource = c.Resource.replace('.wav', '.wavc')
         c.Resource = c.Resource.replace('.spawnpoint', '.spawnpointc')
+        c.Resource = c.Resource.replace('.light', '.lightc')
     return msg
 
 def transform_model(msg):
@@ -63,6 +64,7 @@ proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camera
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
 proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoint', '.spawnpointc', transform_spawnpoint)
+proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 

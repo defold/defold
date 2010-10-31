@@ -17,3 +17,33 @@ message SpawnObject
     required dmMath.Point3 Position = 1;
     required dmMath.Quat   Rotation = 2;
 }
+
+enum LightType
+{
+    POINT = 0;
+    SPOT  = 1;
+}
+
+message LightDesc
+{
+    required string  Id               = 1;
+    required float          Radius    = 2;
+    // Only applicable for spot-lights
+    optional float          ConeAngle = 3;
+    required float          DropOff   = 4;
+    required LightType      LightType = 5;
+    required dmMath.Vector3 Color     = 6;
+}
+
+message SetLight
+{
+    required string  Id               = 1;
+    required float          Radius    = 2;
+    // Only applicable for spot-lights
+    optional float          ConeAngle = 3;
+    required float          DropOff   = 4;
+    required LightType      LightType = 5;
+    required dmMath.Vector3 Color     = 6;
+    required dmMath.Point3  Position  = 7;
+    required dmMath.Quat    Rotation  = 8;
+}

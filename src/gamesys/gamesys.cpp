@@ -22,6 +22,7 @@
 #include "resources/res_input_binding.h"
 #include "resources/res_gamepad_map.h"
 #include "resources/res_spawn_point.h"
+#include "resources/res_light.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -30,6 +31,7 @@
 #include "components/comp_sound.h"
 #include "components/comp_camera.h"
 #include "components/comp_spawn_point.h"
+#include "components/comp_light.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -77,6 +79,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("input_bindingc", ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
         REGISTER_RESOURCE_TYPE("gamepadsc", ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
         REGISTER_RESOURCE_TYPE("spawnpointc", ResSpawnPointCreate, ResSpawnPointDestroy, 0);
+        REGISTER_RESOURCE_TYPE("lightc", ResLightCreate, ResLightDestroy, 0);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -157,6 +160,11 @@ namespace dmGameSystem
                 CompSpawnPointNewWorld, CompSpawnPointDeleteWorld,
                 CompSpawnPointCreate, 0, CompSpawnPointDestroy,
                 CompSpawnPointUpdate, CompSpawnPointOnMessage, 0);
+
+        REGISTER_COMPONENT_TYPE("lightc", render_world,
+                CompLightNewWorld, CompLightDeleteWorld,
+                CompLightCreate, 0, CompLightDestroy,
+                CompLightUpdate, CompLightOnMessage, 0);
 
         #undef REGISTER_COMPONENT_TYPE
 
