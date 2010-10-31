@@ -20,7 +20,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'test_engine')
-    obj.find_sources_in_dirs('.', exts = ['.cpp', '.project', '.font', '.vp', '.fp', '.gamepads', '.input_binding', '.collection', '.script', '.go', '.collisionobject', '.convexshape'])
+    obj.find_sources_in_dirs('.', exts = ['.cpp', '.project', '.font', '.vp', '.fp', '.gamepads', '.input_binding', '.collection', '.script', '.go', '.collisionobject', '.convexshape', '.material'])
     obj.install_path = None
 
     bld.add_subdirs('renderscript')

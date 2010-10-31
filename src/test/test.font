@@ -1,3 +1,2 @@
 Font: "test.ttf"
-VertexProgram: "font"
-FragmentProgram: "font"
+Material: "font.material"
