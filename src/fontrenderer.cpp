@@ -25,10 +25,9 @@ namespace dmRender
             dmGraphics::DestroyTexture(m_Texture);
         }
 
-        dmRenderDDF::ImageFont*      m_Font;
-        dmGraphics::HTexture         m_Texture;
-        dmGraphics::HVertexProgram   m_VertexProgram;
-        dmGraphics::HFragmentProgram m_FragmentProgram;
+        dmRenderDDF::ImageFont*     m_Font;
+        dmGraphics::HTexture        m_Texture;
+        dmGraphics::HMaterial       m_Material;
     };
 
     struct SFontRenderer
@@ -65,8 +64,7 @@ namespace dmRender
     HFont NewFont(HImageFont image_font)
     {
         SFont*ret = new SFont();
-        ret->m_VertexProgram = 0;
-        ret->m_FragmentProgram = 0;
+        ret->m_Material = 0;
         ret->m_Font = (dmRenderDDF::ImageFont*) image_font;
         ret->m_Texture = dmGraphics::CreateTexture(ret->m_Font->m_ImageWidth,
                                                    ret->m_Font->m_ImageHeight,
@@ -89,24 +87,14 @@ namespace dmRender
         return font->m_Texture;
     }
 
-    void SetVertexProgram(HFont font, dmGraphics::HVertexProgram program)
+    void SetMaterial(HFont font, dmGraphics::HMaterial material)
     {
-        font->m_VertexProgram = program;
+        font->m_Material = material;
     }
 
-    dmGraphics::HVertexProgram GetVertexProgram(HFont font)
+    dmGraphics::HMaterial GetMaterial(HFont font)
     {
-        return font->m_VertexProgram;
-    }
-
-    void SetFragmentProgram(HFont font, dmGraphics::HFragmentProgram program)
-    {
-        font->m_FragmentProgram = program;
-    }
-
-    dmGraphics::HFragmentProgram GetFragmentProgram(HFont font)
-    {
-        return font->m_FragmentProgram;
+        return font->m_Material;
     }
 
     void DeleteFont(HFont font)

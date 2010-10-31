@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics_device.h>
+#include <graphics/material.h>
 #include <render/render.h>
 
 namespace dmRender
@@ -50,32 +51,18 @@ namespace dmRender
     dmGraphics::HTexture GetTexture(HFont font);
 
     /**
-     * Set font vertex program
+     * Set font material
      * @param font Font handle
-     * @param program Vertex program handle
+     * @param material Material handle
      */
-    void SetVertexProgram(HFont font, dmGraphics::HVertexProgram program);
+    void SetMaterial(HFont font, dmGraphics::HMaterial material);
 
     /**
-     * Get font vertex program
+     * Get font material
      * @param font Font handle
-     * @return Vertex program
+     * @return Material handle
      */
-    dmGraphics::HVertexProgram GetVertexProgram(HFont font);
-
-    /**
-     * Get font fragment program
-     * @param font Font handle
-     * @return Fragment program
-     */
-    dmGraphics::HFragmentProgram GetFragmentProgram(HFont font);
-
-    /**
-     * Set font fragment program
-     * @param font Font handle
-     * @param program Fragment program handle
-     */
-    void SetFragmentProgram(HFont font, dmGraphics::HFragmentProgram program);
+    dmGraphics::HMaterial GetMaterial(HFont font);
 
     /**
      * Delete a font

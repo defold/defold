@@ -10,8 +10,7 @@ option (ddf_java_package) = "com.dynamo.render.ddf";
 message FontDesc
 {
     required string Font = 1;
-    required string VertexProgram = 2;
-    required string FragmentProgram = 3;
+    required string Material = 2;
 }
 
 message ImageFont

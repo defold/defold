@@ -10,5 +10,4 @@ def build(bld):
 #                                    target = 'test_render')
 #
 #    test_render = None
-
-    bld.add_subdirs('fontview')
+    pass

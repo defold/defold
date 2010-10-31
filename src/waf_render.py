@@ -8,9 +8,16 @@ def configure(conf):
 
 def transform_font(msg):
     msg.Font = msg.Font.replace('.ttf', '.imagefontc')
+    msg.Material = msg.Material.replace('.material', '.materialc')
+    return msg
+
+def transform_material(msg):
+    msg.VertexProgram = msg.VertexProgram.replace('.vp', '.arbvp')
+    msg.FragmentProgram = msg.FragmentProgram.replace('.fp', '.arbfp')
     return msg
 
 proto_compile_task('font', 'render.render_ddf_pb2', 'render_ddf_pb2.FontDesc', '.font', '.fontc', transform_font)
+proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
 #Task.simple_task_type('ttf', 'python ${FONTC} -s ${size} -o ${TGT} ${SRC}',
 Task.simple_task_type('ttf', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.Fontc ${SRC} ${size} ${TGT}',

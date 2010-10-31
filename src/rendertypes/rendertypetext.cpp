@@ -1,6 +1,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/array.h>
 #include <graphics/graphics_device.h>
+#include <graphics/material.h>
 #include "fontrenderer.h"
 #include "render/render.h"
 #include "renderinternal.h"
@@ -45,8 +46,9 @@ namespace dmRender
 
         Matrix4 ident = Matrix4::identity();
 
-        dmGraphics::SetVertexProgram(context, GetVertexProgram(font));
-        dmGraphics::SetFragmentProgram(context, GetFragmentProgram(font));
+        dmGraphics::HMaterial material = GetMaterial(font);
+        dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(material));
+        dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material));
 
         Matrix4 mat = Matrix4::orthographic( 0, 960, 540, 0, 10, -10 );
 
