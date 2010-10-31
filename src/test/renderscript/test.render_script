@@ -7,9 +7,17 @@ end
 function update(self)
     render.clear({color = vmath.Vector4(0, 0, 0, 0), depth = 0})
 
-    render.set_camera(self, 0)
+    render.set_view(self, vmath.matrix4())
+    render.set_projection(self, vmath.matrix4())
 
     render.draw(self, self.opaque_pred)
     render.draw(self, self.transp_pred)
     render.draw(self, self.hud_pred)
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("set_light") then
+        self.light_view = message.view
+        self.light_proj = message.proj
+    end
 end
