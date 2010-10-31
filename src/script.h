@@ -139,6 +139,29 @@ namespace dmScript
      * @return The quat value
      */
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
+
+    /**
+     * Check is the value at #index is a matrix4
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true is value at #index is a matrix4
+     */
+    bool IsMatrix4(lua_State *L, int index);
+
+    /**
+     * Push a matrix4 value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param m Matrix4 value to push
+     */
+    void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a matrix4.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The matrix4 value
+     */
+    Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
 }
 
 #endif // DM_SCRIPT_H

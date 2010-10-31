@@ -6,6 +6,13 @@ assert(v.x == 1, "v.x is not 1")
 assert(v.y == 2, "v.y is not 2")
 assert(v.z == 3, "v.z is not 3")
 
+v = vmath.vector3()
+
+-- index
+assert(v.x == 0, "v.x is not 0")
+assert(v.y == 0, "v.y is not 0")
+assert(v.z == 0, "v.z is not 0")
+
 -- copy constructor
 local v1 = vmath.vector3(v)
 -- equals

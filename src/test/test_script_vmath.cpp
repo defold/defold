@@ -223,6 +223,41 @@ TEST_F(ScriptVmathTest, TestTransform)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
+
+TEST_F(ScriptVmathTest, TestMatrix4)
+{
+    int top = lua_gettop(L);
+    Vectormath::Aos::Matrix4 m = Vectormath::Aos::Matrix4::identity();
+    dmScript::PushMatrix4(L, m);
+    ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
+    Vectormath::Aos::Matrix4* mp = dmScript::CheckMatrix4(L, -1);
+    ASSERT_NE((void*)0x0, mp);
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            ASSERT_EQ(m.getElem(i, j), mp->getElem(i, j));
+        }
+    }
+
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_TRUE(RunFile(L, "test_matrix4.luac"));
+}
+
+TEST_F(ScriptVmathTest, TestMatrix4Fail)
+{
+    // constructor
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4(0,0,0)"));
+    // index
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nlocal a = m.a"));
+    // new index
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nm.a = 1"));
+    // mul
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * 1"));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -7,6 +7,13 @@ assert(q.y == 2, "q.y is not 2")
 assert(q.z == 3, "q.z is not 3")
 assert(q.w == 4, "q.w is not 4")
 
+-- constructor
+q = vmath.quat()
+assert(q.x == 0, "q.x is not 0")
+assert(q.y == 0, "q.y is not 0")
+assert(q.z == 0, "q.z is not 0")
+assert(q.w == 1, "q.w is not 1")
+
 -- copy constructor
 local q1 = vmath.quat(q)
 -- equals
