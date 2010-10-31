@@ -2,6 +2,9 @@ import Task, TaskGen, Utils, re, os
 from TaskGen import extension
 from waf_content import proto_compile_task
 
+def configure(conf):
+    conf.find_program('modelc.py', var='MODELC', mandatory = True)
+
 def transform_collection(msg):
     for i in msg.Instances:
         i.Prototype = i.Prototype.replace('.go', '.goc')
@@ -88,7 +91,7 @@ def testresourcecont_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('mesh', 'python ../tools/modelc.py ${SRC} -o ${TGT}',
+Task.simple_task_type('mesh', 'python ${MODELC} ${SRC} -o ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',

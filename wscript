@@ -82,6 +82,9 @@ def build(bld):
 
     bld.add_subdirs('src')
 
+    bld.install_files('${PREFIX}/bin', 'tools/gamemapc.py', chmod=493)
+    bld.install_files('${PREFIX}/bin', 'tools/modelc.py', chmod=493)
+
 import Build, Options
 import os, subprocess
 def shutdown():
