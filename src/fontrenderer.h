@@ -112,8 +112,6 @@ namespace dmRender
      */
     void FontRendererFlush(HFontRenderer renderer);
 
-    void FontRendererAddToRenderPass(HRenderPass renderpass, HFontRenderer renderer);
-
 }
 
 #endif // FONTRENDERER_H

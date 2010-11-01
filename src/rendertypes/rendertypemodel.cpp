@@ -3,6 +3,8 @@
 #include "render/render.h"
 #include "renderinternal.h"
 #include "rendertypemodel.h"
+#include <ddf/ddf.h>
+#include <render/mesh_ddf.h>
 #include "../model/model.h"
 
 
@@ -77,23 +79,11 @@ namespace dmRender
             }
         }
 
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetPositions(mesh));
 
-        if (dmModel::GetTexcoord0Count(mesh) > 0)
-            dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetTexcoord0(mesh));
-        else
-            dmGraphics::DisableVertexStream(context, 1);
+        dmGraphics::SetVertexDeclaration(context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
+        dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
+        dmGraphics::DisableVertexDeclaration(context, dmModel::GetVertexDeclarationBuffer(mesh));
 
-        if (dmModel::GetNormalCount(mesh) > 0)
-            dmGraphics::SetVertexStream(context, 2, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetNormals(mesh));
-        else
-            dmGraphics::DisableVertexStream(context, 2);
-
-        dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, dmModel::GetPrimitiveCount(mesh)*3, dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndices(mesh));
-
-        dmGraphics::DisableVertexStream(context, 0);
-        dmGraphics::DisableVertexStream(context, 1);
-        dmGraphics::DisableVertexStream(context, 2);
     }
 
     void RenderTypeModelEnd(const RenderContext* rendercontext)

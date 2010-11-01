@@ -3,6 +3,8 @@
 #include <dlib/profile.h>
 #include <graphics/graphics_device.h>
 #include "renderinternal.h"
+#include <ddf/ddf.h>
+#include "render/mesh_ddf.h"
 #include "model/model.h"
 
 

@@ -16,8 +16,11 @@ namespace dmModel
             memset(this, 0x0, sizeof(*this));
             m_Deleted = false;
         }
-        dmRender::MeshDesc      m_Desc;
-        bool                    m_Deleted;
+        dmRender::MeshDesc*             m_Desc;
+        dmGraphics::HIndexBuffer        m_IndexBuffer;
+        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmGraphics::HVertexDeclaration  m_VertexDecl;
+        bool                            m_Deleted;
 
     };
 
@@ -48,33 +51,74 @@ namespace dmModel
         delete model;
     }
 
-    HMesh NewMesh()
+    HMesh NewMesh(dmRender::MeshDesc* desc)
     {
+
+        // TODO: will be replaced when we have a proper model compiler
+        struct VertexFormat
+        {
+            float x, y, z;
+            float nx, ny, nz;
+            float u, v;
+        };
+
+        VertexFormat* f = (VertexFormat*)malloc(sizeof(VertexFormat)*desc->m_Positions.m_Count);
         Mesh* mesh = new Mesh;
+
+        // TODO: move this bit to the model compiler
+        for (uint32_t i=0; i<desc->m_Positions.m_Count; i++)
+        {
+            f[i].x = desc->m_Positions.m_Data[i*3+0];
+            f[i].y = desc->m_Positions.m_Data[i*3+1];
+            f[i].z = desc->m_Positions.m_Data[i*3+2];
+
+            f[i].nx = desc->m_Normals.m_Data[i*3+0];
+            f[i].ny = desc->m_Normals.m_Data[i*3+1];
+            f[i].nz = desc->m_Normals.m_Data[i*3+2];
+
+            if (desc->m_Texcoord0.m_Count)
+            {
+                f[i].u = desc->m_Texcoord0.m_Data[i*2+0];
+                f[i].v = desc->m_Texcoord0.m_Data[i*2+1];
+            }
+        }
+
+        dmGraphics::VertexElement ve[] =
+        {
+                {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
+                {1, 3, dmGraphics::TYPE_FLOAT, 0, 0},
+                {2, 2, dmGraphics::TYPE_FLOAT, 0, 0}
+        };
+
+        mesh->m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        mesh->m_IndexBuffer = dmGraphics::NewIndexBuffer(desc->m_Indices.m_Count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, desc->m_Indices.m_Data);
+        mesh->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(VertexFormat), desc->m_Positions.m_Count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, 1, (void*)f);
+        mesh->m_Desc = desc;
+        free(f);
         return mesh;
     }
 
     void DeleteMesh(HMesh mesh)
     {
+        dmGraphics::DeleteVertexDeclaration(mesh->m_VertexDecl);
+        dmGraphics::DeleteVertexBuffer(mesh->m_VertexBuffer);
+        dmGraphics::DeleteIndexBuffer(mesh->m_IndexBuffer);
+        dmDDF::FreeMessage((void*) mesh->m_Desc);
+
         delete mesh;
     }
 
-    uint32_t        GetPrimitiveCount(HMesh mesh)       { return mesh->m_Desc.m_PrimitiveCount;                 }
-    PrimtiveType    GetPrimitiveType(HMesh mesh)        { return (PrimtiveType)mesh->m_Desc.m_PrimitiveType;    }
-    const void*     GetPositions(HMesh mesh)            { return &mesh->m_Desc.m_Positions.m_Data[0];           }
-    uint32_t        GetPositionCount(HMesh mesh)        { return mesh->m_Desc.m_Positions.m_Count;              }
+    dmGraphics::HVertexBuffer       GetVertexBuffer(HMesh mesh)            { return mesh->m_VertexBuffer; }
+    dmGraphics::HIndexBuffer        GetIndexBuffer(HMesh mesh)             { return mesh->m_IndexBuffer;  }
+    dmGraphics::HVertexDeclaration  GetVertexDeclarationBuffer(HMesh mesh) { return mesh->m_VertexDecl;   }
 
-    const void*     GetTexcoord0(HMesh mesh)            { return &mesh->m_Desc.m_Texcoord0.m_Data[0];           }
-    uint32_t        GetTexcoord0Count(HMesh mesh)       { return mesh->m_Desc.m_Texcoord0.m_Count;              }
-
-    const void*     GetNormals(HMesh mesh)              { return &mesh->m_Desc.m_Normals.m_Data[0];             }
-    uint32_t        GetNormalCount(HMesh mesh)          { return mesh->m_Desc.m_Normals.m_Count;                }
-
-    const void*     GetIndices(HMesh mesh)              { return &mesh->m_Desc.m_Indices.m_Data[0];             }
-    uint32_t        GetIndexCount(HMesh mesh)           { return mesh->m_Desc.m_Indices.m_Count;                }
+    uint32_t        GetPrimitiveCount(HMesh mesh)       { return mesh->m_Desc->m_PrimitiveCount;                 }
+    PrimtiveType    GetPrimitiveType(HMesh mesh)        { return (PrimtiveType)mesh->m_Desc->m_PrimitiveType;    }
+    uint32_t        GetIndexCount(HMesh mesh)           { return mesh->m_Desc->m_Indices.m_Count;                }
 
     void SetMesh(HModel model, HMesh mesh)
     {
+
         model->m_Mesh = mesh;
     }
 

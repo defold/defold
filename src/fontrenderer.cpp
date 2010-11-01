@@ -42,6 +42,8 @@ namespace dmRender
         dmRender::HRenderWorld    m_RenderWorld;
         dmRender::HRenderWorld    m_RenderCollection;
         dmRender::HRenderObject   m_RenderObject;
+        dmGraphics::HVertexBuffer m_VertexBuffer;
+        dmGraphics::HVertexDeclaration m_VertexDecl;
     };
 
 
@@ -115,6 +117,16 @@ namespace dmRender
         fr->m_RenderCollection = collection;
         fr->m_RenderWorld = (dmRender::HRenderWorld)renderworld;
         fr->m_RenderObject = dmRender::NewRenderObject((dmRender::HRenderWorld)collection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_TEXT);
+        fr->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(SFontVertex), max_characters*6, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN,1, 0x0);
+
+        dmGraphics::VertexElement ve[] =
+        {
+                {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
+                {1, 3, dmGraphics::TYPE_FLOAT, 0, 0},
+                {2, 2, dmGraphics::TYPE_FLOAT, 0, 0}
+        };
+
+        fr->m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         return fr;
     }
 
@@ -122,6 +134,8 @@ namespace dmRender
     {
         dmRender::DeleteRenderObject(renderer->m_RenderCollection, renderer->m_RenderObject);
         dmRender::DeleteRenderWorld(renderer->m_RenderCollection);
+        dmGraphics::DeleteVertexBuffer(renderer->m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(renderer->m_VertexDecl);
         delete renderer;
     }
 
@@ -207,12 +221,6 @@ namespace dmRender
         dmRender::SetGameObject(renderer->m_RenderObject, &renderer->m_Vertices);
 
         dmRender::AddToRender(renderer->m_RenderCollection, renderer->m_RenderWorld);
-    }
-
-
-    void FontRendererAddToRenderPass(HRenderPass renderpass, HFontRenderer renderer)
-    {
-//        AddRenderObject(renderpass, renderer->m_RenderObject);
     }
 
 }

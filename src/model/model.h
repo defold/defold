@@ -34,7 +34,7 @@ namespace dmModel
      * Create a new mesh
      * @return New mesh handle
      */
-    HMesh NewMesh();
+    HMesh NewMesh(dmRender::MeshDesc* desc);
 
     /**
      * Destroy a mesh
@@ -62,48 +62,6 @@ namespace dmModel
      * @return Pointer to vertex data
      */
     const void*     GetPositions(HMesh mesh);
-
-    /**
-     * Get vertex position count
-     * @param mesh Mesh to query
-     * @return Vertex data count
-     */
-    uint32_t        GetPositionCount(HMesh mesh);
-
-    /**
-     * Get texture0 coords for mesh
-     * @param mesh Mesh to query
-     * @return Pointer to texture coord data
-     */
-    const void*     GetTexcoord0(HMesh mesh);
-
-    /**
-     * Get texture0 coord count
-     * @param mesh Mesh to query
-     * @return Texture0 coord count
-     */
-    uint32_t        GetTexcoord0Count(HMesh mesh);
-
-    /**
-     * Get normals for mesh
-     * @param mesh Mesh to query
-     * @return Pointer to normal data
-     */
-    const void*     GetNormals(HMesh mesh);
-
-    /**
-     * Get normal count
-     * @param mesh Mesh to query
-     * @return Normal count
-     */
-    uint32_t        GetNormalCount(HMesh mesh);
-
-    /**
-     * Get index data for mesh
-     * @param mesh Mesh to query
-     * @return Pointer to index data
-     */
-    const void*     GetIndices(HMesh mesh);
 
     /**
      * Get index count
@@ -153,6 +111,10 @@ namespace dmModel
      * @return Material associated with model
      */
     dmGraphics::HMaterial GetMaterial(HModel model);
+
+    dmGraphics::HVertexBuffer     GetVertexBuffer(HMesh mesh);
+    dmGraphics::HIndexBuffer      GetIndexBuffer(HMesh mesh);
+    dmGraphics::HVertexDeclaration      GetVertexDeclarationBuffer(HMesh mesh);
 
 }
 
