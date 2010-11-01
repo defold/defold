@@ -1,6 +1,8 @@
 #include "res_mesh.h"
 
+#include <render/render.h>
 #include <render/mesh_ddf.h>
+#include <render/model/model.h>
 
 namespace dmGameSystem
 {
@@ -10,12 +12,14 @@ namespace dmGameSystem
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
-        dmRender::MeshDesc* mesh;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_MeshDesc_DESCRIPTOR, (void**) &mesh);
+        dmRender::MeshDesc* mesh_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
+
+        dmModel::HMesh mesh = dmModel::NewMesh(mesh_desc);
         resource->m_Resource = (void*) mesh;
 
         return dmResource::CREATE_RESULT_OK;
@@ -25,7 +29,9 @@ namespace dmGameSystem
                                       void* context,
                                       dmResource::SResourceDescriptor* resource)
     {
-        dmDDF::FreeMessage((void*) resource->m_Resource);
+        dmModel::HMesh mesh = (dmModel::HMesh)resource->m_Resource;
+        dmModel::DeleteMesh(mesh);
+
         return dmResource::CREATE_RESULT_OK;
     }
 
