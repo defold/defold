@@ -4,7 +4,6 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/configfile.h>
 #include <ddf/ddf.h>
-#include <graphics/material.h>
 #include "particle/particle_ddf.h"
 
 using namespace Vectormath::Aos;
