@@ -52,6 +52,16 @@ using namespace Vectormath::Aos;
 
 namespace dmGraphics
 {
+#define CHECK_GL_ERROR \
+    { \
+        GLint err = glGetError(); \
+        if (err != 0) \
+        { \
+            printf("gl error: %d line: %d\n", err, __LINE__); \
+            assert(0); \
+        } \
+    }\
+
 
     Device gdevice;
     Context gcontext;
@@ -76,6 +86,8 @@ namespace dmGraphics
 
         glfwSetWindowTitle(params->m_AppTitle);
         glfwSwapInterval(1);
+        CHECK_GL_ERROR
+
 
 
 #if 0
@@ -127,6 +139,7 @@ namespace dmGraphics
     void DestroyDevice()
     {
         glfwTerminate();
+        CHECK_GL_ERROR
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -138,24 +151,223 @@ namespace dmGraphics
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
         glClearColor(r, g, b, a);
+        CHECK_GL_ERROR
 
         glClearDepth(depth);
+        CHECK_GL_ERROR
+
         glClearStencil(stencil);
+        CHECK_GL_ERROR
+
         glClear(flags);
+        CHECK_GL_ERROR
     }
 
     void Flip()
     {
         glfwSwapBuffers();
+        CHECK_GL_ERROR
     }
 
-    void Draw(HContext context, PrimitiveType primitive_type, int32_t first, int32_t count )
+    HVertexBuffer NewVertexbuffer(uint32_t element_size, uint32_t element_count, BufferType buffer_type, MemoryType memory_type, uint32_t buffer_count, const void* data)
+    {
+        assert(buffer_count < 4);
+
+        VertexBuffer* buffer = new VertexBuffer;
+
+        GLenum vbo_type;
+        if (buffer_type == BUFFER_TYPE_DYNAMIC)
+        {
+            vbo_type = GL_STREAM_DRAW_ARB;
+        }
+        else if (buffer_type == BUFFER_TYPE_STATIC)
+        {
+            vbo_type = GL_STATIC_DRAW_ARB;
+        }
+
+        glGenBuffersARB(1, &buffer->m_VboId);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer->m_VboId);
+        CHECK_GL_ERROR
+        glBufferDataARB(GL_ARRAY_BUFFER_ARB, element_size*element_count, data, vbo_type);
+        CHECK_GL_ERROR
+
+        // TODO: removed when theres full vbo-support
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+
+
+        buffer->m_BufferCount = buffer_count;
+        buffer->m_ElementCount = element_count;
+        buffer->m_ElementSize = element_size;
+        buffer->m_BufferType = buffer_type;
+        buffer->m_MemoryType = memory_type;
+
+        for (uint32_t i=0; i<buffer_count; i++)
+        {
+            buffer->m_Data[i] = malloc(element_size*element_count);
+            if (data)
+                memcpy(buffer->m_Data[i], data, element_size*element_count);
+        }
+
+        return buffer;
+    }
+
+    void DeleteVertexBuffer(HVertexBuffer buffer)
+    {
+        assert(buffer->m_BufferCount < 4);
+
+        for (uint32_t i=0; i<buffer->m_BufferCount; i++)
+        {
+            free(buffer->m_Data[i]);
+        }
+
+        glDeleteBuffersARB(1, &buffer->m_VboId);
+        CHECK_GL_ERROR
+
+        delete buffer;
+    }
+
+    static uint32_t GetTypeSize(Type type)
+    {
+        uint32_t size = 0;
+        switch (type)
+        {
+            case TYPE_BYTE:
+            case TYPE_UNSIGNED_BYTE:
+                size = 1;
+                break;
+
+            case TYPE_SHORT:
+            case TYPE_UNSIGNED_SHORT:
+                size = 2;
+                break;
+
+            case TYPE_INT:
+            case TYPE_UNSIGNED_INT:
+            case TYPE_FLOAT:
+                size = 4;
+                break;
+
+            default:
+                assert(0);
+        }
+        return size;
+    }
+
+    HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count)
+    {
+        VertexDeclaration* vd = new VertexDeclaration;
+
+
+        vd->m_Stride = 0;
+        assert(count < (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
+
+        for (uint32_t i=0; i<count; i++)
+        {
+            vd->m_Streams[i].m_Index = i;
+            vd->m_Streams[i].m_Size = element[i].m_Size;
+            vd->m_Streams[i].m_Usage = element[i].m_Usage;
+            vd->m_Streams[i].m_Type = element[i].m_Type;
+            vd->m_Streams[i].m_UsageIndex = element[i].m_UsageIndex;
+            vd->m_Streams[i].m_Offset = vd->m_Stride;
+
+            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
+        }
+        vd->m_StreamCount = count;
+        return vd;
+    }
+
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    {
+        delete vertex_declaration;
+    }
+
+
+    HIndexBuffer NewIndexBuffer(uint32_t element_count, BufferType buffer_type, MemoryType memory_type, const void* data)
+    {
+        IndexBuffer* buffer = new IndexBuffer;
+        uint32_t element_size = sizeof(int);
+
+        buffer->m_ElementCount = element_count;
+        buffer->m_BufferType = buffer_type;
+        buffer->m_MemoryType = memory_type;
+        buffer->m_Data = malloc(element_count*element_size);
+        memcpy(buffer->m_Data, data, element_count*element_size);
+
+        glGenBuffersARB(1, &buffer->m_VboId);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer->m_VboId);
+        CHECK_GL_ERROR
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, element_size*element_count, data, GL_STATIC_DRAW);
+        CHECK_GL_ERROR
+
+        // TODO: removed when theres full vbo-support
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+
+        return buffer;
+    }
+
+    void DeleteIndexBuffer(HIndexBuffer buffer)
+    {
+        free(buffer->m_Data);
+        glDeleteBuffersARB(1, &buffer->m_VboId);
+        CHECK_GL_ERROR
+        delete buffer;
+    }
+
+
+    void SetVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
-        DM_PROFILE(Graphics, "Draw");
+        assert(vertex_buffer);
+        assert(vertex_declaration);
+        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
-        glDrawArrays(primitive_type, first, count);
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer->m_VboId);
+        CHECK_GL_ERROR
+
+
+        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
+        {
+            glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_Index);
+            CHECK_GL_ERROR
+            glVertexAttribPointer(
+                    vertex_declaration->m_Streams[i].m_Index,
+                    vertex_declaration->m_Streams[i].m_Size,
+                    vertex_declaration->m_Streams[i].m_Type,
+                    false,
+                    vertex_declaration->m_Stride,
+            BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
+
+            CHECK_GL_ERROR
+        }
+
+
+        #undef BUFFER_OFFSET
     }
+
+    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    {
+        assert(context);
+        assert(vertex_declaration);
+
+        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
+        {
+            glDisableVertexAttribArray(i);
+            CHECK_GL_ERROR
+        }
+
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+
+    }
+
+
 
     void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
@@ -163,7 +375,9 @@ namespace dmGraphics
         assert(vertex_buffer);
 
         glEnableVertexAttribArray(stream);
+        CHECK_GL_ERROR
         glVertexAttribPointer(stream, size, type, false, stride, vertex_buffer);
+        CHECK_GL_ERROR
     }
 
     void DisableVertexStream(HContext context, uint16_t stream)
@@ -171,6 +385,23 @@ namespace dmGraphics
         assert(context);
 
         glDisableVertexAttribArray(stream);
+        CHECK_GL_ERROR
+
+    }
+
+    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
+    {
+        assert(context);
+        assert(index_buffer);
+        DM_PROFILE(Graphics, "DrawElements");
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer->m_VboId);
+        CHECK_GL_ERROR
+
+        glDrawRangeElements(prim_type, start, 100000, count*3, type, 0);
+        CHECK_GL_ERROR
+
+
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer)
@@ -180,6 +411,7 @@ namespace dmGraphics
         DM_PROFILE(Graphics, "DrawElements");
 
         glDrawElements(prim_type, count, type, index_buffer);
+        CHECK_GL_ERROR
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
@@ -187,6 +419,7 @@ namespace dmGraphics
         assert(context);
         DM_PROFILE(Graphics, "Draw");
         glDrawArrays(prim_type, first, count);
+        CHECK_GL_ERROR
     }
 
     static uint32_t CreateProgram(GLenum type, const void* program, uint32_t program_size)
@@ -194,9 +427,16 @@ namespace dmGraphics
         glEnable(type);
         GLuint shader[1];
         glGenProgramsARB(1, shader);
+        CHECK_GL_ERROR
+
         glBindProgramARB(type, shader[0]);
+        CHECK_GL_ERROR
+
         glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
+        CHECK_GL_ERROR
+
         glDisable(type);
+        CHECK_GL_ERROR
 
         return shader[0];
     }
@@ -219,18 +459,22 @@ namespace dmGraphics
     {
         assert(program);
         glDeleteProgramsARB(1, &program);
+        CHECK_GL_ERROR
     }
 
     void DestroyFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         glDeleteProgramsARB(1, &program);
+        CHECK_GL_ERROR
     }
 
     static void SetProgram(GLenum type, uint32_t program)
     {
         glEnable(type);
+        CHECK_GL_ERROR
         glBindProgramARB(type, program);
+        CHECK_GL_ERROR
     }
 
     void SetVertexProgram(HContext context, HVertexProgram program)
@@ -252,6 +496,7 @@ namespace dmGraphics
         assert(context);
 
         glViewport(0, 0, width, height);
+        CHECK_GL_ERROR
     }
 
     static void SetProgramConstantBlock(HContext context, GLenum type, const Vector4* data, int base_register, int num_vectors)
@@ -266,6 +511,7 @@ namespace dmGraphics
         for (int i=0; i<num_vectors; i++, reg+=4)
         {
             glProgramLocalParameter4fARB(type, base_register+i,  f[0+reg], f[1+reg], f[2+reg], f[3+reg]);
+            CHECK_GL_ERROR
         }
 
     }
@@ -275,6 +521,7 @@ namespace dmGraphics
         assert(context);
 
         SetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, 1);
+        CHECK_GL_ERROR
     }
 
     void SetVertexConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
@@ -282,6 +529,7 @@ namespace dmGraphics
         assert(context);
 
         SetProgramConstantBlock(context, GL_VERTEX_PROGRAM_ARB, data, base_register, num_vectors);
+        CHECK_GL_ERROR
     }
 
     void SetFragmentConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
@@ -289,6 +537,7 @@ namespace dmGraphics
         assert(context);
 
         SetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, num_vectors);
+        CHECK_GL_ERROR
     }
 
     void SetTexture(HContext context, HTexture t)
@@ -298,23 +547,30 @@ namespace dmGraphics
 
         Texture* tex_h = (Texture*)t;
         glEnable(GL_TEXTURE_2D);
+        CHECK_GL_ERROR
 
         glBindTexture(GL_TEXTURE_2D, tex_h->m_Texture);
+        CHECK_GL_ERROR
 
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        CHECK_GL_ERROR
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-
-
+        CHECK_GL_ERROR
     }
 
     HTexture CreateTexture(uint32_t width, uint32_t height, TextureFormat texture_format)
     {
         GLuint t;
         glGenTextures( 1, &t );
+        CHECK_GL_ERROR
         glBindTexture(GL_TEXTURE_2D, t);
+        CHECK_GL_ERROR
         glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE );
+        CHECK_GL_ERROR
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        CHECK_GL_ERROR
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+        CHECK_GL_ERROR
 
         Texture* tex = new Texture;
         tex->m_Texture = t;
@@ -329,6 +585,7 @@ namespace dmGraphics
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE;
         GLint internal_format;
+
 
         switch (texture_format)
         {
@@ -355,7 +612,7 @@ namespace dmGraphics
             break;
         case TEXTURE_FORMAT_RGBA_DXT5:
             gl_format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
-            glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, texture_format, width, height, border, data_size, data);
+            CHECK_GL_ERROR
             break;
         default:
             assert(0);
@@ -366,6 +623,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
             glTexImage2D(GL_TEXTURE_2D, mip_map, internal_format, width, height, border, gl_format, gl_type, data);
+            CHECK_GL_ERROR
             break;
 
         case TEXTURE_FORMAT_RGB_DXT1:
@@ -373,6 +631,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGBA_DXT3:
         case TEXTURE_FORMAT_RGBA_DXT5:
             glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, gl_format, width, height, border, data_size, data);
+            CHECK_GL_ERROR
             break;
         default:
             assert(0);
@@ -391,29 +650,29 @@ namespace dmGraphics
     void EnableState(HContext context, RenderState state)
     {
         assert(context);
-
         glEnable(state);
+        CHECK_GL_ERROR
     }
 
     void DisableState(HContext context, RenderState state)
     {
         assert(context);
-
         glDisable(state);
+        CHECK_GL_ERROR
     }
 
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
-
         glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
+        CHECK_GL_ERROR
     }
 
     void SetDepthMask(HContext context, bool mask)
     {
         assert(context);
-
         glDepthMask(mask);
+        CHECK_GL_ERROR
     }
 
 }

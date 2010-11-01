@@ -92,6 +92,17 @@ namespace dmGraphics
     };
 
 
+    enum BufferType
+    {
+        BUFFER_TYPE_DYNAMIC = 0,
+        BUFFER_TYPE_STATIC = 1
+    };
+
+    enum MemoryType
+    {
+        MEMORY_TYPE_MAIN = 0,
+    };
+
     // Parameter structure for CreateDevice
     struct CreateDeviceParams
     {
@@ -102,16 +113,68 @@ namespace dmGraphics
         bool            m_PrintDeviceInfo;
     };
 
+    struct VertexElement
+    {
+        uint32_t        m_Stream;
+        uint32_t        m_Size;
+        Type            m_Type;
+        uint32_t        m_Usage;
+        uint32_t        m_UsageIndex;
+    };
+    /**
+     * Get context, soon to be deprecated
+     * @return Current graphics context
+     */
     HContext GetContext();
 
+    /**
+     * Create a new device
+     * @param argc argc from main()
+     * @param argv argb from main()
+     * @param params Device parameters
+     * @return A graphics device
+     */
     HDevice CreateDevice(int* argc, char** argv, CreateDeviceParams *params);
+
+    /**
+     * Destroy device
+     */
     void DestroyDevice();
 
-    // clear/draw functions
+    /**
+     * Flip screen buffers
+     */
     void Flip();
+
+    /**
+     * Clear render target
+     * @param context Graphics context
+     * @param flags
+     * @param red
+     * @param green
+     * @param blue
+     * @param alpha
+     * @param depth
+     * @param stencil
+     */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
     void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
+
+    HVertexBuffer NewVertexbuffer(uint32_t element_size, uint32_t element_count, BufferType buffer_type, MemoryType memory_type, uint32_t buffer_count, const void* data);
+    void DeleteVertexBuffer(HVertexBuffer buffer);
+
+    HIndexBuffer NewIndexBuffer(uint32_t element_count, BufferType buffer_type, MemoryType memory_type, const void* data);
+    void DeleteIndexBuffer(HIndexBuffer buffer);
+
+    HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count);
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
+    void SetVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
+    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+
+
+
     void DisableVertexStream(HContext context, uint16_t stream);
+    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer);
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 

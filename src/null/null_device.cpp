@@ -37,10 +37,45 @@ namespace dmGraphics
     {
     }
 
-    void Draw(HContext context, PrimitiveType primitive_type, int32_t first, int32_t count )
+    HVertexBuffer NewVertexbuffer(uint32_t element_size, uint32_t element_count, BufferType buffer_type, MemoryType memory_type, uint32_t buffer_count, const void* data)
+    {
+        return new VertexBuffer;
+    }
+
+    void DeleteVertexBuffer(HVertexBuffer buffer)
+    {
+        delete buffer;
+    }
+
+    HIndexBuffer NewIndexBuffer(uint32_t element_count, BufferType buffer_type, MemoryType memory_type, const void* data)
+    {
+        return new IndexBuffer;
+    }
+    void DeleteIndexBuffer(HIndexBuffer buffer)
+    {
+        delete buffer;
+    }
+
+    HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count)
+    {
+        return new VertexDeclaration;
+    }
+
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    {
+        delete vertex_declaration;
+    }
+
+    void SetVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
     }
+
+    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    {
+        assert(context);
+    }
+
 
     void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
@@ -57,6 +92,11 @@ namespace dmGraphics
     {
         assert(context);
         assert(index_buffer);
+    }
+
+    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
+    {
+        assert(context);
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)

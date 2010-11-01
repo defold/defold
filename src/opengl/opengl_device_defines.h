@@ -24,11 +24,14 @@
 
 namespace dmGraphics
 {
-    typedef uint32_t            HVertexProgram;
-    typedef uint32_t            HFragmentProgram;
-    typedef struct Context*     HContext;
-    typedef struct Device*      HDevice;
-    typedef struct Texture*     HTexture;
+    typedef uint32_t                  HVertexProgram;
+    typedef uint32_t                  HFragmentProgram;
+    typedef struct Context*           HContext;
+    typedef struct Device*            HDevice;
+    typedef struct Texture*           HTexture;
+    typedef struct VertexBuffer*      HVertexBuffer;
+    typedef struct IndexBuffer*       HIndexBuffer;
+    typedef struct VertexDeclaration* HVertexDeclaration;
 }
 
 // Primitive types

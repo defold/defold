@@ -27,6 +27,18 @@ namespace dmGraphics
         Vectormath::Aos::Matrix4 m_ViewMatrix;
     };
 
+    struct VertexDeclaration
+    {
+    };
+
+    struct VertexBuffer
+    {
+    };
+
+    struct IndexBuffer
+    {
+    };
+
 }
 
 #endif // __GRAPHICS_DEVICE_NULL__
