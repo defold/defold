@@ -42,6 +42,7 @@ namespace dmGameObject
         RESULT_COMPONENT_NOT_FOUND = -5,    //!< RESULT_COMPONENT_NOT_FOUND
         RESULT_MAXIMUM_HIEARCHICAL_DEPTH = -6, //!< RESULT_MAXIMUM_HIEARCHICAL_DEPTH
         RESULT_INVALID_OPERATION = -7,      //!< RESULT_INVALID_OPERATION
+        RESULT_RESOURCE_TYPE_NOT_FOUND = -8,    //!< RESULT_COMPONENT_TYPE_NOT_FOUND
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -246,6 +247,8 @@ namespace dmGameObject
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
         uint32_t                m_InstanceHasUserData : 1;
+        uint32_t                m_Reserved : 31;
+        uint16_t                m_UpdateOrderPrio;
     };
 
     /**
@@ -309,6 +312,14 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result RegisterComponentType(HRegister regist, const ComponentType& type);
+
+    /**
+     * Set update order priority. Zero is highest priority.
+     * @param resource_type Resource type
+     * @param prio Priority
+     * @return RESULT_OK on success
+     */
+    Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio);
 
     /**
      * Create a new gameobject instance

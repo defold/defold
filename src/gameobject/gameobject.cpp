@@ -1,4 +1,5 @@
 #include <new>
+#include <algorithm>
 #include <stdio.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -201,6 +202,17 @@ namespace dmGameObject
         return 0x0;
     }
 
+    struct ComponentTypeSortPred
+    {
+        HRegister m_Register;
+        ComponentTypeSortPred(HRegister regist) : m_Register(regist) {}
+
+        bool operator ()(const uint16_t& a, const uint16_t& b) const
+        {
+            return m_Register->m_ComponentTypes[a].m_UpdateOrderPrio < m_Register->m_ComponentTypes[b].m_UpdateOrderPrio;
+        }
+    };
+
     Result RegisterComponentType(HRegister regist, const ComponentType& type)
     {
         if (regist->m_ComponentTypeCount == MAX_COMPONENT_TYPES)
@@ -209,7 +221,30 @@ namespace dmGameObject
         if (FindComponentType(regist, type.m_ResourceType, 0x0) != 0)
             return RESULT_ALREADY_REGISTERED;
 
-        regist->m_ComponentTypes[regist->m_ComponentTypeCount++] = type;
+        regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
+        regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
+        regist->m_ComponentTypeCount++;
+        return RESULT_OK;
+    }
+
+    Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio)
+    {
+        bool found = false;
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
+        {
+            if (regist->m_ComponentTypes[i].m_ResourceType == resource_type)
+            {
+                regist->m_ComponentTypes[i].m_UpdateOrderPrio = prio;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            return RESULT_RESOURCE_TYPE_NOT_FOUND;
+        }
+
+        std::sort(regist->m_ComponentTypesOrder, regist->m_ComponentTypesOrder + regist->m_ComponentTypeCount, ComponentTypeSortPred(regist));
 
         return RESULT_OK;
     }
