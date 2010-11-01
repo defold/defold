@@ -151,6 +151,7 @@ namespace dmEngine
             dmLogError("Unable to load %s", project_file);
             return false;
         }
+        const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
 
         dmProfile::Initialize(256, 1024);
 
@@ -246,6 +247,29 @@ namespace dmEngine
         if (stat("build/default/content/reload", &file_stat) == 0)
         {
             engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+        }
+
+        if (update_order)
+        {
+            char* tmp = strdup(update_order);
+            char* s, *last;
+            s = dmStrTok(tmp, ",", &last);
+            uint16_t prio = 0;
+            while (s)
+            {
+                uint32_t type;
+                fact_result = dmResource::GetTypeFromExtension(engine->m_Factory, s, &type);
+                if (fact_result == dmResource::FACTORY_RESULT_OK)
+                {
+                    dmGameObject::SetUpdateOrderPrio(engine->m_Register, type, prio++);
+                }
+                else
+                {
+                    dmLogError("Unknown resource-type extension for update_order: %s", s);
+                }
+                s = dmStrTok(0, ",", &last);
+            }
+            free(tmp);
         }
 
         dmConfigFile::Delete(config);

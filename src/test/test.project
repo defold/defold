@@ -10,3 +10,5 @@ gamepads = default.gamepadsc
 game_binding = default.input_bindingc
 [resource]
 uri = build/default/src/test
+[gameobject]
+update_order = spawnpointc,wavc,guic,emitterc,collisionobjectc,camerac,scriptc,modelc,lightc
