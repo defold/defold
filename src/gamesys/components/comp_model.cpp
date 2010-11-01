@@ -3,6 +3,7 @@
 #include <dlib/hash.h>
 
 #include <render/render.h>
+#include <render/mesh_ddf.h>
 #include <render/model/model.h>
 #include <render/model_ddf.h>
 

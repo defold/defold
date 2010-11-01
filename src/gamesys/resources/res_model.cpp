@@ -1,5 +1,6 @@
 #include "res_model.h"
 
+#include <render/mesh_ddf.h>
 #include <render/model/model.h>
 #include <render/model_ddf.h>
 
