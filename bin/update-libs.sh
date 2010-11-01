@@ -1,5 +1,5 @@
 #! /bin/bash
-LIBS="dlib ddf graphics hid input physics resource render particle lua script gameobject gui sound gamesys tools engine"
+LIBS="dlib ddf particle graphics hid input physics resource render lua script gameobject gui sound gamesys tools engine"
 
 set -e
 [ -z $DYNAMO_HOME ] && echo "DYNAMO_HOME not set" && exit 1
