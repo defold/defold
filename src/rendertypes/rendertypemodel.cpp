@@ -81,7 +81,7 @@ namespace dmRender
 
 
         dmGraphics::SetVertexDeclaration(context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
-        dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
+        dmGraphics::DrawRangeElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
         dmGraphics::DisableVertexDeclaration(context, dmModel::GetVertexDeclarationBuffer(mesh));
 
     }
