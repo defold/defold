@@ -14,7 +14,7 @@ namespace dmScript
 #define LIB_NAME "pickle"
 const uint32_t MAX_PICKLE_BUFFER_SIZE =  64 * 1024;
 
-    int Script_Dumps(lua_State* L)
+    int Pickle_Dumps(lua_State* L)
     {
         char buffer[MAX_PICKLE_BUFFER_SIZE];
         // NOTE: This should not be required but lua seems to overfetch. Related to lua_pushlstring below.
@@ -25,7 +25,7 @@ const uint32_t MAX_PICKLE_BUFFER_SIZE =  64 * 1024;
         return 1;
     }
 
-    int Script_Loads(lua_State* L)
+    int Pickle_Loads(lua_State* L)
     {
         const char* buf = luaL_checkstring(L, 1);
         PushTable(L, buf);
@@ -34,8 +34,8 @@ const uint32_t MAX_PICKLE_BUFFER_SIZE =  64 * 1024;
 
     static const luaL_reg ScriptPickle_methods[] =
     {
-        {"dumps", Script_Dumps},
-        {"loads", Script_Loads},
+        {"dumps", Pickle_Dumps},
+        {"loads", Pickle_Loads},
         {0, 0}
     };
 
