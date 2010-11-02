@@ -41,10 +41,6 @@ function test_pickle1()
     assert(t['a'] == t_prim['a'])
     assert(t['b'] == t_prim['b'])
     assert(t['c'] == t_prim['c'])
-
-    local f = io.open("/tmp/foobar", "w")
-    f:write(pickle.dumps(t))
-    f:close()
 end
 
 function table_count(t)

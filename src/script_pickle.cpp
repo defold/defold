@@ -17,6 +17,8 @@ const uint32_t MAX_PICKLE_BUFFER_SIZE =  64 * 1024;
     int Script_Dumps(lua_State* L)
     {
         char buffer[MAX_PICKLE_BUFFER_SIZE];
+        // NOTE: This should not be required but lua seems to overfetch. Related to lua_pushlstring below.
+        memset(buffer, 0x00, sizeof(buffer));
         luaL_checktype(L, 1, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 1);
         lua_pushlstring(L, buffer, n_used);
