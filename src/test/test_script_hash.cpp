@@ -84,6 +84,7 @@ TEST_F(ScriptHashTest, TestHash)
     if (result == LUA_ERRRUN)
     {
         dmLogError("Error running script: %s", lua_tostring(L,-1));
+        ASSERT_TRUE(false);
         lua_pop(L, 1);
     }
     else
