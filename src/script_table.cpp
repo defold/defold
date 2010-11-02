@@ -285,7 +285,7 @@ namespace dmScript
                     }
                     else
                     {
-                        assert(0);
+                        luaL_error(L, "Invalid user data");
                     }
                 }
                 break;
@@ -297,7 +297,7 @@ namespace dmScript
                 break;
 
                 default:
-                    assert(0);
+                    luaL_error(L, "Invalid table buffer");
             }
             lua_setfield(L, -2, key);
         }
