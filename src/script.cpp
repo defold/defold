@@ -2,6 +2,7 @@
 
 #include "script_hash.h"
 #include "script_vmath.h"
+#include "script_sys.h"
 #include "script_pickle.h"
 
 extern "C"
@@ -16,6 +17,7 @@ namespace dmScript
     {
         InitializeHash(L);
         InitializeVmath(L);
+        InitializeSys(L);
         InitializePickle(L);
     }
 }

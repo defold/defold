@@ -64,3 +64,13 @@ def build(bld):
                                           source = 'test_script_pickle.cpp test_pickle.lua')
 
     test_script_pickle.install_path = None
+
+    test_script_sys = bld.new_task_gen(features = 'cxx cprogram',
+                                       includes = '..',
+                                       uselib = 'GTEST DDF DLIB LUA',
+                                       uselib_local = 'script',
+                                       proto_gen_py = True,
+                                       target = 'test_script_sys',
+                                       source = 'test_script_sys.cpp test_sys.lua')
+
+    test_script_sys.install_path = None

@@ -6,7 +6,7 @@ APPNAME='script'
 srcdir = '.'
 blddir = 'build'
 
-import sys
+import sys, os
 import waf_dynamo, waf_ddf
 
 def init():
@@ -48,4 +48,5 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
+    os.environ['DM_SAVEGAME_HOME'] = 'build'
     waf_dynamo.run_gtests(valgrind = True)
