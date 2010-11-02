@@ -1060,7 +1060,8 @@ namespace dmGameObject
         uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            ComponentType* component_type = &reg->m_ComponentTypes[i];
+            uint16_t update_index = reg->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &reg->m_ComponentTypes[update_index];
             DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
             {
@@ -1071,7 +1072,7 @@ namespace dmGameObject
                     const UpdateContext* update_context = 0x0;
                     if (update_contexts != 0)
                         update_context = &update_contexts[j];
-                    UpdateResult res = component_type->m_UpdateFunction(collections[j], update_context, collections[j]->m_ComponentWorlds[i], component_type->m_Context);
+                    UpdateResult res = component_type->m_UpdateFunction(collections[j], update_context, collections[j]->m_ComponentWorlds[update_index], component_type->m_Context);
                     if (res != UPDATE_RESULT_OK)
                         ret = false;
                 }

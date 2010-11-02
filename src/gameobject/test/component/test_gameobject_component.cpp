@@ -17,6 +17,7 @@ protected:
     {
         dmGameObject::Initialize();
 
+        m_UpdateCount = 0;
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
@@ -53,6 +54,7 @@ protected:
         a_type.m_UpdateFunction = AComponentsUpdate;
         a_type.m_InstanceHasUserData = true;
         result = dmGameObject::RegisterComponentType(m_Register, a_type);
+        dmGameObject::SetUpdateOrderPrio(m_Register, resource_type, 2);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // B has *not* component_user_data
@@ -67,6 +69,7 @@ protected:
         b_type.m_DestroyFunction = BComponentDestroy;
         b_type.m_UpdateFunction = BComponentsUpdate;
         result = dmGameObject::RegisterComponentType(m_Register, b_type);
+        dmGameObject::SetUpdateOrderPrio(m_Register, resource_type, 1);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         // C has component_user_data
@@ -82,6 +85,7 @@ protected:
         c_type.m_UpdateFunction = CComponentsUpdate;
         c_type.m_InstanceHasUserData = true;
         result = dmGameObject::RegisterComponentType(m_Register, c_type);
+        dmGameObject::SetUpdateOrderPrio(m_Register, resource_type, 0);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
         m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1000000;
@@ -117,7 +121,7 @@ protected:
     static dmGameObject::ComponentsUpdate CComponentsUpdate;
 
 public:
-
+    uint32_t                     m_UpdateCount;
     std::map<uint64_t, uint32_t> m_CreateCountMap;
     std::map<uint64_t, uint32_t> m_DestroyCountMap;
 
@@ -126,6 +130,8 @@ public:
     std::map<uint64_t, uint32_t> m_ComponentDestroyCountMap;
     std::map<uint64_t, uint32_t> m_ComponentUpdateCountMap;
     std::map<uint64_t, uint32_t> m_MaxComponentCreateCountMap;
+
+    std::map<uint64_t, uint32_t> m_ComponentUpdateOrderMap;
 
     std::map<uint64_t, int>      m_ComponentUserDataAcc;
 
@@ -210,6 +216,7 @@ static dmGameObject::UpdateResult GenericComponentsUpdate(dmGameObject::HCollect
 {
     ComponentTest* game_object_test = (ComponentTest*) context;
     game_object_test->m_ComponentUpdateCountMap[T::m_DDFHash]++;
+    game_object_test->m_ComponentUpdateOrderMap[T::m_DDFHash] = game_object_test->m_UpdateCount++;
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
@@ -346,6 +353,17 @@ TEST_F(ComponentTest, TestComponentUserdata)
     ASSERT_EQ(0, m_ComponentUserDataAcc[TestGameObjectDDF::BResource::m_DDFHash]);
     // Three c:s
     ASSERT_EQ(30, m_ComponentUserDataAcc[TestGameObjectDDF::CResource::m_DDFHash]);
+}
+
+TEST_F(ComponentTest, TestUpdateOrder)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    bool ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
+    ASSERT_TRUE(ret);
+    ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentUpdateOrderMap[TestGameObjectDDF::BResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 0, m_ComponentUpdateOrderMap[TestGameObjectDDF::CResource::m_DDFHash]);
 }
 
 int main(int argc, char **argv)
