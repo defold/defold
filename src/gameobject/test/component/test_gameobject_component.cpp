@@ -10,18 +10,6 @@
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 
-//#include <algorithm>
-//#include <map>
-//#include <dlib/hash.h>
-//#include <dlib/message.h>
-//#include <dlib/dstrings.h>
-//#include <dlib/time.h>
-//#include <dlib/log.h>
-//#include "../gameobject_private.h"
-//#include "../proto/gameobject_ddf.h"
-
-//using namespace Vectormath::Aos;
-
 class ComponentTest : public ::testing::Test
 {
 protected:
