@@ -242,26 +242,6 @@ TEST_F(LuaTableTest, Quat)
 }
 
 
-TEST_F(LuaTableTest, UnsupportedType)
-{
-    // Create table
-    lua_newtable(L);
-    lua_newtable(L);
-    lua_setfield(L, -2, "foo");
-
-    char buf[256];
-    int ret = setjmp(env);
-    if (ret == 0)
-    {
-        accept_panic = true;
-        dmScript::CheckTable(L, buf, sizeof(buf), -1);
-        ASSERT_TRUE(0); // Never reached due to error
-    }
-    else
-    {
-        lua_pop(L, 1);
-    }
-}
 
 static std::string RandomString(int max_len)
 {

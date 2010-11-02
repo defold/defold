@@ -41,7 +41,7 @@ namespace dmScript
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
-        if (buffer_size == 0)
+        if (buffer_size < 1)
         {
             luaL_error(L, "table too large");
         }
@@ -187,13 +187,20 @@ namespace dmScript
                     }
                     else
                     {
-                        luaL_error(L, "unsupported value type in table", lua_typename(L, value_type));
+                        luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
                     }
                 }
                 break;
 
+                case LUA_TTABLE:
+                {
+                    uint32_t n_used = CheckTable(L, buffer, buffer_end - buffer, -1);
+                    buffer += n_used;
+                }
+                break;
+
                 default:
-                    luaL_error(L, "unsupported value type in table", lua_typename(L, value_type));
+                    luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
             }
 
             lua_pop(L, 1);
@@ -205,7 +212,7 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
-    void PushTable(lua_State*L, const char* buffer)
+    int DoPushTable(lua_State*L, const char* buffer)
     {
         const char* buffer_start = buffer;
         uint32_t count = (uint32_t) (*buffer++);
@@ -282,13 +289,27 @@ namespace dmScript
                     }
                 }
                 break;
+                case LUA_TTABLE:
+                {
+                    int n_consumed = DoPushTable(L, buffer);
+                    buffer += n_consumed;
+                }
+                break;
 
                 default:
                     assert(0);
             }
             lua_setfield(L, -2, key);
         }
+
+        return buffer - buffer_start;
     }
+
+    void PushTable(lua_State*L, const char* buffer)
+    {
+        DoPushTable(L, buffer);
+    }
+
 }
 
 
