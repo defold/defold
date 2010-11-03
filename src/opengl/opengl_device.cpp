@@ -36,7 +36,6 @@ typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboo
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
-typedef void (APIENTRY * PFNGLDRAWRANGEELEMENTSPROC) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -340,7 +339,7 @@ namespace dmGraphics
         assert(vertex_declaration);
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
-        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer->m_VboId);
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer->m_VboId);
         CHECK_GL_ERROR
 
 
@@ -410,7 +409,7 @@ namespace dmGraphics
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer->m_VboId);
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer->m_VboId);
         CHECK_GL_ERROR
 
         glDrawRangeElements(prim_type, start, 100000, count*3, type, 0);
