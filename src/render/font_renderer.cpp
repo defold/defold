@@ -1,3 +1,5 @@
+#include "font_renderer.h"
+
 #include <string.h>
 #include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
@@ -8,10 +10,8 @@
 
 #include <graphics/graphics_device.h>
 
-#include "fontrenderer.h"
+#include "render_private.h"
 #include "render/render_ddf.h"
-//#include "render.h"
-#include "rendertypes/rendertypetext.h"
 
 using namespace Vectormath::Aos;
 
@@ -32,16 +32,11 @@ namespace dmRender
 
     struct SFontRenderer
     {
-        ~SFontRenderer()
-        {
-        }
-
-        SFont*                    m_Font;
-        dmArray<SFontVertex>      m_Vertices;
-        uint32_t                  m_MaxCharacters;
-        dmRender::HRenderWorld    m_RenderWorld;
-        dmRender::HRenderWorld    m_RenderCollection;
-        dmRender::HRenderObject   m_RenderObject;
+        dmRender::HRenderContext    m_RenderContext;
+        SFont*                      m_Font;
+        dmArray<SFontVertex>        m_Vertices;
+        uint32_t                    m_MaxCharacters;
+        dmRender::HRenderObject     m_RenderObject;
         dmGraphics::HVertexBuffer m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDecl;
     };
@@ -104,19 +99,16 @@ namespace dmRender
         delete font;
     }
 
-    HFontRenderer NewFontRenderer(HFont font, void* renderworld,
+    HFontRenderer NewFontRenderer(HRenderContext render_context, HFont font,
                                   uint32_t width, uint32_t height,
                                   uint32_t max_characters)
     {
-        dmRender::HRenderWorld collection = dmRender::NewRenderWorld(100, 10, 0x0);
-
         SFontRenderer* fr = new SFontRenderer();
+        fr->m_RenderContext = render_context;
         fr->m_Vertices.SetCapacity(max_characters*6);
         fr->m_Font = font;
         fr->m_MaxCharacters = max_characters;
-        fr->m_RenderCollection = collection;
-        fr->m_RenderWorld = (dmRender::HRenderWorld)renderworld;
-        fr->m_RenderObject = dmRender::NewRenderObject((dmRender::HRenderWorld)collection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_TEXT);
+        fr->m_RenderObject = dmRender::NewRenderObject(render_context->m_TextRenderType, font->m_Material, 0x0);
         fr->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(SFontVertex), max_characters*6, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN,1, 0x0);
 
         dmGraphics::VertexElement ve[] =
@@ -132,8 +124,7 @@ namespace dmRender
 
     void DeleteFontRenderer(HFontRenderer renderer)
     {
-        dmRender::DeleteRenderObject(renderer->m_RenderCollection, renderer->m_RenderObject);
-        dmRender::DeleteRenderWorld(renderer->m_RenderCollection);
+        dmRender::DeleteRenderObject(renderer->m_RenderObject);
         dmGraphics::DeleteVertexBuffer(renderer->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(renderer->m_VertexDecl);
         delete renderer;
@@ -216,11 +207,75 @@ namespace dmRender
         if (renderer->m_Vertices.Size() == 0)
             return;
 
+        dmRender::SetUserData(renderer->m_RenderObject, renderer);
 
-        dmRender::SetData(renderer->m_RenderObject, renderer->m_Font);
-        dmRender::SetGameObject(renderer->m_RenderObject, &renderer->m_Vertices);
-
-        dmRender::AddToRender(renderer->m_RenderCollection, renderer->m_RenderWorld);
+        dmRender::AddToRender(renderer->m_RenderContext, renderer->m_RenderObject);
     }
 
+    void RenderTypeTextBegin(HRenderContext render_context)
+    {
+        (void)render_context;
+    }
+
+    void RenderTypeTextDraw(HRenderContext rendercontext, HRenderObject ro, uint32_t count)
+    {
+        HFontRenderer renderer = (HFontRenderer)dmRender::GetUserData(ro);
+        HFont font = renderer->m_Font;
+        dmArray<SFontVertex>* vertex_data = &renderer->m_Vertices;
+
+        if (!font || !vertex_data || vertex_data->Size() == 0)
+            return;
+
+        SFontVertex* data = &vertex_data->Front();
+        float* pos = data->m_Position;
+        float* colour = data->m_Colour;
+        float* uv = data->m_UV;
+
+
+        dmGraphics::HContext context = rendercontext->m_GFXContext;
+        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
+        dmGraphics::EnableState(context, dmGraphics::BLEND);
+
+
+        Matrix4 ident = Matrix4::identity();
+
+        dmGraphics::HMaterial material = GetMaterial(font);
+        dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(material));
+        dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material));
+
+        Matrix4 mat = Matrix4::orthographic( 0, 960, 540, 0, 10, -10 );
+
+        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);
+        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
+
+        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT,
+                           sizeof(SFontVertex),
+                           (void*) pos);
+
+        dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT,
+                           sizeof(SFontVertex),
+                           (void*) uv);
+
+        dmGraphics::SetVertexStream(context, 2, 4, dmGraphics::TYPE_FLOAT,
+                           sizeof(SFontVertex),
+                           (void*) colour);
+
+        dmGraphics::SetTexture(context, GetTexture(font));
+
+        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
+        dmGraphics::EnableState(context, dmGraphics::BLEND);
+
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
+
+        dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::BLEND);
+
+        dmGraphics::DisableVertexStream(context, 0);
+        dmGraphics::DisableVertexStream(context, 1);
+        dmGraphics::DisableVertexStream(context, 2);
+
+        vertex_data->SetSize(0);
+    }
 }

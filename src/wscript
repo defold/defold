@@ -20,16 +20,8 @@ def build(bld):
                            ddf_jar = 'render.jar',
                            install_path='${PREFIX}/lib')
 
-    obj.find_sources_in_dirs('. ../proto/render model render rendertypes', exts = ['.cpp', '.proto'])
+    obj.find_sources_in_dirs('. ../proto/render model render', exts = ['.cpp', '.proto'])
     #obj.source.append('../proto/render_ddf.proto')
-
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = '.',
-                           proto_gen_py = True,
-                           target = 'render_debug',
-                           install_path='${PREFIX}/lib')
-    obj.find_sources_in_dirs('debug')
-
 
     classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
                  bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
@@ -47,11 +39,10 @@ def build(bld):
                      basedir='java',
                      destfile='fontc.jar')
 
-    bld.install_files('${PREFIX}/include/render', 'fontrenderer.h')
-    bld.install_files('${PREFIX}/include/render_debug', 'debug/debugrenderer.h')
+    bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
+    bld.install_files('${PREFIX}/include/render', 'render/debug_renderer.h')
     bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
-    bld.install_files('${PREFIX}/include/render', 'rendertypes/rendertypedata.h')
 
     bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/share/java', 'fontc.jar')

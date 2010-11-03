@@ -2,10 +2,13 @@
 #define FONTRENDERER_H
 
 #include <stdint.h>
+
 #include <ddf/ddf.h>
+
 #include <graphics/graphics_device.h>
 #include <graphics/material.h>
-#include <render/render.h>
+
+#include "render.h"
 
 namespace dmRender
 {
@@ -85,7 +88,7 @@ namespace dmRender
      * @return Font renderer handle
      *
      */
-    HFontRenderer NewFontRenderer(HFont font, void* render_world,
+    HFontRenderer NewFontRenderer(HRenderContext render_context, HFont font,
                                   uint32_t width, uint32_t height,
                                   uint32_t max_characters);
     /**
@@ -111,7 +114,6 @@ namespace dmRender
      * @param renderer Font renderer handle
      */
     void FontRendererFlush(HFontRenderer renderer);
-
 }
 
 #endif // FONTRENDERER_H

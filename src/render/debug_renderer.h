@@ -1,42 +1,28 @@
-#ifndef DEBUGRENDERER_H
-#define DEBUGRENDERER_H_
+#ifndef DM_RENDER_DEBUG_RENDERER_H
+#define DM_RENDER_DEBUG_RENDERER_H_
 
 #include <vectormath/cpp/vectormath_aos.h>
+
 #include <graphics/graphics_device.h>
 
+#include "render.h"
 
-using namespace Vectormath::Aos;
-
-namespace dmRenderDebug
+namespace dmRender
 {
+    using namespace Vectormath::Aos;
 
     /**
      * Initialize debug render system
      * @param renderworld Global renderworld to add entities to
      */
-    void Initialize(dmRender::HRenderWorld renderworld);
+    void InitializeDebugRenderer(dmRender::HRenderContext render_context, dmGraphics::HMaterial material);
 
     /**
      * Finalize debug render system
      */
-    void Finalize();
+    void FinalizeDebugRenderer();
 
-    /**
-     * Update debug render system. Should be used to send a heart-beat every frame
-     */
-    void Update();
-
-    /**
-     * SetFragmentProgram Assign a fragment program to renderer
-     * @param program Fragment program
-     */
-    void SetFragmentProgram(dmGraphics::HFragmentProgram program);
-
-    /**
-     * SetVertexProgram Assign a vertex program to renderer
-     * @param program Vertex program
-     */
-    void SetVertexProgram(dmGraphics::HVertexProgram program);
+    void ClearDebugRenderObjects();
 
     /**
      * Square Render debug square (2D)
@@ -87,4 +73,4 @@ namespace dmRenderDebug
 
 }
 
-#endif // DEBUGRENDERER_H
+#endif // DM_RENDER_DEBUG_RENDERER_H

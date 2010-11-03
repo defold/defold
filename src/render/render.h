@@ -6,6 +6,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/container.h>
 #include <graphics/graphics_device.h>
+#include <graphics/material.h>
 
 namespace dmRender
 {
@@ -14,18 +15,8 @@ namespace dmRender
     enum Result
     {
         RESULT_OK = 0,
-        RESULT_INVALID_WORLD = -1,
+        RESULT_INVALID_CONTEXT = -1,
     };
-
-
-	enum RenderObjectType
-	{
-		RENDEROBJECT_TYPE_MODEL = 0,
-		RENDEROBJECT_TYPE_PARTICLE = 1,
-		RENDEROBJECT_TYPE_TEXT = 2,
-		RENDEROBJECT_TYPE_PARTICLESETUP = 3,
-		RENDEROBJECT_TYPE_MAX
-	};
 
     enum ColorType
     {
@@ -36,95 +27,61 @@ namespace dmRender
         MAX_COLOR
     };
 
-    struct RenderContext
+    struct Predicate
     {
-        Matrix4                     m_View;
-        Matrix4                     m_Projection;
-        Matrix4                     m_ViewProj;
-        Point3                      m_CameraPosition;
-
-        dmGraphics::HContext        m_GFXContext;
+        uint32_t m_Tags[16];
+        uint32_t m_TagCount;
     };
 
+    typedef struct RenderContext* HRenderContext;
     typedef struct RenderObject* HRenderObject;
-    typedef struct RenderWorld* HRenderWorld;
-    typedef struct RenderPass* HRenderPass;
-    typedef void (*SetObjectModel)(void* context, void* gameobject, Quat* rotation, Point3* position);
+    typedef void (*SetObjectModel)(void* visual_object, Quat* rotation, Point3* position);
 
-    typedef void (*RenderTypeInstanceFunc)(const RenderContext* rendercontext, const HRenderObject* ro, uint32_t count);
-    typedef void (*RenderTypeOnceFunc)(const RenderContext* rendercontext);
+    typedef void (*RenderTypeBeginCallback)(HRenderContext render_context);
+    typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, HRenderObject ro, uint32_t count);
+    typedef void (*RenderTypeEndCallback)(HRenderContext render_context);
 
-
-
-    struct RenderPassDesc
+    struct RenderType
     {
-        RenderPassDesc(){}
-        RenderPassDesc(const char* name, void* userdata, uint32_t index, uint32_t capacity, uint64_t predicate, void (*beginfunc)(const dmRender::RenderContext* rendercontext, const void* userdata), void (*endfunc)(const dmRender::RenderContext* rendercontext, const void* userdata))
-        {
-            strncpy(m_Name, name, sizeof(m_Name));
-            m_Predicate = predicate;
-            m_UserData = userdata;
-            m_Index = index;
-            m_Capacity = capacity;
-            m_BeginFunc = beginfunc;
-            m_EndFunc = endfunc;
-        }
-
-        char        m_Name[128];
-        uint64_t    m_Predicate;
-        void*       m_UserData;
-        uint32_t    m_Index;
-        uint32_t    m_Capacity;
-        void        (*m_BeginFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
-        void        (*m_EndFunc)(const dmRender::RenderContext* rendercontext, const void* userdata);
+        RenderTypeBeginCallback m_BeginCallback;
+        RenderTypeDrawCallback  m_DrawCallback;
+        RenderTypeEndCallback   m_EndCallback;
     };
+    typedef uint32_t HRenderType;
 
+    static const HRenderObject INVALID_RENDER_OBJECT_HANDLE = 0;
+    static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
-    HRenderWorld NewRenderWorld(uint32_t max_instances, uint32_t max_renderpasses, SetObjectModel set_object_model);
-    Result DeleteRenderWorld(HRenderWorld world);
-    Result ClearWorld(HRenderWorld world);
-    Result AddRenderPass(HRenderWorld world, HRenderPass renderpass);
+    HRenderContext NewRenderContext(uint32_t max_render_types, uint32_t max_instances, SetObjectModel set_object_model);
+    Result DeleteRenderContext(HRenderContext render_context);
 
-    Result AddToRender(HRenderWorld local_world, HRenderWorld world);
-    Result RegisterRenderer(HRenderWorld world, uint32_t type, RenderTypeOnceFunc rendertype_setup, RenderTypeInstanceFunc rendertype_instance, RenderTypeOnceFunc rendertype_end);
+    Result RegisterRenderType(HRenderContext render_context, RenderType render_type, HRenderType* out_render_type);
 
+    dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
-    Result Update(HRenderWorld world, float dt);
-    void UpdateContext(HRenderWorld world, RenderContext* rendercontext);
-    HRenderObject NewRenderObject(HRenderWorld world, void* resource, void* go, uint64_t mask, uint32_t type);
-    void DeleteRenderObject(HRenderWorld world, HRenderObject ro);
-    void SetData(HRenderObject ro, void* data);
-    void SetGameObject(HRenderObject ro, void* go);
+    Matrix4* GetViewProjectionMatrix(HRenderContext render_context);
+    void SetViewMatrix(HRenderContext render_context, const Matrix4& view);
+    void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection);
 
-    void Disable(HRenderObject ro);
-    void Enable(HRenderObject ro);
-    bool IsEnabled(HRenderObject ro);
+    Result AddToRender(HRenderContext context, HRenderObject ro);
+    Result ClearRenderObjects(HRenderContext context);
 
-    void SetPosition(HRenderObject ro, Point3 pos);
-    void SetRotation(HRenderObject ro, Quat rot);
-    void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
-    void SetSize(HRenderObject ro, Vector3 size);
+    Result Draw(HRenderContext context, const Predicate* predicate);
+
+    HRenderObject NewRenderObject(HRenderType render_type, dmGraphics::HMaterial material, void* visual_object);
+    void DeleteRenderObject(HRenderObject ro);
+
+    void* GetUserData(HRenderObject ro);
+    void SetUserData(HRenderObject ro, void* user_data);
 
     Point3 GetPosition(HRenderObject ro);
+    void SetPosition(HRenderObject ro, Point3 pos);
     Quat GetRotation(HRenderObject ro);
+    void SetRotation(HRenderObject ro, Quat rot);
     Vector4 GetColor(HRenderObject ro, ColorType color_type);
+    void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
     Vector3 GetSize(HRenderObject ro);
-    void* GetData(HRenderObject ro);
-    uint32_t GetUserData(HRenderObject ro, uint32_t index);
-    void SetUserData(HRenderObject ro, uint32_t index, uint32_t value);
-
-
-    void SetViewProjectionMatrix(HRenderPass renderpass, Matrix4* viewprojectionmatrix);
-
-    HRenderPass NewRenderPass(RenderPassDesc* desc);
-    void DeleteRenderPass(HRenderPass renderpass);
-    void AddRenderObject(HRenderPass renderpass, HRenderObject renderobject);
-    void SetViewMatrix(HRenderPass renderpass, Matrix4* viewmatrix);
-    void SetProjectionMatrix(HRenderPass renderpass, Matrix4* projectionmatrix);
-
-    void DisableRenderPass(HRenderPass renderpass);
-    void EnableRenderPass(HRenderPass renderpass);
-
+    void SetSize(HRenderObject ro, Vector3 size);
 }
 
 #endif /* RENDER_H */
