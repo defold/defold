@@ -160,7 +160,7 @@ namespace dmEngine
             lua_pop(L, 1);
         }
 
-        dmGraphics::Clear(i->m_RenderContext->m_GFXContext, flags, (uint8_t)(color.getX() * 255.0f), (uint8_t)(color.getY() * 255.0f), (uint8_t)(color.getZ() * 255.0f), (uint8_t)(color.getW() * 255.0f), depth, stencil);
+        dmGraphics::Clear(dmRender::GetGraphicsContext(i->m_RenderContext), flags, (uint8_t)(color.getX() * 255.0f), (uint8_t)(color.getY() * 255.0f), (uint8_t)(color.getZ() * 255.0f), (uint8_t)(color.getW() * 255.0f), depth, stencil);
 
         assert(top == lua_gettop(L));
 
@@ -184,8 +184,7 @@ namespace dmEngine
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 2);
-        i->m_RenderContext->m_View = view;
-        i->m_RenderContext->m_ViewProj = i->m_RenderContext->m_Projection * view;
+        dmRender::SetViewMatrix(i->m_RenderContext, view);
         return 0;
     }
 
@@ -193,8 +192,7 @@ namespace dmEngine
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 2);
-        i->m_RenderContext->m_Projection = projection;
-        i->m_RenderContext->m_ViewProj = projection * i->m_RenderContext->m_View;
+        dmRender::SetProjectionMatrix(i->m_RenderContext, projection);
         return 0;
     }
 

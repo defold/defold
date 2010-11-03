@@ -12,9 +12,11 @@
 
 #include <sound/sound.h>
 
+#include <graphics/material.h>
+
 #include <render/model_ddf.h>
 #include <render/render_ddf.h>
-#include <render_debug/debugrenderer.h>
+#include <render/debug_renderer.h>
 
 #include <gui/gui.h>
 
@@ -50,11 +52,10 @@ namespace dmEngine
         dmGameObject::SetRotation(instance, rotation);
     }
 
-    void SetObjectModel(void* context, void* gameobject, Quat* rotation,
-            Point3* position)
+    void SetObjectModel(void* visual_object, Quat* rotation, Point3* position)
     {
-        if (!gameobject) return;
-        dmGameObject::HInstance go = (dmGameObject::HInstance) gameobject;
+        if (!visual_object) return;
+        dmGameObject::HInstance go = (dmGameObject::HInstance) visual_object;
         *position = dmGameObject::GetWorldPosition(go);
         *rotation = dmGameObject::GetWorldRotation(go);
     }
@@ -80,12 +81,9 @@ namespace dmEngine
     , m_FontRenderer(0x0)
     , m_SmallFont(0x0)
     , m_SmallFontRenderer(0x0)
-    , m_RenderdebugVertexProgram(0x0)
-    , m_RenderdebugFragmentProgram(0x0)
+    , m_DebugMaterial(0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
-    , m_RenderWorld(0x0)
-    , m_RenderPass(0x0)
     {
         m_Register = dmGameObject::NewRegister(Dispatch, this);
         m_Collections.SetCapacity(16, 32);
@@ -118,7 +116,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRenderDebug::Finalize();
+        dmRender::FinalizeDebugRenderer();
         dmEngine::FinalizeRenderScript();
 
         dmHID::Finalize();
@@ -181,28 +179,19 @@ namespace dmEngine
         dmSound::InitializeParams sound_params;
         dmSound::Initialize(config, &sound_params);
 
-        engine->m_RenderWorld = dmRender::NewRenderWorld(100, 100, 0x0);
-        engine->m_RenderContext.m_GFXContext = dmGraphics::GetContext();
+        engine->m_RenderContext = dmRender::NewRenderContext(16, 1000, SetObjectModel);
 
-        engine->m_EmitterContext.m_RenderContext = &engine->m_RenderContext;
+        engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
         engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
         engine->m_EmitterContext.m_MaxParticleCount = dmConfigFile::GetInt(config, dmParticle::MAX_PARTICLE_COUNT_KEY, 0);
         engine->m_EmitterContext.m_Debug = false;
-        engine->m_EmitterContext.m_RenderWorld = engine->m_RenderWorld;
 
         const uint32_t max_resources = 256;
-
-        dmRenderDebug::Initialize(engine->m_RenderWorld);
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max_resources;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
-
-
-        dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 1000, 1, 0x0, 0x0);
-        engine->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
-        dmRender::AddRenderPass(engine->m_RenderWorld, engine->m_RenderPass);
 
         dmEngine::InitializeRenderScript();
 
@@ -227,7 +216,7 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, &engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, engine->m_RenderWorld);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -236,6 +225,8 @@ namespace dmEngine
             dmLogWarning("Unable to load bootstrap data.");
             goto bail;
         }
+
+        dmRender::InitializeDebugRenderer(engine->m_RenderContext, engine->m_DebugMaterial);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
@@ -402,13 +393,9 @@ bail:
 
                 dmGameObject::UpdateContext update_contexts[2];
                 update_contexts[0].m_DT = dt;
-                update_contexts[0].m_ViewProj = engine->m_RenderContext.m_ViewProj;
                 update_contexts[1].m_DT = fixed_dt;
-                update_contexts[1].m_ViewProj = engine->m_RenderContext.m_ViewProj;
                 dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
                 dmGameObject::Update(collections, update_contexts, 2);
-
-                dmGameObject::PostUpdate(collections, 2);
 
                 if (engine->m_ShowFPS)
                 {
@@ -432,10 +419,13 @@ bail:
             if (engine->m_ShowProfile)
                 dmProfileRender::Draw(engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
 
+            dmRender::Draw(engine->m_RenderContext, 0x0);
 
-            dmRender::SetViewProjectionMatrix(engine->m_RenderPass, &engine->m_RenderContext.m_ViewProj);
-            dmRenderDebug::Update();
-            dmRender::Update(engine->m_RenderWorld, 0.0f);
+            dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
+            dmGameObject::PostUpdate(collections, 2);
+
+            dmRender::ClearRenderObjects(engine->m_RenderContext);
+            dmRender::ClearDebugRenderObjects();
             dmGraphics::Flip();
 
             uint64_t new_time_stamp, delta;
@@ -570,7 +560,7 @@ bail:
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {
             dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*) instance_message_data->m_Buffer;
-            dmRenderDebug::Line3D(dl->m_StartPoint, dl->m_EndPoint, dl->m_Color);
+            dmRender::Line3D(dl->m_StartPoint, dl->m_EndPoint, dl->m_Color);
         }
         else if (instance_message_data->m_DDFDescriptor == dmEngineDDF::SetTimeStep::m_DDFDescriptor)
         {
@@ -697,19 +687,16 @@ bail:
             return false;
         }
 
-        engine->m_FontRenderer = dmRender::NewFontRenderer(engine->m_Font, engine->m_RenderWorld, engine->m_ScreenWidth,
+        engine->m_FontRenderer = dmRender::NewFontRenderer(engine->m_RenderContext, engine->m_Font, engine->m_ScreenWidth,
             engine->m_ScreenHeight, 2048 * 4);
-        engine->m_SmallFontRenderer = dmRender::NewFontRenderer(engine->m_SmallFont, engine->m_RenderWorld, engine->m_ScreenWidth,
+        engine->m_SmallFontRenderer = dmRender::NewFontRenderer(engine->m_RenderContext, engine->m_SmallFont, engine->m_ScreenWidth,
             engine->m_ScreenHeight, 2048 * 4);
 
-        // debug renderer needs vertex/fragment programs, load them here (perhaps they need to be moved into render/debug?)
-        engine->m_RenderdebugVertexProgram = dmGraphics::CreateVertexProgram((const void*) ::DEBUG_ARBVP, ::DEBUG_ARBVP_SIZE);
-        assert(engine->m_RenderdebugVertexProgram);
-        dmRenderDebug::SetVertexProgram(engine->m_RenderdebugVertexProgram);
-
-        engine->m_RenderdebugFragmentProgram = dmGraphics::CreateFragmentProgram((const void*) ::DEBUG_ARBFP, ::DEBUG_ARBFP_SIZE);
-        assert(engine->m_RenderdebugFragmentProgram);
-        dmRenderDebug::SetFragmentProgram(engine->m_RenderdebugFragmentProgram);
+        engine->m_DebugMaterial = dmGraphics::NewMaterial();
+        dmGraphics::HVertexProgram debug_vertex_program = dmGraphics::CreateVertexProgram((const void*) ::DEBUG_ARBVP, ::DEBUG_ARBVP_SIZE);
+        dmGraphics::SetMaterialVertexProgram(engine->m_DebugMaterial, debug_vertex_program);
+        dmGraphics::HFragmentProgram debug_fragment_program = dmGraphics::CreateFragmentProgram((const void*) ::DEBUG_ARBFP, ::DEBUG_ARBFP_SIZE);
+        dmGraphics::SetMaterialFragmentProgram(engine->m_DebugMaterial, debug_fragment_program);
 
         const char* gamepads = dmConfigFile::GetString(config, "bootstrap.gamepads", "input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
@@ -746,18 +733,19 @@ bail:
         if (engine->m_SmallFont)
             dmResource::Release(engine->m_Factory, engine->m_SmallFont);
 
-        if (engine->m_RenderdebugVertexProgram)
-            dmGraphics::DestroyVertexProgram(engine->m_RenderdebugVertexProgram);
-        if (engine->m_RenderdebugFragmentProgram)
-            dmGraphics::DestroyFragmentProgram(engine->m_RenderdebugFragmentProgram);
+        if (engine->m_DebugMaterial)
+        {
+            dmGraphics::HVertexProgram debug_vp = dmGraphics::GetMaterialVertexProgram(engine->m_DebugMaterial);
+            if (debug_vp)
+                dmGraphics::DestroyVertexProgram(debug_vp);
+            dmGraphics::HFragmentProgram debug_fp = dmGraphics::GetMaterialFragmentProgram(engine->m_DebugMaterial);
+            if (debug_fp)
+                dmGraphics::DestroyFragmentProgram(debug_fp);
+            dmGraphics::DeleteMaterial(engine->m_DebugMaterial);
+        }
 
         if (engine->m_GameInputBinding)
             dmInput::DeleteBinding(engine->m_GameInputBinding);
-
-        if (engine->m_RenderPass)
-            dmRender::DeleteRenderPass(engine->m_RenderPass);
-        if (engine->m_RenderWorld)
-            dmRender::DeleteRenderWorld(engine->m_RenderWorld);
     }
 }
 

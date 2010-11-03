@@ -1,7 +1,7 @@
 #ifndef DM_PROFILE_RENDER_H
 #define DM_PROFILE_RENDER_H
 
-#include <render/fontrenderer.h>
+#include <render/font_renderer.h>
 
 namespace dmProfileRender
 {

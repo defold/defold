@@ -10,7 +10,7 @@
 #include <resource/resource.h>
 
 #include <render/render.h>
-#include <render/fontrenderer.h>
+#include <render/font_renderer.h>
 
 #include <input/input.h>
 
@@ -49,7 +49,7 @@ namespace dmEngine
         uint32_t                                    m_ScreenWidth;
         uint32_t                                    m_ScreenHeight;
 
-        dmRender::RenderContext                     m_RenderContext;
+        dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::EmitterContext                m_EmitterContext;
         dmResource::HFactory                        m_Factory;
@@ -58,12 +58,9 @@ namespace dmEngine
         dmRender::HFontRenderer                     m_FontRenderer;
         dmRender::HFont                             m_SmallFont;
         dmRender::HFontRenderer                     m_SmallFontRenderer;
-        dmGraphics::HVertexProgram                  m_RenderdebugVertexProgram;
-        dmGraphics::HFragmentProgram                m_RenderdebugFragmentProgram;
+        dmGraphics::HMaterial                       m_DebugMaterial;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
-        dmRender::HRenderWorld                      m_RenderWorld;
-        dmRender::HRenderPass                       m_RenderPass;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

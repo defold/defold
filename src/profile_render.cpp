@@ -1,7 +1,7 @@
 #include <string.h>
 #include <dlib/dstrings.h>
 #include "profile_render.h"
-#include <render_debug/debugrenderer.h>
+#include <render/debug_renderer.h>
 #include <dlib/profile.h>
 
 namespace dmProfileRender
@@ -77,7 +77,7 @@ namespace dmProfileRender
         float col[3];
         HsvToRgb2( (sample->m_Scope->m_Index % 16) / 16.0f, 0.99f, 0.99f, col);
 
-        dmRenderDebug::Square(Point3(x + w/2, y + c->m_Barheight * 0.5f, 0),
+        dmRender::Square(Point3(x + w/2, y + c->m_Barheight * 0.5f, 0),
                                  Vector3(w, c->m_Barheight, 0.0f),
                                  Vector4(col[0], col[1], col[2], 1));
 
@@ -136,12 +136,12 @@ namespace dmProfileRender
         dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
         dmGraphics::EnableState(context, dmGraphics::BLEND);
 
-        dmRenderDebug::Square(   Point3(0.0f,  0.0f, 0),
+        dmRender::Square(   Point3(0.0f,  0.0f, 0),
                                  Vector3(2.0f, 2.0f, 0),
                                  Vector4(0.1f, 0.1f, 0.1f, 0.4f));
 
         float frame_x0 = 2.0f * g_Frame_x0 / (float)width - 1.0f;
-        dmRenderDebug::Square(   Point3(frame_x0 + 0.5f * (1.0f - frame_x0), -0.35f, 0),
+        dmRender::Square(   Point3(frame_x0 + 0.5f * (1.0f - frame_x0), -0.35f, 0),
                                  Vector3(1.0f - frame_x0, 1.0f, 0),
                                  Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
