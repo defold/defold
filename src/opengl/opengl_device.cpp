@@ -34,6 +34,12 @@ typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat
 typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
 typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
+
+typedef void (APIENTRY * PFNGLGENBUFFERSPROC) (GLenum, GLuint *);
+typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
+typedef void (APIENTRY * PFNGLDELETEBUFFERSPROC) (GLenum, GLuint);
+typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
+
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
 PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB = NULL;
@@ -43,6 +49,10 @@ PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
 PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
 PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
 PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
+PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
+PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
+PFNGLBINDBUFFERPROC glBindBuffer = NULL;
+PFNGLBUFFERDATAPROC glBufferData = NULL;
 
 #else
 #error "Platform not supported."
@@ -131,6 +141,11 @@ namespace dmGraphics
         glDisableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glDisableVertexAttribArray");
         glVertexAttribPointer = (PFNGLVERTEXATTRIBPTRPROC) wglGetProcAddress("glVertexAttribPointer");
         glCompressedTexImage2D = (PFNGLTEXPARAM2DPROC) wglGetProcAddress("glCompressedTexImage2D");
+        glGenBuffersARB = (PFNGLGENBUFFERSPROC) wglGetProcAddress("glGenBuffersARB");
+        glDeleteBuffersARB = (PFNGLDELETEBUFFERSPROC) wglGetProcAddress("glDeleteBuffersARB");
+        glBindBufferARB = (PFNGLBINDBUFFERPROC) wglGetProcAddress("glBindBufferARB");
+        glBufferDataARB = (PFNGLBUFFERDATAPROC) wglGetProcAddress("glBufferDataARB");
+
     #endif
 
         return (HDevice)&gdevice;
