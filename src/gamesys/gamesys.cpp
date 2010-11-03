@@ -36,8 +36,12 @@
 #include "camera_ddf.h"
 #include "physics_ddf.h"
 
+#include "gamesys_private.h"
+
 namespace dmGameSystem
 {
+    dmRender::HRenderType g_ModelRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
+
     void RegisterDDFTypes()
     {
         dmGameObject::RegisterDDFType(dmCameraDDF::AddCameraTarget::m_DDFDescriptor);
@@ -90,8 +94,7 @@ namespace dmGameSystem
                                                 dmGameObject::HRegister regist,
                                                 dmRender::RenderContext* render_context,
                                                 PhysicsContext* physics_context,
-                                                EmitterContext* emitter_context,
-                                                dmRender::HRenderWorld render_world)
+                                                EmitterContext* emitter_context)
     {
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
@@ -141,7 +144,7 @@ namespace dmGameSystem
                 CompSoundCreate, 0, CompSoundDestroy,
                 CompSoundUpdate, CompSoundOnMessage, 0);
 
-        REGISTER_COMPONENT_TYPE("modelc", render_world,
+        REGISTER_COMPONENT_TYPE("modelc", render_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, 0, CompModelDestroy,
                 CompModelUpdate, CompModelOnMessage, 0);
@@ -151,23 +154,36 @@ namespace dmGameSystem
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
                 &CompEmitterUpdate, &CompEmitterOnMessage, 0);
 
-        REGISTER_COMPONENT_TYPE("guic", render_world,
+        REGISTER_COMPONENT_TYPE("guic", render_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
                 CompGuiUpdate, CompGuiOnMessage, CompGuiOnInput);
 
-        REGISTER_COMPONENT_TYPE("spawnpointc", render_world,
+        REGISTER_COMPONENT_TYPE("spawnpointc", render_context,
                 CompSpawnPointNewWorld, CompSpawnPointDeleteWorld,
                 CompSpawnPointCreate, 0, CompSpawnPointDestroy,
                 CompSpawnPointUpdate, CompSpawnPointOnMessage, 0);
 
-        REGISTER_COMPONENT_TYPE("lightc", render_world,
+        REGISTER_COMPONENT_TYPE("lightc", render_context,
                 CompLightNewWorld, CompLightDeleteWorld,
                 CompLightCreate, 0, CompLightDestroy,
                 CompLightUpdate, CompLightOnMessage, 0);
 
         #undef REGISTER_COMPONENT_TYPE
 
+        // TODO: Wrong place, but best place I could think of for now
+        dmRender::RenderType render_type;
+#define REGISTER_RENDER_TYPE(type, begin, draw, end) \
+        render_type.m_BeginCallback = begin; \
+        render_type.m_DrawCallback = draw; \
+        render_type.m_EndCallback = end; \
+        if (dmRender::RegisterRenderType(render_context, render_type, &type) != dmRender::RESULT_OK) \
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+
+        REGISTER_RENDER_TYPE(emitter_context->m_ParticleRenderType, RenderTypeParticleBegin, RenderTypeParticleDraw, RenderTypeParticleEnd);
+        REGISTER_RENDER_TYPE(g_ModelRenderType, RenderTypeModelBegin, RenderTypeModelDraw, RenderTypeModelEnd);
+
+#undef REGISTER_RENDER_TYPE
         return go_result;
     }
 

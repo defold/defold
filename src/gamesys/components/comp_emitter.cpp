@@ -9,10 +9,11 @@
 
 #include <graphics/graphics_device.h>
 #include <graphics/material.h>
-#include <render/rendertypedata.h>
-#include <render_debug/debugrenderer.h>
+
+#include <render/debug_renderer.h>
 
 #include "gamesys.h"
+#include "gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -29,9 +30,21 @@ namespace dmGameSystem
 
     struct EmitterWorld
     {
-        dmParticle::HContext m_Context;
         dmArray<Emitter> m_Emitters;
-        dmRender::HRenderWorld m_RenderCollection;
+        dmArray<dmRender::HRenderObject> m_RenderObjects;
+        EmitterContext* m_EmitterContext;
+        dmParticle::HContext m_ParticleContext;
+        float* m_VertexBuffer;
+        uint32_t m_VertexSize;
+    };
+
+    struct ROUserData
+    {
+        EmitterWorld* m_World;
+        dmGraphics::HMaterial m_Material;
+        dmGraphics::HTexture m_Texture;
+        uint32_t m_VertexCount;
+        uint32_t m_VertexIndex;
     };
 
     dmGameObject::CreateResult CompEmitterNewWorld(void* context, void** world)
@@ -39,9 +52,10 @@ namespace dmGameSystem
         assert(context);
         EmitterContext* ctx = (EmitterContext*)context;
         EmitterWorld* emitter_world = new EmitterWorld();
-        emitter_world->m_Context = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
+        emitter_world->m_EmitterContext = ctx;
+        emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
-        emitter_world->m_RenderCollection = dmRender::NewRenderWorld(100, 10, 0x0);
+        emitter_world->m_RenderObjects.SetCapacity(1000);
         *world = emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -49,8 +63,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompEmitterDeleteWorld(void* context, void* world)
     {
         EmitterWorld* emitter_world = (EmitterWorld*)world;
-        dmParticle::DestroyContext(emitter_world->m_Context);
-        dmRender::DeleteRenderWorld(emitter_world->m_RenderCollection);
+        dmParticle::DestroyContext(emitter_world->m_ParticleContext);
         delete emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -69,7 +82,7 @@ namespace dmGameSystem
         {
             Emitter emitter;
             emitter.m_Instance = instance;
-            emitter.m_Emitter = dmParticle::CreateEmitter(w->m_Context, prototype);
+            emitter.m_Emitter = dmParticle::CreateEmitter(w->m_ParticleContext, prototype);
             emitter.m_World = w;
             w->m_Emitters.Push(emitter);
             *user_data = (uintptr_t)&w->m_Emitters[w->m_Emitters.Size() - 1];
@@ -93,16 +106,25 @@ namespace dmGameSystem
         {
             if (w->m_Emitters[i].m_Instance == instance)
             {
-                dmParticle::DestroyEmitter(w->m_Context, w->m_Emitters[i].m_Emitter);
+                dmParticle::DestroyEmitter(w->m_ParticleContext, w->m_Emitters[i].m_Emitter);
                 w->m_Emitters.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
             }
         }
 
-
         dmLogError("Destroyed emitter could not be found, something is fishy.");
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
+
+    struct SParticleRenderData
+    {
+        dmGraphics::HMaterial   m_Material;
+        dmGraphics::HTexture    m_Texture;
+        float*                  m_VertexData;
+        uint32_t                m_VertexStride;
+        uint32_t                m_VertexIndex;
+        uint32_t                m_VertexCount;
+    };
 
     void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size);
     void RenderTearDownCallback(void* render_context);
@@ -117,22 +139,32 @@ namespace dmGameSystem
 
         EmitterWorld* w = (EmitterWorld*)world;
 
-        dmRender::ClearWorld(w->m_RenderCollection);
-
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             Emitter& emitter = w->m_Emitters[i];
-            dmParticle::SetPosition(w->m_Context, emitter.m_Emitter, dmGameObject::GetWorldPosition(emitter.m_Instance));
-            dmParticle::SetRotation(w->m_Context, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
+            dmParticle::SetPosition(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldPosition(emitter.m_Instance));
+            dmParticle::SetRotation(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
         }
         EmitterContext* ctx = (EmitterContext*)context;
-        dmParticle::Update(w->m_Context, update_context->m_DT, &ctx->m_RenderContext->m_View);
-        dmParticle::Render(w->m_Context, w, RenderSetUpCallback, RenderTearDownCallback, RenderEmitterCallback);
-        dmRender::AddToRender(w->m_RenderCollection, ctx->m_RenderWorld);
+
+        for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
+        {
+            ROUserData* user_data = (ROUserData*)dmRender::GetUserData(w->m_RenderObjects[i]);
+            delete user_data;
+            dmRender::DeleteRenderObject(w->m_RenderObjects[i]);
+        }
+        w->m_RenderObjects.SetSize(0);
+
+        dmParticle::Update(w->m_ParticleContext, update_context->m_DT);
+        dmParticle::Render(w->m_ParticleContext, w, RenderSetUpCallback, 0x0, RenderEmitterCallback);
+        for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
+        {
+            dmRender::AddToRender(ctx->m_RenderContext, w->m_RenderObjects[i]);
+        }
 
         if (ctx->m_Debug)
         {
-            dmParticle::DebugRender(w->m_Context, RenderLineCallback);
+            dmParticle::DebugRender(w->m_ParticleContext, RenderLineCallback);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -145,15 +177,15 @@ namespace dmGameSystem
         Emitter* emitter = (Emitter*)*user_data;
         if (message_data->m_MessageId == dmHashString32("start"))
         {
-            dmParticle::StartEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
+            dmParticle::StartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
         else if (message_data->m_MessageId == dmHashString32("restart"))
         {
-            dmParticle::RestartEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
+            dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
         else if (message_data->m_MessageId == dmHashString32("stop"))
         {
-            dmParticle::StopEmitter(emitter->m_World->m_Context, emitter->m_Emitter);
+            dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -161,30 +193,68 @@ namespace dmGameSystem
     void RenderSetUpCallback(void* context, float* vertex_buffer, uint32_t vertex_size)
     {
         EmitterWorld* world = (EmitterWorld*)context;
-
-        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLESETUP);
-
-        dmRender::SetUserData(ro, 0, (uint32_t)vertex_buffer);
-        dmRender::SetUserData(ro, 1, (uint32_t)vertex_size);
-    }
-
-    void RenderTearDownCallback(void* render_context)
-    {
+        world->m_VertexBuffer = vertex_buffer;
+        world->m_VertexSize = vertex_size;
     }
 
     void RenderEmitterCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
         EmitterWorld* world = (EmitterWorld*)context;
 
-        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_RenderCollection, 0x0, 0x0, 1, dmRender::RENDEROBJECT_TYPE_PARTICLE);
-        dmRender::SetUserData(ro, 0, (uint32_t)material);
-        dmRender::SetUserData(ro, 1, (uint32_t)texture);
-        dmRender::SetUserData(ro, 2, (uint32_t)vertex_count);
-        dmRender::SetUserData(ro, 3, (uint32_t)vertex_index);
+        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_EmitterContext->m_ParticleRenderType, (dmGraphics::HMaterial)material, 0x0);
+        ROUserData* user_data = new ROUserData();
+        user_data->m_World = world;
+        user_data->m_Material = (dmGraphics::HMaterial)material;
+        user_data->m_Texture = (dmGraphics::HTexture)texture;
+        user_data->m_VertexCount = vertex_count;
+        user_data->m_VertexIndex = vertex_index;
+        dmRender::SetUserData(ro, (void*)user_data);
+        world->m_RenderObjects.Push(ro);
     }
 
     void RenderLineCallback(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
     {
-        dmRenderDebug::Line3D(start, end, color);
+        dmRender::Line3D(start, end, color);
+    }
+
+    void RenderTypeParticleBegin(dmRender::HRenderContext render_context)
+    {
+        dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
+
+        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
+
+        dmGraphics::SetDepthMask(gfx_context, true);
+
+    }
+
+    void RenderTypeParticleDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
+    {
+        dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
+
+        ROUserData* user_data = (ROUserData*)dmRender::GetUserData(ro);
+
+        float* vertex_buffer = user_data->m_World->m_VertexBuffer;
+        uint32_t vertex_size = user_data->m_World->m_VertexSize;
+        // positions
+        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, vertex_size, (void*)vertex_buffer);
+        // uv's
+        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[3]);
+        // alpha
+        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[5]);
+
+        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram(user_data->m_Material));
+        dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)dmRender::GetViewProjectionMatrix(render_context), 0, 4);
+        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram(user_data->m_Material));
+
+        dmGraphics::SetTexture(gfx_context, user_data->m_Texture);
+
+        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, user_data->m_VertexIndex, user_data->m_VertexCount);
+
+    }
+
+    void RenderTypeParticleEnd(dmRender::HRenderContext render_context)
+    {
+        dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(render_context), true);
     }
 }

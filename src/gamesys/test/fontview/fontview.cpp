@@ -75,8 +75,9 @@ int32_t Run(Context* context)
 
         dmRender::FontRendererFlush(context->m_FontRenderer);
 
-        dmRender::SetViewProjectionMatrix(context->m_RenderPass, &context->m_RenderContext.m_ViewProj);
-        dmRender::Update(context->m_RenderWorld, 0.0f);
+        dmRender::Draw(context->m_RenderContext, 0x0);
+        dmRender::ClearRenderObjects(context->m_RenderContext);
+
         dmGraphics::Flip();
     }
 
@@ -116,16 +117,9 @@ bool Init(Context* context, int argc, char* argv[])
 
         dmGraphics::EnableState(gfx_context, dmGraphics::DEPTH_TEST);
 
-        context->m_RenderWorld = dmRender::NewRenderWorld(100, 100, 0x0);
-        context->m_RenderContext.m_View = Matrix4::identity();
-        context->m_RenderContext.m_Projection = Matrix4::identity();
-        context->m_RenderContext.m_ViewProj = Matrix4::identity();
-        context->m_RenderContext.m_CameraPosition = Point3(0.0f, 0.0f, 0.0f);
-        context->m_RenderContext.m_GFXContext = gfx_context;
-
-        dmRender::RenderPassDesc rp_model_desc("model", 0x0, 1, 100, 1, 0x0, 0x0);
-        context->m_RenderPass = dmRender::NewRenderPass(&rp_model_desc);
-        dmRender::AddRenderPass(context->m_RenderWorld, context->m_RenderPass);
+        context->m_RenderContext = dmRender::NewRenderContext(10, 100, 0x0);
+        dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
+        dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
@@ -156,8 +150,7 @@ bool Init(Context* context, int argc, char* argv[])
             return false;
         }
 
-        context->m_FontRenderer = dmRender::NewFontRenderer(context->m_Font, context->m_RenderWorld, context->m_ScreenWidth,
-            context->m_ScreenHeight, 1024);
+        context->m_FontRenderer = dmRender::NewFontRenderer(context->m_RenderContext, context->m_Font, context->m_ScreenWidth, context->m_ScreenHeight, 1024);
 
         return true;
     }
@@ -179,8 +172,6 @@ void Finalize(Context* context)
         if (context->m_Font) dmResource::Release(context->m_Factory, context->m_Font);
         dmResource::DeleteFactory(context->m_Factory);
     }
-    if (context->m_RenderPass)
-        dmRender::DeleteRenderPass(context->m_RenderPass);
-    if (context->m_RenderWorld)
-        dmRender::DeleteRenderWorld(context->m_RenderWorld);
+    if (context->m_RenderContext)
+        dmRender::DeleteRenderContext(context->m_RenderContext);
 }

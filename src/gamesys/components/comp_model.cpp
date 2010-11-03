@@ -1,5 +1,7 @@
 #include "comp_model.h"
 
+#include <dlib/array.h>
+#include <dlib/index_pool.h>
 #include <dlib/hash.h>
 
 #include <render/render.h>
@@ -7,8 +9,22 @@
 #include <render/model/model.h>
 #include <render/model_ddf.h>
 
+#include "../gamesys_private.h"
+
 namespace dmGameSystem
 {
+    struct ModelWorld
+    {
+        dmArray<dmRender::HRenderObject> m_RenderObjects;
+        dmIndexPool32 m_ROIndices;
+    };
+
+    struct ModelUserData
+    {
+        ModelWorld* m_ModelWorld;
+        uint32_t m_Index;
+    };
+
     void SetObjectModel(void* context, void* gameobject, Vectormath::Aos::Quat* rotation,
             Vectormath::Aos::Point3* position)
     {
@@ -20,13 +36,18 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompModelNewWorld(void* context, void** world)
     {
-        *world = dmRender::NewRenderWorld(1000, 10, SetObjectModel);
+        ModelWorld* model_world = new ModelWorld();
+        model_world->m_RenderObjects.SetCapacity(1000);
+        model_world->m_RenderObjects.SetSize(1000);
+        memset((void*)&model_world->m_RenderObjects[0], 0, 1000 * sizeof(dmRender::HRenderObject));
+        model_world->m_ROIndices.SetCapacity(1000);
+        *world = model_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompModelDeleteWorld(void* context, void* world)
     {
-        dmRender::DeleteRenderWorld((dmRender::HRenderWorld)world);
+        delete (ModelWorld*)world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -37,16 +58,18 @@ namespace dmGameSystem
                                             void* context,
                                             uintptr_t* user_data)
     {
-
+        ModelWorld* model_world = (ModelWorld*)world;
         dmModel::HModel prototype = (dmModel::HModel)resource;
-        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
-
-
-        dmRender::HRenderObject ro = NewRenderObject(render_world, (void*)prototype, (void*)instance, 1, dmRender::RENDEROBJECT_TYPE_MODEL);
-        *user_data = (uintptr_t) ro;
+        dmRender::HRenderObject ro = dmRender::NewRenderObject(g_ModelRenderType, dmModel::GetMaterial(prototype), (void*)instance);
+        dmRender::SetUserData(ro, prototype);
+        uint32_t index = model_world->m_ROIndices.Pop();
+        model_world->m_RenderObjects[index] = ro;
+        ModelUserData* model_user_data = new ModelUserData();
+        model_user_data->m_ModelWorld = model_world;
+        model_user_data->m_Index = index;
+        *user_data = (uintptr_t)model_user_data;
 
         return dmGameObject::CREATE_RESULT_OK;
-
     }
 
     dmGameObject::CreateResult CompModelDestroy(dmGameObject::HCollection collection,
@@ -55,10 +78,11 @@ namespace dmGameSystem
                                              void* context,
                                              uintptr_t* user_data)
     {
-        dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
-        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)world;
-
-        dmRender::DeleteRenderObject(render_world, ro);
+        ModelWorld* model_world = (ModelWorld*)world;
+        ModelUserData* model_user_data = (ModelUserData*)*user_data;
+        model_world->m_ROIndices.Push(model_user_data->m_Index);
+        dmRender::DeleteRenderObject(model_world->m_RenderObjects[model_user_data->m_Index]);
+        model_world->m_RenderObjects[model_user_data->m_Index] = dmRender::INVALID_RENDER_OBJECT_HANDLE;
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -68,10 +92,13 @@ namespace dmGameSystem
                          void* world,
                          void* context)
     {
-        dmRender::HRenderWorld render_collection = (dmRender::HRenderWorld)world;
-        dmRender::HRenderWorld render_world = (dmRender::HRenderWorld)context;
-
-        dmRender::AddToRender(render_collection, render_world);
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
+        ModelWorld* model_world = (ModelWorld*)world;
+        for (uint32_t i = 0; i < model_world->m_RenderObjects.Size(); ++i)
+        {
+            if (model_world->m_RenderObjects[i] != dmRender::INVALID_RENDER_OBJECT_HANDLE)
+                dmRender::AddToRender(render_context, model_world->m_RenderObjects[i]);
+        }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -80,16 +107,101 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        dmRender::HRenderWorld world = (dmRender::HRenderWorld)context;
-        (void)world;
-
         if (message_data->m_MessageId == dmHashString32(dmRender::SetRenderColor::m_DDFDescriptor->m_ScriptName))
         {
-            dmRender::HRenderObject ro = (dmRender::HRenderObject)*user_data;
+            ModelUserData* model_user_data = (ModelUserData*)*user_data;
+            dmRender::HRenderObject ro = model_user_data->m_ModelWorld->m_RenderObjects[model_user_data->m_Index];
             dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)message_data->m_Buffer;
             dmRender::ColorType color_type = (dmRender::ColorType)ddf->m_ColorType;
             dmRender::SetColor(ro, ddf->m_Color, color_type);
         }
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    void RenderTypeModelBegin(dmRender::HRenderContext render_context)
+    {
+        dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(render_context), true);
+    }
+
+    void RenderTypeModelDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
+    {
+        dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
+        Quat rotation = dmRender::GetRotation(ro);
+        Point3 position = dmRender::GetPosition(ro);
+
+        dmGraphics::HMaterial material = dmModel::GetMaterial(model);
+
+        dmModel::HMesh mesh = dmModel::GetMesh(model);
+        if (dmModel::GetPrimitiveCount(mesh) == 0)
+            return;
+
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        dmGraphics::EnableState(graphics_context, dmGraphics::DEPTH_TEST);
+
+        dmGraphics::DisableState(graphics_context, dmGraphics::BLEND);
+
+        dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
+
+
+        dmGraphics::SetFragmentProgram(graphics_context, dmGraphics::GetMaterialFragmentProgram(material) );
+
+        for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
+        {
+            uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
+            if (mask & (1 << i) )
+            {
+                Vector4 v = dmGraphics::GetMaterialFragmentProgramConstant(material, i);
+                dmGraphics::SetFragmentConstant(graphics_context, &v, i);
+            }
+        }
+
+        Vector4 diffuse_color = dmRender::GetColor(ro, dmRender::DIFFUSE_COLOR);
+        dmGraphics::SetFragmentConstant(graphics_context, &diffuse_color, 0);
+
+        dmGraphics::SetVertexProgram(graphics_context, dmGraphics::GetMaterialVertexProgram(material));
+
+        Matrix4 m(rotation, Vector3(position));
+
+        dmGraphics::SetVertexConstantBlock(graphics_context, (const Vector4*)dmRender::GetViewProjectionMatrix(render_context), 0, 4);
+        dmGraphics::SetVertexConstantBlock(graphics_context, (const Vector4*)&m, 4, 4);
+
+        Matrix4 texturmatrix;
+        texturmatrix = Matrix4::identity();
+        dmGraphics::SetVertexConstantBlock(graphics_context, (const Vector4*)&texturmatrix, 8, 4);
+
+
+        for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
+        {
+            uint32_t mask = dmGraphics::GetMaterialVertexConstantMask(material);
+            if (mask & (1 << i) )
+            {
+                Vector4 v = dmGraphics::GetMaterialVertexProgramConstant(material, i);
+                dmGraphics::SetVertexConstantBlock(graphics_context, &v, i, 1);
+            }
+        }
+
+        dmGraphics::SetVertexStream(graphics_context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetPositions(mesh));
+
+        if (dmModel::GetTexcoord0Count(mesh) > 0)
+            dmGraphics::SetVertexStream(graphics_context, 1, 2, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetTexcoord0(mesh));
+        else
+            dmGraphics::DisableVertexStream(graphics_context, 1);
+
+        if (dmModel::GetNormalCount(mesh) > 0)
+            dmGraphics::SetVertexStream(graphics_context, 2, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetNormals(mesh));
+        else
+            dmGraphics::DisableVertexStream(graphics_context, 2);
+
+        dmGraphics::DrawElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, dmModel::GetPrimitiveCount(mesh)*3, dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndices(mesh));
+
+        dmGraphics::DisableVertexStream(graphics_context, 0);
+        dmGraphics::DisableVertexStream(graphics_context, 1);
+        dmGraphics::DisableVertexStream(graphics_context, 2);
+    }
+
+    void RenderTypeModelEnd(const dmRender::HRenderContext render_context)
+    {
+        dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(render_context), true);
     }
 }

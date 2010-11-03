@@ -10,7 +10,7 @@
 #include <gui/gui.h>
 #include <graphics/graphics_device.h>
 #include <render/render.h>
-#include <render_debug/debugrenderer.h>
+#include <render/debug_renderer.h>
 
 #include "../resources/res_gui.h"
 
@@ -28,7 +28,6 @@ namespace dmGameSystem
         dmGui::HGui         m_Gui;
         dmArray<Component*> m_Components;
         uint32_t            m_Socket;
-        dmRender::HRenderWorld m_RenderCollection;
     };
 
     dmGameObject::CreateResult CompGuiNewWorld(void* context, void** world)
@@ -47,7 +46,6 @@ namespace dmGameSystem
         }
         gui_world->m_Socket = socket_name_hash;
 
-        gui_world->m_RenderCollection = dmRender::NewRenderWorld(100, 100, 0x0);
         dmGui::NewGuiParams gui_params;
         gui_params.m_Socket = socket_name_hash;
         gui_world->m_Gui = dmGui::New(&gui_params);
@@ -67,7 +65,6 @@ namespace dmGameSystem
                 delete gui_world->m_Components[i];
             }
         }
-        dmRender::DeleteRenderWorld(gui_world->m_RenderCollection);
         dmGui::Delete(gui_world->m_Gui);
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -80,6 +77,7 @@ namespace dmGameSystem
                                              void* context,
                                              uintptr_t* user_data)
     {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         GuiWorld* gui_world = (GuiWorld*)world;
 
         GuiScenePrototype* scene_prototype = (GuiScenePrototype*) resource;
@@ -100,7 +98,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_prototype->m_Fonts.Size(); ++i)
         {
             // TODO: Width, Height...
-            dmRender::HFontRenderer font_renderer = dmRender::NewFontRenderer(scene_prototype->m_Fonts[i], context, 960, 540, scene_prototype->m_SceneDesc->m_Fonts[i].m_MaxShapes);
+            dmRender::HFontRenderer font_renderer = dmRender::NewFontRenderer(render_context, scene_prototype->m_Fonts[i], 960, 540, scene_prototype->m_SceneDesc->m_Fonts[i].m_MaxShapes);
             gui_component->m_FontRenderers.Push(font_renderer);
             dmGui::AddFont(scene, scene_prototype->m_SceneDesc->m_Fonts[i].m_Name, font_renderer);
         }
@@ -214,7 +212,7 @@ namespace dmGameSystem
                 s.setX(s.getX() / 960.0f);
                 s.setY(s.getY() / 540.0f);
 
-                dmRenderDebug::Square(p, s, color);
+                dmRender::Square(p, s, color);
             }
             else if(node->m_NodeType == dmGui::NODE_TYPE_TEXT)
             {

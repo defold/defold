@@ -4,7 +4,7 @@
 #include <dlib/array.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
-#include <render/fontrenderer.h>
+#include <render/font_renderer.h>
 #include "../proto/gui_ddf.h"
 
 namespace dmGameSystem

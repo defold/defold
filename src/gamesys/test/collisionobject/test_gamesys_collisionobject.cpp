@@ -27,18 +27,19 @@ protected:
 
         assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory));
 
-        memset(&m_RenderContext, 0, sizeof(m_RenderContext));
         memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
         memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
-        memset(&m_RenderWorld, 0, sizeof(m_RenderWorld));
 
-        assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, &m_RenderContext, &m_PhysicsContext, &m_EmitterContext, m_RenderWorld));
+        m_RenderContext = dmRender::NewRenderContext(10, 1000, 0x0);
+
+        assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext));
 
         m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
     }
 
     virtual void TearDown()
     {
+        dmRender::DeleteRenderContext(m_RenderContext);
         dmGameObject::DeleteCollection(m_Collection);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
@@ -52,10 +53,9 @@ public:
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
 
-    dmRender::RenderContext m_RenderContext;
+    dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::EmitterContext m_EmitterContext;
-    dmRender::HRenderWorld m_RenderWorld;
 };
 
 TEST_F(CollisionObjectTest, TestFailingInit)

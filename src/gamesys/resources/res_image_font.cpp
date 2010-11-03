@@ -1,6 +1,6 @@
 #include "res_image_font.h"
 
-#include <render/fontrenderer.h>
+#include <render/font_renderer.h>
 
 namespace dmGameSystem
 {

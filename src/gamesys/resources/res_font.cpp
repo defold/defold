@@ -4,7 +4,7 @@
 
 #include <graphics/graphics_device.h>
 
-#include <render/fontrenderer.h>
+#include <render/font_renderer.h>
 #include <render/render_ddf.h>
 
 namespace dmGameSystem

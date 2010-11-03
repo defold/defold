@@ -19,10 +19,10 @@ namespace dmGameSystem
 
     struct EmitterContext
     {
-        dmRender::RenderContext* m_RenderContext;
+        dmRender::HRenderContext m_RenderContext;
         uint32_t m_MaxEmitterCount;
         uint32_t m_MaxParticleCount;
-        dmRender::HRenderWorld m_RenderWorld;
+        uint32_t m_ParticleRenderType;
         bool m_Debug;
     };
 
@@ -32,10 +32,9 @@ namespace dmGameSystem
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
-                                                  dmRender::RenderContext* render_context,
+                                                  dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
-                                                  EmitterContext* emitter_context,
-                                                  dmRender::HRenderWorld render_world);
+                                                  EmitterContext* emitter_context);
 
     void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }

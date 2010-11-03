@@ -127,18 +127,13 @@ namespace dmGameSystem
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)context;
 
+            dmRender::SetProjectionMatrix(render_context, Matrix4::perspective(camera->m_FOV, camera->m_AspectRatio, camera->m_NearZ, camera->m_FarZ));
+
             Vectormath::Aos::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
             Vectormath::Aos::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
-
-            render_context->m_CameraPosition = pos;
-
-            render_context->m_Projection = Matrix4::perspective(camera->m_FOV, camera->m_AspectRatio, camera->m_NearZ, camera->m_FarZ);
-
-            render_context->m_View = Matrix4::lookAt(pos,
-                    pos + Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 0.0f, -1.0f)),
-                    Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 1.0f, 0.0f)));
-
-            render_context->m_ViewProj = render_context->m_Projection * render_context->m_View;
+            Point3 look_at = pos + Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 0.0f, -1.0f));
+            Vector3 up = Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 1.0f, 0.0f));
+            dmRender::SetViewMatrix(render_context, Matrix4::lookAt(pos, look_at, up));
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
