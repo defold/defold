@@ -195,9 +195,9 @@ namespace dmParticle
     // helper functions in update
     static void SpawnParticle(HContext context, Particle* particle, Emitter* emitter);
     static void ApplyParticleModifiers(Emitter* emitter, float* particle_states);
-    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, Matrix4* view);
+    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state);
 
-    void Update(HContext context, float dt, Matrix4* view)
+    void Update(HContext context, float dt)
     {
         DM_PROFILE(Particle, "Update");
 
@@ -283,7 +283,7 @@ namespace dmParticle
             }
 
             // Render data
-            vertex_index += UpdateRenderData(context, emitter, vertex_index, context->m_ParticleStates, view);
+            vertex_index += UpdateRenderData(context, emitter, vertex_index, context->m_ParticleStates);
 
             // Update emitter
             if (emitter->m_IsSpawning)
@@ -455,7 +455,7 @@ namespace dmParticle
         SetParticleProperty(particle->m_Properties, PARTICLE_KEY_ALPHA, &particle_alpha);
     }
 
-    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, Matrix4* view)
+    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
@@ -470,22 +470,10 @@ namespace dmParticle
         // calculate emission space
         Quat emission_rotation = Quat::identity();
         Vector3 emission_position(0.0f, 0.0f, 0.0f);
-        Quat inv_view = Quat::identity();
-        switch (emitter->m_Prototype->m_DDF->m_Space)
+        if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_EMITTER)
         {
-        case EMISSION_SPACE_WORLD:
-            // World particles are rotated like billboards
-            // TODO: Should this be shader controlled?
-            // Alt1: shader controlled
-            // Alt2: split update to get rid of unnecessary transforms
-            // Alt3: Keep as is
-            if (view != 0x0)
-                inv_view = Quat(transpose(view->getUpper3x3()));
-            break;
-        case EMISSION_SPACE_EMITTER:
             emission_rotation = emitter->m_Rotation;
             emission_position = Vector3(emitter->m_Position);
-            break;
         }
 
         uint32_t particle_count = emitter->m_Particles.Size();
@@ -505,8 +493,8 @@ namespace dmParticle
                 Vector3 particle_position = rotate(emission_rotation, Vector3(particle->m_Position)) + emission_position;
                 Quat particle_rotation = emission_rotation * particle->m_Rotation;
 
-                Vector3 x = rotate(inv_view * particle_rotation, Vector3(size, 0.0f, 0.0f));
-                Vector3 y = rotate(inv_view * particle_rotation, Vector3(0.0f, size, 0.0f));
+                Vector3 x = rotate(particle_rotation, Vector3(size, 0.0f, 0.0f));
+                Vector3 y = rotate(particle_rotation, Vector3(0.0f, size, 0.0f));
 
                 Vector3 p0 = -x - y + particle_position;
                 Vector3 p1 = -x + y + particle_position;
@@ -588,17 +576,22 @@ namespace dmParticle
         if (context->m_Emitters.Size() == 0)
             return;
 
-        render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE);
+        if (render_setup_callback != 0x0)
+            render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE);
 
-        for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
+        if (render_emitter_callback != 0x0)
         {
-            Emitter* emitter = context->m_Emitters[i];
-            if (!emitter || emitter->m_VertexCount == 0) continue;
+            for (uint32_t i=0; i<context->m_Emitters.Size(); i++)
+            {
+                Emitter* emitter = context->m_Emitters[i];
+                if (!emitter || emitter->m_VertexCount == 0) continue;
 
-            render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+                render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+            }
         }
 
-        render_teardown_callback(usercontext);
+        if (render_teardown_callback != 0x0)
+            render_teardown_callback(usercontext);
     }
 
     void DebugRender(HContext context, void (*RenderLine)(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color))

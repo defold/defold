@@ -156,7 +156,7 @@ namespace dmParticle
      * @param context Context of the emitters to update.
      * @param dt Time step.
      */
-    void                    Update(HContext context, float dt, Matrix4* view);
+    void                    Update(HContext context, float dt);
 
     /**
      * Render the emitters within the specified context.
