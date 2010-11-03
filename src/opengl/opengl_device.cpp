@@ -34,11 +34,9 @@ typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat
 typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
 typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
-
-typedef void (APIENTRY * PFNGLGENBUFFERSPROC) (GLenum, GLuint *);
 typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLDELETEBUFFERSPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
+typedef void (APIENTRY * PFNGLDRAWRANGEELEMENTSPROC) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -51,8 +49,9 @@ PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
 PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
 PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
 PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
-PFNGLBINDBUFFERPROC glBindBuffer = NULL;
-PFNGLBUFFERDATAPROC glBufferData = NULL;
+PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
+PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
+PFNGLDRAWRANGEELEMENTSPROC glDrawRangeElements = NULL;
 
 #else
 #error "Platform not supported."
@@ -145,6 +144,7 @@ namespace dmGraphics
         glDeleteBuffersARB = (PFNGLDELETEBUFFERSPROC) wglGetProcAddress("glDeleteBuffersARB");
         glBindBufferARB = (PFNGLBINDBUFFERPROC) wglGetProcAddress("glBindBufferARB");
         glBufferDataARB = (PFNGLBUFFERDATAPROC) wglGetProcAddress("glBufferDataARB");
+        glDrawRangeElements = (PFNGLDRAWRANGEELEMENTSPROC) wglGetProcAddress("glDrawRangeElements");
 
     #endif
 
