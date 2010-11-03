@@ -1,6 +1,11 @@
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <sys/errno.h>
+
+#if defined(__linux__) || defined(__MACH__)
+#  include <sys/errno.h>
+#elif defined(_WIN32)
+#  include <errno.h>
+#endif
 
 #include <dlib/dstrings.h>
 #include "script.h"
