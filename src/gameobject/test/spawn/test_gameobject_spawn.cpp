@@ -17,7 +17,6 @@ protected:
         dmGameObject::Initialize();
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
-        m_UpdateContext.m_ViewProj = Vectormath::Aos::Matrix4::identity();
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;

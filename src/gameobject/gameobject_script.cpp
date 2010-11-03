@@ -429,45 +429,6 @@ namespace dmGameObject
         return 1;
     }
 
-    static bool IsPointVisible(const Vectormath::Aos::Point3& p, const Vectormath::Aos::Matrix4 view_proj, float margin)
-    {
-        Vectormath::Aos::Vector4 r = view_proj * p;
-        assert(r.getW() != 0.0f);
-        float r_w = 1.0f / r.getW();
-        return dmMath::Abs(r.getX() * r_w) <= margin && dmMath::Abs(r.getY() * r_w) <= margin && dmMath::Abs(r.getZ() * r_w) <= margin;
-    }
-
-    int Script_IsVisible(lua_State* L)
-    {
-        // TODO: Let a divine engine coder have a go at this. :)
-        Vectormath::Aos::Vector3* min = dmScript::CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* max = dmScript::CheckVector3(L, 2);
-        float margin = 1.0f;
-        if (lua_gettop(L) > 2)
-        {
-            margin = luaL_checknumber(L, 3);
-        }
-        // Try to find value in globals in update context
-        lua_pushstring(L, "__update_context__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        UpdateContext* update_context = (UpdateContext*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        assert(update_context);
-        const Vectormath::Aos::Matrix4& view_proj = update_context->m_ViewProj;
-        bool visible = false;
-        if (IsPointVisible(Vectormath::Aos::Point3(*min), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(min->getX(), min->getY(), max->getZ()), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(min->getX(), max->getY(), min->getZ()), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(max->getX(), min->getY(), min->getZ()), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(max->getX(), min->getY(), max->getZ()), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(max->getX(), max->getY(), min->getZ()), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(max->getX(), min->getY(), max->getZ()), view_proj, margin)
-                && IsPointVisible(Vectormath::Aos::Point3(*max), view_proj, margin))
-            visible = true;
-        lua_pushboolean(L, visible);
-        return 1;
-    }
-
     int Script_Delete(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
@@ -510,7 +471,6 @@ namespace dmGameObject
         {"get_world_position",  Script_GetWorldPosition},
         {"get_world_rotation",  Script_GetWorldRotation},
         {"get_id",              Script_GetId},
-        {"is_visible",          Script_IsVisible},
         {"delete",              Script_Delete},
         {"spawn",               Script_Spawn},
         {0, 0}

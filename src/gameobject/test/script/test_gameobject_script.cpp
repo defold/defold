@@ -269,17 +269,6 @@ TEST_F(ScriptTest, Null)
     dmGameObject::Delete(m_Collection, go);
 }
 
-TEST_F(ScriptTest, TestIsVisible)
-{
-    dmGameObject::UpdateContext m_UpdateContext;
-    m_UpdateContext.m_DT = 1.0f / 60.0f;
-    m_UpdateContext.m_ViewProj = Vectormath::Aos::Matrix4::identity();
-    dmGameObject::HInstance is_visible = dmGameObject::New(m_Collection, "is_visible.goc");
-    ASSERT_NE((void*)0, (void*)is_visible);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
-    ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
-}
-
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

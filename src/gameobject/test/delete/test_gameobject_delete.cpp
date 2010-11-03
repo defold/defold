@@ -186,9 +186,8 @@ TEST_F(DeleteTest, DeleteSelf)
 
 TEST_F(DeleteTest, TestScriptDelete)
 {
-    dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HInstance is_visible = dmGameObject::New(m_Collection, "delete.goc");
-    ASSERT_NE((void*)0, (void*)is_visible);
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "delete.goc");
+    ASSERT_NE((void*)0, (void*)instance);
     ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
