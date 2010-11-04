@@ -7,6 +7,10 @@
 #  include <errno.h>
 #endif
 
+#ifdef _WIN32
+#include <direct.h>
+#endif
+
 #include <dlib/dstrings.h>
 #include "script.h"
 
@@ -48,7 +52,12 @@ namespace dmScript
         dmStrlCat(buf, "/", sizeof(buf));
         dmStrlCat(buf, game_id, sizeof(buf));
 
-        int ret = mkdir(buf, 0700);
+        int ret;
+#ifdef _WIN32
+        ret = mkdir(buf);
+#else
+        ret = mkdir(buf, 0700);
+#endif
         if (ret)
         {
             if (errno != EEXIST)
