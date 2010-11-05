@@ -62,11 +62,14 @@ namespace dmModel
             float u, v;
         };
 
-        VertexFormat* f = (VertexFormat*)malloc(sizeof(VertexFormat)*desc->m_Positions.m_Count);
         Mesh* mesh = new Mesh;
 
         // TODO: move this bit to the model compiler
-        for (uint32_t i=0; i<desc->m_Positions.m_Count; i++)
+        uint32_t vertex_count = desc->m_Positions.m_Count / 3;
+        assert(vertex_count * 3 == desc->m_Normals.m_Count);
+        assert(desc->m_Texcoord0.m_Count == 0 || vertex_count * 2 == desc->m_Texcoord0.m_Count);
+        VertexFormat* f = (VertexFormat*)malloc(sizeof(VertexFormat) * vertex_count);
+        for (uint32_t i = 0; i < vertex_count; i++)
         {
             f[i].x = desc->m_Positions.m_Data[i*3+0];
             f[i].y = desc->m_Positions.m_Data[i*3+1];
@@ -92,7 +95,7 @@ namespace dmModel
 
         mesh->m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         mesh->m_IndexBuffer = dmGraphics::NewIndexBuffer(desc->m_Indices.m_Count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, desc->m_Indices.m_Data);
-        mesh->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(VertexFormat), desc->m_Positions.m_Count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, 1, (void*)f);
+        mesh->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(VertexFormat), vertex_count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, 1, (void*)f);
         mesh->m_Desc = desc;
         free(f);
         return mesh;
