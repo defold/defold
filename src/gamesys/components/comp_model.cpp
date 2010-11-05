@@ -181,23 +181,9 @@ namespace dmGameSystem
             }
         }
 
-        dmGraphics::SetVertexStream(graphics_context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetPositions(mesh));
-
-        if (dmModel::GetTexcoord0Count(mesh) > 0)
-            dmGraphics::SetVertexStream(graphics_context, 1, 2, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetTexcoord0(mesh));
-        else
-            dmGraphics::DisableVertexStream(graphics_context, 1);
-
-        if (dmModel::GetNormalCount(mesh) > 0)
-            dmGraphics::SetVertexStream(graphics_context, 2, 3, dmGraphics::TYPE_FLOAT, 0, (void*) dmModel::GetNormals(mesh));
-        else
-            dmGraphics::DisableVertexStream(graphics_context, 2);
-
-        dmGraphics::DrawElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, dmModel::GetPrimitiveCount(mesh)*3, dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndices(mesh));
-
-        dmGraphics::DisableVertexStream(graphics_context, 0);
-        dmGraphics::DisableVertexStream(graphics_context, 1);
-        dmGraphics::DisableVertexStream(graphics_context, 2);
+        dmGraphics::SetVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
+        dmGraphics::DrawRangeElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
+        dmGraphics::DisableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh));
     }
 
     void RenderTypeModelEnd(const dmRender::HRenderContext render_context)
