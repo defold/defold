@@ -3,6 +3,8 @@
 
 #include <graphics/material.h>
 
+#include "render/mesh_ddf.h"
+
 namespace dmModel
 {
     using namespace Vectormath::Aos;
