@@ -689,4 +689,8 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
+    uint32_t GetWindowParam(WindowParam param)
+    {
+        return glfwGetWindowParam(param);
+    }
 }

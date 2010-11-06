@@ -103,6 +103,29 @@ namespace dmGraphics
         MEMORY_TYPE_MAIN = 0,
     };
 
+    enum WindowParam
+    {
+        WINDOW_PARAM_OPENED             = GFXDEVICE_OPENED,
+        WINDOW_PARAM_ACTIVE             = GFXDEVICE_ACTIVE,
+        WINDOW_PARAM_ICONIFIED          = GFXDEVICE_ICONIFIED,
+        WINDOW_PARAM_ACCELERATED        = GFXDEVICE_ACCELERATED,
+        WINDOW_PARAM_RED_BITS           = GFXDEVICE_RED_BITS,
+        WINDOW_PARAM_GREEN_BITS         = GFXDEVICE_GREEN_BITS,
+        WINDOW_PARAM_BLUE_BITS          = GFXDEVICE_BLUE_BITS,
+        WINDOW_PARAM_ALPHA_BITS         = GFXDEVICE_ALPHA_BITS,
+        WINDOW_PARAM_DEPTH_BITS         = GFXDEVICE_DEPTH_BITS,
+        WINDOW_PARAM_STENCIL_BITS       = GFXDEVICE_STENCIL_BITS,
+        WINDOW_PARAM_REFRESH_RATE       = GFXDEVICE_REFRESH_RATE,
+        WINDOW_PARAM_ACCUM_RED_BITS     = GFXDEVICE_ACCUM_RED_BITS,
+        WINDOW_PARAM_ACCUM_GREEN_BITS   = GFXDEVICE_ACCUM_GREEN_BITS,
+        WINDOW_PARAM_ACCUM_BLUE_BITS    = GFXDEVICE_ACCUM_BLUE_BITS,
+        WINDOW_PARAM_ACCUM_ALPHA_BITS   = GFXDEVICE_ACCUM_ALPHA_BITS,
+        WINDOW_PARAM_AUX_BUFFERS        = GFXDEVICE_AUX_BUFFERS,
+        WINDOW_PARAM_STEREO             = GFXDEVICE_STEREO,
+        WINDOW_PARAM_WINDOW_NO_RESIZE   = GFXDEVICE_WINDOW_NO_RESIZE,
+        WINDOW_PARAM_FSAA_SAMPLES       = GFXDEVICE_FSAA_SAMPLES
+    };
+
     // Parameter structure for CreateDevice
     struct CreateDeviceParams
     {
@@ -206,8 +229,7 @@ namespace dmGraphics
     void DestroyTexture(HTexture t);
     void SetTexture(HContext context, HTexture t);
 
-
-
+    uint32_t GetWindowParam(WindowParam param);
 }
 
 #endif // GRAPHICSDEVICE_H

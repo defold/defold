@@ -206,4 +206,8 @@ namespace dmGraphics
         assert(context);
     }
 
+    uint32_t GetWindowParam(WindowParam param)
+    {
+        return 0;
+    }
 }
