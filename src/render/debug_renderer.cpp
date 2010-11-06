@@ -53,6 +53,7 @@ namespace dmRender
     {
         dmRender::HRenderObject ro = dmRender::NewRenderObject(m_DebugRenderer.m_DebugRenderType, m_DebugRenderer.m_Material, 0x0);
         m_DebugRenderer.m_ROs.Push(ro);
+        dmRender::AddToRender(m_DebugRenderer.m_RenderContext, ro);
         return ro;
     }
 
