@@ -3,6 +3,19 @@ from TaskGen import extension, declare_extension
 import os, sys
 import waf_gamesys
 
+Task.simple_task_type('render_script', 'cat < ${SRC} > ${TGT}',
+                      color='PINK',
+                      before='cc cxx',
+                      shell=True)
+
+@extension('.render_script')
+def testresourcecont_file(self, node):
+    obj_ext = '.render_scriptc'
+    task = self.create_task('render_script')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
 def build(bld):
     fonts = bld.new_task_gen(
         features = '',
@@ -11,5 +24,5 @@ def build(bld):
         source='test.ttf')
 
     obj = bld.new_task_gen()
-    obj.find_sources_in_dirs('.', exts = ['.fp', '.vp', '.gamepads', '.input_binding', '.collection', '.dae', '.model', '.go', '.font', '.material', '.png', '.camera', '.script'])
+    obj.find_sources_in_dirs('.', exts = ['.fp', '.vp', '.gamepads', '.input_binding', '.collection', '.dae', '.model', '.go', '.font', '.material', '.png', '.camera', '.script', '.render_script'])
     obj.install_path = None

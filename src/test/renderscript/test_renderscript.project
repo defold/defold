@@ -8,5 +8,6 @@ debug_fp = debug.arbfp
 debug_vp = debug.arbvp
 gamepads = default.gamepadsc
 game_binding = default.input_bindingc
+render_script = test.render_scriptc
 [resource]
 uri = build/default/src/test/renderscript

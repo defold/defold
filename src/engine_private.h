@@ -18,6 +18,8 @@
 
 #include <gamesys/gamesys.h>
 
+#include "render_script/render_script.h"
+
 #include "engine_ddf.h"
 
 namespace dmEngine
@@ -61,6 +63,9 @@ namespace dmEngine
         dmGraphics::HMaterial                       m_DebugMaterial;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
+
+        HRenderScript                               m_RenderScript;
+        HRenderScriptInstance                       m_RenderScriptInstance;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

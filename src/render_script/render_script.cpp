@@ -5,6 +5,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <dlib/profile.h>
 
 #include <script/script.h>
 #include <gameobject/gameobject.h>
@@ -36,12 +37,6 @@ namespace dmEngine
 
     lua_State* g_LuaState = 0;
     uint32_t g_Socket = 0;
-
-    #define MAX_TAG_COUNT 8
-    struct Predicate
-    {
-        uint32_t m_Tags[MAX_TAG_COUNT];
-    };
 
     RenderScriptWorld::RenderScriptWorld()
     : m_Instances()
@@ -171,12 +166,12 @@ namespace dmEngine
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         (void)i;
-        Predicate* predicate = 0x0;
-        if (lua_islightuserdata(L, 2))
-        {
-            predicate = (Predicate*)lua_touserdata(L, 2);
-        }
-        // TODO: Add to render
+        dmRender::Predicate* predicate = 0x0;
+//        if (lua_islightuserdata(L, 2))
+//        {
+//            predicate = (Predicate*)lua_touserdata(L, 2);
+//        }
+        dmRender::Draw(i->m_RenderContext, predicate);
         return 1;
     }
 
@@ -247,24 +242,6 @@ namespace dmEngine
         if (g_LuaState)
             lua_close(g_LuaState);
         g_LuaState = 0;
-    }
-
-    static void Dispatch(dmMessage::Message *message, void* user_ptr)
-    {
-        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message->m_Data;
-
-        if (instance_message_data->m_DDFDescriptor == dmGameSystemDDF::SetLight::m_DDFDescriptor)
-        {
-            dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*) instance_message_data->m_Buffer;
-            (void) set_light;
-            // Do something useful here
-        }
-
-    }
-
-    void UpdateRenderScript()
-    {
-        dmMessage::Dispatch(g_Socket, &Dispatch, 0);
     }
 
     struct LuaData
@@ -384,7 +361,7 @@ bail:
         delete render_script;
     }
 
-    HRenderScriptInstance NewRenderScriptInstance(HRenderScript render_script, dmRender::RenderContext* render_context)
+    HRenderScriptInstance NewRenderScriptInstance(HRenderScript render_script, dmRender::HRenderContext render_context)
     {
         lua_State* L = g_LuaState;
 
@@ -395,6 +372,7 @@ bail:
 
         RenderScriptInstance* i = (RenderScriptInstance *)lua_newuserdata(L, sizeof(RenderScriptInstance));
         i->m_RenderScript = render_script;
+        i->m_RenderContext = render_context;
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
@@ -424,5 +402,85 @@ bail:
         luaL_unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
 
         assert(top == lua_gettop(L));
+    }
+
+    RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
+    {
+        DM_PROFILE(RenderScript, "RunScript");
+
+        RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
+        HRenderScript script = script_instance->m_RenderScript;
+        if (script->m_FunctionReferences[script_function] != LUA_NOREF)
+        {
+            lua_State* L = g_LuaState;
+            int top = lua_gettop(L);
+            (void) top;
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+            int arg_count = 1;
+
+            if (script_function == RENDER_SCRIPT_FUNCTION_ONMESSAGE)
+            {
+                arg_count = 3;
+
+                dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*)args;
+                dmScript::PushHash(L, instance_message_data->m_MessageId);
+                if (instance_message_data->m_DDFDescriptor)
+                {
+                    // adjust char ptrs to global mem space
+                    char* data = (char*)instance_message_data->m_Buffer;
+                    for (uint8_t i = 0; i < instance_message_data->m_DDFDescriptor->m_FieldCount; ++i)
+                    {
+                        dmDDF::FieldDescriptor* field = &instance_message_data->m_DDFDescriptor->m_Fields[i];
+                        uint32_t field_type = field->m_Type;
+                        if (field_type == dmDDF::TYPE_STRING)
+                        {
+                            *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
+                        }
+                    }
+                    // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
+                    // lua_cpcall?
+                    dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_Buffer);
+                }
+                else
+                {
+                    if (instance_message_data->m_BufferSize > 0)
+                        dmScript::PushTable(L, (const char*)instance_message_data->m_Buffer);
+                    else
+                        lua_newtable(L);
+                }
+            }
+            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+                result = RENDER_SCRIPT_RESULT_FAILED;
+            }
+
+            assert(top == lua_gettop(L));
+        }
+
+        return result;
+    }
+
+    RenderScriptResult InitRenderScriptInstance(HRenderScriptInstance instance)
+    {
+        return RunScript(instance, RENDER_SCRIPT_FUNCTION_INIT, 0x0);
+    }
+
+    static void Dispatch(dmMessage::Message *message, void* user_ptr)
+    {
+        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message->m_Data;
+        HRenderScriptInstance script_instance = (HRenderScriptInstance)user_ptr;
+        RunScript(script_instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, (void*)instance_message_data);
+    }
+
+    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
+    {
+        dmMessage::Dispatch(g_Socket, &Dispatch, (void*)instance);
+        return RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
     }
 }

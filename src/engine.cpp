@@ -29,6 +29,7 @@
 #include "physics_debug_render.h"
 #include "profile_render.h"
 #include "render_script/render_script.h"
+#include "render_script/res_render_script.h"
 
 using namespace Vectormath::Aos;
 
@@ -84,6 +85,8 @@ namespace dmEngine
     , m_DebugMaterial(0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
+    , m_RenderScript(0x0)
+    , m_RenderScriptInstance(0x0)
     {
         m_Register = dmGameObject::NewRegister(Dispatch, this);
         m_Collections.SetCapacity(16, 32);
@@ -213,6 +216,10 @@ namespace dmEngine
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
+        fact_result = dmResource::RegisterType(engine->m_Factory, "render_scriptc", 0x0, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+            goto bail;
+
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -225,6 +232,9 @@ namespace dmEngine
             dmLogWarning("Unable to load bootstrap data.");
             goto bail;
         }
+
+        if (engine->m_RenderScriptInstance)
+            InitRenderScriptInstance(engine->m_RenderScriptInstance);
 
         dmRender::InitializeDebugRenderer(engine->m_RenderContext, engine->m_DebugMaterial);
 
@@ -279,6 +289,7 @@ bail:
             engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
             ReloadResources(engine, "scriptc");
             ReloadResources(engine, "emitterc");
+            ReloadResources(engine, "render_scriptc");
         }
     }
 
@@ -375,12 +386,6 @@ bail:
                     }
                 }
 
-                dmEngine::UpdateRenderScript();
-
-                dmGraphics::HContext context = dmGraphics::GetContext();
-                dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
-                dmGraphics::SetViewport(context, engine->m_ScreenWidth, engine->m_ScreenHeight);
-
                 engine->m_InputBuffer.SetSize(0);
                 dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, &engine->m_InputBuffer);
                 if (engine->m_InputBuffer.Size() > 0)
@@ -420,7 +425,17 @@ bail:
             if (engine->m_ShowProfile)
                 dmProfileRender::Draw(engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
 
-            dmRender::Draw(engine->m_RenderContext, 0x0);
+            if (engine->m_RenderScriptInstance)
+            {
+                dmEngine::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
+            }
+            else
+            {
+                dmGraphics::HContext context = dmGraphics::GetContext();
+                dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
+                dmGraphics::SetViewport(context, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                dmRender::Draw(engine->m_RenderContext, 0x0);
+            }
 
             dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
             dmGameObject::PostUpdate(collections, 2);
@@ -720,11 +735,25 @@ bail:
             return false;
         }
 
+        const char* render_script_path = dmConfigFile::GetString(config, "bootstrap.render_script", 0x0);
+        if (render_script_path != 0x0)
+        {
+            fact_error = dmResource::Get(engine->m_Factory, render_script_path, (void**)&engine->m_RenderScript);
+            if (fact_error != dmResource::FACTORY_RESULT_OK)
+                return false;
+            engine->m_RenderScriptInstance = NewRenderScriptInstance(engine->m_RenderScript, engine->m_RenderContext);
+        }
+
         return true;
     }
 
     void UnloadBootstrapContent(HEngine engine)
     {
+        if (engine->m_RenderScript)
+        {
+            DeleteRenderScriptInstance(engine->m_RenderScriptInstance);
+            dmResource::Release(engine->m_Factory, engine->m_RenderScript);
+        }
         if (engine->m_FontRenderer)
             dmRender::DeleteFontRenderer(engine->m_FontRenderer);
         if (engine->m_Font)
