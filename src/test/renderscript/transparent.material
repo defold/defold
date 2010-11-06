@@ -1,6 +1,6 @@
 Name: "Transparent"
-VertexProgram: "simple"
-FragmentProgram: "simple"
+VertexProgram: "simple.vp"
+FragmentProgram: "simple.fp"
 FragmentParameters
 {
     Name: "color"
