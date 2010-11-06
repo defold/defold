@@ -338,7 +338,8 @@ bail:
 
                 dmHID::KeyboardPacket keybdata;
                 dmHID::GetKeyboardPacket(&keybdata);
-                if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC))
+
+                if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowParam(dmGraphics::WINDOW_PARAM_OPENED))
                 {
                     engine->m_Alive = false;
                     break;
