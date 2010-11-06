@@ -27,7 +27,6 @@ namespace dmGameSystem
         if ( factory_e != dmResource::FACTORY_RESULT_OK)
         {
             dmDDF::FreeMessage((void*) material_desc);
-            dmResource::Release(factory, (void*) vertex_program);
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
@@ -37,7 +36,6 @@ namespace dmGameSystem
         {
             dmDDF::FreeMessage((void*) material_desc);
             dmResource::Release(factory, (void*) vertex_program);
-            dmResource::Release(factory, (void*) fragment_program);
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
