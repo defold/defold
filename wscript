@@ -55,7 +55,6 @@ def configure(conf):
     conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_RENDERDEBUG'] = 'render_debug'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_GUI'] = 'gui'
