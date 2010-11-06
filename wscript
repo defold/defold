@@ -74,7 +74,6 @@ def configure(conf):
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_RENDERDEBUG'] = 'render_debug'
     conf.env['STATICLIB_GAMESYS'] = 'gamesys'
     conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STATICLIB_LUA'] = 'lua'
