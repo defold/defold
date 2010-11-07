@@ -437,7 +437,7 @@ bail:
                         uint32_t field_type = field->m_Type;
                         if (field_type == dmDDF::TYPE_STRING)
                         {
-                            *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + (uintptr_t)data[field->m_Offset];
+                            *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + *((uintptr_t*)(data + field->m_Offset));
                         }
                     }
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
