@@ -48,3 +48,25 @@ message Quat
     required float Z = 3;
     required float W = 4;
 }
+
+message Matrix4
+{
+    option (alias) = "Vectormath::Aos::Matrix4";
+
+    required float M00 = 1;
+    required float M01 = 2;
+    required float M02 = 3;
+    required float M03 = 4;
+    required float M10 = 5;
+    required float M11 = 6;
+    required float M12 = 7;
+    required float M13 = 8;
+    required float M20 = 9;
+    required float M21 = 10;
+    required float M22 = 11;
+    required float M23 = 12;
+    required float M30 = 13;
+    required float M31 = 14;
+    required float M32 = 15;
+    required float M33 = 16;
+}
