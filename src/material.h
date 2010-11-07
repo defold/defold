@@ -2,8 +2,10 @@
 #define MATERIAL_H_
 
 #include <vectormath/cpp/vectormath_aos.h>
-#include "graphics_device.h"
 
+#include <dlib/array.h>
+
+#include "graphics_device.h"
 
 namespace dmGraphics
 {
@@ -28,6 +30,9 @@ namespace dmGraphics
     uint32_t            GetMaterialVertexConstantMask(HMaterial material);
     uint32_t            GetMaterialFragmentConstantMask(HMaterial material);
 
+    uint32_t            GetMaterialTagMask(HMaterial material);
+    void                AddMaterialTag(HMaterial material, uint32_t tag);
+    uint32_t            ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count);
 }
 
 
