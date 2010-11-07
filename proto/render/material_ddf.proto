@@ -1,6 +1,7 @@
 package dmRender;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Material";
@@ -8,42 +9,17 @@ option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message MaterialDesc
 {
-    enum ParameterType
-    {
-        VECTOR1 = 1;
-        VECTOR2 = 2;
-        VECTOR3 = 3;
-        VECTOR4 = 4;
-    }
-
-    enum ParameterSemantic
-    {
-        DIFFUSE_COLOR = 0;
-        EMISSIVE_COLOR = 1;
-        SPECULAR_COLOR = 2;
-    }
-
-    message Vector4
-    {
-        required float x = 1;
-        required float y = 2;
-        required float z = 3;
-        required float w = 4;
-    }
-
     message Parameter
     {
-        required string Name = 1;
-        required ParameterType Type = 2;
-        required ParameterSemantic Semantic = 3;
-        required uint32 Register = 4;
-        required Vector4 Value = 5;
+        required uint32 Register = 1;
+        required dmMath.Vector4 Value = 2;
     }
 
     required string Name = 1;
-    required string VertexProgram = 2;
-    required string FragmentProgram = 3;
-    repeated Parameter VertexParameters = 4;
-    repeated Parameter FragmentParameters = 5;
+    repeated string Tags = 2;
+    required string VertexProgram = 3;
+    required string FragmentProgram = 4;
+    repeated Parameter VertexParameters = 5;
+    repeated Parameter FragmentParameters = 6;
 }
 

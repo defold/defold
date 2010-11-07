@@ -97,39 +97,36 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result Draw(HRenderContext render_context, const Predicate* predicate)
+    Result Draw(HRenderContext render_context, Predicate* predicate)
     {
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
+        uint32_t tag_mask = 0;
+        if (predicate != 0x0)
+            tag_mask = dmGraphics::ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
         int type = -1;
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             HRenderObject ro = render_context->m_RenderObjects[i];
-            // yes, this should be optimized
-            if (predicate != 0x0)
+            if ((dmGraphics::GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
-                for (uint32_t j = 0; j < predicate->m_TagCount; ++j)
+                // check if we need to change render type and run its setup func
+                if (type != (int)ro->m_Type)
                 {
-                    // TODO: check material tags
+                    if (render_context->m_RenderTypes[ro->m_Type].m_BeginCallback)
+                        render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context);
+                    type = ro->m_Type;
                 }
-            }
 
-            // check if we need to change render type and run its setup func
-            if (type != (int)ro->m_Type)
-            {
-                if (render_context->m_RenderTypes[ro->m_Type].m_BeginCallback)
-                    render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context);
-                type = ro->m_Type;
-            }
+                // dispatch
+                if (render_context->m_RenderTypes[ro->m_Type].m_DrawCallback)
+                    render_context->m_RenderTypes[ro->m_Type].m_DrawCallback(render_context, ro, 1);
 
-            // dispatch
-            if (render_context->m_RenderTypes[ro->m_Type].m_DrawCallback)
-                render_context->m_RenderTypes[ro->m_Type].m_DrawCallback(render_context, ro, 1);
-
-            if (i == render_context->m_RenderObjects.Size() - 1 || type != (int)render_context->m_RenderObjects[i+1])
-            {
-                if (render_context->m_RenderTypes[ro->m_Type].m_EndCallback)
-                    render_context->m_RenderTypes[ro->m_Type].m_EndCallback(render_context);
+                if (i == render_context->m_RenderObjects.Size() - 1 || type != (int)render_context->m_RenderObjects[i+1])
+                {
+                    if (render_context->m_RenderTypes[ro->m_Type].m_EndCallback)
+                        render_context->m_RenderTypes[ro->m_Type].m_EndCallback(render_context);
+                }
             }
         }
         return RESULT_OK;

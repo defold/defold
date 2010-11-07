@@ -114,6 +114,12 @@ namespace dmRender
      * @param renderer Font renderer handle
      */
     void FontRendererFlush(HFontRenderer renderer);
+
+    /**
+     * Clear vertex data
+     * @param renderer Font renderer handle
+     */
+    void FontRendererClear(HFontRenderer renderer);
 }
 
 #endif // FONTRENDERER_H

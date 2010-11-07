@@ -109,6 +109,7 @@ namespace dmRender
         fr->m_Font = font;
         fr->m_MaxCharacters = max_characters;
         fr->m_RenderObject = dmRender::NewRenderObject(render_context->m_TextRenderType, font->m_Material, 0x0);
+        dmRender::SetUserData(fr->m_RenderObject, (void*)fr);
         fr->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(SFontVertex), max_characters*6, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN,1, 0x0);
 
         dmGraphics::VertexElement ve[] =
@@ -207,9 +208,12 @@ namespace dmRender
         if (renderer->m_Vertices.Size() == 0)
             return;
 
-        dmRender::SetUserData(renderer->m_RenderObject, renderer);
-
         dmRender::AddToRender(renderer->m_RenderContext, renderer->m_RenderObject);
+    }
+
+    void FontRendererClear(HFontRenderer renderer)
+    {
+        renderer->m_Vertices.SetSize(0);
     }
 
     void RenderTypeTextBegin(HRenderContext render_context)
@@ -275,7 +279,5 @@ namespace dmRender
         dmGraphics::DisableVertexStream(context, 0);
         dmGraphics::DisableVertexStream(context, 1);
         dmGraphics::DisableVertexStream(context, 2);
-
-        vertex_data->SetSize(0);
     }
 }

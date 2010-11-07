@@ -29,7 +29,8 @@ namespace dmRender
 
     struct Predicate
     {
-        uint32_t m_Tags[16];
+        static const uint32_t MAX_TAG_COUNT = 32;
+        uint32_t m_Tags[MAX_TAG_COUNT];
         uint32_t m_TagCount;
     };
 
@@ -66,7 +67,7 @@ namespace dmRender
     Result AddToRender(HRenderContext context, HRenderObject ro);
     Result ClearRenderObjects(HRenderContext context);
 
-    Result Draw(HRenderContext context, const Predicate* predicate);
+    Result Draw(HRenderContext context, Predicate* predicate);
 
     HRenderObject NewRenderObject(HRenderType render_type, dmGraphics::HMaterial material, void* visual_object);
     void DeleteRenderObject(HRenderObject ro);
