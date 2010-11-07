@@ -254,6 +254,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             Component* c = gui_world->m_Components[i];
+            for (uint32_t j = 0; j < c->m_FontRenderers.Size(); ++j)
+            {
+                dmRender::FontRendererClear(c->m_FontRenderers[j]);
+            }
             if (c->m_Enabled)
                 dmGui::RenderScene(c->m_Scene, &RenderNode, 0);
 
