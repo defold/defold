@@ -12,14 +12,13 @@ namespace dmGraphics
 
     struct Device
     {
-        void*    m_SDLscreen;
-
         struct
         {
             uint32_t    m_DisplayWidth;
             uint32_t    m_DisplayHeight;
         };
-
+        void*    m_SDLscreen;
+        uint32_t m_Opened : 1;
     };
 
     struct Context

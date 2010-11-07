@@ -21,11 +21,15 @@ namespace dmGraphics
     HDevice CreateDevice(int* argc, char** argv, CreateDeviceParams *params )
     {
         assert(params);
+        gdevice.m_DisplayWidth = params->m_DisplayWidth;
+        gdevice.m_DisplayHeight = params->m_DisplayHeight;
+        gdevice.m_Opened = 1;
         return (HDevice)&gdevice;
     }
 
     void DestroyDevice()
     {
+        gdevice.m_Opened = 0;
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -208,6 +212,12 @@ namespace dmGraphics
 
     uint32_t GetWindowParam(WindowParam param)
     {
-        return 0;
+        switch (param)
+        {
+            case WINDOW_PARAM_OPENED:
+                return gdevice.m_Opened;
+            default:
+                return 0;
+        }
     }
 }
