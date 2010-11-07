@@ -178,10 +178,10 @@ namespace dmEngine
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         (void)i;
         dmRender::Predicate* predicate = 0x0;
-//        if (lua_islightuserdata(L, 2))
-//        {
-//            predicate = (Predicate*)lua_touserdata(L, 2);
-//        }
+        if (lua_islightuserdata(L, 2))
+        {
+            predicate = (dmRender::Predicate*)lua_touserdata(L, 2);
+        }
         dmRender::Draw(i->m_RenderContext, predicate);
         return 1;
     }
@@ -218,6 +218,28 @@ namespace dmEngine
         return 1;
     }
 
+    int RenderScript_Predicate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        luaL_checktype(L, 2, LUA_TTABLE);
+        if (i->m_PredicateCount < MAX_PREDICATE_COUNT)
+        {
+            dmRender::Predicate* predicate = new dmRender::Predicate();
+            i->m_Predicates[i->m_PredicateCount++] = predicate;
+            lua_pushnil(L);  /* first key */
+            while (lua_next(L, 2) != 0)
+            {
+                const char* tag = luaL_checkstring(L, -1);
+                predicate->m_Tags[predicate->m_TagCount++] = dmHashString32(tag);
+                lua_pop(L, 1);
+                if (predicate->m_TagCount == dmRender::Predicate::MAX_TAG_COUNT)
+                    break;
+            }
+            lua_pushlightuserdata(L, (void*)predicate);
+        }
+        return 1;
+    }
+
     static const luaL_reg RenderScript_methods[] =
     {
         {"set_viewport",        RenderScript_SetViewport},
@@ -227,6 +249,7 @@ namespace dmEngine
         {"set_projection",      RenderScript_SetProjection},
         {"get_window_width",    RenderScript_GetWindowWidth},
         {"get_window_height",   RenderScript_GetWindowHeight},
+        {"predicate",           RenderScript_Predicate},
         {0, 0}
     };
 
@@ -401,6 +424,7 @@ bail:
         lua_getglobal(L, "__instances__");
 
         RenderScriptInstance* i = (RenderScriptInstance *)lua_newuserdata(L, sizeof(RenderScriptInstance));
+        i->m_PredicateCount = 0;
         i->m_RenderScript = render_script;
         i->m_RenderContext = render_context;
 
@@ -427,6 +451,9 @@ bail:
 
         int top = lua_gettop(L);
         (void) top;
+
+        for (uint32_t i = 0; i < render_script_instance->m_PredicateCount; ++i)
+            delete render_script_instance->m_Predicates[i];
 
         luaL_unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         luaL_unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);

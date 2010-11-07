@@ -447,9 +447,11 @@ bail:
             dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
             dmGameObject::PostUpdate(collections, 2);
 
+            dmGraphics::Flip();
+
             dmRender::ClearRenderObjects(engine->m_RenderContext);
             dmRender::ClearDebugRenderObjects();
-            dmGraphics::Flip();
+            dmRender::FontRendererClear(engine->m_FontRenderer);
 
             uint64_t new_time_stamp, delta;
             new_time_stamp = dmTime::GetTime();

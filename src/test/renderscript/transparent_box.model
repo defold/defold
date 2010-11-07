@@ -1,4 +1,4 @@
-Name: "box"
+Name: "transparent_box"
 Mesh: "box.dae"
-Material: "opaque.material"
+Material: "transparent.material"
 Texture0: "blue.png"

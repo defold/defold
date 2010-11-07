@@ -29,8 +29,11 @@ namespace dmEngine
     };
     typedef RenderScript* HRenderScript;
 
+    static const uint32_t MAX_PREDICATE_COUNT = 64;
     struct RenderScriptInstance
     {
+        dmRender::Predicate* m_Predicates[MAX_PREDICATE_COUNT];
+        uint32_t            m_PredicateCount;
         HRenderScript       m_RenderScript;
         // TODO: This is needed since we are doing everything immediate atm, can probably be removed when that changes
         dmRender::RenderContext* m_RenderContext;

@@ -1,7 +1,7 @@
 function init(self)
-    --self.opaque_pred = render.predicate({"opaque"})
-    --self.transp_pred = render.predicate({"transp"})
-    --self.hud_pred = render.predicate({"hud"})
+    self.opaque_pred = render.predicate(self, {"opaque"})
+    self.transp_pred = render.predicate(self, {"transp"})
+    --self.hud_pred = render.predicate(self, {"hud"})
     self.view = vmath.matrix4()
     self.proj = vmath.matrix4()
 end
@@ -15,8 +15,8 @@ function update(self)
     render.set_projection(self, self.proj)
 
     render.draw(self, self.opaque_pred)
-    --render.draw(self, self.transp_pred)
-    --render.draw(self, self.hud_pred)
+    render.draw(self, self.transp_pred)
+    render.draw(self)
 end
 
 function on_message(self, message_id, message)
