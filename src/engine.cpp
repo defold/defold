@@ -64,6 +64,12 @@ namespace dmEngine
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
     void DispatchGui(dmMessage::Message *message_object, void* user_ptr);
 
+    Stats::Stats()
+    : m_FrameCount(0)
+    {
+
+    }
+
     Engine::Engine()
     : m_Alive(true)
     , m_MainCollection(0)
@@ -87,6 +93,7 @@ namespace dmEngine
     , m_GameInputBinding(0x0)
     , m_RenderScript(0x0)
     , m_RenderScriptInstance(0x0)
+    , m_Stats()
     {
         m_Register = dmGameObject::NewRegister(Dispatch, this);
         m_Collections.SetCapacity(16, 32);
@@ -454,6 +461,8 @@ bail:
                 actual_fps = 1.0f / actual_dt;
             else
                 actual_fps = -1.0f;
+
+            ++engine->m_Stats.m_FrameCount;
         }
         return engine->m_ExitCode;
     }
@@ -776,6 +785,11 @@ bail:
 
         if (engine->m_GameInputBinding)
             dmInput::DeleteBinding(engine->m_GameInputBinding);
+    }
+
+    uint32_t GetFrameCount(HEngine engine)
+    {
+        return engine->m_Stats.m_FrameCount;
     }
 }
 

@@ -24,6 +24,13 @@
 
 namespace dmEngine
 {
+    struct Stats
+    {
+        Stats();
+
+        uint32_t m_FrameCount;
+    };
+
     struct Engine
     {
         Engine();
@@ -66,6 +73,8 @@ namespace dmEngine
 
         HRenderScript                               m_RenderScript;
         HRenderScriptInstance                       m_RenderScriptInstance;
+
+        Stats                                       m_Stats;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

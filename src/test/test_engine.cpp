@@ -35,9 +35,12 @@ TEST_F(EngineTest, ProjectFail)
 TEST_F(EngineTest, Project)
 {
     const char* argv[] = {"test_engine", "build/default/src/test/test.projectc"};
+
     ASSERT_TRUE(dmEngine::Init(m_Engine, 2, (char**)argv));
 
     ASSERT_EQ(0, dmEngine::Run(m_Engine));
+
+    ASSERT_GT(dmEngine::GetFrameCount(m_Engine), 5u);
 }
 
 int main(int argc, char **argv)

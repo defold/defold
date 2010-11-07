@@ -28,6 +28,8 @@ namespace dmEngine
     void LoadCollection(HEngine engine, const char* collection_name);
     void UnloadCollection(HEngine engine, const char* collection_name);
     void ActivateCollection(HEngine engine, const char* collection_name);
+
+    uint32_t GetFrameCount(HEngine engine);
 };
 
 #endif // DM_ENGINE_H
