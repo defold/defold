@@ -241,7 +241,35 @@ TEST_F(LuaTableTest, Quat)
     lua_pop(L, 1);
 }
 
+TEST_F(LuaTableTest, Matrix4)
+{
+    // Create table
+    lua_newtable(L);
+    Vectormath::Aos::Matrix4 m;
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            m.setElem(i, j, i * 4 + j);
+    dmScript::PushMatrix4(L, m);
+    lua_setfield(L, -2, "v");
 
+    char buf[256];
+
+    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, buf);
+
+    lua_getfield(L, -1, "v");
+    ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
+    Vectormath::Aos::Matrix4* v = dmScript::CheckMatrix4(L, -1);
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            ASSERT_EQ(i * 4 + j, v->getElem(i, j));
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+}
 
 static std::string RandomString(int max_len)
 {

@@ -113,6 +113,16 @@ TEST(LuaTableToDDF, MessageInMessage)
     dmScript::PushVector4(L, Vectormath::Aos::Vector4(1.0f, 2.0f, 3.0f, 4.0f));
     lua_setfield(L, -2, "vec4_value");
 
+    dmScript::PushQuat(L, Vectormath::Aos::Quat(1.0f, 2.0f, 3.0f, 4.0f));
+    lua_setfield(L, -2, "quat_value");
+
+    Vectormath::Aos::Matrix4 m;
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            m.setElem(i, j, i * 4 + j);
+    dmScript::PushMatrix4(L, m);
+    lua_setfield(L, -2, "matrix4_value");
+
     lua_newtable(L);
     lua_pushinteger(L, 1); lua_setfield(L, -2, "uint_value");
 
@@ -139,6 +149,13 @@ TEST(LuaTableToDDF, MessageInMessage)
     ASSERT_EQ(2.0f, msg->m_Vec4Value.getY());
     ASSERT_EQ(3.0f, msg->m_Vec4Value.getZ());
     ASSERT_EQ(4.0f, msg->m_Vec4Value.getW());
+    ASSERT_EQ(1.0f, msg->m_QuatValue.getX());
+    ASSERT_EQ(2.0f, msg->m_QuatValue.getY());
+    ASSERT_EQ(3.0f, msg->m_QuatValue.getZ());
+    ASSERT_EQ(4.0f, msg->m_QuatValue.getW());
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            ASSERT_EQ(i * 4 + j, msg->m_Matrix4Value.getElem(i, j));
     ASSERT_EQ(1U, msg->m_SubMsgValue.m_UintValue);
     ASSERT_EQ(TestScript::ENUM_VAL1, msg->m_EnumValue);
 

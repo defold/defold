@@ -26,8 +26,10 @@ message Msg
     required string StringValue = 3;
     required dmMath.Vector3 Vec3Value = 4;
     required dmMath.Vector4 Vec4Value = 5;
-    required SubMsg SubMsgValue = 6;
-    required Enum EnumValue = 7;
+    required dmMath.Quat QuatValue = 6;
+    required dmMath.Matrix4 Matrix4Value = 7;
+    required SubMsg SubMsgValue = 8;
+    required Enum EnumValue = 9;
 }
 
 message LuaDDFBufferOverflow

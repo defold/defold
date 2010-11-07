@@ -13,6 +13,7 @@ namespace dmScript
 #define DDF_TYPE_NAME_VECTOR3   "vector3"
 #define DDF_TYPE_NAME_VECTOR4   "vector4"
 #define DDF_TYPE_NAME_QUAT      "quat"
+#define DDF_TYPE_NAME_MATRIX4   "matrix4"
 
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last, int index);
@@ -103,6 +104,11 @@ namespace dmScript
                     {
                         Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, -1);
                         *((Vectormath::Aos::Quat *) &buffer[f->m_Offset]) = *q;
+                    }
+                    else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
+                    {
+                        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, -1);
+                        *((Vectormath::Aos::Matrix4*) &buffer[f->m_Offset]) = *m;
                     }
                     else
                     {
@@ -213,6 +219,10 @@ namespace dmScript
                 else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_QUAT, sizeof(DDF_TYPE_NAME_QUAT)) == 0)
                 {
                     dmScript::PushQuat(L, *((Vectormath::Aos::Quat*) &data[f->m_Offset]));
+                }
+                else if (strncmp(d->m_ScriptName, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
+                {
+                    dmScript::PushMatrix4(L, *((Vectormath::Aos::Matrix4*) &data[f->m_Offset]));
                 }
                 else
                 {

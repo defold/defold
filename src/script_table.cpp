@@ -30,6 +30,7 @@ namespace dmScript
         SUB_TYPE_VECTOR3 = 0,
         SUB_TYPE_VECTOR4 = 1,
         SUB_TYPE_QUAT    = 2,
+        SUB_TYPE_MATRIX4 = 3,
     };
 
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
@@ -185,6 +186,20 @@ namespace dmScript
 
                         buffer += sizeof(float) * 4;
                     }
+                    else if (IsMatrix4(L, -1))
+                    {
+                        Vectormath::Aos::Matrix4* v = CheckMatrix4(L, -1);
+
+                        if (buffer_end - buffer < int32_t(sizeof(float) * 16))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_MATRIX4;
+                        for (uint32_t i = 0; i < 4; ++i)
+                            for (uint32_t j = 0; j < 4; ++j)
+                                *f++ = v->getElem(i, j);
+
+                        buffer += sizeof(float) * 16;
+                    }
                     else
                     {
                         luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
@@ -282,6 +297,16 @@ namespace dmScript
                         float* f = (float*) buffer;
                         dmScript::PushQuat(L, Vectormath::Aos::Quat(f[0], f[1], f[2], f[3]));
                         buffer += sizeof(float) * 4;
+                    }
+                    else if (sub_type == (char) SUB_TYPE_MATRIX4)
+                    {
+                        float* f = (float*) buffer;
+                        Vectormath::Aos::Matrix4 m;
+                        for (uint32_t i = 0; i < 4; ++i)
+                            for (uint32_t j = 0; j < 4; ++j)
+                                m.setElem(i, j, f[i * 4 + j]);
+                        dmScript::PushMatrix4(L, m);
+                        buffer += sizeof(float) * 16;
                     }
                     else
                     {
