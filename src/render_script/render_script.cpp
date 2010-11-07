@@ -114,6 +114,17 @@ namespace dmEngine
         {0, 0}
     };
 
+    int RenderScript_SetViewport(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t width = luaL_checknumber(L, 2);
+        uint32_t height = luaL_checknumber(L, 3);
+
+        dmGraphics::SetViewport(dmRender::GetGraphicsContext(i->m_RenderContext), width, height);
+
+        return 0;
+    }
+
     int RenderScript_Clear(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -191,12 +202,31 @@ namespace dmEngine
         return 0;
     }
 
+    int RenderScript_GetWindowWidth(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+        lua_pushnumber(L, dmGraphics::GetWindowWidth());
+        return 1;
+    }
+
+    int RenderScript_GetWindowHeight(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+        lua_pushnumber(L, dmGraphics::GetWindowHeight());
+        return 1;
+    }
+
     static const luaL_reg RenderScript_methods[] =
     {
-        {"clear",           RenderScript_Clear},
-        {"draw",            RenderScript_Draw},
-        {"set_view",        RenderScript_SetView},
-        {"set_projection",  RenderScript_SetProjection},
+        {"set_viewport",        RenderScript_SetViewport},
+        {"clear",               RenderScript_Clear},
+        {"draw",                RenderScript_Draw},
+        {"set_view",            RenderScript_SetView},
+        {"set_projection",      RenderScript_SetProjection},
+        {"get_window_width",    RenderScript_GetWindowWidth},
+        {"get_window_height",   RenderScript_GetWindowHeight},
         {0, 0}
     };
 

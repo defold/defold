@@ -2,13 +2,17 @@ function init(self)
     --self.opaque_pred = render.predicate({"opaque"})
     --self.transp_pred = render.predicate({"transp"})
     --self.hud_pred = render.predicate({"hud"})
+    self.view = vmath.matrix4()
+    self.proj = vmath.matrix4()
 end
 
 function update(self)
-    render.clear(self, {color = vmath.vector4(1, 0, 0, 0), depth = 0})
+    render.set_viewport(self, render.get_window_width(self), render.get_window_height(self))
 
-    render.set_view(self, vmath.matrix4())
-    render.set_projection(self, vmath.matrix4())
+    render.clear(self, {color = vmath.vector4(0, 0, 0, 0), depth = 1})
+
+    render.set_view(self, self.view)
+    render.set_projection(self, self.proj)
 
     render.draw(self, self.opaque_pred)
     --render.draw(self, self.transp_pred)
@@ -19,5 +23,8 @@ function on_message(self, message_id, message)
     if message_id == hash("set_light") then
         self.light_view = message.view
         self.light_proj = message.proj
+    elseif message_id == hash("set_view_projection") then
+        self.view = message.view
+        self.proj = message.projection
     end
 end

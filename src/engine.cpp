@@ -439,8 +439,8 @@ bail:
             else
             {
                 dmGraphics::HContext context = dmGraphics::GetContext();
-                dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
                 dmGraphics::SetViewport(context, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
                 dmRender::Draw(engine->m_RenderContext, 0x0);
             }
 
