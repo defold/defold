@@ -47,3 +47,10 @@ message SetLight
     required dmMath.Point3  Position  = 7;
     required dmMath.Quat    Rotation  = 8;
 }
+
+message SetViewProjection
+{
+    required string Id = 1;
+    required dmMath.Matrix4 View = 2;
+    required dmMath.Matrix4 Projection = 3;
+}

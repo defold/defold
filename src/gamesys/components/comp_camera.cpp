@@ -4,10 +4,12 @@
 #include <dlib/circular_array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 #include <render/render.h>
 
 #include "../resources/res_camera.h"
+#include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
@@ -127,13 +129,38 @@ namespace dmGameSystem
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)context;
 
-            dmRender::SetProjectionMatrix(render_context, Matrix4::perspective(camera->m_FOV, camera->m_AspectRatio, camera->m_NearZ, camera->m_FarZ));
+            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_FOV, camera->m_AspectRatio, camera->m_NearZ, camera->m_FarZ);
 
             Vectormath::Aos::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
             Vectormath::Aos::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
             Point3 look_at = pos + Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 0.0f, -1.0f));
             Vector3 up = Vectormath::Aos::rotate(rot, Vectormath::Aos::Vector3(0.0f, 1.0f, 0.0f));
-            dmRender::SetViewMatrix(render_context, Matrix4::lookAt(pos, look_at, up));
+            Vectormath::Aos::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
+
+            // Send the matrices to the render script
+            char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetViewProjection) + 9];
+            dmGameSystemDDF::SetViewProjection* set_view_projection = (dmGameSystemDDF::SetViewProjection*) (buf + sizeof(dmGameObject::InstanceMessageData));
+
+            uint32_t socket_id = dmHashString32("render");
+            uint32_t message_id = dmHashString32(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_ScriptName);
+
+            const char* id = "game"; // TODO: How should this be handle, ddf-property in the camera?
+            DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetViewProjection), 9, "%X", dmHashString32(id));
+            set_view_projection->m_Id = (const char*) sizeof(dmGameSystemDDF::SetViewProjection);
+            set_view_projection->m_View = view;
+            set_view_projection->m_Projection = projection;
+
+            dmGameObject::InstanceMessageData* msg = (dmGameObject::InstanceMessageData*) buf;
+            msg->m_BufferSize = sizeof(dmGameSystemDDF::SetViewProjection) + 9;
+            msg->m_DDFDescriptor = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor;
+            msg->m_MessageId = message_id;
+
+            dmMessage::Post(socket_id, message_id, buf, sizeof(buf));
+
+            // Set matrices immediately
+            // TODO: Remove this once render scripts are implemented everywhere
+            dmRender::SetProjectionMatrix(render_context, projection);
+            dmRender::SetViewMatrix(render_context, view);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
