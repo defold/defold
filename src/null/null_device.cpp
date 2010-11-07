@@ -220,4 +220,14 @@ namespace dmGraphics
                 return 0;
         }
     }
+
+    uint32_t GetWindowWidth()
+    {
+        return gdevice.m_DisplayWidth;
+    }
+
+    uint32_t GetWindowHeight()
+    {
+        return gdevice.m_DisplayHeight;
+    }
 }

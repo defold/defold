@@ -230,6 +230,9 @@ namespace dmGraphics
     void SetTexture(HContext context, HTexture t);
 
     uint32_t GetWindowParam(WindowParam param);
+
+    uint32_t GetWindowWidth();
+    uint32_t GetWindowHeight();
 }
 
 #endif // GRAPHICSDEVICE_H
