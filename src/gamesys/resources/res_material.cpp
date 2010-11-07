@@ -1,6 +1,7 @@
 #include "res_material.h"
 
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
 
 #include <graphics/material.h>
 
@@ -40,6 +41,10 @@ namespace dmGameSystem
         }
 
         dmGraphics::HMaterial material = dmGraphics::NewMaterial();
+        for (uint32_t i = 0; i < material_desc->m_Tags.m_Count; ++i)
+        {
+            dmGraphics::AddMaterialTag(material, dmHashString32(material_desc->m_Tags[i]));
+        }
         dmGraphics::SetMaterialVertexProgram(material, vertex_program);
         dmGraphics::SetMaterialFragmentProgram(material, fragment_program);
 
@@ -57,15 +62,9 @@ namespace dmGameSystem
                     dmGraphics::DeleteMaterial(material);
                     return dmResource::CREATE_RESULT_CONSTANT_ERROR;
                 }
-                uint32_t reg = material_desc->m_FragmentParameters[i].m_Semantic;
+                uint32_t reg = material_desc->m_FragmentParameters[i].m_Register;
 
-                // TODO: fix when Vector4 can be used properly in ddf
-                Vector4 v(material_desc->m_FragmentParameters[i].m_Value.m_x,
-                            material_desc->m_FragmentParameters[i].m_Value.m_y,
-                            material_desc->m_FragmentParameters[i].m_Value.m_z,
-                            material_desc->m_FragmentParameters[i].m_Value.m_w);
-
-                dmGraphics::SetMaterialFragmentProgramConstant(material, reg, v);
+                dmGraphics::SetMaterialFragmentProgramConstant(material, reg, material_desc->m_FragmentParameters[i].m_Value);
                 uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
                 dmGraphics::SetMaterialFragmentConstantMask(material, mask | 1 << reg);
             }
@@ -86,13 +85,7 @@ namespace dmGameSystem
                     return dmResource::CREATE_RESULT_CONSTANT_ERROR;
                 }
                 uint32_t reg = material_desc->m_VertexParameters[i].m_Register;
-                // TODO: fix when Vector4 can be used properly in ddf
-                Vector4 v(material_desc->m_VertexParameters[i].m_Value.m_x,
-                            material_desc->m_VertexParameters[i].m_Value.m_y,
-                            material_desc->m_VertexParameters[i].m_Value.m_z,
-                            material_desc->m_VertexParameters[i].m_Value.m_w);
-
-                dmGraphics::SetMaterialVertexProgramConstant(material, reg, v);
+                dmGraphics::SetMaterialVertexProgramConstant(material, reg, material_desc->m_VertexParameters[i].m_Value);
                 uint32_t mask = dmGraphics::GetMaterialVertexConstantMask(material);
                 dmGraphics::SetMaterialVertexConstantMask(material, mask | 1 << reg);
             }
