@@ -9,8 +9,10 @@ do
   echo -n "$dir"
   echo -e '\E[0m ###'
   cd $dir
-  git branch
-  git status -s
+  git push
+  if [ $? -ne 0 ]; then
+    break
+  fi
   cd ..
 done
 popd
