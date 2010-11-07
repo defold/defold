@@ -227,7 +227,10 @@ TEST_F(ScriptVmathTest, TestTransform)
 TEST_F(ScriptVmathTest, TestMatrix4)
 {
     int top = lua_gettop(L);
-    Vectormath::Aos::Matrix4 m = Vectormath::Aos::Matrix4::identity();
+    Vectormath::Aos::Matrix4 m;
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            m.setElem(i, j, i * 4 + j);
     dmScript::PushMatrix4(L, m);
     ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
     Vectormath::Aos::Matrix4* mp = dmScript::CheckMatrix4(L, -1);
