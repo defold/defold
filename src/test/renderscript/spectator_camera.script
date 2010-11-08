@@ -73,6 +73,8 @@ function on_input(self, action_id, action)
         self.boost_input = self.boost_input + action.value
     elseif action_id == hash("retard") then
         self.boost_input = self.boost_input - action.value
+    elseif action_id == hash("profiler_toggle") and action.pressed then
+        go.post("toggle_profile")
     end
     return true
 end
