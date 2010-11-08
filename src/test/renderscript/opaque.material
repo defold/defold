@@ -10,6 +10,6 @@ FragmentParameters
         X: 1
         Y: 0
         Z: 0
-        W: 0
+        W: 1
     }
 }

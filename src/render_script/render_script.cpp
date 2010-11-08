@@ -114,6 +114,42 @@ namespace dmEngine
         {0, 0}
     };
 
+    int RenderScript_EnableState(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t state = luaL_checknumber(L, 2);
+        switch (state)
+        {
+            case dmGraphics::DEPTH_TEST:
+            case dmGraphics::ALPHA_TEST:
+            case dmGraphics::BLEND:
+            case dmGraphics::CULL_FACE:
+                dmGraphics::EnableState(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::RenderState)state);
+                break;
+            default:
+                luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
+        }
+        return 0;
+    }
+
+    int RenderScript_DisableState(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t state = luaL_checknumber(L, 2);
+        switch (state)
+        {
+            case dmGraphics::DEPTH_TEST:
+            case dmGraphics::ALPHA_TEST:
+            case dmGraphics::BLEND:
+            case dmGraphics::CULL_FACE:
+                dmGraphics::DisableState(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::RenderState)state);
+                break;
+            default:
+                luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
+        }
+        return 0;
+    }
+
     int RenderScript_SetViewport(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -202,6 +238,75 @@ namespace dmEngine
         return 0;
     }
 
+    int RenderScript_SetBlendFunc(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t factors[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            factors[i] = luaL_checknumber(L, 2+i);
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            switch (factors[i])
+            {
+                case dmGraphics::BLEND_FACTOR_ZERO:
+                case dmGraphics::BLEND_FACTOR_ONE:
+                case dmGraphics::BLEND_FACTOR_SRC_COLOR:
+                case dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
+                case dmGraphics::BLEND_FACTOR_DST_COLOR:
+                case dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+                case dmGraphics::BLEND_FACTOR_SRC_ALPHA:
+                case dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:
+                case dmGraphics::BLEND_FACTOR_DST_ALPHA:
+                case dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
+                case dmGraphics::BLEND_FACTOR_SRC_ALPHA_SATURATE:
+                case dmGraphics::BLEND_FACTOR_CONSTANT_COLOR:
+                case dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR:
+                case dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA:
+                case dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA:
+                    break;
+                default:
+                    luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
+            }
+        }
+        dmGraphics::SetBlendFunc(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::BlendFactor)factors[0], (dmGraphics::BlendFactor)factors[1]);
+        return 0;
+    }
+
+    int RenderScript_SetDepthMask(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+
+        if (lua_isboolean(L, 2))
+        {
+            bool mask = lua_toboolean(L, 2);
+            dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(i->m_RenderContext), mask);
+        }
+        else
+        {
+            return luaL_error(L, "Expected boolean but got %s.", lua_typename(L, lua_type(L, 2)));
+        }
+        return 0;
+    }
+
+    int RenderScript_SetCullFace(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t face_type = luaL_checknumber(L, 2);
+        switch (face_type)
+        {
+            case dmGraphics::FRONT:
+            case dmGraphics::BACK:
+            case dmGraphics::FRONT_AND_BACK:
+                dmGraphics::SetCullFace(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::FaceType)face_type);
+                break;
+            default:
+                return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
+        }
+        return 0;
+    }
+
     int RenderScript_GetWindowWidth(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -242,11 +347,16 @@ namespace dmEngine
 
     static const luaL_reg RenderScript_methods[] =
     {
-        {"set_viewport",        RenderScript_SetViewport},
+        {"enable_state",        RenderScript_EnableState},
+        {"disable_state",       RenderScript_DisableState},
         {"clear",               RenderScript_Clear},
-        {"draw",                RenderScript_Draw},
+        {"set_viewport",        RenderScript_SetViewport},
         {"set_view",            RenderScript_SetView},
         {"set_projection",      RenderScript_SetProjection},
+        {"set_blend_func",      RenderScript_SetBlendFunc},
+        {"set_depth_mask",      RenderScript_SetDepthMask},
+        {"set_cull_face",       RenderScript_SetCullFace},
+        {"draw",                RenderScript_Draw},
         {"get_window_width",    RenderScript_GetWindowWidth},
         {"get_window_height",   RenderScript_GetWindowHeight},
         {"predicate",           RenderScript_Predicate},
@@ -282,6 +392,39 @@ namespace dmEngine
         lua_pop(L, 2);
 
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, RenderScript_methods);
+
+        #define REGISTER_RENDER_CONSTANT(name)\
+        lua_pushliteral(L, #name);\
+        lua_pushnumber(L, dmGraphics::name);\
+        lua_settable(L, -3);
+
+        REGISTER_RENDER_CONSTANT(DEPTH_TEST);
+        REGISTER_RENDER_CONSTANT(ALPHA_TEST);
+        REGISTER_RENDER_CONSTANT(BLEND);
+        REGISTER_RENDER_CONSTANT(CULL_FACE);
+
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ZERO);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_SRC_COLOR);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_SRC_COLOR);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_DST_COLOR);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_DST_COLOR);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_SRC_ALPHA);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_DST_ALPHA);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_DST_ALPHA);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_SRC_ALPHA_SATURATE);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_CONSTANT_COLOR);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_CONSTANT_ALPHA);
+        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
+
+        REGISTER_RENDER_CONSTANT(FRONT);
+        REGISTER_RENDER_CONSTANT(BACK);
+        REGISTER_RENDER_CONSTANT(FRONT_AND_BACK);
+
+        #undef REGISTER_RENDER_CONSTANT
+
         lua_pop(L, 1);
 
         dmScript::Initialize(L);

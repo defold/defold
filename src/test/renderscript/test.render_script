@@ -1,22 +1,36 @@
 function init(self)
     self.opaque_pred = render.predicate(self, {"opaque"})
     self.transp_pred = render.predicate(self, {"transp"})
-    --self.hud_pred = render.predicate(self, {"hud"})
+    self.hud_pred = render.predicate(self, {"hud"})
     self.view = vmath.matrix4()
     self.proj = vmath.matrix4()
 end
 
 function update(self)
-    render.set_viewport(self, render.get_window_width(self), render.get_window_height(self))
-
+    render.set_depth_mask(self, true)
     render.clear(self, {color = vmath.vector4(0, 0, 0, 0), depth = 1})
 
+    render.set_viewport(self, render.get_window_width(self), render.get_window_height(self))
     render.set_view(self, self.view)
     render.set_projection(self, self.proj)
 
+    render.disable_state(self, render.BLEND)
+    render.enable_state(self, render.DEPTH_TEST)
+    render.set_depth_mask(self, true)
+    render.enable_state(self, render.CULL_FACE)
+    render.set_cull_face(self, render.BACK)
     render.draw(self, self.opaque_pred)
+
+    render.enable_state(self, render.BLEND)
+    render.set_blend_func(self, render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+    render.enable_state(self, render.DEPTH_TEST)
+    render.set_depth_mask(self, false)
+    render.disable_state(self, render.CULL_FACE)
     render.draw(self, self.transp_pred)
-    render.draw(self)
+
+    render.disable_state(self, render.DEPTH_TEST)
+    render.set_depth_mask(self, false)
+    render.draw(self, self.hud_pred)
 end
 
 function on_message(self, message_id, message)

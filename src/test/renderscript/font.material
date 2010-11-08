@@ -1,3 +1,4 @@
 Name: "font"
+Tags: "hud"
 VertexProgram: "font.vp"
 FragmentProgram: "font.fp"

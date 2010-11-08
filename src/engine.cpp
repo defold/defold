@@ -177,9 +177,6 @@ namespace dmEngine
 
         device = dmGraphics::CreateDevice(&argc, argv, &graphics_params);
 
-        dmGraphics::HContext context = dmGraphics::GetContext();
-
-        dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
         dmGameObject::Initialize();
 
         RegisterDDFTypes();
