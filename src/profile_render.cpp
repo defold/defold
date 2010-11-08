@@ -128,6 +128,8 @@ namespace dmProfileRender
 
     void Draw(dmRender::HFontRenderer font_renderer, uint32_t width, uint32_t height)
     {
+        dmRender::FontRendererClear(font_renderer);
+
         Matrix4 m = Matrix4::orthographic( -1, 1, 1, -1, 10, -10 );
 
         dmGraphics::HContext context = dmGraphics::GetContext();
