@@ -104,14 +104,14 @@ namespace dmRender
         uint32_t tag_mask = 0;
         if (predicate != 0x0)
             tag_mask = dmGraphics::ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
-        int type = -1;
+        uint32_t type = ~0u;
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             HRenderObject ro = render_context->m_RenderObjects[i];
             if ((dmGraphics::GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
                 // check if we need to change render type and run its setup func
-                if (type != (int)ro->m_Type)
+                if (type != ro->m_Type)
                 {
                     if (render_context->m_RenderTypes[ro->m_Type].m_BeginCallback)
                         render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context);
@@ -122,7 +122,7 @@ namespace dmRender
                 if (render_context->m_RenderTypes[ro->m_Type].m_DrawCallback)
                     render_context->m_RenderTypes[ro->m_Type].m_DrawCallback(render_context, ro, 1);
 
-                if (i == render_context->m_RenderObjects.Size() - 1 || type != (int)render_context->m_RenderObjects[i+1])
+                if (i == render_context->m_RenderObjects.Size() - 1 || type != render_context->m_RenderObjects[i+1]->m_Type)
                 {
                     if (render_context->m_RenderTypes[ro->m_Type].m_EndCallback)
                         render_context->m_RenderTypes[ro->m_Type].m_EndCallback(render_context);
