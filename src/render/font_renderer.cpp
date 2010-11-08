@@ -235,12 +235,7 @@ namespace dmRender
         float* colour = data->m_Colour;
         float* uv = data->m_UV;
 
-
         dmGraphics::HContext context = rendercontext->m_GFXContext;
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
-
 
         Matrix4 ident = Matrix4::identity();
 
@@ -267,14 +262,7 @@ namespace dmRender
 
         dmGraphics::SetTexture(context, GetTexture(font));
 
-        dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(context, dmGraphics::BLEND);
-
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
-
-        dmGraphics::EnableState(context, dmGraphics::DEPTH_TEST);
-        dmGraphics::DisableState(context, dmGraphics::BLEND);
 
         dmGraphics::DisableVertexStream(context, 0);
         dmGraphics::DisableVertexStream(context, 1);
