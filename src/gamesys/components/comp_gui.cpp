@@ -245,12 +245,6 @@ namespace dmGameSystem
                 dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, update_context->m_DT);
         }
 
-        // render
-        dmGraphics::HContext gfx_context = dmGraphics::GetContext();
-        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::DisableState(gfx_context, dmGraphics::DEPTH_TEST);
-        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
-
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             Component* c = gui_world->m_Components[i];

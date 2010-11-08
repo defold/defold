@@ -219,13 +219,6 @@ namespace dmGameSystem
 
     void RenderTypeParticleBegin(dmRender::HRenderContext render_context)
     {
-        dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
-
-        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
-
-        dmGraphics::SetDepthMask(gfx_context, true);
-
     }
 
     void RenderTypeParticleDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
@@ -255,6 +248,5 @@ namespace dmGameSystem
 
     void RenderTypeParticleEnd(dmRender::HRenderContext render_context)
     {
-        dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(render_context), true);
     }
 }

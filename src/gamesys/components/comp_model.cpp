@@ -120,7 +120,6 @@ namespace dmGameSystem
 
     void RenderTypeModelBegin(dmRender::HRenderContext render_context)
     {
-        dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(render_context), true);
     }
 
     void RenderTypeModelDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
@@ -136,10 +135,6 @@ namespace dmGameSystem
             return;
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
-        dmGraphics::EnableState(graphics_context, dmGraphics::DEPTH_TEST);
-
-        dmGraphics::DisableState(graphics_context, dmGraphics::BLEND);
 
         dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
 
@@ -188,6 +183,5 @@ namespace dmGameSystem
 
     void RenderTypeModelEnd(const dmRender::HRenderContext render_context)
     {
-        dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(render_context), true);
     }
 }
