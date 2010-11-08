@@ -58,6 +58,7 @@ namespace dmGraphics
 #define GFXDEVICE_STATE_DEPTH_TEST                      (GL_DEPTH_TEST)
 #define GFXDEVICE_STATE_ALPHA_TEST                      (GL_ALPHA_TEST)
 #define GFXDEVICE_STATE_BLEND                           (GL_BLEND)
+#define GFXDEVICE_STATE_CULL_FACE                       (GL_CULL_FACE)
 
 // Types
 #define GFXDEVICE_TYPE_BYTE                             (GL_BYTE)
@@ -121,5 +122,9 @@ namespace dmGraphics
 #define GFXDEVICE_STEREO 0x00020011
 #define GFXDEVICE_WINDOW_NO_RESIZE 0x00020012
 #define GFXDEVICE_FSAA_SAMPLES 0x00020013
+
+#define GFXDEVICE_FACE_TYPE_FRONT           (GL_FRONT)
+#define GFXDEVICE_FACE_TYPE_BACK            (GL_BACK)
+#define GFXDEVICE_FACE_TYPE_FRONT_AND_BACK  (GL_FRONT_AND_BACK)
 
 #endif // OPENGL_DEVICE_DEFINES_H

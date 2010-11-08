@@ -210,6 +210,11 @@ namespace dmGraphics
         assert(context);
     }
 
+    void SetCullFace(HContext context, FaceType face_type)
+    {
+        assert(context);
+    }
+
     uint32_t GetWindowParam(WindowParam param)
     {
         switch (param)

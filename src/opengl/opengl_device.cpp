@@ -689,6 +689,13 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
+    void SetCullFace(HContext context, FaceType face_type)
+    {
+        assert(context);
+        glCullFace(face_type);
+        CHECK_GL_ERROR
+    }
+
     uint32_t GetWindowParam(WindowParam param)
     {
         return glfwGetWindowParam(param);

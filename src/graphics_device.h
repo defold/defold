@@ -45,6 +45,7 @@ namespace dmGraphics
         DEPTH_TEST                              = GFXDEVICE_STATE_DEPTH_TEST,
         ALPHA_TEST                              = GFXDEVICE_STATE_ALPHA_TEST,
         BLEND                                   = GFXDEVICE_STATE_BLEND,
+        CULL_FACE                               = GFXDEVICE_STATE_CULL_FACE,
     };
 
     // Types
@@ -124,6 +125,13 @@ namespace dmGraphics
         WINDOW_PARAM_STEREO             = GFXDEVICE_STEREO,
         WINDOW_PARAM_WINDOW_NO_RESIZE   = GFXDEVICE_WINDOW_NO_RESIZE,
         WINDOW_PARAM_FSAA_SAMPLES       = GFXDEVICE_FSAA_SAMPLES
+    };
+
+    enum FaceType
+    {
+        FRONT           = GFXDEVICE_FACE_TYPE_FRONT,
+        BACK            = GFXDEVICE_FACE_TYPE_BACK,
+        FRONT_AND_BACK  = GFXDEVICE_FACE_TYPE_FRONT_AND_BACK
     };
 
     // Parameter structure for CreateDevice
@@ -219,6 +227,7 @@ namespace dmGraphics
     void DisableState(HContext context, RenderState state);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     void SetDepthMask(HContext context, bool mask);
+    void SetCullFace(HContext context, FaceType face_type);
 
     HTexture CreateTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
     void SetTextureData(HTexture texture,
