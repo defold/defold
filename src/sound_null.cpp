@@ -57,7 +57,9 @@ namespace dmSound
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance)
     {
-        *sound_instance = new SoundInstance();
+        SoundInstance* si = new SoundInstance();
+        si->m_Looping = 0;
+        *sound_instance = si;
         g_Instances->Push(*sound_instance);
         return RESULT_OK;
     }
