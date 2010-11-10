@@ -77,6 +77,7 @@ int32_t Run(Context* context)
 
         dmRender::Draw(context->m_RenderContext, 0x0);
         dmRender::ClearRenderObjects(context->m_RenderContext);
+        dmRender::FontRendererClear(context->m_FontRenderer);
 
         dmGraphics::Flip();
     }
