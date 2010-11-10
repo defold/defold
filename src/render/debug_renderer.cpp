@@ -33,8 +33,12 @@ namespace dmRender
 
         debug_renderer.m_RenderContext = render_context;
 
-        dmGraphics::HVertexProgram vertex_program = dmGraphics::NewVertexProgram(vp_data, vp_data_size);
-        dmGraphics::HFragmentProgram fragment_program = dmGraphics::NewFragmentProgram(fp_data, fp_data_size);
+        dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
+        if (vp_data_size > 0)
+            vertex_program = dmGraphics::CreateVertexProgram(vp_data, vp_data_size);
+        dmGraphics::HFragmentProgram fragment_program = dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE;
+        if (fp_data_size > 0)
+            fragment_program = dmGraphics::CreateFragmentProgram(fp_data, fp_data_size);
 
         dmGraphics::HMaterial material3d = dmGraphics::NewMaterial();
         dmGraphics::AddMaterialTag(material3d, dmHashString32(DEBUG_3D_NAME));
@@ -75,8 +79,14 @@ namespace dmRender
     void FinalizeDebugRenderer(HRenderContext context)
     {
         dmGraphics::HMaterial material = context->m_DebugRenderer.m_RenderObject3d[0]->m_Material;
-        dmGraphics::DeleteVertexProgram(dmGraphics::GetMaterialVertexProgram(material));
-        dmGraphics::DeleteFragmentProgram(dmGraphics::GetMaterialFragmentProgram(material));
+
+        dmGraphics::HVertexProgram vp = dmGraphics::GetMaterialVertexProgram(material);
+        if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
+            dmGraphics::DestroyVertexProgram(vp);
+        dmGraphics::HFragmentProgram fp = dmGraphics::GetMaterialFragmentProgram(material);
+        if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
+            dmGraphics::DestroyFragmentProgram(fp);
+
         dmGraphics::DeleteMaterial(material);
         material = context->m_DebugRenderer.m_RenderObject2d[0]->m_Material;
         dmGraphics::DeleteMaterial(material);
