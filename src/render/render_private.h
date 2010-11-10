@@ -59,6 +59,8 @@ namespace dmRender
         Matrix4                     m_ViewProj;
 
         uint32_t                    m_TextRenderType;
+        uint32_t                    m_DisplayWidth;
+        uint32_t                    m_DisplayHeight;
     };
 
     struct SFontVertex

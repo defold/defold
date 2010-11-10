@@ -63,6 +63,9 @@ namespace dmRender
         context->m_Debug2dPredicate.m_Tags[0] = dmHashString32(DEBUG_2D_NAME);
         context->m_Debug2dPredicate.m_TagCount = 1;
 
+        context->m_DisplayWidth = params.m_DisplayWidth;
+        context->m_DisplayHeight = params.m_DisplayHeight;
+
         return context;
     }
 
@@ -107,6 +110,16 @@ namespace dmRender
     {
         render_context->m_Projection = projection;
         render_context->m_ViewProj = projection * render_context->m_View;
+    }
+
+    uint32_t GetDisplayWidth(HRenderContext render_context)
+    {
+        return render_context->m_DisplayWidth;
+    }
+
+    uint32_t GetDisplayHeight(HRenderContext render_context)
+    {
+        return render_context->m_DisplayHeight;
     }
 
     Result AddToRender(HRenderContext context, HRenderObject ro)

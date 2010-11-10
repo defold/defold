@@ -239,7 +239,7 @@ namespace dmRender
 
         Matrix4 ident = Matrix4::identity();
 
-        Matrix4 mat = Matrix4::orthographic( 0, 960, 540, 0, 10, -10 );
+        Matrix4 mat = Matrix4::orthographic( 0, GetDisplayWidth(rendercontext), GetDisplayHeight(rendercontext), 0, 10, -10 );
 
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
