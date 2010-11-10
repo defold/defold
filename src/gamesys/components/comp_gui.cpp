@@ -10,7 +10,6 @@
 #include <gui/gui.h>
 #include <graphics/graphics_device.h>
 #include <render/render.h>
-#include <render/debug_renderer.h>
 
 #include "../resources/res_gui.h"
 

@@ -10,8 +10,6 @@
 #include <graphics/graphics_device.h>
 #include <graphics/material.h>
 
-#include <render/debug_renderer.h>
-
 #include "gamesys.h"
 #include "gamesys_private.h"
 
