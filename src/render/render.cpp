@@ -8,22 +8,43 @@
 #include <graphics/graphics_device.h>
 
 #include "render_private.h"
+#include "debug_renderer.h"
 #include "render/mesh_ddf.h"
 
 #include "model/model.h"
 
 namespace dmRender
 {
-    HRenderContext NewRenderContext(uint32_t max_render_types, uint32_t max_instances, SetObjectModel set_object_model)
+    RenderType::RenderType()
+    : m_BeginCallback(0x0)
+    , m_DrawCallback(0x0)
+    , m_EndCallback(0x0)
+    {
+
+    }
+
+    RenderContextParams::RenderContextParams()
+    : m_MaxRenderTypes(0)
+    , m_MaxInstances(0)
+    , m_SetObjectModel(0x0)
+    , m_VertexProgramData(0x0)
+    , m_VertexProgramDataSize(0)
+    , m_FragmentProgramData(0x0)
+    , m_FragmentProgramDataSize(0)
+    {
+
+    }
+
+    HRenderContext NewRenderContext(const RenderContextParams& params)
     {
         RenderContext* context = new RenderContext;
 
-        context->m_RenderTypes.SetCapacity(max_render_types);
+        context->m_RenderTypes.SetCapacity(params.m_MaxRenderTypes);
 
-        context->m_RenderObjects.SetCapacity(max_instances);
+        context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
 
-        context->m_SetObjectModel = set_object_model;
+        context->m_SetObjectModel = params.m_SetObjectModel;
         context->m_GFXContext = dmGraphics::GetContext();
 
         RenderType text_render_type;
@@ -35,6 +56,13 @@ namespace dmRender
         context->m_View = Vectormath::Aos::Matrix4::identity();
         context->m_Projection = Vectormath::Aos::Matrix4::identity();
 
+        InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
+
+        context->m_Debug3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
+        context->m_Debug3dPredicate.m_TagCount = 1;
+        context->m_Debug2dPredicate.m_Tags[0] = dmHashString32(DEBUG_2D_NAME);
+        context->m_Debug2dPredicate.m_TagCount = 1;
+
         return context;
     }
 
@@ -42,6 +70,7 @@ namespace dmRender
     {
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
+        FinalizeDebugRenderer(render_context);
         delete render_context;
 
         return RESULT_OK;
@@ -94,6 +123,7 @@ namespace dmRender
     Result ClearRenderObjects(HRenderContext context)
     {
         context->m_RenderObjects.SetSize(0);
+        ClearDebugRenderObjects(context);
         return RESULT_OK;
     }
 
@@ -110,6 +140,10 @@ namespace dmRender
             HRenderObject ro = render_context->m_RenderObjects[i];
             if ((dmGraphics::GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
+                dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+                dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(dmRender::GetMaterial(ro)));
+                dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(dmRender::GetMaterial(ro)));
+
                 // check if we need to change render type and run its setup func
                 if (type != ro->m_Type)
                 {
@@ -130,6 +164,16 @@ namespace dmRender
             }
         }
         return RESULT_OK;
+    }
+
+    Result DrawDebug3d(HRenderContext context)
+    {
+        return Draw(context, &context->m_Debug3dPredicate);
+    }
+
+    Result DrawDebug2d(HRenderContext context)
+    {
+        return Draw(context, &context->m_Debug2dPredicate);
     }
 
     HRenderObject NewRenderObject(uint32_t type, dmGraphics::HMaterial material, void* visual_object)
@@ -164,6 +208,16 @@ namespace dmRender
     void SetUserData(HRenderObject ro, void* user_data)
     {
         ro->m_UserData = user_data;
+    }
+
+    dmGraphics::HMaterial GetMaterial(HRenderObject ro)
+    {
+        return ro->m_Material;
+    }
+
+    void SetMaterial(HRenderObject ro, dmGraphics::HMaterial material)
+    {
+        ro->m_Material = material;
     }
 
     Point3 GetPosition(HRenderObject ro)

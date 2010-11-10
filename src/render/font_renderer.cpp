@@ -239,10 +239,6 @@ namespace dmRender
 
         Matrix4 ident = Matrix4::identity();
 
-        dmGraphics::HMaterial material = GetMaterial(font);
-        dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(material));
-        dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(material));
-
         Matrix4 mat = Matrix4::orthographic( 0, 960, 540, 0, 10, -10 );
 
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);

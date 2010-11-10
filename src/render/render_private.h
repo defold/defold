@@ -13,6 +13,9 @@ namespace dmRender
 {
     using namespace Vectormath::Aos;
 
+#define DEBUG_3D_NAME "_debug3d"
+#define DEBUG_2D_NAME "_debug2d"
+
     struct RenderObject
     {
         Vector4                 m_Colour[MAX_COLOR];
@@ -25,10 +28,27 @@ namespace dmRender
         uint32_t                m_Type;
     };
 
+    enum DebugRenderType
+    {
+        DEBUG_RENDER_TYPE_FACE,
+        DEBUG_RENDER_TYPE_LINE,
+        MAX_DEBUG_RENDER_TYPE_COUNT
+    };
+
+    struct DebugRenderer
+    {
+        dmRender::HRenderContext            m_RenderContext;
+        dmRender::HRenderObject             m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
+        dmRender::HRenderObject             m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
+    };
+
     struct RenderContext
     {
         dmArray<RenderType>         m_RenderTypes;
         dmArray<RenderObject*>      m_RenderObjects;
+        DebugRenderer               m_DebugRenderer;
+        Predicate                   m_Debug3dPredicate;
+        Predicate                   m_Debug2dPredicate;
 
         dmGraphics::HContext        m_GFXContext;
 
@@ -50,33 +70,6 @@ namespace dmRender
 
     void RenderTypeTextBegin(HRenderContext rendercontext);
     void RenderTypeTextDraw(HRenderContext rendercontext, HRenderObject ro_, uint32_t count);
-
-    enum DebugRenderType
-    {
-        DEBUG_RENDER_TYPE_SQUARE,
-        DEBUG_RENDER_TYPE_CUBE,
-        DEBUG_RENDER_TYPE_PLANE,
-        DEBUG_RENDER_TYPE_LINE,
-        DEBUG_RENDER_TYPE_LINES
-    };
-
-    enum RenderMode
-    {
-        RENDERMODE_2D,
-        RENDERMODE_3D
-    };
-
-    struct DebugRenderInfo
-    {
-        DebugRenderType m_Type;
-        RenderMode      m_Mode;
-        void*           m_Data0;
-        void*           m_Data1;
-        void*           m_Data2;
-        void*           m_Data3;
-        void*           m_Data4;
-        void*           m_Data5;
-    };
 
     void RenderTypeDebugBegin(HRenderContext rendercontext);
     void RenderTypeDebugDraw(HRenderContext rendercontext, dmRender::HRenderObject ro, uint32_t count);
