@@ -1,4 +1,4 @@
-struct pixel_in 
+struct pixel_in
 {
     float4 position : POSITION;
     float4 color : COLOR0;
