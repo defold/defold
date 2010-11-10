@@ -30,7 +30,10 @@ protected:
         memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
         memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
 
-        m_RenderContext = dmRender::NewRenderContext(10, 1000, 0x0);
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 10;
+        render_params.m_MaxInstances = 1000;
+        m_RenderContext = dmRender::NewRenderContext(render_params);
 
         assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext));
 

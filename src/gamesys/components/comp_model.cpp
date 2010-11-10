@@ -138,9 +138,6 @@ namespace dmGameSystem
 
         dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
 
-
-        dmGraphics::SetFragmentProgram(graphics_context, dmGraphics::GetMaterialFragmentProgram(material) );
-
         for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
             uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
@@ -153,8 +150,6 @@ namespace dmGameSystem
 
         Vector4 diffuse_color = dmRender::GetColor(ro, dmRender::DIFFUSE_COLOR);
         dmGraphics::SetFragmentConstant(graphics_context, &diffuse_color, 0);
-
-        dmGraphics::SetVertexProgram(graphics_context, dmGraphics::GetMaterialVertexProgram(material));
 
         Matrix4 m(rotation, Vector3(position));
 

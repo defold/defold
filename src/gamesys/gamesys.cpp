@@ -180,7 +180,7 @@ namespace dmGameSystem
         if (dmRender::RegisterRenderType(render_context, render_type, &type) != dmRender::RESULT_OK) \
             return dmGameObject::RESULT_UNKNOWN_ERROR;
 
-        REGISTER_RENDER_TYPE(emitter_context->m_ParticleRenderType, RenderTypeParticleBegin, RenderTypeParticleDraw, RenderTypeParticleEnd);
+        REGISTER_RENDER_TYPE(emitter_context->m_ParticleRenderType, 0x0, RenderTypeParticleDraw, 0x0);
         REGISTER_RENDER_TYPE(g_ModelRenderType, RenderTypeModelBegin, RenderTypeModelDraw, RenderTypeModelEnd);
 
 #undef REGISTER_RENDER_TYPE

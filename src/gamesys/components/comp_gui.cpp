@@ -165,6 +165,7 @@ namespace dmGameSystem
                     uint32_t node_count,
                     void* context)
     {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::Node* node = &nodes[i];
@@ -212,7 +213,7 @@ namespace dmGameSystem
                 s.setX(s.getX() / 960.0f);
                 s.setY(s.getY() / 540.0f);
 
-                dmRender::Square(p, s, color);
+                dmRender::Square2d(render_context, p.getX() - s.getX(), p.getY() - s.getY(), p.getX() + s.getX(), p.getY() + s.getY(), color);
             }
             else if(node->m_NodeType == dmGui::NODE_TYPE_TEXT)
             {
@@ -233,6 +234,7 @@ namespace dmGameSystem
                                              void* context)
     {
         GuiWorld* gui_world = (GuiWorld*)world;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
 
         dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
         dmMessage::Dispatch(gui_world->m_Socket, &DispatchGui, regist);
@@ -253,7 +255,7 @@ namespace dmGameSystem
                 dmRender::FontRendererClear(c->m_FontRenderers[j]);
             }
             if (c->m_Enabled)
-                dmGui::RenderScene(c->m_Scene, &RenderNode, 0);
+                dmGui::RenderScene(c->m_Scene, &RenderNode, render_context);
 
             for (uint32_t j = 0; j < c->m_FontRenderers.Size(); ++j)
             {

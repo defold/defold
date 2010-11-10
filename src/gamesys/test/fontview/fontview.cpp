@@ -117,7 +117,10 @@ bool Init(Context* context, int argc, char* argv[])
 
         dmGraphics::EnableState(gfx_context, dmGraphics::DEPTH_TEST);
 
-        context->m_RenderContext = dmRender::NewRenderContext(10, 100, 0x0);
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 10;
+        render_params.m_MaxInstances = 100;
+        context->m_RenderContext = dmRender::NewRenderContext(render_params);
         dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
         dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());
 

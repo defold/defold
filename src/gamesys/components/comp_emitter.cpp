@@ -129,7 +129,7 @@ namespace dmGameSystem
     void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size);
     void RenderTearDownCallback(void* render_context);
     void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
-    void RenderLineCallback(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
+    void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
     dmGameObject::UpdateResult CompEmitterUpdate(dmGameObject::HCollection collection,
             const dmGameObject::UpdateContext* update_context,
@@ -164,7 +164,8 @@ namespace dmGameSystem
 
         if (ctx->m_Debug)
         {
-            dmParticle::DebugRender(w->m_ParticleContext, RenderLineCallback);
+            EmitterContext* emitter_context = (EmitterContext*)context;
+            dmParticle::DebugRender(w->m_ParticleContext, emitter_context->m_RenderContext, RenderLineCallback);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -212,13 +213,9 @@ namespace dmGameSystem
         world->m_RenderObjects.Push(ro);
     }
 
-    void RenderLineCallback(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
+    void RenderLineCallback(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
     {
-        dmRender::Line3D(start, end, color);
-    }
-
-    void RenderTypeParticleBegin(dmRender::HRenderContext render_context)
-    {
+        dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }
 
     void RenderTypeParticleDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
@@ -236,17 +233,10 @@ namespace dmGameSystem
         // alpha
         dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[5]);
 
-        dmGraphics::SetVertexProgram(gfx_context, dmGraphics::GetMaterialVertexProgram(user_data->m_Material));
         dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)dmRender::GetViewProjectionMatrix(render_context), 0, 4);
-        dmGraphics::SetFragmentProgram(gfx_context, dmGraphics::GetMaterialFragmentProgram(user_data->m_Material));
 
         dmGraphics::SetTexture(gfx_context, user_data->m_Texture);
 
         dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, user_data->m_VertexIndex, user_data->m_VertexCount);
-
-    }
-
-    void RenderTypeParticleEnd(dmRender::HRenderContext render_context)
-    {
     }
 }
