@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 
         GameLoop();
     }
-    dmGraphics::DestroyDevice();
+    dmGraphics::DeleteDevice();
     return 0;
 }
 

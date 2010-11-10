@@ -22,7 +22,7 @@ namespace dmRender
     {
         ~SFont()
         {
-            dmGraphics::DestroyTexture(m_Texture);
+            dmGraphics::DeleteTexture(m_Texture);
         }
 
         dmRenderDDF::ImageFont*     m_Font;
@@ -63,7 +63,7 @@ namespace dmRender
         SFont*ret = new SFont();
         ret->m_Material = 0;
         ret->m_Font = (dmRenderDDF::ImageFont*) image_font;
-        ret->m_Texture = dmGraphics::CreateTexture(ret->m_Font->m_ImageWidth,
+        ret->m_Texture = dmGraphics::NewTexture(ret->m_Font->m_ImageWidth,
                                                    ret->m_Font->m_ImageHeight,
                                                    dmGraphics::TEXTURE_FORMAT_LUMINANCE);
 
