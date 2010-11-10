@@ -10,7 +10,7 @@ namespace dmGameSystem
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename)
     {
-        dmGraphics::HVertexProgram prog = dmGraphics::CreateVertexProgram(buffer, buffer_size);
+        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(buffer, buffer_size);
         if (prog == 0 )
             return dmResource::CREATE_RESULT_UNKNOWN;
 
@@ -22,7 +22,7 @@ namespace dmGameSystem
                                                   void* context,
                                                   dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::DestroyVertexProgram((dmGraphics::HVertexProgram) resource->m_Resource);
+        dmGraphics::DeleteVertexProgram((dmGraphics::HVertexProgram) resource->m_Resource);
         return dmResource::CREATE_RESULT_OK;
     }
 }

@@ -52,7 +52,7 @@ namespace dmGameSystem
 
         dmGraphics::TextureFormat format;
         format = TextureImageToTextureFormat(image);
-        dmGraphics::HTexture texture = dmGraphics::CreateTexture(image->m_Width, image->m_Height, format);
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(image->m_Width, image->m_Height, format);
 
         int w = image->m_Width;
         int h = image->m_Height;
@@ -75,7 +75,7 @@ namespace dmGameSystem
                                             void* context,
                                             dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::DestroyTexture((dmGraphics::HTexture) resource->m_Resource);
+        dmGraphics::DeleteTexture((dmGraphics::HTexture) resource->m_Resource);
         return dmResource::CREATE_RESULT_OK;
     }
 }

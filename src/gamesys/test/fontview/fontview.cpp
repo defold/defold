@@ -97,7 +97,6 @@ bool Init(Context* context, int argc, char* argv[])
         else
             context->m_TestString = "The quick brown fox jumps over the lazy dog";
 
-        dmGraphics::HDevice device;
         dmGraphics::CreateDeviceParams graphics_params;
 
         graphics_params.m_DisplayWidth = 960;
@@ -111,7 +110,7 @@ bool Init(Context* context, int argc, char* argv[])
 
         dmHID::Initialize();
 
-        device = dmGraphics::CreateDevice(&argc, argv, &graphics_params);
+        context->m_GraphicsDevice = dmGraphics::NewDevice(&argc, argv, &graphics_params);
 
         dmGraphics::HContext gfx_context = dmGraphics::GetContext();
 
@@ -166,7 +165,7 @@ bool Init(Context* context, int argc, char* argv[])
 
 void Finalize(Context* context)
 {
-    dmGraphics::DestroyDevice();
+    dmGraphics::DeleteDevice(context->m_GraphicsDevice);
     dmHID::Finalize();
 
     if (context->m_Factory)

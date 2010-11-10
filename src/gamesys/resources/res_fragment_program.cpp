@@ -10,7 +10,7 @@ namespace dmGameSystem
                                                    dmResource::SResourceDescriptor* resource,
                                                    const char* filename)
     {
-        dmGraphics::HFragmentProgram prog = dmGraphics::CreateFragmentProgram(buffer, buffer_size);
+        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(buffer, buffer_size);
         if (prog == 0 )
             return dmResource::CREATE_RESULT_UNKNOWN;
 
@@ -22,7 +22,7 @@ namespace dmGameSystem
                                                     void* context,
                                                     dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::DestroyFragmentProgram((dmGraphics::HFragmentProgram) resource->m_Resource);
+        dmGraphics::DeleteFragmentProgram((dmGraphics::HFragmentProgram) resource->m_Resource);
         return dmResource::CREATE_RESULT_OK;
     }
 }

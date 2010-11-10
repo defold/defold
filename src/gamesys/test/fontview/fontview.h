@@ -15,6 +15,7 @@
 struct Context
 {
     const char* m_TestString;
+    dmGraphics::HDevice m_GraphicsDevice;
     dmResource::HFactory m_Factory;
     dmRender::HFont m_Font;
     dmRender::HRenderContext m_RenderContext;
