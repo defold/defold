@@ -6,7 +6,7 @@ import waf_gamesys
 def build(bld):
     fonts = bld.new_task_gen(
         features = '',
-        size = 24,
+        size = 14,
         imagefont='test.imagefontc',
         source='test.ttf')
 

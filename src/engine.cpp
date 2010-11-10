@@ -16,7 +16,6 @@
 
 #include <render/model_ddf.h>
 #include <render/render_ddf.h>
-#include <render/debug_renderer.h>
 
 #include <gui/gui.h>
 
@@ -126,7 +125,6 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRender::FinalizeDebugRenderer();
         dmEngine::FinalizeRenderScript();
 
         dmHID::Finalize();
@@ -186,7 +184,15 @@ namespace dmEngine
         dmSound::InitializeParams sound_params;
         dmSound::Initialize(config, &sound_params);
 
-        engine->m_RenderContext = dmRender::NewRenderContext(16, 1000, SetObjectModel);
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 16;
+        render_params.m_MaxInstances = 1000;
+        render_params.m_SetObjectModel = SetObjectModel;
+        render_params.m_VertexProgramData = ::DEBUG_ARBVP;
+        render_params.m_VertexProgramDataSize = ::DEBUG_ARBVP_SIZE;
+        render_params.m_FragmentProgramData = ::DEBUG_ARBFP;
+        render_params.m_FragmentProgramDataSize = ::DEBUG_ARBFP_SIZE;
+        engine->m_RenderContext = dmRender::NewRenderContext(render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
         engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
@@ -204,7 +210,7 @@ namespace dmEngine
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
-        dmPhysics::SetDebugRenderer(PhysicsDebugRender::RenderLine);
+        dmPhysics::SetDebugRenderer(engine->m_RenderContext, PhysicsDebugRender::RenderLine);
 
         float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
@@ -239,8 +245,6 @@ namespace dmEngine
 
         if (engine->m_RenderScriptInstance)
             InitRenderScriptInstance(engine->m_RenderScriptInstance);
-
-        dmRender::InitializeDebugRenderer(engine->m_RenderContext, engine->m_DebugMaterial);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
@@ -425,10 +429,6 @@ bail:
                 }
             }
 
-            dmProfile::End();
-            if (engine->m_ShowProfile)
-                dmProfileRender::Draw(engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
-
             if (engine->m_RenderScriptInstance)
             {
                 dmEngine::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
@@ -444,11 +444,17 @@ bail:
             dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
             dmGameObject::PostUpdate(collections, 2);
 
-            dmGraphics::Flip();
-
             dmRender::ClearRenderObjects(engine->m_RenderContext);
-            dmRender::ClearDebugRenderObjects();
             dmRender::FontRendererClear(engine->m_FontRenderer);
+
+            dmProfile::End();
+            if (engine->m_ShowProfile)
+            {
+                dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                dmRender::Draw(engine->m_RenderContext, 0x0);
+            }
+
+            dmGraphics::Flip();
 
             uint64_t new_time_stamp, delta;
             new_time_stamp = dmTime::GetTime();
@@ -584,7 +590,7 @@ bail:
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {
             dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*) instance_message_data->m_Buffer;
-            dmRender::Line3D(dl->m_StartPoint, dl->m_EndPoint, dl->m_Color);
+            dmRender::Line3D(self->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
         }
         else if (instance_message_data->m_DDFDescriptor == dmEngineDDF::SetTimeStep::m_DDFDescriptor)
         {
@@ -715,12 +721,6 @@ bail:
             engine->m_ScreenHeight, 2048 * 4);
         engine->m_SmallFontRenderer = dmRender::NewFontRenderer(engine->m_RenderContext, engine->m_SmallFont, engine->m_ScreenWidth,
             engine->m_ScreenHeight, 2048 * 4);
-
-        engine->m_DebugMaterial = dmGraphics::NewMaterial();
-        dmGraphics::HVertexProgram debug_vertex_program = dmGraphics::CreateVertexProgram((const void*) ::DEBUG_ARBVP, ::DEBUG_ARBVP_SIZE);
-        dmGraphics::SetMaterialVertexProgram(engine->m_DebugMaterial, debug_vertex_program);
-        dmGraphics::HFragmentProgram debug_fragment_program = dmGraphics::CreateFragmentProgram((const void*) ::DEBUG_ARBFP, ::DEBUG_ARBFP_SIZE);
-        dmGraphics::SetMaterialFragmentProgram(engine->m_DebugMaterial, debug_fragment_program);
 
         const char* gamepads = dmConfigFile::GetString(config, "bootstrap.gamepads", "input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;

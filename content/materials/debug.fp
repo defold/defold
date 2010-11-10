@@ -1,11 +1,11 @@
-struct pixel_in 
+struct pixel_in
 {
     float4 position : POSITION;
+    float4 color : COLOR;
 };
 
-void main(pixel_in IN, 
-          out float4 color     : COLOR,
-          uniform float4 frag_color : C0)
+void main(pixel_in IN,
+          out float4 oColor : COLOR)
 {
-    color = frag_color;
+    oColor = IN.color;
 }

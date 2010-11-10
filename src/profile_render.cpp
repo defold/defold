@@ -1,7 +1,6 @@
 #include <string.h>
 #include <dlib/dstrings.h>
 #include "profile_render.h"
-#include <render/debug_renderer.h>
 #include <dlib/profile.h>
 
 namespace dmProfileRender
@@ -16,6 +15,7 @@ namespace dmProfileRender
         int32_t  m_SampleIndex;
         float    m_TicksPerSecond;
         float    m_FrameX;
+        dmRender::HRenderContext m_RenderContext;
         dmRender::HFontRenderer m_FontRenderer;
     };
 
@@ -77,9 +77,7 @@ namespace dmProfileRender
         float col[3];
         HsvToRgb2( (sample->m_Scope->m_Index % 16) / 16.0f, 0.99f, 0.99f, col);
 
-        dmRender::Square(Point3(x + w/2, y + c->m_Barheight * 0.5f, 0),
-                                 Vector3(w, c->m_Barheight, 0.0f),
-                                 Vector4(col[0], col[1], col[2], 1));
+        dmRender::Square2d(c->m_RenderContext, x, y, x + w, y + c->m_Barheight, Vector4(col[0], col[1], col[2], 1));
 
         float e = sample->m_Elapsed / c->m_TicksPerSecond;
         if (e > 0.0002f)
@@ -126,7 +124,7 @@ namespace dmProfileRender
         }
     }
 
-    void Draw(dmRender::HFontRenderer font_renderer, uint32_t width, uint32_t height)
+    void Draw(dmRender::HRenderContext render_context, dmRender::HFontRenderer font_renderer, uint32_t width, uint32_t height)
     {
         dmRender::FontRendererClear(font_renderer);
 
@@ -138,14 +136,10 @@ namespace dmProfileRender
         dmGraphics::DisableState(context, dmGraphics::DEPTH_TEST);
         dmGraphics::EnableState(context, dmGraphics::BLEND);
 
-        dmRender::Square(   Point3(0.0f,  0.0f, 0),
-                                 Vector3(2.0f, 2.0f, 0),
-                                 Vector4(0.1f, 0.1f, 0.1f, 0.4f));
+        dmRender::Square2d(render_context, -1.0f, -1.0f, 1.0f, 1.0f, Vector4(0.1f, 0.1f, 0.1f, 0.4f));
 
         float frame_x0 = 2.0f * g_Frame_x0 / (float)width - 1.0f;
-        dmRender::Square(   Point3(frame_x0 + 0.5f * (1.0f - frame_x0), -0.35f, 0),
-                                 Vector3(1.0f - frame_x0, 1.0f, 0),
-                                 Vector4(0.1f, 0.1f, 0.15f, 0.4f));
+        dmRender::Square2d(render_context, frame_x0, -0.85f, 1.0f, 0.15f, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
         const int text_y0 = 50;
         dmRender::FontRendererDrawString(font_renderer, "Scopes:", g_Scope_x0, text_y0, 1, 1, 1, 1);
@@ -164,6 +158,7 @@ namespace dmProfileRender
         ctx.m_SampleIndex = 0;
         ctx.m_TicksPerSecond = dmProfile::GetTicksPerSecond();
         ctx.m_FrameX = frame_x0;
+        ctx.m_RenderContext = render_context;
         ctx.m_FontRenderer = font_renderer;
 
         dmProfile::IterateSamples(&ctx, &ProfileSampleCallback);

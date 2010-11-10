@@ -212,13 +212,26 @@ namespace dmEngine
     int RenderScript_Draw(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        (void)i;
         dmRender::Predicate* predicate = 0x0;
         if (lua_islightuserdata(L, 2))
         {
             predicate = (dmRender::Predicate*)lua_touserdata(L, 2);
         }
         dmRender::Draw(i->m_RenderContext, predicate);
+        return 1;
+    }
+
+    int RenderScript_DrawDebug3d(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        dmRender::DrawDebug3d(i->m_RenderContext);
+        return 1;
+    }
+
+    int RenderScript_DrawDebug2d(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        dmRender::DrawDebug2d(i->m_RenderContext);
         return 1;
     }
 
@@ -357,6 +370,8 @@ namespace dmEngine
         {"set_depth_mask",      RenderScript_SetDepthMask},
         {"set_cull_face",       RenderScript_SetCullFace},
         {"draw",                RenderScript_Draw},
+        {"draw_debug3d",        RenderScript_DrawDebug3d},
+        {"draw_debug2d",        RenderScript_DrawDebug2d},
         {"get_window_width",    RenderScript_GetWindowWidth},
         {"get_window_height",   RenderScript_GetWindowHeight},
         {"predicate",           RenderScript_Predicate},

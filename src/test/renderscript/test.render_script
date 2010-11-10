@@ -27,10 +27,12 @@ function update(self)
     render.set_depth_mask(self, false)
     render.disable_state(self, render.CULL_FACE)
     render.draw(self, self.transp_pred)
+    render.draw_debug3d(self)
 
     render.disable_state(self, render.DEPTH_TEST)
     render.set_depth_mask(self, false)
     render.draw(self, self.hud_pred)
+    render.draw_debug2d(self)
 end
 
 function on_message(self, message_id, message)
