@@ -134,7 +134,7 @@ namespace dmEngine
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
 
-        dmGraphics::DestroyDevice();
+        dmGraphics::DeleteDevice(engine->m_GraphicsDevice);
 
         dmProfile::Finalize();
 
@@ -173,7 +173,7 @@ namespace dmEngine
         engine->m_ScreenWidth = graphics_params.m_DisplayWidth;
         engine->m_ScreenHeight = graphics_params.m_DisplayHeight;
 
-        device = dmGraphics::CreateDevice(&argc, argv, &graphics_params);
+        device = dmGraphics::NewDevice(&argc, argv, &graphics_params);
 
         dmGameObject::Initialize();
 
@@ -775,10 +775,10 @@ bail:
         {
             dmGraphics::HVertexProgram debug_vp = dmGraphics::GetMaterialVertexProgram(engine->m_DebugMaterial);
             if (debug_vp)
-                dmGraphics::DestroyVertexProgram(debug_vp);
+                dmGraphics::DeleteVertexProgram(debug_vp);
             dmGraphics::HFragmentProgram debug_fp = dmGraphics::GetMaterialFragmentProgram(engine->m_DebugMaterial);
             if (debug_fp)
-                dmGraphics::DestroyFragmentProgram(debug_fp);
+                dmGraphics::DeleteFragmentProgram(debug_fp);
             dmGraphics::DeleteMaterial(engine->m_DebugMaterial);
         }
 
