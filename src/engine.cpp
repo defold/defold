@@ -192,6 +192,8 @@ namespace dmEngine
         render_params.m_VertexProgramDataSize = ::DEBUG_ARBVP_SIZE;
         render_params.m_FragmentProgramData = ::DEBUG_ARBFP;
         render_params.m_FragmentProgramDataSize = ::DEBUG_ARBFP_SIZE;
+        render_params.m_DisplayWidth = graphics_params.m_DisplayWidth;
+        render_params.m_DisplayHeight = graphics_params.m_DisplayHeight;
         engine->m_RenderContext = dmRender::NewRenderContext(render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
