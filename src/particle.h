@@ -39,7 +39,7 @@ namespace dmParticle
     typedef void (*RenderSetUpCallback)(void* usercontext, float* vertex_buffer, uint32_t vertex_size);
     typedef void (*RenderTearDownCallback)(void* usercontext);
     typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
-    typedef void (*RenderLineCallback)(Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
+    typedef void (*RenderLineCallback)(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
     /**
      * Representation of an emitter resource.
      */
@@ -168,7 +168,7 @@ namespace dmParticle
      * @param context Context of the emitters to render.
      * @param RenderLine Function pointer to use to render the lines.
      */
-    void                    DebugRender(HContext context, RenderLineCallback render_line_callback);
+    void                    DebugRender(HContext context, void* user_context, RenderLineCallback render_line_callback);
 }
 
 #endif // DM_PARTICLE_H
