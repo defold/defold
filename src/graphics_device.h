@@ -134,7 +134,7 @@ namespace dmGraphics
         FRONT_AND_BACK  = GFXDEVICE_FACE_TYPE_FRONT_AND_BACK
     };
 
-    // Parameter structure for CreateDevice
+    // Parameter structure for NewDevice
     struct CreateDeviceParams
     {
         uint32_t        m_DisplayWidth;
@@ -165,12 +165,12 @@ namespace dmGraphics
      * @param params Device parameters
      * @return A graphics device
      */
-    HDevice CreateDevice(int* argc, char** argv, CreateDeviceParams *params);
+    HDevice NewDevice(int* argc, char** argv, CreateDeviceParams *params);
 
     /**
      * Destroy device
      */
-    void DestroyDevice();
+    void DeleteDevice(HDevice device);
 
     /**
      * Flip screen buffers
@@ -209,10 +209,10 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram CreateVertexProgram(const void* program, uint32_t program_size);
-    HFragmentProgram CreateFragmentProgram(const void* program, uint32_t program_size);
-    void DestroyVertexProgram(HVertexProgram prog);
-    void DestroyFragmentProgram(HFragmentProgram prog);
+    HVertexProgram NewVertexProgram(const void* program, uint32_t program_size);
+    HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size);
+    void DeleteVertexProgram(HVertexProgram prog);
+    void DeleteFragmentProgram(HFragmentProgram prog);
     void SetVertexProgram(HContext context, HVertexProgram program);
     void SetFragmentProgram(HContext context, HFragmentProgram program);
 
@@ -229,13 +229,13 @@ namespace dmGraphics
     void SetDepthMask(HContext context, bool mask);
     void SetCullFace(HContext context, FaceType face_type);
 
-    HTexture CreateTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
+    HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
     void SetTextureData(HTexture texture,
                            uint16_t mip_map,
                            uint16_t width, uint16_t height, uint16_t border,
                            TextureFormat texture_format, const void* data, uint32_t data_size);
 
-    void DestroyTexture(HTexture t);
+    void DeleteTexture(HTexture t);
     void SetTexture(HContext context, HTexture t);
 
     uint32_t GetWindowParam(WindowParam param);

@@ -79,7 +79,7 @@ namespace dmGraphics
         return (HContext)&gcontext;
     }
 
-    HDevice CreateDevice(int* argc, char** argv, CreateDeviceParams *params )
+    HDevice NewDevice(int* argc, char** argv, CreateDeviceParams *params )
     {
         assert(params);
 
@@ -150,7 +150,7 @@ namespace dmGraphics
         return (HDevice)&gdevice;
     }
 
-    void DestroyDevice()
+    void DeleteDevice(HDevice device)
     {
         glfwTerminate();
         CHECK_GL_ERROR
@@ -455,28 +455,28 @@ namespace dmGraphics
         return shader[0];
     }
 
-    HVertexProgram CreateVertexProgram(const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(const void* program, uint32_t program_size)
     {
         assert(program);
 
         return CreateProgram(GL_VERTEX_PROGRAM_ARB, program, program_size);
     }
 
-    HFragmentProgram CreateFragmentProgram(const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size)
     {
         assert(program);
 
         return CreateProgram(GL_FRAGMENT_PROGRAM_ARB, program, program_size);
     }
 
-    void DestroyVertexProgram(HVertexProgram program)
+    void DeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
         glDeleteProgramsARB(1, &program);
         CHECK_GL_ERROR
     }
 
-    void DestroyFragmentProgram(HFragmentProgram program)
+    void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         glDeleteProgramsARB(1, &program);
@@ -572,17 +572,21 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HTexture CreateTexture(uint32_t width, uint32_t height, TextureFormat texture_format)
+    HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format)
     {
         GLuint t;
         glGenTextures( 1, &t );
         CHECK_GL_ERROR
+
         glBindTexture(GL_TEXTURE_2D, t);
         CHECK_GL_ERROR
+
         glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE );
         CHECK_GL_ERROR
+
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
         CHECK_GL_ERROR
+
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
         CHECK_GL_ERROR
 
@@ -652,7 +656,7 @@ namespace dmGraphics
         }
     }
 
-    void DestroyTexture(HTexture t)
+    void DeleteTexture(HTexture t)
     {
         assert(t);
 

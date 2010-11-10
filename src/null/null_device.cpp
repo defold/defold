@@ -18,7 +18,7 @@ namespace dmGraphics
         return (HContext)&gcontext;
     }
 
-    HDevice CreateDevice(int* argc, char** argv, CreateDeviceParams *params )
+    HDevice NewDevice(int* argc, char** argv, CreateDeviceParams *params )
     {
         assert(params);
         gdevice.m_DisplayWidth = params->m_DisplayWidth;
@@ -27,7 +27,7 @@ namespace dmGraphics
         return (HDevice)&gdevice;
     }
 
-    void DestroyDevice()
+    void DeleteDevice(HDevice device)
     {
         gdevice.m_Opened = 0;
     }
@@ -108,27 +108,27 @@ namespace dmGraphics
         assert(context);
     }
 
-    HVertexProgram CreateVertexProgram(const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(const void* program, uint32_t program_size)
     {
         assert(program);
         uint32_t* p = new uint32_t;
         return (uint32_t)p;
     }
 
-    HFragmentProgram CreateFragmentProgram(const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size)
     {
         assert(program);
         uint32_t* p = new uint32_t;
         return (uint32_t)p;
     }
 
-    void DestroyVertexProgram(HVertexProgram program)
+    void DeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
         delete (uint32_t*)program;
     }
 
-    void DestroyFragmentProgram(HFragmentProgram program)
+    void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         delete (uint32_t*)program;
@@ -171,7 +171,7 @@ namespace dmGraphics
         assert(t);
     }
 
-    HTexture CreateTexture(uint32_t width, uint32_t height, TextureFormat texture_format)
+    HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format)
     {
         Texture* tex = new Texture;
         return (HTexture) tex;
@@ -184,7 +184,7 @@ namespace dmGraphics
     {
     }
 
-    void DestroyTexture(HTexture t)
+    void DeleteTexture(HTexture t)
     {
         assert(t);
         delete t;
