@@ -1,6 +1,8 @@
 #include <string.h>
 #include "profile.h"
 
+#include "math.h"
+
 namespace dmProfile
 {
     dmArray<Sample> g_Samples;
@@ -8,6 +10,9 @@ namespace dmProfile
     uint32_t g_Depth = 0;
     uint32_t g_BeginTime = 0;
     uint64_t g_TicksPerSecond = 1000000;
+    float g_FrameTime = 0.0f;
+    float g_MaxFrameTime = 0.0f;
+    uint32_t g_MaxFrameTimeCounter = 0;
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples)
     {
@@ -45,11 +50,27 @@ namespace dmProfile
         gettimeofday(&tv, 0);
         g_BeginTime = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
+        g_FrameTime = 0.0f;
     }
 
     void End()
     {
         g_Depth = 0xffffffff;
+        if (g_Scopes.Size() > 0)
+        {
+            g_FrameTime = g_Scopes[0].m_Elapsed/(0.001f * g_TicksPerSecond);
+            for (uint32_t i = 1; i < g_Scopes.Size(); ++i)
+            {
+                float time = g_Scopes[i].m_Elapsed/(0.001f * g_TicksPerSecond);
+                g_FrameTime = dmMath::Select(g_FrameTime - time, g_FrameTime, time);
+            }
+            ++g_MaxFrameTimeCounter;
+            if (g_MaxFrameTimeCounter > 60 || g_FrameTime > g_MaxFrameTime)
+            {
+                g_MaxFrameTimeCounter = 0;
+                g_MaxFrameTime = g_FrameTime;
+            }
+        }
     }
 
     Scope* AllocateScope(const char* name)
@@ -77,6 +98,16 @@ namespace dmProfile
             g_Scopes.Push(s);
             return &g_Scopes[i];
         }
+    }
+
+    float GetFrameTime()
+    {
+        return g_FrameTime;
+    }
+
+    float GetMaxFrameTime()
+    {
+        return g_MaxFrameTime;
     }
 
     uint64_t GetTicksPerSecond()

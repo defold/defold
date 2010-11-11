@@ -119,6 +119,9 @@ namespace dmProfile
      */
     Scope* AllocateScope(const char* name);
 
+    float GetFrameTime();
+    float GetMaxFrameTime();
+
     /// Internal, do not use.
     extern dmArray<Sample> g_Samples;
     /// Internal, do not use.
