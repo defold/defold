@@ -17,7 +17,7 @@ namespace dmRender
 {
     struct DebugRenderInfo
     {
-        static const uint32_t VERTEX_COUNT = 1000;
+        static const uint32_t VERTEX_COUNT = 4000;
         float m_Vertices[VERTEX_COUNT * 3];
         float m_Colours[VERTEX_COUNT * 4];
         DebugRenderType m_RenderType;
@@ -118,54 +118,63 @@ namespace dmRender
     {
         ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE]);
         DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE]->m_UserData;
-        float* v = &info->m_Vertices[info->m_VertexCount*3];
-        v[0] = x0; v[1] = y0; v[2] = 0.0f;
-        v[3] = x1; v[4] = y0; v[5] = 0.0f;
-        v[6] = x0; v[7] = y1; v[8] = 0.0f;
-        v[9] = x0; v[10] = y1; v[11] = 0.0f;
-        v[12] = x1; v[13] = y1; v[14] = 0.0f;
-        v[15] = x1; v[16] = y0; v[17] = 0.0f;
-        float* c = &info->m_Colours[info->m_VertexCount*4];
+        if (info->m_VertexCount + 6 < DebugRenderInfo::VERTEX_COUNT)
+        {
+            float* v = &info->m_Vertices[info->m_VertexCount*3];
+            v[0] = x0; v[1] = y0; v[2] = 0.0f;
+            v[3] = x1; v[4] = y0; v[5] = 0.0f;
+            v[6] = x0; v[7] = y1; v[8] = 0.0f;
+            v[9] = x0; v[10] = y1; v[11] = 0.0f;
+            v[12] = x1; v[13] = y1; v[14] = 0.0f;
+            v[15] = x1; v[16] = y0; v[17] = 0.0f;
+            float* c = &info->m_Colours[info->m_VertexCount*4];
 
-        for (uint32_t i = 0; i < 6; ++i)
-            for (uint32_t j = 0; j < 4; ++j)
-                c[i*4 + j] = color.getElem(j);
-        info->m_VertexCount += 6;
+            for (uint32_t i = 0; i < 6; ++i)
+                for (uint32_t j = 0; j < 4; ++j)
+                    c[i*4 + j] = color.getElem(j);
+            info->m_VertexCount += 6;
+        }
     }
 
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
         ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE]);
         DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE]->m_UserData;
-        float* v = &info->m_Vertices[info->m_VertexCount*3];
-        v[0] = x0; v[1] = y0; v[2] = 0.0f;
-        v[3] = x1; v[4] = y1; v[5] = 0.0f;
-        float* c = &info->m_Colours[info->m_VertexCount*4];
-        for (uint32_t i = 0; i < 4; ++i)
+        if (info->m_VertexCount + 2 < DebugRenderInfo::VERTEX_COUNT)
         {
-            c[i] = color0.getElem(i);
-            c[4 + i] = color1.getElem(i);
+            float* v = &info->m_Vertices[info->m_VertexCount*3];
+            v[0] = x0; v[1] = y0; v[2] = 0.0f;
+            v[3] = x1; v[4] = y1; v[5] = 0.0f;
+            float* c = &info->m_Colours[info->m_VertexCount*4];
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                c[i] = color0.getElem(i);
+                c[4 + i] = color1.getElem(i);
+            }
+            info->m_VertexCount += 2;
         }
-        info->m_VertexCount += 2;
     }
 
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color)
     {
         ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE]);
         DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE]->m_UserData;
-        float* v = &info->m_Vertices[info->m_VertexCount*3];
-        for (uint32_t i = 0; i < 3; ++i)
+        if (info->m_VertexCount + 2 < DebugRenderInfo::VERTEX_COUNT)
         {
-            v[i] = start.getElem(i);
-            v[3 + i] = end.getElem(i);
+            float* v = &info->m_Vertices[info->m_VertexCount*3];
+            for (uint32_t i = 0; i < 3; ++i)
+            {
+                v[i] = start.getElem(i);
+                v[3 + i] = end.getElem(i);
+            }
+            float* c = &info->m_Colours[info->m_VertexCount*4];
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                c[i] = start_color.getElem(i);
+                c[4 + i] = end_color.getElem(i);
+            }
+            info->m_VertexCount += 2;
         }
-        float* c = &info->m_Colours[info->m_VertexCount*4];
-        for (uint32_t i = 0; i < 4; ++i)
-        {
-            c[i] = start_color.getElem(i);
-            c[4 + i] = end_color.getElem(i);
-        }
-        info->m_VertexCount += 2;
     }
 
 #undef ADD_TO_RENDER
