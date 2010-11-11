@@ -138,10 +138,17 @@ namespace dmProfileRender
 
         dmRender::Square2d(render_context, -1.0f, -1.0f, 1.0f, 1.0f, Vector4(0.1f, 0.1f, 0.1f, 0.4f));
 
+        int text_y0 = 50 - g_TextSpacing;
+
+        char buffer[256];
+        DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
+        dmRender::FontRendererDrawString(font_renderer, buffer, g_Scope_x0, text_y0, 1, 1, 1, 1);
+
+        text_y0 += g_TextSpacing;
+
         float frame_x0 = 2.0f * g_Frame_x0 / (float)width - 1.0f;
         dmRender::Square2d(render_context, frame_x0, -0.85f, 1.0f, 0.15f, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
-        const int text_y0 = 50;
         dmRender::FontRendererDrawString(font_renderer, "Scopes:", g_Scope_x0, text_y0, 1, 1, 1, 1);
         dmRender::FontRendererDrawString(font_renderer, "ms", g_Scope_Time_x0, text_y0, 1, 1, 1, 1);
         dmRender::FontRendererDrawString(font_renderer, "#", g_Scope_Count_x0, text_y0, 1, 1, 1, 1);

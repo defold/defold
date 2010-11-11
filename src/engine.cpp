@@ -77,7 +77,6 @@ namespace dmEngine
     , m_SpawnCount(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_ShowFPS(true)
     , m_ShowProfile(false)
     , m_WarpTimeStep(false)
     , m_TimeStepFactor(1.0f)
@@ -413,47 +412,36 @@ bail:
                 dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
                 dmGameObject::Update(collections, update_contexts, 2);
 
-                if (engine->m_ShowFPS)
+                dmRender::FontRendererFlush(engine->m_FontRenderer);
+                dmRender::FontRendererFlush(engine->m_SmallFontRenderer);
+
+                if (engine->m_RenderScriptInstance)
                 {
-                    uint16_t x = 10;
-                    uint16_t y = 40;
-                    uint16_t height = 20;
-                    char debug_text[32];
-                    DM_SNPRINTF(debug_text, sizeof(debug_text), "Target FPS: %.2f", fps);
-                    dmRender::FontRendererDrawString(engine->m_FontRenderer, debug_text, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
-                    y += height;
-                    DM_SNPRINTF(debug_text, sizeof(debug_text), "Actual FPS: %.2f", actual_fps);
-                    dmRender::FontRendererDrawString(engine->m_FontRenderer, debug_text, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
-                    y += height;
-                    DM_SNPRINTF(debug_text, sizeof(debug_text), "dt: %.4f", dt);
-                    dmRender::FontRendererDrawString(engine->m_FontRenderer, debug_text, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
-                    dmRender::FontRendererFlush(engine->m_FontRenderer);
+                    dmEngine::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
                 }
-            }
+                else
+                {
+                    dmGraphics::HContext context = dmGraphics::GetContext();
+                    dmGraphics::SetViewport(context, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                    dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
+                    dmRender::Draw(engine->m_RenderContext, 0x0);
+                }
 
-            if (engine->m_RenderScriptInstance)
-            {
-                dmEngine::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
-            }
-            else
-            {
-                dmGraphics::HContext context = dmGraphics::GetContext();
-                dmGraphics::SetViewport(context, engine->m_ScreenWidth, engine->m_ScreenHeight);
-                dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
-                dmRender::Draw(engine->m_RenderContext, 0x0);
-            }
+                dmGameObject::PostUpdate(collections, 2);
 
-            dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
-            dmGameObject::PostUpdate(collections, 2);
-
-            dmRender::ClearRenderObjects(engine->m_RenderContext);
-            dmRender::FontRendererClear(engine->m_FontRenderer);
+                dmRender::ClearRenderObjects(engine->m_RenderContext);
+                dmRender::FontRendererClear(engine->m_FontRenderer);
+                dmRender::FontRendererClear(engine->m_SmallFontRenderer);
+            }
 
             dmProfile::End();
             if (engine->m_ShowProfile)
             {
                 dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
                 dmRender::Draw(engine->m_RenderContext, 0x0);
+                dmRender::FontRendererFlush(engine->m_SmallFontRenderer);
+                dmRender::FontRendererClear(engine->m_SmallFontRenderer);
+                dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
 
             dmGraphics::Flip();

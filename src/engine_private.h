@@ -48,7 +48,6 @@ namespace dmEngine
         uint32_t                                    m_LastReloadMTime;
 
         float                                       m_MouseSensitivity;
-        bool                                        m_ShowFPS;
         bool                                        m_ShowProfile;
 
         bool                                        m_WarpTimeStep;
