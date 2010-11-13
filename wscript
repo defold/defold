@@ -20,11 +20,11 @@ def set_options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('compiler_cc')
+    conf.check_tool('compiler_cxx')
     conf.check_tool('waf_dynamo')
     waf_ddf.configure(conf)
 
-    conf.check_tool('compiler_cc')
-    conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
     if sys.platform == "darwin":

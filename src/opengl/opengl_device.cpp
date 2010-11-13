@@ -153,7 +153,6 @@ namespace dmGraphics
     void DeleteDevice(HDevice device)
     {
         glfwTerminate();
-        CHECK_GL_ERROR
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
