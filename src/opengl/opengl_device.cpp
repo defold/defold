@@ -554,16 +554,53 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void SetTexture(HContext context, HTexture t)
+    HRenderTarget NewRenderBuffer(uint32_t width, uint32_t height, TextureFormat format)
+    {
+        RenderTarget* rt = new RenderTarget;
+
+        rt->m_Texture = NewTexture(width, height, TEXTURE_FORMAT_RGBA);
+
+        glGenRenderbuffersEXT(1, &rt->m_RboId);
+        CHECK_GL_ERROR
+        glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, rt->m_RboId);
+        CHECK_GL_ERROR
+        glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_RGBA, width, height);
+        CHECK_GL_ERROR
+        glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
+        CHECK_GL_ERROR
+
+
+        glGenFramebuffersEXT(1, &rt->m_FboId);
+        CHECK_GL_ERROR
+        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, rt->m_FboId);
+        CHECK_GL_ERROR
+
+        // attach the texture to FBO color attachment point
+        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
+        CHECK_GL_ERROR
+
+        // attach the renderbuffer to depth attachment point
+        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, rt->m_RboId);
+        CHECK_GL_ERROR
+
+        return rt;
+    }
+
+    void DeleteRenderBuffer(HRenderTarget renderbuffer)
+    {
+        DeleteTexture(renderbuffer->m_Texture);
+        delete renderbuffer;
+    }
+
+    void SetTexture(HContext context, HTexture texture)
     {
         assert(context);
-        assert(t);
+        assert(texture);
 
-        Texture* tex_h = (Texture*)t;
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 
-        glBindTexture(GL_TEXTURE_2D, tex_h->m_Texture);
+        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
 
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
@@ -656,13 +693,13 @@ namespace dmGraphics
         }
     }
 
-    void DeleteTexture(HTexture t)
+    void DeleteTexture(HTexture texture)
     {
-        assert(t);
+        assert(texture);
 
-        Texture* tex = (Texture*)t;
+        glDeleteTextures(1, &texture->m_Texture);
 
-        delete tex;
+        delete texture;
     }
 
     void EnableState(HContext context, RenderState state)

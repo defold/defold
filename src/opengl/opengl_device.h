@@ -67,6 +67,14 @@ namespace dmGraphics
         void*       m_Data;
         GLuint      m_VboId;
     };
+
+    struct RenderTarget
+    {
+        GLuint      m_RboId;
+        GLuint      m_FboId;
+        Texture*    m_Texture;
+    };
+
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__
 

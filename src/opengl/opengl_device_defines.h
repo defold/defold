@@ -32,6 +32,7 @@ namespace dmGraphics
     typedef struct VertexBuffer*      HVertexBuffer;
     typedef struct IndexBuffer*       HIndexBuffer;
     typedef struct VertexDeclaration* HVertexDeclaration;
+    typedef struct RenderTarget*      HRenderTarget;
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;

@@ -229,6 +229,11 @@ namespace dmGraphics
     void SetDepthMask(HContext context, bool mask);
     void SetCullFace(HContext context, FaceType face_type);
 
+
+    HRenderTarget NewRenderBuffer(uint32_t width, uint32_t height, TextureFormat format);
+    void DeleteRenderBuffer(HRenderTarget renderbuffer);
+
+
     HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
     void SetTextureData(HTexture texture,
                            uint16_t mip_map,

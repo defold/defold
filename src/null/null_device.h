@@ -7,7 +7,6 @@ namespace dmGraphics
 {
     struct Texture
     {
-        GLuint      m_Texture;
     };
 
     struct Device
@@ -36,6 +35,11 @@ namespace dmGraphics
 
     struct IndexBuffer
     {
+    };
+
+    struct RenderTarget
+    {
+        Texture*    m_Texture;
     };
 
 }

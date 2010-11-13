@@ -165,6 +165,20 @@ namespace dmGraphics
         assert(context);
     }
 
+    HRenderTarget NewRenderBuffer(uint32_t width, uint32_t height, TextureFormat format)
+    {
+        RenderTarget* rt = new RenderTarget;
+
+        rt->m_Texture = NewTexture(width, height, format);
+
+        return rt;
+    }
+
+    void DeleteRenderBuffer(HRenderTarget renderbuffer)
+    {
+        DeleteTexture(renderbuffer->m_Texture);
+    }
+
     void SetTexture(HContext context, HTexture t)
     {
         assert(context);
