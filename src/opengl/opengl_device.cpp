@@ -36,6 +36,9 @@ typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboo
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
+typedef void (APIENTRY * PFNGLGENRENDERBUFFERPROC) (GLenum, GLuint *);
+typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
+typedef void (APIENTRY * PFNGLRENDERBUFFERSTORAGEPROC) (GLenum, GLenum, GLsizei, GLsizei);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -51,7 +54,9 @@ PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
 PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
 PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
 PFNGLDRAWRANGEELEMENTSPROC glDrawRangeElements = NULL;
-
+PFNGLGENRENDERBUFFERPROC glGenRenderBuffers = NULL;
+PFNGLBINDRENDERBUFFERPROC glBindRenderBuffer = NULL;
+PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = NULL;
 #else
 #error "Platform not supported."
 #endif
@@ -144,7 +149,9 @@ namespace dmGraphics
         glBindBufferARB = (PFNGLBINDBUFFERPROC) wglGetProcAddress("glBindBufferARB");
         glBufferDataARB = (PFNGLBUFFERDATAPROC) wglGetProcAddress("glBufferDataARB");
         glDrawRangeElements = (PFNGLDRAWRANGEELEMENTSPROC) wglGetProcAddress("glDrawRangeElements");
-
+        glGenRenderBuffers = (PFNGLGENRENDERBUFFERPROC) wglGetProcAddress("glGenRenderBuffers");
+        glBindRenderBuffer = (PFNGLBINDRENDERBUFFERPROC) wglGetProcAddress("glBindRenderBuffer");
+        glRenderBufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC) wglGetProcAddress("glRenderBufferStorage");
     #endif
 
         return (HDevice)&gdevice;
@@ -559,27 +566,27 @@ namespace dmGraphics
 
         rt->m_Texture = NewTexture(width, height, TEXTURE_FORMAT_RGBA);
 
-        glGenRenderbuffersEXT(1, &rt->m_RboId);
+        glGenRenderbuffers(1, &rt->m_RboId);
         CHECK_GL_ERROR
-        glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, rt->m_RboId);
+        glBindRenderbuffer(GL_RENDERBUFFER_EXT, rt->m_RboId);
         CHECK_GL_ERROR
-        glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_RGBA, width, height);
+        glRenderbufferStorage(GL_RENDERBUFFER_EXT, GL_RGBA, width, height);
         CHECK_GL_ERROR
-        glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
+        glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
         CHECK_GL_ERROR
 
 
-        glGenFramebuffersEXT(1, &rt->m_FboId);
+        glGenFramebuffers(1, &rt->m_FboId);
         CHECK_GL_ERROR
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, rt->m_FboId);
+        glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_FboId);
         CHECK_GL_ERROR
 
         // attach the texture to FBO color attachment point
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
         CHECK_GL_ERROR
 
         // attach the renderbuffer to depth attachment point
-        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, rt->m_RboId);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, rt->m_RboId);
         CHECK_GL_ERROR
 
         return rt;
