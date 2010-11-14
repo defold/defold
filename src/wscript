@@ -3,4 +3,4 @@ def set_options(opt):
 
 def build(bld):
     bld.add_subdirs('gamesys')
-    bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
+    bld.install_files('${PREFIX}/lib/python/colladaImEx', 'colladaImEx/*.py')
