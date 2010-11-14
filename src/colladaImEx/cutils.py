@@ -25,8 +25,8 @@
 
 import sys
 import os
-import Blender
-from Blender.Mathutils import *
+#import Blender
+#from Blender.Mathutils import *
 import string
 
 '''
@@ -37,7 +37,7 @@ Follows strictly the COLLADA XSD declaration which explicitly allows non-english
 like special chars (e.g. micro sign), umlauts and so on.
 The COLLADA spec also allows additional chars for member access ('.'), these
 must obviously be removed too, otherwise they would be heavily misinterpreted.
-''' 
+'''
 translateMap = "" + \
 	chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + \
 	chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + chr(95) + \
@@ -261,7 +261,8 @@ def ToMatrix4( matrixElement ):
 		vec3 = matrixElement[8:12]
 		vec4 =  matrixElement[12:16]
 
-	return Blender.Mathutils.Matrix( vec1, vec2, vec3, vec4 )
+#	return Blender.Mathutils.Matrix( vec1, vec2, vec3, vec4 )
+	return [ vec1, vec2, vec3, vec4 ]
 
 def ToMatrix3(matrixElement):
 	data = matrixElement.split( )
@@ -270,17 +271,20 @@ def ToMatrix3(matrixElement):
 	vec2 = [ float(data[1]), float(data[4]), float(data[7])]
 	vec3 = [ float(data[2]), float(data[5]), float(data[8])]
 
-	return Blender.Mathutils.Matrix( vec1, vec2, vec3)
+#	return Blender.Mathutils.Matrix( vec1, vec2, vec3)
+	return [ vec1, vec2, vec3 ]
 
 def GetVector3( element ):
 	value = [ float( element[ 0 ] ), float( element[ 1 ] ), float( element[ 2 ] ) ]
-	return Blender.Mathutils.Vector( value )
+	#return Blender.Mathutils.Vector( value )
+	return value
 
 def GetEuler( rotateElement ):
 	euler = [ float( rotateElement[ 0 ] ) * float( rotateElement[ 3 ] ) * angleToRadian,
 			  float( rotateElement[ 1 ] ) * float( rotateElement[ 3 ] ) * angleToRadian,
 			  float( rotateElement[ 2 ] ) * float( rotateElement[ 3 ] ) * angleToRadian ]
-	return Blender.Mathutils.Euler( euler )
+	#return Blender.Mathutils.Euler( euler )
+	return euler
 
 def AddEuler(euler1, euler2):
 	euler1.x += euler2.x
@@ -360,7 +364,7 @@ def PrintTransforms(matrix, name):
 	print name,"loc:   ", newMat.translationPart()
 	print name,"euler: ", newMat.toEuler()
 	print name,"scale: ", newMat.scalePart()
-	
+
 def MakeIDXMLConform(id):
 	'''
 	Make the name/id COLLADA XML/XSD conform.
@@ -370,7 +374,7 @@ def MakeIDXMLConform(id):
 		return '#' + string.translate(id[1:], translateMap)
 	else:
 		return string.translate(id, translateMap)
-		
+
 def AdjustName(adjustedName):
 	'''
 	Make the name/id COLLADA XML/XSD conform.
@@ -385,7 +389,7 @@ List of error IDs and common strings.
 '''
 # Expects 1 argument: The mesh name.
 # Means that the armature modifier for a mesh couldn't be found,
-# probably the parenting is wrong.   
+# probably the parenting is wrong.
 ERROR_MESH_ARMATURE_PARENT = 1
 
 MSG_ERROR_FATAL = "Fatal error. Exit script."
