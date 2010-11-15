@@ -81,6 +81,7 @@ namespace dmEngine
     , m_WarpTimeStep(false)
     , m_TimeStepFactor(1.0f)
     , m_TimeStepMode(dmEngineDDF::TIME_STEP_MODE_DISCRETE)
+    , m_GraphicsDevice(0)
     , m_Factory(0x0)
     , m_Font(0x0)
     , m_FontRenderer(0x0)
@@ -133,7 +134,8 @@ namespace dmEngine
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
 
-        dmGraphics::DeleteDevice(engine->m_GraphicsDevice);
+        if (engine->m_GraphicsDevice)
+            dmGraphics::DeleteDevice(engine->m_GraphicsDevice);
 
         dmProfile::Finalize();
 
