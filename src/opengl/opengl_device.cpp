@@ -79,7 +79,7 @@ namespace dmGraphics
         GLint err = glGetError(); \
         if (err != 0) \
         { \
-            printf("gl error: %d line: %d\n", err, __LINE__); \
+            printf("gl error: %d line: %d gluErrorString(): %s\n", err, __LINE__, gluErrorString(err)); \
             assert(0); \
         } \
     }\
@@ -573,42 +573,64 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HRenderTarget NewRenderBuffer(uint32_t width, uint32_t height, TextureFormat format)
+    HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format)
     {
         RenderTarget* rt = new RenderTarget;
 
         rt->m_Texture = NewTexture(width, height, TEXTURE_FORMAT_RGBA);
-
-        glGenRenderbuffers(1, &rt->m_RboId);
-        CHECK_GL_ERROR
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, rt->m_RboId);
-        CHECK_GL_ERROR
-        glRenderbufferStorage(GL_RENDERBUFFER_EXT, GL_RGBA, width, height);
-        CHECK_GL_ERROR
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
-        CHECK_GL_ERROR
-
+        SetTextureData(rt->m_Texture, 0, width, height, 0, TEXTURE_FORMAT_RGBA, 0x0, 0);
 
         glGenFramebuffers(1, &rt->m_FboId);
         CHECK_GL_ERROR
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_FboId);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt->m_FboId);
         CHECK_GL_ERROR
 
+
+        glGenRenderbuffers(1, &rt->m_RboId);
+        CHECK_GL_ERROR
+        glBindRenderbuffer(GL_RENDERBUFFER, rt->m_RboId);
+        CHECK_GL_ERROR
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+        CHECK_GL_ERROR
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        CHECK_GL_ERROR
+
+
+
         // attach the texture to FBO color attachment point
-        glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
         CHECK_GL_ERROR
 
         // attach the renderbuffer to depth attachment point
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, rt->m_RboId);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_RboId);
         CHECK_GL_ERROR
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        CHECK_GL_ERROR
+
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        CHECK_GL_ERROR
         return rt;
     }
 
-    void DeleteRenderBuffer(HRenderTarget renderbuffer)
+
+    void DeleteRenderTarget(HRenderTarget rendertarget)
     {
-        DeleteTexture(renderbuffer->m_Texture);
-        delete renderbuffer;
+        glDeleteFramebuffers(1, &rendertarget->m_FboId);
+        glDeleteRenderbuffers(1, &rendertarget->m_RboId);
+
+        DeleteTexture(rendertarget->m_Texture);
+        delete rendertarget;
+    }
+
+    void EnableRenderTarget(HContext context, HRenderTarget rendertarget)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, rendertarget->m_FboId);
+    }
+
+    void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
     void SetTexture(HContext context, HTexture texture)

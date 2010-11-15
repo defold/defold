@@ -230,8 +230,10 @@ namespace dmGraphics
     void SetCullFace(HContext context, FaceType face_type);
 
 
-    HRenderTarget NewRenderBuffer(uint32_t width, uint32_t height, TextureFormat format);
-    void DeleteRenderBuffer(HRenderTarget renderbuffer);
+    HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format);
+    void DeleteRenderTarget(HRenderTarget renderbuffer);
+    void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
+    void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
 
 
     HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
