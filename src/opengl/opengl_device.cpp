@@ -688,6 +688,8 @@ namespace dmGraphics
         GLenum gl_type = GL_UNSIGNED_BYTE;
         GLint internal_format;
 
+        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+        CHECK_GL_ERROR
 
         switch (texture_format)
         {
