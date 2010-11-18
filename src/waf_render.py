@@ -20,23 +20,26 @@ proto_compile_task('font', 'render.render_ddf_pb2', 'render_ddf_pb2.FontDesc', '
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
 #Task.simple_task_type('ttf', 'python ${FONTC} -s ${size} -o ${TGT} ${SRC}',
-Task.simple_task_type('ttf', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.Fontc ${SRC} ${size} ${TGT}',
+Task.simple_task_type('imagefont', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.Fontc ${SRC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
                       shell=False)
 
-@extension('.ttf')
-def ttf_file(self, node):
-
+@extension('.font')
+def font_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/render.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/fontc.jar']
+    imagefont = self.create_task('imagefont')
+    imagefont.env['CLASSPATH'] = os.pathsep.join(classpath)
+    imagefont.set_inputs(node)
     obj_ext = '.imagefontc'
-    font = self.create_task('ttf')
-    font.env['CLASSPATH'] = os.pathsep.join(classpath)
-    self.env['size'] = str(self.size)
+    out = node.change_ext(obj_ext)
+    imagefont.set_outputs(out)
+    font = self.create_task('font')
     font.set_inputs(node)
-    out_node = node.parent.find_or_declare(self.imagefont)
-    font.set_outputs(out_node)
+    obj_ext = '.fontc'
+    out = node.change_ext(obj_ext)
+    font.set_outputs(out)

@@ -17,7 +17,6 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-
     struct SFont
     {
         ~SFont()
@@ -65,11 +64,11 @@ namespace dmRender
         ret->m_Font = (dmRenderDDF::ImageFont*) image_font;
         ret->m_Texture = dmGraphics::NewTexture(ret->m_Font->m_ImageWidth,
                                                    ret->m_Font->m_ImageHeight,
-                                                   dmGraphics::TEXTURE_FORMAT_LUMINANCE);
+                                                   dmGraphics::TEXTURE_FORMAT_RGBA);
 
         // TODO: Texture data is duplicated in memory. (m_Texture + m_Font->m_ImageData)
         dmGraphics::SetTextureData(ret->m_Texture, 0, ret->m_Font->m_ImageWidth, ret->m_Font->m_ImageHeight, 0,
-                                   dmGraphics::TEXTURE_FORMAT_LUMINANCE, &ret->m_Font->m_ImageData[0], ret->m_Font->m_ImageData.m_Count);
+                                   dmGraphics::TEXTURE_FORMAT_RGBA, &ret->m_Font->m_ImageData[0], ret->m_Font->m_ImageData.m_Count);
 
         return ret;
     }
@@ -114,9 +113,8 @@ namespace dmRender
 
         dmGraphics::VertexElement ve[] =
         {
-                {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-                {1, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-                {2, 2, dmGraphics::TYPE_FLOAT, 0, 0}
+                {0, 2, dmGraphics::TYPE_FLOAT, 0, 0},
+                {1, 2, dmGraphics::TYPE_FLOAT, 0, 0}
         };
 
         fr->m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -149,25 +147,21 @@ namespace dmRender
 
             const dmRenderDDF::ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
 
-            if (g.m_Width != 0)
+            if (g.m_Width > 0)
             {
                 SFontVertex v1, v2, v3, v4;
 
                 v1.m_Position[0] = x + g.m_LeftBearing;
                 v1.m_Position[1] = y - g.m_Descent;
-                v1.m_Position[2] = 0;
 
                 v2.m_Position[0] = x + g.m_LeftBearing + g.m_Width;
                 v2.m_Position[1] = y - g.m_Descent;
-                v2.m_Position[2] = 0;
 
                 v3.m_Position[0] = x + g.m_LeftBearing + g.m_Width;
                 v3.m_Position[1] = y + g.m_Ascent;
-                v3.m_Position[2] = 0;
 
                 v4.m_Position[0] = x + g.m_LeftBearing;
                 v4.m_Position[1] = y + g.m_Ascent;
-                v4.m_Position[2] = 0;
 
                 float im_recip = 1.0f / renderer->m_Font->m_Font->m_ImageWidth;
                 float ih_recip = 1.0f / renderer->m_Font->m_Font->m_ImageHeight;
@@ -183,13 +177,6 @@ namespace dmRender
 
                 v4.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
                 v4.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
-
-
-                v1.m_Colour[0] = red; v1.m_Colour[1] = green; v1.m_Colour[2] = blue; v1.m_Colour[3] = alpha;
-                v2.m_Colour[0] = red; v2.m_Colour[1] = green; v2.m_Colour[2] = blue; v2.m_Colour[3] = alpha;
-                v3.m_Colour[0] = red; v3.m_Colour[1] = green; v3.m_Colour[2] = blue; v3.m_Colour[3] = alpha;
-                v4.m_Colour[0] = red; v4.m_Colour[1] = green; v4.m_Colour[2] = blue; v4.m_Colour[3] = alpha;
-
 
                 renderer->m_Vertices.Push(v1);
                 renderer->m_Vertices.Push(v2);
@@ -230,38 +217,45 @@ namespace dmRender
         if (!font || !vertex_data || vertex_data->Size() == 0)
             return;
 
-        SFontVertex* data = &vertex_data->Front();
-        float* pos = data->m_Position;
-        float* colour = data->m_Colour;
-        float* uv = data->m_UV;
+        void* data = (void*)&vertex_data->Front();
 
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
-        Matrix4 ident = Matrix4::identity();
-
         Matrix4 mat = Matrix4::orthographic( 0, GetDisplayWidth(rendercontext), GetDisplayHeight(rendercontext), 0, 10, -10 );
 
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&ident, 4, 4);
+        dmGraphics::SetVertexStream(context, 0, 4, dmGraphics::TYPE_FLOAT, sizeof(SFontVertex), data);
 
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) pos);
-
-        dmGraphics::SetVertexStream(context, 1, 2, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) uv);
-
-        dmGraphics::SetVertexStream(context, 2, 4, dmGraphics::TYPE_FLOAT,
-                           sizeof(SFontVertex),
-                           (void*) colour);
+        dmGraphics::DisableVertexStream(context, 1);
+        dmGraphics::DisableVertexStream(context, 2);
 
         dmGraphics::SetTexture(context, GetTexture(font));
+
+        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);
+
+        Vector4 face_color(1.0f, 0.0f, 0.0f, 1.0f);
+        Vector4 outline_color(0.0f, 1.0f, 0.0f, 1.0f);
+        Vector4 shadow_color(0.0f, 0.0f, 1.0f, 1.0f);
+        Vector4 clear(0.0f, 0.0f, 0.0f, 0.0f);
+
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 0);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&shadow_color, 2);
+
+        Vector4 offset(font->m_Font->m_ShadowX, font->m_Font->m_ShadowY, 0.0f, 0.0f);
+        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
+
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
+
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&face_color, 0);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&outline_color, 1);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
+
+        offset.setX(0.0f);
+        offset.setY(0.0f);
+        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
 
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
 
         dmGraphics::DisableVertexStream(context, 0);
-        dmGraphics::DisableVertexStream(context, 1);
-        dmGraphics::DisableVertexStream(context, 2);
     }
 }

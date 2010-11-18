@@ -65,9 +65,8 @@ namespace dmRender
 
     struct SFontVertex
     {
-        float m_Position[3];
+        float m_Position[2];
         float m_UV[2];
-        float m_Colour[4];
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext);

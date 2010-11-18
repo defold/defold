@@ -11,6 +11,15 @@ message FontDesc
 {
     required string Font = 1;
     required string Material = 2;
+    required uint32 Size = 3;
+    optional uint32 Antialias = 4 [default = 1];
+    optional float Alpha = 5 [default = 1.0];
+    optional float OutlineAlpha = 6 [default = 0.0];
+    optional float OutlineWidth = 7 [default = 0.0];
+    optional float ShadowAlpha = 8 [default = 0.0];
+    optional uint32 ShadowBlur = 9 [default = 0];
+    optional float ShadowX = 10 [default = 0.0];
+    optional float ShadowY = 11 [default = 0.0];
 }
 
 message ImageFont
@@ -18,8 +27,8 @@ message ImageFont
     message Glyph
     {
         required uint32 Width = 1;
-        required uint32 Advance = 3;
-        required int32 LeftBearing = 4;
+        required float Advance = 3;
+        required float LeftBearing = 4;
         required uint32 Ascent = 6;
         required uint32 Descent = 7;
         required int32 X = 8;
@@ -30,6 +39,8 @@ message ImageFont
     required uint32 ImageWidth = 3;
     required uint32 ImageHeight = 4;
     required bytes ImageData = 2;
+    optional float ShadowX = 5;
+    optional float ShadowY = 6;
 }
 
 message DrawString
