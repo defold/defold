@@ -414,9 +414,6 @@ bail:
                 dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
                 dmGameObject::Update(collections, update_contexts, 2);
 
-                dmRender::FontRendererFlush(engine->m_FontRenderer);
-                dmRender::FontRendererFlush(engine->m_SmallFontRenderer);
-
                 if (engine->m_RenderScriptInstance)
                 {
                     dmEngine::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
@@ -441,7 +438,6 @@ bail:
             {
                 dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
                 dmRender::Draw(engine->m_RenderContext, 0x0);
-                dmRender::FontRendererFlush(engine->m_SmallFontRenderer);
                 dmRender::FontRendererClear(engine->m_SmallFontRenderer);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
@@ -576,8 +572,12 @@ bail:
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawString::m_DDFDescriptor)
         {
             dmRenderDDF::DrawString* dt = (dmRenderDDF::DrawString*) instance_message_data->m_Buffer;
-            dt->m_Text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
-            dmRender::FontRendererDrawString(self->m_FontRenderer, dt->m_Text, dt->m_Position.getX(), dt->m_Position.getY(), 0.0f, 0.0f, 1.0f, 1.0f);
+            dmRender::DrawStringParams params;
+            params.m_String = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
+            params.m_X = dt->m_Position.getX();
+            params.m_Y = dt->m_Position.getY();
+            params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+            dmRender::FontRendererDrawString(self->m_FontRenderer, params);
         }
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {

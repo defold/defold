@@ -4,5 +4,6 @@ Size: 14
 Antialias: 1
 Alpha: 1
 ShadowAlpha: 1
-ShadowBlur: 4
-ShadowY: 1
+ShadowBlur: 6
+ShadowX: 0
+ShadowY: 0
