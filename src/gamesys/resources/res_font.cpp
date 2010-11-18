@@ -1,6 +1,9 @@
 #include "res_font.h"
 
+#include <string.h>
+
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 
 #include <graphics/graphics_device.h>
 
@@ -22,8 +25,18 @@ namespace dmGameSystem
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
+        const char* base_dir_end = strrchr(filename, '.');
+        if (base_dir_end == 0x0)
+        {
+            dmLogError("Could not find the file extension of %s.", filename);
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+        char font_path[256];
+        uint32_t base_dir_size = base_dir_end - filename;
+        dmStrlCpy(font_path, filename, base_dir_size + 2); // 2 for the terminating '.' and '\0'
+        dmStrlCat(font_path, "imagefontc", 256);
         dmRender::HImageFont image_font;
-        dmResource::Get(factory, font_desc->m_Font, (void**) &image_font);
+        dmResource::Get(factory, font_path, (void**) &image_font);
         dmGraphics::HMaterial material;
         dmResource::Get(factory, font_desc->m_Material, (void**) &material);
 
