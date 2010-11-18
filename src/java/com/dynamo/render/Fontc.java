@@ -1,9 +1,9 @@
 package com.dynamo.render;
 
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Composite;
+import java.awt.CompositeContext;
 import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.Graphics2D;
@@ -17,8 +17,11 @@ import java.awt.font.GlyphVector;
 import java.awt.font.TextLayout;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
 import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
+import java.awt.image.Raster;
+import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -52,6 +55,40 @@ class OrderComparator implements Comparator<Glyph> {
     }
 }
 
+class BlendContext implements CompositeContext {
+    @Override
+    public void compose(Raster src, Raster dstIn, WritableRaster dstOut) {
+        int width = Math.min(src.getWidth(), Math.min(dstIn.getWidth(), dstOut.getWidth()));
+        int height = Math.min(src.getHeight(), Math.min(dstIn.getHeight(), dstOut.getHeight()));
+        for (int i = 0; i < width; ++i) {
+            for (int j = 0; j < height; ++j) {
+                float sr = src.getSampleFloat(i, j, 0);
+                float sg = src.getSampleFloat(i, j, 1);
+                if (sr > 0.0f)
+                    dstOut.setSample(i, j, 0, sr);
+                else
+                    dstOut.setSample(i, j, 0, dstIn.getSample(i, j, 0));
+                if (sg > 0.0f)
+                    dstOut.setSample(i, j, 1, sg);
+                else
+                    dstOut.setSample(i, j, 1, dstIn.getSample(i, j, 1));
+
+                dstOut.setSample(i, j, 2, dstIn.getSample(i, j, 2));
+            }
+        }
+    }
+
+    @Override
+    public void dispose() {}
+}
+
+class BlendComposite implements Composite {
+    @Override
+    public CompositeContext createContext(ColorModel arg0, ColorModel arg1, RenderingHints arg2) {
+        return new BlendContext();
+    }
+}
+
 public class Fontc {
     String fontFile = null;
     String imageFontFile = null;
@@ -69,8 +106,8 @@ public class Fontc {
     private StringBuffer characters;
     private FontRenderContext fontRendererContext;
     private float outlineWidth;
-    static final int imageType = BufferedImage.TYPE_4BYTE_ABGR;
-    static final int imageComponentCount = 4;
+    static final int imageType = BufferedImage.TYPE_3BYTE_BGR;
+    static final int imageComponentCount = 3;
 
     public Fontc(boolean antialias) {
         this.antialias = antialias;
@@ -94,7 +131,7 @@ public class Fontc {
 
         BufferedImage image = new BufferedImage(this.imageWidth, this.imageHeight, Fontc.imageType);
         Graphics2D g = image.createGraphics();
-        g.setBackground(new Color(0.0f, 0.0f, 0.0f, 0.0f));
+        g.setBackground(new Color(0.0f, 0.0f, 0.0f));
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
 
@@ -130,12 +167,11 @@ public class Fontc {
         int padding = 0;
         if (this.antialias)
             padding = Math.min(4, this.shadowBlur) + (int)Math.ceil(this.outlineWidth * 0.5f);
-        Color faceColor = new Color(this.alpha, 0.0f, 0.0f, 1.0f);
-        Color outlineColor = new Color(0.0f, this.outlineAlpha, 0.0f, 1.0f);
+        Color faceColor = new Color(this.alpha, 0.0f, 0.0f);
+        Color outlineColor = new Color(0.0f, this.outlineAlpha, 0.0f);
         ConvolveOp shadowConvolve = null;
+        Composite blendComposite = new BlendComposite();
         if (this.shadowAlpha > 0.0f) {
-            faceColor = new Color(this.alpha, 0.0f, this.shadowAlpha, 1.0f);
-            outlineColor = new Color(0.0f, this.outlineAlpha, this.shadowAlpha, 1.0f);
             float[] kernelData = {
                     0.0625f, 0.1250f, 0.0625f,
                     0.1250f, 0.2500f, 0.1250f,
@@ -171,7 +207,7 @@ public class Fontc {
                 g.translate(margin, 0);
 
                 if (glyph.width > 0.0f) {
-                    BufferedImage glyphImage = drawGlyph(glyph, padding, font, faceColor, outlineColor, shadowConvolve);
+                    BufferedImage glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
                     g.drawImage(glyphImage, 0, 0, null);
 
                     glyph.x += g.getTransform().getTranslateX();
@@ -217,12 +253,12 @@ public class Fontc {
             imageFont.m_Glyphs.add(imageGlyph);
         }
 
-        int imageSize = this.imageWidth * newHeight * 4;
+        int imageSize = this.imageWidth * newHeight * Fontc.imageComponentCount;
         imageFont.m_ImageData = new byte[imageSize];
         int[] image_data = new int[imageSize];
         image.getRaster().getPixels(0, 0, this.imageWidth, newHeight, image_data);
 
-        for (int j = 0; j < this.imageWidth * newHeight * 4; ++j) {
+        for (int j = 0; j < this.imageWidth * newHeight * Fontc.imageComponentCount; ++j) {
             imageFont.m_ImageData[j] = (byte) (image_data[j] & 0xff);
         }
 
@@ -230,7 +266,7 @@ public class Fontc {
         DDF.save(imageFont, new FileOutputStream(this.imageFontFile));
     }
 
-    private BufferedImage drawGlyph(Glyph glyph, int padding, Font font, Color faceColor, Color outlineColor, ConvolveOp shadowConvolve) {
+    private BufferedImage drawGlyph(Glyph glyph, int padding, Font font, Composite blendComposite, Color faceColor, Color outlineColor, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
@@ -243,6 +279,8 @@ public class Fontc {
         BufferedImage image = new BufferedImage(width, height, Fontc.imageType);
         Graphics2D g = image.createGraphics();
         setHighQuality(g);
+        g.setBackground(new Color(0.0f, 0.0f, 0.0f));
+        g.clearRect(0, 0, image.getWidth(), image.getHeight());
         g.translate(dx, dy);
 
         if (this.antialias) {
@@ -263,7 +301,7 @@ public class Fontc {
                 }
             }
 
-            g.setComposite(AlphaComposite.SrcOver);
+            g.setComposite(blendComposite);
             if (this.outlineStroke != null && this.outlineAlpha > 0.0f) {
                 g.setPaint(outlineColor);
                 g.setStroke(this.outlineStroke);
@@ -333,8 +371,8 @@ public class Fontc {
         fontc.size = desc.m_Size;
         fontc.alpha = desc.m_Alpha;
         if (desc.m_OutlineWidth > 0.0f) {
-            fontc.outlineWidth = desc.m_OutlineWidth * 2;
-            fontc.outlineStroke = new BasicStroke(desc.m_OutlineWidth * 2);
+            fontc.outlineWidth = desc.m_OutlineWidth;
+            fontc.outlineStroke = new BasicStroke(desc.m_OutlineWidth);
         }
         fontc.outlineAlpha = desc.m_OutlineAlpha;
         fontc.shadowBlur = desc.m_ShadowBlur;

@@ -64,11 +64,11 @@ namespace dmRender
         ret->m_Font = (dmRenderDDF::ImageFont*) image_font;
         ret->m_Texture = dmGraphics::NewTexture(ret->m_Font->m_ImageWidth,
                                                    ret->m_Font->m_ImageHeight,
-                                                   dmGraphics::TEXTURE_FORMAT_RGBA);
+                                                   dmGraphics::TEXTURE_FORMAT_RGB);
 
         // TODO: Texture data is duplicated in memory. (m_Texture + m_Font->m_ImageData)
         dmGraphics::SetTextureData(ret->m_Texture, 0, ret->m_Font->m_ImageWidth, ret->m_Font->m_ImageHeight, 0,
-                                   dmGraphics::TEXTURE_FORMAT_RGBA, &ret->m_Font->m_ImageData[0], ret->m_Font->m_ImageData.m_Count);
+                                   dmGraphics::TEXTURE_FORMAT_RGB, &ret->m_Font->m_ImageData[0], ret->m_Font->m_ImageData.m_Count);
 
         return ret;
     }
@@ -246,13 +246,19 @@ namespace dmRender
 
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
 
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&face_color, 0);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&outline_color, 1);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
-
         offset.setX(0.0f);
         offset.setY(0.0f);
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
+
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&face_color, 0);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
+
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
+
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 0);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&outline_color, 1);
+        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
 
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
 
