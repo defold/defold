@@ -17,9 +17,9 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-    struct SFont
+    struct Font
     {
-        ~SFont()
+        ~Font()
         {
             dmGraphics::DeleteTexture(m_Texture);
         }
@@ -29,10 +29,10 @@ namespace dmRender
         dmGraphics::HMaterial       m_Material;
     };
 
-    struct SFontRenderer
+    struct FontRenderer
     {
         dmRender::HRenderContext    m_RenderContext;
-        SFont*                      m_Font;
+        Font*                       m_Font;
         dmArray<SFontVertex>        m_Vertices;
         uint32_t                    m_MaxCharacters;
         dmRender::HRenderObject     m_RenderObject;
@@ -59,7 +59,7 @@ namespace dmRender
 
     HFont NewFont(HImageFont image_font)
     {
-        SFont*ret = new SFont();
+        Font* ret = new Font();
         ret->m_Material = 0;
         ret->m_Font = (dmRenderDDF::ImageFont*) image_font;
         ret->m_Texture = dmGraphics::NewTexture(ret->m_Font->m_ImageWidth,
@@ -102,7 +102,7 @@ namespace dmRender
                                   uint32_t width, uint32_t height,
                                   uint32_t max_characters)
     {
-        SFontRenderer* fr = new SFontRenderer();
+        FontRenderer* fr = new FontRenderer();
         fr->m_RenderContext = render_context;
         fr->m_Vertices.SetCapacity(max_characters*6);
         fr->m_Font = font;

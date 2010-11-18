@@ -35,7 +35,7 @@ namespace dmRender
     /**
      * Font handle
      */
-    typedef struct SFont* HFont;
+    typedef struct Font* HFont;
 
     /**
      * Create a new font
@@ -76,7 +76,7 @@ namespace dmRender
     /**
      * Font render handle
      */
-    typedef struct SFontRenderer* HFontRenderer;
+    typedef struct FontRenderer* HFontRenderer;
 
     /**
      * Create a new font renderer
