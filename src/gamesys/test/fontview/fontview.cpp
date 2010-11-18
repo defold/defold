@@ -55,7 +55,7 @@ int32_t Run(Context* context)
             break;
 
         dmGraphics::HContext gfx_context = dmGraphics::GetContext();
-        dmGraphics::Clear(gfx_context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
+        dmGraphics::Clear(gfx_context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 255, 255, 255, 255, 1.0, 0);
         dmGraphics::SetViewport(gfx_context, context->m_ScreenWidth, context->m_ScreenHeight);
 
         uint16_t x = 10;
@@ -67,14 +67,17 @@ int32_t Run(Context* context)
         for (uint32_t i = min; i < max; ++i)
             buffer[i - min] = (char)i;
 
-        dmRender::FontRendererDrawString(context->m_FontRenderer, buffer, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
+        dmRender::FontRendererDrawString(context->m_FontRenderer, context->m_TestString, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
 
         y += 60;
 
-        dmRender::FontRendererDrawString(context->m_FontRenderer, context->m_TestString, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
+        dmRender::FontRendererDrawString(context->m_FontRenderer, buffer, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
 
         dmRender::FontRendererFlush(context->m_FontRenderer);
 
+        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
+        dmGraphics::DisableState(gfx_context, dmGraphics::DEPTH_TEST);
         dmRender::Draw(context->m_RenderContext, 0x0);
         dmRender::ClearRenderObjects(context->m_RenderContext);
         dmRender::FontRendererClear(context->m_FontRenderer);
@@ -120,6 +123,8 @@ bool Init(Context* context, int argc, char* argv[])
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 10;
         render_params.m_MaxInstances = 100;
+        render_params.m_DisplayWidth = 960;
+        render_params.m_DisplayHeight = 540;
         context->m_RenderContext = dmRender::NewRenderContext(render_params);
         dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
         dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());

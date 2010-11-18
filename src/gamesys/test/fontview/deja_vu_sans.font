@@ -1,0 +1,8 @@
+Font: "deja_vu_sans.ttf"
+Material: "font.material"
+Size: 24
+Antialias: 1
+Alpha: 1
+ShadowAlpha: 1
+ShadowBlur: 4
+ShadowY: 1
