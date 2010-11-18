@@ -112,9 +112,10 @@ namespace dmRender
                                   uint32_t width, uint32_t height,
                                   uint32_t max_characters)
     {
+        uint32_t max_vertex_count = max_characters * 4;
         FontRenderer* fr = new FontRenderer();
         fr->m_RenderContext = render_context;
-        fr->m_Vertices.SetCapacity(max_characters*6);
+        fr->m_Vertices.SetCapacity(max_vertex_count);
         fr->m_Font = font;
         fr->m_MaxCharacters = max_characters;
         fr->m_RenderObjects.SetCapacity(max_characters/8);
@@ -126,12 +127,11 @@ namespace dmRender
             dmRender::SetUserData(ro, (void*)font_user_data);
             fr->m_RenderObjects.Push(ro);
         }
-        fr->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(SFontVertex), max_characters*6, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN,1, 0x0);
+        fr->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(SFontVertex), max_vertex_count, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN,1, 0x0);
 
         dmGraphics::VertexElement ve[] =
         {
-                {0, 2, dmGraphics::TYPE_FLOAT, 0, 0},
-                {1, 2, dmGraphics::TYPE_FLOAT, 0, 0}
+                {0, 4, dmGraphics::TYPE_FLOAT, 0, 0}
         };
 
         fr->m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -154,7 +154,7 @@ namespace dmRender
 
     void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue, float alpha)
     {
-        if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters * 6)
+        if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters * 4 || renderer->m_RenderObjectIndex >= renderer->m_RenderObjects.Size())
         {
             dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", renderer->m_MaxCharacters);
             return;
@@ -170,7 +170,7 @@ namespace dmRender
         font_user_data->m_OutlineColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
         font_user_data->m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
         font_user_data->m_VertexStart = renderer->m_Vertices.Size();
-        font_user_data->m_VertexCount = n * 6;
+        font_user_data->m_VertexCount = n * 4;
 
         AddToRender(renderer->m_RenderContext, ro);
 
@@ -214,10 +214,7 @@ namespace dmRender
                 renderer->m_Vertices.Push(v1);
                 renderer->m_Vertices.Push(v2);
                 renderer->m_Vertices.Push(v3);
-
-                renderer->m_Vertices.Push(v3);
                 renderer->m_Vertices.Push(v4);
-                renderer->m_Vertices.Push(v1);
             }
             x += g.m_Advance;
         }
@@ -271,7 +268,7 @@ namespace dmRender
             Vector4 offset(font->m_Font->m_ShadowX, font->m_Font->m_ShadowY, 0.0f, 0.0f);
             dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
 
-            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_QUADS, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
         }
 
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&clear, 4, 1);
@@ -282,7 +279,7 @@ namespace dmRender
             dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
             dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
 
-            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_QUADS, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
         }
 
         if (font_user_data->m_OutlineColor.getW() > 0.0f)
@@ -291,7 +288,7 @@ namespace dmRender
             dmGraphics::SetFragmentConstant(context, (const Vector4*)&font_user_data->m_OutlineColor, 1);
             dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
 
-            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_QUADS, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
         }
 
         dmGraphics::DisableVertexStream(context, 0);
