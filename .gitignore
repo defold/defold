@@ -1,5 +1,7 @@
 .DS_Store
 .lock-wscript
+.classpath
+.settings
 build
 *.mesh
 *.material
@@ -7,7 +9,7 @@ build
 *.arbfp
 *.model
 *.pyc
-
+*.class
 
 
 
