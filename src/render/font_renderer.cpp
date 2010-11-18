@@ -31,15 +31,25 @@ namespace dmRender
 
     struct FontRenderer
     {
-        dmRender::HRenderContext    m_RenderContext;
-        Font*                       m_Font;
-        dmArray<SFontVertex>        m_Vertices;
-        uint32_t                    m_MaxCharacters;
-        dmRender::HRenderObject     m_RenderObject;
-        dmGraphics::HVertexBuffer m_VertexBuffer;
-        dmGraphics::HVertexDeclaration m_VertexDecl;
+        dmRender::HRenderContext            m_RenderContext;
+        Font*                               m_Font;
+        dmArray<SFontVertex>                m_Vertices;
+        dmArray<dmRender::HRenderObject>    m_RenderObjects;
+        uint32_t                            m_RenderObjectIndex;
+        uint32_t                            m_MaxCharacters;
+        dmGraphics::HVertexBuffer           m_VertexBuffer;
+        dmGraphics::HVertexDeclaration      m_VertexDecl;
     };
 
+    struct FontUserData
+    {
+        Vectormath::Aos::Vector4    m_FaceColor;
+        Vectormath::Aos::Vector4    m_OutlineColor;
+        Vectormath::Aos::Vector4    m_ShadowColor;
+        FontRenderer*               m_Renderer;
+        uint32_t                    m_VertexStart;
+        uint32_t                    m_VertexCount;
+    };
 
     HImageFont NewImageFont(const void* font, uint32_t font_size)
     {
@@ -107,8 +117,15 @@ namespace dmRender
         fr->m_Vertices.SetCapacity(max_characters*6);
         fr->m_Font = font;
         fr->m_MaxCharacters = max_characters;
-        fr->m_RenderObject = dmRender::NewRenderObject(render_context->m_TextRenderType, font->m_Material, 0x0);
-        dmRender::SetUserData(fr->m_RenderObject, (void*)fr);
+        fr->m_RenderObjects.SetCapacity(max_characters/8);
+        for (uint32_t i = 0; i < fr->m_RenderObjects.Capacity(); ++i)
+        {
+            HRenderObject ro = dmRender::NewRenderObject(render_context->m_TextRenderType, font->m_Material, 0x0);
+            FontUserData* font_user_data = new FontUserData();
+            font_user_data->m_Renderer = fr;
+            dmRender::SetUserData(ro, (void*)font_user_data);
+            fr->m_RenderObjects.Push(ro);
+        }
         fr->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(SFontVertex), max_characters*6, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN,1, 0x0);
 
         dmGraphics::VertexElement ve[] =
@@ -123,7 +140,13 @@ namespace dmRender
 
     void DeleteFontRenderer(HFontRenderer renderer)
     {
-        dmRender::DeleteRenderObject(renderer->m_RenderObject);
+        for (uint32_t i = 0; i < renderer->m_RenderObjects.Size(); ++i)
+        {
+            HRenderObject ro = renderer->m_RenderObjects[i];
+            FontUserData* font_user_data = (FontUserData*)dmRender::GetUserData(ro);
+            delete font_user_data;
+            dmRender::DeleteRenderObject(ro);
+        }
         dmGraphics::DeleteVertexBuffer(renderer->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(renderer->m_VertexDecl);
         delete renderer;
@@ -131,7 +154,7 @@ namespace dmRender
 
     void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue, float alpha)
     {
-        if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters)
+        if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters * 6)
         {
             dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", renderer->m_MaxCharacters);
             return;
@@ -140,6 +163,16 @@ namespace dmRender
         int n = strlen(string);
         uint16_t x = x0;
         uint16_t y = y0;
+
+        HRenderObject ro = renderer->m_RenderObjects[renderer->m_RenderObjectIndex++];
+        FontUserData* font_user_data = (FontUserData*)dmRender::GetUserData(ro);
+        font_user_data->m_FaceColor = Vectormath::Aos::Vector4(red, green, blue, alpha);
+        font_user_data->m_OutlineColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        font_user_data->m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        font_user_data->m_VertexStart = renderer->m_Vertices.Size();
+        font_user_data->m_VertexCount = n * 6;
+
+        AddToRender(renderer->m_RenderContext, ro);
 
         for (int i = 0; i < n; ++i)
         {
@@ -190,17 +223,10 @@ namespace dmRender
         }
     }
 
-    void FontRendererFlush(HFontRenderer renderer)
-    {
-        if (renderer->m_Vertices.Size() == 0)
-            return;
-
-        dmRender::AddToRender(renderer->m_RenderContext, renderer->m_RenderObject);
-    }
-
     void FontRendererClear(HFontRenderer renderer)
     {
         renderer->m_Vertices.SetSize(0);
+        renderer->m_RenderObjectIndex = 0;
     }
 
     void RenderTypeTextBegin(HRenderContext render_context)
@@ -210,26 +236,25 @@ namespace dmRender
 
     void RenderTypeTextDraw(HRenderContext rendercontext, HRenderObject ro, uint32_t count)
     {
-        HFontRenderer renderer = (HFontRenderer)dmRender::GetUserData(ro);
+        FontUserData* font_user_data = (FontUserData*)dmRender::GetUserData(ro);
+        HFontRenderer renderer = font_user_data->m_Renderer;
         HFont font = renderer->m_Font;
         dmArray<SFontVertex>* vertex_data = &renderer->m_Vertices;
 
-        if (!font || !vertex_data || vertex_data->Size() == 0)
+        if (font_user_data->m_VertexCount == 0)
             return;
 
         void* data = (void*)&vertex_data->Front();
 
         dmGraphics::HContext context = rendercontext->m_GFXContext;
 
-        Matrix4 mat = Matrix4::orthographic( 0, GetDisplayWidth(rendercontext), GetDisplayHeight(rendercontext), 0, 10, -10 );
+        dmGraphics::SetTexture(context, GetTexture(font));
 
         dmGraphics::SetVertexStream(context, 0, 4, dmGraphics::TYPE_FLOAT, sizeof(SFontVertex), data);
-
         dmGraphics::DisableVertexStream(context, 1);
         dmGraphics::DisableVertexStream(context, 2);
 
-        dmGraphics::SetTexture(context, GetTexture(font));
-
+        Matrix4 mat = Matrix4::orthographic(0, GetDisplayWidth(rendercontext), GetDisplayHeight(rendercontext), 0, 1, -1);
         dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&mat, 0, 4);
 
         Vector4 face_color(1.0f, 0.0f, 0.0f, 1.0f);
@@ -237,30 +262,37 @@ namespace dmRender
         Vector4 shadow_color(0.0f, 0.0f, 1.0f, 1.0f);
         Vector4 clear(0.0f, 0.0f, 0.0f, 0.0f);
 
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 0);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&shadow_color, 2);
+        if (font_user_data->m_ShadowColor.getW() > 0.0f)
+        {
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 0);
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&font_user_data->m_ShadowColor, 2);
 
-        Vector4 offset(font->m_Font->m_ShadowX, font->m_Font->m_ShadowY, 0.0f, 0.0f);
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
+            Vector4 offset(font->m_Font->m_ShadowX, font->m_Font->m_ShadowY, 0.0f, 0.0f);
+            dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
 
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
+        }
 
-        offset.setX(0.0f);
-        offset.setY(0.0f);
-        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&offset, 4, 1);
+        dmGraphics::SetVertexConstantBlock(context, (const Vector4*)&clear, 4, 1);
 
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&face_color, 0);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
+        if (font_user_data->m_FaceColor.getW() > 0.0f)
+        {
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&font_user_data->m_FaceColor, 0);
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 1);
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
 
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
+        }
 
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 0);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&outline_color, 1);
-        dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
+        if (font_user_data->m_OutlineColor.getW() > 0.0f)
+        {
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 0);
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&font_user_data->m_OutlineColor, 1);
+            dmGraphics::SetFragmentConstant(context, (const Vector4*)&clear, 2);
 
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_data->Size());
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, font_user_data->m_VertexStart, font_user_data->m_VertexCount);
+        }
 
         dmGraphics::DisableVertexStream(context, 0);
     }

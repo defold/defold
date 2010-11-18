@@ -110,12 +110,6 @@ namespace dmRender
     void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue, float alpha);
 
     /**
-     * Flush drawn characters
-     * @param renderer Font renderer handle
-     */
-    void FontRendererFlush(HFontRenderer renderer);
-
-    /**
      * Clear vertex data
      * @param renderer Font renderer handle
      */
