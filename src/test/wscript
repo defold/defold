@@ -4,12 +4,6 @@ import os, sys
 import waf_gamesys
 
 def build(bld):
-    fonts = bld.new_task_gen(
-        features = '',
-        size = 24,
-        imagefont='test.imagefontc',
-        source='test.ttf')
-
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
         uselib = 'GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL DLIB PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL',

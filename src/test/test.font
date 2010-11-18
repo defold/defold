@@ -1,2 +1,5 @@
 Font: "test.ttf"
 Material: "font.material"
+Size: 14
+Antialias: 1
+Alpha: 1
