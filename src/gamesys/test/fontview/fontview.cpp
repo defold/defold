@@ -73,8 +73,6 @@ int32_t Run(Context* context)
 
         dmRender::FontRendererDrawString(context->m_FontRenderer, buffer, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
 
-        dmRender::FontRendererFlush(context->m_FontRenderer);
-
         dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
         dmGraphics::DisableState(gfx_context, dmGraphics::DEPTH_TEST);

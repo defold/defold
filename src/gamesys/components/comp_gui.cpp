@@ -255,11 +255,6 @@ namespace dmGameSystem
             }
             if (c->m_Enabled)
                 dmGui::RenderScene(c->m_Scene, &RenderNode, render_context);
-
-            for (uint32_t j = 0; j < c->m_FontRenderers.Size(); ++j)
-            {
-                dmRender::FontRendererFlush(c->m_FontRenderers[j]);
-            }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
