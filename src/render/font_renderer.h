@@ -97,17 +97,34 @@ namespace dmRender
      */
     void DeleteFontRenderer(HFontRenderer renderer);
 
+
+    /**
+     * Draw string params.
+     */
+    struct DrawStringParams
+    {
+        DrawStringParams();
+
+        /// Color of the font face
+        Vectormath::Aos::Vector4 m_FaceColor;
+        /// Color of the outline
+        Vectormath::Aos::Vector4 m_OutlineColor;
+        /// Color of the shadow
+        Vectormath::Aos::Vector4 m_ShadowColor;
+        /// String to draw
+        const char* m_String;
+        /// X of the baseline
+        uint16_t m_X;
+        /// Y of the baseline
+        uint16_t m_Y;
+    };
+
     /**
      * Draw string
      * @param renderer Font renderer handle
-     * @param string String to render
-     * @param x0 X
-     * @param y0 Y
-     * @param red Red color component
-     * @param green Green color component
-     * @param blue Blue color component
+     * @param params Parameters to use when rendering
      */
-    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue, float alpha);
+    void FontRendererDrawString(HFontRenderer renderer, const DrawStringParams& params);
 
     /**
      * Clear vertex data

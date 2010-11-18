@@ -36,7 +36,6 @@ namespace dmRender
         dmArray<SFontVertex>                m_Vertices;
         dmArray<dmRender::HRenderObject>    m_RenderObjects;
         uint32_t                            m_RenderObjectIndex;
-        uint32_t                            m_MaxCharacters;
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         dmGraphics::HVertexDeclaration      m_VertexDecl;
     };
@@ -117,7 +116,6 @@ namespace dmRender
         fr->m_RenderContext = render_context;
         fr->m_Vertices.SetCapacity(max_vertex_count);
         fr->m_Font = font;
-        fr->m_MaxCharacters = max_characters;
         fr->m_RenderObjects.SetCapacity(max_characters/8);
         for (uint32_t i = 0; i < fr->m_RenderObjects.Capacity(); ++i)
         {
@@ -152,23 +150,32 @@ namespace dmRender
         delete renderer;
     }
 
-    void FontRendererDrawString(HFontRenderer renderer, const char* string, uint16_t x0, uint16_t y0, float red, float green, float blue, float alpha)
+    DrawStringParams::DrawStringParams()
+    : m_FaceColor(0.0f, 0.0f, 0.0f, 0.0f)
+    , m_OutlineColor(0.0f, 0.0f, 0.0f, 0.0f)
+    , m_ShadowColor(0.0f, 0.0f, 0.0f, 0.0f)
+    , m_String(0x0)
+    , m_X(0)
+    , m_Y(0)
+    {}
+
+    void FontRendererDrawString(HFontRenderer renderer, const DrawStringParams& params)
     {
-        if (renderer->m_Vertices.Size() >= renderer->m_MaxCharacters * 4 || renderer->m_RenderObjectIndex >= renderer->m_RenderObjects.Size())
+        if (renderer->m_Vertices.Size() + 4 >= renderer->m_Vertices.Capacity() || renderer->m_RenderObjectIndex >= renderer->m_RenderObjects.Size())
         {
-            dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", renderer->m_MaxCharacters);
+            dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", renderer->m_Vertices.Capacity() / 4);
             return;
         }
 
-        int n = strlen(string);
-        uint16_t x = x0;
-        uint16_t y = y0;
+        int n = strlen(params.m_String);
+        uint16_t x = params.m_X;
+        uint16_t y = params.m_Y;
 
         HRenderObject ro = renderer->m_RenderObjects[renderer->m_RenderObjectIndex++];
         FontUserData* font_user_data = (FontUserData*)dmRender::GetUserData(ro);
-        font_user_data->m_FaceColor = Vectormath::Aos::Vector4(red, green, blue, alpha);
-        font_user_data->m_OutlineColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
-        font_user_data->m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        font_user_data->m_FaceColor = params.m_FaceColor;
+        font_user_data->m_OutlineColor = params.m_OutlineColor;
+        font_user_data->m_ShadowColor = params.m_ShadowColor;
         font_user_data->m_VertexStart = renderer->m_Vertices.Size();
         font_user_data->m_VertexCount = n * 4;
 
@@ -176,7 +183,7 @@ namespace dmRender
 
         for (int i = 0; i < n; ++i)
         {
-            char c = string[i];
+            char c = params.m_String[i];
 
             const dmRenderDDF::ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
 
