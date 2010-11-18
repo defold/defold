@@ -43,7 +43,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
 
-    bld.install_files('${PREFIX}/bin', 'fontc.py')
     bld.install_files('${PREFIX}/share/java', 'fontc.jar')
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')
 
