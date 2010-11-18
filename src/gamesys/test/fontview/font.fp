@@ -12,10 +12,8 @@ void main(pixel_in IN,
           out float4 out_color          : COLOR)
 {
     float4 t = tex2D(texture, IN.texcoord.xy);
+    face_color.w *= t.x;
+    outline_color.w *= t.y;
     shadow_color.w *= t.z;
-    float4 glyph_color = outline_color;
-    glyph_color.w *= t.y;
-    glyph_color.xyz = glyph_color.xyz * (1 - t.x) + face_color.xyz * t.x;
-    glyph_color.w += face_color.w * t.x;
-    out_color = glyph_color + shadow_color;
+    out_color = face_color + outline_color + shadow_color;
 }
