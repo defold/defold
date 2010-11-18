@@ -67,11 +67,19 @@ int32_t Run(Context* context)
         for (uint32_t i = min; i < max; ++i)
             buffer[i - min] = (char)i;
 
-        dmRender::FontRendererDrawString(context->m_FontRenderer, context->m_TestString, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
+        dmRender::DrawStringParams params;
+        params.m_String = context->m_TestString;
+        params.m_X = x;
+        params.m_Y = y;
+        params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+        dmRender::FontRendererDrawString(context->m_FontRenderer, params);
 
         y += 60;
 
-        dmRender::FontRendererDrawString(context->m_FontRenderer, buffer, x, y, 1.0f, 1.0f, 1.0f, 1.0f);
+        params.m_String = buffer;
+        params.m_Y = y;
+
+        dmRender::FontRendererDrawString(context->m_FontRenderer, params);
 
         dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
