@@ -87,9 +87,7 @@ namespace dmEngine
     , m_GraphicsDevice(0)
     , m_Factory(0x0)
     , m_Font(0x0)
-    , m_FontRenderer(0x0)
     , m_SmallFont(0x0)
-    , m_SmallFontRenderer(0x0)
     , m_DebugMaterial(0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
@@ -198,6 +196,7 @@ namespace dmEngine
         render_params.m_FragmentProgramDataSize = ::DEBUG_ARBFP_SIZE;
         render_params.m_DisplayWidth = graphics_params.m_DisplayWidth;
         render_params.m_DisplayHeight = graphics_params.m_DisplayHeight;
+        render_params.m_MaxCharacters = 2048 * 4;
         engine->m_RenderContext = dmRender::NewRenderContext(render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
@@ -432,16 +431,13 @@ bail:
                 dmGameObject::PostUpdate(collections, 2);
 
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
-                dmRender::FontRendererClear(engine->m_FontRenderer);
-                dmRender::FontRendererClear(engine->m_SmallFontRenderer);
             }
 
             dmProfile::End();
             if (engine->m_ShowProfile)
             {
-                dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFontRenderer, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFont, engine->m_ScreenWidth, engine->m_ScreenHeight);
                 dmRender::Draw(engine->m_RenderContext, 0x0);
-                dmRender::FontRendererClear(engine->m_SmallFontRenderer);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
 
@@ -580,7 +576,7 @@ bail:
             params.m_X = dt->m_Position.getX();
             params.m_Y = dt->m_Position.getY();
             params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-            dmRender::FontRendererDrawText(self->m_FontRenderer, params);
+            dmRender::DrawText(self->m_RenderContext, self->m_Font, params);
         }
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {
@@ -712,11 +708,6 @@ bail:
             return false;
         }
 
-        engine->m_FontRenderer = dmRender::NewFontRenderer(engine->m_RenderContext, engine->m_Font, engine->m_ScreenWidth,
-            engine->m_ScreenHeight, 2048 * 4);
-        engine->m_SmallFontRenderer = dmRender::NewFontRenderer(engine->m_RenderContext, engine->m_SmallFont, engine->m_ScreenWidth,
-            engine->m_ScreenHeight, 2048 * 4);
-
         const char* gamepads = dmConfigFile::GetString(config, "bootstrap.gamepads", "input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
         fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
@@ -757,12 +748,8 @@ bail:
             DeleteRenderScriptInstance(engine->m_RenderScriptInstance);
             dmResource::Release(engine->m_Factory, engine->m_RenderScript);
         }
-        if (engine->m_FontRenderer)
-            dmRender::DeleteFontRenderer(engine->m_FontRenderer);
         if (engine->m_Font)
             dmResource::Release(engine->m_Factory, engine->m_Font);
-        if (engine->m_SmallFontRenderer)
-            dmRender::DeleteFontRenderer(engine->m_SmallFontRenderer);
         if (engine->m_SmallFont)
             dmResource::Release(engine->m_Factory, engine->m_SmallFont);
 

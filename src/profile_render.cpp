@@ -19,7 +19,7 @@ namespace dmProfileRender
         float    m_TicksPerSecond;
         float    m_FrameX;
         dmRender::HRenderContext m_RenderContext;
-        dmRender::HFontRenderer m_FontRenderer;
+        dmRender::HFont m_Font;
     };
 
 //    float *r, *g, *b; /* red, green, blue in [0,1] */
@@ -92,11 +92,11 @@ namespace dmProfileRender
 
             DM_SNPRINTF(buf, sizeof(buf), "%s.%s", sample->m_Scope->m_Name, sample->m_Name);
             params.m_X = g_Sample_x0;
-            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
+            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
             DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000.0f);
             params.m_X = g_Sample_Time_x0;
-            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
+            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
             c->m_SampleIndex++;
         }
@@ -127,25 +127,23 @@ namespace dmProfileRender
 
             DM_SNPRINTF(buf, sizeof(buf), "%s", scope->m_Name);
             params.m_X = g_Scope_x0;
-            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
+            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
             DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000);
             params.m_X = g_Scope_Time_x0;
-            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
+            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
             DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Samples);
             params.m_X = g_Scope_Count_x0;
-            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
+            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
             c->m_Index++;
         }
     }
 
-    void Draw(dmRender::HRenderContext render_context, dmRender::HFontRenderer font_renderer, uint32_t width, uint32_t height)
+    void Draw(dmRender::HRenderContext render_context, dmRender::HFont font, uint32_t width, uint32_t height)
     {
-        dmRender::FontRendererClear(font_renderer);
-
-        Matrix4 m = Matrix4::orthographic( -1, 1, 1, -1, 10, -10 );
+        Matrix4 m = Matrix4::orthographic(-1, 1, 1, -1, 1, -1);
 
         dmGraphics::HContext context = dmGraphics::GetContext();
 
@@ -167,7 +165,7 @@ namespace dmProfileRender
 
         DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
         params.m_X = g_Scope_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
 
         text_y0 += g_TextSpacing;
 
@@ -178,22 +176,22 @@ namespace dmProfileRender
 
         params.m_Text = "Scopes:";
         params.m_X = g_Scope_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
         params.m_Text = "ms";
         params.m_X = g_Scope_Time_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
         params.m_Text = "#";
         params.m_X = g_Scope_Count_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
         params.m_Text = "Samples:";
         params.m_X = g_Sample_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
         params.m_Text = "ms";
         params.m_X = g_Sample_Time_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
         params.m_Text = "Frame:";
         params.m_X = g_Frame_x0;
-        dmRender::FontRendererDrawText(font_renderer, params);
+        dmRender::DrawText(render_context, font, params);
 
         Context ctx;
         ctx.m_Y = -0.78f;
@@ -205,7 +203,7 @@ namespace dmProfileRender
         ctx.m_TicksPerSecond = dmProfile::GetTicksPerSecond();
         ctx.m_FrameX = frame_x0;
         ctx.m_RenderContext = render_context;
-        ctx.m_FontRenderer = font_renderer;
+        ctx.m_Font = font;
 
         dmProfile::IterateSamples(&ctx, &ProfileSampleCallback);
 
