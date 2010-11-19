@@ -43,7 +43,7 @@ message ImageFont
     optional float ShadowY = 6;
 }
 
-message DrawString
+message DrawText
 {
     required dmMath.Point3 Position = 1;
     required string Text = 2;

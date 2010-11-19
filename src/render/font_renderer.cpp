@@ -150,16 +150,16 @@ namespace dmRender
         delete renderer;
     }
 
-    DrawStringParams::DrawStringParams()
+    DrawTextParams::DrawTextParams()
     : m_FaceColor(0.0f, 0.0f, 0.0f, 0.0f)
     , m_OutlineColor(0.0f, 0.0f, 0.0f, 0.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 0.0f)
-    , m_String(0x0)
+    , m_Text(0x0)
     , m_X(0)
     , m_Y(0)
     {}
 
-    void FontRendererDrawString(HFontRenderer renderer, const DrawStringParams& params)
+    void FontRendererDrawText(HFontRenderer renderer, const DrawTextParams& params)
     {
         if (renderer->m_Vertices.Size() + 4 >= renderer->m_Vertices.Capacity() || renderer->m_RenderObjectIndex >= renderer->m_RenderObjects.Size())
         {
@@ -167,7 +167,7 @@ namespace dmRender
             return;
         }
 
-        int n = strlen(params.m_String);
+        int n = strlen(params.m_Text);
         uint16_t x = params.m_X;
         uint16_t y = params.m_Y;
 
@@ -180,7 +180,7 @@ namespace dmRender
 
         for (int i = 0; i < n; ++i)
         {
-            char c = params.m_String[i];
+            char c = params.m_Text[i];
 
             const dmRenderDDF::ImageFont::Glyph& g = renderer->m_Font->m_Font->m_Glyphs[c];
 

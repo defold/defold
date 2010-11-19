@@ -99,11 +99,11 @@ namespace dmRender
 
 
     /**
-     * Draw string params.
+     * Draw text params.
      */
-    struct DrawStringParams
+    struct DrawTextParams
     {
-        DrawStringParams();
+        DrawTextParams();
 
         /// Color of the font face
         Vectormath::Aos::Vector4 m_FaceColor;
@@ -111,8 +111,8 @@ namespace dmRender
         Vectormath::Aos::Vector4 m_OutlineColor;
         /// Color of the shadow
         Vectormath::Aos::Vector4 m_ShadowColor;
-        /// String to draw
-        const char* m_String;
+        /// Text to draw
+        const char* m_Text;
         /// X of the baseline
         uint16_t m_X;
         /// Y of the baseline
@@ -120,11 +120,11 @@ namespace dmRender
     };
 
     /**
-     * Draw string
+     * Draw text
      * @param renderer Font renderer handle
      * @param params Parameters to use when rendering
      */
-    void FontRendererDrawString(HFontRenderer renderer, const DrawStringParams& params);
+    void FontRendererDrawText(HFontRenderer renderer, const DrawTextParams& params);
 
     /**
      * Clear vertex data
