@@ -4,7 +4,7 @@ from TaskGen import extension
 from waf_content import proto_compile_task
 
 def configure(conf):
-    conf.find_file('fontc.py', var='FONTC', mandatory = True)
+    pass
 
 def transform_font(msg):
     msg.Font = msg.Font.replace('.ttf', '.imagefontc')
