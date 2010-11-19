@@ -74,6 +74,11 @@ namespace dmRender
             info->m_VertexCount = 0;
             debug_renderer.m_RenderObject2d[i]->m_UserData = (void*)info;
         }
+
+        debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
+        debug_renderer.m_3dPredicate.m_TagCount = 1;
+        debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString32(DEBUG_2D_NAME);
+        debug_renderer.m_2dPredicate.m_TagCount = 1;
     }
 
     void FinalizeDebugRenderer(HRenderContext context)

@@ -66,6 +66,7 @@ namespace dmRender
         uint32_t        m_FragmentProgramDataSize;
         uint32_t        m_DisplayWidth;
         uint32_t        m_DisplayHeight;
+        uint32_t        m_MaxCharacters;
     };
 
     typedef uint32_t HRenderType;

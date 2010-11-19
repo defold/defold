@@ -10,6 +10,9 @@
 
 #include "render.h"
 
+// Windows defines DrawText
+#undef DrawText
+
 namespace dmRender
 {
     /**
@@ -73,30 +76,8 @@ namespace dmRender
      */
     void DeleteFont(HFont font);
 
-    /**
-     * Font render handle
-     */
-    typedef struct FontRenderer* HFontRenderer;
-
-    /**
-     * Create a new font renderer
-     * @param font Font
-     * @param render_world Render world context
-     * @param width Width
-     * @param height Height
-     * @param max_characters Max characters to render
-     * @return Font renderer handle
-     *
-     */
-    HFontRenderer NewFontRenderer(HRenderContext render_context, HFont font,
-                                  uint32_t width, uint32_t height,
-                                  uint32_t max_characters);
-    /**
-     * Deletes a font renderer
-     * @param renderer Font renderer handle
-     */
-    void DeleteFontRenderer(HFontRenderer renderer);
-
+    void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
+    void FinalizeTextContext(HRenderContext render_context);
 
     /**
      * Draw text params.
@@ -121,16 +102,10 @@ namespace dmRender
 
     /**
      * Draw text
-     * @param renderer Font renderer handle
+     * @param render_context Context to use when rendering
      * @param params Parameters to use when rendering
      */
-    void FontRendererDrawText(HFontRenderer renderer, const DrawTextParams& params);
-
-    /**
-     * Clear vertex data
-     * @param renderer Font renderer handle
-     */
-    void FontRendererClear(HFontRenderer renderer);
+    void DrawText(HRenderContext render_context, HFont font, const DrawTextParams& params);
 }
 
 #endif // FONTRENDERER_H

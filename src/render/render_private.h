@@ -37,9 +37,27 @@ namespace dmRender
 
     struct DebugRenderer
     {
+        Predicate                           m_3dPredicate;
+        Predicate                           m_2dPredicate;
         dmRender::HRenderContext            m_RenderContext;
         dmRender::HRenderObject             m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
         dmRender::HRenderObject             m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
+    };
+
+    struct TextVertex
+    {
+        float m_Position[2];
+        float m_UV[2];
+    };
+
+    struct TextContext
+    {
+        dmArray<TextVertex>                 m_Vertices;
+        dmArray<dmRender::HRenderObject>    m_RenderObjects;
+        dmGraphics::HVertexBuffer           m_VertexBuffer;
+        dmGraphics::HVertexDeclaration      m_VertexDecl;
+        uint32_t                            m_RenderObjectIndex;
+        uint32_t                            m_TextRenderType;
     };
 
     struct RenderContext
@@ -47,8 +65,7 @@ namespace dmRender
         dmArray<RenderType>         m_RenderTypes;
         dmArray<RenderObject*>      m_RenderObjects;
         DebugRenderer               m_DebugRenderer;
-        Predicate                   m_Debug3dPredicate;
-        Predicate                   m_Debug2dPredicate;
+        TextContext                 m_TextContext;
 
         dmGraphics::HContext        m_GFXContext;
 
@@ -58,15 +75,8 @@ namespace dmRender
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
 
-        uint32_t                    m_TextRenderType;
         uint32_t                    m_DisplayWidth;
         uint32_t                    m_DisplayHeight;
-    };
-
-    struct SFontVertex
-    {
-        float m_Position[2];
-        float m_UV[2];
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);

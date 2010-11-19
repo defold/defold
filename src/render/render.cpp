@@ -9,6 +9,7 @@
 
 #include "render_private.h"
 #include "debug_renderer.h"
+#include "font_renderer.h"
 #include "render/mesh_ddf.h"
 
 #include "model/model.h"
@@ -32,6 +33,7 @@ namespace dmRender
     , m_VertexProgramDataSize(0)
     , m_FragmentProgramData(0x0)
     , m_FragmentProgramDataSize(0)
+    , m_MaxCharacters(0)
     {
 
     }
@@ -48,25 +50,15 @@ namespace dmRender
         context->m_SetObjectModel = params.m_SetObjectModel;
         context->m_GFXContext = dmGraphics::GetContext();
 
-        RenderType text_render_type;
-        text_render_type.m_BeginCallback = RenderTypeTextBegin;
-        text_render_type.m_DrawCallback = RenderTypeTextDraw;
-        text_render_type.m_EndCallback = 0x0;
-        RegisterRenderType(context, text_render_type, &context->m_TextRenderType);
-
         context->m_View = Vectormath::Aos::Matrix4::identity();
         context->m_Projection = Vectormath::Aos::Matrix4::identity();
 
         InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
 
-        context->m_Debug3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
-        context->m_Debug3dPredicate.m_TagCount = 1;
-        context->m_Debug2dPredicate.m_Tags[0] = dmHashString32(DEBUG_2D_NAME);
-        context->m_Debug2dPredicate.m_TagCount = 1;
-
         context->m_DisplayWidth = params.m_DisplayWidth;
         context->m_DisplayHeight = params.m_DisplayHeight;
 
+        InitializeTextContext(context, params.m_MaxCharacters);
         return context;
     }
 
@@ -75,6 +67,7 @@ namespace dmRender
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
         FinalizeDebugRenderer(render_context);
+        FinalizeTextContext(render_context);
         delete render_context;
 
         return RESULT_OK;
@@ -138,6 +131,10 @@ namespace dmRender
     {
         context->m_RenderObjects.SetSize(0);
         ClearDebugRenderObjects(context);
+
+        context->m_TextContext.m_RenderObjectIndex = 0;
+        context->m_TextContext.m_Vertices.SetSize(0);
+
         return RESULT_OK;
     }
 
@@ -183,29 +180,21 @@ namespace dmRender
 
     Result DrawDebug3d(HRenderContext context)
     {
-        return Draw(context, &context->m_Debug3dPredicate);
+        return Draw(context, &context->m_DebugRenderer.m_3dPredicate);
     }
 
     Result DrawDebug2d(HRenderContext context)
     {
-        return Draw(context, &context->m_Debug2dPredicate);
+        return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
     HRenderObject NewRenderObject(uint32_t type, dmGraphics::HMaterial material, void* visual_object)
     {
         RenderObject* ro = new RenderObject;
         ro->m_Type = type;
-        ro->m_Material = material;
         ro->m_VisualObject = visual_object;
 
-        uint32_t reg;
-
-        reg = DIFFUSE_COLOR;
-        ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
-        reg = EMISSIVE_COLOR;
-        ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
-        reg = SPECULAR_COLOR;
-        ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
+        SetMaterial(ro, material);
 
         return ro;
     }
@@ -233,6 +222,16 @@ namespace dmRender
     void SetMaterial(HRenderObject ro, dmGraphics::HMaterial material)
     {
         ro->m_Material = material;
+        if (material != 0x0)
+        {
+            uint32_t reg;
+            reg = DIFFUSE_COLOR;
+            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
+            reg = EMISSIVE_COLOR;
+            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
+            reg = SPECULAR_COLOR;
+            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
+        }
     }
 
     Point3 GetPosition(HRenderObject ro)
