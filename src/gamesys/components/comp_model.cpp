@@ -171,7 +171,7 @@ namespace dmGameSystem
             }
         }
 
-        dmGraphics::SetVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
+        dmGraphics::EnableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
         dmGraphics::DrawRangeElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
         dmGraphics::DisableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh));
     }
