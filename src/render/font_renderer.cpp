@@ -177,9 +177,6 @@ namespace dmRender
         font_user_data->m_OutlineColor = params.m_OutlineColor;
         font_user_data->m_ShadowColor = params.m_ShadowColor;
         font_user_data->m_VertexStart = renderer->m_Vertices.Size();
-        font_user_data->m_VertexCount = n * 4;
-
-        AddToRender(renderer->m_RenderContext, ro);
 
         for (int i = 0; i < n; ++i)
         {
@@ -225,6 +222,8 @@ namespace dmRender
             }
             x += g.m_Advance;
         }
+        font_user_data->m_VertexCount = renderer->m_Vertices.Size() - font_user_data->m_VertexStart;
+        AddToRender(renderer->m_RenderContext, ro);
     }
 
     void FontRendererClear(HFontRenderer renderer)
