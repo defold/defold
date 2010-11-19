@@ -18,7 +18,6 @@ namespace dmGameSystem
     struct Component
     {
         dmGui::HScene                    m_Scene;
-        dmArray<dmRender::HFontRenderer> m_FontRenderers;
         uint16_t m_Enabled : 1;
     };
 
@@ -92,14 +91,9 @@ namespace dmGameSystem
         gui_component->m_Scene = scene;
         gui_component->m_Enabled = 1;
 
-        // Create font renderers
-        gui_component->m_FontRenderers.SetCapacity(scene_prototype->m_Fonts.Size());
         for (uint32_t i = 0; i < scene_prototype->m_Fonts.Size(); ++i)
         {
-            // TODO: Width, Height...
-            dmRender::HFontRenderer font_renderer = dmRender::NewFontRenderer(render_context, scene_prototype->m_Fonts[i], 960, 540, scene_prototype->m_SceneDesc->m_Fonts[i].m_MaxShapes);
-            gui_component->m_FontRenderers.Push(font_renderer);
-            dmGui::AddFont(scene, scene_prototype->m_SceneDesc->m_Fonts[i].m_Name, font_renderer);
+            dmGui::AddFont(scene, scene_prototype->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_prototype->m_Fonts[i]);
         }
 
         *user_data = (uintptr_t)gui_component;
@@ -127,11 +121,7 @@ namespace dmGameSystem
         {
             if (gui_world->m_Components[i] == gui_component)
             {
-                for (uint32_t j = 0; j < gui_component->m_FontRenderers.Size(); ++j)
-                {
-                    dmRender::DeleteFontRenderer(gui_component->m_FontRenderers[j]);
-                    dmGui::DeleteScene(gui_component->m_Scene);
-                }
+                dmGui::DeleteScene(gui_component->m_Scene);
                 delete gui_component;
                 gui_world->m_Components.EraseSwap(i);
                 break;
@@ -216,15 +206,15 @@ namespace dmGameSystem
             }
             else if(node->m_NodeType == dmGui::NODE_TYPE_TEXT)
             {
-                dmRender::HFontRenderer font_renderer = (dmRender::HFontRenderer) node->m_Font;
-                if (font_renderer && node->m_Text)
+                dmRender::HFont font = (dmRender::HFont) node->m_Font;
+                if (font && node->m_Text)
                 {
                     dmRender::DrawTextParams params;
                     params.m_Text = node->m_Text;
                     params.m_X = pos.getX();
                     params.m_Y = pos.getY();
                     params.m_FaceColor = color;
-                    dmRender::FontRendererDrawText(font_renderer, params);
+                    dmRender::DrawText(render_context, font, params);
                 }
             }
         }
@@ -252,10 +242,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             Component* c = gui_world->m_Components[i];
-            for (uint32_t j = 0; j < c->m_FontRenderers.Size(); ++j)
-            {
-                dmRender::FontRendererClear(c->m_FontRenderers[j]);
-            }
             if (c->m_Enabled)
                 dmGui::RenderScene(c->m_Scene, &RenderNode, render_context);
         }

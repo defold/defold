@@ -19,7 +19,6 @@ struct Context
     dmResource::HFactory m_Factory;
     dmRender::HFont m_Font;
     dmRender::HRenderContext m_RenderContext;
-    dmRender::HFontRenderer m_FontRenderer;
     uint32_t m_ScreenWidth;
     uint32_t m_ScreenHeight;
 };

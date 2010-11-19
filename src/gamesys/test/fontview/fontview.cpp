@@ -72,21 +72,20 @@ int32_t Run(Context* context)
         params.m_X = x;
         params.m_Y = y;
         params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-        dmRender::FontRendererDrawText(context->m_FontRenderer, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_Font, params);
 
         y += 60;
 
         params.m_Text = buffer;
         params.m_Y = y;
 
-        dmRender::FontRendererDrawText(context->m_FontRenderer, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_Font, params);
 
         dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
         dmGraphics::DisableState(gfx_context, dmGraphics::DEPTH_TEST);
         dmRender::Draw(context->m_RenderContext, 0x0);
         dmRender::ClearRenderObjects(context->m_RenderContext);
-        dmRender::FontRendererClear(context->m_FontRenderer);
 
         dmGraphics::Flip();
     }
@@ -131,6 +130,7 @@ bool Init(Context* context, int argc, char* argv[])
         render_params.m_MaxInstances = 100;
         render_params.m_DisplayWidth = 960;
         render_params.m_DisplayHeight = 540;
+        render_params.m_MaxCharacters = 1024;
         context->m_RenderContext = dmRender::NewRenderContext(render_params);
         dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
         dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());
@@ -164,8 +164,6 @@ bool Init(Context* context, int argc, char* argv[])
             return false;
         }
 
-        context->m_FontRenderer = dmRender::NewFontRenderer(context->m_RenderContext, context->m_Font, context->m_ScreenWidth, context->m_ScreenHeight, 1024);
-
         return true;
     }
     else
@@ -182,7 +180,6 @@ void Finalize(Context* context)
 
     if (context->m_Factory)
     {
-        if (context->m_FontRenderer) dmRender::DeleteFontRenderer(context->m_FontRenderer);
         if (context->m_Font) dmResource::Release(context->m_Factory, context->m_Font);
         dmResource::DeleteFactory(context->m_Factory);
     }

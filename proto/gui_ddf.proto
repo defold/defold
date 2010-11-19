@@ -12,7 +12,6 @@ message SceneDesc
     {
         required string Name = 1;
         required string Font = 2;
-        required uint32 MaxShapes = 3;
     }
 
     required string Script = 1;
