@@ -1,7 +1,10 @@
 #include <string.h>
+
 #include <dlib/dstrings.h>
-#include "profile_render.h"
+#include <dlib/math.h>
 #include <dlib/profile.h>
+
+#include "profile_render.h"
 
 namespace dmProfileRender
 {
@@ -20,37 +23,32 @@ namespace dmProfileRender
     };
 
 //    float *r, *g, *b; /* red, green, blue in [0,1] */
-  //  float h, s, v;    /* hue in [0,360]; saturation, value in [0,1] */
-    void hsv_to_rgb(float* r, float* g, float* b, float h, float s, float v)
+  //  float h, s, l;    /* hue in [0,360]; saturation, light in [0,1] */
+    void hsl_to_rgb(float* r, float* g, float* b, float h, float s, float l)
     {
-      int i;
-      float f, p, q, t;
-
-      if(s==0.0) { /* achromatic, hue meaningless */
-        (*r) = (*g) = (*b) = v;
-      } else {
-        if(h==360.0) h=0.0;    /* this is a circle */
-        h /= 60.0;             /* h is mostly in one of 6 main hues */
-        i=(int)floor(h);       /* i<=h, i is which hue of 0,1,2,3,4,5 */
-        f=h-i;                 /* fractional part of h */
-        p=v*(1.0-s);           /* purity of this hue */
-        q=v*(1.0-(s*f));       /* farness from this hue */
-        t=v*(1.0-(s*(1.0-f))); /* closeness to this hue */
-
-        switch(i) {
-          case 0: *r=v; *g=t; *b=p; break; /* mostly red */
-          case 1: *r=q; *g=v; *b=p; break; /* mostly yellow */
-          case 2: *r=p; *g=v; *b=t; break; /* mostly green */
-          case 3: *r=p; *g=q; *b=v; break; /* mostly cyan */
-          case 4: *r=t; *g=p; *b=v; break; /* mostly blue */
-          case 5: *r=v; *g=p; *b=q; break; /* mostly magenta */
+        float c = (1.0f - dmMath::Abs(2.0f * l - 1.0f)) * s;
+        float hp = h / 60.0f;
+        int hpi = (int)hp;
+        float hpmod2 = (hpi % 2) + (hp - hpi);
+        float x = c * (1.0f - dmMath::Abs(hpmod2 - 1.0f));
+        switch (hpi)
+        {
+            case 0: *r = c; *g = x; *b = 0; break;
+            case 1: *r = x; *g = c; *b = 0; break;
+            case 2: *r = 0; *g = c; *b = x; break;
+            case 3: *r = 0; *g = x; *b = c; break;
+            case 4: *r = x; *g = 0; *b = c; break;
+            case 5: *r = c; *g = 0; *b = x; break;
         }
-      }
+        float m = l - 0.5f * c;
+        *r += m;
+        *g += m;
+        *b += m;
     }
 
-    void HsvToRgb2(float h, float s, float v, float* c)
+    void HslToRgb2(float h, float s, float l, float* c)
     {
-        hsv_to_rgb(&c[0], &c[1], &c[2], h * 360, s, v);
+        hsl_to_rgb(&c[0], &c[1], &c[2], h * 360, s, l);
     }
 
     const int g_Scope_x0 = 16;
@@ -75,7 +73,7 @@ namespace dmProfileRender
         float w = (1.0f * freq * sample->m_Elapsed) / c->m_TicksPerSecond;
 
         float col[3];
-        HsvToRgb2( (sample->m_Scope->m_Index % 16) / 16.0f, 0.99f, 0.99f, col);
+        HslToRgb2( (sample->m_Scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
 
         dmRender::Square2d(c->m_RenderContext, x, y, x + w, y + c->m_Barheight, Vector4(col[0], col[1], col[2], 1));
 
@@ -113,7 +111,7 @@ namespace dmProfileRender
         int y = c->m_TextY + c->m_Index * g_TextSpacing;
 
         float col[3];
-        HsvToRgb2( (scope->m_Index % 16) / 16.0f, 0.8f, 0.90f, col);
+        HslToRgb2( (scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
 
         float e = scope->m_Elapsed / c->m_TicksPerSecond;
 
