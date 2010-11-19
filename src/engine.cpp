@@ -15,6 +15,9 @@
 #include <graphics/material.h>
 
 #include <render/model_ddf.h>
+
+// Windows defines DrawText
+#undef DrawText
 #include <render/render_ddf.h>
 
 #include <gui/gui.h>
