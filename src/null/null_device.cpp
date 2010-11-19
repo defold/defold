@@ -41,23 +41,64 @@ namespace dmGraphics
     {
     }
 
-    HVertexBuffer NewVertexbuffer(uint32_t element_size, uint32_t element_count, BufferType buffer_type, MemoryType memory_type, uint32_t buffer_count, const void* data)
+    HVertexBuffer NewVertexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return new VertexBuffer;
+        return (uint32_t)new char[size];
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        delete buffer;
+        delete [] (char*)buffer;
     }
 
-    HIndexBuffer NewIndexBuffer(uint32_t element_count, BufferType buffer_type, MemoryType memory_type, const void* data)
+    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return new IndexBuffer;
+        memcpy((char*)buffer, data, size);
     }
+
+    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        memcpy(&((char*)buffer)[offset], data, size);
+    }
+
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        return (char*)buffer;
+    }
+
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        return true;
+    }
+
+    HIndexBuffer NewIndexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        return (uint32_t)new char[size];
+    }
+
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        delete buffer;
+        delete [] (char*)buffer;
+    }
+
+    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        memcpy((char*)buffer, data, size);
+    }
+
+    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        memcpy(&((char*)buffer)[offset], data, size);
+    }
+
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        return (char*)buffer;
+    }
+
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        return true;
     }
 
     HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count)
@@ -70,7 +111,7 @@ namespace dmGraphics
         delete vertex_declaration;
     }
 
-    void SetVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
     }

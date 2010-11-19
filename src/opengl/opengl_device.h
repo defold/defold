@@ -49,22 +49,11 @@ namespace dmGraphics
     };
     struct VertexBuffer
     {
-        uint32_t    m_ElementSize;
-        uint32_t    m_ElementCount;
-        BufferType  m_BufferType;
-        MemoryType  m_MemoryType;
-        uint32_t    m_BufferCount;
-        void*       m_Data[3];
         GLuint      m_VboId;
-
     };
 
     struct IndexBuffer
     {
-        uint32_t    m_ElementCount;
-        BufferType  m_BufferType;
-        MemoryType  m_MemoryType;
-        void*       m_Data;
         GLuint      m_VboId;
     };
 

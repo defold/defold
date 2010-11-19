@@ -92,11 +92,24 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = GFXDEVICE_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
     };
 
-
-    enum BufferType
+    enum BufferUsage
     {
-        BUFFER_TYPE_DYNAMIC = 0,
-        BUFFER_TYPE_STATIC = 1
+        BUFFER_USAGE_STREAM_DRAW = GFXDEVICE_BUFFER_USAGE_STREAM_DRAW,
+        BUFFER_USAGE_STREAM_READ = GFXDEVICE_BUFFER_USAGE_STREAM_READ,
+        BUFFER_USAGE_STREAM_COPY = GFXDEVICE_BUFFER_USAGE_STREAM_COPY,
+        BUFFER_USAGE_DYNAMIC_DRAW = GFXDEVICE_BUFFER_USAGE_DYNAMIC_DRAW,
+        BUFFER_USAGE_DYNAMIC_READ = GFXDEVICE_BUFFER_USAGE_DYNAMIC_READ,
+        BUFFER_USAGE_DYNAMIC_COPY = GFXDEVICE_BUFFER_USAGE_DYNAMIC_COPY,
+        BUFFER_USAGE_STATIC_DRAW = GFXDEVICE_BUFFER_USAGE_STATIC_DRAW,
+        BUFFER_USAGE_STATIC_READ = GFXDEVICE_BUFFER_USAGE_STATIC_READ,
+        BUFFER_USAGE_STATIC_COPY = GFXDEVICE_BUFFER_USAGE_STATIC_COPY,
+    };
+
+    enum BufferAccess
+    {
+        BUFFER_ACCESS_READ_ONLY = GFXDEVICE_BUFFER_ACCESS_READ_ONLY,
+        BUFFER_ACCESS_WRITE_ONLY = GFXDEVICE_BUFFER_ACCESS_WRITE_ONLY,
+        BUFFER_ACCESS_READ_WRITE = GFXDEVICE_BUFFER_ACCESS_READ_WRITE,
     };
 
     enum MemoryType
@@ -191,18 +204,24 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
     void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
 
-    HVertexBuffer NewVertexbuffer(uint32_t element_size, uint32_t element_count, BufferType buffer_type, MemoryType memory_type, uint32_t buffer_count, const void* data);
+    HVertexBuffer NewVertexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage);
     void DeleteVertexBuffer(HVertexBuffer buffer);
+    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
+    bool UnmapVertexBuffer(HVertexBuffer buffer);
 
-    HIndexBuffer NewIndexBuffer(uint32_t element_count, BufferType buffer_type, MemoryType memory_type, const void* data);
+    HIndexBuffer NewIndexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage);
     void DeleteIndexBuffer(HIndexBuffer buffer);
+    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
+    bool UnmapIndexBuffer(HIndexBuffer buffer);
 
     HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count);
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
-    void SetVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
-
-
 
     void DisableVertexStream(HContext context, uint16_t stream);
     void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer);
@@ -220,7 +239,6 @@ namespace dmGraphics
     void SetVertexConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors);
     void SetFragmentConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors);
 
-
     void SetViewport(HContext context, int width, int height);
 
     void EnableState(HContext context, RenderState state);
@@ -229,12 +247,10 @@ namespace dmGraphics
     void SetDepthMask(HContext context, bool mask);
     void SetCullFace(HContext context, FaceType face_type);
 
-
     HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format);
     void DeleteRenderTarget(HRenderTarget renderbuffer);
     void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
-
 
     HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
     void SetTextureData(HTexture texture,

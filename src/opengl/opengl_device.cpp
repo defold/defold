@@ -208,63 +208,118 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HVertexBuffer NewVertexbuffer(uint32_t element_size, uint32_t element_count, BufferType buffer_type, MemoryType memory_type, uint32_t buffer_count, const void* data)
+    HVertexBuffer NewVertexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(buffer_count < 4);
-
-        VertexBuffer* buffer = new VertexBuffer;
-
-        GLenum vbo_type;
-        if (buffer_type == BUFFER_TYPE_DYNAMIC)
-        {
-            vbo_type = GL_STREAM_DRAW_ARB;
-        }
-        else if (buffer_type == BUFFER_TYPE_STATIC)
-        {
-            vbo_type = GL_STATIC_DRAW_ARB;
-        }
-
-        glGenBuffersARB(1, &buffer->m_VboId);
+        uint32_t buffer = 0;
+        glGenBuffersARB(1, &buffer);
         CHECK_GL_ERROR
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer->m_VboId);
-        CHECK_GL_ERROR
-        glBufferDataARB(GL_ARRAY_BUFFER_ARB, element_size*element_count, data, vbo_type);
-        CHECK_GL_ERROR
-
-        // TODO: removed when theres full vbo-support
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-
-
-        buffer->m_BufferCount = buffer_count;
-        buffer->m_ElementCount = element_count;
-        buffer->m_ElementSize = element_size;
-        buffer->m_BufferType = buffer_type;
-        buffer->m_MemoryType = memory_type;
-
-        for (uint32_t i=0; i<buffer_count; i++)
-        {
-            buffer->m_Data[i] = malloc(element_size*element_count);
-            if (data)
-                memcpy(buffer->m_Data[i], data, element_size*element_count);
-        }
-
+        SetVertexBufferData(buffer, size, data, buffer_usage);
         return buffer;
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        assert(buffer->m_BufferCount < 4);
-
-        for (uint32_t i=0; i<buffer->m_BufferCount; i++)
-        {
-            free(buffer->m_Data[i]);
-        }
-
-        glDeleteBuffersARB(1, &buffer->m_VboId);
+        glDeleteBuffersARB(1, &buffer);
         CHECK_GL_ERROR
+    }
 
-        delete buffer;
+    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+    }
+
+    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+    }
+
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        void* result = glMapBufferARB(GL_ARRAY_BUFFER_ARB, access);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+        return result;
+    }
+
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        bool result = glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+        return result;
+    }
+
+    HIndexBuffer NewIndexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        uint32_t buffer = 0;
+        glGenBuffersARB(1, &buffer);
+        CHECK_GL_ERROR
+        SetIndexBufferData(buffer, size, data, buffer_usage);
+        return buffer;
+    }
+
+    void DeleteIndexBuffer(HIndexBuffer buffer)
+    {
+        glDeleteBuffersARB(1, &buffer);
+        CHECK_GL_ERROR
+    }
+
+    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, buffer_usage);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+    }
+
+    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+    }
+
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        void* result = glMapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, access);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+        return result;
+    }
+
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        bool result = glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+        return result;
     }
 
     static uint32_t GetTypeSize(Type type)
@@ -298,7 +353,6 @@ namespace dmGraphics
     {
         VertexDeclaration* vd = new VertexDeclaration;
 
-
         vd->m_Stride = 0;
         assert(count < (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
 
@@ -322,49 +376,14 @@ namespace dmGraphics
         delete vertex_declaration;
     }
 
-
-    HIndexBuffer NewIndexBuffer(uint32_t element_count, BufferType buffer_type, MemoryType memory_type, const void* data)
-    {
-        IndexBuffer* buffer = new IndexBuffer;
-        uint32_t element_size = sizeof(int);
-
-        buffer->m_ElementCount = element_count;
-        buffer->m_BufferType = buffer_type;
-        buffer->m_MemoryType = memory_type;
-        buffer->m_Data = malloc(element_count*element_size);
-        memcpy(buffer->m_Data, data, element_count*element_size);
-
-        glGenBuffersARB(1, &buffer->m_VboId);
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer->m_VboId);
-        CHECK_GL_ERROR
-        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, element_size*element_count, data, GL_STATIC_DRAW);
-        CHECK_GL_ERROR
-
-        // TODO: removed when theres full vbo-support
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-
-        return buffer;
-    }
-
-    void DeleteIndexBuffer(HIndexBuffer buffer)
-    {
-        free(buffer->m_Data);
-        glDeleteBuffersARB(1, &buffer->m_VboId);
-        CHECK_GL_ERROR
-        delete buffer;
-    }
-
-
-    void SetVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
         assert(vertex_buffer);
         assert(vertex_declaration);
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer->m_VboId);
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
         CHECK_GL_ERROR
 
 
@@ -403,10 +422,7 @@ namespace dmGraphics
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
-
     }
-
-
 
     void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
@@ -425,22 +441,19 @@ namespace dmGraphics
 
         glDisableVertexAttribArray(stream);
         CHECK_GL_ERROR
-
     }
 
     void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
-        DM_PROFILE(Graphics, "DrawElements");
+        DM_PROFILE(Graphics, "DrawRangeElements");
 
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer->m_VboId);
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
 
-        glDrawRangeElements(prim_type, start, 100000, count*3, type, 0);
+        glDrawRangeElements(prim_type, start, start + count, count * 3, type, 0);
         CHECK_GL_ERROR
-
-
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer)

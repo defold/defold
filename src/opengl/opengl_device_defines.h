@@ -29,8 +29,8 @@ namespace dmGraphics
     typedef struct Context*           HContext;
     typedef struct Device*            HDevice;
     typedef struct Texture*           HTexture;
-    typedef struct VertexBuffer*      HVertexBuffer;
-    typedef struct IndexBuffer*       HIndexBuffer;
+    typedef uint32_t                  HVertexBuffer;
+    typedef uint32_t                  HIndexBuffer;
     typedef struct VertexDeclaration* HVertexDeclaration;
     typedef struct RenderTarget*      HRenderTarget;
 
@@ -106,6 +106,20 @@ namespace dmGraphics
 #define GFXDEVICE_BLEND_FACTOR_CONSTANT_ALPHA           (GL_CONSTANT_ALPHA)
 #define GFXDEVICE_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA (GL_ONE_MINUS_CONSTANT_ALPHA)
 #endif
+
+#define GFXDEVICE_BUFFER_USAGE_STREAM_DRAW (GL_STREAM_DRAW_ARB)
+#define GFXDEVICE_BUFFER_USAGE_STREAM_READ (GL_STREAM_READ_ARB)
+#define GFXDEVICE_BUFFER_USAGE_STREAM_COPY (GL_STREAM_COPY_ARB)
+#define GFXDEVICE_BUFFER_USAGE_DYNAMIC_DRAW (GL_DYNAMIC_DRAW_ARB)
+#define GFXDEVICE_BUFFER_USAGE_DYNAMIC_READ (GL_DYNAMIC_READ_ARB)
+#define GFXDEVICE_BUFFER_USAGE_DYNAMIC_COPY (GL_DYNAMIC_COPY_ARB)
+#define GFXDEVICE_BUFFER_USAGE_STATIC_DRAW (GL_STATIC_DRAW_ARB)
+#define GFXDEVICE_BUFFER_USAGE_STATIC_READ (GL_STATIC_READ_ARB)
+#define GFXDEVICE_BUFFER_USAGE_STATIC_COPY (GL_STATIC_COPY_ARB)
+
+#define GFXDEVICE_BUFFER_ACCESS_READ_ONLY (GL_READ_ONLY_ARB)
+#define GFXDEVICE_BUFFER_ACCESS_WRITE_ONLY (GL_WRITE_ONLY_ARB)
+#define GFXDEVICE_BUFFER_ACCESS_READ_WRITE (GL_READ_WRITE_ARB)
 
 #define GFXDEVICE_OPENED 0x00020001
 #define GFXDEVICE_ACTIVE 0x00020002
