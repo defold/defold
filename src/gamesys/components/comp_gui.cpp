@@ -219,12 +219,12 @@ namespace dmGameSystem
                 dmRender::HFontRenderer font_renderer = (dmRender::HFontRenderer) node->m_Font;
                 if (font_renderer && node->m_Text)
                 {
-                    dmRender::DrawStringParams params;
-                    params.m_String = node->m_Text;
+                    dmRender::DrawTextParams params;
+                    params.m_Text = node->m_Text;
                     params.m_X = pos.getX();
                     params.m_Y = pos.getY();
                     params.m_FaceColor = color;
-                    dmRender::FontRendererDrawString(font_renderer, params);
+                    dmRender::FontRendererDrawText(font_renderer, params);
                 }
             }
         }
