@@ -84,19 +84,19 @@ namespace dmProfileRender
 
             char buf[256];
 
-            dmRender::DrawStringParams params;
-            params.m_String = buf;
+            dmRender::DrawTextParams params;
+            params.m_Text = buf;
             params.m_Y = text_y;
             params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
             params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
             DM_SNPRINTF(buf, sizeof(buf), "%s.%s", sample->m_Scope->m_Name, sample->m_Name);
             params.m_X = g_Sample_x0;
-            dmRender::FontRendererDrawString(c->m_FontRenderer, params);
+            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
 
             DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000.0f);
             params.m_X = g_Sample_Time_x0;
-            dmRender::FontRendererDrawString(c->m_FontRenderer, params);
+            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
 
             c->m_SampleIndex++;
         }
@@ -119,23 +119,23 @@ namespace dmProfileRender
         {
             char buf[256];
 
-            dmRender::DrawStringParams params;
-            params.m_String = buf;
+            dmRender::DrawTextParams params;
+            params.m_Text = buf;
             params.m_Y = y;
             params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
             params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
             DM_SNPRINTF(buf, sizeof(buf), "%s", scope->m_Name);
             params.m_X = g_Scope_x0;
-            dmRender::FontRendererDrawString(c->m_FontRenderer, params);
+            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
 
             DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000);
             params.m_X = g_Scope_Time_x0;
-            dmRender::FontRendererDrawString(c->m_FontRenderer, params);
+            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
 
             DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Samples);
             params.m_X = g_Scope_Count_x0;
-            dmRender::FontRendererDrawString(c->m_FontRenderer, params);
+            dmRender::FontRendererDrawText(c->m_FontRenderer, params);
 
             c->m_Index++;
         }
@@ -159,15 +159,15 @@ namespace dmProfileRender
 
         char buffer[256];
 
-        dmRender::DrawStringParams params;
-        params.m_String = buffer;
+        dmRender::DrawTextParams params;
+        params.m_Text = buffer;
         params.m_Y = text_y0;
         params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
         params.m_X = g_Scope_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
+        dmRender::FontRendererDrawText(font_renderer, params);
 
         text_y0 += g_TextSpacing;
 
@@ -176,24 +176,24 @@ namespace dmProfileRender
 
         params.m_Y = text_y0;
 
-        params.m_String = "Scopes:";
+        params.m_Text = "Scopes:";
         params.m_X = g_Scope_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
-        params.m_String = "ms";
+        dmRender::FontRendererDrawText(font_renderer, params);
+        params.m_Text = "ms";
         params.m_X = g_Scope_Time_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
-        params.m_String = "#";
+        dmRender::FontRendererDrawText(font_renderer, params);
+        params.m_Text = "#";
         params.m_X = g_Scope_Count_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
-        params.m_String = "Samples:";
+        dmRender::FontRendererDrawText(font_renderer, params);
+        params.m_Text = "Samples:";
         params.m_X = g_Sample_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
-        params.m_String = "ms";
+        dmRender::FontRendererDrawText(font_renderer, params);
+        params.m_Text = "ms";
         params.m_X = g_Sample_Time_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
-        params.m_String = "Frame:";
+        dmRender::FontRendererDrawText(font_renderer, params);
+        params.m_Text = "Frame:";
         params.m_X = g_Frame_x0;
-        dmRender::FontRendererDrawString(font_renderer, params);
+        dmRender::FontRendererDrawText(font_renderer, params);
 
         Context ctx;
         ctx.m_Y = -0.78f;

@@ -569,15 +569,15 @@ bail:
                 dmLogWarning("Could not find instance with id %d (%s).", id, pq->m_GameObjectId);
             }
         }
-        else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawString::m_DDFDescriptor)
+        else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
         {
-            dmRenderDDF::DrawString* dt = (dmRenderDDF::DrawString*) instance_message_data->m_Buffer;
-            dmRender::DrawStringParams params;
-            params.m_String = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
+            dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*) instance_message_data->m_Buffer;
+            dmRender::DrawTextParams params;
+            params.m_Text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
             params.m_X = dt->m_Position.getX();
             params.m_Y = dt->m_Position.getY();
             params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-            dmRender::FontRendererDrawString(self->m_FontRenderer, params);
+            dmRender::FontRendererDrawText(self->m_FontRenderer, params);
         }
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {
@@ -680,7 +680,7 @@ bail:
 
         dmGameObject::RegisterDDFType(dmEngineDDF::Exit::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmEngineDDF::SetTimeStep::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::DrawString::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmRenderDDF::DrawText::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawLine::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRender::SetRenderColor::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::LoadCollection::m_DDFDescriptor);
