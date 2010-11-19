@@ -37,9 +37,9 @@ namespace dmRender
     typedef struct RenderContext* HRenderContext;
     typedef struct RenderObject* HRenderObject;
 
-    typedef void (*RenderTypeBeginCallback)(HRenderContext render_context);
-    typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, HRenderObject ro, uint32_t count);
-    typedef void (*RenderTypeEndCallback)(HRenderContext render_context);
+    typedef void (*RenderTypeBeginCallback)(HRenderContext render_context, void* user_context);
+    typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, void* user_context, HRenderObject ro, uint32_t count);
+    typedef void (*RenderTypeEndCallback)(HRenderContext render_context, void* user_context);
 
     struct RenderType
     {
@@ -48,6 +48,7 @@ namespace dmRender
         RenderTypeBeginCallback m_BeginCallback;
         RenderTypeDrawCallback  m_DrawCallback;
         RenderTypeEndCallback   m_EndCallback;
+        void*                   m_UserContext;
     };
 
     typedef void (*SetObjectModel)(void* visual_object, Quat* rotation, Point3* position);

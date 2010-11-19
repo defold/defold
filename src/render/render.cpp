@@ -19,6 +19,7 @@ namespace dmRender
     : m_BeginCallback(0x0)
     , m_DrawCallback(0x0)
     , m_EndCallback(0x0)
+    , m_UserContext(0x0)
     {
 
     }
@@ -157,22 +158,23 @@ namespace dmRender
                 dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(dmRender::GetMaterial(ro)));
                 dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(dmRender::GetMaterial(ro)));
 
+                void* user_context = render_context->m_RenderTypes[ro->m_Type].m_UserContext;
                 // check if we need to change render type and run its setup func
                 if (type != ro->m_Type)
                 {
                     if (render_context->m_RenderTypes[ro->m_Type].m_BeginCallback)
-                        render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context);
+                        render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context, user_context);
                     type = ro->m_Type;
                 }
 
                 // dispatch
                 if (render_context->m_RenderTypes[ro->m_Type].m_DrawCallback)
-                    render_context->m_RenderTypes[ro->m_Type].m_DrawCallback(render_context, ro, 1);
+                    render_context->m_RenderTypes[ro->m_Type].m_DrawCallback(render_context, user_context, ro, 1);
 
                 if (i == render_context->m_RenderObjects.Size() - 1 || type != render_context->m_RenderObjects[i+1]->m_Type)
                 {
                     if (render_context->m_RenderTypes[ro->m_Type].m_EndCallback)
-                        render_context->m_RenderTypes[ro->m_Type].m_EndCallback(render_context);
+                        render_context->m_RenderTypes[ro->m_Type].m_EndCallback(render_context, user_context);
                 }
             }
         }

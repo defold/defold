@@ -24,8 +24,8 @@ namespace dmRender
         uint32_t m_VertexCount;
     };
 
-    void RenderTypeDebugDraw3d(HRenderContext rendercontext, dmRender::HRenderObject ro, uint32_t count);
-    void RenderTypeDebugDraw2d(HRenderContext rendercontext, dmRender::HRenderObject ro, uint32_t count);
+    void RenderTypeDebugDraw3d(HRenderContext rendercontext, void* user_context, dmRender::HRenderObject ro, uint32_t count);
+    void RenderTypeDebugDraw2d(HRenderContext rendercontext, void* user_context, dmRender::HRenderObject ro, uint32_t count);
 
     void InitializeDebugRenderer(dmRender::HRenderContext render_context, const void* vp_data, uint32_t vp_data_size, const void* fp_data, uint32_t fp_data_size)
     {
@@ -179,7 +179,7 @@ namespace dmRender
 
 #undef ADD_TO_RENDER
 
-    void RenderTypeDebugDraw3d(HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeDebugDraw3d(HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
     {
         DebugRenderInfo* info = (DebugRenderInfo*)dmRender::GetUserData(ro);
 
@@ -205,7 +205,7 @@ namespace dmRender
         }
     }
 
-    void RenderTypeDebugDraw2d(HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeDebugDraw2d(HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
     {
         DebugRenderInfo* info = (DebugRenderInfo*)dmRender::GetUserData(ro);
 

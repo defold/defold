@@ -232,12 +232,12 @@ namespace dmRender
         renderer->m_RenderObjectIndex = 0;
     }
 
-    void RenderTypeTextBegin(HRenderContext render_context)
+    void RenderTypeTextBegin(HRenderContext render_context, void* user_context)
     {
         (void)render_context;
     }
 
-    void RenderTypeTextDraw(HRenderContext rendercontext, HRenderObject ro, uint32_t count)
+    void RenderTypeTextDraw(HRenderContext rendercontext, void* user_context, HRenderObject ro, uint32_t count)
     {
         FontUserData* font_user_data = (FontUserData*)dmRender::GetUserData(ro);
         HFontRenderer renderer = font_user_data->m_Renderer;

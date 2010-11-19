@@ -69,11 +69,11 @@ namespace dmRender
         float m_UV[2];
     };
 
-    void RenderTypeTextBegin(HRenderContext rendercontext);
-    void RenderTypeTextDraw(HRenderContext rendercontext, HRenderObject ro_, uint32_t count);
+    void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
+    void RenderTypeTextDraw(HRenderContext rendercontext, void* user_context, HRenderObject ro_, uint32_t count);
 
-    void RenderTypeDebugBegin(HRenderContext rendercontext);
-    void RenderTypeDebugDraw(HRenderContext rendercontext, dmRender::HRenderObject ro, uint32_t count);
+    void RenderTypeDebugBegin(HRenderContext rendercontext, void* user_context);
+    void RenderTypeDebugDraw(HRenderContext rendercontext, void* user_context, dmRender::HRenderObject ro, uint32_t count);
 }
 
 #endif
