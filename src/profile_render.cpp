@@ -141,7 +141,7 @@ namespace dmProfileRender
         }
     }
 
-    void Draw(dmRender::HRenderContext render_context, dmRender::HFont font, uint32_t width, uint32_t height)
+    void Draw(dmRender::HRenderContext render_context, dmRender::HFont font)
     {
         Matrix4 m = Matrix4::orthographic(-1, 1, 1, -1, 1, -1);
 
@@ -168,8 +168,7 @@ namespace dmProfileRender
         dmRender::DrawText(render_context, font, params);
 
         text_y0 += g_TextSpacing;
-
-        float frame_x0 = 2.0f * g_Frame_x0 / (float)width - 1.0f;
+        float frame_x0 = 2.0f * g_Frame_x0 / (float)dmRender::GetDisplayWidth(render_context) - 1.0f;
         dmRender::Square2d(render_context, frame_x0, -0.85f, 1.0f, 0.15f, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
         params.m_Y = text_y0;

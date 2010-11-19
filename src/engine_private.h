@@ -54,9 +54,6 @@ namespace dmEngine
         float                                       m_TimeStepFactor;
         dmEngineDDF::TimeStepMode                   m_TimeStepMode;
 
-        uint32_t                                    m_ScreenWidth;
-        uint32_t                                    m_ScreenHeight;
-
         dmGraphics::HDevice                         m_GraphicsDevice;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;

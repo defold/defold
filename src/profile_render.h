@@ -5,7 +5,7 @@
 
 namespace dmProfileRender
 {
-    void Draw(dmRender::HRenderContext render_context, dmRender::HFont font, uint32_t width, uint32_t height);
+    void Draw(dmRender::HRenderContext render_context, dmRender::HFont font);
 }
 
 #endif

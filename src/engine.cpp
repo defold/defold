@@ -172,9 +172,6 @@ namespace dmEngine
         graphics_params.m_Fullscreen = false;
         graphics_params.m_PrintDeviceInfo = false;
 
-        engine->m_ScreenWidth = graphics_params.m_DisplayWidth;
-        engine->m_ScreenHeight = graphics_params.m_DisplayHeight;
-
         device = dmGraphics::NewDevice(&argc, argv, &graphics_params);
 
         dmGameObject::Initialize();
@@ -423,7 +420,7 @@ bail:
                 else
                 {
                     dmGraphics::HContext context = dmGraphics::GetContext();
-                    dmGraphics::SetViewport(context, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                    dmGraphics::SetViewport(context, dmRender::GetDisplayWidth(engine->m_RenderContext), dmRender::GetDisplayHeight(engine->m_RenderContext));
                     dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
@@ -436,7 +433,7 @@ bail:
             dmProfile::End();
             if (engine->m_ShowProfile)
             {
-                dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFont, engine->m_ScreenWidth, engine->m_ScreenHeight);
+                dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFont);
                 dmRender::Draw(engine->m_RenderContext, 0x0);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
