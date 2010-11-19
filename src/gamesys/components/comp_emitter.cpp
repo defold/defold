@@ -216,7 +216,7 @@ namespace dmGameSystem
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }
 
-    void RenderTypeParticleDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeParticleDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
     {
         dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
 

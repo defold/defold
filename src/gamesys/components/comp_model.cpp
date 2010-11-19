@@ -118,11 +118,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void RenderTypeModelBegin(dmRender::HRenderContext render_context)
+    void RenderTypeModelBegin(dmRender::HRenderContext render_context, void* user_context)
     {
     }
 
-    void RenderTypeModelDraw(dmRender::HRenderContext render_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeModelDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
     {
         dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
         Quat rotation = dmRender::GetRotation(ro);
@@ -176,7 +176,7 @@ namespace dmGameSystem
         dmGraphics::DisableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh));
     }
 
-    void RenderTypeModelEnd(const dmRender::HRenderContext render_context)
+    void RenderTypeModelEnd(const dmRender::HRenderContext render_context, void* user_context)
     {
     }
 }

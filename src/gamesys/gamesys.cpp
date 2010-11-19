@@ -173,15 +173,16 @@ namespace dmGameSystem
 
         // TODO: Wrong place, but best place I could think of for now
         dmRender::RenderType render_type;
-#define REGISTER_RENDER_TYPE(type, begin, draw, end) \
+#define REGISTER_RENDER_TYPE(type, user_context, begin, draw, end) \
         render_type.m_BeginCallback = begin; \
         render_type.m_DrawCallback = draw; \
         render_type.m_EndCallback = end; \
+        render_type.m_UserContext = user_context; \
         if (dmRender::RegisterRenderType(render_context, render_type, &type) != dmRender::RESULT_OK) \
             return dmGameObject::RESULT_UNKNOWN_ERROR;
 
-        REGISTER_RENDER_TYPE(emitter_context->m_ParticleRenderType, 0x0, RenderTypeParticleDraw, 0x0);
-        REGISTER_RENDER_TYPE(g_ModelRenderType, RenderTypeModelBegin, RenderTypeModelDraw, RenderTypeModelEnd);
+        REGISTER_RENDER_TYPE(emitter_context->m_ParticleRenderType, 0x0, 0x0, RenderTypeParticleDraw, 0x0);
+        REGISTER_RENDER_TYPE(g_ModelRenderType, 0x0, RenderTypeModelBegin, RenderTypeModelDraw, RenderTypeModelEnd);
 
 #undef REGISTER_RENDER_TYPE
         return go_result;
