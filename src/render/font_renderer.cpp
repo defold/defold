@@ -116,7 +116,7 @@ namespace dmRender
             dmRender::SetUserData(ro, (void*)text_user_data);
             text_context.m_RenderObjects.Push(ro);
         }
-        text_context.m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(TextVertex), max_vertex_count, dmGraphics::BUFFER_TYPE_DYNAMIC, dmGraphics::MEMORY_TYPE_MAIN, 1, 0x0);
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(sizeof(TextVertex) * max_vertex_count, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         dmGraphics::VertexElement ve[] =
         {

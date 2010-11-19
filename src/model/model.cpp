@@ -94,8 +94,8 @@ namespace dmModel
         };
 
         mesh->m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-        mesh->m_IndexBuffer = dmGraphics::NewIndexBuffer(desc->m_Indices.m_Count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, desc->m_Indices.m_Data);
-        mesh->m_VertexBuffer = dmGraphics::NewVertexbuffer(sizeof(VertexFormat), vertex_count, dmGraphics::BUFFER_TYPE_STATIC, dmGraphics::MEMORY_TYPE_MAIN, 1, (void*)f);
+        mesh->m_IndexBuffer = dmGraphics::NewIndexBuffer(sizeof(uint32_t) * desc->m_Indices.m_Count, desc->m_Indices.m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        mesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(sizeof(VertexFormat) * vertex_count, (void*)f, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         mesh->m_Desc = desc;
         free(f);
         return mesh;
