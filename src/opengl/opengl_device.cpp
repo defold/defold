@@ -45,6 +45,9 @@ typedef void (APIENTRY * PFNGLGENFRAMEBUFFERSPROC) (GLenum, GLuint *);
 typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLDELETEFRAMEBUFFERSPROC) (GLsizei, GLuint*);
 typedef void (APIENTRY * PFNGLDELETERENDERBUFFERSPROC) (GLsizei, GLuint*);
+typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
+typedef void (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
+typedef void (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
@@ -70,6 +73,9 @@ PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = NULL;
 PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = NULL;
 PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = NULL;
 PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
+PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
+PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
+PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
 #else
 #error "Platform not supported."
 #endif
@@ -171,6 +177,9 @@ namespace dmGraphics
         glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC) wglGetProcAddress("glBindFramebuffer");
         glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC) wglGetProcAddress("glDeleteFramebuffers");
         glDeleteRenderbuffers = (PFNGLDELETERENDERBUFFERSPROC) wglGetProcAddress("glDeleteRenderbuffers");
+        glBufferSubDataARB = (PFNGLBUFFERSUBDATAPROC) wglGetProcAddress("glBufferSubDataARB");
+        glMapBufferARB = (PFNGLMAPBUFFERPROC) wglGetProcAddress("glMapBufferARB");
+        glUnmapBufferARB = (PFNGLUNMAPBUFFERPROC) wglGetProcAddress("glUnmapBufferARB");
     #endif
 
         return (HDevice)&gdevice;
