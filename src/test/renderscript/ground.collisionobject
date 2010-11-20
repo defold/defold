@@ -1,0 +1,7 @@
+CollisionShape: "ground.convexshape"
+Type: COLLISION_OBJECT_TYPE_STATIC
+Mass: 0.0
+Friction: 0.5
+Restitution: 0.0
+Group: 2
+Mask: 1

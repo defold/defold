@@ -1,0 +1,15 @@
+Name: "Ground"
+Tags: "opaque"
+VertexProgram: "simple.vp"
+FragmentProgram: "simple.fp"
+FragmentParameters
+{
+    Register: 0
+    Value
+    {
+        X: 0
+        Y: 0
+        Z: 1
+        W: 1
+    }
+}
