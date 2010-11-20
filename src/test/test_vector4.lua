@@ -60,7 +60,7 @@ assert(vmath.length(v) == 11, "length")
 
 -- normalize
 v = vmath.normalize(vmath.vector3(1.2, 1.6, 0))
-assert(vmath.length_sqr(v) == 1, "normalized not unit length")
+assert(math.abs(vmath.length_sqr(v) - 1) < 0.0000001, "normalized not unit length")
 assert(math.abs(v.x - 0.6) < 0.000001 and math.abs(v.y - 0.8) < 0.000001, "normalize")
 
 -- cross
