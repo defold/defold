@@ -20,7 +20,9 @@ protected:
         dmHID::Initialize();
         m_Context = dmInput::NewContext(0.5f, 0.2f);
         dmInputDDF::GamepadMaps* gamepad_maps;
-        assert(dmDDF::RESULT_OK == dmDDF::LoadMessageFromFile("build/default/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps));
+        dmDDF::Result result = dmDDF::LoadMessageFromFile("build/default/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+        (void)result;
+        assert(dmDDF::RESULT_OK == result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
         dmDDF::LoadMessageFromFile("build/default/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
