@@ -162,6 +162,8 @@ namespace dmEngine
         const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
 
         dmProfile::Initialize(256, 1024);
+        // This scope is mainly here to make sure the "Main" scope is created first.
+        DM_PROFILE(Engine, "Init");
 
         dmGraphics::HDevice device;
         dmGraphics::CreateDeviceParams graphics_params;
@@ -344,7 +346,7 @@ bail:
         {
             dmProfile::Begin();
             {
-                DM_PROFILE(Main, "Frame");
+                DM_PROFILE(Engine, "Frame");
 
                 // We had buffering problems with the output when running the engine inside the editor
                 // Flushing stdout/stderr solves this problem.
@@ -464,8 +466,6 @@ bail:
 
     void Dispatch(dmMessage::Message *message_object, void* user_ptr)
     {
-        DM_PROFILE(Game, "Dispatch")
-
         Engine* self = (Engine*) user_ptr;
         dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
 
@@ -619,8 +619,6 @@ bail:
 
     void DispatchGui(dmMessage::Message *message_object, void* user_ptr)
     {
-        DM_PROFILE(Game, "DispatchGui")
-
         Engine* self = (Engine*) user_ptr;
 
         dmGui::MessageData* gui_message = (dmGui::MessageData*) message_object->m_Data;

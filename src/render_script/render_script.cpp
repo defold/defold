@@ -621,8 +621,6 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
-        DM_PROFILE(RenderScript, "RunScript");
-
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
@@ -695,6 +693,7 @@ bail:
 
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
     {
+        DM_PROFILE(RenderScript, "UpdateRSI");
         dmMessage::Dispatch(g_Socket, &Dispatch, (void*)instance);
         return RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
     }
