@@ -49,8 +49,10 @@ namespace dmProfile
         uint32_t    m_Elapsed;
         /// Scope index, range [0, scopes-1]
         uint16_t    m_Index;
-        /// Samples sampled in this scope
-        uint16_t    m_Samples;
+        /// Occurences of this scope (nestled occurences do not count)
+        uint16_t    m_Count;
+        /// True while this scope has been entered
+        uint32_t    m_Entered : 1;
     };
 
     /**
@@ -145,7 +147,15 @@ namespace dmProfile
                 return;
             }
 
-            m_Scope = scope;
+            if (scope->m_Entered)
+            {
+                m_Scope = 0x0;
+            }
+            else
+            {
+                m_Scope = scope;
+                m_Scope->m_Entered = 1;
+            }
 
             uint32_t size = g_Samples.Size();
             g_Samples.SetSize(size + 1);
@@ -153,7 +163,7 @@ namespace dmProfile
 
             g_Depth++;
             m_Sample->m_Name = name;
-            m_Sample->m_Scope = m_Scope;
+            m_Sample->m_Scope = scope;
 
 #if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *)&m_Start);
@@ -177,27 +187,24 @@ namespace dmProfile
             {
                 --g_Depth;
             }
-#if defined(_WIN32)
             uint64_t end;
+#if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *) &end);
-            uint64_t diff = end - m_Start;
-            m_Scope->m_Elapsed += (uint32_t) diff;
-            m_Scope->m_Samples++;
-            m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
-            m_Sample->m_Elapsed = diff;
-            m_Sample->m_Depth = g_Depth;
 #else
             timeval tv;
             gettimeofday(&tv, 0);
-
-            uint64_t end = tv.tv_sec * 1000000 + tv.tv_usec;
+            end = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
             uint64_t diff = end - m_Start;
-            m_Scope->m_Elapsed += diff;
-            m_Scope->m_Samples++;
-            m_Sample->m_Start = m_Start - g_BeginTime;
+            m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
             m_Sample->m_Elapsed = diff;
             m_Sample->m_Depth = g_Depth;
-#endif
+            if (m_Scope != 0x0)
+            {
+                m_Scope->m_Elapsed += (uint32_t) diff;
+                m_Scope->m_Count++;
+                m_Scope->m_Entered = 0;
+            }
         }
     };
 

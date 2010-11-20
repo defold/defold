@@ -35,7 +35,7 @@ namespace dmProfile
         for (uint32_t i = 0; i < n; ++i)
         {
             g_Scopes[i].m_Elapsed = 0;
-            g_Scopes[i].m_Samples = 0;
+            g_Scopes[i].m_Count = 0;
         }
 
         g_Samples.SetSize(0);
@@ -94,7 +94,8 @@ namespace dmProfile
             s.m_Name = name;
             s.m_Elapsed = 0;
             s.m_Index = i;
-            s.m_Samples = 0;
+            s.m_Count = 0;
+            s.m_Entered = 0;
             g_Scopes.Push(s);
             return &g_Scopes[i];
         }
