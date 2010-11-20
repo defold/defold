@@ -46,8 +46,8 @@ typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLDELETEFRAMEBUFFERSPROC) (GLsizei, GLuint*);
 typedef void (APIENTRY * PFNGLDELETERENDERBUFFERSPROC) (GLsizei, GLuint*);
 typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
-typedef void (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
-typedef void (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
+typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
+typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
@@ -267,7 +267,7 @@ namespace dmGraphics
     {
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
-        bool result = glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+        bool result = glUnmapBufferARB(GL_ARRAY_BUFFER_ARB) == GL_TRUE;
         CHECK_GL_ERROR
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
@@ -324,7 +324,7 @@ namespace dmGraphics
     {
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
-        bool result = glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
+        bool result = glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB) == GL_TRUE;
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
