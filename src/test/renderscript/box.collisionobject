@@ -1,7 +1,7 @@
 CollisionShape: "box.convexshape"
 Type: COLLISION_OBJECT_TYPE_DYNAMIC
 Mass: 1.0
-Friction: 0.0
-Restitution: 0.0
+Friction: 0.5
+Restitution: 0.5
 Group: 1
-Mask: 2
+Mask: 1
