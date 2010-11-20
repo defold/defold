@@ -124,6 +124,10 @@ namespace dmProfile
     float GetFrameTime();
     float GetMaxFrameTime();
 
+    bool IsMaxDepthReached();
+    bool IsOutOfScopes();
+    bool IsOutOfSamples();
+
     /// Internal, do not use.
     extern dmArray<Sample> g_Samples;
     /// Internal, do not use.
@@ -132,6 +136,12 @@ namespace dmProfile
     extern uint32_t g_BeginTime;
     /// Internal, do not use.
     extern uint64_t g_TicksPerSecond;
+    /// Internal, do not use.
+    extern bool g_OutOfScopes;
+    /// Internal, do not use.
+    extern bool g_OutOfSamples;
+    /// Internal, do not use.
+    extern bool g_MaxDepthReached;
 
     /// Internal, do not use.
     struct ProfileScope
@@ -141,6 +151,12 @@ namespace dmProfile
         Scope*      m_Scope;
         inline ProfileScope(Scope* scope, const char* name)
         {
+            if (scope == 0)
+                g_OutOfScopes = true;
+            if (g_Samples.Full())
+                g_OutOfSamples = true;
+            if (g_Depth > 16)
+                g_MaxDepthReached = true;
             if (scope == 0 || g_Samples.Full() || g_Depth > 16)
             {
                 m_Sample = 0;

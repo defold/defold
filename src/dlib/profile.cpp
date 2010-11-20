@@ -13,6 +13,9 @@ namespace dmProfile
     float g_FrameTime = 0.0f;
     float g_MaxFrameTime = 0.0f;
     uint32_t g_MaxFrameTimeCounter = 0;
+    bool g_OutOfScopes = false;
+    bool g_OutOfSamples = false;
+    bool g_MaxDepthReached = false;
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples)
     {
@@ -51,6 +54,9 @@ namespace dmProfile
         g_BeginTime = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
         g_FrameTime = 0.0f;
+        g_OutOfScopes = false;
+        g_OutOfSamples = false;
+        g_MaxDepthReached = false;
     }
 
     void End()
@@ -114,6 +120,21 @@ namespace dmProfile
     uint64_t GetTicksPerSecond()
     {
         return g_TicksPerSecond;
+    }
+
+    bool IsMaxDepthReached()
+    {
+        return g_MaxDepthReached;
+    }
+
+    bool IsOutOfScopes()
+    {
+        return g_OutOfScopes;
+    }
+
+    bool IsOutOfSamples()
+    {
+        return g_OutOfSamples;
     }
 
     void IterateScopes(void* context, void (*call_back)(void* context, const Scope* sample))
