@@ -133,7 +133,7 @@ namespace dmProfileRender
             params.m_X = g_Scope_Time_x0;
             dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
-            DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Samples);
+            DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Count);
             params.m_X = g_Scope_Count_x0;
             dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
@@ -163,50 +163,79 @@ namespace dmProfileRender
         params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
-        DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
-        params.m_X = g_Scope_x0;
-        dmRender::DrawText(render_context, font, params);
+        bool profile_valid = true;
+        if (dmProfile::IsMaxDepthReached())
+        {
+            profile_valid = false;
+            params.m_X = g_Scope_x0;
+            params.m_Text = "Max scope depth reached!";
+            dmRender::DrawText(render_context, font, params);
+            text_y0 += g_TextSpacing;
+        }
+        if (dmProfile::IsOutOfScopes())
+        {
+            profile_valid = false;
+            params.m_X = g_Scope_x0;
+            params.m_Y = text_y0;
+            params.m_Text = "Out of scopes!";
+            dmRender::DrawText(render_context, font, params);
+            text_y0 += g_TextSpacing;
+        }
+        if (dmProfile::IsOutOfSamples())
+        {
+            profile_valid = false;
+            params.m_X = g_Scope_x0;
+            params.m_Y = text_y0;
+            params.m_Text = "Out of samples!";
+            dmRender::DrawText(render_context, font, params);
+        }
+        if (profile_valid)
+        {
+            DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
+            params.m_X = g_Scope_x0;
+            dmRender::DrawText(render_context, font, params);
 
-        text_y0 += g_TextSpacing;
-        float frame_x0 = 2.0f * g_Frame_x0 / (float)dmRender::GetDisplayWidth(render_context) - 1.0f;
-        dmRender::Square2d(render_context, frame_x0, -0.85f, 1.0f, 0.15f, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
+            text_y0 += g_TextSpacing;
+            float frame_x0 = 2.0f * g_Frame_x0 / (float)dmRender::GetDisplayWidth(render_context) - 1.0f;
+            dmRender::Square2d(render_context, frame_x0, -0.85f, 1.0f, 0.15f, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
-        params.m_Y = text_y0;
+            params.m_Y = text_y0;
 
-        params.m_Text = "Scopes:";
-        params.m_X = g_Scope_x0;
-        dmRender::DrawText(render_context, font, params);
-        params.m_Text = "ms";
-        params.m_X = g_Scope_Time_x0;
-        dmRender::DrawText(render_context, font, params);
-        params.m_Text = "#";
-        params.m_X = g_Scope_Count_x0;
-        dmRender::DrawText(render_context, font, params);
-        params.m_Text = "Samples:";
-        params.m_X = g_Sample_x0;
-        dmRender::DrawText(render_context, font, params);
-        params.m_Text = "ms";
-        params.m_X = g_Sample_Time_x0;
-        dmRender::DrawText(render_context, font, params);
-        params.m_Text = "Frame:";
-        params.m_X = g_Frame_x0;
-        dmRender::DrawText(render_context, font, params);
+            params.m_Text = "Scopes:";
+            params.m_X = g_Scope_x0;
+            dmRender::DrawText(render_context, font, params);
+            params.m_Text = "ms";
+            params.m_X = g_Scope_Time_x0;
+            dmRender::DrawText(render_context, font, params);
+            params.m_Text = "#";
+            params.m_X = g_Scope_Count_x0;
+            dmRender::DrawText(render_context, font, params);
+            params.m_Text = "Samples:";
+            params.m_X = g_Sample_x0;
+            dmRender::DrawText(render_context, font, params);
+            params.m_Text = "ms";
+            params.m_X = g_Sample_Time_x0;
+            dmRender::DrawText(render_context, font, params);
+            params.m_Text = "Frame:";
+            params.m_X = g_Frame_x0;
+            dmRender::DrawText(render_context, font, params);
 
-        Context ctx;
-        ctx.m_Y = -0.78f;
-        ctx.m_TextY = text_y0 + g_TextSpacing;
-        ctx.m_Barheight = 0.05f;
-        ctx.m_Spacing = 0.074f;
-        ctx.m_Index = 0;
-        ctx.m_SampleIndex = 0;
-        ctx.m_TicksPerSecond = dmProfile::GetTicksPerSecond();
-        ctx.m_FrameX = frame_x0;
-        ctx.m_RenderContext = render_context;
-        ctx.m_Font = font;
+            Context ctx;
+            ctx.m_Y = -0.78f;
+            ctx.m_TextY = text_y0 + g_TextSpacing;
+            ctx.m_Barheight = 0.05f;
+            ctx.m_Spacing = 0.074f;
+            ctx.m_Index = 0;
+            ctx.m_SampleIndex = 0;
+            ctx.m_TicksPerSecond = dmProfile::GetTicksPerSecond();
+            ctx.m_FrameX = frame_x0;
+            ctx.m_RenderContext = render_context;
+            ctx.m_Font = font;
 
-        dmProfile::IterateSamples(&ctx, &ProfileSampleCallback);
+            dmProfile::IterateSamples(&ctx, &ProfileSampleCallback);
 
-        ctx.m_Index = 0;
-        dmProfile::IterateScopes(&ctx, &ProfileScopeCallback);
+            ctx.m_Index = 0;
+            dmProfile::IterateScopes(&ctx, &ProfileScopeCallback);
+        }
     }
 }
