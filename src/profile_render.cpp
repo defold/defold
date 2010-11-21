@@ -75,6 +75,9 @@ namespace dmProfileRender
     const int g_Sample_Count_x0 = g_Sample_Time_x0 + 60;
     const int g_Frame_x0 = g_Sample_Count_x0 + 65;
     const int g_TextSpacing = 20;
+    const int g_Counter_x0 = 16;
+    const int g_Counter_Amount_x0 = 16 + 160;
+
 
     void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)
     {
@@ -153,6 +156,9 @@ namespace dmProfileRender
 
     void ProfileCounterCallback(void* context, const dmProfile::Counter* counter)
     {
+        if (counter->m_Counter == 0)
+            return;
+
         Context* c = (Context*) context;
         Matrix4 m = Matrix4::orthographic( -1, 1, 1, -1, 10, -10 );
 
@@ -171,11 +177,11 @@ namespace dmProfileRender
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         DM_SNPRINTF(buf, sizeof(buf), "%s", counter->m_Name);
-        params.m_X = g_Scope_x0;
+        params.m_X = g_Counter_x0;
         dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%u", counter->m_Counter);
-        params.m_X = g_Scope_Time_x0;
+        params.m_X = g_Counter_Amount_x0;
         dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
         c->m_Index++;
@@ -327,10 +333,10 @@ namespace dmProfileRender
             params.m_Y = text_y0;
 
             params.m_Text = "Counters:";
-            params.m_X = g_Scope_x0;
+            params.m_X = g_Counter_x0;
             dmRender::DrawText(render_context, font, params);
             params.m_Text = "#";
-            params.m_X = g_Scope_Time_x0;
+            params.m_X = g_Counter_Amount_x0;
             dmRender::DrawText(render_context, font, params);
 
             Context ctx;
