@@ -308,8 +308,10 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     ASSERT_EQ(0, contact_point_count);
 
     contact_point_count = 0;
-    for (int i = 0; i < 200; ++i)
+    float last_y = 0.0f;
+    for (int i = 0; i < 200 && box_visual_object.m_Position.getY() != last_y; ++i)
     {
+        last_y = box_visual_object.m_Position.getY();
         dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
         dmPhysics::ForEachCollision(m_World, 0x0, 0x0, ContactPointCallback, &contact_point_count);
     }
