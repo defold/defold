@@ -1042,7 +1042,7 @@ namespace dmGameObject
         {
             if (collections[i])
             {
-                DM_COUNTER(GameObjects, collections[i]->m_InstanceIndices.Size());
+                DM_COUNTER("GameObjects", collections[i]->m_InstanceIndices.Size());
 
                 if (reg)
                     assert(reg == collections[i]->m_Register);
