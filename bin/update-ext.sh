@@ -87,4 +87,5 @@ cp share/valgrind-python.supp $DYNAMO_HOME/share
 echo "Copying share/valgrind-libasound.supp -> DYNAMO_HOME/share"
 cp share/valgrind-libasound.supp $DYNAMO_HOME/share
 
+cp -v bin/git* $DYNAMO_HOME/bin
 
