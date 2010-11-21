@@ -107,6 +107,11 @@ namespace dmProfileRender
             stats.m_Sample = sample;
             stats.m_Elapsed = sample->m_Elapsed;
             stats.m_Count = 1;
+            if (c->m_SampleStats.Full())
+            {
+                c->m_SampleStats.SetCapacity(64, c->m_SampleStats.Size()*2);
+            }
+
             c->m_SampleStats.Put(hash, stats);
         }
     }
