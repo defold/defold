@@ -170,10 +170,10 @@ TEST(dlib, Counter1)
         for (int i = 0; i < 2; ++i)
         {
             dmProfile::Begin();
-            { DM_COUNTER(c1, 1); }
-            { DM_COUNTER(c1, 2); }
-            { DM_COUNTER(c1, 4); }
-            { DM_COUNTER(c2, 123); }
+            { DM_COUNTER("c1", 1); }
+            { DM_COUNTER("c1", 2); }
+            { DM_COUNTER("c1", 4); }
+            { DM_COUNTER("c2", 123); }
             dmProfile::End();
 
             std::map<std::string, dmProfile::Counter*> counters;

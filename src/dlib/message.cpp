@@ -53,7 +53,7 @@ namespace dmMessage
     void Post(uint32_t socket_id, uint32_t message_id, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
-        DM_COUNTER(Messages, 1)
+        DM_COUNTER("Messages", 1)
         // get socket and message
         SMessageSocket *socket = m_Sockets.Get(socket_id);
         if (!socket)

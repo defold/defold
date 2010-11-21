@@ -24,7 +24,7 @@
 
 /**
  * Profile counter macro
- * name is the counter name. Must be a literal
+ * name is the counter name
  * amount is the amount (integer) to add to the specific counter.
  */
 #define DM_COUNTER(name, amount)
@@ -46,7 +46,7 @@
     static dmProfile::Counter* DM_PROFILE_PASTE2(counter, __LINE__) = 0; \
     if (DM_PROFILE_PASTE2(counter, __LINE__) == 0) \
     {\
-        DM_PROFILE_PASTE2(counter, __LINE__) = dmProfile::AllocateCounter(#name);\
+        DM_PROFILE_PASTE2(counter, __LINE__) = dmProfile::AllocateCounter(name);\
     }\
     if (DM_PROFILE_PASTE2(counter, __LINE__))\
         dmAtomicAdd32(&DM_PROFILE_PASTE2(counter, __LINE__)->m_Counter, amount);
