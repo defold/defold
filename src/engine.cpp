@@ -161,7 +161,7 @@ namespace dmEngine
         }
         const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
 
-        dmProfile::Initialize(256, 1024 * 8);
+        dmProfile::Initialize(256, 1024 * 16);
         // This scope is mainly here to make sure the "Main" scope is created first.
         DM_PROFILE(Engine, "Init");
 
