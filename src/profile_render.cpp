@@ -84,13 +84,13 @@ namespace dmProfileRender
         Context* c = (Context*) context;
         Matrix4 m = Matrix4::orthographic( -1, 1, 1, -1, 10, -10 );
 
-        const float freq = 60.0f;
+        const float scale = 30.0f;
 
         //float y = c->m_Y + sample->m_Depth * c->m_Spacing;
         float y = c->m_Y + sample->m_Scope->m_Index * c->m_Spacing;
 
-        float x = c->m_FrameX + (1.0f * freq * sample->m_Start) / c->m_TicksPerSecond;
-        float w = (1.0f * freq * sample->m_Elapsed) / c->m_TicksPerSecond;
+        float x = c->m_FrameX + (1.0f * scale * sample->m_Start) / c->m_TicksPerSecond;
+        float w = (1.0f * scale * sample->m_Elapsed) / c->m_TicksPerSecond;
 
         float col[3];
         HslToRgb2( (sample->m_Scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
