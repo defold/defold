@@ -322,7 +322,7 @@ namespace dmGameObject
             if (ret != 0)
             {
                 dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
-                lua_pop(L, 2);
+                lua_pop(L, 1);
                 result = INPUT_RESULT_UNKNOWN_ERROR;
             }
             else if (input_ret == lua_gettop(L))
