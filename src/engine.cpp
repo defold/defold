@@ -187,7 +187,7 @@ namespace dmEngine
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = 1000;
+        render_params.m_MaxInstances = 1024; // TODO: Should be configurable
         render_params.m_SetObjectModel = SetObjectModel;
         render_params.m_VertexProgramData = ::DEBUG_ARBVP;
         render_params.m_VertexProgramDataSize = ::DEBUG_ARBVP_SIZE;
