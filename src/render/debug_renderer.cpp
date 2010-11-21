@@ -17,7 +17,7 @@ namespace dmRender
 {
     struct DebugRenderInfo
     {
-        static const uint32_t VERTEX_COUNT = 4000;
+        static const uint32_t VERTEX_COUNT = 40000;
         float m_Vertices[VERTEX_COUNT * 3];
         float m_Colours[VERTEX_COUNT * 4];
         DebugRenderType m_RenderType;
@@ -139,6 +139,10 @@ namespace dmRender
                     c[i*4 + j] = color.getElem(j);
             info->m_VertexCount += 6;
         }
+        else
+        {
+            dmLogWarning("Out of Square2d vertex data");
+        }
     }
 
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
@@ -157,6 +161,10 @@ namespace dmRender
                 c[4 + i] = color1.getElem(i);
             }
             info->m_VertexCount += 2;
+        }
+        else
+        {
+            dmLogWarning("Out of Line2D vertex data");
         }
     }
 
@@ -179,6 +187,10 @@ namespace dmRender
                 c[4 + i] = end_color.getElem(i);
             }
             info->m_VertexCount += 2;
+        }
+        else
+        {
+            dmLogWarning("Out of Line3D vertex data");
         }
     }
 
