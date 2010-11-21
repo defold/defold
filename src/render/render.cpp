@@ -119,6 +119,15 @@ namespace dmRender
     Result AddToRender(HRenderContext context, HRenderObject ro)
     {
         if (context == 0x0) return RESULT_INVALID_CONTEXT;
+        if (context->m_RenderObjects.Full())
+        {
+            if (!context->m_OutOfResources)
+            {
+                dmLogWarning("Renderer is out of resources, some objects will not be rendered.");
+                context->m_OutOfResources = 1;
+            }
+            return RESULT_OUT_OF_RESOURCES;
+        }
 
         if (context->m_SetObjectModel && ro->m_VisualObject)
             context->m_SetObjectModel(ro->m_VisualObject, &ro->m_Rot, &ro->m_Pos);

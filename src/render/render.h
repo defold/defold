@@ -16,6 +16,7 @@ namespace dmRender
     {
         RESULT_OK = 0,
         RESULT_INVALID_CONTEXT = -1,
+        RESULT_OUT_OF_RESOURCES = -2,
     };
 
     enum ColorType

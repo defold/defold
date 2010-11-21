@@ -77,6 +77,8 @@ namespace dmRender
 
         uint32_t                    m_DisplayWidth;
         uint32_t                    m_DisplayHeight;
+
+        uint32_t                    m_OutOfResources : 1;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
