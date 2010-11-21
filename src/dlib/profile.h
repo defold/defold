@@ -48,7 +48,8 @@
     {\
         DM_PROFILE_PASTE2(counter, __LINE__) = dmProfile::AllocateCounter(#name);\
     }\
-    dmAtomicAdd32(&DM_PROFILE_PASTE2(counter, __LINE__)->m_Counter, amount);
+    if (DM_PROFILE_PASTE2(counter, __LINE__))\
+        dmAtomicAdd32(&DM_PROFILE_PASTE2(counter, __LINE__)->m_Counter, amount);
 #endif
 
 namespace dmProfile
