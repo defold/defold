@@ -121,11 +121,34 @@ namespace dmProfile
      */
     Scope* AllocateScope(const char* name);
 
+    /**
+     * Get time for the frame total
+     * @return Total frame time
+     */
     float GetFrameTime();
+
+    /**
+     * Get time for the frame total during the last 60 frames
+     * @return Total frame time
+     */
     float GetMaxFrameTime();
 
+    /**
+     * Check if max nesting depth is reached
+     * @return True if reached
+     */
     bool IsMaxDepthReached();
+
+    /**
+     * Check of out of scope resources
+     * @return True if out of scope resources
+     */
     bool IsOutOfScopes();
+
+    /**
+     * Check of out of sample resources
+     * @return True if out of sample resources
+     */
     bool IsOutOfSamples();
 
     /// Internal, do not use.
