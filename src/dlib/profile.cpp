@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <string.h>
 #include "profile.h"
 #include "hashtable.h"
+#include "hash.h"
 
 #include "math.h"
 
@@ -118,30 +120,52 @@ namespace dmProfile
         }
     }
 
-    Counter* AllocateCounter(const char* name)
+    static inline bool CounterPred(const Counter& c1, const Counter& c2)
     {
-        if (g_Counters.Full())
-        {
-            g_OutOfCounters = true;
-            return 0;
-        }
+        return c1.m_NameHash < c2.m_NameHash;
+    }
+
+    static Counter* FindCounter(uint32_t name_hash)
+    {
+        if (g_Counters.Size() == 0) return 0;
+
+        Counter* start = &g_Counters[0];
+        Counter* end = &g_Counters[0] + g_Counters.Size();
+        Counter tmp;
+        tmp.m_NameHash = name_hash;
+        Counter*c = std::lower_bound(start, end, tmp, &CounterPred);
+        if (c != end && c->m_NameHash == name_hash)
+            return c;
         else
+            return 0;
+    }
+
+    void AddCounter(const char* name, uint32_t amount)
+    {
+        uint32_t name_hash = dmHashString32(name);
+        Counter* counter = FindCounter(name_hash);
+
+        if (!counter)
         {
-            // NOTE: Not optimal with O(n) but scopes are allocated only once
-            uint32_t n = g_Counters.Size();
-            for (uint32_t i = 0; i < n; ++i)
+            if (g_Counters.Full())
             {
-                if (strcmp(name, g_Counters[i].m_Name) == 0)
-                    return &g_Counters[i];
+                g_OutOfCounters = true;
+                return;
             }
 
-            uint32_t i = g_Counters.Size();
             Counter c;
             c.m_Name = name;
+            c.m_NameHash = dmHashString32(name);
             c.m_Counter = 0;
             g_Counters.Push(c);
-            return &g_Counters[i];
+
+            Counter* start = &g_Counters[0];
+            Counter* end = &g_Counters[0] + g_Counters.Size();
+            std::sort(start, end, &CounterPred);
         }
+
+        counter = FindCounter(name_hash);
+        dmAtomicAdd32(&counter->m_Counter, amount);
     }
 
     float GetFrameTime()

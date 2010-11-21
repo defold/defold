@@ -43,13 +43,7 @@
     dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name);\
 
     #define DM_COUNTER(name, amount) \
-    static dmProfile::Counter* DM_PROFILE_PASTE2(counter, __LINE__) = 0; \
-    if (DM_PROFILE_PASTE2(counter, __LINE__) == 0) \
-    {\
-        DM_PROFILE_PASTE2(counter, __LINE__) = dmProfile::AllocateCounter(name);\
-    }\
-    if (DM_PROFILE_PASTE2(counter, __LINE__))\
-        dmAtomicAdd32(&DM_PROFILE_PASTE2(counter, __LINE__)->m_Counter, amount);
+    dmProfile::AddCounter(name, amount);
 #endif
 
 namespace dmProfile
@@ -97,6 +91,8 @@ namespace dmProfile
     {
         /// Counter name
         const char*      m_Name;
+        /// Counter name hash
+        uint32_t         m_NameHash;
         /// Counter value
         uint32_atomic_t  m_Counter;
     };
@@ -159,11 +155,11 @@ namespace dmProfile
     Scope* AllocateScope(const char* name);
 
     /**
-     * Internal function
-     * @param name
-     * @return
+     * Add #amount to counter with #name
+     * @param name Counter name
+     * @param amount Amount to add
      */
-    Counter* AllocateCounter(const char* name);
+    void AddCounter(const char* name, uint32_t amount);
 
     /**
      * Get time for the frame total
