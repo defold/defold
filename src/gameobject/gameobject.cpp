@@ -1113,6 +1113,10 @@ namespace dmGameObject
                 dmGameObject::SetScriptStringProperty(instance, "Id", id);
                 dmGameObject::Init(spawn_message->m_Collection, instance);
             }
+            else
+            {
+                dmLogError("Could not instantiate game object from prototype %s.", spawn_message->m_Prototype);
+            }
         }
     }
 
