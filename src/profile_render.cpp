@@ -151,6 +151,36 @@ namespace dmProfileRender
         c->m_Index++;
     }
 
+    void ProfileCounterCallback(void* context, const dmProfile::Counter* counter)
+    {
+        Context* c = (Context*) context;
+        Matrix4 m = Matrix4::orthographic( -1, 1, 1, -1, 10, -10 );
+
+        int y = c->m_TextY + c->m_Index * g_TextSpacing;
+
+        float col[3];
+        HslToRgb2( 4/ 16.0f, 1.0f, 0.65f, col);
+
+
+        char buf[256];
+
+        dmRender::DrawTextParams params;
+        params.m_Text = buf;
+        params.m_Y = y;
+        params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
+        params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+
+        DM_SNPRINTF(buf, sizeof(buf), "%s", counter->m_Name);
+        params.m_X = g_Scope_x0;
+        dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
+
+        DM_SNPRINTF(buf, sizeof(buf), "%u", counter->m_Counter);
+        params.m_X = g_Scope_Time_x0;
+        dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
+
+        c->m_Index++;
+    }
+
     void ProfileSampleStatsCallback(Context* context, const uint64_t* hash, SampleStats* stats)
     {
         float e = stats->m_Elapsed / context->m_TicksPerSecond;
@@ -289,6 +319,31 @@ namespace dmProfileRender
                 ctx.m_TextY = text_y0 + g_TextSpacing;
                 ctx.m_SampleStats.Iterate<Context>(ProfileSampleStatsCallback, &ctx);
             }
+
+        }
+        {
+            text_y0 = 300;
+
+            params.m_Y = text_y0;
+
+            params.m_Text = "Counters:";
+            params.m_X = g_Scope_x0;
+            dmRender::DrawText(render_context, font, params);
+            params.m_Text = "#";
+            params.m_X = g_Scope_Time_x0;
+            dmRender::DrawText(render_context, font, params);
+
+            Context ctx;
+            ctx.m_Y = -0.78f;
+            ctx.m_TextY = text_y0 + g_TextSpacing;
+            ctx.m_Barheight = 0.05f;
+            ctx.m_Spacing = 0.074f;
+            ctx.m_Index = 0;
+            ctx.m_TicksPerSecond = dmProfile::GetTicksPerSecond();
+            ctx.m_RenderContext = render_context;
+            ctx.m_Font = font;
+
+            dmProfile::IterateCounters(&ctx, &ProfileCounterCallback);
         }
     }
 }
