@@ -1,5 +1,6 @@
 #include <string.h>
 #include "profile.h"
+#include "hashtable.h"
 
 #include "math.h"
 
@@ -7,6 +8,7 @@ namespace dmProfile
 {
     dmArray<Sample> g_Samples;
     dmArray<Scope> g_Scopes;
+    dmArray<Counter> g_Counters;
     uint32_t g_Depth = 0;
     uint32_t g_BeginTime = 0;
     uint64_t g_TicksPerSecond = 1000000;
@@ -15,13 +17,15 @@ namespace dmProfile
     uint32_t g_MaxFrameTimeCounter = 0;
     bool g_OutOfScopes = false;
     bool g_OutOfSamples = false;
+    bool g_OutOfCounters = false;
     bool g_MaxDepthReached = false;
 
-    void Initialize(uint32_t max_scopes, uint32_t max_samples)
+    void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
         g_Scopes.SetCapacity(max_scopes);
         g_Scopes.SetSize(0);
         g_Samples.SetCapacity(max_samples);
+        g_Counters.SetCapacity(max_counters);
 #if defined(_WIN32)
         QueryPerformanceFrequency((LARGE_INTEGER *) &g_TicksPerSecond);
 #endif
@@ -41,6 +45,12 @@ namespace dmProfile
             g_Scopes[i].m_Count = 0;
         }
 
+        n = g_Counters.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            g_Counters[i].m_Counter = 0;
+        }
+
         g_Samples.SetSize(0);
         g_Depth = 0;
 
@@ -56,6 +66,7 @@ namespace dmProfile
         g_FrameTime = 0.0f;
         g_OutOfScopes = false;
         g_OutOfSamples = false;
+        g_OutOfCounters = false;
         g_MaxDepthReached = false;
     }
 
@@ -107,6 +118,32 @@ namespace dmProfile
         }
     }
 
+    Counter* AllocateCounter(const char* name)
+    {
+        if (g_Counters.Full())
+        {
+            g_OutOfCounters = true;
+            return 0;
+        }
+        else
+        {
+            // NOTE: Not optimal with O(n) but scopes are allocated only once
+            uint32_t n = g_Counters.Size();
+            for (uint32_t i = 0; i < n; ++i)
+            {
+                if (strcmp(name, g_Counters[i].m_Name) == 0)
+                    return &g_Counters[i];
+            }
+
+            uint32_t i = g_Counters.Size();
+            Counter c;
+            c.m_Name = name;
+            c.m_Counter = 0;
+            g_Counters.Push(c);
+            return &g_Counters[i];
+        }
+    }
+
     float GetFrameTime()
     {
         return g_FrameTime;
@@ -152,6 +189,15 @@ namespace dmProfile
         for (uint32_t i = 0; i < n; ++i)
         {
             call_back(context, &g_Samples[i]);
+        }
+    }
+
+    void IterateCounters(void* context, void (*call_back)(void* context, const Counter* counter))
+    {
+        uint32_t n = g_Counters.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            call_back(context, &g_Counters[i]);
         }
     }
 }

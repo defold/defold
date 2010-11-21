@@ -9,20 +9,30 @@
 #endif
 #include <dlib/array.h>
 #include <dlib/log.h>
+#include <dlib/atomic.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
 
 /**
  * Profile macro.
- * scope_name is the scope name. Must be an literal
+ * scope_name is the scope name. Must be a literal
  * name is the sample name. An arbitrary constant string
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
 
+/**
+ * Profile counter macro
+ * name is the counter name. Must be a literal
+ * amount is the amount (integer) to add to the specific counter.
+ */
+#define DM_COUNTER(name, amount)
+#undef DM_COUNTER
+
 #ifdef DM_PROFILE_DISABLE
 #define DM_PROFILE(scope_name, name)
+#define DM_COUNTER(name, amount)
 #else
 #define DM_PROFILE(scope_name, name) \
     static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
@@ -32,6 +42,13 @@
     }\
     dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name);\
 
+    #define DM_COUNTER(name, amount) \
+    static dmProfile::Counter* DM_PROFILE_PASTE2(counter, __LINE__) = 0; \
+    if (DM_PROFILE_PASTE2(counter, __LINE__) == 0) \
+    {\
+        DM_PROFILE_PASTE2(counter, __LINE__) = dmProfile::AllocateCounter(#name);\
+    }\
+    dmAtomicAdd32(&DM_PROFILE_PASTE2(counter, __LINE__)->m_Counter, amount);
 #endif
 
 namespace dmProfile
@@ -49,7 +66,7 @@ namespace dmProfile
         uint32_t    m_Elapsed;
         /// Scope index, range [0, scopes-1]
         uint16_t    m_Index;
-        /// Occurences of this scope (nestled occurences do not count)
+        /// Occurrences of this scope (nestled occurrences do not count)
         uint16_t    m_Count;
         /// True while this scope has been entered
         uint32_t    m_Entered : 1;
@@ -73,11 +90,23 @@ namespace dmProfile
     };
 
     /**
+     * Profile counter
+     */
+    struct Counter
+    {
+        /// Counter name
+        const char*      m_Name;
+        /// Counter value
+        uint32_atomic_t  m_Counter;
+    };
+
+    /**
      * Initialize profiler
      * @param max_scopes Maximum scopes
      * @param max_samples Maximum samples
+     * @param max_counters Maximum counters
      */
-    void Initialize(uint32_t max_scopes, uint32_t max_samples);
+    void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters);
 
     /**
      * Finalize profiler
@@ -115,11 +144,25 @@ namespace dmProfile
     void IterateSamples(void* context, void (*call_back)(void* context, const Sample* sample));
 
     /**
+     * Iterate over all counters
+     * @param context User context
+     * @param call_back Call-back function pointer
+     */
+    void IterateCounters(void* context, void (*call_back)(void* context, const Counter* counter));
+
+    /**
      * Internal function
      * @param name
      * @return
      */
     Scope* AllocateScope(const char* name);
+
+    /**
+     * Internal function
+     * @param name
+     * @return
+     */
+    Counter* AllocateCounter(const char* name);
 
     /**
      * Get time for the frame total

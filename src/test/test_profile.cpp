@@ -21,9 +21,15 @@ void ProfileScopeCallback(void* context, const dmProfile::Scope* scope)
     (*scopes)[std::string(scope->m_Name)] = scope;
 }
 
+void ProfileCounterCallback(void* context, const dmProfile::Counter* counter)
+{
+    std::map<std::string, const dmProfile::Counter*>* counters = (std::map<std::string, const dmProfile::Counter*>*) context;
+    (*counters)[std::string(counter->m_Name)] = counter;
+}
+
 TEST(dlib, Profile)
 {
-    dmProfile::Initialize(128, 1024);
+    dmProfile::Initialize(128, 1024, 0);
 
     for (int i = 0; i < 2; ++i)
     {
@@ -120,7 +126,7 @@ TEST(dlib, Profile)
 
 TEST(dlib, ProfileOverflow1)
 {
-    dmProfile::Initialize(4, 2);
+    dmProfile::Initialize(4, 2, 0);
     {
         dmProfile::Begin();
         {
@@ -141,7 +147,7 @@ TEST(dlib, ProfileOverflow1)
 
 TEST(dlib, ProfileOverflow2)
 {
-    dmProfile::Initialize(0, 0);
+    dmProfile::Initialize(0, 0, 0);
     {
         dmProfile::Begin();
         {
@@ -151,6 +157,31 @@ TEST(dlib, ProfileOverflow2)
             { DM_PROFILE(X, "d") }
         }
         dmProfile::End();
+    }
+
+    dmProfile::Finalize();
+}
+
+
+TEST(dlib, Counter1)
+{
+    dmProfile::Initialize(0, 0, 16);
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            dmProfile::Begin();
+            { DM_COUNTER(c1, 1); }
+            { DM_COUNTER(c1, 2); }
+            { DM_COUNTER(c1, 4); }
+            { DM_COUNTER(c2, 123); }
+            dmProfile::End();
+
+            std::map<std::string, dmProfile::Counter*> counters;
+            dmProfile::IterateCounters(&counters, ProfileCounterCallback);
+
+            ASSERT_EQ(7U, counters["c1"]->m_Counter);
+            ASSERT_EQ(123U, counters["c2"]->m_Counter);
+        }
     }
 
     dmProfile::Finalize();
