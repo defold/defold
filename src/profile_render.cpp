@@ -1,6 +1,10 @@
 #include <string.h>
 
+#include <algorithm>
+
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
@@ -8,18 +12,31 @@
 
 namespace dmProfileRender
 {
+    struct SampleStats
+    {
+        const dmProfile::Sample* m_Sample;
+        uint32_t m_Elapsed;
+        uint16_t m_Count;
+    };
+
+    bool CompareStats(const SampleStats& lhs, const SampleStats& rhs)
+    {
+        return lhs.m_Elapsed > rhs.m_Elapsed;
+    }
+
     struct Context
     {
-        float    m_Y;
-        uint32_t m_TextY;
-        float    m_Barheight;
-        float    m_Spacing;
-        int32_t  m_Index;
-        int32_t  m_SampleIndex;
-        float    m_TicksPerSecond;
-        float    m_FrameX;
-        dmRender::HRenderContext m_RenderContext;
-        dmRender::HFont m_Font;
+        float                       m_Y;
+        uint32_t                    m_TextY;
+        float                       m_Barheight;
+        float                       m_Spacing;
+        uint32_t                    m_Index;
+        float                       m_TicksPerSecond;
+        float                       m_FrameX;
+        dmRender::HRenderContext    m_RenderContext;
+        dmRender::HFont             m_Font;
+        dmHashTable64<uint32_t>     m_SampleRegistry;
+        dmArray<SampleStats>        m_Samples;
     };
 
 //    float *r, *g, *b; /* red, green, blue in [0,1] */
@@ -56,7 +73,8 @@ namespace dmProfileRender
     const int g_Scope_Count_x0 = 16 + 180;
     const int g_Sample_x0 = 250;
     const int g_Sample_Time_x0 = g_Sample_x0 + 260;
-    const int g_Frame_x0 = g_Sample_Time_x0 + 65;
+    const int g_Sample_Count_x0 = g_Sample_Time_x0 + 60;
+    const int g_Frame_x0 = g_Sample_Count_x0 + 65;
     const int g_TextSpacing = 20;
 
     void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)
@@ -77,30 +95,22 @@ namespace dmProfileRender
 
         dmRender::Square2d(c->m_RenderContext, x, y, x + w, y + c->m_Barheight, Vector4(col[0], col[1], col[2], 1));
 
-        float e = sample->m_Elapsed / c->m_TicksPerSecond;
-        if (e > 0.0002f)
+        uint64_t hash = dmHashString64(sample->m_Name);
+        uint32_t* index = c->m_SampleRegistry.Get(hash);
+        if (index != 0x0)
         {
-            int text_y = c->m_TextY + c->m_SampleIndex * g_TextSpacing;
-
-            char buf[256];
-
-            dmRender::DrawTextParams params;
-            params.m_Text = buf;
-            params.m_Y = text_y;
-            params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
-            params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
-
-            DM_SNPRINTF(buf, sizeof(buf), "%s.%s", sample->m_Scope->m_Name, sample->m_Name);
-            params.m_X = g_Sample_x0;
-            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
-
-            DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000.0f);
-            params.m_X = g_Sample_Time_x0;
-            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
-
-            c->m_SampleIndex++;
+            ++c->m_Samples[*index].m_Count;
+            c->m_Samples[*index].m_Elapsed += sample->m_Elapsed;
         }
-        c->m_Index++;
+        else if (!c->m_Samples.Full())
+        {
+            SampleStats stats;
+            stats.m_Sample = sample;
+            stats.m_Elapsed = sample->m_Elapsed;
+            stats.m_Count = 1;
+            c->m_Samples.Push(stats);
+            c->m_SampleRegistry.Put(hash, c->m_Samples.Size() - 1);
+        }
     }
 
     void ProfileScopeCallback(void* context, const dmProfile::Scope* scope)
@@ -115,30 +125,27 @@ namespace dmProfileRender
 
         float e = scope->m_Elapsed / c->m_TicksPerSecond;
 
-        //if (e > 0.0001f)
-        {
-            char buf[256];
+        char buf[256];
 
-            dmRender::DrawTextParams params;
-            params.m_Text = buf;
-            params.m_Y = y;
-            params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
-            params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+        dmRender::DrawTextParams params;
+        params.m_Text = buf;
+        params.m_Y = y;
+        params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
+        params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
-            DM_SNPRINTF(buf, sizeof(buf), "%s", scope->m_Name);
-            params.m_X = g_Scope_x0;
-            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
+        DM_SNPRINTF(buf, sizeof(buf), "%s", scope->m_Name);
+        params.m_X = g_Scope_x0;
+        dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
-            DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000);
-            params.m_X = g_Scope_Time_x0;
-            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
+        DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000);
+        params.m_X = g_Scope_Time_x0;
+        dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
-            DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Count);
-            params.m_X = g_Scope_Count_x0;
-            dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
+        DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Count);
+        params.m_X = g_Scope_Count_x0;
+        dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
-            c->m_Index++;
-        }
+        c->m_Index++;
     }
 
     void Draw(dmRender::HRenderContext render_context, dmRender::HFont font)
@@ -216,6 +223,9 @@ namespace dmProfileRender
             params.m_Text = "ms";
             params.m_X = g_Sample_Time_x0;
             dmRender::DrawText(render_context, font, params);
+            params.m_Text = "#";
+            params.m_X = g_Sample_Count_x0;
+            dmRender::DrawText(render_context, font, params);
             params.m_Text = "Frame:";
             params.m_X = g_Frame_x0;
             dmRender::DrawText(render_context, font, params);
@@ -226,16 +236,57 @@ namespace dmProfileRender
             ctx.m_Barheight = 0.05f;
             ctx.m_Spacing = 0.074f;
             ctx.m_Index = 0;
-            ctx.m_SampleIndex = 0;
             ctx.m_TicksPerSecond = dmProfile::GetTicksPerSecond();
             ctx.m_FrameX = frame_x0;
             ctx.m_RenderContext = render_context;
             ctx.m_Font = font;
+            ctx.m_SampleRegistry.SetCapacity(64, 256);
+            ctx.m_Samples.SetCapacity(256);
 
             dmProfile::IterateSamples(&ctx, &ProfileSampleCallback);
 
             ctx.m_Index = 0;
             dmProfile::IterateScopes(&ctx, &ProfileScopeCallback);
+
+            ctx.m_Index = 0;
+            if (ctx.m_Samples.Size() > 0)
+            {
+                ctx.m_TextY = text_y0 + g_TextSpacing;
+                std::sort(&ctx.m_Samples.Front(), &ctx.m_Samples.Front() + ctx.m_Samples.Size(), CompareStats);
+                for (uint32_t i = 0; i < ctx.m_Samples.Size(); ++i)
+                {
+                    SampleStats& stats = ctx.m_Samples[i];
+                    float e = stats.m_Elapsed / ctx.m_TicksPerSecond;
+                    if (e < 0.0001f)
+                        break;
+                    int text_y = ctx.m_TextY + ctx.m_Index * g_TextSpacing;
+
+                    float col[3];
+                    HslToRgb2( (stats.m_Sample->m_Scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
+
+                    char buf[256];
+
+                    dmRender::DrawTextParams params;
+                    params.m_Text = buf;
+                    params.m_Y = text_y;
+                    params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
+                    params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+
+                    DM_SNPRINTF(buf, sizeof(buf), "%s.%s", stats.m_Sample->m_Scope->m_Name, stats.m_Sample->m_Name);
+                    params.m_X = g_Sample_x0;
+                    dmRender::DrawText(ctx.m_RenderContext, ctx.m_Font, params);
+
+                    DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000.0f);
+                    params.m_X = g_Sample_Time_x0;
+                    dmRender::DrawText(ctx.m_RenderContext, ctx.m_Font, params);
+
+                    DM_SNPRINTF(buf, sizeof(buf), "%d", stats.m_Count);
+                    params.m_X = g_Sample_Count_x0;
+                    dmRender::DrawText(ctx.m_RenderContext, ctx.m_Font, params);
+
+                    ctx.m_Index++;
+                }
+            }
         }
     }
 }
