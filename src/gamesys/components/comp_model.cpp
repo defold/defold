@@ -3,6 +3,7 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/hash.h>
+#include <dlib/log.h>
 
 #include <render/render.h>
 #include <render/mesh_ddf.h>
@@ -37,10 +38,12 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompModelNewWorld(void* context, void** world)
     {
         ModelWorld* model_world = new ModelWorld();
-        model_world->m_RenderObjects.SetCapacity(1000);
-        model_world->m_RenderObjects.SetSize(1000);
-        memset((void*)&model_world->m_RenderObjects[0], 0, 1000 * sizeof(dmRender::HRenderObject));
-        model_world->m_ROIndices.SetCapacity(1000);
+        // TODO: How to configure?
+        const uint32_t max_render_object_count = 1024;
+        model_world->m_RenderObjects.SetCapacity(max_render_object_count);
+        model_world->m_RenderObjects.SetSize(max_render_object_count);
+        memset((void*)&model_world->m_RenderObjects[0], 0, max_render_object_count * sizeof(dmRender::HRenderObject));
+        model_world->m_ROIndices.SetCapacity(max_render_object_count);
         *world = model_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -59,17 +62,22 @@ namespace dmGameSystem
                                             uintptr_t* user_data)
     {
         ModelWorld* model_world = (ModelWorld*)world;
-        dmModel::HModel prototype = (dmModel::HModel)resource;
-        dmRender::HRenderObject ro = dmRender::NewRenderObject(g_ModelRenderType, dmModel::GetMaterial(prototype), (void*)instance);
-        dmRender::SetUserData(ro, prototype);
-        uint32_t index = model_world->m_ROIndices.Pop();
-        model_world->m_RenderObjects[index] = ro;
-        ModelUserData* model_user_data = new ModelUserData();
-        model_user_data->m_ModelWorld = model_world;
-        model_user_data->m_Index = index;
-        *user_data = (uintptr_t)model_user_data;
+        if (model_world->m_ROIndices.Remaining() > 0)
+        {
+            dmModel::HModel prototype = (dmModel::HModel)resource;
+            dmRender::HRenderObject ro = dmRender::NewRenderObject(g_ModelRenderType, dmModel::GetMaterial(prototype), (void*)instance);
+            dmRender::SetUserData(ro, prototype);
+            uint32_t index = model_world->m_ROIndices.Pop();
+            model_world->m_RenderObjects[index] = ro;
+            ModelUserData* model_user_data = new ModelUserData();
+            model_user_data->m_ModelWorld = model_world;
+            model_user_data->m_Index = index;
+            *user_data = (uintptr_t)model_user_data;
 
-        return dmGameObject::CREATE_RESULT_OK;
+            return dmGameObject::CREATE_RESULT_OK;
+        }
+        dmLogError("Could not create model component, out of resources.");
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
     dmGameObject::CreateResult CompModelDestroy(dmGameObject::HCollection collection,
