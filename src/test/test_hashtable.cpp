@@ -408,6 +408,50 @@ TEST(dmHashTable, Grow)
     }
 }
 
+uint32_t g_ClearCount;
+
+void ClearCallback(int* context, const uint32_t* key, int* value)
+{
+    g_ClearCount++;
+}
+
+TEST(dmHashTable, Clear)
+{
+    for (uint32_t table_size = 1; table_size < 41; ++table_size)
+    {
+        dmHashTable<uint32_t, int> ht;
+        std::map<uint32_t, int> map;
+
+        ht.SetCapacity(table_size, table_size * 2);
+
+        for (uint32_t iter = 0; iter < 4; ++iter)
+        {
+            for (uint32_t i = 0; i < table_size * 2; ++i)
+            {
+                uint32_t key = (uint32_t) rand();
+                int value = rand();
+                ht.Put(key, value);
+                map[key] = value;
+                ASSERT_EQ(map.size(), ht.Size());
+            }
+
+            std::map<uint32_t, int>::iterator iter = map.begin();
+            for (iter = map.begin(); iter != map.end(); ++iter)
+            {
+                uint32_t key = iter->first;
+                ASSERT_EQ(map[key], *ht.Get(key));
+            }
+
+            ht.Clear();
+            map.clear();
+
+            ht.Iterate(ClearCallback, (int*) 0);
+            ASSERT_EQ(0U, g_ClearCount);
+
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

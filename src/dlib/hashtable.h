@@ -59,6 +59,14 @@ public:
         m_State = STATE_USER_ALLOCATED;
     }
 
+    void Clear()
+    {
+        memset(m_HashTable, 0xff, sizeof(uint16_t) * m_HashTableSize);
+        m_InitialEntriesNextFree = m_InitialEntries;
+        m_FreeEntries = 0xffff;
+        m_Count = 0;
+    }
+
     /**
      * Destructor.
      * @note If user allocated, memory is not free'd
