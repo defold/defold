@@ -149,6 +149,7 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
+        uint32_t                    m_ComponentInstanceCount[MAX_COMPONENT_TYPES];
         dmMutex::Mutex              m_Mutex;
         // Current identifier path. Used during loading of collections and specifically collections in collections.
         // Contains the current path and is *protected* by m_Mutex.

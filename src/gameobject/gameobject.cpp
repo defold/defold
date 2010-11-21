@@ -223,6 +223,7 @@ namespace dmGameObject
 
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
+        regist->m_ComponentInstanceCount[regist->m_ComponentTypeCount] = 0;
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -372,6 +373,7 @@ namespace dmGameObject
             CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
             if (create_result == CREATE_RESULT_OK)
             {
+                collection->m_Register->m_ComponentInstanceCount[component_type_index]++;
                 components_created++;
             }
             else
@@ -390,7 +392,6 @@ namespace dmGameObject
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
                 assert(component_type);
-
                 uintptr_t* component_instance_data = 0;
                 if (component_type->m_InstanceHasUserData)
                 {
@@ -398,6 +399,7 @@ namespace dmGameObject
                 }
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
+                collection->m_Register->m_ComponentInstanceCount[component_type_index]--;
                 component_type->m_DestroyFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
             }
 
@@ -624,6 +626,7 @@ namespace dmGameObject
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
+            collection->m_Register->m_ComponentInstanceCount[component_type_index]--;
             component_type->m_DestroyFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
         }
 
@@ -1063,6 +1066,9 @@ namespace dmGameObject
         {
             uint16_t update_index = reg->m_ComponentTypesOrder[i];
             ComponentType* component_type = &reg->m_ComponentTypes[update_index];
+
+            DM_COUNTER(component_type->m_Name, reg->m_ComponentInstanceCount[i]);
+
             if (component_type->m_UpdateFunction)
             {
                 DM_PROFILE(GameObject, component_type->m_Name);
