@@ -306,7 +306,6 @@ namespace dmGameObject
         collection->m_LevelIndices[abs_level_index] = instance->m_Index;
 
         collection->m_LevelInstanceCount[instance->m_Depth]++;
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] < collection->m_MaxInstances);
     }
 
     HInstance New(HCollection collection, const char* prototype_name)
@@ -322,7 +321,7 @@ namespace dmGameObject
 
         if (collection->m_InstanceIndices.Remaining() == 0)
         {
-            dmLogWarning("Unable to create instance. Out of resources");
+            dmLogError("Unable to create instance. Out of resources");
             return 0;
         }
 
