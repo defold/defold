@@ -1061,9 +1061,9 @@ namespace dmGameObject
         {
             uint16_t update_index = reg->m_ComponentTypesOrder[i];
             ComponentType* component_type = &reg->m_ComponentTypes[update_index];
-            DM_PROFILE(GameObject, component_type->m_Name);
             if (component_type->m_UpdateFunction)
             {
+                DM_PROFILE(GameObject, component_type->m_Name);
                 for (uint32_t j = 0; j < collection_count; ++j)
                 {
                     if (collections[j] == 0)
