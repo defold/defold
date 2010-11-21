@@ -223,6 +223,7 @@ namespace dmPhysics
 
         if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
+            DM_PROFILE(Physics, "ForEachCollision");
             int num_manifolds = world->m_DynamicsWorld->getDispatcher()->getNumManifolds();
             for (int i = 0; i < num_manifolds; ++i)
             {
