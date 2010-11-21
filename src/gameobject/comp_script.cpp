@@ -49,19 +49,25 @@ namespace dmGameObject
             uintptr_t* user_data)
     {
         HScript script = (HScript)resource;
-        HScriptInstance script_instance = NewScriptInstance(script, instance);
-        if (script_instance != 0x0)
+
+        ScriptWorld* script_world = (ScriptWorld*)world;
+        if (script_world->m_Instances.Full())
         {
-            instance->m_ScriptInstancePOOOOP = script_instance;
-            ScriptWorld* script_world = (ScriptWorld*)world;
-            script_world->m_Instances.Push(script_instance);
-            *user_data = (uintptr_t)script_instance;
-            return CREATE_RESULT_OK;
-        }
-        else
-        {
+            dmLogError("Could not create script component, out of resources.");
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
+
+        HScriptInstance script_instance = NewScriptInstance(script, instance);
+        if (script_instance == 0x0)
+        {
+            dmLogError("Could not create script component, out of memory.");
+            return CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        instance->m_ScriptInstancePOOOOP = script_instance;
+        script_world->m_Instances.Push(script_instance);
+        *user_data = (uintptr_t)script_instance;
+        return CREATE_RESULT_OK;
     }
 
     ScriptResult RunScript(HCollection collection, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const UpdateContext* update_context)

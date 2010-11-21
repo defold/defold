@@ -40,7 +40,8 @@ namespace dmGameObject
     ScriptWorld::ScriptWorld()
     : m_Instances()
     {
-        m_Instances.SetCapacity(512);
+        // TODO: How to configure? It should correspond to collection instance count
+        m_Instances.SetCapacity(1024);
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
