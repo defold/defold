@@ -231,6 +231,9 @@ namespace dmPhysics
                 btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
                 btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
 
+                if (!object_a->isActive() && !object_b->isActive())
+                    continue;
+
                 if (collision_callback != 0x0)
                 {
                     collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
