@@ -161,6 +161,50 @@ namespace dmEngine
         return 0;
     }
 
+    int RenderScript_Rendertarget(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+
+        uint32_t width = luaL_checknumber(L, 2);
+        uint32_t height = luaL_checknumber(L, 3);
+        const char* name = luaL_checkstring(L, 4);
+        dmGraphics::HRenderTarget rendertarget = dmGraphics::NewRenderTarget(width, height, dmGraphics::TEXTURE_FORMAT_RGBA);
+        dmRender::RegisterRenderTarget(i->m_RenderContext, rendertarget, dmHashString32(name));
+
+        lua_pushlightuserdata(L, (void*)rendertarget);
+
+        return 1;
+    }
+
+    int RenderScript_EnableRendertarget(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        dmGraphics::HRenderTarget rendertarget = 0x0;
+
+        if (lua_islightuserdata(L, 2))
+        {
+            rendertarget = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+        }
+        dmGraphics::EnableRenderTarget(dmRender::GetGraphicsContext(i->m_RenderContext), rendertarget );
+
+        return 0;
+    }
+
+    int RenderScript_DisableRendertarget(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        dmGraphics::HRenderTarget rendertarget = 0x0;
+
+        if (lua_islightuserdata(L, 2))
+        {
+            rendertarget = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+        }
+        dmGraphics::DisableRenderTarget(dmRender::GetGraphicsContext(i->m_RenderContext), rendertarget );
+
+        return 0;
+    }
+
+
     int RenderScript_Clear(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -360,21 +404,24 @@ namespace dmEngine
 
     static const luaL_reg RenderScript_methods[] =
     {
-        {"enable_state",        RenderScript_EnableState},
-        {"disable_state",       RenderScript_DisableState},
-        {"clear",               RenderScript_Clear},
-        {"set_viewport",        RenderScript_SetViewport},
-        {"set_view",            RenderScript_SetView},
-        {"set_projection",      RenderScript_SetProjection},
-        {"set_blend_func",      RenderScript_SetBlendFunc},
-        {"set_depth_mask",      RenderScript_SetDepthMask},
-        {"set_cull_face",       RenderScript_SetCullFace},
-        {"draw",                RenderScript_Draw},
-        {"draw_debug3d",        RenderScript_DrawDebug3d},
-        {"draw_debug2d",        RenderScript_DrawDebug2d},
-        {"get_window_width",    RenderScript_GetWindowWidth},
-        {"get_window_height",   RenderScript_GetWindowHeight},
-        {"predicate",           RenderScript_Predicate},
+        {"enable_state",         RenderScript_EnableState},
+        {"disable_state",        RenderScript_DisableState},
+        {"enable_rendertarget",  RenderScript_EnableRendertarget},
+        {"disable_rendertarget", RenderScript_DisableRendertarget},
+        {"rendertarget",         RenderScript_Rendertarget},
+        {"clear",                RenderScript_Clear},
+        {"set_viewport",         RenderScript_SetViewport},
+        {"set_view",             RenderScript_SetView},
+        {"set_projection",       RenderScript_SetProjection},
+        {"set_blend_func",       RenderScript_SetBlendFunc},
+        {"set_depth_mask",       RenderScript_SetDepthMask},
+        {"set_cull_face",        RenderScript_SetCullFace},
+        {"draw",                 RenderScript_Draw},
+        {"draw_debug3d",         RenderScript_DrawDebug3d},
+        {"draw_debug2d",         RenderScript_DrawDebug2d},
+        {"get_window_width",     RenderScript_GetWindowWidth},
+        {"get_window_height",    RenderScript_GetWindowHeight},
+        {"predicate",            RenderScript_Predicate},
         {0, 0}
     };
 
