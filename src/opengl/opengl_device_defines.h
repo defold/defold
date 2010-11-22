@@ -54,10 +54,6 @@ namespace dmGraphics
 #define GFXDEVICE_CLEAR_DEPTHBUFFER                     (GL_DEPTH_BUFFER_BIT)
 #define GFXDEVICE_CLEAR_STENCILBUFFER                   (GL_STENCIL_BUFFER_BIT)
 
-#define GFXDEVICE_MATRIX_TYPE_WORLD                     (123ul)
-#define GFXDEVICE_MATRIX_TYPE_VIEW                      (321ul)
-#define GFXDEVICE_MATRIX_TYPE_PROJECTION                (GL_PROJECTION)
-
 // Render states
 #define GFXDEVICE_STATE_DEPTH_TEST                      (GL_DEPTH_TEST)
 #define GFXDEVICE_STATE_ALPHA_TEST                      (GL_ALPHA_TEST)
