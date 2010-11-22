@@ -1,5 +1,5 @@
-#ifndef DM_PROFIE_H
-#define DM_PROFIE_H
+#ifndef DM_PROFILE_H
+#define DM_PROFILE_H
 
 #include <stdint.h>
 #if defined(_WIN32)
