@@ -251,6 +251,7 @@ namespace dmGraphics
     void DeleteRenderTarget(HRenderTarget renderbuffer);
     void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget);
 
     HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
     void SetTextureData(HTexture texture,

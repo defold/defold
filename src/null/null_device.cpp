@@ -232,6 +232,11 @@ namespace dmGraphics
         assert(rendertarget);
     }
 
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget)
+    {
+        return rendertarget->m_Texture;
+    }
+
     void SetTexture(HContext context, HTexture t)
     {
         assert(context);

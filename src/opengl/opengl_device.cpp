@@ -661,6 +661,12 @@ namespace dmGraphics
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
     }
 
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget)
+    {
+        return rendertarget->m_Texture;
+    }
+
+
     void SetTexture(HContext context, HTexture texture)
     {
         assert(context);
