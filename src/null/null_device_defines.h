@@ -18,10 +18,6 @@
 #define GFXDEVICE_CLEAR_DEPTHBUFFER            (-1ul)
 #define GFXDEVICE_CLEAR_STENCILBUFFER          (-1ul)
 
-#define GFXDEVICE_MATRIX_TYPE_WORLD            (-1ul)
-#define GFXDEVICE_MATRIX_TYPE_VIEW             (-1ul)
-#define GFXDEVICE_MATRIX_TYPE_PROJECTION       (-1ul)
-
 // Render states
 #define GFXDEVICE_STATE_DEPTH_TEST             (-1ul)
 #define GFXDEVICE_STATE_ALPHA_TEST             (-1ul)
