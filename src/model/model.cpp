@@ -35,6 +35,7 @@ namespace dmModel
         HMesh                   m_Mesh;
         dmGraphics::HMaterial   m_Material;
         dmGraphics::HTexture    m_Texture0;
+        dmGraphics::HTexture    m_DynamicTexture0;
 
         bool                    m_Deleted;
     };
@@ -53,7 +54,6 @@ namespace dmModel
 
     HMesh NewMesh(dmRender::MeshDesc* desc)
     {
-
         // TODO: will be replaced when we have a proper model compiler
         struct VertexFormat
         {
@@ -121,13 +121,17 @@ namespace dmModel
 
     void SetMesh(HModel model, HMesh mesh)
     {
-
         model->m_Mesh = mesh;
     }
 
     void SetTexture0(HModel model, dmGraphics::HTexture texture)
     {
         model->m_Texture0 = texture;
+    }
+
+    void SetDynamicTexture0(HModel model, dmGraphics::HTexture texture)
+    {
+        model->m_DynamicTexture0 = texture;
     }
 
     void SetMaterial(HModel model, dmGraphics::HMaterial material)
@@ -143,6 +147,11 @@ namespace dmModel
     dmGraphics::HTexture GetTexture0(HModel model)
     {
         return model->m_Texture0;
+    }
+
+    dmGraphics::HTexture GetDynamicTexture0(HModel model)
+    {
+        return model->m_DynamicTexture0;
     }
 
     dmGraphics::HMaterial GetMaterial(HModel model)

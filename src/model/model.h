@@ -85,6 +85,7 @@ namespace dmModel
      * @param texture texture0
      */
     void SetTexture0(HModel model, dmGraphics::HTexture texture);
+    void SetDynamicTexture0(HModel model, dmGraphics::HTexture texture);
 
     /**
      * Set model material
@@ -107,6 +108,8 @@ namespace dmModel
      */
     dmGraphics::HTexture GetTexture0(HModel model);
 
+    dmGraphics::HTexture GetDynamicTexture0(HModel model);
+
     /**
      * Get material from model
      * @param model Model
@@ -114,8 +117,25 @@ namespace dmModel
      */
     dmGraphics::HMaterial GetMaterial(HModel model);
 
+    /**
+     * Get vertex buffer info from model
+     * @param mesh Mesh to extract vertex buffer from
+     * @return Vertex buffer
+     */
     dmGraphics::HVertexBuffer     GetVertexBuffer(HMesh mesh);
+
+    /**
+     * Get index buffer info from model
+     * @param mesh Mesh to extract index buffer from
+     * @return Index buffer
+     */
     dmGraphics::HIndexBuffer      GetIndexBuffer(HMesh mesh);
+
+    /**
+     * Get vertex declaration from model
+     * @param mesh Mesh to extract vertex declaration from
+     * @return Vertex declaration
+     */
     dmGraphics::HVertexDeclaration      GetVertexDeclarationBuffer(HMesh mesh);
 
 }

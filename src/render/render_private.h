@@ -60,8 +60,15 @@ namespace dmRender
         uint32_t                            m_TextRenderType;
     };
 
+    struct RenderTargetSetup
+    {
+        dmGraphics::HRenderTarget   m_RenderTarget;
+        uint32_t                    m_Hash;
+    };
+
     struct RenderContext
     {
+        dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderType>         m_RenderTypes;
         dmArray<RenderObject*>      m_RenderObjects;
         DebugRenderer               m_DebugRenderer;

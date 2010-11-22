@@ -22,3 +22,8 @@ message SetRenderColor
     /* TODO: This should be the proper type Render.MaterialDesc.ParameterSemantic instead of uint32. */
     required uint32 ColorType = 2;
 }
+
+message SetTexture
+{
+    required string TextureHash = 1;
+}

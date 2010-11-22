@@ -43,6 +43,7 @@ namespace dmRender
         RenderContext* context = new RenderContext;
 
         context->m_RenderTypes.SetCapacity(params.m_MaxRenderTypes);
+        context->m_RenderTargets.SetCapacity(params.m_MaxRenderTargets);
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -78,10 +79,36 @@ namespace dmRender
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
         if (render_context->m_RenderTypes.Full())
-            return RESULT_INVALID_CONTEXT;
+            return RESULT_BUFFER_IS_FULL;
         render_context->m_RenderTypes.Push(render_type);
         *out_render_type = render_context->m_RenderTypes.Size() - 1;
         return RESULT_OK;
+    }
+
+    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, uint32_t hash)
+    {
+        if (render_context == 0x0)
+            return RESULT_INVALID_CONTEXT;
+        if (render_context->m_RenderTargets.Full())
+            return RESULT_BUFFER_IS_FULL;
+
+        RenderTargetSetup setup;
+        setup.m_RenderTarget = rendertarget;
+        setup.m_Hash = hash;
+        render_context->m_RenderTargets.Push(setup);
+
+        return RESULT_OK;
+    }
+
+    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, uint32_t hash)
+    {
+        for (uint32_t i=0; i < render_context->m_RenderTargets.Size(); i++)
+        {
+            if (render_context->m_RenderTargets[i].m_Hash == hash)
+                return render_context->m_RenderTargets[i].m_RenderTarget;
+        }
+
+        return 0x0;
     }
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context)

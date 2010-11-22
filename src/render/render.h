@@ -17,6 +17,7 @@ namespace dmRender
         RESULT_OK = 0,
         RESULT_INVALID_CONTEXT = -1,
         RESULT_OUT_OF_RESOURCES = -2,
+        RESULT_BUFFER_IS_FULL = -3,
     };
 
     enum ColorType
@@ -37,6 +38,7 @@ namespace dmRender
 
     typedef struct RenderContext* HRenderContext;
     typedef struct RenderObject* HRenderObject;
+    typedef struct RenderTargetSetup* HRenderTargetSetup;
 
     typedef void (*RenderTypeBeginCallback)(HRenderContext render_context, void* user_context);
     typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, void* user_context, HRenderObject ro, uint32_t count);
@@ -60,6 +62,7 @@ namespace dmRender
 
         uint32_t        m_MaxRenderTypes;
         uint32_t        m_MaxInstances;
+        uint32_t        m_MaxRenderTargets;
         SetObjectModel  m_SetObjectModel;
         void*           m_VertexProgramData;
         uint32_t        m_VertexProgramDataSize;
@@ -79,6 +82,9 @@ namespace dmRender
     Result DeleteRenderContext(HRenderContext render_context);
 
     Result RegisterRenderType(HRenderContext render_context, RenderType render_type, HRenderType* out_render_type);
+    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, uint32_t hash);
+    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, uint32_t hash);
+
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
