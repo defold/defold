@@ -123,6 +123,27 @@ namespace dmGameSystem
             dmRender::ColorType color_type = (dmRender::ColorType)ddf->m_ColorType;
             dmRender::SetColor(ro, ddf->m_Color, color_type);
         }
+        else if (message_data->m_MessageId == dmHashString32(dmRender::SetTexture::m_DDFDescriptor->m_ScriptName))
+        {
+            dmRender::SetTexture* ddf = (dmRender::SetTexture*)message_data->m_Buffer;
+            ddf->m_TextureHash = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_TextureHash);
+            uint32_t hash;
+            sscanf(ddf->m_TextureHash, "%X", &hash);
+            dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)context;
+            dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, hash);
+
+            if (rendertarget)
+            {
+                ModelUserData* model_user_data = (ModelUserData*)*user_data;
+                dmRender::HRenderObject ro = model_user_data->m_ModelWorld->m_RenderObjects[model_user_data->m_Index];
+                dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
+                dmModel::SetDynamicTexture0(model, dmGraphics::GetRenderTargetTexture(rendertarget));
+            }
+            else
+                dmLogWarning("No such render target: 0x%x (%d)", hash, hash);
+
+        }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -144,7 +165,11 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
+        // TODO: replace this dynamic texture thingy with proper indexing next
+        if (dmModel::GetDynamicTexture0(model))
+            dmGraphics::SetTexture(graphics_context, dmModel::GetDynamicTexture0(model));
+        else
+            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
 
         for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
         {
