@@ -54,8 +54,13 @@ def configure(conf):
 
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
+        # In order to get accurate result from the memory profiler this is necessary
+        conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
+
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
+        conf.env.append_value('LINKFLAGS', [ '-Wl,-export-dynamic' ])
+
     if platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib'])
 
@@ -103,6 +108,8 @@ def build(bld):
     bld.add_subdirs('content')
     bld.add_group()
     bld.add_subdirs('src')
+
+    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0755)
 
 import Options
 def shutdown():

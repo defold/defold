@@ -6,8 +6,16 @@
 #include <Carbon/Carbon.h>
 #endif
 
+#include <dlib/memprofile.h>
+
 int main(int argc, char *argv[])
 {
+    // TODO: This is required to export the symbol dmMemProfileInternalData from dlib
+    // due to the missing flag -export-dynamic on darwin
+    // Better solution? Some flag perhaps?
+    dmMemProfile::Stats stats;
+    dmMemProfile::GetStats(&stats);
+
     dmSocket::Initialize();
 
     dmEngine::HEngine engine = dmEngine::New();
