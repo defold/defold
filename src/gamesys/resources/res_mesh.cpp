@@ -12,8 +12,8 @@ namespace dmGameSystem
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
-        dmRender::MeshDesc* mesh_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
+        dmRenderDDF::MeshDesc* mesh_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRenderDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;

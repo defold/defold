@@ -14,36 +14,32 @@
 
 namespace dmGameSystem
 {
-    struct ModelWorld
-    {
-        dmArray<dmRender::HRenderObject> m_RenderObjects;
-        dmIndexPool32 m_ROIndices;
-    };
+    struct ModelWorld;
 
-    struct ModelUserData
+    struct ModelComponent
     {
+        dmModel::HModel m_Model;
+        dmGameObject::HInstance m_Instance;
+        dmRender::HRenderObject m_RenderObject;
         ModelWorld* m_ModelWorld;
         uint32_t m_Index;
     };
 
-    void SetObjectModel(void* context, void* gameobject, Vectormath::Aos::Quat* rotation,
-            Vectormath::Aos::Point3* position)
+    struct ModelWorld
     {
-        if (!gameobject) return;
-        dmGameObject::HInstance go = (dmGameObject::HInstance) gameobject;
-        *position = dmGameObject::GetWorldPosition(go);
-        *rotation = dmGameObject::GetWorldRotation(go);
-    }
+        dmArray<ModelComponent> m_Components;
+        dmIndexPool32 m_ComponentIndices;
+    };
 
     dmGameObject::CreateResult CompModelNewWorld(void* context, void** world)
     {
         ModelWorld* model_world = new ModelWorld();
         // TODO: How to configure?
-        const uint32_t max_render_object_count = 1024;
-        model_world->m_RenderObjects.SetCapacity(max_render_object_count);
-        model_world->m_RenderObjects.SetSize(max_render_object_count);
-        memset((void*)&model_world->m_RenderObjects[0], 0, max_render_object_count * sizeof(dmRender::HRenderObject));
-        model_world->m_ROIndices.SetCapacity(max_render_object_count);
+        const uint32_t max_component_count = 1024;
+        model_world->m_Components.SetCapacity(max_component_count);
+        model_world->m_Components.SetSize(max_component_count);
+        memset((void*)&model_world->m_Components[0], 0, max_component_count * sizeof(ModelComponent));
+        model_world->m_ComponentIndices.SetCapacity(max_component_count);
         *world = model_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -62,17 +58,19 @@ namespace dmGameSystem
                                             uintptr_t* user_data)
     {
         ModelWorld* model_world = (ModelWorld*)world;
-        if (model_world->m_ROIndices.Remaining() > 0)
+        if (model_world->m_ComponentIndices.Remaining() > 0)
         {
             dmModel::HModel prototype = (dmModel::HModel)resource;
-            dmRender::HRenderObject ro = dmRender::NewRenderObject(g_ModelRenderType, dmModel::GetMaterial(prototype), (void*)instance);
-            dmRender::SetUserData(ro, prototype);
-            uint32_t index = model_world->m_ROIndices.Pop();
-            model_world->m_RenderObjects[index] = ro;
-            ModelUserData* model_user_data = new ModelUserData();
-            model_user_data->m_ModelWorld = model_world;
-            model_user_data->m_Index = index;
-            *user_data = (uintptr_t)model_user_data;
+            uint32_t index = model_world->m_ComponentIndices.Pop();
+            dmRender::HRenderObject ro = dmRender::NewRenderObject(g_ModelRenderType, dmModel::GetMaterial(prototype));
+            ModelComponent& component = model_world->m_Components[index];
+            component.m_Instance = instance;
+            component.m_RenderObject = ro;
+            component.m_Model = prototype;
+            component.m_ModelWorld = model_world;
+            component.m_Index = index;
+            dmRender::SetUserData(ro, &component);
+            *user_data = (uintptr_t)&component;
 
             return dmGameObject::CREATE_RESULT_OK;
         }
@@ -87,10 +85,10 @@ namespace dmGameSystem
                                              uintptr_t* user_data)
     {
         ModelWorld* model_world = (ModelWorld*)world;
-        ModelUserData* model_user_data = (ModelUserData*)*user_data;
-        model_world->m_ROIndices.Push(model_user_data->m_Index);
-        dmRender::DeleteRenderObject(model_world->m_RenderObjects[model_user_data->m_Index]);
-        model_world->m_RenderObjects[model_user_data->m_Index] = dmRender::INVALID_RENDER_OBJECT_HANDLE;
+        ModelComponent* component = (ModelComponent*)*user_data;
+        component->m_RenderObject = dmRender::INVALID_RENDER_OBJECT_HANDLE;
+        model_world->m_ComponentIndices.Push(component->m_Index);
+        dmRender::DeleteRenderObject(component->m_RenderObject);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -102,10 +100,15 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         ModelWorld* model_world = (ModelWorld*)world;
-        for (uint32_t i = 0; i < model_world->m_RenderObjects.Size(); ++i)
+        for (uint32_t i = 0; i < model_world->m_Components.Size(); ++i)
         {
-            if (model_world->m_RenderObjects[i] != dmRender::INVALID_RENDER_OBJECT_HANDLE)
-                dmRender::AddToRender(render_context, model_world->m_RenderObjects[i]);
+            ModelComponent& component = model_world->m_Components[i];
+            if (component.m_RenderObject != dmRender::INVALID_RENDER_OBJECT_HANDLE)
+            {
+                Matrix4 world(dmGameObject::GetWorldRotation(component.m_Instance), Vector3(dmGameObject::GetWorldPosition(component.m_Instance)));
+                dmRender::SetWorldTransform(component.m_RenderObject, world);
+                dmRender::AddToRender(render_context, component.m_RenderObject);
+            }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -115,13 +118,27 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        if (message_data->m_MessageId == dmHashString32(dmRender::SetRenderColor::m_DDFDescriptor->m_ScriptName))
+        ModelComponent* component = (ModelComponent*)*user_data;
+        dmRender::HRenderObject ro = component->m_RenderObject;
+        if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
-            ModelUserData* model_user_data = (ModelUserData*)*user_data;
-            dmRender::HRenderObject ro = model_user_data->m_ModelWorld->m_RenderObjects[model_user_data->m_Index];
-            dmRender::SetRenderColor* ddf = (dmRender::SetRenderColor*)message_data->m_Buffer;
-            dmRender::ColorType color_type = (dmRender::ColorType)ddf->m_ColorType;
-            dmRender::SetColor(ro, ddf->m_Color, color_type);
+            dmRenderDDF::SetVertexConstant* ddf = (dmRenderDDF::SetVertexConstant*)message_data->m_Buffer;
+            dmRender::SetVertexConstant(ro, ddf->m_Register, ddf->m_Value);
+        }
+        else if (message_data->m_MessageId == dmHashString32(dmRenderDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        {
+            dmRenderDDF::ResetVertexConstant* ddf = (dmRenderDDF::ResetVertexConstant*)message_data->m_Buffer;
+            dmRender::ResetVertexConstant(ro, ddf->m_Register);
+        }
+        if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        {
+            dmRenderDDF::SetFragmentConstant* ddf = (dmRenderDDF::SetFragmentConstant*)message_data->m_Buffer;
+            dmRender::SetFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
+        }
+        if (message_data->m_MessageId == dmHashString32(dmRenderDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        {
+            dmRenderDDF::ResetFragmentConstant* ddf = (dmRenderDDF::ResetFragmentConstant*)message_data->m_Buffer;
+            dmRender::ResetFragmentConstant(ro, ddf->m_Register);
         }
         else if (message_data->m_MessageId == dmHashString32(dmRender::SetTexture::m_DDFDescriptor->m_ScriptName))
         {
@@ -153,13 +170,9 @@ namespace dmGameSystem
 
     void RenderTypeModelDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
     {
-        dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
-        Quat rotation = dmRender::GetRotation(ro);
-        Point3 position = dmRender::GetPosition(ro);
+        ModelComponent* component = (ModelComponent*)dmRender::GetUserData(ro);
 
-        dmGraphics::HMaterial material = dmModel::GetMaterial(model);
-
-        dmModel::HMesh mesh = dmModel::GetMesh(model);
+        dmModel::HMesh mesh = dmModel::GetMesh(component->m_Model);
         if (dmModel::GetPrimitiveCount(mesh) == 0)
             return;
 
@@ -170,39 +183,6 @@ namespace dmGameSystem
             dmGraphics::SetTexture(graphics_context, dmModel::GetDynamicTexture0(model));
         else
             dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
-
-        for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
-        {
-            uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
-            if (mask & (1 << i) )
-            {
-                Vector4 v = dmGraphics::GetMaterialFragmentProgramConstant(material, i);
-                dmGraphics::SetFragmentConstant(graphics_context, &v, i);
-            }
-        }
-
-        Vector4 diffuse_color = dmRender::GetColor(ro, dmRender::DIFFUSE_COLOR);
-        dmGraphics::SetFragmentConstant(graphics_context, &diffuse_color, 0);
-
-        Matrix4 m(rotation, Vector3(position));
-
-        dmGraphics::SetVertexConstantBlock(graphics_context, (const Vector4*)dmRender::GetViewProjectionMatrix(render_context), 0, 4);
-        dmGraphics::SetVertexConstantBlock(graphics_context, (const Vector4*)&m, 4, 4);
-
-        Matrix4 texturmatrix;
-        texturmatrix = Matrix4::identity();
-        dmGraphics::SetVertexConstantBlock(graphics_context, (const Vector4*)&texturmatrix, 8, 4);
-
-
-        for (uint32_t i=0; i<dmGraphics::MAX_MATERIAL_CONSTANTS; i++)
-        {
-            uint32_t mask = dmGraphics::GetMaterialVertexConstantMask(material);
-            if (mask & (1 << i) )
-            {
-                Vector4 v = dmGraphics::GetMaterialVertexProgramConstant(material, i);
-                dmGraphics::SetVertexConstantBlock(graphics_context, &v, i, 1);
-            }
-        }
 
         dmGraphics::EnableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
         dmGraphics::DrawRangeElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));

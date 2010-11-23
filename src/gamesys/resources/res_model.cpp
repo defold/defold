@@ -12,15 +12,15 @@ namespace dmGameSystem
                                       dmResource::SResourceDescriptor* resource,
                                       const char* filename)
     {
-        dmRender::ModelDesc* model_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_ModelDesc_DESCRIPTOR, (void**) &model_desc);
+        dmRenderDDF::ModelDesc* model_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRenderDDF_ModelDesc_DESCRIPTOR, (void**) &model_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
         dmModel::HMesh mesh = 0;
-        dmGraphics::HMaterial material = 0;
+        dmRender::HMaterial material = 0;
         dmGraphics::HTexture texture0 = 0;
 
         dmResource::Get(factory, model_desc->m_Mesh, (void**) &mesh);

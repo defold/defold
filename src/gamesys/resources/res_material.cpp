@@ -3,8 +3,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 
-#include <graphics/material.h>
-
+#include <render/material.h>
 #include <render/material_ddf.h>
 
 namespace dmGameSystem
@@ -15,8 +14,8 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        dmRender::MaterialDesc* material_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRender_MaterialDesc_DESCRIPTOR, (void**) &material_desc);
+        dmRenderDDF::MaterialDesc* material_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmRenderDDF_MaterialDesc_DESCRIPTOR, (void**) &material_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -40,54 +39,56 @@ namespace dmGameSystem
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        dmGraphics::HMaterial material = dmGraphics::NewMaterial();
+        dmRender::HMaterial material = dmRender::NewMaterial();
         for (uint32_t i = 0; i < material_desc->m_Tags.m_Count; ++i)
         {
-            dmGraphics::AddMaterialTag(material, dmHashString32(material_desc->m_Tags[i]));
+            dmRender::AddMaterialTag(material, dmHashString32(material_desc->m_Tags[i]));
         }
-        dmGraphics::SetMaterialVertexProgram(material, vertex_program);
-        dmGraphics::SetMaterialFragmentProgram(material, fragment_program);
+        dmRender::SetMaterialVertexProgram(material, vertex_program);
+        dmRender::SetMaterialFragmentProgram(material, fragment_program);
 
         // save pre-set fragment constants
-        if (material_desc->m_FragmentParameters.m_Count < dmGraphics::MAX_MATERIAL_CONSTANTS)
+        if (material_desc->m_FragmentConstants.m_Count < dmRender::MAX_CONSTANT_COUNT)
         {
-            for (uint32_t i=0; i<material_desc->m_FragmentParameters.m_Count; i++)
+            for (uint32_t i=0; i<material_desc->m_FragmentConstants.m_Count; i++)
             {
-                if (material_desc->m_FragmentParameters[i].m_Register >= dmGraphics::MAX_MATERIAL_CONSTANTS)
+                if (material_desc->m_FragmentConstants[i].m_Register >= dmRender::MAX_CONSTANT_COUNT)
                 {
                     dmDDF::FreeMessage((void*) material_desc);
                     dmResource::Release(factory, (void*) vertex_program);
                     dmResource::Release(factory, (void*) fragment_program);
 
-                    dmGraphics::DeleteMaterial(material);
+                    dmRender::DeleteMaterial(material);
                     return dmResource::CREATE_RESULT_CONSTANT_ERROR;
                 }
-                uint32_t reg = material_desc->m_FragmentParameters[i].m_Register;
+                uint32_t reg = material_desc->m_FragmentConstants[i].m_Register;
 
-                dmGraphics::SetMaterialFragmentProgramConstant(material, reg, material_desc->m_FragmentParameters[i].m_Value);
-                uint32_t mask = dmGraphics::GetMaterialFragmentConstantMask(material);
-                dmGraphics::SetMaterialFragmentConstantMask(material, mask | 1 << reg);
+                dmRender::SetMaterialFragmentProgramConstantType(material, reg, material_desc->m_FragmentConstants[i].m_Type);
+                dmRender::SetMaterialFragmentProgramConstant(material, reg, material_desc->m_FragmentConstants[i].m_Value);
+                uint32_t mask = dmRender::GetMaterialFragmentConstantMask(material);
+                dmRender::SetMaterialFragmentConstantMask(material, mask | 1 << reg);
             }
         }
 
         // do the same for vertex constants
-        if (material_desc->m_VertexParameters.m_Count < dmGraphics::MAX_MATERIAL_CONSTANTS)
+        if (material_desc->m_VertexConstants.m_Count < dmRender::MAX_CONSTANT_COUNT)
         {
-            for (uint32_t i=0; i<material_desc->m_VertexParameters.m_Count; i++)
+            for (uint32_t i=0; i<material_desc->m_VertexConstants.m_Count; i++)
             {
-                if (material_desc->m_VertexParameters[i].m_Register >= dmGraphics::MAX_MATERIAL_CONSTANTS)
+                if (material_desc->m_VertexConstants[i].m_Register >= dmRender::MAX_CONSTANT_COUNT)
                 {
                     dmDDF::FreeMessage((void*) material_desc);
                     dmResource::Release(factory, (void*) vertex_program);
                     dmResource::Release(factory, (void*) fragment_program);
 
-                    dmGraphics::DeleteMaterial(material);
+                    dmRender::DeleteMaterial(material);
                     return dmResource::CREATE_RESULT_CONSTANT_ERROR;
                 }
-                uint32_t reg = material_desc->m_VertexParameters[i].m_Register;
-                dmGraphics::SetMaterialVertexProgramConstant(material, reg, material_desc->m_VertexParameters[i].m_Value);
-                uint32_t mask = dmGraphics::GetMaterialVertexConstantMask(material);
-                dmGraphics::SetMaterialVertexConstantMask(material, mask | 1 << reg);
+                uint32_t reg = material_desc->m_VertexConstants[i].m_Register;
+                dmRender::SetMaterialVertexProgramConstantType(material, reg, material_desc->m_VertexConstants[i].m_Type);
+                dmRender::SetMaterialVertexProgramConstant(material, reg, material_desc->m_VertexConstants[i].m_Value);
+                uint32_t mask = dmRender::GetMaterialVertexConstantMask(material);
+                dmRender::SetMaterialVertexConstantMask(material, mask | 1 << reg);
             }
         }
 
@@ -101,12 +102,12 @@ namespace dmGameSystem
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::HMaterial material = (dmGraphics::HMaterial) resource->m_Resource;
+        dmRender::HMaterial material = (dmRender::HMaterial) resource->m_Resource;
 
         dmResource::Release(factory, (void*) GetMaterialVertexProgram(material));
         dmResource::Release(factory, (void*) GetMaterialFragmentProgram(material));
 
-        dmGraphics::DeleteMaterial(material);
+        dmRender::DeleteMaterial(material);
 
         return dmResource::CREATE_RESULT_OK;
     }

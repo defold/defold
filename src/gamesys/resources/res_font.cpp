@@ -37,7 +37,7 @@ namespace dmGameSystem
         dmStrlCat(font_path, "imagefontc", 256);
         dmRender::HImageFont image_font;
         dmResource::Get(factory, font_path, (void**) &image_font);
-        dmGraphics::HMaterial material;
+        dmRender::HMaterial material;
         dmResource::Get(factory, font_desc->m_Material, (void**) &material);
 
         if (image_font == 0 || material == 0)

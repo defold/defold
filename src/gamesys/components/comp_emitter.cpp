@@ -8,7 +8,7 @@
 #include <particle/particle.h>
 
 #include <graphics/graphics_device.h>
-#include <graphics/material.h>
+#include <render/material.h>
 
 #include "gamesys.h"
 #include "gamesys_private.h"
@@ -39,7 +39,7 @@ namespace dmGameSystem
     struct ROUserData
     {
         EmitterWorld* m_World;
-        dmGraphics::HMaterial m_Material;
+        dmRender::HMaterial m_Material;
         dmGraphics::HTexture m_Texture;
         uint32_t m_VertexCount;
         uint32_t m_VertexIndex;
@@ -116,7 +116,7 @@ namespace dmGameSystem
 
     struct SParticleRenderData
     {
-        dmGraphics::HMaterial   m_Material;
+        dmRender::HMaterial   m_Material;
         dmGraphics::HTexture    m_Texture;
         float*                  m_VertexData;
         uint32_t                m_VertexStride;
@@ -200,10 +200,10 @@ namespace dmGameSystem
     {
         EmitterWorld* world = (EmitterWorld*)context;
 
-        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_EmitterContext->m_ParticleRenderType, (dmGraphics::HMaterial)material, 0x0);
+        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_EmitterContext->m_ParticleRenderType, (dmRender::HMaterial)material);
         ROUserData* user_data = new ROUserData();
         user_data->m_World = world;
-        user_data->m_Material = (dmGraphics::HMaterial)material;
+        user_data->m_Material = (dmRender::HMaterial)material;
         user_data->m_Texture = (dmGraphics::HTexture)texture;
         user_data->m_VertexCount = vertex_count;
         user_data->m_VertexIndex = vertex_index;

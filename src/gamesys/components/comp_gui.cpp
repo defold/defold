@@ -75,7 +75,6 @@ namespace dmGameSystem
                                              void* context,
                                              uintptr_t* user_data)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         GuiWorld* gui_world = (GuiWorld*)world;
 
         GuiScenePrototype* scene_prototype = (GuiScenePrototype*) resource;
