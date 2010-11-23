@@ -288,7 +288,7 @@ namespace dmRender
         return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
-    HRenderObject NewRenderObject(uint32_t type, HMaterial material, void* visual_object)
+    HRenderObject NewRenderObject(uint32_t type, HMaterial material)
     {
         RenderObject* ro = new RenderObject;
         ro->m_WorldTransform = Matrix4::identity();
