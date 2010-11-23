@@ -122,7 +122,7 @@ def build(bld):
         test_dlib.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
 
     if 'linux' in bld.env['PLATFORM']:
-        dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+        test_dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_message.cpp',
