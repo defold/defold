@@ -51,6 +51,9 @@ def build(bld):
                             target = 'dlib_memprofile',
                             defines= 'DM_LIBMEMPROFILE')
 
+    if 'linux' in bld.env['PLATFORM']:
+        dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+
 def configure(conf):
     pass
 

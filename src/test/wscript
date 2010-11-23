@@ -121,6 +121,9 @@ def build(bld):
     if 'darwin' in bld.env['PLATFORM']:
         test_dlib.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
 
+    if 'linux' in bld.env['PLATFORM']:
+        test_dlib.env.append_value('LINKFLAGS', [ '-Wl,-export-dynamic' ])
+
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_message.cpp',
                                  uselib = 'GTEST THREAD',

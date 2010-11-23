@@ -6,7 +6,7 @@ if [ "Darwin" == $platform ]; then
 fi
 
 if [ "Linux" == $platform ]; then
-    export XLD_PRELOAD=./build/default/src/libdlib_memprofile.so
+    export LD_PRELOAD=./build/default/src/libdlib_memprofile.so
 fi
 
 ./build/default/src/test/test_memprofile dummy

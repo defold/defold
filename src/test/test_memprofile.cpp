@@ -4,10 +4,12 @@
 
 bool g_MemprofileActive = false;
 
+extern void dmMemProfileInternalData();
+
 TEST(dmMemProfile, TestMalloc)
 {
-    // We assume that the memory (actual size) allocated is == 1024
-    // Due to the aligned size of the allocation
+    // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
+    // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
@@ -17,8 +19,10 @@ TEST(dmMemProfile, TestMalloc)
     if (g_MemprofileActive)
     {
         ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(1024U, stats2.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_EQ(1024U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
+        ASSERT_LE(1028U, stats2.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
+        ASSERT_LE(1028U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
     }
 
     free(p);
@@ -28,13 +32,15 @@ TEST(dmMemProfile, TestMalloc)
     {
         ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_EQ(1024U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
+        ASSERT_LE(1028U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
     }
 }
 
 TEST(dmMemProfile, TestNewDelete1)
 {
     // We assume that the memory (actual size) allocated is sizeof(int) <= x <= 16
+    // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
@@ -65,7 +71,9 @@ TEST(dmMemProfile, TestNewDelete1)
 
 TEST(dmMemProfile, TestNewDelete2)
 {
-    // We assume that the memory (actual size) allocated is sizeof(int) <= x <= 16
+    // We assume that the memory (actual size) allocated is sizeof(int) <= x <= 12
+    // This is by inspection...
+
     dmMemProfile::Stats stats1, stats2, stats3;
     dmMemProfile::GetStats(&stats1);
     int* p = new int[1];
@@ -75,12 +83,12 @@ TEST(dmMemProfile, TestNewDelete2)
     {
         ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, sizeof(int));
-        ASSERT_LE(16U, stats2.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_LE(12U, stats2.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(16U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_LE(12U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
     }
 
-    delete p;
+    delete[] p;
     dmMemProfile::GetStats(&stats3);
 
     if (g_MemprofileActive)
@@ -88,7 +96,7 @@ TEST(dmMemProfile, TestNewDelete2)
         ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(16U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_LE(12U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
     }
 }
 

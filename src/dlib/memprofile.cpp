@@ -38,8 +38,6 @@ namespace dmMemProfile
 // Internal function
 extern "C"
 {
-dmMemProfile::InternalData dmMemProfileInternalData() __attribute__((visibility("default")));
-
 dmMemProfile::InternalData dmMemProfileInternalData()
 {
     dmMemProfile::InternalData ret;
@@ -65,6 +63,8 @@ dmMemProfile::InternalData dmMemProfileInternalData()
 
 #ifdef __MACH__
 #include <malloc/malloc.h>
+#else
+#include <malloc.h>
 #endif
 
 // Code belonging to libdlib_profile. Not part of libdlib.
