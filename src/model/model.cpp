@@ -34,8 +34,8 @@ namespace dmModel
 
         HMesh                   m_Mesh;
         dmGraphics::HMaterial   m_Material;
-        dmGraphics::HTexture    m_Texture0;
-        dmGraphics::HTexture    m_DynamicTexture0;
+        dmGraphics::HTexture    m_Texture0; //TODO: will fix this soon
+        dmGraphics::HTexture    m_DynamicTexture0; //TODO: will fix this soon
 
         bool                    m_Deleted;
     };
