@@ -20,9 +20,9 @@ TEST(dmMemProfile, TestMalloc)
     {
         ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(1028U, stats2.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028U);
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(1028U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
     }
 
     free(p);
@@ -33,13 +33,13 @@ TEST(dmMemProfile, TestMalloc)
         ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(1028U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
     }
 }
 
 TEST(dmMemProfile, TestNewDelete1)
 {
-    // We assume that the memory (actual size) allocated is sizeof(int) <= x <= 16
+    // We assume that the memory (actual size) allocated is sizeof(int) <= x <= 20
     // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
@@ -51,9 +51,9 @@ TEST(dmMemProfile, TestNewDelete1)
     {
         ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, sizeof(int));
-        ASSERT_LE(16U, stats2.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 20U);
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(16U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 20U);
     }
 
     delete p;
@@ -64,7 +64,7 @@ TEST(dmMemProfile, TestNewDelete1)
         ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(16U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 20U);
     }
 }
 
