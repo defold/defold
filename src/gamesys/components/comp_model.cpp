@@ -140,9 +140,9 @@ namespace dmGameSystem
             dmRenderDDF::ResetFragmentConstant* ddf = (dmRenderDDF::ResetFragmentConstant*)message_data->m_Buffer;
             dmRender::ResetFragmentConstant(ro, ddf->m_Register);
         }
-        else if (message_data->m_MessageId == dmHashString32(dmRender::SetTexture::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
         {
-            dmRender::SetTexture* ddf = (dmRender::SetTexture*)message_data->m_Buffer;
+            dmRenderDDF::SetTexture* ddf = (dmRenderDDF::SetTexture*)message_data->m_Buffer;
             ddf->m_TextureHash = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_TextureHash);
             uint32_t hash;
             sscanf(ddf->m_TextureHash, "%X", &hash);
@@ -151,8 +151,6 @@ namespace dmGameSystem
 
             if (rendertarget)
             {
-                ModelUserData* model_user_data = (ModelUserData*)*user_data;
-                dmRender::HRenderObject ro = model_user_data->m_ModelWorld->m_RenderObjects[model_user_data->m_Index];
                 dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
                 dmModel::SetDynamicTexture0(model, dmGraphics::GetRenderTargetTexture(rendertarget));
             }
@@ -179,10 +177,10 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
         // TODO: replace this dynamic texture thingy with proper indexing next
-        if (dmModel::GetDynamicTexture0(model))
-            dmGraphics::SetTexture(graphics_context, dmModel::GetDynamicTexture0(model));
+        if (dmModel::GetDynamicTexture0(component->m_Model))
+            dmGraphics::SetTexture(graphics_context, dmModel::GetDynamicTexture0(component->m_Model));
         else
-            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(model));
+            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(component->m_Model));
 
         dmGraphics::EnableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
         dmGraphics::DrawRangeElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
