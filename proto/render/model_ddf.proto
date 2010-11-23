@@ -1,4 +1,4 @@
-package dmRender;
+package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
@@ -15,12 +15,26 @@ message ModelDesc
     optional string Texture0 = 4;
 }
 
-
-message SetRenderColor
+message SetVertexConstant
 {
-    required dmMath.Vector4 Color = 1;
-    /* TODO: This should be the proper type Render.MaterialDesc.ParameterSemantic instead of uint32. */
-    required uint32 ColorType = 2;
+    required uint32 Register = 1;
+    required dmMath.Vector4 Value = 2;
+}
+
+message ResetVertexConstant
+{
+    required uint32 Register = 1;
+}
+
+message SetFragmentConstant
+{
+    required uint32 Register = 1;
+    required dmMath.Vector4 Value = 2;
+}
+
+message ResetFragmentConstant
+{
+    required uint32 Register = 1;
 }
 
 message SetTexture

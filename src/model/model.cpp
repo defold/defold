@@ -16,7 +16,7 @@ namespace dmModel
             memset(this, 0x0, sizeof(*this));
             m_Deleted = false;
         }
-        dmRender::MeshDesc*             m_Desc;
+        dmRenderDDF::MeshDesc*          m_Desc;
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDecl;
@@ -33,10 +33,9 @@ namespace dmModel
         }
 
         HMesh                   m_Mesh;
-        dmGraphics::HMaterial   m_Material;
         dmGraphics::HTexture    m_Texture0; //TODO: will fix this soon
         dmGraphics::HTexture    m_DynamicTexture0; //TODO: will fix this soon
-
+        dmRender::HMaterial     m_Material;
         bool                    m_Deleted;
     };
 
@@ -52,7 +51,7 @@ namespace dmModel
         delete model;
     }
 
-    HMesh NewMesh(dmRender::MeshDesc* desc)
+    HMesh NewMesh(dmRenderDDF::MeshDesc* desc)
     {
         // TODO: will be replaced when we have a proper model compiler
         struct VertexFormat
@@ -134,7 +133,7 @@ namespace dmModel
         model->m_DynamicTexture0 = texture;
     }
 
-    void SetMaterial(HModel model, dmGraphics::HMaterial material)
+    void SetMaterial(HModel model, dmRender::HMaterial material)
     {
         model->m_Material = material;
     }
@@ -154,7 +153,7 @@ namespace dmModel
         return model->m_DynamicTexture0;
     }
 
-    dmGraphics::HMaterial GetMaterial(HModel model)
+    dmRender::HMaterial GetMaterial(HModel model)
     {
         return model->m_Material;
     }

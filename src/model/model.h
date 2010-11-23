@@ -1,7 +1,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#include <graphics/material.h>
+#include "render/material.h"
 
 #include "render/mesh_ddf.h"
 
@@ -36,7 +36,7 @@ namespace dmModel
      * Create a new mesh
      * @return New mesh handle
      */
-    HMesh NewMesh(dmRender::MeshDesc* desc);
+    HMesh NewMesh(dmRenderDDF::MeshDesc* desc);
 
     /**
      * Destroy a mesh
@@ -92,7 +92,7 @@ namespace dmModel
      * @param model model
      * @param material material
      */
-    void SetMaterial(HModel model, dmGraphics::HMaterial material);
+    void SetMaterial(HModel model, dmRender::HMaterial material);
 
     /**
      * Get mesh from model
@@ -115,7 +115,7 @@ namespace dmModel
      * @param model Model
      * @return Material associated with model
      */
-    dmGraphics::HMaterial GetMaterial(HModel model);
+    dmRender::HMaterial GetMaterial(HModel model);
 
     /**
      * Get vertex buffer info from model

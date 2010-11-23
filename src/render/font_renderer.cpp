@@ -24,9 +24,9 @@ namespace dmRender
             dmGraphics::DeleteTexture(m_Texture);
         }
 
-        dmRenderDDF::ImageFont*     m_ImageFont;
-        dmGraphics::HTexture        m_Texture;
-        dmGraphics::HMaterial       m_Material;
+        dmRenderDDF::ImageFont* m_ImageFont;
+        dmGraphics::HTexture    m_Texture;
+        HMaterial               m_Material;
     };
 
     struct TextUserData
@@ -81,12 +81,12 @@ namespace dmRender
         return font->m_Texture;
     }
 
-    void SetMaterial(HFont font, dmGraphics::HMaterial material)
+    void SetMaterial(HFont font, HMaterial material)
     {
         font->m_Material = material;
     }
 
-    dmGraphics::HMaterial GetMaterial(HFont font)
+    HMaterial GetMaterial(HFont font)
     {
         return font->m_Material;
     }

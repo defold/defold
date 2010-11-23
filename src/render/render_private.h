@@ -5,9 +5,9 @@
 
 #include <dlib/array.h>
 
-#include <graphics/material.h>
+#include "material.h"
 
-#include "render/render.h"
+#include "render.h"
 
 namespace dmRender
 {
@@ -18,14 +18,16 @@ namespace dmRender
 
     struct RenderObject
     {
-        Vector4                 m_Colour[MAX_COLOR];
-        Point3                  m_Pos;
-        Quat                    m_Rot;
-        Vector3                 m_Size;
-        dmGraphics::HMaterial   m_Material;
-        void*                   m_UserData;
-        void*                   m_VisualObject;
-        uint32_t                m_Type;
+        Vector4     m_VertexConstants[MAX_CONSTANT_COUNT];
+        Vector4     m_FragmentConstants[MAX_CONSTANT_COUNT];
+        Matrix4     m_WorldTransform;
+        Matrix4     m_TextureTransform;
+        HMaterial   m_Material;
+        void*       m_UserData;
+        void*       m_VisualObject;
+        uint32_t    m_Type;
+        uint8_t     m_VertexConstantMask;
+        uint8_t     m_FragmentConstantMask;
     };
 
     enum DebugRenderType
@@ -75,8 +77,6 @@ namespace dmRender
         TextContext                 m_TextContext;
 
         dmGraphics::HContext        m_GFXContext;
-
-        SetObjectModel              m_SetObjectModel;
 
         Matrix4                     m_View;
         Matrix4                     m_Projection;

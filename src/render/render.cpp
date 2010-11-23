@@ -28,7 +28,6 @@ namespace dmRender
     RenderContextParams::RenderContextParams()
     : m_MaxRenderTypes(0)
     , m_MaxInstances(0)
-    , m_SetObjectModel(0x0)
     , m_VertexProgramData(0x0)
     , m_VertexProgramDataSize(0)
     , m_FragmentProgramData(0x0)
@@ -48,7 +47,6 @@ namespace dmRender
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
 
-        context->m_SetObjectModel = params.m_SetObjectModel;
         context->m_GFXContext = dmGraphics::GetContext();
 
         context->m_View = Vectormath::Aos::Matrix4::identity();
@@ -155,9 +153,6 @@ namespace dmRender
             }
             return RESULT_OUT_OF_RESOURCES;
         }
-
-        if (context->m_SetObjectModel && ro->m_VisualObject)
-            context->m_SetObjectModel(ro->m_VisualObject, &ro->m_Rot, &ro->m_Pos);
         context->m_RenderObjects.Push(ro);
 
         return RESULT_OK;
@@ -180,16 +175,16 @@ namespace dmRender
             return RESULT_INVALID_CONTEXT;
         uint32_t tag_mask = 0;
         if (predicate != 0x0)
-            tag_mask = dmGraphics::ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
+            tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
         uint32_t type = ~0u;
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             HRenderObject ro = render_context->m_RenderObjects[i];
-            if ((dmGraphics::GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
+            if ((GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
                 dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
-                dmGraphics::SetFragmentProgram(context, dmGraphics::GetMaterialFragmentProgram(dmRender::GetMaterial(ro)));
-                dmGraphics::SetVertexProgram(context, dmGraphics::GetMaterialVertexProgram(dmRender::GetMaterial(ro)));
+                dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(dmRender::GetMaterial(ro)));
+                dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(dmRender::GetMaterial(ro)));
 
                 void* user_context = render_context->m_RenderTypes[ro->m_Type].m_UserContext;
                 // check if we need to change render type and run its setup func
@@ -198,6 +193,75 @@ namespace dmRender
                     if (render_context->m_RenderTypes[ro->m_Type].m_BeginCallback)
                         render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context, user_context);
                     type = ro->m_Type;
+                }
+
+                uint32_t material_vertex_mask = GetMaterialVertexConstantMask(ro->m_Material);
+                uint32_t material_fragment_mask = GetMaterialFragmentConstantMask(ro->m_Material);
+                for (uint32_t j = 0; j < MAX_CONSTANT_COUNT; ++j)
+                {
+                    uint32_t mask = 1 << j;
+                    if (ro->m_VertexConstantMask & mask)
+                    {
+                        dmGraphics::SetVertexConstantBlock(context, &ro->m_VertexConstants[j], j, 1);
+                    }
+                    else if (material_vertex_mask & mask)
+                    {
+                        switch (GetMaterialVertexProgramConstantType(ro->m_Material, j))
+                        {
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+                            {
+                                Vector4 constant = GetMaterialVertexProgramConstant(ro->m_Material, j);
+                                dmGraphics::SetVertexConstantBlock(context, &constant, j, 1);
+                                break;
+                            }
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
+                            {
+                                dmGraphics::SetVertexConstantBlock(context, (Vector4*)&render_context->m_ViewProj, j, 4);
+                                break;
+                            }
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
+                            {
+                                dmGraphics::SetVertexConstantBlock(context, (Vector4*)&ro->m_WorldTransform, j, 4);
+                                break;
+                            }
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
+                            {
+                                dmGraphics::SetVertexConstantBlock(context, (Vector4*)&ro->m_TextureTransform, j, 4);
+                                break;
+                            }
+                        }
+                    }
+                    if (ro->m_FragmentConstantMask & (1 << j))
+                    {
+                        dmGraphics::SetFragmentConstant(context, &ro->m_FragmentConstants[j], j);
+                    }
+                    else if (material_fragment_mask & mask)
+                    {
+                        switch (GetMaterialFragmentProgramConstantType(ro->m_Material, j))
+                        {
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+                            {
+                                Vector4 constant = GetMaterialFragmentProgramConstant(ro->m_Material, j);
+                                dmGraphics::SetFragmentConstantBlock(context, &constant, j, 1);
+                                break;
+                            }
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
+                            {
+                                dmGraphics::SetFragmentConstantBlock(context, (Vector4*)&render_context->m_ViewProj, j, 4);
+                                break;
+                            }
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
+                            {
+                                dmGraphics::SetFragmentConstantBlock(context, (Vector4*)&ro->m_WorldTransform, j, 4);
+                                break;
+                            }
+                            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
+                            {
+                                dmGraphics::SetFragmentConstantBlock(context, (Vector4*)&ro->m_TextureTransform, j, 4);
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 // dispatch
@@ -224,11 +288,17 @@ namespace dmRender
         return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
-    HRenderObject NewRenderObject(uint32_t type, dmGraphics::HMaterial material, void* visual_object)
+    HRenderObject NewRenderObject(uint32_t type, HMaterial material, void* visual_object)
     {
         RenderObject* ro = new RenderObject;
-        ro->m_Type = type;
+        ro->m_WorldTransform = Matrix4::identity();
+        ro->m_TextureTransform = Matrix4::identity();
+        ro->m_Material = 0;
+        ro->m_UserData = 0x0;
         ro->m_VisualObject = visual_object;
+        ro->m_Type = type;
+        ro->m_VertexConstantMask = 0;
+        ro->m_FragmentConstantMask = 0;
 
         SetMaterial(ro, material);
 
@@ -238,6 +308,68 @@ namespace dmRender
     void DeleteRenderObject(HRenderObject ro)
     {
         delete ro;
+    }
+
+    void SetVertexConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    {
+        if (reg < MAX_CONSTANT_COUNT)
+        {
+            ro->m_VertexConstants[reg] = value;
+            ro->m_VertexConstantMask |= 1 << reg;
+        }
+        else
+        {
+            dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
+        }
+    }
+
+    void ResetVertexConstant(HRenderObject ro, uint32_t reg)
+    {
+        if (reg < MAX_CONSTANT_COUNT)
+            ro->m_VertexConstantMask &= ~(1 << reg);
+        else
+            dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
+    }
+
+    void SetFragmentConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    {
+        if (reg < MAX_CONSTANT_COUNT)
+        {
+            ro->m_FragmentConstants[reg] = value;
+            ro->m_FragmentConstantMask |= 1 << reg;
+        }
+        else
+        {
+            dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
+        }
+    }
+
+    void ResetFragmentConstant(HRenderObject ro, uint32_t reg)
+    {
+        if (reg < MAX_CONSTANT_COUNT)
+            ro->m_FragmentConstantMask &= ~(1 << reg);
+        else
+            dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
+    }
+
+    const Matrix4* GetWorldTransform(HRenderObject ro)
+    {
+        return &ro->m_WorldTransform;
+    }
+
+    void SetWorldTransform(HRenderObject ro, const Matrix4& world_transform)
+    {
+        ro->m_WorldTransform = world_transform;
+    }
+
+    const Matrix4* GetTextureTransform(HRenderObject ro)
+    {
+        return &ro->m_TextureTransform;
+    }
+
+    void SetTextureTransform(HRenderObject ro, const Matrix4& texture_transform)
+    {
+        ro->m_TextureTransform = texture_transform;
     }
 
     void* GetUserData(HRenderObject ro)
@@ -250,63 +382,13 @@ namespace dmRender
         ro->m_UserData = user_data;
     }
 
-    dmGraphics::HMaterial GetMaterial(HRenderObject ro)
+    HMaterial GetMaterial(HRenderObject ro)
     {
         return ro->m_Material;
     }
 
-    void SetMaterial(HRenderObject ro, dmGraphics::HMaterial material)
+    void SetMaterial(HRenderObject ro, HMaterial material)
     {
         ro->m_Material = material;
-        if (material != 0x0)
-        {
-            uint32_t reg;
-            reg = DIFFUSE_COLOR;
-            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
-            reg = EMISSIVE_COLOR;
-            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
-            reg = SPECULAR_COLOR;
-            ro->m_Colour[reg] = dmGraphics::GetMaterialFragmentProgramConstant(material, reg);
-        }
-    }
-
-    Point3 GetPosition(HRenderObject ro)
-    {
-        return ro->m_Pos;
-    }
-
-    void SetPosition(HRenderObject ro, Point3 pos)
-    {
-        ro->m_Pos = pos;
-    }
-
-    Quat GetRotation(HRenderObject ro)
-    {
-        return ro->m_Rot;
-    }
-
-    void SetRotation(HRenderObject ro, Quat rot)
-    {
-        ro->m_Rot = rot;
-    }
-
-    Vector4 GetColor(HRenderObject ro, ColorType color_type)
-    {
-        return ro->m_Colour[color_type];
-    }
-
-    void SetColor(HRenderObject ro, Vector4 color, ColorType color_type)
-    {
-        ro->m_Colour[color_type] = color;
-    }
-
-    Vector3 GetSize(HRenderObject ro)
-    {
-        return ro->m_Size;
-    }
-
-    void SetSize(HRenderObject ro, Vector3 size)
-    {
-        ro->m_Size = size;
     }
 }

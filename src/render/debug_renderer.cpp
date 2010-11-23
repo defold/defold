@@ -40,15 +40,15 @@ namespace dmRender
         if (fp_data_size > 0)
             fragment_program = dmGraphics::NewFragmentProgram(fp_data, fp_data_size);
 
-        dmGraphics::HMaterial material3d = dmGraphics::NewMaterial();
-        dmGraphics::AddMaterialTag(material3d, dmHashString32(DEBUG_3D_NAME));
-        dmGraphics::SetMaterialVertexProgram(material3d, vertex_program);
-        dmGraphics::SetMaterialFragmentProgram(material3d, fragment_program);
+        HMaterial material3d = NewMaterial();
+        AddMaterialTag(material3d, dmHashString32(DEBUG_3D_NAME));
+        SetMaterialVertexProgram(material3d, vertex_program);
+        SetMaterialFragmentProgram(material3d, fragment_program);
 
-        dmGraphics::HMaterial material2d = dmGraphics::NewMaterial();
-        dmGraphics::AddMaterialTag(material2d, dmHashString32(DEBUG_2D_NAME));
-        dmGraphics::SetMaterialVertexProgram(material2d, vertex_program);
-        dmGraphics::SetMaterialFragmentProgram(material2d, fragment_program);
+        HMaterial material2d = NewMaterial();
+        AddMaterialTag(material2d, dmHashString32(DEBUG_2D_NAME));
+        SetMaterialVertexProgram(material2d, vertex_program);
+        SetMaterialFragmentProgram(material2d, fragment_program);
 
         RenderType render_type;
         uint32_t debug_render_type;
@@ -83,18 +83,18 @@ namespace dmRender
 
     void FinalizeDebugRenderer(HRenderContext context)
     {
-        dmGraphics::HMaterial material = context->m_DebugRenderer.m_RenderObject3d[0]->m_Material;
+        HMaterial material = context->m_DebugRenderer.m_RenderObject3d[0]->m_Material;
 
-        dmGraphics::HVertexProgram vp = dmGraphics::GetMaterialVertexProgram(material);
+        dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
         if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
             dmGraphics::DeleteVertexProgram(vp);
-        dmGraphics::HFragmentProgram fp = dmGraphics::GetMaterialFragmentProgram(material);
+        dmGraphics::HFragmentProgram fp = GetMaterialFragmentProgram(material);
         if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
             dmGraphics::DeleteFragmentProgram(fp);
 
-        dmGraphics::DeleteMaterial(material);
+        DeleteMaterial(material);
         material = context->m_DebugRenderer.m_RenderObject2d[0]->m_Material;
-        dmGraphics::DeleteMaterial(material);
+        DeleteMaterial(material);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i]->m_UserData;

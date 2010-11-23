@@ -6,7 +6,8 @@
 #include <ddf/ddf.h>
 
 #include <graphics/graphics_device.h>
-#include <graphics/material.h>
+
+#include "material.h"
 
 #include "render.h"
 
@@ -61,14 +62,14 @@ namespace dmRender
      * @param font Font handle
      * @param material Material handle
      */
-    void SetMaterial(HFont font, dmGraphics::HMaterial material);
+    void SetMaterial(HFont font, HMaterial material);
 
     /**
      * Get font material
      * @param font Font handle
      * @return Material handle
      */
-    dmGraphics::HMaterial GetMaterial(HFont font);
+    HMaterial GetMaterial(HFont font);
 
     /**
      * Delete a font

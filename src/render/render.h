@@ -6,7 +6,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/container.h>
 #include <graphics/graphics_device.h>
-#include <graphics/material.h>
+
+#include "material.h"
 
 namespace dmRender
 {
@@ -18,15 +19,6 @@ namespace dmRender
         RESULT_INVALID_CONTEXT = -1,
         RESULT_OUT_OF_RESOURCES = -2,
         RESULT_BUFFER_IS_FULL = -3,
-    };
-
-    enum ColorType
-    {
-        DIFFUSE_COLOR = 0,
-        EMISSIVE_COLOR = 1,
-        SPECULAR_COLOR = 2,
-        GENERIC = 3,
-        MAX_COLOR
     };
 
     struct Predicate
@@ -54,8 +46,6 @@ namespace dmRender
         void*                   m_UserContext;
     };
 
-    typedef void (*SetObjectModel)(void* visual_object, Quat* rotation, Point3* position);
-
     struct RenderContextParams
     {
         RenderContextParams();
@@ -63,7 +53,6 @@ namespace dmRender
         uint32_t        m_MaxRenderTypes;
         uint32_t        m_MaxInstances;
         uint32_t        m_MaxRenderTargets;
-        SetObjectModel  m_SetObjectModel;
         void*           m_VertexProgramData;
         uint32_t        m_VertexProgramDataSize;
         void*           m_FragmentProgramData;
@@ -102,23 +91,21 @@ namespace dmRender
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
-    HRenderObject NewRenderObject(HRenderType render_type, dmGraphics::HMaterial material, void* visual_object);
+    HRenderObject NewRenderObject(HRenderType render_type, HMaterial material, void* visual_object);
     void DeleteRenderObject(HRenderObject ro);
-
+    void SetVertexConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetVertexConstant(HRenderObject ro, uint32_t reg);
+    void SetFragmentConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetFragmentConstant(HRenderObject ro, uint32_t reg);
+    const Matrix4* GetWorldTransform(HRenderObject ro);
+    void SetWorldTransform(HRenderObject ro, const Matrix4& world_transform);
+    const Matrix4* GetTextureTransform(HRenderObject ro);
+    void SetTextureTransform(HRenderObject ro, const Matrix4& texture_transform);
     void* GetUserData(HRenderObject ro);
     void SetUserData(HRenderObject ro, void* user_data);
 
-    dmGraphics::HMaterial GetMaterial(HRenderObject ro);
-    void SetMaterial(HRenderObject ro, dmGraphics::HMaterial material);
-
-    Point3 GetPosition(HRenderObject ro);
-    void SetPosition(HRenderObject ro, Point3 pos);
-    Quat GetRotation(HRenderObject ro);
-    void SetRotation(HRenderObject ro, Quat rot);
-    Vector4 GetColor(HRenderObject ro, ColorType color_type);
-    void SetColor(HRenderObject ro, Vector4 color, ColorType color_type);
-    Vector3 GetSize(HRenderObject ro);
-    void SetSize(HRenderObject ro, Vector3 size);
+    HMaterial GetMaterial(HRenderObject ro);
+    void SetMaterial(HRenderObject ro, HMaterial material);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
