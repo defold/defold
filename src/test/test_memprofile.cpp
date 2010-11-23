@@ -106,7 +106,11 @@ int main(int argc, char **argv)
     // We could use dmMemProfile::IsEnabled but we are testing.
     g_MemprofileActive = argc >= 2;
 
+    dmMemProfile::Initialize();
+
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmMemProfile::Finalize();
+    return ret;
 }
 

@@ -5,6 +5,22 @@
 #include "profile.h"
 #include "memprofile.h"
 
+#ifndef _MSC_VER
+
+#include <stdlib.h>
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <unistd.h>
+#include "profile.h"
+
+#ifdef __MACH__
+#include <malloc/malloc.h>
+#else
+#include <malloc.h>
+#endif
+
+#endif
+
 // Common
 namespace dmMemProfile
 {
@@ -24,6 +40,26 @@ namespace dmMemProfile
     Stats g_Stats = {0};
     bool g_IsEnabled = false;
 
+    void Initialize()
+    {
+#if defined(__MACH__) or defined(__linux__)
+        void (*init)(dmMemProfile::InternalData*) = (void (*)(dmMemProfile::InternalData*)) dlsym(RTLD_DEFAULT, "dmMemProfileInitializeLibrary");
+        if (init)
+        {
+            dmMemProfile::InternalData data;
+            data.m_Stats = &dmMemProfile::g_Stats;
+            data.m_IsEnabled = &dmMemProfile::g_IsEnabled;
+            data.m_AddCounter = dmProfile::AddCounter;
+
+            init(&data);
+        }
+#endif
+    }
+
+    void Finalize()
+    {
+    }
+
     bool IsEnabled()
     {
         return g_IsEnabled;
@@ -35,92 +71,47 @@ namespace dmMemProfile
     }
 }
 
-// Internal function
-extern "C"
-{
-dmMemProfile::InternalData dmMemProfileInternalData()
-{
-    dmMemProfile::InternalData ret;
-    ret.m_Stats = &dmMemProfile::g_Stats;
-    ret.m_IsEnabled = &dmMemProfile::g_IsEnabled;
-    ret.m_AddCounter = dmProfile::AddCounter;
-    return ret;
-}
-}
-
 #endif
 
 #ifdef DM_LIBMEMPROFILE
 
+// Code belonging to libdlib_profile. Not part of libdlib.
+
 // Not available on WIN32 - yet.
 #ifndef _MSC_VER
 
-#include <stdlib.h>
-#include <dlfcn.h>
-#include <execinfo.h>
-#include <unistd.h>
-#include "profile.h"
+namespace dmMemProfile
+{
+    void InitializeLibrary(dmMemProfile::InternalData*);
+}
 
-#ifdef __MACH__
-#include <malloc/malloc.h>
-#else
-#include <malloc.h>
-#endif
-
-// Code belonging to libdlib_profile. Not part of libdlib.
+extern "C"
+void dmMemProfileInitializeLibrary(dmMemProfile::InternalData* internal_data)
+{
+    dmMemProfile::InitializeLibrary(internal_data);
+}
 
 namespace dmMemProfile
 {
-    void __attribute__ ((constructor)) Init();
-    void __attribute__ ((destructor)) Cleanup();
+    void __attribute__ ((destructor)) FinalizeLibrary();
 
     dmMemProfileParams g_MemProfileParams;
 
     Stats* g_ExtStats = 0;
     void (*g_AddCounter)(const char*, uint32_t);
 
-    void Init(void)
+    void InitializeLibrary(dmMemProfile::InternalData* internal_data)
     {
         char buf[256];
         sprintf(buf, "dmMemProfile loaded\n");
         write(2, buf, strlen(buf));
 
-        dmInitMemProfile init = (dmInitMemProfile) dlsym(RTLD_DEFAULT, "dmInitMemProfile");
-
-        dmMemProfile::InternalData (*GetInternalData)() = (dmMemProfile::InternalData (*)()) dlsym(RTLD_DEFAULT, "dmMemProfileInternalData");
-        if (!GetInternalData)
-        {
-            sprintf(buf, "ERROR: dmMemProfileInternalData not found.\n");
-            write(2, buf, strlen(buf));
-            exit(1);
-        }
-
-        dmMemProfile::InternalData data = GetInternalData();
-        *data.m_IsEnabled = true;
-
-        g_ExtStats = data.m_Stats;
-        g_AddCounter = data.m_AddCounter;
-
-        if (init)
-        {
-            sprintf(buf, "dmInitMemProfile function found. Initializing.\n");
-            write(2, buf, strlen(buf));
-            memset(&g_MemProfileParams, 0, sizeof(g_MemProfileParams));
-            init(&g_MemProfileParams);
-            if (!g_MemProfileParams.m_BeginFrame)
-            {
-                sprintf(buf, "WARNING: dmMemProfileParams.m_BeginFrame not set.\n");
-                write(2, buf, strlen(buf));
-            }
-        }
-        else
-        {
-            sprintf(buf, "WARNING: No dmInitMemProfile function found. Frame based profiling not possible.\n");
-            write(2, buf, strlen(buf));
-        }
+        *internal_data->m_IsEnabled = true;
+        g_ExtStats = internal_data->m_Stats;
+        g_AddCounter = internal_data->m_AddCounter;
     }
 
-    void Cleanup()
+    void FinalizeLibrary()
     {
     }
 }
@@ -128,8 +119,6 @@ namespace dmMemProfile
 extern "C"
 void *malloc(size_t size)
 {
-    char buf[256];
-
     static void *(*mallocp)(size_t size) = 0;
     char *error;
 

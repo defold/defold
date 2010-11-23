@@ -15,15 +15,41 @@ struct dmMemProfileParams
 
 namespace dmMemProfile
 {
+    /**
+     * Memory statistics
+     */
     struct Stats
     {
+        /// Total memory allocated
         uint32_atomic_t m_TotalAllocated;
+
+        /// Total active memory
         uint32_atomic_t m_TotalActive;
+
+        /// Total number of allocations
         uint32_atomic_t m_AllocationCount;
     };
 
+    /**
+     * Initialize memory profiler
+     */
+    void Initialize();
+
+    /**
+     * Finalize memory profiler
+     */
+    void Finalize();
+
+    /**
+     * If memory profiling enabled
+     * @return True if enabled
+     */
     bool IsEnabled();
 
+    /**
+     * Get memory allocation statistics
+     * @param stats Pointer to memory stats struct
+     */
     void GetStats(Stats* stats);
 }
 
