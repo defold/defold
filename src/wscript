@@ -45,14 +45,15 @@ def build(bld):
                             uselib = 'PLATFORM_SOCKET')
     dlib.find_sources_in_dirs('dlib')
 
-    dlib = bld.new_task_gen(features = 'cxx cshlib',
-                            source='dlib/memprofile.cpp',
-                            includes = '.',
-                            target = 'dlib_memprofile',
-                            defines= 'DM_LIBMEMPROFILE')
+    if bld.env['PLATFORM'] != 'win32':
+        dlib = bld.new_task_gen(features = 'cxx cshlib',
+                                source='dlib/memprofile.cpp',
+                                includes = '.',
+                                target = 'dlib_memprofile',
+                                defines= 'DM_LIBMEMPROFILE')
 
-    if 'linux' in bld.env['PLATFORM']:
-        dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+        if 'linux' in bld.env['PLATFORM']:
+            dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
 
 def configure(conf):
     pass
