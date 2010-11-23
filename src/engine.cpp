@@ -675,7 +675,7 @@ bail:
         dmGameObject::RegisterDDFType(dmEngineDDF::SetTimeStep::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawText::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawLine::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRender::SetTexture::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmRenderDDF::SetTexture::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::SetVertexConstant::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::ResetVertexConstant::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::SetFragmentConstant::m_DDFDescriptor);
