@@ -109,6 +109,19 @@ def build(bld):
     test_dlib.install_path = None
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_memprofile.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_memprofile')
+
+    test_dlib.install_path = None
+
+    # In order to get accurate result from the memory profiler this is necessary
+    if 'darwin' in bld.env['PLATFORM']:
+        test_dlib.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_message.cpp',
                                  uselib = 'GTEST THREAD',
                                  uselib_local = "dlib",

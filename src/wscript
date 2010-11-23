@@ -21,6 +21,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
@@ -43,6 +44,12 @@ def build(bld):
                             defines= 'VALGRIND',
                             uselib = 'PLATFORM_SOCKET')
     dlib.find_sources_in_dirs('dlib')
+
+    dlib = bld.new_task_gen(features = 'cxx cshlib',
+                            source='dlib/memprofile.cpp',
+                            includes = '.',
+                            target = 'dlib_memprofile',
+                            defines= 'DM_LIBMEMPROFILE')
 
 def configure(conf):
     pass

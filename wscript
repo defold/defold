@@ -86,3 +86,11 @@ def shutdown():
         warn('HTTP tests not supported on Win32 yet')
 
     waf_dynamo.run_gtests(valgrind = True)
+
+    if sys.platform != 'win32':
+        import subprocess
+        proc = subprocess.Popen('./scripts/run_test_memprofile.sh', shell = True)
+        ret = proc.wait()
+        if ret != 0:
+            print("test failed test_memprofile")
+            sys.exit(ret)
