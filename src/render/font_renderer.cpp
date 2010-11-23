@@ -111,7 +111,7 @@ namespace dmRender
         text_context.m_RenderObjects.SetCapacity(max_characters/8);
         for (uint32_t i = 0; i < text_context.m_RenderObjects.Capacity(); ++i)
         {
-            HRenderObject ro = dmRender::NewRenderObject(text_context.m_TextRenderType, 0x0, 0x0);
+            HRenderObject ro = dmRender::NewRenderObject(text_context.m_TextRenderType, 0x0);
             TextUserData* text_user_data = new TextUserData();
             dmRender::SetUserData(ro, (void*)text_user_data);
             text_context.m_RenderObjects.Push(ro);

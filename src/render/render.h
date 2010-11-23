@@ -91,7 +91,7 @@ namespace dmRender
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
-    HRenderObject NewRenderObject(HRenderType render_type, HMaterial material, void* visual_object);
+    HRenderObject NewRenderObject(HRenderType render_type, HMaterial material);
     void DeleteRenderObject(HRenderObject ro);
     void SetVertexConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
     void ResetVertexConstant(HRenderObject ro, uint32_t reg);

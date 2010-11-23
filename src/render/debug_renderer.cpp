@@ -57,7 +57,7 @@ namespace dmRender
         dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            debug_renderer.m_RenderObject3d[i] = dmRender::NewRenderObject(debug_render_type, material3d, 0x0);
+            debug_renderer.m_RenderObject3d[i] = dmRender::NewRenderObject(debug_render_type, material3d);
             DebugRenderInfo* info = new DebugRenderInfo();
             info->m_RenderType = (DebugRenderType)i;
             info->m_VertexCount = 0;
@@ -68,7 +68,7 @@ namespace dmRender
         dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            debug_renderer.m_RenderObject2d[i] = dmRender::NewRenderObject(debug_render_type, material2d, 0x0);
+            debug_renderer.m_RenderObject2d[i] = dmRender::NewRenderObject(debug_render_type, material2d);
             DebugRenderInfo* info = new DebugRenderInfo();
             info->m_RenderType = (DebugRenderType)i;
             info->m_VertexCount = 0;
