@@ -10,11 +10,7 @@
 
 int main(int argc, char *argv[])
 {
-    // TODO: This is required to export the symbol dmMemProfileInternalData from dlib
-    // due to the missing flag -export-dynamic on darwin
-    // Better solution? Some flag perhaps?
-    dmMemProfile::Stats stats;
-    dmMemProfile::GetStats(&stats);
+    dmMemProfile::Initialize();
 
     dmSocket::Initialize();
 
@@ -37,6 +33,7 @@ int main(int argc, char *argv[])
 
     dmEngine::Delete(engine);
     dmSocket::Finalize();
+    dmMemProfile::Finalize();
 
     return exit_code;
 }

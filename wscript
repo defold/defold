@@ -59,7 +59,6 @@ def configure(conf):
 
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-        conf.env.append_value('LINKFLAGS', [ '-Wl,-export-dynamic' ])
 
     if platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib'])
