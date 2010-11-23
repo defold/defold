@@ -295,7 +295,6 @@ namespace dmRender
         ro->m_TextureTransform = Matrix4::identity();
         ro->m_Material = 0;
         ro->m_UserData = 0x0;
-        ro->m_VisualObject = visual_object;
         ro->m_Type = type;
         ro->m_VertexConstantMask = 0;
         ro->m_FragmentConstantMask = 0;

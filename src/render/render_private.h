@@ -24,7 +24,6 @@ namespace dmRender
         Matrix4     m_TextureTransform;
         HMaterial   m_Material;
         void*       m_UserData;
-        void*       m_VisualObject;
         uint32_t    m_Type;
         uint8_t     m_VertexConstantMask;
         uint8_t     m_FragmentConstantMask;
