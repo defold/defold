@@ -12,8 +12,7 @@
 
 #include <sound/sound.h>
 
-#include <graphics/material.h>
-
+#include <render/material.h>
 #include <render/model_ddf.h>
 
 // Windows defines DrawText
@@ -188,9 +187,7 @@ namespace dmEngine
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = 1024; // TODO: Should be configurable
-        render_params.m_MaxInstances = 1000;
         render_params.m_MaxRenderTargets = 32;
-        render_params.m_SetObjectModel = SetObjectModel;
         render_params.m_VertexProgramData = ::DEBUG_ARBVP;
         render_params.m_VertexProgramDataSize = ::DEBUG_ARBVP_SIZE;
         render_params.m_FragmentProgramData = ::DEBUG_ARBFP;
@@ -678,8 +675,11 @@ bail:
         dmGameObject::RegisterDDFType(dmEngineDDF::SetTimeStep::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawText::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawLine::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRender::SetRenderColor::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRender::SetTexture::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmRenderDDF::SetVertexConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmRenderDDF::ResetVertexConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmRenderDDF::SetFragmentConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmRenderDDF::ResetFragmentConstant::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::LoadCollection::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::UnloadCollection::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::ActivateCollection::m_DDFDescriptor);
@@ -753,13 +753,13 @@ bail:
 
         if (engine->m_DebugMaterial)
         {
-            dmGraphics::HVertexProgram debug_vp = dmGraphics::GetMaterialVertexProgram(engine->m_DebugMaterial);
+            dmGraphics::HVertexProgram debug_vp = dmRender::GetMaterialVertexProgram(engine->m_DebugMaterial);
             if (debug_vp)
                 dmGraphics::DeleteVertexProgram(debug_vp);
-            dmGraphics::HFragmentProgram debug_fp = dmGraphics::GetMaterialFragmentProgram(engine->m_DebugMaterial);
+            dmGraphics::HFragmentProgram debug_fp = dmRender::GetMaterialFragmentProgram(engine->m_DebugMaterial);
             if (debug_fp)
                 dmGraphics::DeleteFragmentProgram(debug_fp);
-            dmGraphics::DeleteMaterial(engine->m_DebugMaterial);
+            dmRender::DeleteMaterial(engine->m_DebugMaterial);
         }
 
         if (engine->m_GameInputBinding)

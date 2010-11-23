@@ -62,7 +62,7 @@ namespace dmEngine
 
         dmRender::HFont                             m_Font;
         dmRender::HFont                             m_SmallFont;
-        dmGraphics::HMaterial                       m_DebugMaterial;
+        dmRender::HMaterial                         m_DebugMaterial;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
 

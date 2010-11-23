@@ -1,10 +1,13 @@
 Name: "Opaque"
 Tags: "opaque"
 VertexProgram: "simple.vp"
+VertexConstants { Register: 0 Type: CONSTANT_TYPE_VIEWPROJ }
+VertexConstants { Register: 4 Type: CONSTANT_TYPE_WORLD }
 FragmentProgram: "simple.fp"
-FragmentParameters
+FragmentConstants
 {
     Register: 0
+    Type: CONSTANT_TYPE_USER
     Value
     {
         X: 1
