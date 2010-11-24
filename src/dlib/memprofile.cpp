@@ -11,6 +11,9 @@
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "profile.h"
 
 #ifdef __MACH__
@@ -95,10 +98,10 @@ namespace dmMemProfile
 {
     void __attribute__ ((destructor)) FinalizeLibrary();
 
-    dmMemProfileParams g_MemProfileParams;
-
     Stats* g_ExtStats = 0;
-    void (*g_AddCounter)(const char*, uint32_t);
+    void (*g_AddCounter)(const char*, uint32_t) = 0;
+
+    int g_TraceFile = -1;
 
     void InitializeLibrary(dmMemProfile::InternalData* internal_data)
     {
@@ -109,10 +112,49 @@ namespace dmMemProfile
         *internal_data->m_IsEnabled = true;
         g_ExtStats = internal_data->m_Stats;
         g_AddCounter = internal_data->m_AddCounter;
+
+        char* trace = getenv("DMMEMPROFILE_TRACE");
+        if (trace && strlen(trace) > 0 && trace[0] != '0')
+        {
+            g_TraceFile = open("memprofile.trace", O_WRONLY|O_CREAT|O_TRUNC);
+            if (g_TraceFile == -1)
+            {
+                sprintf(buf, "WARNING: Unable to open memprofile.trace\n");
+                write(2, buf, strlen(buf));
+            }
+            else
+            {
+                fchmod(g_TraceFile, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+            }
+        }
     }
 
     void FinalizeLibrary()
     {
+        if (g_TraceFile != -1)
+            close(g_TraceFile);
+    }
+
+    void DumpBacktrace(char type, void* ptr, uint32_t size)
+    {
+        if (g_TraceFile == -1)
+            return;
+
+        const int maxbt = 32;
+        void* backt[maxbt];
+        char buf[256];
+
+        int n_bt = backtrace(backt, maxbt);
+
+        sprintf(buf, "%c %p 0x%x ", type, ptr, (int32_t) size);
+        write(g_TraceFile, buf, strlen(buf));
+
+        for (int i = 0; i < n_bt; ++i)
+        {
+            sprintf(buf, "%p ", backt[i]);
+            write(g_TraceFile, buf, strlen(buf));
+        }
+        write(g_TraceFile, "\n", 1);
     }
 }
 
@@ -134,6 +176,7 @@ void *malloc(size_t size)
     }
 
     void *ptr = mallocp(size);
+
     if (ptr)
     {
         size_t usable_size = 0;
@@ -145,6 +188,8 @@ void *malloc(size_t size)
 #error "Unsupported platform"
 #endif
 
+        dmMemProfile::DumpBacktrace('M', ptr, usable_size);
+
         if (dmMemProfile::g_ExtStats)
         {
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalAllocated, (uint32_t) usable_size);
@@ -155,8 +200,194 @@ void *malloc(size_t size)
             dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
         }
     }
+    else
+    {
+        dmMemProfile::DumpBacktrace('M', 0, 0);
+    }
     return ptr;
 }
+
+#ifndef __MACH__
+extern "C"
+void *memalign(size_t alignment, size_t size)
+{
+    static void *(*memalignp)(size_t, size_t) = 0;
+    char *error;
+
+    // get address of libc malloc
+    if (!memalignp)
+    {
+        memalignp = (void* (*)(size_t, memalign)) dlsym(RTLD_NEXT, "memalign");
+        if ((error = dlerror()) != NULL)
+        {
+            write(2, error, strlen(error));
+            exit(1);
+        }
+    }
+
+    void *ptr = memalignp(alignement, size);
+
+    if (ptr)
+    {
+        size_t usable_size = 0;
+#if defined(__linux__)
+        usable_size = malloc_usable_size(ptr);
+#elif defined(__MACH__)
+        usable_size = malloc_size(ptr);
+#else
+#error "Unsupported platform"
+#endif
+
+        dmMemProfile::DumpBacktrace('M', ptr, usable_size);
+
+        if (dmMemProfile::g_ExtStats)
+        {
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalAllocated, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
+
+            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+        }
+    }
+    else
+    {
+        dmMemProfile::DumpBacktrace('M', 0, 0);
+    }
+    return ptr;
+}
+#endif
+
+extern "C"
+int posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+    static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
+    char *error;
+
+    // get address of libc malloc
+    if (!posix_memalignp)
+    {
+        posix_memalignp = (int (*)(void **, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
+        if ((error = dlerror()) != NULL)
+        {
+            write(2, error, strlen(error));
+            exit(1);
+        }
+    }
+
+    int ret = posix_memalignp(memptr, alignment, size);
+
+    if (ret == 0)
+    {
+        size_t usable_size = 0;
+#if defined(__linux__)
+        usable_size = malloc_usable_size(*memptr);
+#elif defined(__MACH__)
+        usable_size = malloc_size(*memptr);
+#else
+#error "Unsupported platform"
+#endif
+
+        dmMemProfile::DumpBacktrace('M', *memptr, usable_size);
+
+        if (dmMemProfile::g_ExtStats)
+        {
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalAllocated, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
+
+            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+        }
+    }
+    else
+    {
+        dmMemProfile::DumpBacktrace('M', 0, 0);
+    }
+    return ret;
+}
+
+extern "C"
+void *calloc(size_t count, size_t size)
+{
+    void* ptr = malloc(count * size);
+    memset(ptr, 0, count * size);
+    return ptr;
+}
+
+extern "C"
+void *realloc(void* ptr, size_t size)
+{
+    // This simplifies the code below a bit
+    if (ptr == 0)
+        return malloc(size);
+
+    static void *(*reallocp)(void*, size_t size) = 0;
+    char *error;
+
+    // get address of libc realloc
+    if (!reallocp)
+    {
+        reallocp = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
+        if ((error = dlerror()) != NULL)
+        {
+            write(2, error, strlen(error));
+            exit(1);
+        }
+    }
+
+    size_t old_usable_size = 0;
+#if defined(__linux__)
+    old_usable_size = malloc_usable_size(ptr);
+#elif defined(__MACH__)
+    old_usable_size = malloc_size(ptr);
+#else
+#error "Unsupported platform"
+#endif
+
+    void* old_ptr = ptr;
+    ptr = reallocp(ptr, size);
+    if (ptr)
+    {
+        size_t usable_size = 0;
+#if defined(__linux__)
+        usable_size = malloc_usable_size(ptr);
+#elif defined(__MACH__)
+        usable_size = malloc_size(ptr);
+#else
+#error "Unsupported platform"
+#endif
+
+        dmMemProfile::DumpBacktrace('F', old_ptr, old_usable_size);
+        dmMemProfile::DumpBacktrace('M', ptr, usable_size);
+
+        if (dmMemProfile::g_ExtStats)
+        {
+            dmAtomicSub32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) old_usable_size);
+
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalAllocated, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
+
+            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+        }
+    }
+    else
+    {
+        // Nothing happended
+    }
+    return ptr;
+}
+
+#ifdef __MACH__
+extern "C"
+void* reallocf(void *ptr, size_t size)
+{
+    free(ptr);
+    return malloc(size);
+}
+#endif
 
 void free(void *ptr)
 {
@@ -174,9 +405,7 @@ void free(void *ptr)
         }
     }
 
-    if (dmMemProfile::g_ExtStats)
-    {
-        size_t usable_size = 0;
+    size_t usable_size = 0;
 #if defined(__linux__)
         usable_size = malloc_usable_size(ptr);
 #elif defined(__MACH__)
@@ -185,9 +414,12 @@ void free(void *ptr)
 #error "Unsupported platform"
 #endif
 
+    if (dmMemProfile::g_ExtStats)
+    {
         dmAtomicSub32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
     }
 
+    dmMemProfile::DumpBacktrace('F', ptr, usable_size);
     freep(ptr);
 }
 
