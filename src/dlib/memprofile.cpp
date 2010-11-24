@@ -217,7 +217,7 @@ void *memalign(size_t alignment, size_t size)
     // get address of libc malloc
     if (!memalignp)
     {
-        memalignp = (void* (*)(size_t, memalign)) dlsym(RTLD_NEXT, "memalign");
+        memalignp = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
         if ((error = dlerror()) != NULL)
         {
             write(2, error, strlen(error));
@@ -225,7 +225,7 @@ void *memalign(size_t alignment, size_t size)
         }
     }
 
-    void *ptr = memalignp(alignement, size);
+    void *ptr = memalignp(alignment, size);
 
     if (ptr)
     {
@@ -307,11 +307,63 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
     return ret;
 }
 
+void *null_calloc(size_t /*count*/, size_t /*size*/)
+{
+    return 0;
+}
+
 extern "C"
 void *calloc(size_t count, size_t size)
 {
-    void* ptr = malloc(count * size);
-    memset(ptr, 0, count * size);
+    static void *(*callocp)(size_t, size_t) = 0;
+    char *error;
+
+    // get address of libc malloc
+    if (!callocp)
+    {
+#ifdef __linux__
+	// dlsym uses calloc. "Known" hack to return NULL for the first allocation
+	// http://code.google.com/p/chromium/issues/detail?id=28244
+	// http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
+	callocp = null_calloc;
+#endif
+        callocp = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
+        if ((error = dlerror()) != NULL)
+        {
+            write(2, error, strlen(error));
+            exit(1);
+        }
+    }
+
+    void *ptr = callocp(count, size);
+
+    if (ptr)
+    {
+        size_t usable_size = 0;
+#if defined(__linux__)
+        usable_size = malloc_usable_size(ptr);
+#elif defined(__MACH__)
+        usable_size = malloc_size(ptr);
+#else
+#error "Unsupported platform"
+#endif
+
+        dmMemProfile::DumpBacktrace('M', ptr, usable_size);
+
+        if (dmMemProfile::g_ExtStats)
+        {
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalAllocated, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
+            dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
+
+            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+        }
+    }
+    else
+    {
+        dmMemProfile::DumpBacktrace('M', 0, 0);
+    }
     return ptr;
 }
 

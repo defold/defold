@@ -1,4 +1,7 @@
 #include <stdint.h>
+#ifdef __linux__
+#include <malloc.h>
+#endif
 #include <gtest/gtest.h>
 #include "dlib/memprofile.h"
 
@@ -109,7 +112,7 @@ TEST(dmMemProfile, TestRealloc)
 #ifndef __MACH__
 TEST(dmMemProfile, TestMemAlign)
 {
-    // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
+    // We assume that the memory (actual size) allocated is 1024 <= x <= 1044
     // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
@@ -122,9 +125,9 @@ TEST(dmMemProfile, TestMemAlign)
     {
         ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028U);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1044U);
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
     }
 
     free(p);
@@ -135,7 +138,7 @@ TEST(dmMemProfile, TestMemAlign)
         ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
     }
 }
 #endif
@@ -143,7 +146,7 @@ TEST(dmMemProfile, TestMemAlign)
 
 TEST(dmMemProfile, TestPosixMemAlign)
 {
-    // We assume that the memory (actual size) allocated is 1024 <= x <= 1028
+    // We assume that the memory (actual size) allocated is 1024 <= x <= 1044
     // This is by inspection...
 
     dmMemProfile::Stats stats1, stats2, stats3;
@@ -157,9 +160,9 @@ TEST(dmMemProfile, TestPosixMemAlign)
     {
         ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028U);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1044U);
         ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
     }
 
     free(p);
@@ -170,7 +173,7 @@ TEST(dmMemProfile, TestPosixMemAlign)
         ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
         ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
         ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
     }
 }
 #endif
