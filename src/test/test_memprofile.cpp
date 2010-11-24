@@ -276,6 +276,9 @@ void func1b(std::vector<void*>& allocations)
 TEST(dmMemProfile, TestTrace1)
 {
     std::vector<void*> allocations;
+    // We don't wan't any allocations in functions above...
+    allocations.reserve(1024 * 1024);
+
     func1a(allocations);
     func1b(allocations);
 
