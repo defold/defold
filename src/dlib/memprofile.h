@@ -3,16 +3,6 @@
 
 #include "atomic.h"
 
-struct dmMemProfileParams;
-
-typedef void (*dmMemProfileBeginFrame)();
-typedef void (*dmInitMemProfile)(dmMemProfileParams* params);
-
-struct dmMemProfileParams
-{
-    dmMemProfileBeginFrame m_BeginFrame;
-};
-
 namespace dmMemProfile
 {
     /**
@@ -41,7 +31,7 @@ namespace dmMemProfile
     void Finalize();
 
     /**
-     * If memory profiling enabled
+     * Check if memory profiling enabled
      * @return True if enabled
      */
     bool IsEnabled();
