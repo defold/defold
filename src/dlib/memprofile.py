@@ -1,4 +1,4 @@
-import sys, subprocess, hashlib
+import sys, subprocess, hashlib, os
 
 class Trace(object):
     def __init__(self, type, ptr, size, back_trace, back_trace_hash):
@@ -110,6 +110,14 @@ def load(trace, executable):
     return mem_profile
 
 if __name__ == '__main__':
+    if not os.path.exists(sys.argv[1]):
+        print >>sys.stderr, 'Executable %s not found' % sys.argv[1]
+        sys.exit(5)
+
+    if not os.path.exists(sys.argv[2]):
+        print >>sys.stderr, 'Trace file %s not found' % sys.argv[2]
+        sys.exit(5)
+
     profile = load(sys.argv[2], sys.argv[1])
 
     lst = profile.summary.values()
