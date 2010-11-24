@@ -45,7 +45,11 @@ class MemProfile(object):
 
 def load_symbol_table(addresses, executable):
     symbol_table = {}
-    p = subprocess.Popen(['atos', '-o', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    if sys.platform == 'darwin':
+        p = subprocess.Popen(['atos', '-o', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    else:
+        p = subprocess.Popen(['addr2line', '-e', executable], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
     str = ''
     for s in addresses:
         str += "0x%x\n" % s

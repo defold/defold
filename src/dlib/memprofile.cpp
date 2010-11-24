@@ -137,12 +137,22 @@ namespace dmMemProfile
 
     void DumpBacktrace(char type, void* ptr, uint32_t size)
     {
+        static uint32_atomic_t call_depth = 0;
+
         if (g_TraceFile == -1)
             return;
 
+	// Avoid recurisve calls to DumpBacktrace. backtrace can allocate memory...
+	if (call_depth > 0)
+	{
+	    return;
+	}
+
+	dmAtomicAdd32(&call_depth, 1U);
+
+        char buf[256];
         const int maxbt = 32;
         void* backt[maxbt];
-        char buf[256];
 
         int n_bt = backtrace(backt, maxbt);
 
@@ -155,6 +165,8 @@ namespace dmMemProfile
             write(g_TraceFile, buf, strlen(buf));
         }
         write(g_TraceFile, "\n", 1);
+
+	dmAtomicSub32(&call_depth, 1U);
     }
 }
 
