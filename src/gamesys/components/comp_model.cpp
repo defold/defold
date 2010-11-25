@@ -146,13 +146,14 @@ namespace dmGameSystem
             ddf->m_TextureHash = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_TextureHash);
             uint32_t hash;
             sscanf(ddf->m_TextureHash, "%X", &hash);
+            uint32_t slot = ddf->m_TextureSlot;
             dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)context;
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, hash);
 
             if (rendertarget)
             {
                 dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
-                dmModel::SetDynamicTexture0(model, dmGraphics::GetRenderTargetTexture(rendertarget));
+                dmModel::SetTexture(model, dmGraphics::GetRenderTargetTexture(rendertarget), slot);
             }
             else
                 dmLogWarning("No such render target: 0x%x (%d)", hash, hash);
@@ -177,10 +178,10 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
         // TODO: replace this dynamic texture thingy with proper indexing next
-        if (dmModel::GetDynamicTexture0(component->m_Model))
-            dmGraphics::SetTexture(graphics_context, dmModel::GetDynamicTexture0(component->m_Model));
+        if (dmModel::GetTexture(component->m_Model, 8))
+            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture(component->m_Model, 8));
         else
-            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture0(component->m_Model));
+            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture(component->m_Model, 0));
 
         dmGraphics::EnableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
         dmGraphics::DrawRangeElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
