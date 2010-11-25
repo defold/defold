@@ -41,7 +41,7 @@ namespace dmGameSystem
 
         dmModel::SetMesh(model, mesh);
         dmModel::SetMaterial(model, material);
-        dmModel::SetTexture0(model, texture0);
+        dmModel::SetTexture(model, texture0, 0);
 
         resource->m_Resource = (void*) model;
         return dmResource::CREATE_RESULT_OK;
@@ -55,7 +55,7 @@ namespace dmGameSystem
 
         dmResource::Release(factory, (void*) dmModel::GetMesh(model));
         dmResource::Release(factory, (void*) dmModel::GetMaterial(model));
-        dmResource::Release(factory, (void*) dmModel::GetTexture0(model));
+        dmResource::Release(factory, (void*) dmModel::GetTexture(model, 0));
 
         dmModel::DeleteModel(model);
 
