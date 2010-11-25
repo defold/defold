@@ -40,4 +40,5 @@ message ResetFragmentConstant
 message SetTexture
 {
     required string TextureHash = 1;
+    required uint32 TextureSlot = 2;
 }

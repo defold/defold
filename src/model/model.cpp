@@ -26,6 +26,13 @@ namespace dmModel
 
     struct Model
     {
+        enum TextureSlots
+        {
+            STATIC = 0,
+            DYNAMIC = 16,
+            MAX_SLOTS = 20
+        };
+
         Model()
         {
             memset(this, 0x0, sizeof(*this));
@@ -33,9 +40,8 @@ namespace dmModel
         }
 
         HMesh                   m_Mesh;
-        dmGraphics::HTexture    m_Texture0; //TODO: will fix this soon
-        dmGraphics::HTexture    m_DynamicTexture0; //TODO: will fix this soon
         dmRender::HMaterial     m_Material;
+        dmGraphics::HTexture    m_Texture[MAX_SLOTS];
         bool                    m_Deleted;
     };
 
@@ -123,14 +129,10 @@ namespace dmModel
         model->m_Mesh = mesh;
     }
 
-    void SetTexture0(HModel model, dmGraphics::HTexture texture)
+    void SetTexture(HModel model, dmGraphics::HTexture texture, uint32_t slot)
     {
-        model->m_Texture0 = texture;
-    }
-
-    void SetDynamicTexture0(HModel model, dmGraphics::HTexture texture)
-    {
-        model->m_DynamicTexture0 = texture;
+        assert(slot < Model::MAX_SLOTS);
+        model->m_Texture[slot] = texture;
     }
 
     void SetMaterial(HModel model, dmRender::HMaterial material)
@@ -143,14 +145,10 @@ namespace dmModel
         return model->m_Mesh;
     }
 
-    dmGraphics::HTexture GetTexture0(HModel model)
+    dmGraphics::HTexture GetTexture(HModel model, uint32_t slot)
     {
-        return model->m_Texture0;
-    }
-
-    dmGraphics::HTexture GetDynamicTexture0(HModel model)
-    {
-        return model->m_DynamicTexture0;
+        assert(slot < Model::MAX_SLOTS);
+        return model->m_Texture[slot];
     }
 
     dmRender::HMaterial GetMaterial(HModel model)

@@ -1,9 +1,8 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#include "render/material.h"
-
-#include "render/mesh_ddf.h"
+#include <render/material.h>
+#include <render/mesh_ddf.h>
 
 namespace dmModel
 {
@@ -14,6 +13,7 @@ namespace dmModel
         TRIANGLES = 1,
         QUADS     = 2,
     };
+
 
     typedef struct Model* HModel;
     typedef struct Mesh* HMesh;
@@ -80,12 +80,12 @@ namespace dmModel
     void SetMesh(HModel model, HMesh mesh);
 
     /**
-     * Set model texture0
-     * @param model model
-     * @param texture texture0
+     * Set model texture
+     * @param model Model
+     * @param texture Texture
+     * @param slot Texture slot for model
      */
-    void SetTexture0(HModel model, dmGraphics::HTexture texture);
-    void SetDynamicTexture0(HModel model, dmGraphics::HTexture texture);
+    void SetTexture(HModel model, dmGraphics::HTexture texture, uint32_t slot);
 
     /**
      * Set model material
@@ -102,13 +102,12 @@ namespace dmModel
     HMesh GetMesh(HModel model);
 
     /**
-     * Get texture0 from model
+     * Get texture from model
      * @param model Model
+     * @param slot Texture slot for model
      * @return Texture0 associated with model
      */
-    dmGraphics::HTexture GetTexture0(HModel model);
-
-    dmGraphics::HTexture GetDynamicTexture0(HModel model);
+    dmGraphics::HTexture GetTexture(HModel model, uint32_t slot);
 
     /**
      * Get material from model
@@ -122,21 +121,21 @@ namespace dmModel
      * @param mesh Mesh to extract vertex buffer from
      * @return Vertex buffer
      */
-    dmGraphics::HVertexBuffer     GetVertexBuffer(HMesh mesh);
+    dmGraphics::HVertexBuffer GetVertexBuffer(HMesh mesh);
 
     /**
      * Get index buffer info from model
      * @param mesh Mesh to extract index buffer from
      * @return Index buffer
      */
-    dmGraphics::HIndexBuffer      GetIndexBuffer(HMesh mesh);
+    dmGraphics::HIndexBuffer GetIndexBuffer(HMesh mesh);
 
     /**
      * Get vertex declaration from model
      * @param mesh Mesh to extract vertex declaration from
      * @return Vertex declaration
      */
-    dmGraphics::HVertexDeclaration      GetVertexDeclarationBuffer(HMesh mesh);
+    dmGraphics::HVertexDeclaration GetVertexDeclarationBuffer(HMesh mesh);
 
 }
 
