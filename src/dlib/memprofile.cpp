@@ -142,13 +142,12 @@ namespace dmMemProfile
         if (g_TraceFile == -1)
             return;
 
-	// Avoid recurisve calls to DumpBacktrace. backtrace can allocate memory...
-	if (call_depth > 0)
-	{
-	    return;
-	}
-
-	dmAtomicAdd32(&call_depth, 1U);
+        // Avoid recurisve calls to DumpBacktrace. backtrace can allocate memory...
+        if (dmAtomicIncrement32(&call_depth) > 0)
+        {
+            dmAtomicDecrement32(&call_depth);
+            return;
+        }
 
         char buf[256];
         const int maxbt = 32;
@@ -166,7 +165,7 @@ namespace dmMemProfile
         }
         write(g_TraceFile, "\n", 1);
 
-	dmAtomicSub32(&call_depth, 1U);
+        dmAtomicDecrement32(&call_depth);
     }
 }
 
