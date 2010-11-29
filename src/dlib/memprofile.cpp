@@ -99,7 +99,7 @@ namespace dmMemProfile
 {
     void __attribute__ ((destructor)) FinalizeLibrary();
 
-    pthread_mutex_t g_Mutex;
+    pthread_mutex_t* g_Mutex = 0;
     Stats* g_ExtStats = 0;
     void (*g_AddCounter)(const char*, uint32_t) = 0;
 
@@ -117,7 +117,8 @@ namespace dmMemProfile
         ret = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         assert(ret == 0);
 
-        ret = pthread_mutex_init(&g_Mutex, &attr);
+        g_Mutex = new pthread_mutex_t;
+        ret = pthread_mutex_init(g_Mutex, &attr);
         assert(ret == 0);
         ret = pthread_mutexattr_destroy(&attr);
         assert(ret == 0);
@@ -145,32 +146,35 @@ namespace dmMemProfile
     void FinalizeLibrary()
     {
         int ret;
-        ret = pthread_mutex_lock(&dmMemProfile::g_Mutex);
+        ret = pthread_mutex_lock(dmMemProfile::g_Mutex);
         assert(ret == 0);
 
         if (g_TraceFile != -1)
             close(g_TraceFile);
         g_TraceFile = -1;
 
-        ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
+        ret = pthread_mutex_unlock(dmMemProfile::g_Mutex);
         assert(ret == 0);
-	// NOTE: We don't destory the mutex here. DumpBacktrace can run *after* FinalizeLibrary
-	// We leak a mutex delibrity here
+        // NOTE: We don't destory the mutex here. DumpBacktrace can run *after* FinalizeLibrary
+        // We leak a mutex delibrity here
     }
 
     void DumpBacktrace(char type, void* ptr, uint32_t size)
     {
         static uint32_atomic_t call_depth = 0;
 
-        int ret = pthread_mutex_lock(&dmMemProfile::g_Mutex);
+        if (!dmMemProfile::g_Mutex)
+            return;
+
+        int ret = pthread_mutex_lock(dmMemProfile::g_Mutex);
         assert(ret == 0);
 
         if (g_TraceFile == -1)
-	{
-	    ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
-	    assert(ret == 0);
+        {
+            ret = pthread_mutex_unlock(dmMemProfile::g_Mutex);
+            assert(ret == 0);
             return;
-	}
+        }
 
         // Avoid recursive calls to DumpBacktrace. backtrace can allocate memory...
         if (dmAtomicIncrement32(&call_depth) > 0)
@@ -196,7 +200,7 @@ namespace dmMemProfile
         write(g_TraceFile, "\n", 1);
 
         dmAtomicDecrement32(&call_depth);
-        ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
+        ret = pthread_mutex_unlock(dmMemProfile::g_Mutex);
         assert(ret == 0);
     }
 }
