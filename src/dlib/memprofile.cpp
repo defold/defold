@@ -154,31 +154,30 @@ namespace dmMemProfile
 
         ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
         assert(ret == 0);
-
-        ret = pthread_mutex_destroy(&g_Mutex);
-        assert(ret == 0);
+	// NOTE: We don't destory the mutex here. DumpBacktrace can run *after* FinalizeLibrary
+	// We leak a mutex delibrity here
     }
 
     void DumpBacktrace(char type, void* ptr, uint32_t size)
     {
         static uint32_atomic_t call_depth = 0;
 
-        // NOTE: dmMemProfile::g_Mutex could be destroyed at this point
-        // Checking g_TraceFile == -1 is not entirely correct. We could perhaps have race conditions here.
-        // if threads are running during shutdown. The assert below will probably trigger though.
-        if (g_TraceFile == -1)
-            return;
-
         int ret = pthread_mutex_lock(&dmMemProfile::g_Mutex);
         assert(ret == 0);
 
-        // Avoid recurisve calls to DumpBacktrace. backtrace can allocate memory...
+        if (g_TraceFile == -1)
+	{
+	    ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
+	    assert(ret == 0);
+            return;
+	}
+
+        // Avoid recursive calls to DumpBacktrace. backtrace can allocate memory...
         if (dmAtomicIncrement32(&call_depth) > 0)
         {
             dmAtomicDecrement32(&call_depth);
             return;
         }
-
 
         char buf[256];
         const int maxbt = 32;
