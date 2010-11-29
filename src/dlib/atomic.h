@@ -36,7 +36,7 @@ inline uint32_t dmAtomicIncrement32(uint32_atomic_t* ptr)
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedIncrementAcquire((volatile long*) ptr)-1;
+	return (uint32_t) InterlockedIncrement((volatile long*) ptr)-1;
 #else
 	return (uint32_t) __sync_fetch_and_add((volatile long*) ptr, 1);
 #endif
@@ -60,7 +60,7 @@ inline uint32_t dmAtomicDecrement32(uint32_atomic_t* ptr)
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedDecrementAcquire((volatile long*) ptr)+1;
+	return (uint32_t) InterlockedDecrement((volatile long*) ptr)+1;
 #else
 	return (uint32_t) __sync_fetch_and_sub((volatile long*) ptr, 1);
 #endif
@@ -85,7 +85,7 @@ inline uint32_t dmAtomicAdd32(uint32_atomic_t *ptr, uint32_t value)
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchangeAddAcquire((volatile long*) ptr, (long) value);
+	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, (long) value);
 #else
 	return (uint32_t) __sync_fetch_and_add((volatile long*) ptr, (long) value);
 #endif
@@ -110,7 +110,7 @@ inline uint32_t dmAtomicSub32(uint32_atomic_t *ptr, uint32_t value)
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchangeAddAcquire((volatile long*) ptr, -((long)value));
+	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, -((long)value));
 #else
 	return (uint32_t) __sync_fetch_and_sub((volatile long*) ptr, (long) value);
 #endif
