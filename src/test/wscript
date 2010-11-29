@@ -211,4 +211,12 @@ def build(bld):
 
     test_embed.install_path = None
 
+    test_atomic = bld.new_task_gen(features = 'cxx cprogram',
+                                   source = 'test_atomic.cpp',
+                                   uselib = 'GTEST THREAD',
+                                   uselib_local = "dlib",
+                                   includes = ['../../src'],
+                                   target = 'test_atomic')
+
+    test_atomic.install_path = None
 

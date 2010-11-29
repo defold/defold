@@ -19,61 +19,59 @@
 typedef volatile uint32_t uint32_atomic_t;
 
 /**
- * @fn dmAtomicIncrement32
+ * dmAtomicIncrement32
  * Atomic increment of a uint32_atomic_t.
- * @ptr Pointer to a uint32_atomic_t to increment.
- * @return Result of increment.
+ * @param ptr Pointer to a uint32_atomic_t to increment.
+ * @return Previous value
  */
 inline uint32_t dmAtomicIncrement32(uint32_atomic_t* ptr)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
 	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32_t result = (uint32_t) cellAtomicIncr32(tmp, (unsigned long *) ptr)+1;
+	uint32_t result = (uint32_t) cellAtomicIncr32(tmp, (unsigned long *) ptr);
 #else
-	uint32_t result = (uint32_t) cellAtomicIncr32((unsigned long *) ptr)+1;
+	uint32_t result = (uint32_t) cellAtomicIncr32((unsigned long *) ptr);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedIncrementAcquire((volatile long*) ptr);
+	return (uint32_t) InterlockedIncrementAcquire((volatile long*) ptr)-1;
 #else
-	return (uint32_t) __sync_add_and_fetch((volatile long*) ptr, 1);
+	return (uint32_t) __sync_fetch_and_add((volatile long*) ptr, 1);
 #endif
 }
 
-
 /**
- * @fn dmAtomicDecrement32
+ * dmAtomicDecrement32
  * Atomic decrement of a uint32_atomic_t.
- * @ptr Pointer to a uint32_atomic_t to decrement.
- * @return Result of decrement.
+ * @param ptr Pointer to a uint32_atomic_t to decrement.
+ * @return Previous value
  */
 inline uint32_t dmAtomicDecrement32(uint32_atomic_t* ptr)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
 	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32_t result = (uint32_t) cellAtomicDecr32(tmp, (unsigned long *) ptr)-1;
+	uint32_t result = (uint32_t) cellAtomicDecr32(tmp, (unsigned long *) ptr);
 #else
-	uint32_t result = (uint32_t) cellAtomicDecr32((unsigned long *) ptr)-1;
+	uint32_t result = (uint32_t) cellAtomicDecr32((unsigned long *) ptr);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedDecrementAcquire((volatile long*) ptr);
+	return (uint32_t) InterlockedDecrementAcquire((volatile long*) ptr)+1;
 #else
-	return (uint32_t) __sync_sub_and_fetch((volatile long*) ptr, 1);
+	return (uint32_t) __sync_fetch_and_sub((volatile long*) ptr, 1);
 #endif
 }
-
 
 /**
  * @fn dmAtomicAdd32
  * Atomic addition of a uint32_atomic_t.
- * @ptr Pointer to a uint32_atomic_t to add.
- * @value Value to add.
- * @return Previous value.
+ * @param ptr Pointer to a uint32_atomic_t to add.
+ * @param value Value to add.
+ * @return Previous value
  */
 inline uint32_t dmAtomicAdd32(uint32_atomic_t *ptr, uint32_t value)
 {
@@ -87,19 +85,18 @@ inline uint32_t dmAtomicAdd32(uint32_atomic_t *ptr, uint32_t value)
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, (long) value);
+	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, (long) value)-value;
 #else
 	return (uint32_t) __sync_fetch_and_add((volatile long*) ptr, (long) value);
 #endif
 }
-
 
 /**
  * @fn dmAtomicSub32
  * Atomic subtraction of a uint32_atomic_t.
  * @ptr Pointer to a uint32_atomic_t to subtract.
  * @value Value to subtract.
- * @return Previous value.
+ * @return Previous value
  */
 inline uint32_t dmAtomicSub32(uint32_atomic_t *ptr, uint32_t value)
 {
@@ -113,12 +110,11 @@ inline uint32_t dmAtomicSub32(uint32_atomic_t *ptr, uint32_t value)
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, -((long)value));
+	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, -((long)value)) + value;
 #else
 	return (uint32_t) __sync_fetch_and_sub((volatile long*) ptr, (long) value);
 #endif
 }
-
 
 /**
  * @fn dmAtomicStore32
@@ -145,14 +141,13 @@ inline uint32_t dmAtomicStore32(uint32_atomic_t *ptr, uint32_t value)
 #endif
 }
 
-
 /**
  * @fn dmAtomicCompareStore32
- * Atomic exchange of a uint32_atomic_t if comperand is equal to (destination) address.
+ * Atomic exchange of a uint32_atomic_t if comparand is equal to the value of #ptr
  * @ptr Pointer to a uint32_atomic_t to store into.
  * @value Value to store.
  * @comperand Value to compare to.
- * @return Previous value.
+ * @return Previous value
  */
 inline uint32_t dmAtomicCompareStore32(uint32_atomic_t *ptr, uint32_t value, uint32_t comperand)
 {
@@ -168,7 +163,7 @@ inline uint32_t dmAtomicCompareStore32(uint32_atomic_t *ptr, uint32_t value, uin
 #elif defined(_MSC_VER)
 	return (uint32_t) InterlockedCompareExchange((volatile long*) ptr, (long) value, (long) comperand);
 #else
-	return (uint32_t) __sync_lock_test_and_set((volatile long*) ptr, comperand, value);
+	return (uint32_t) __sync_val_compare_and_swap((volatile long*) ptr, comperand, value);
 #endif
 }
 
