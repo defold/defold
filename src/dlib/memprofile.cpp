@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include "profile.h"
 
 #ifdef __MACH__
@@ -98,6 +99,7 @@ namespace dmMemProfile
 {
     void __attribute__ ((destructor)) FinalizeLibrary();
 
+    pthread_mutex_t g_Mutex;
     Stats* g_ExtStats = 0;
     void (*g_AddCounter)(const char*, uint32_t) = 0;
 
@@ -108,6 +110,17 @@ namespace dmMemProfile
         char buf[256];
         sprintf(buf, "dmMemProfile loaded\n");
         write(2, buf, strlen(buf));
+
+        pthread_mutexattr_t attr;
+        int ret = pthread_mutexattr_init(&attr);
+        assert(ret == 0);
+        ret = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        assert(ret == 0);
+
+        ret = pthread_mutex_init(&g_Mutex, &attr);
+        assert(ret == 0);
+        ret = pthread_mutexattr_destroy(&attr);
+        assert(ret == 0);
 
         *internal_data->m_IsEnabled = true;
         g_ExtStats = internal_data->m_Stats;
@@ -131,16 +144,33 @@ namespace dmMemProfile
 
     void FinalizeLibrary()
     {
+        int ret;
+        ret = pthread_mutex_lock(&dmMemProfile::g_Mutex);
+        assert(ret == 0);
+
         if (g_TraceFile != -1)
             close(g_TraceFile);
+        g_TraceFile = -1;
+
+        ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
+        assert(ret == 0);
+
+        ret = pthread_mutex_destroy(&g_Mutex);
+        assert(ret == 0);
     }
 
     void DumpBacktrace(char type, void* ptr, uint32_t size)
     {
         static uint32_atomic_t call_depth = 0;
 
+        // NOTE: dmMemProfile::g_Mutex could be destroyed at this point
+        // Checking g_TraceFile == -1 is not entirely correct. We could perhaps have race conditions here.
+        // if threads are running during shutdown. The assert below will probably trigger though.
         if (g_TraceFile == -1)
             return;
+
+        int ret = pthread_mutex_lock(&dmMemProfile::g_Mutex);
+        assert(ret == 0);
 
         // Avoid recurisve calls to DumpBacktrace. backtrace can allocate memory...
         if (dmAtomicIncrement32(&call_depth) > 0)
@@ -148,6 +178,7 @@ namespace dmMemProfile
             dmAtomicDecrement32(&call_depth);
             return;
         }
+
 
         char buf[256];
         const int maxbt = 32;
@@ -166,6 +197,8 @@ namespace dmMemProfile
         write(g_TraceFile, "\n", 1);
 
         dmAtomicDecrement32(&call_depth);
+        ret = pthread_mutex_unlock(&dmMemProfile::g_Mutex);
+        assert(ret == 0);
     }
 }
 
