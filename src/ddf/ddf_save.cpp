@@ -92,7 +92,9 @@ namespace dmDDF
                         break;
 
                     case TYPE_STRING:
-                        DDF_SAVEMESSAGE_CASE(const char*, WIRETYPE_LENGTH_DELIMITED, WriteString)
+                        // Do not write null-strings. Will result in null-pointer error in WriteString
+                        if (*((const char**) data))
+                            DDF_SAVEMESSAGE_CASE(const char*, WIRETYPE_LENGTH_DELIMITED, WriteString)
 
                     case TYPE_GROUP:
                         assert(false);
