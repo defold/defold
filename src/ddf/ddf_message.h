@@ -16,9 +16,9 @@ namespace dmDDF
         Message(const Descriptor* message_descriptor, char* buffer, uint32_t buffer_size, bool dry_run);
 
         Result ReadField(LoadContext* load_context,
-                           WireType wire_type,
-                           const FieldDescriptor* field,
-                           InputBuffer* input_buffer);
+                         WireType wire_type,
+                         const FieldDescriptor* field,
+                         InputBuffer* input_buffer);
 
         void     SetScalar(const FieldDescriptor* field, const void* buffer, int buffer_size);
         void*    AddScalar(const FieldDescriptor* field, const void* buffer, int buffer_size);
@@ -28,6 +28,8 @@ namespace dmDDF
         void     SetString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     AddString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     SetBytes(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
+
+        Message  SubMessage(const FieldDescriptor* field);
 
     private:
         Result ReadScalarField(LoadContext* load_context,
@@ -50,11 +52,11 @@ namespace dmDDF
                                 const FieldDescriptor* field,
                                 InputBuffer* input_buffer);
 
-        const Descriptor* m_MessageDescriptor;
+        const Descriptor*     m_MessageDescriptor;
         char*                 m_Start;
         char*                 m_End;
         bool                  m_DryRun;
     };
 }
 
-#endif // DDF_MESSAGE_H 
+#endif // DDF_MESSAGE_H

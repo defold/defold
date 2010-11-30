@@ -56,6 +56,51 @@ namespace dmDDF
         }
     }
 
+    static void DoLoadDefaultMessage(LoadContext* load_context, const Descriptor* desc, Message* message);
+
+    static void DoLoadDefaultField(LoadContext* load_context, const FieldDescriptor* f, Message* message)
+    {
+        if (f->m_Label == LABEL_REPEATED)
+        {
+            // Nothing to read default
+        }
+        else if (f->m_Label == LABEL_REQUIRED)
+        {
+            // Try to load default but the field is required. Invalid definition
+            dmLogWarning("Invalid message type. Required field (%s) in an optional message.", f->m_Name);
+        }
+        else if (f->m_Label == LABEL_OPTIONAL)
+        {
+            if (f->m_Type == TYPE_STRING && f->m_DefaultValue)
+            {
+                message->SetString(load_context, f, f->m_DefaultValue, strlen(f->m_DefaultValue));
+            }
+            else if (f->m_Type == TYPE_BYTES && f->m_DefaultValue)
+            {
+                dmLogWarning("Default values for 'bytes' is not supported");
+            }
+            else if (f->m_Type == TYPE_MESSAGE)
+            {
+                Message sub_message = message->SubMessage(f);
+                DoLoadDefaultMessage(load_context, f->m_MessageDescriptor, &sub_message);
+            }
+            else if (f->m_DefaultValue)
+            {
+                // Assume scalar type
+                message->SetScalar(f, f->m_DefaultValue, ScalarTypeSize(f->m_Type));
+            }
+        }
+    }
+
+    static void DoLoadDefaultMessage(LoadContext* load_context, const Descriptor* desc, Message* message)
+    {
+        for (int i = 0; i < desc->m_FieldCount; ++i)
+        {
+            const FieldDescriptor* f = &desc->m_Fields[i];
+            DoLoadDefaultField(load_context, f, message);
+        }
+    }
+
     Result DoLoadMessage(LoadContext* load_context, InputBuffer* input_buffer,
                          const Descriptor* desc, Message* message)
     {
@@ -124,8 +169,13 @@ namespace dmDDF
             const FieldDescriptor* f = &desc->m_Fields[i];
             if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
             {
+                // Required but not read
                 dmLogWarning("Missing required field %s.%s", desc->m_Name, f->m_Name);
                 return RESULT_MISSING_REQUIRED;
+            }
+            else if (f->m_Label == LABEL_OPTIONAL && read_fields[i] == 0)
+            {
+                DoLoadDefaultField(load_context, f, message);
             }
         }
 

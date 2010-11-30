@@ -2,7 +2,7 @@
 
 from optparse import OptionParser
 
-import sys, os
+import sys, os, struct
 if sys.platform == 'win32':
     import msvcrt
     msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
@@ -100,6 +100,25 @@ type_to_size = { FieldDescriptor.TYPE_DOUBLE : 8,
                  FieldDescriptor.TYPE_SINT32 : 4,
                  FieldDescriptor.TYPE_SINT64 : 8 }
 
+type_to_struct_format = { FieldDescriptor.TYPE_DOUBLE : ("d", float),
+                          FieldDescriptor.TYPE_FLOAT : ("f", float),
+                          FieldDescriptor.TYPE_INT64 : ("q", int),
+                          FieldDescriptor.TYPE_UINT64 : ("Q", int),
+                          FieldDescriptor.TYPE_INT32 : ("i", int),
+#                         FieldDescriptor.TYPE_FIXED64
+#                         FieldDescriptor.TYPE_FIXED32
+#                         FieldDescriptor.TYPE_BOOL : "bool",
+#                         FieldDescriptor.TYPE_STRING  NOTE: String is a special case
+#                         FieldDescriptor.TYPE_GROUP
+#                         FieldDescriptor.TYPE_MESSAGE
+#                         FieldDescriptor.TYPE_BYTES
+                          FieldDescriptor.TYPE_UINT32 : ("I", int),
+#                         FieldDescriptor.TYPE_ENUM
+#                         FieldDescriptor.TYPE_SFIXED32
+#                         FieldDescriptor.TYPE_SFIXED64
+                          FieldDescriptor.TYPE_SINT32 : ("i", int),
+                          FieldDescriptor.TYPE_SINT64 : ("q", int) }
+
 class PrettyPrinter(object):
     def __init__(self, stream, initial_indent = 0):
         self.Stream = stream
@@ -139,7 +158,7 @@ def DotToNamespace(str):
     return str.replace(".", "::")
 
 def ToCStruct(context, pp, message_type):
-    # Calculate maximum lenght of "type"
+    # Calculate maximum length of "type"
     max_len = 0
     for f in message_type.field:
         if f.label == FieldDescriptor.LABEL_REPEATED:
@@ -215,6 +234,18 @@ def ToScriptName(name):
         script_name += name[i:i+1].lower()
     return script_name
 
+def ToDefaultValueString(f):
+    if len(f.default_value) == 0:
+        return '0x0'
+    else:
+        if f.type == FieldDescriptor.TYPE_STRING:
+            return '"%s\\x00"' % ''.join(map(lambda x: '\\x%02x' % ord(x), f.default_value))
+        else:
+            form, func = type_to_struct_format[f.type]
+            # Store in little endian
+            tmp = struct.pack('<' + form, func(f.default_value))
+            return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
+
 def ToDescriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
 
@@ -236,12 +267,14 @@ def ToDescriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         tpl += ("DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, f.name), )
 
+        tpl += (ToDefaultValueString(f),)
+
         lst.append(tpl)
 
     pp_cpp.Begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
 
-    for name, number, type, label, msg_desc, offset in lst:
-        pp_cpp.Print('{ "%s", "%s", %d, %d, %d, %s, %s },'  % (name, ToScriptName(name), number, type, label, msg_desc, offset))
+    for name, number, type, label, msg_desc, offset, default_value in lst:
+        pp_cpp.Print('{ "%s", "%s", %d, %d, %d, %s, %s, %s},'  % (name, ToScriptName(name), number, type, label, msg_desc, offset, default_value))
 
     pp_cpp.End()
 

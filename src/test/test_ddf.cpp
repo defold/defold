@@ -597,6 +597,72 @@ TEST(TestStructAlias, LoadSave)
     dmDDF::FreeMessage(message);
 }
 
+TEST(TestDefault, LoadSave)
+{
+    TestDDF::TestDefault defaulto;
+
+    std::string msg_str = defaulto.SerializeAsString();
+
+    const char* msg_buf = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+    DUMMY::TestDDF::TestDefault* message;
+
+    dmDDF::Result e = dmDDF::LoadMessage<DUMMY::TestDDF::TestDefault>((void*) msg_buf, msg_buf_size, &message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(10.0f, defaulto.float_());
+    ASSERT_EQ(20.0f, defaulto.double_());
+    ASSERT_EQ(-1122, defaulto.int32());
+    ASSERT_EQ(1234U, defaulto.uint32());
+    ASSERT_EQ(-5678, defaulto.int64());
+    ASSERT_EQ(5566U, defaulto.uint64());
+    ASSERT_STREQ("a default value", defaulto.string().c_str());
+    ASSERT_STREQ("", defaulto.nondefaultstring().c_str());
+    ASSERT_EQ(0U, defaulto.nondefaultuint64());
+    ASSERT_EQ(0.0f, defaulto.quat().x());
+    ASSERT_EQ(0.0f, defaulto.quat().y());
+    ASSERT_EQ(0.0f, defaulto.quat().z());
+    ASSERT_EQ(1.0f, defaulto.quat().w());
+
+    ASSERT_EQ(0.0f, defaulto.submessage().quat().x());
+    ASSERT_EQ(0.0f, defaulto.submessage().quat().y());
+    ASSERT_EQ(0.0f, defaulto.submessage().quat().z());
+    ASSERT_EQ(1.0f, defaulto.submessage().quat().w());
+
+
+    ASSERT_EQ(defaulto.float_(), message->m_Float);
+    ASSERT_EQ(defaulto.double_(), message->m_Double);
+    ASSERT_EQ(defaulto.int32(), message->m_Int32);
+    ASSERT_EQ(defaulto.uint32(), message->m_Uint32);
+    ASSERT_EQ(defaulto.int64(), message->m_Int64);
+    ASSERT_EQ(defaulto.uint64(), message->m_Uint64);
+    ASSERT_STREQ(defaulto.string().c_str(), message->m_String);
+
+    //NOTE: We store non-defined strings as NULL and not ""
+    //We might change this in the future
+    ASSERT_EQ(0U, message->m_NonDefaultString);
+    //See comment just above why this isn't active
+    //ASSERT_STREQ(defaulto.nondefaultstring().c_str(), message->m_NonDefaultString);
+
+    ASSERT_EQ(defaulto.nondefaultuint64(), message->m_NonDefaultUint64);
+
+    ASSERT_EQ(defaulto.submessage().quat().x(), message->m_SubMessage.m_quat.m_x);
+    ASSERT_EQ(defaulto.submessage().quat().y(), message->m_SubMessage.m_quat.m_y);
+    ASSERT_EQ(defaulto.submessage().quat().z(), message->m_SubMessage.m_quat.m_z);
+    ASSERT_EQ(defaulto.submessage().quat().w(), message->m_SubMessage.m_quat.m_w);
+
+    ASSERT_EQ(defaulto.quat().x(), message->m_quat.m_x);
+
+    std::string msg_str2;
+    e = DDFSaveToString(message, DUMMY::TestDDF::TestDefault::m_DDFDescriptor, msg_str2);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    //NOTE: We can't compare here. We store every value, ie also optional values that have value identical to the default
+    //This might change in the future
+    //EXPECT_EQ(msg_str, msg_str2);
+
+    dmDDF::FreeMessage(message);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

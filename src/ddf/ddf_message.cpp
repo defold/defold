@@ -125,7 +125,7 @@ namespace dmDDF
             return RESULT_WIRE_FORMAT_ERROR;
         }
     }
-    
+
     Result Message::ReadMessageField(LoadContext* load_context,
                                            WireType wire_type,
                                            const FieldDescriptor* field,
@@ -145,7 +145,7 @@ namespace dmDDF
         }
 
         char* msg_buf = 0;
-        if (field->m_Label == LABEL_REPEATED) 
+        if (field->m_Label == LABEL_REPEATED)
         {
             msg_buf = (char*) AddMessage(field);
         }
@@ -162,6 +162,26 @@ namespace dmDDF
         }
 
         return DoLoadMessage(load_context, &sub_buffer, field->m_MessageDescriptor, &message);
+    }
+
+    Message Message::SubMessage(const FieldDescriptor* field)
+    {
+        assert(field->m_MessageDescriptor != 0);
+
+#ifndef NDEBUG
+        bool found = false;
+        for (uint32_t i = 0; i < m_MessageDescriptor->m_FieldCount; ++i)
+        {
+            if (&m_MessageDescriptor->m_Fields[i] == field)
+            {
+                found = true;
+                break;
+            }
+        }
+        assert(found);
+#endif
+        char* msg_buf = &m_Start[field->m_Offset];
+        return Message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
     }
 
     Result Message::ReadField(LoadContext* load_context,

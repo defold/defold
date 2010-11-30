@@ -35,6 +35,7 @@ namespace dmDDF
         uint32_t    m_Label : 4;
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
+        const char* m_DefaultValue;
     };
 
     struct Descriptor
