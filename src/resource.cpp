@@ -560,6 +560,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
     }
     else
     {
+        dmLogWarning("Unable to load resource: '%s'. Missing file extension.", name);
         return FACTORY_RESULT_MISSING_FILE_EXTENSION;
     }
 }
