@@ -70,17 +70,17 @@ union magic {
 };
 #endif
 
-inline ogg_int32_t MULT32(ogg_int32_t x, ogg_int32_t y) {
+static inline ogg_int32_t MULT32(ogg_int32_t x, ogg_int32_t y) {
   union magic magic;
   magic.whole = (ogg_int64_t)x * y;
   return magic.halves.hi;
 }
 
-inline ogg_int32_t MULT31(ogg_int32_t x, ogg_int32_t y) {
+static inline ogg_int32_t MULT31(ogg_int32_t x, ogg_int32_t y) {
   return MULT32(x,y)<<1;
 }
 
-inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
+static inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
   union magic magic;
   magic.whole  = (ogg_int64_t)x * y;
   return ((ogg_uint32_t)(magic.halves.lo)>>15) | ((magic.halves.hi)<<17);
@@ -102,15 +102,15 @@ inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
  * tables in this case.
  */
 
-inline ogg_int32_t MULT32(ogg_int32_t x, ogg_int32_t y) {
+static inline ogg_int32_t MULT32(ogg_int32_t x, ogg_int32_t y) {
   return (x >> 9) * y;  /* y preshifted >>23 */
 }
 
-inline ogg_int32_t MULT31(ogg_int32_t x, ogg_int32_t y) {
+static inline ogg_int32_t MULT31(ogg_int32_t x, ogg_int32_t y) {
   return (x >> 8) * y;  /* y preshifted >>23 */
 }
 
-inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
+static inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
   return (x >> 6) * y;  /* y preshifted >>9 */
 }
 
@@ -147,7 +147,7 @@ inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
 
 #else
 
-inline void XPROD32(ogg_int32_t  a, ogg_int32_t  b,
+static inline void XPROD32(ogg_int32_t  a, ogg_int32_t  b,
 			   ogg_int32_t  t, ogg_int32_t  v,
 			   ogg_int32_t *x, ogg_int32_t *y)
 {
@@ -155,7 +155,7 @@ inline void XPROD32(ogg_int32_t  a, ogg_int32_t  b,
   *y = MULT32(b, t) - MULT32(a, v);
 }
 
-inline void XPROD31(ogg_int32_t  a, ogg_int32_t  b,
+static inline void XPROD31(ogg_int32_t  a, ogg_int32_t  b,
 			   ogg_int32_t  t, ogg_int32_t  v,
 			   ogg_int32_t *x, ogg_int32_t *y)
 {
@@ -163,7 +163,7 @@ inline void XPROD31(ogg_int32_t  a, ogg_int32_t  b,
   *y = MULT31(b, t) - MULT31(a, v);
 }
 
-inline void XNPROD31(ogg_int32_t  a, ogg_int32_t  b,
+static inline void XNPROD31(ogg_int32_t  a, ogg_int32_t  b,
 			    ogg_int32_t  t, ogg_int32_t  v,
 			    ogg_int32_t *x, ogg_int32_t *y)
 {
@@ -178,7 +178,7 @@ inline void XNPROD31(ogg_int32_t  a, ogg_int32_t  b,
 #ifndef _V_CLIP_MATH
 #define _V_CLIP_MATH
 
-inline ogg_int32_t CLIP_TO_15(ogg_int32_t x) {
+static inline ogg_int32_t CLIP_TO_15(ogg_int32_t x) {
   int ret=x;
   ret-= ((x<=32767)-1)&(x-32767);
   ret-= ((x>=-32768)-1)&(x+32768);
