@@ -24,8 +24,8 @@
 
 
 #ifdef _VDBG_GRAPHFILE
-extern void *_VDBG_malloc(void *ptr,long bytes,char *file,long line); 
-extern void _VDBG_free(void *ptr,char *file,long line); 
+extern void *_VDBG_malloc(void *ptr,long bytes,char *file,long line);
+extern void _VDBG_free(void *ptr,char *file,long line);
 
 #undef _ogg_malloc
 #undef _ogg_calloc
@@ -39,16 +39,18 @@ extern void _VDBG_free(void *ptr,char *file,long line);
 #endif
 
 #include "asm_arm.h"
-  
+
 #ifndef _V_WIDE_MATH
 #define _V_WIDE_MATH
-  
+
 #ifndef  _LOW_ACCURACY_
 /* 64 bit multiply */
 
 #include <sys/types.h>
+#include <dlib/endian.h>
 
-#if BYTE_ORDER==LITTLE_ENDIAN
+#if DM_ENDIAN==DM_ENDIAN_LITTLE
+//#if BYTE_ORDER==LITTLE_ENDIAN
 union magic {
   struct {
     ogg_int32_t lo;
@@ -56,9 +58,9 @@ union magic {
   } halves;
   ogg_int64_t whole;
 };
-#endif 
-
-#if BYTE_ORDER==BIG_ENDIAN
+//#endif
+#else
+//#if BYTE_ORDER==BIG_ENDIAN
 union magic {
   struct {
     ogg_int32_t hi;
@@ -95,7 +97,7 @@ static inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
 
 /*
  * For MULT32 and MULT31: The second argument is always a lookup table
- * value already preshifted from 31 to 8 bits.  We therefore take the 
+ * value already preshifted from 31 to 8 bits.  We therefore take the
  * opportunity to save on text space and use unsigned char for those
  * tables in this case.
  */
