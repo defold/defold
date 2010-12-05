@@ -152,8 +152,7 @@ namespace dmGameSystem
 
             if (rendertarget)
             {
-                dmModel::HModel model = (dmModel::HModel)dmRender::GetUserData(ro);
-                dmModel::SetTexture(model, dmGraphics::GetRenderTargetTexture(rendertarget), slot);
+                ro->m_Texture = dmGraphics::GetRenderTargetTexture(rendertarget);
             }
             else
                 dmLogWarning("No such render target: 0x%x (%d)", hash, hash);
