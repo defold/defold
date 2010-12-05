@@ -28,6 +28,16 @@ def build(bld):
         target = 'dmengine',
         source='main.cpp')
 
+    obj = bld.new_task_gen(
+        features = 'cc cxx cprogram',
+        uselib = 'GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL DLIB PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL',
+        uselib_local = 'engine',
+        includes = '../build ../proto .',
+        proto_gen_py = True,
+        protoc_includes = '../proto',
+        target = 'dmengine_headless',
+        source='main.cpp')
+
     bld.add_subdirs('test')
 
 def configure(conf):
