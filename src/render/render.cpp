@@ -177,6 +177,7 @@ namespace dmRender
         if (predicate != 0x0)
             tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
         uint32_t type = ~0u;
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             HRenderObject ro = render_context->m_RenderObjects[i];

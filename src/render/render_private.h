@@ -18,15 +18,18 @@ namespace dmRender
 
     struct RenderObject
     {
-        Vector4     m_VertexConstants[MAX_CONSTANT_COUNT];
-        Vector4     m_FragmentConstants[MAX_CONSTANT_COUNT];
-        Matrix4     m_WorldTransform;
-        Matrix4     m_TextureTransform;
-        HMaterial   m_Material;
-        void*       m_UserData;
-        uint32_t    m_Type;
-        uint8_t     m_VertexConstantMask;
-        uint8_t     m_FragmentConstantMask;
+        Vector4                 m_VertexConstants[MAX_CONSTANT_COUNT];
+        Vector4                 m_FragmentConstants[MAX_CONSTANT_COUNT];
+        Matrix4                 m_WorldTransform;
+        Matrix4                 m_TextureTransform;
+        HMaterial               m_Material;
+        dmGraphics::HTexture    m_Texture;
+        void*                   m_UserData;
+        uint32_t                m_Type;
+        uint32_t                m_VertexStart;
+        uint32_t                m_VertexCount;
+        uint8_t                 m_VertexConstantMask;
+        uint8_t                 m_FragmentConstantMask;
     };
 
     enum DebugRenderType
@@ -38,11 +41,11 @@ namespace dmRender
 
     struct DebugRenderer
     {
-        Predicate                           m_3dPredicate;
-        Predicate                           m_2dPredicate;
-        dmRender::HRenderContext            m_RenderContext;
-        dmRender::HRenderObject             m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
-        dmRender::HRenderObject             m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
+        Predicate                   m_3dPredicate;
+        Predicate                   m_2dPredicate;
+        dmRender::HRenderContext    m_RenderContext;
+        dmRender::HRenderObject     m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
+        dmRender::HRenderObject     m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
     };
 
     struct TextVertex
