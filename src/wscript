@@ -32,6 +32,7 @@ def build(bld):
                            target = 'vorbis_tremor',
                            install_path='${PREFIX}/lib')
 
+    vorbis_tremor.env.append_unique('CCDEFINES', 'BYTE_ORDER=LITTLE_ENDIAN')
     vorbis_tremor.env.append_unique('CCFLAGS', vorbis_flags)
 
     sound = bld.new_task_gen(features = 'cxx cstaticlib ddf',
