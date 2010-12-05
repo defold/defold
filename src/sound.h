@@ -14,7 +14,8 @@ namespace dmSound
 
     enum SoundDataType
     {
-        SOUND_DATA_TYPE_WAV   = 0,
+        SOUND_DATA_TYPE_WAV        = 0,
+        SOUND_DATA_TYPE_OGG_VORBIS = 1,
     };
 
     enum Parameter
@@ -24,14 +25,18 @@ namespace dmSound
 
     enum Result
     {
-        RESULT_OK               =  0,    //!< RESULT_OK
-        RESULT_OUT_OF_SOURCES   = -1,    //!< RESULT_OUT_OF_SOURCES
-        RESULT_EFFECT_NOT_FOUND = -2,    //!< RESULT_EFFECT_NOT_FOUND
-        RESULT_OUT_OF_INSTANCES = -3,
-        RESULT_RESOURCE_LEAK    = -4,
-        RESULT_OUT_OF_BUFFERS   = -5,
-        RESULT_INVALID_PROPERTY = -6,
-        RESULT_UNKNOWN_ERROR    = -1000, //!< RESULT_UNKNOWN_ERROR
+        RESULT_OK                 =  0,    //!< RESULT_OK
+        RESULT_OUT_OF_SOURCES     = -1,    //!< RESULT_OUT_OF_SOURCES
+        RESULT_EFFECT_NOT_FOUND   = -2,    //!< RESULT_EFFECT_NOT_FOUND
+        RESULT_OUT_OF_INSTANCES   = -3,    //!< RESULT_OUT_OF_INSTANCES
+        RESULT_RESOURCE_LEAK      = -4,    //!< RESULT_RESOURCE_LEAK
+        RESULT_OUT_OF_BUFFERS     = -5,    //!< RESULT_OUT_OF_BUFFERS
+        RESULT_INVALID_PROPERTY   = -6,    //!< RESULT_INVALID_PROPERTY
+        RESULT_UNKNOWN_SOUND_TYPE = -7,    //!< RESULT_UNKNOWN_SOUND_TYPE
+        RESULT_INVALID_STREAM_DATA= -8,    //!< RESULT_INVALID_STREAM_DATA
+        RESULT_OUT_OF_MEMORY      = -9,    //!< RESULT_OUT_OF_MEMORY
+        RESULT_UNSUPPORTED        = -10,   //!< RESULT_UNSUPPORTED
+        RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
     // TODO:

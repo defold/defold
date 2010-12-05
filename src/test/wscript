@@ -5,7 +5,7 @@ def build(bld):
     test_sound = bld.new_task_gen(features = 'cxx cprogram',
                                   includes = '../../../src .',
                                   uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
-                                  uselib_local = 'sound alut',
+                                  uselib_local = 'sound alut vorbis_tremor',
                                   target = 'test_sound',
                                   source = 'test_sound.cpp')
 

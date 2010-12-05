@@ -17,6 +17,9 @@ public:
     void*    m_OneFootStep;
     uint32_t m_OneFootStepSize;
 
+    void*    m_LayerGuitarA;
+    uint32_t m_LayerGuitarASize;
+
     void LoadFile(const char* file_name, void** buffer, uint32_t* size)
     {
         FILE* f = fopen(file_name, "rb");
@@ -49,14 +52,15 @@ public:
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
         LoadFile("src/test/drumloop.wav", &m_DrumLoop, &m_DrumLoopSize);
-
         LoadFile("src/test/onefootstep.wav", &m_OneFootStep, &m_OneFootStepSize);
+        LoadFile("src/test/layer-guitar-a.ogg", &m_LayerGuitarA, &m_LayerGuitarASize);
     }
 
     virtual void TearDown()
     {
         free(m_DrumLoop);
         free(m_OneFootStep);
+        free(m_LayerGuitarA);
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
@@ -121,6 +125,36 @@ TEST_F(dmSoundTest, Play)
 {
     dmSound::HSoundData sd = 0;
     dmSound::Result r = dmSound::NewSoundData(m_DrumLoop, m_DrumLoopSize, dmSound::SOUND_DATA_TYPE_WAV, &sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    while (dmSound::IsPlaying(instance))
+    {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        dmTime::Sleep(1000);
+    }
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_F(dmSoundTest, PlayOggVorbis)
+{
+    dmSound::HSoundData sd = 0;
+    dmSound::Result r = dmSound::NewSoundData(m_LayerGuitarA, m_LayerGuitarASize, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     dmSound::HSoundInstance instance = 0;

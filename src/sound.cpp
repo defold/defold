@@ -13,6 +13,8 @@
 
 #include <AL/alut.h>
 
+#include "ivorbisfile.h"
+
 namespace dmSound
 {
     struct SoundData
@@ -32,13 +34,16 @@ namespace dmSound
 
     struct SoundInstance
     {
-        uint32_t m_CurrentBufferOffset;
-        uint16_t m_Index;
-        uint16_t m_SoundDataIndex;
-        uint16_t m_SourceIndex;
-        uint16_t m_BufferIndices[2];
-        float    m_Gain;
-        uint32_t m_Looping : 1;
+        uint32_t        m_CurrentBufferOffset;
+        uint16_t        m_Index;
+        uint16_t        m_SoundDataIndex;
+        uint16_t        m_SourceIndex;
+        uint16_t        m_BufferIndices[2];
+        float           m_Gain;
+        // NOTE: This data-structure is rather big so it is dynamically allocated
+        // The raw API:s are rather complex to use
+        OggVorbis_File* m_OggVorbisFile;
+        uint32_t        m_Looping : 1;
     };
 
     struct SoundSystem
@@ -57,9 +62,48 @@ namespace dmSound
 
         float                  m_MasterGain;
         uint32_t               m_BufferSize;
+        void*                  m_TempBuffer;
     };
 
     SoundSystem* g_SoundSystem = 0;
+
+    static size_t OggVorbisRead(void *ptr, size_t size, size_t nmemb, void *datasource)
+    {
+        // We support only size == 1. This simplifies rounding etc
+        assert(size == 1);
+
+        SoundInstance* instance = (SoundInstance*) datasource;
+        SoundData* sound_data = &g_SoundSystem->m_SoundData[instance->m_SoundDataIndex];
+
+        assert(instance->m_CurrentBufferOffset <= (uint32_t) sound_data->m_Size);
+
+        uint32_t to_buffer = dmMath::Min((uint32_t) nmemb, sound_data->m_Size - instance->m_CurrentBufferOffset);
+
+        char*p = (char*) sound_data->m_Data;
+        memcpy(ptr, p + instance->m_CurrentBufferOffset, to_buffer);
+        instance->m_CurrentBufferOffset += to_buffer;
+
+        return to_buffer;
+    }
+
+    static int OggVorbisSeek(void *datasource, ogg_int64_t offset, int whence)
+    {
+        // Seek is not supported as ogg-vorbis seems to allocate memory in order to support seeking
+        return -1;
+    }
+
+    static int OggVorbisClose(void *datasource)
+    {
+        return 0;
+    }
+
+    static ov_callbacks OV_MEMORY_CALLBACKS =
+    {
+        (size_t (*)(void *, size_t, size_t, void *))  OggVorbisRead,
+        (int (*)(void *, ogg_int64_t, int))           OggVorbisSeek,
+        (int (*)(void *))                             OggVorbisClose,
+        (long (*)(void *))                            NULL
+    };
 
     void CheckAndPrintError()
     {
@@ -125,6 +169,7 @@ namespace dmSound
             sound->m_Instances[i].m_Index = 0xffff;
             sound->m_Instances[i].m_SoundDataIndex = 0xffff;
             sound->m_Instances[i].m_SourceIndex = 0xffff;
+            sound->m_Instances[i].m_OggVorbisFile = 0;
         }
 
         sound->m_SoundData.SetCapacity(max_sound_data);
@@ -145,6 +190,7 @@ namespace dmSound
 
         sound->m_MasterGain = master_gain;
         sound->m_BufferSize = params->m_BufferSize;
+        sound->m_TempBuffer = malloc(params->m_BufferSize);
 
         for (uint32_t i = 0; i < max_sources; ++i)
         {
@@ -188,13 +234,14 @@ namespace dmSound
             alDeleteSources(sound->m_Sources.Size(), &sound->m_Sources[0]);
 
             alutExit();
+            free(sound->m_TempBuffer);
             delete sound;
             g_SoundSystem = 0;
         }
         return result;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundDataWav(const void* sound_buffer, uint32_t sound_buffer_size, HSoundData* sound_data)
     {
         ALenum format;
         ALsizei size;
@@ -217,6 +264,7 @@ namespace dmSound
         uint16_t index = sound->m_SoundDataPool.Pop();
 
         SoundData* sd = &sound->m_SoundData[index];
+        sd->m_Type = SOUND_DATA_TYPE_WAV;
         sd->m_Index = index;
         sd->m_Data = buffer;
         sd->m_Format = format;
@@ -225,6 +273,76 @@ namespace dmSound
         *sound_data = sd;
 
         return RESULT_OK;
+    }
+
+    Result NewSoundDataOggVorbis(const void* sound_buffer, uint32_t sound_buffer_size, HSoundData* sound_data)
+    {
+        void* sound_buffer_copy = malloc(sound_buffer_size);
+        if (!sound_buffer_copy)
+        {
+            return RESULT_OUT_OF_MEMORY;
+        }
+        memcpy(sound_buffer_copy, sound_buffer, sound_buffer_size);
+
+        SoundSystem* sound = g_SoundSystem;
+
+        if (sound->m_SoundDataPool.Remaining() == 0)
+        {
+            *sound_data = 0;
+            return RESULT_OUT_OF_INSTANCES;
+        }
+        uint16_t index = sound->m_SoundDataPool.Pop();
+
+        SoundData* sd = &sound->m_SoundData[index];
+        sd->m_Type = SOUND_DATA_TYPE_OGG_VORBIS;
+        sd->m_Index = index;
+        sd->m_Data = sound_buffer_copy;
+        sd->m_Size = sound_buffer_size;
+
+        OggVorbis_File ov;
+        SoundInstance tmp_instance;
+        tmp_instance.m_CurrentBufferOffset = 0;
+        tmp_instance.m_OggVorbisFile = &ov;
+        tmp_instance.m_SoundDataIndex = index;
+
+        if (ov_open_callbacks(&tmp_instance, &ov, 0, 0, OV_MEMORY_CALLBACKS) < 0)
+        {
+            free(sound_buffer_copy);
+            return RESULT_INVALID_STREAM_DATA;
+        }
+
+        vorbis_info* vi = ov_info(&ov, -1);
+        if (vi->channels == 1)
+        {
+            sd->m_Format = AL_FORMAT_MONO16;
+        }
+        else if (vi->channels == 2)
+        {
+            sd->m_Format = AL_FORMAT_STEREO16;
+        }
+        else
+        {
+            dmLogError("Unsupported channel count in ogg-vorbis stream: %d", vi->channels);
+            ov_clear(&ov);
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        sd->m_Frequency = vi->rate;
+        *sound_data = sd;
+
+        ov_clear(&ov);
+
+        return RESULT_OK;
+    }
+
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    {
+        if (type == SOUND_DATA_TYPE_WAV)
+            return NewSoundDataWav(sound_buffer, sound_buffer_size, sound_data);
+        else if (type == SOUND_DATA_TYPE_OGG_VORBIS)
+            return NewSoundDataOggVorbis(sound_buffer, sound_buffer_size, sound_data);
+        else
+            return RESULT_UNKNOWN_SOUND_TYPE;
     }
 
     Result DeleteSoundData(HSoundData sound_data)
@@ -260,6 +378,10 @@ namespace dmSound
         si->m_Gain = 1.0f;
         si->m_Looping = 0;
 
+        if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS)
+        {
+            si->m_OggVorbisFile = new OggVorbis_File;
+        }
         *sound_instance = si;
 
         return RESULT_OK;
@@ -283,10 +405,17 @@ namespace dmSound
         sound_instance->m_Index = 0xffff;
         sound_instance->m_SoundDataIndex = 0xffff;
 
+        if (sound_instance->m_OggVorbisFile)
+        {
+            ov_clear(sound_instance->m_OggVorbisFile);
+            delete sound_instance->m_OggVorbisFile;
+            sound_instance->m_OggVorbisFile = 0;
+        }
+
         return RESULT_OK;
     }
 
-    static uint32_t FillBuffer(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
+    static uint32_t FillBufferWav(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
     {
         SoundSystem* sound = g_SoundSystem;
         assert(instance->m_CurrentBufferOffset <= (uint32_t) sound_data->m_Size);
@@ -304,6 +433,52 @@ namespace dmSound
 
         instance->m_CurrentBufferOffset += to_buffer;
         return to_buffer;
+    }
+
+    static uint32_t FillBufferOggVorbis(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
+    {
+        SoundSystem* sound = g_SoundSystem;
+
+        int current_section;
+        int total_read = 0;
+        while (total_read < (int) sound->m_BufferSize)
+        {
+            long ret = ov_read(instance->m_OggVorbisFile,
+                               ((char*) sound->m_TempBuffer) + total_read,
+                               sound->m_BufferSize - total_read,
+                               &current_section);
+
+            if (ret < 0)
+            {
+                dmLogError("Error reading ogg-vorbis stream (%d)",  (int) ret);
+                return 0;
+            }
+            else if (ret == 0)
+            {
+                break;
+            }
+            else
+            {
+                total_read += ret;
+            }
+        }
+
+        alBufferData(buffer, sound_data->m_Format, sound->m_TempBuffer, total_read, sound_data->m_Frequency);
+        return total_read;
+    }
+
+    static uint32_t FillBuffer(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
+    {
+        switch (sound_data->m_Type)
+        {
+            case SOUND_DATA_TYPE_WAV:
+                return FillBufferWav(sound_data, instance, buffer);
+            case SOUND_DATA_TYPE_OGG_VORBIS:
+                return FillBufferOggVorbis(sound_data, instance, buffer);
+            default:
+                assert(0);
+                return 0;
+        }
     }
 
     Result Update()
@@ -324,6 +499,7 @@ namespace dmSound
             ALint state;
             alGetSourcei (source, AL_SOURCE_STATE, &state);
             CheckAndPrintError();
+
             if (state != AL_PLAYING && !instance->m_Looping)
             {
                 // Instance done playing
@@ -350,6 +526,7 @@ namespace dmSound
                     CheckAndPrintError();
 
                     uint32_t to_buffer = FillBuffer(sound_data, instance, buffer);
+                    CheckAndPrintError();
 
                     if (to_buffer > 0)
                     {
@@ -383,7 +560,19 @@ namespace dmSound
             dmLogWarning("Out of sound sources");
             return RESULT_OUT_OF_SOURCES;
         }
+
+        SoundData* sound_data = &sound->m_SoundData[sound_instance->m_SoundDataIndex];
+
         sound_instance->m_CurrentBufferOffset = 0;
+        if (sound_data->m_Type == SOUND_DATA_TYPE_OGG_VORBIS)
+        {
+            assert(sound_instance->m_OggVorbisFile);
+            if (ov_open_callbacks(sound_instance, sound_instance->m_OggVorbisFile, 0, 0, OV_MEMORY_CALLBACKS) < 0)
+            {
+                // NOTE: This can't happen. The stream is opened in NewSoundDataOggVorbis
+                assert(0);
+            }
+        }
 
         uint16_t index = sound->m_SourcesPool.Pop();
         sound_instance->m_SourceIndex = index;
@@ -395,8 +584,6 @@ namespace dmSound
 
         alSourcef(source, AL_GAIN, sound_instance->m_Gain * sound->m_MasterGain);
         CheckAndPrintError();
-
-        SoundData* sound_data = &sound->m_SoundData[sound_instance->m_SoundDataIndex];
 
         uint32_t buf_index1 = sound->m_BuffersPool.Pop();
         uint32_t buf_index2 = sound->m_BuffersPool.Pop();
@@ -449,8 +636,17 @@ namespace dmSound
 
     Result SetLooping(HSoundInstance sound_instance, bool looping)
     {
-        sound_instance->m_Looping = (uint32_t) looping;
-        return RESULT_OK;
+        SoundData* sound_data = &g_SoundSystem->m_SoundData[sound_instance->m_SoundDataIndex];
+        if (sound_data->m_Type == SOUND_DATA_TYPE_WAV)
+        {
+            sound_instance->m_Looping = (uint32_t) looping;
+            return RESULT_OK;
+        }
+        else
+        {
+            dmLogWarning("Looping is currently only supported for .wav files");
+            return RESULT_UNSUPPORTED;
+        }
     }
 
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value)
@@ -461,7 +657,7 @@ namespace dmSound
                 sound_instance->m_Gain = value.getX();
                 break;
             default:
-                dmLogError("Invalid paramter: %d\n", parameter);
+                dmLogError("Invalid parameter: %d\n", parameter);
                 return RESULT_INVALID_PROPERTY;
         }
         return RESULT_OK;
@@ -475,7 +671,7 @@ namespace dmSound
                 value = Vector4(sound_instance->m_Gain, 0, 0, 0);
                 break;
             default:
-                dmLogError("Invalid paramter: %d\n", parameter);
+                dmLogError("Invalid parameter: %d\n", parameter);
                 return RESULT_INVALID_PROPERTY;
         }
         return RESULT_OK;
