@@ -113,8 +113,9 @@ namespace dmGameObject
         lua_pushstring(L, key);
         lua_pushinteger(L, value);
         lua_settable(L, -3);
+        lua_pop(L, 1);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top == lua_gettop(L));
     }
 
     void SetScriptFloatProperty(HInstance instance, const char* key, float value)
@@ -130,8 +131,9 @@ namespace dmGameObject
         lua_pushstring(L, key);
         lua_pushnumber(L, value);
         lua_settable(L, -3);
+        lua_pop(L, 1);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top == lua_gettop(L));
     }
 
     void SetScriptStringProperty(HInstance instance, const char* key, const char* value)
@@ -147,8 +149,9 @@ namespace dmGameObject
         lua_pushstring(L, key);
         lua_pushstring(L, value);
         lua_settable(L, -3);
+        lua_pop(L, 1);
 
-        assert(top + 1 == lua_gettop(L));
+        assert(top == lua_gettop(L));
     }
 
     static const luaL_reg ScriptInstance_methods[] =
