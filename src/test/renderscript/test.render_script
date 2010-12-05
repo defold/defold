@@ -32,7 +32,7 @@ function update(self)
     render.disable_state(self, render.DEPTH_TEST)
     render.set_depth_mask(self, false)
     render.set_view(self, vmath.matrix4())
-    render.set_projection(self, vmath.matrix4.orthographic(0, render.get_window_width(self), render.get_window_height(self), 0, 1, -1))
+    render.set_projection(self, vmath.matrix4_orthographic(0, render.get_window_width(self), render.get_window_height(self), 0, 1, -1))
     render.draw(self, self.hud_pred)
     render.draw_debug2d(self)
 end
