@@ -24,8 +24,8 @@ namespace dmRender
         uint32_t m_VertexCount;
     };
 
-    void RenderTypeDebugDraw3d(HRenderContext rendercontext, void* user_context, dmRender::HRenderObject ro, uint32_t count);
-    void RenderTypeDebugDraw2d(HRenderContext rendercontext, void* user_context, dmRender::HRenderObject ro, uint32_t count);
+    void RenderTypeDebugDraw3d(HRenderContext rendercontext, void* user_context, dmRender::RenderObject* ro, uint32_t count);
+    void RenderTypeDebugDraw2d(HRenderContext rendercontext, void* user_context, dmRender::RenderObject* ro, uint32_t count);
 
     void InitializeDebugRenderer(dmRender::HRenderContext render_context, const void* vp_data, uint32_t vp_data_size, const void* fp_data, uint32_t fp_data_size)
     {
@@ -57,22 +57,26 @@ namespace dmRender
         dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            debug_renderer.m_RenderObject3d[i] = dmRender::NewRenderObject(debug_render_type, material3d);
             DebugRenderInfo* info = new DebugRenderInfo();
             info->m_RenderType = (DebugRenderType)i;
             info->m_VertexCount = 0;
-            debug_renderer.m_RenderObject3d[i]->m_UserData = (void*)info;
+            RenderObject* ro = &debug_renderer.m_RenderObject3d[i];
+            ro->m_UserData = (void*)info;
+            ro->m_Material = material3d;
+            ro->m_Type = debug_render_type;
         }
 
         render_type.m_DrawCallback = RenderTypeDebugDraw2d;
         dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            debug_renderer.m_RenderObject2d[i] = dmRender::NewRenderObject(debug_render_type, material2d);
             DebugRenderInfo* info = new DebugRenderInfo();
             info->m_RenderType = (DebugRenderType)i;
             info->m_VertexCount = 0;
-            debug_renderer.m_RenderObject2d[i]->m_UserData = (void*)info;
+            RenderObject* ro = &debug_renderer.m_RenderObject2d[i];
+            ro->m_UserData = (void*)info;
+            ro->m_Material = material2d;
+            ro->m_Type = debug_render_type;
         }
 
         debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
@@ -83,7 +87,7 @@ namespace dmRender
 
     void FinalizeDebugRenderer(HRenderContext context)
     {
-        HMaterial material = context->m_DebugRenderer.m_RenderObject3d[0]->m_Material;
+        HMaterial material = context->m_DebugRenderer.m_RenderObject3d[0].m_Material;
 
         dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
         if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
@@ -93,14 +97,12 @@ namespace dmRender
             dmGraphics::DeleteFragmentProgram(fp);
 
         DeleteMaterial(material);
-        material = context->m_DebugRenderer.m_RenderObject2d[0]->m_Material;
+        material = context->m_DebugRenderer.m_RenderObject2d[0].m_Material;
         DeleteMaterial(material);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i]->m_UserData;
-            dmRender::DeleteRenderObject(context->m_DebugRenderer.m_RenderObject3d[i]);
-            delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[i]->m_UserData;
-            dmRender::DeleteRenderObject(context->m_DebugRenderer.m_RenderObject2d[i]);
+            delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i].m_UserData;
+            delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[i].m_UserData;
         }
     }
 
@@ -108,21 +110,21 @@ namespace dmRender
     {
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i]->m_UserData;
+            DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i].m_UserData;
             info->m_VertexCount = 0;
-            info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[i]->m_UserData;
+            info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[i].m_UserData;
             info->m_VertexCount = 0;
         }
     }
 
 #define ADD_TO_RENDER(object)\
-    if (((DebugRenderInfo*)object->m_UserData)->m_VertexCount == 0)\
-        dmRender::AddToRender(context, object);
+    if (((DebugRenderInfo*)object.m_UserData)->m_VertexCount == 0)\
+        dmRender::AddToRender(context, &object);
 
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color)
     {
         ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE]);
-        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE]->m_UserData;
+        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE].m_UserData;
         if (info->m_VertexCount + 6 < DebugRenderInfo::VERTEX_COUNT)
         {
             float* v = &info->m_Vertices[info->m_VertexCount*3];
@@ -148,7 +150,7 @@ namespace dmRender
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
         ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE]);
-        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE]->m_UserData;
+        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE].m_UserData;
         if (info->m_VertexCount + 2 < DebugRenderInfo::VERTEX_COUNT)
         {
             float* v = &info->m_Vertices[info->m_VertexCount*3];
@@ -171,7 +173,7 @@ namespace dmRender
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color)
     {
         ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE]);
-        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE]->m_UserData;
+        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE].m_UserData;
         if (info->m_VertexCount + 2 < DebugRenderInfo::VERTEX_COUNT)
         {
             float* v = &info->m_Vertices[info->m_VertexCount*3];
@@ -196,9 +198,9 @@ namespace dmRender
 
 #undef ADD_TO_RENDER
 
-    void RenderTypeDebugDraw3d(HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeDebugDraw3d(HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
     {
-        DebugRenderInfo* info = (DebugRenderInfo*)dmRender::GetUserData(ro);
+        DebugRenderInfo* info = (DebugRenderInfo*)ro->m_UserData;
 
         dmGraphics::HContext context = render_context->m_GFXContext;
 
@@ -222,9 +224,9 @@ namespace dmRender
         }
     }
 
-    void RenderTypeDebugDraw2d(HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeDebugDraw2d(HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
     {
-        DebugRenderInfo* info = (DebugRenderInfo*)dmRender::GetUserData(ro);
+        DebugRenderInfo* info = (DebugRenderInfo*)ro->m_UserData;
 
         dmGraphics::HContext context = render_context->m_GFXContext;
 

@@ -28,12 +28,34 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
+    struct RenderObject
+    {
+        RenderObject();
+
+        Vector4                         m_VertexConstants[MAX_CONSTANT_COUNT];
+        Vector4                         m_FragmentConstants[MAX_CONSTANT_COUNT];
+        Matrix4                         m_WorldTransform;
+        Matrix4                         m_TextureTransform;
+        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmGraphics::HIndexBuffer        m_IndexBuffer;
+        HMaterial                       m_Material;
+        dmGraphics::HTexture            m_Texture;
+        void*                           m_UserData;
+        dmGraphics::PrimitiveType       m_PrimitiveType;
+        dmGraphics::Type                m_IndexType;
+        uint32_t                        m_Type;
+        uint32_t                        m_VertexStart;
+        uint32_t                        m_VertexCount;
+        uint8_t                         m_VertexConstantMask;
+        uint8_t                         m_FragmentConstantMask;
+    };
+
     typedef struct RenderContext* HRenderContext;
-    typedef struct RenderObject* HRenderObject;
     typedef struct RenderTargetSetup* HRenderTargetSetup;
 
     typedef void (*RenderTypeBeginCallback)(HRenderContext render_context, void* user_context);
-    typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, void* user_context, HRenderObject ro, uint32_t count);
+    typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, void* user_context, RenderObject* ro, uint32_t count);
     typedef void (*RenderTypeEndCallback)(HRenderContext render_context, void* user_context);
 
     struct RenderType
@@ -64,7 +86,6 @@ namespace dmRender
 
     typedef uint32_t HRenderType;
 
-    static const HRenderObject INVALID_RENDER_OBJECT_HANDLE = 0;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
     HRenderContext NewRenderContext(const RenderContextParams& params);
@@ -73,7 +94,6 @@ namespace dmRender
     Result RegisterRenderType(HRenderContext render_context, RenderType render_type, HRenderType* out_render_type);
     Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, uint32_t hash);
     dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, uint32_t hash);
-
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
@@ -84,28 +104,17 @@ namespace dmRender
     uint32_t GetDisplayWidth(HRenderContext render_context);
     uint32_t GetDisplayHeight(HRenderContext render_context);
 
-    Result AddToRender(HRenderContext context, HRenderObject ro);
+    Result AddToRender(HRenderContext context, RenderObject* ro);
     Result ClearRenderObjects(HRenderContext context);
 
     Result Draw(HRenderContext context, Predicate* predicate);
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
-    HRenderObject NewRenderObject(HRenderType render_type, HMaterial material);
-    void DeleteRenderObject(HRenderObject ro);
-    void SetVertexConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void ResetVertexConstant(HRenderObject ro, uint32_t reg);
-    void SetFragmentConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void ResetFragmentConstant(HRenderObject ro, uint32_t reg);
-    const Matrix4* GetWorldTransform(HRenderObject ro);
-    void SetWorldTransform(HRenderObject ro, const Matrix4& world_transform);
-    const Matrix4* GetTextureTransform(HRenderObject ro);
-    void SetTextureTransform(HRenderObject ro, const Matrix4& texture_transform);
-    void* GetUserData(HRenderObject ro);
-    void SetUserData(HRenderObject ro, void* user_data);
-
-    HMaterial GetMaterial(HRenderObject ro);
-    void SetMaterial(HRenderObject ro, HMaterial material);
+    void SetVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetVertexConstant(RenderObject* ro, uint32_t reg);
+    void SetFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetFragmentConstant(RenderObject* ro, uint32_t reg);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).

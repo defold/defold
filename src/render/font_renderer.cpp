@@ -96,15 +96,9 @@ namespace dmRender
         text_render_type.m_EndCallback = 0x0;
         RegisterRenderType(render_context, text_render_type, &text_context.m_TextRenderType);
 
-        uint32_t max_vertex_count = max_characters * 4;
-        text_context.m_Vertices.SetCapacity(max_vertex_count);
-        text_context.m_RenderObjects.SetCapacity(max_characters/8);
-        for (uint32_t i = 0; i < text_context.m_RenderObjects.Capacity(); ++i)
-        {
-            HRenderObject ro = dmRender::NewRenderObject(text_context.m_TextRenderType, 0x0);
-            text_context.m_RenderObjects.Push(ro);
-        }
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(sizeof(TextVertex) * max_vertex_count, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_MaxVertexCount = max_characters * 4;
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_VertexIndex = 0;
 
         dmGraphics::VertexElement ve[] =
         {
@@ -112,16 +106,22 @@ namespace dmRender
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+
+        text_context.m_RenderObjects.SetCapacity(max_characters/8);
+        text_context.m_RenderObjects.SetSize(max_characters/8);
+        for (uint32_t i = 0; i < text_context.m_RenderObjects.Capacity(); ++i)
+        {
+            RenderObject* ro = &text_context.m_RenderObjects[i];
+            ro->m_VertexBuffer = text_context.m_VertexBuffer;
+            ro->m_VertexDeclaration = text_context.m_VertexDecl;
+            ro->m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+            ro->m_Type = text_context.m_TextRenderType;
+        }
     }
 
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
-        for (uint32_t i = 0; i < text_context.m_RenderObjects.Size(); ++i)
-        {
-            HRenderObject ro = text_context.m_RenderObjects[i];
-            dmRender::DeleteRenderObject(ro);
-        }
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
@@ -138,9 +138,9 @@ namespace dmRender
     void DrawText(HRenderContext render_context, HFont font, const DrawTextParams& params)
     {
         TextContext& text_context = render_context->m_TextContext;
-        if (text_context.m_Vertices.Size() + 4 >= text_context.m_Vertices.Capacity() || text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size())
+        if (text_context.m_VertexIndex + 4 >= text_context.m_MaxVertexCount || text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size())
         {
-            dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", text_context.m_Vertices.Capacity() / 4);
+            dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", text_context.m_VertexIndex / 4);
             return;
         }
 
@@ -152,14 +152,21 @@ namespace dmRender
         float x_offsets[3] = {0.0f, 0.0f, font->m_ImageFont->m_ShadowX};
         float y_offsets[3] = {0.0f, 0.0f, font->m_ImageFont->m_ShadowY};
 
+        struct TextVertex
+        {
+            float m_Position[2];
+            float m_UV[2];
+        };
+        TextVertex* vertices = (TextVertex*)dmGraphics::MapVertexBuffer(text_context.m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
+
         for (int i = 2; i >= 0; --i)
         {
             uint16_t x = params.m_X;
             uint16_t y = params.m_Y;
-            HRenderObject ro = text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
-            SetMaterial(ro, font->m_Material);
+            RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
+            ro->m_Material = font->m_Material;
             ro->m_Texture = font->m_Texture;
-            ro->m_VertexStart = text_context.m_Vertices.Size();
+            ro->m_VertexStart = text_context.m_VertexIndex;
             for (int j = 0; j < 3; ++j)
             {
                 if (i == j)
@@ -175,7 +182,11 @@ namespace dmRender
 
                 if (g.m_Width > 0)
                 {
-                    TextVertex v1, v2, v3, v4;
+                    TextVertex& v1 = vertices[text_context.m_VertexIndex];
+                    TextVertex& v2 = *(&v1 + 1);
+                    TextVertex& v3 = *(&v1 + 2);
+                    TextVertex& v4 = *(&v1 + 3);
+                    text_context.m_VertexIndex += 4;
 
                     v1.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
                     v1.m_Position[1] = y - g.m_Descent + y_offsets[i];
@@ -203,17 +214,13 @@ namespace dmRender
 
                     v4.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
                     v4.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
-
-                    text_context.m_Vertices.Push(v1);
-                    text_context.m_Vertices.Push(v2);
-                    text_context.m_Vertices.Push(v3);
-                    text_context.m_Vertices.Push(v4);
                 }
                 x += g.m_Advance;
             }
-            ro->m_VertexCount = text_context.m_Vertices.Size() - ro->m_VertexStart;
+            ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
             AddToRender(render_context, ro);
         }
+        dmGraphics::UnmapVertexBuffer(text_context.m_VertexBuffer);
     }
 
     void RenderTypeTextBegin(HRenderContext render_context, void* user_context)
@@ -221,25 +228,19 @@ namespace dmRender
         (void)render_context;
     }
 
-    void RenderTypeTextDraw(HRenderContext render_context, void* user_context, HRenderObject ro, uint32_t count)
+    void RenderTypeTextDraw(HRenderContext render_context, void* user_context, RenderObject* ro, uint32_t count)
     {
-        dmArray<TextVertex>* vertex_data = &render_context->m_TextContext.m_Vertices;
-
         if (ro->m_VertexCount == 0)
             return;
-
-        void* data = (void*)&vertex_data->Front();
 
         dmGraphics::HContext context = render_context->m_GFXContext;
 
         dmGraphics::SetTexture(context, ro->m_Texture);
 
-        dmGraphics::SetVertexStream(context, 0, 4, dmGraphics::TYPE_FLOAT, sizeof(TextVertex), data);
-        dmGraphics::DisableVertexStream(context, 1);
-        dmGraphics::DisableVertexStream(context, 2);
+        dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
 
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_QUADS, ro->m_VertexStart, ro->m_VertexCount);
+        dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
 
-        dmGraphics::DisableVertexStream(context, 0);
+        dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
     }
 }

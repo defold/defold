@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <string.h>
 
 #include <dlib/hash.h>
 #include <dlib/profile.h>
@@ -16,6 +17,12 @@
 
 namespace dmRender
 {
+    RenderObject::RenderObject()
+    {
+        memset(this, sizeof(RenderObject), 0);
+    }
+
+
     RenderType::RenderType()
     : m_BeginCallback(0x0)
     , m_DrawCallback(0x0)
@@ -141,7 +148,7 @@ namespace dmRender
         return render_context->m_DisplayHeight;
     }
 
-    Result AddToRender(HRenderContext context, HRenderObject ro)
+    Result AddToRender(HRenderContext context, RenderObject* ro)
     {
         if (context == 0x0) return RESULT_INVALID_CONTEXT;
         if (context->m_RenderObjects.Full())
@@ -164,7 +171,7 @@ namespace dmRender
         ClearDebugRenderObjects(context);
 
         context->m_TextContext.m_RenderObjectIndex = 0;
-        context->m_TextContext.m_Vertices.SetSize(0);
+        context->m_TextContext.m_VertexIndex = 0;
 
         return RESULT_OK;
     }
@@ -180,12 +187,12 @@ namespace dmRender
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
-            HRenderObject ro = render_context->m_RenderObjects[i];
+            RenderObject* ro = render_context->m_RenderObjects[i];
             if ((GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
                 dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
-                dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(dmRender::GetMaterial(ro)));
-                dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(dmRender::GetMaterial(ro)));
+                dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(ro->m_Material));
+                dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(ro->m_Material));
 
                 void* user_context = render_context->m_RenderTypes[ro->m_Type].m_UserContext;
                 // check if we need to change render type and run its setup func
@@ -289,28 +296,7 @@ namespace dmRender
         return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
-    HRenderObject NewRenderObject(uint32_t type, HMaterial material)
-    {
-        RenderObject* ro = new RenderObject;
-        ro->m_WorldTransform = Matrix4::identity();
-        ro->m_TextureTransform = Matrix4::identity();
-        ro->m_Material = 0;
-        ro->m_UserData = 0x0;
-        ro->m_Type = type;
-        ro->m_VertexConstantMask = 0;
-        ro->m_FragmentConstantMask = 0;
-
-        SetMaterial(ro, material);
-
-        return ro;
-    }
-
-    void DeleteRenderObject(HRenderObject ro)
-    {
-        delete ro;
-    }
-
-    void SetVertexConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
     {
         if (reg < MAX_CONSTANT_COUNT)
         {
@@ -323,7 +309,7 @@ namespace dmRender
         }
     }
 
-    void ResetVertexConstant(HRenderObject ro, uint32_t reg)
+    void ResetVertexConstant(RenderObject* ro, uint32_t reg)
     {
         if (reg < MAX_CONSTANT_COUNT)
             ro->m_VertexConstantMask &= ~(1 << reg);
@@ -331,7 +317,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
     }
 
-    void SetFragmentConstant(HRenderObject ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
     {
         if (reg < MAX_CONSTANT_COUNT)
         {
@@ -344,51 +330,11 @@ namespace dmRender
         }
     }
 
-    void ResetFragmentConstant(HRenderObject ro, uint32_t reg)
+    void ResetFragmentConstant(RenderObject* ro, uint32_t reg)
     {
         if (reg < MAX_CONSTANT_COUNT)
             ro->m_FragmentConstantMask &= ~(1 << reg);
         else
             dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
-    }
-
-    const Matrix4* GetWorldTransform(HRenderObject ro)
-    {
-        return &ro->m_WorldTransform;
-    }
-
-    void SetWorldTransform(HRenderObject ro, const Matrix4& world_transform)
-    {
-        ro->m_WorldTransform = world_transform;
-    }
-
-    const Matrix4* GetTextureTransform(HRenderObject ro)
-    {
-        return &ro->m_TextureTransform;
-    }
-
-    void SetTextureTransform(HRenderObject ro, const Matrix4& texture_transform)
-    {
-        ro->m_TextureTransform = texture_transform;
-    }
-
-    void* GetUserData(HRenderObject ro)
-    {
-        return ro->m_UserData;
-    }
-
-    void SetUserData(HRenderObject ro, void* user_data)
-    {
-        ro->m_UserData = user_data;
-    }
-
-    HMaterial GetMaterial(HRenderObject ro)
-    {
-        return ro->m_Material;
-    }
-
-    void SetMaterial(HRenderObject ro, HMaterial material)
-    {
-        ro->m_Material = material;
     }
 }
