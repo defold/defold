@@ -41,6 +41,7 @@
    typedef unsigned __int32 ogg_uint32_t;
    typedef __int16 ogg_int16_t;
    typedef unsigned __int16 ogg_uint16_t;
+   #define inline __inline
 #  else
    /* Cygwin */
    #include <_G_config.h>
