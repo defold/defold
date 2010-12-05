@@ -137,7 +137,11 @@ namespace dmGameObject
             uintptr_t* user_data)
     {
         HScriptInstance script_instance = (HScriptInstance)*user_data;
+
+        int top = lua_gettop(g_LuaState);
+        (void)top;
         ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, 0x0);
+        assert(top == lua_gettop(g_LuaState));
         if (ret == SCRIPT_RESULT_FAILED)
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
@@ -174,6 +178,8 @@ namespace dmGameObject
             void* world,
             void* context)
     {
+        int top = lua_gettop(g_LuaState);
+        (void)top;
         UpdateResult result = UPDATE_RESULT_OK;
         ScriptWorld* script_world = (ScriptWorld*)world;
         uint32_t size = script_world->m_Instances.Size();
@@ -186,6 +192,7 @@ namespace dmGameObject
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
+        assert(top == lua_gettop(g_LuaState));
         return result;
     }
 
