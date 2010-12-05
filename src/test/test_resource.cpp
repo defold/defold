@@ -414,7 +414,7 @@ TEST(RecreateTest, RecreateTest)
 #if defined(_MSC_VER)
     tmp_dir = ".";
 #else
-    tmp_dir = "/tmp";
+    tmp_dir = ".";
 #endif
 
     dmResource::NewFactoryParams params;
@@ -481,7 +481,7 @@ TEST(RecreateTest, RecreateTestHttp)
 #if defined(_MSC_VER)
     tmp_dir = ".";
 #else
-    tmp_dir = "/tmp";
+    tmp_dir = ".";
 #endif
 
     dmResource::NewFactoryParams params;
@@ -577,7 +577,7 @@ TEST(FilenameTest, FilenameTest)
 #if defined(_MSC_VER)
     tmp_dir = ".";
 #else
-    tmp_dir = "/tmp";
+    tmp_dir = ".";
 #endif
 
     dmResource::NewFactoryParams params;
