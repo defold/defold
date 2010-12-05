@@ -713,6 +713,78 @@ namespace dmScript
         return 1;
     }
 
+    static int Matrix4_Frustum(lua_State* L)
+    {
+        float left = luaL_checknumber(L, 1);
+        float right = luaL_checknumber(L, 2);
+        float bottom = luaL_checknumber(L, 3);
+        float top = luaL_checknumber(L, 4);
+        float near_z = luaL_checknumber(L, 5);
+        float far_z = luaL_checknumber(L, 6);
+        PushMatrix4(L, Vectormath::Aos::Matrix4::frustum(left, right, bottom, top, near_z, far_z));
+        return 1;
+    }
+
+    static int Matrix4_LookAt(lua_State* L)
+    {
+        PushMatrix4(L, Vectormath::Aos::Matrix4::lookAt(Vectormath::Aos::Point3(*CheckVector3(L, 1)), Vectormath::Aos::Point3(*CheckVector3(L, 2)), *CheckVector3(L, 3)));
+        return 1;
+    }
+
+    static int Matrix4_Orthographic(lua_State* L)
+    {
+        float left = luaL_checknumber(L, 1);
+        float right = luaL_checknumber(L, 2);
+        float bottom = luaL_checknumber(L, 3);
+        float top = luaL_checknumber(L, 4);
+        float near_z = luaL_checknumber(L, 5);
+        float far_z = luaL_checknumber(L, 6);
+        PushMatrix4(L, Vectormath::Aos::Matrix4::orthographic(left, right, bottom, top, near_z, far_z));
+        return 1;
+    }
+
+    static int Matrix4_Perspective(lua_State* L)
+    {
+        float fov = luaL_checknumber(L, 1);
+        float aspect = luaL_checknumber(L, 2);
+        float near_z = luaL_checknumber(L, 3);
+        float far_z = luaL_checknumber(L, 4);
+        PushMatrix4(L, Vectormath::Aos::Matrix4::perspective(fov, aspect, near_z, far_z));
+        return 1;
+    }
+
+    static int Matrix4_FromQuat(lua_State* L)
+    {
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotation(*CheckQuat(L, 1)));
+        return 1;
+    }
+
+    static int Matrix4_AxisAngle(lua_State* L)
+    {
+        Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
+        float angle = luaL_checknumber(L, 2);
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotation(angle, *axis));
+        return 1;
+    }
+
+    static int Matrix4_RotationX(lua_State* L)
+    {
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationX(luaL_checknumber(L, 1)));
+        return 1;
+    }
+
+    static int Matrix4_RotationY(lua_State* L)
+    {
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationY(luaL_checknumber(L, 1)));
+        return 1;
+    }
+
+    static int Matrix4_RotationZ(lua_State* L)
+    {
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationZ(luaL_checknumber(L, 1)));
+        return 1;
+    }
+
     static int Dot(lua_State* L)
     {
         Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
@@ -828,6 +900,15 @@ namespace dmScript
         {"quat_rotation_x", Quat_RotationX},
         {"quat_rotation_y", Quat_RotationY},
         {"quat_rotation_z", Quat_RotationZ},
+        {"matrix4_frustum", Matrix4_Frustum},
+        {"matrix4_look_at", Matrix4_LookAt},
+        {"matrix4_orthographic", Matrix4_Orthographic},
+        {"matrix4_perspective", Matrix4_Perspective},
+        {"matrix4_from_quat", Matrix4_FromQuat},
+        {"matrix4_axis_angle", Matrix4_AxisAngle},
+        {"matrix4_rotation_x", Matrix4_RotationX},
+        {"matrix4_rotation_y", Matrix4_RotationY},
+        {"matrix4_rotation_z", Matrix4_RotationZ},
         {"dot", Dot},
         {"length_sqr", LengthSqr},
         {"length", Length},
@@ -862,7 +943,7 @@ namespace dmScript
         {
             // create methods table, add it to the globals
             luaL_register(L, types[i].m_Name, types[i].m_Methods);
-            int methods = lua_gettop(L);
+            int methods_index = lua_gettop(L);
             // create metatable for the type, add it to the Lua registry
             luaL_newmetatable(L, types[i].m_Name);
             int metatable = lua_gettop(L);
@@ -870,7 +951,7 @@ namespace dmScript
             luaL_register(L, 0, types[i].m_Metatable);
 
             lua_pushliteral(L, "__metatable");
-            lua_pushvalue(L, methods);// dup methods table
+            lua_pushvalue(L, methods_index);// dup methods table
             lua_settable(L, metatable);
 
             lua_pop(L, 2);
