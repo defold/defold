@@ -29,7 +29,7 @@ namespace dmGameSystem
     struct EmitterWorld
     {
         dmArray<Emitter> m_Emitters;
-        dmArray<dmRender::HRenderObject> m_RenderObjects;
+        dmArray<dmRender::RenderObject> m_RenderObjects;
         EmitterContext* m_EmitterContext;
         dmParticle::HContext m_ParticleContext;
         float* m_VertexBuffer;
@@ -147,9 +147,8 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
         {
-            ROUserData* user_data = (ROUserData*)dmRender::GetUserData(w->m_RenderObjects[i]);
+            ROUserData* user_data = (ROUserData*)w->m_RenderObjects[i].m_UserData;
             delete user_data;
-            dmRender::DeleteRenderObject(w->m_RenderObjects[i]);
         }
         w->m_RenderObjects.SetSize(0);
 
@@ -157,7 +156,7 @@ namespace dmGameSystem
         dmParticle::Render(w->m_ParticleContext, w, RenderSetUpCallback, 0x0, RenderEmitterCallback);
         for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
         {
-            dmRender::AddToRender(ctx->m_RenderContext, w->m_RenderObjects[i]);
+            dmRender::AddToRender(ctx->m_RenderContext, &w->m_RenderObjects[i]);
         }
 
         if (ctx->m_Debug)
@@ -200,15 +199,17 @@ namespace dmGameSystem
     {
         EmitterWorld* world = (EmitterWorld*)context;
 
-        dmRender::HRenderObject ro = dmRender::NewRenderObject(world->m_EmitterContext->m_ParticleRenderType, (dmRender::HMaterial)material);
+        world->m_RenderObjects.SetSize(world->m_RenderObjects.Size() + 1);
+        dmRender::RenderObject* ro = &world->m_RenderObjects[world->m_RenderObjects.Size()];
+        ro->m_Type = world->m_EmitterContext->m_ParticleRenderType;
+        ro->m_Material = (dmRender::HMaterial)material;
         ROUserData* user_data = new ROUserData();
         user_data->m_World = world;
         user_data->m_Material = (dmRender::HMaterial)material;
         user_data->m_Texture = (dmGraphics::HTexture)texture;
         user_data->m_VertexCount = vertex_count;
         user_data->m_VertexIndex = vertex_index;
-        dmRender::SetUserData(ro, (void*)user_data);
-        world->m_RenderObjects.Push(ro);
+        ro->m_UserData = user_data;
     }
 
     void RenderLineCallback(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
@@ -216,11 +217,11 @@ namespace dmGameSystem
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }
 
-    void RenderTypeParticleDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeParticleDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
     {
         dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
 
-        ROUserData* user_data = (ROUserData*)dmRender::GetUserData(ro);
+        ROUserData* user_data = (ROUserData*)ro->m_UserData;
 
         float* vertex_buffer = user_data->m_World->m_VertexBuffer;
         uint32_t vertex_size = user_data->m_World->m_VertexSize;

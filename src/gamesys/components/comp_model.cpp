@@ -20,7 +20,7 @@ namespace dmGameSystem
     {
         dmModel::HModel m_Model;
         dmGameObject::HInstance m_Instance;
-        dmRender::HRenderObject m_RenderObject;
+        dmRender::RenderObject m_RenderObject;
         ModelWorld* m_ModelWorld;
         uint32_t m_Index;
     };
@@ -61,15 +61,24 @@ namespace dmGameSystem
         if (model_world->m_ComponentIndices.Remaining() > 0)
         {
             dmModel::HModel prototype = (dmModel::HModel)resource;
+            dmModel::HMesh mesh = dmModel::GetMesh(prototype);
             uint32_t index = model_world->m_ComponentIndices.Pop();
-            dmRender::HRenderObject ro = dmRender::NewRenderObject(g_ModelRenderType, dmModel::GetMaterial(prototype));
             ModelComponent& component = model_world->m_Components[index];
             component.m_Instance = instance;
-            component.m_RenderObject = ro;
             component.m_Model = prototype;
             component.m_ModelWorld = model_world;
             component.m_Index = index;
-            dmRender::SetUserData(ro, &component);
+            dmRender::RenderObject& ro = component.m_RenderObject;
+            ro.m_Type = g_ModelRenderType;
+            ro.m_Material = dmModel::GetMaterial(prototype);
+            ro.m_Texture = dmModel::GetTexture0(prototype);
+            ro.m_VertexBuffer = dmModel::GetVertexBuffer(mesh);
+            ro.m_VertexDeclaration = dmModel::GetVertexDeclarationBuffer(mesh);
+            ro.m_IndexBuffer = dmModel::GetIndexBuffer(mesh);
+            ro.m_IndexType = dmGraphics::TYPE_UNSIGNED_INT;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_VertexStart = 0;
+            ro.m_VertexCount = dmModel::GetPrimitiveCount(mesh);
             *user_data = (uintptr_t)&component;
 
             return dmGameObject::CREATE_RESULT_OK;
@@ -86,9 +95,8 @@ namespace dmGameSystem
     {
         ModelWorld* model_world = (ModelWorld*)world;
         ModelComponent* component = (ModelComponent*)*user_data;
-        component->m_RenderObject = dmRender::INVALID_RENDER_OBJECT_HANDLE;
+        component->m_Model = 0;
         model_world->m_ComponentIndices.Push(component->m_Index);
-        dmRender::DeleteRenderObject(component->m_RenderObject);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -103,11 +111,11 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < model_world->m_Components.Size(); ++i)
         {
             ModelComponent& component = model_world->m_Components[i];
-            if (component.m_RenderObject != dmRender::INVALID_RENDER_OBJECT_HANDLE)
+            if (component.m_Model != 0)
             {
                 Matrix4 world(dmGameObject::GetWorldRotation(component.m_Instance), Vector3(dmGameObject::GetWorldPosition(component.m_Instance)));
-                dmRender::SetWorldTransform(component.m_RenderObject, world);
-                dmRender::AddToRender(render_context, component.m_RenderObject);
+                component.m_RenderObject.m_WorldTransform = world;
+                dmRender::AddToRender(render_context, &component.m_RenderObject);
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -119,7 +127,7 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         ModelComponent* component = (ModelComponent*)*user_data;
-        dmRender::HRenderObject ro = component->m_RenderObject;
+        dmRender::RenderObject* ro = &component->m_RenderObject;
         if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmRenderDDF::SetVertexConstant* ddf = (dmRenderDDF::SetVertexConstant*)message_data->m_Buffer;
@@ -149,14 +157,12 @@ namespace dmGameSystem
             uint32_t slot = ddf->m_TextureSlot;
             dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)context;
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, hash);
-
             if (rendertarget)
             {
                 ro->m_Texture = dmGraphics::GetRenderTargetTexture(rendertarget);
             }
             else
                 dmLogWarning("No such render target: 0x%x (%d)", hash, hash);
-
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -166,25 +172,18 @@ namespace dmGameSystem
     {
     }
 
-    void RenderTypeModelDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::HRenderObject ro, uint32_t count)
+    void RenderTypeModelDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
     {
-        ModelComponent* component = (ModelComponent*)dmRender::GetUserData(ro);
-
-        dmModel::HMesh mesh = dmModel::GetMesh(component->m_Model);
-        if (dmModel::GetPrimitiveCount(mesh) == 0)
+        if (ro->m_VertexCount == 0)
             return;
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        // TODO: replace this dynamic texture thingy with proper indexing next
-        if (dmModel::GetTexture(component->m_Model, 8))
-            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture(component->m_Model, 8));
-        else
-            dmGraphics::SetTexture(graphics_context, dmModel::GetTexture(component->m_Model, 0));
+        dmGraphics::SetTexture(graphics_context, ro->m_Texture);
 
-        dmGraphics::EnableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh), dmModel::GetVertexBuffer(mesh));
-        dmGraphics::DrawRangeElements(graphics_context, dmGraphics::PRIMITIVE_TRIANGLES, 0, dmModel::GetPrimitiveCount(mesh), dmGraphics::TYPE_UNSIGNED_INT, dmModel::GetIndexBuffer(mesh));
-        dmGraphics::DisableVertexDeclaration(graphics_context, dmModel::GetVertexDeclarationBuffer(mesh));
+        dmGraphics::EnableVertexDeclaration(graphics_context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
+        dmGraphics::DrawRangeElements(graphics_context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
+        dmGraphics::DisableVertexDeclaration(graphics_context, ro->m_VertexDeclaration);
     }
 
     void RenderTypeModelEnd(const dmRender::HRenderContext render_context, void* user_context)
