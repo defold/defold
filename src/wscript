@@ -19,27 +19,11 @@ def build(bld):
     else:
         alut.defines = 'HAVE_STDINT_H HAVE_STAT HAVE_UNISTD_H HAVE_USLEEP'
 
-    if bld.env['COMPILER_CC'] == 'gcc':
-        vorbis_flags = '-fsigned-char'.split()
-    else:
-        vorbis_flags = []
-        # TODO: What options to add for msvc?
-        pass
-
-    vorbis_tremor = bld.new_task_gen(features = 'cc cstaticlib',
-                           includes = '. vorbis_tremor',
-                           source = [ 'vorbis_tremor/%s' % x for x in 'bitwise.c codebook.c dsp.c floor0.c floor1.c floor_lookup.c framing.c info.c mapping0.c mdct.c misc.c res012.c vorbisfile.c'.split()],
-                           target = 'vorbis_tremor',
-                           install_path='${PREFIX}/lib')
-
-    vorbis_tremor.env.append_unique('CCDEFINES', 'BYTE_ORDER=LITTLE_ENDIAN')
-    vorbis_tremor.env.append_unique('CCFLAGS', vorbis_flags)
-
-    sound = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                              includes = '. alut vorbis_tremor',
                              target = 'sound',
                              install_path='${PREFIX}/lib',
-                             source = 'sound.cpp')
+                             source = 'sound.cpp stb_vorbis/stb_vorbis.c')
 
     sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                              includes = '.',

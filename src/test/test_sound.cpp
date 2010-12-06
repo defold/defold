@@ -20,6 +20,9 @@ public:
     void*    m_LayerGuitarA;
     uint32_t m_LayerGuitarASize;
 
+    void*    m_ClickTrack;
+    uint32_t m_ClickTrackSize;
+
     void LoadFile(const char* file_name, void** buffer, uint32_t* size)
     {
         FILE* f = fopen(file_name, "rb");
@@ -54,6 +57,8 @@ public:
         LoadFile("src/test/drumloop.wav", &m_DrumLoop, &m_DrumLoopSize);
         LoadFile("src/test/onefootstep.wav", &m_OneFootStep, &m_OneFootStepSize);
         LoadFile("src/test/layer-guitar-a.ogg", &m_LayerGuitarA, &m_LayerGuitarASize);
+        LoadFile("src/test/click-track.ogg", &m_ClickTrack, &m_ClickTrackSize);
+
     }
 
     virtual void TearDown()
@@ -61,6 +66,7 @@ public:
         free(m_DrumLoop);
         free(m_OneFootStep);
         free(m_LayerGuitarA);
+        free(m_ClickTrack);
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
@@ -181,6 +187,50 @@ TEST_F(dmSoundTest, PlayOggVorbis)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+TEST_F(dmSoundTest, PlayOggVorbisLoop)
+{
+    dmSound::HSoundData sd = 0;
+    dmSound::Result r = dmSound::NewSoundData(m_ClickTrack, m_ClickTrackSize, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetLooping(instance, true);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    for (int i = 0; i < 2000; ++i)
+    {
+        dmTime::Sleep(5000);
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    }
+
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_TRUE(dmSound::IsPlaying(instance));
+
+    // Stop sound
+    r = dmSound::Stop(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_FALSE(dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
 TEST_F(dmSoundTest, Looping)
 {
     dmSound::HSoundData sd = 0;
@@ -261,6 +311,7 @@ TEST_F(dmSoundTest, Buffers)
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
+
 
 int main(int argc, char **argv)
 {
