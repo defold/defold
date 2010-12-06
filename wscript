@@ -91,7 +91,6 @@ def configure(conf):
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_VORBIS_TREMOR'] = 'vorbis_tremor'
 
     if sys.platform == "linux2":
         conf.env['LIB_OPENAL'] = 'openal'

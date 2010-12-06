@@ -18,7 +18,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
-        uselib = 'GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DMGLFW PARTICLE GUI SOUND VORBIS_TREMOR ALUT',
+        uselib = 'GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DMGLFW PARTICLE GUI SOUND ALUT',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
