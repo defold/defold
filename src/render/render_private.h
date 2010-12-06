@@ -25,11 +25,14 @@ namespace dmRender
 
     struct DebugRenderer
     {
-        Predicate                  m_3dPredicate;
-        Predicate                  m_2dPredicate;
-        dmRender::HRenderContext   m_RenderContext;
-        dmRender::RenderObject     m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
-        dmRender::RenderObject     m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
+        Predicate                       m_3dPredicate;
+        Predicate                       m_2dPredicate;
+        dmRender::HRenderContext        m_RenderContext;
+        dmRender::RenderObject          m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
+        dmRender::RenderObject          m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
+        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        uint32_t                        m_VertexIndex;
     };
 
     struct TextContext

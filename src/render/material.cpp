@@ -89,11 +89,13 @@ namespace dmRender
     void SetMaterialVertexProgramConstantType(HMaterial material, uint32_t reg, dmRenderDDF::MaterialDesc::ConstantType type)
     {
         material->m_VertexConstantTypes[reg] = type;
+        material->m_VertexConstantMask |= (1 << reg);
     }
 
     void SetMaterialFragmentProgramConstantType(HMaterial material, uint32_t reg, dmRenderDDF::MaterialDesc::ConstantType type)
     {
         material->m_FragmentConstantTypes[reg] = type;
+        material->m_FragmentConstantMask |= (1 << reg);
     }
 
     void SetMaterialVertexProgramConstant(HMaterial material, uint32_t reg, Vector4 constant)

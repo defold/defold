@@ -15,13 +15,12 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-    struct DebugRenderInfo
+    static const uint32_t MAX_VERTEX_COUNT = 40000;
+
+    struct DebugVertex
     {
-        static const uint32_t VERTEX_COUNT = 40000;
-        float m_Vertices[VERTEX_COUNT * 3];
-        float m_Colours[VERTEX_COUNT * 4];
-        DebugRenderType m_RenderType;
-        uint32_t m_VertexCount;
+        Vector4 m_Position;
+        Vector4 m_Color;
     };
 
     void RenderTypeDebugDraw3d(HRenderContext rendercontext, void* user_context, dmRender::RenderObject* ro, uint32_t count);
@@ -32,6 +31,14 @@ namespace dmRender
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
 
         debug_renderer.m_RenderContext = render_context;
+        debug_renderer.m_VertexIndex = 0;
+        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(MAX_VERTEX_COUNT * sizeof(DebugVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::VertexElement ve[] =
+        {
+            {0, 4, dmGraphics::TYPE_FLOAT, 0, 0 },
+            {1, 4, dmGraphics::TYPE_FLOAT, 0, 0 }
+        };
+        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(ve, 2);
 
         dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
         if (vp_data_size > 0)
@@ -41,11 +48,13 @@ namespace dmRender
             fragment_program = dmGraphics::NewFragmentProgram(fp_data, fp_data_size);
 
         HMaterial material3d = NewMaterial();
+        SetMaterialVertexProgramConstantType(material3d, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         AddMaterialTag(material3d, dmHashString32(DEBUG_3D_NAME));
         SetMaterialVertexProgram(material3d, vertex_program);
         SetMaterialFragmentProgram(material3d, fragment_program);
 
         HMaterial material2d = NewMaterial();
+        SetMaterialVertexProgramConstantType(material2d, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         AddMaterialTag(material2d, dmHashString32(DEBUG_2D_NAME));
         SetMaterialVertexProgram(material2d, vertex_program);
         SetMaterialFragmentProgram(material2d, fragment_program);
@@ -53,30 +62,30 @@ namespace dmRender
         RenderType render_type;
         uint32_t debug_render_type;
 
+        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_QUADS, dmGraphics::PRIMITIVE_LINES};
+
         render_type.m_DrawCallback = RenderTypeDebugDraw3d;
         dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            DebugRenderInfo* info = new DebugRenderInfo();
-            info->m_RenderType = (DebugRenderType)i;
-            info->m_VertexCount = 0;
             RenderObject* ro = &debug_renderer.m_RenderObject3d[i];
-            ro->m_UserData = (void*)info;
             ro->m_Material = material3d;
             ro->m_Type = debug_render_type;
+            ro->m_PrimitiveType = primitive_types[i];
+            ro->m_VertexBuffer = debug_renderer.m_VertexBuffer;
+            ro->m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
         }
 
         render_type.m_DrawCallback = RenderTypeDebugDraw2d;
         dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            DebugRenderInfo* info = new DebugRenderInfo();
-            info->m_RenderType = (DebugRenderType)i;
-            info->m_VertexCount = 0;
             RenderObject* ro = &debug_renderer.m_RenderObject2d[i];
-            ro->m_UserData = (void*)info;
             ro->m_Material = material2d;
             ro->m_Type = debug_render_type;
+            ro->m_PrimitiveType = primitive_types[i];
+            ro->m_VertexBuffer = debug_renderer.m_VertexBuffer;
+            ro->m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
         }
 
         debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
@@ -99,47 +108,41 @@ namespace dmRender
         DeleteMaterial(material);
         material = context->m_DebugRenderer.m_RenderObject2d[0].m_Material;
         DeleteMaterial(material);
-        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
-        {
-            delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i].m_UserData;
-            delete (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[i].m_UserData;
-        }
+
+        dmGraphics::DeleteVertexBuffer(context->m_DebugRenderer.m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(context->m_DebugRenderer.m_VertexDeclaration);
     }
 
     void ClearDebugRenderObjects(HRenderContext context)
     {
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[i].m_UserData;
-            info->m_VertexCount = 0;
-            info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[i].m_UserData;
-            info->m_VertexCount = 0;
+            context->m_DebugRenderer.m_RenderObject3d[i].m_VertexCount = 0;
+            context->m_DebugRenderer.m_RenderObject2d[i].m_VertexCount = 0;
         }
+        context->m_DebugRenderer.m_VertexIndex = 0;
     }
 
 #define ADD_TO_RENDER(object)\
-    if (((DebugRenderInfo*)object.m_UserData)->m_VertexCount == 0)\
+    if (object.m_VertexCount == 0)\
         dmRender::AddToRender(context, &object);
 
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color)
     {
-        ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE]);
-        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE].m_UserData;
-        if (info->m_VertexCount + 6 < DebugRenderInfo::VERTEX_COUNT)
+        RenderObject& ro = context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE];
+        ADD_TO_RENDER(ro);
+        if (context->m_DebugRenderer.m_VertexIndex + 4 < MAX_VERTEX_COUNT)
         {
-            float* v = &info->m_Vertices[info->m_VertexCount*3];
-            v[0] = x0; v[1] = y0; v[2] = 0.0f;
-            v[3] = x1; v[4] = y0; v[5] = 0.0f;
-            v[6] = x0; v[7] = y1; v[8] = 0.0f;
-            v[9] = x0; v[10] = y1; v[11] = 0.0f;
-            v[12] = x1; v[13] = y1; v[14] = 0.0f;
-            v[15] = x1; v[16] = y0; v[17] = 0.0f;
-            float* c = &info->m_Colours[info->m_VertexCount*4];
-
-            for (uint32_t i = 0; i < 6; ++i)
-                for (uint32_t j = 0; j < 4; ++j)
-                    c[i*4 + j] = color.getElem(j);
-            info->m_VertexCount += 6;
+            DebugVertex v[4];
+            v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
+            v[1].m_Position = Vector4(x1, y0, 0.0f, 0.0f);
+            v[2].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
+            v[3].m_Position = Vector4(x0, y1, 0.0f, 0.0f);
+            for (uint32_t i = 0; i < 4; ++i)
+                v[i].m_Color = color;
+            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 4 * sizeof(DebugVertex), (const void*)v);
+            ro.m_VertexCount += 4;
+            context->m_DebugRenderer.m_VertexIndex += 4;
         }
         else
         {
@@ -149,20 +152,18 @@ namespace dmRender
 
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
-        ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE]);
-        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE].m_UserData;
-        if (info->m_VertexCount + 2 < DebugRenderInfo::VERTEX_COUNT)
+        RenderObject& ro = context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_LINE];
+        ADD_TO_RENDER(ro);
+        if (context->m_DebugRenderer.m_VertexIndex + 2 < MAX_VERTEX_COUNT)
         {
-            float* v = &info->m_Vertices[info->m_VertexCount*3];
-            v[0] = x0; v[1] = y0; v[2] = 0.0f;
-            v[3] = x1; v[4] = y1; v[5] = 0.0f;
-            float* c = &info->m_Colours[info->m_VertexCount*4];
-            for (uint32_t i = 0; i < 4; ++i)
-            {
-                c[i] = color0.getElem(i);
-                c[4 + i] = color1.getElem(i);
-            }
-            info->m_VertexCount += 2;
+            DebugVertex v[2];
+            v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
+            v[0].m_Color = color0;
+            v[1].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
+            v[1].m_Color = color1;
+            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 2 * sizeof(DebugVertex), (const void*)v);
+            ro.m_VertexCount += 2;
+            context->m_DebugRenderer.m_VertexIndex += 2;
         }
         else
         {
@@ -172,23 +173,18 @@ namespace dmRender
 
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color)
     {
-        ADD_TO_RENDER(context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE]);
-        DebugRenderInfo* info = (DebugRenderInfo*)context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE].m_UserData;
-        if (info->m_VertexCount + 2 < DebugRenderInfo::VERTEX_COUNT)
+        RenderObject& ro = context->m_DebugRenderer.m_RenderObject3d[DEBUG_RENDER_TYPE_LINE];
+        ADD_TO_RENDER(ro);
+        if (context->m_DebugRenderer.m_VertexIndex + 2 < MAX_VERTEX_COUNT)
         {
-            float* v = &info->m_Vertices[info->m_VertexCount*3];
-            for (uint32_t i = 0; i < 3; ++i)
-            {
-                v[i] = start.getElem(i);
-                v[3 + i] = end.getElem(i);
-            }
-            float* c = &info->m_Colours[info->m_VertexCount*4];
-            for (uint32_t i = 0; i < 4; ++i)
-            {
-                c[i] = start_color.getElem(i);
-                c[4 + i] = end_color.getElem(i);
-            }
-            info->m_VertexCount += 2;
+            DebugVertex v[2];
+            v[0].m_Position = Vector4(start);
+            v[0].m_Color = start_color;
+            v[1].m_Position = Vector4(end);
+            v[1].m_Color = end_color;
+            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 2 * sizeof(DebugVertex), (const void*)v);
+            ro.m_VertexCount += 2;
+            context->m_DebugRenderer.m_VertexIndex += 2;
         }
         else
         {
@@ -200,52 +196,19 @@ namespace dmRender
 
     void RenderTypeDebugDraw3d(HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
     {
-        DebugRenderInfo* info = (DebugRenderInfo*)ro->m_UserData;
-
         dmGraphics::HContext context = render_context->m_GFXContext;
 
-        Matrix4* view_proj = GetViewProjectionMatrix(render_context);
-        dmGraphics::SetVertexConstantBlock(context, (Vector4*)view_proj, 0, 4);
-
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) info->m_Vertices);
-        dmGraphics::SetVertexStream(context, 1, 4, dmGraphics::TYPE_FLOAT, 0, (void*) info->m_Colours);
-        dmGraphics::DisableVertexStream(context, 2);
-
-        switch (info->m_RenderType)
-        {
-            case DEBUG_RENDER_TYPE_FACE:
-                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, info->m_VertexCount);
-                break;
-            case DEBUG_RENDER_TYPE_LINE:
-                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_LINES, 0, info->m_VertexCount);
-                break;
-            default:
-                break;
-        }
+        dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
+        dmGraphics::Draw(context, ro->m_PrimitiveType, 0, ro->m_VertexCount);
+        dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
     }
 
     void RenderTypeDebugDraw2d(HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
     {
-        DebugRenderInfo* info = (DebugRenderInfo*)ro->m_UserData;
-
         dmGraphics::HContext context = render_context->m_GFXContext;
 
-        Matrix4 view_proj = Matrix4::orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f);
-        dmGraphics::SetVertexConstantBlock(context, (Vector4*)&view_proj, 0, 4);
-
-        dmGraphics::SetVertexStream(context, 0, 3, dmGraphics::TYPE_FLOAT, 0, (void*) info->m_Vertices);
-        dmGraphics::SetVertexStream(context, 1, 4, dmGraphics::TYPE_FLOAT, 0, (void*) info->m_Colours);
-        dmGraphics::DisableVertexStream(context, 2);
-        switch (info->m_RenderType)
-        {
-            case DEBUG_RENDER_TYPE_FACE:
-                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, info->m_VertexCount);
-                break;
-            case DEBUG_RENDER_TYPE_LINE:
-                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_LINES, 0, info->m_VertexCount);
-                break;
-            default:
-                break;
-        }
+        dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
+        dmGraphics::Draw(context, ro->m_PrimitiveType, 0, ro->m_VertexCount);
+        dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
     }
 }
