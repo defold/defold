@@ -495,7 +495,9 @@ namespace dmEngine
 
     void FinalizeRenderScript()
     {
-        dmMessage::DeleteSocket(g_Socket);
+        if (g_Socket)
+            dmMessage::DeleteSocket(g_Socket);
+
         if (g_LuaState)
             lua_close(g_LuaState);
         g_LuaState = 0;
