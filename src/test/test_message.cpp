@@ -74,10 +74,10 @@ TEST(dmMessage, Bench)
     {
         dmMessage::Post(socket, m_HashMessage1, &message_data1, sizeof(CustomMessageData1));
     }
-    uint64_t end = dmTime::GetTime();
-    printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
 
     dmMessage::Dispatch(socket, HandleMessage, 0);
+    uint64_t end = dmTime::GetTime();
+    printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
 
     dmMessage::Dispatch(socket, HandleMessage, 0);
     dmMessage::DeleteSocket(socket);
