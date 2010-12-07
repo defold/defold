@@ -405,7 +405,7 @@ bail:
                     dmGameObject::DispatchInput(collections, 2, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
                 }
 
-                uint32_t socket = dmGameObject::GetMessageSocketId(engine->m_Register);
+                dmMessage::HSocket socket = dmGameObject::GetMessageSocket(engine->m_Register);
                 dmMessage::Dispatch(socket, &Dispatch, engine);
 
                 dmGameObject::UpdateContext update_contexts[2];
@@ -555,9 +555,9 @@ bail:
                 result->m_GameObjectId = (const char*)sizeof(dmGameObjectDDF::GameObjectTransformResult);
                 result->m_Position = dmGameObject::GetPosition(instance);
                 result->m_Rotation = dmGameObject::GetRotation(instance);
-                uint32_t reply_socket_id = dmGameObject::GetReplyMessageSocketId(self->m_Register);
+                dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(self->m_Register);
                 uint32_t reply_message_id = dmGameObject::GetMessageId(self->m_Register);
-                dmMessage::Post(reply_socket_id, reply_message_id, buf, dmGameObject::INSTANCE_MESSAGE_MAX);
+                dmMessage::Post(reply_socket, reply_message_id, buf, dmGameObject::INSTANCE_MESSAGE_MAX);
             }
             else
             {
@@ -628,7 +628,7 @@ bail:
         data.m_DDFDescriptor = 0x0;
         data.m_MessageId = gui_message->m_MessageId;
         data.m_Instance = instance;
-        uint32_t socket = dmGameObject::GetReplyMessageSocketId(self->m_Register);
+        dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(self->m_Register);
         uint32_t message_id = dmGameObject::GetMessageId(self->m_Register);
         dmMessage::Post(socket, message_id, &data, sizeof(dmGameObject::InstanceMessageData));
     }

@@ -36,7 +36,7 @@ namespace dmEngine
     };
 
     lua_State* g_LuaState = 0;
-    uint32_t g_Socket = 0;
+    dmMessage::HSocket g_Socket = 0;
 
     RenderScriptWorld::RenderScriptWorld()
     : m_Instances()
@@ -427,8 +427,7 @@ namespace dmEngine
 
     void InitializeRenderScript()
     {
-        g_Socket = dmHashString32(RENDER_SCRIPT_SOCKET_NAME);
-        dmMessage::CreateSocket(g_Socket, 4 * 1024);
+        dmMessage::NewSocket(RENDER_SCRIPT_SOCKET_NAME, &g_Socket);
 
         lua_State *L = lua_open();
         g_LuaState = L;
@@ -496,7 +495,7 @@ namespace dmEngine
 
     void FinalizeRenderScript()
     {
-        dmMessage::DestroySocket(g_Socket);
+        dmMessage::DeleteSocket(g_Socket);
         if (g_LuaState)
             lua_close(g_LuaState);
         g_LuaState = 0;
