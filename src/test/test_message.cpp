@@ -210,6 +210,8 @@ TEST(dmMessage, ThreadTest1)
 
     count += dmMessage::Dispatch(socket, HandleMessage, 0);
     ASSERT_EQ(1024U * 4U, count);
+
+    dmMessage::DeleteSocket(socket);
 }
 
 int main(int argc, char **argv)
