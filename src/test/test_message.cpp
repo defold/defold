@@ -5,6 +5,7 @@
 #include "../../src/dlib/message.h"
 #include "../../src/dlib/dstrings.h"
 #include "../../src/dlib/thread.h"
+#include "../../src/dlib/time.h"
 
 const uint32_t m_HashMessage1 = 0x35d47694;
 const uint32_t m_HashMessage2 = 0x35d47695;
@@ -52,6 +53,31 @@ TEST(dmMessage, Post)
         message_data1.m_MyValue = i;
         dmMessage::Post(socket, m_HashMessage1, &message_data1, sizeof(CustomMessageData1));
     }
+
+    dmMessage::Dispatch(socket, HandleMessage, 0);
+    dmMessage::DeleteSocket(socket);
+}
+
+TEST(dmMessage, Bench)
+{
+    const uint32_t iter_count = 1024 * 16;
+    dmMessage::HSocket socket;
+    dmMessage::Result r;
+    r = dmMessage::NewSocket("my_socket", &socket);
+    ASSERT_EQ(dmMessage::RESULT_OK, r);
+
+    CustomMessageData1 message_data1;
+    message_data1.m_MyValue = 0;
+
+    uint64_t start = dmTime::GetTime();
+    for (uint32_t iter = 0; iter < iter_count; ++iter)
+    {
+        dmMessage::Post(socket, m_HashMessage1, &message_data1, sizeof(CustomMessageData1));
+    }
+    uint64_t end = dmTime::GetTime();
+    printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
+
+    dmMessage::Dispatch(socket, HandleMessage, 0);
 
     dmMessage::Dispatch(socket, HandleMessage, 0);
     dmMessage::DeleteSocket(socket);
