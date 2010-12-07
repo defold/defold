@@ -18,9 +18,6 @@ namespace dmGameObject
 {
     extern lua_State* g_LuaState;
 
-    // TODO: Configurable?
-    const uint32_t INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE = 0x8000;
-
     struct Prototype
     {
         struct Component
@@ -165,10 +162,10 @@ namespace dmGameObject
         Quat                        m_AccumulatedRotation;
 
         uint32_t                    m_MessageId;
-        uint32_t                    m_SocketId;
+        dmMessage::HSocket          m_SocketId;
         uint32_t                    m_SpawnMessageId;
-        uint32_t                    m_SpawnSocketId;
-        uint32_t                    m_ReplySocketId;
+        dmMessage::HSocket          m_SpawnSocketId;
+        dmMessage::HSocket          m_ReplySocketId;
 
         dmMessage::DispatchCallback m_DispatchCallback;
         void*                       m_DispatchUserdata;

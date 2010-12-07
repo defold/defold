@@ -114,8 +114,8 @@ TEST_F(ScriptTest, TestScript01)
 
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
 
-    uint32_t socket = dmGameObject::GetMessageSocketId(m_Register);
-    uint32_t reply_socket = dmGameObject::GetReplyMessageSocketId(m_Register);
+    dmMessage::HSocket socket = dmGameObject::GetMessageSocket(m_Register);
+    dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(m_Register);
     TestScript01Context context;
     context.m_Register = m_Register;
     context.m_Result = false;

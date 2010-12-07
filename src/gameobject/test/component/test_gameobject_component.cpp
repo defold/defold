@@ -290,7 +290,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     data.m_Component = 0xff;
     data.m_Instance = go;
     data.m_DDFDescriptor = 0x0;
-    dmMessage::Post(dmGameObject::GetReplyMessageSocketId(m_Register), message_id, (void*)&data, sizeof(dmGameObject::InstanceMessageData));
+    dmMessage::Post(dmGameObject::GetReplyMessageSocket(m_Register), message_id, (void*)&data, sizeof(dmGameObject::InstanceMessageData));
 
     dmGameObject::Delete(m_Collection, go);
 

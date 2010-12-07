@@ -512,14 +512,14 @@ namespace dmGameObject
      * @param reg Register handle
      * @return The message socket id of the specified collection
      */
-    uint32_t GetMessageSocketId(HRegister reg);
+    dmMessage::HSocket GetMessageSocket(HRegister reg);
 
     /**
      * Retrieve the reply message socket id for the specified register.
      * @param reg Register handle
      * @return The reply message socket id of the specified collection
      */
-    uint32_t GetReplyMessageSocketId(HRegister reg);
+    dmMessage::HSocket GetReplyMessageSocket(HRegister reg);
 
     /**
      * Retrieve the designated message id for game object messages for the specified register.

@@ -51,19 +51,16 @@ namespace dmGameObject
         m_MessageId = dmHashString32(buffer);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SOCKET_NAME, g_RegisterIndex);
-        m_SocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_SocketId, INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE);
+        dmMessage::NewSocket(buffer, &m_SocketId);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_MESSAGE_NAME, g_RegisterIndex);
         m_SpawnMessageId = dmHashString32(buffer);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_SOCKET_NAME, g_RegisterIndex);
-        m_SpawnSocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_SpawnSocketId, INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE);
+        dmMessage::NewSocket(buffer, &m_SpawnSocketId);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, g_RegisterIndex);
-        m_ReplySocketId = dmHashString32(buffer);
-        dmMessage::CreateSocket(m_ReplySocketId, INSTANCE_MESSAGE_SOCKET_BUFFER_SIZE);
+        dmMessage::NewSocket(buffer, &m_ReplySocketId);
 
         m_DispatchCallback = dispatch_callback;
         m_DispatchUserdata = dispatch_userdata;
@@ -75,11 +72,11 @@ namespace dmGameObject
     {
         dmMutex::Delete(m_Mutex);
         dmMessage::Consume(m_SocketId);
-        dmMessage::DestroySocket(m_SocketId);
+        dmMessage::DeleteSocket(m_SocketId);
         dmMessage::Consume(m_SpawnSocketId);
-        dmMessage::DestroySocket(m_SpawnSocketId);
+        dmMessage::DeleteSocket(m_SpawnSocketId);
         dmMessage::Consume(m_ReplySocketId);
-        dmMessage::DestroySocket(m_ReplySocketId);
+        dmMessage::DeleteSocket(m_ReplySocketId);
     }
 
     ComponentType::ComponentType()
@@ -1264,7 +1261,7 @@ namespace dmGameObject
             return 0x0;
     }
 
-    uint32_t GetMessageSocketId(HRegister reg)
+    dmMessage::HSocket GetMessageSocket(HRegister reg)
     {
         if (reg)
             return reg->m_SocketId;
@@ -1272,7 +1269,7 @@ namespace dmGameObject
             return 0;
     }
 
-    uint32_t GetReplyMessageSocketId(HRegister reg)
+    dmMessage::HSocket GetReplyMessageSocket(HRegister reg)
     {
         if (reg)
             return reg->m_ReplySocketId;
