@@ -69,12 +69,19 @@ TEST(dmMessage, Bench)
     CustomMessageData1 message_data1;
     message_data1.m_MyValue = 0;
 
+    // "Warm up", i.e. allocate all pages needed internally
+    for (uint32_t iter = 0; iter < iter_count; ++iter)
+    {
+        dmMessage::Post(socket, m_HashMessage1, &message_data1, sizeof(CustomMessageData1));
+    }
+    dmMessage::Dispatch(socket, HandleMessage, 0);
+
+    // Benchmark
     uint64_t start = dmTime::GetTime();
     for (uint32_t iter = 0; iter < iter_count; ++iter)
     {
         dmMessage::Post(socket, m_HashMessage1, &message_data1, sizeof(CustomMessageData1));
     }
-
     dmMessage::Dispatch(socket, HandleMessage, 0);
     uint64_t end = dmTime::GetTime();
     printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
@@ -237,6 +244,40 @@ TEST(dmMessage, ThreadTest1)
     count += dmMessage::Dispatch(socket, HandleMessage, 0);
     ASSERT_EQ(1024U * 4U, count);
 
+    dmMessage::DeleteSocket(socket);
+}
+
+void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
+{
+    uint32_t hash = dmHashBuffer32(message_object->m_Data, message_object->m_DataSize);
+    assert(hash == message_object->m_ID);
+}
+
+TEST(dmMessage, Integrity)
+{
+    const uint32_t max_message_count = 16;
+    dmMessage::HSocket socket;
+    dmMessage::Result r;
+    r = dmMessage::NewSocket("my_socket", &socket);
+    ASSERT_EQ(dmMessage::RESULT_OK, r);
+
+    char msg[1024];
+    for (uint32_t size = 1; size <= 1024; ++size)
+    {
+        for (uint32_t iter = 0; iter < 70; ++iter)
+        {
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                msg[i] = rand() % 255;
+            }
+            uint32_t hash = dmHashBuffer32(msg, size);
+
+            dmMessage::Post(socket, hash, msg, size);
+        }
+        dmMessage::Dispatch(socket, HandleIntegrityMessage, 0);
+    }
+
+    dmMessage::Dispatch(socket, HandleIntegrityMessage, 0);
     dmMessage::DeleteSocket(socket);
 }
 
