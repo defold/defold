@@ -2,6 +2,7 @@
 #define DM_GUI_H
 
 #include <stdint.h>
+#include <dlib/message.h>
 #include <ddf/ddf.h>
 
 #include <vectormath/cpp/vectormath_aos.h>
@@ -40,8 +41,8 @@ namespace dmGui
 
     struct NewGuiParams
     {
-        uint32_t m_Socket;
-        uint32_t m_MaxMessageDataSize;
+        dmMessage::HSocket m_Socket;
+        uint32_t           m_MaxMessageDataSize;
 
         NewGuiParams()
         {

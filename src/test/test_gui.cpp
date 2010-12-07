@@ -35,12 +35,11 @@ class dmGuiTest : public ::testing::Test
 protected:
     dmGui::HGui gui;
     dmGui::HScene scene;
-    uint32_t socket;
+    dmMessage::HSocket socket;
 
     virtual void SetUp()
     {
-        socket = dmHashString32("test_socket");
-        dmMessage::CreateSocket(socket, 128);
+        dmMessage::NewSocket("test_socket", &socket);
         dmGui::NewGuiParams gui_params;
         gui_params.m_Socket = socket;
 
@@ -56,7 +55,7 @@ protected:
     {
         dmGui::DeleteScene(scene);
         dmGui::Delete(gui);
-        dmMessage::DestroySocket(socket);
+        dmMessage::DeleteSocket(socket);
     }
 };
 

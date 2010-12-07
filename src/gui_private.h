@@ -20,8 +20,8 @@ namespace dmGui
 
     struct Gui
     {
-        lua_State*                              m_LuaState;
-        uint32_t                                m_Socket;
+        lua_State*         m_LuaState;
+        dmMessage::HSocket m_Socket;
     };
 
     struct InternalNode
