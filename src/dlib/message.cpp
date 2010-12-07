@@ -34,6 +34,7 @@ namespace dmMessage
         {
             g_Sockets.SetCapacity(MAX_SOCKETS);
             g_Sockets.SetSize(MAX_SOCKETS);
+            memset(&g_Sockets[0], 0, sizeof(g_Sockets[0]) * MAX_SOCKETS);
             g_SocketPool.SetCapacity(MAX_SOCKETS);
             g_Initialized = true;
         }
@@ -143,11 +144,14 @@ namespace dmMessage
         MessageSocket*s = GetSocketInternal(socket, id);
         DM_PROFILE(Message, s->m_Name);
 
-        if (!s->m_Header)
-            return 0;
-        uint32_t dispatch_count = 0;
-
         dmMutex::Lock(s->m_Mutex);
+
+        if (!s->m_Header)
+        {
+            dmMutex::Unlock(s->m_Mutex);
+            return 0;
+        }
+        uint32_t dispatch_count = 0;
 
         Message *message_object = s->m_Header;
         s->m_Header = 0;
