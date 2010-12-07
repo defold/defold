@@ -1,74 +1,118 @@
 #include <assert.h>
+#include <string.h>
 #include "message.h"
 #include "atomic.h"
-#include "hashtable.h"
+#include "hash.h"
 #include "profile.h"
+#include "array.h"
+#include "index_pool.h"
+#include "mutex.h"
 
 namespace dmMessage
 {
-    struct SMessageSocket
+    struct MessageSocket
     {
-        Message *m_Header;
-        Message *m_Tail;
+        Message*       m_Header;
+        Message*       m_Tail;
+        uint32_t       m_NameHash;
+        uint16_t       m_Version;
+        const char*    m_Name;
+        dmMutex::Mutex m_Mutex;
     };
 
-    struct SMessageInfo
-    {
-        uint32_t m_ID; //! Unique ID of message
-        uint32_t m_DataSize; //! Size of data in bytes
-    };
+    const uint32_t MAX_SOCKETS = 128;
+    bool g_Initialized = false;
+    uint32_atomic_t g_NextVersionNumber = 0;
+    dmArray<MessageSocket> g_Sockets;
+    dmIndexPool16 g_SocketPool;
 
-    dmHashTable<uint32_t, SMessageSocket> m_Sockets;
+    HSocket GetSocket(const char *name);
 
-    Result CreateSocket(uint32_t socket_id, uint32_t buffer_byte_size)
+    Result NewSocket(const char* name, HSocket* socket)
     {
-        static bool hash_initialized = false;
-        if (!hash_initialized)
+        if (!g_Initialized)
         {
-            hash_initialized = true;
-            m_Sockets.SetCapacity(32, 1024);
+            g_Sockets.SetCapacity(MAX_SOCKETS);
+            g_Sockets.SetSize(MAX_SOCKETS);
+            g_SocketPool.SetCapacity(MAX_SOCKETS);
+            g_Initialized = true;
         }
 
-        if (m_Sockets.Get(socket_id))
+        if (GetSocket(name))
+        {
             return RESULT_SOCKET_EXISTS;
+        }
 
-        SMessageSocket socket;
-        socket.m_Header = 0;
-        socket.m_Tail = 0;
-        m_Sockets.Put(socket_id, socket);
+        if (g_SocketPool.Remaining() == 0)
+        {
+            return RESULT_SOCKET_OUT_OF_RESOURCES;
+        }
+
+        uint16_t id  = g_SocketPool.Pop();
+        uint32_t name_hash = dmHashString32(name);
+
+        MessageSocket s;
+        s.m_Header = 0;
+        s.m_Tail = 0;
+        s.m_NameHash = name_hash;
+        s.m_Version = dmAtomicIncrement32(&g_NextVersionNumber);
+        s.m_Name = strdup(name);
+        s.m_Mutex = dmMutex::New();
+
+        // 0 is an invalid handle. We can't use 0 as version number.
+        if (s.m_Version == 0)
+            s.m_Version = dmAtomicIncrement32(&g_NextVersionNumber);
+
+        g_Sockets[id] = s;
+        *socket = s.m_Version << 16 | id;
+
         return RESULT_OK;
     }
 
-    Result DestroySocket(uint32_t socket_id)
+    static MessageSocket* GetSocketInternal(HSocket socket, uint16_t& id)
     {
-        SMessageSocket *socket = m_Sockets.Get(socket_id);
-        if (!socket)
-            return RESULT_SOCKET_NOT_FOUND;
+        uint16_t version = socket >> 16;
+        id = socket & 0xffff;
 
-        //assert(socket->m_Header == 0 && "Destroying socket with nondispatched messages, memory leak..");
-        m_Sockets.Erase(socket_id);
-        return RESULT_OK;
+        MessageSocket* s = &g_Sockets[id];
+        assert(s->m_Version == version);
+        return s;
     }
 
-    void Post(uint32_t socket_id, uint32_t message_id, const void* message_data, uint32_t message_data_size)
+    void DeleteSocket(HSocket socket)
+    {
+        uint16_t id;
+        MessageSocket* s = GetSocketInternal(socket, id);
+        free((void*) s->m_Name);
+        dmMutex::Delete(s->m_Mutex);
+
+        memset(s, 0, sizeof(*s));
+        g_SocketPool.Push(id);
+    }
+
+    HSocket GetSocket(const char *name)
+    {
+        DM_PROFILE(Message, "GetSocket")
+
+        uint32_t name_hash = dmHashString32(name);
+        for (uint32_t i = 0; i < g_Sockets.Size(); ++i)
+        {
+            MessageSocket* socket = &g_Sockets[i];
+            if (socket->m_NameHash == name_hash)
+            {
+                return socket->m_Version << 16 | i;
+            }
+        }
+        return 0;
+    }
+
+    void Post(HSocket socket, uint32_t message_id, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER("Messages", 1)
-        // get socket and message
-        SMessageSocket *socket = m_Sockets.Get(socket_id);
-        if (!socket)
-        {
-            assert(false && "Trying to post message to invalid socket id");
-            return;
-        }
 
-        /*
-        SMessageInfo *message_info = m_RegisteredMessages.Get(message_id);
-        if (!message_info)
-        {
-            assert(false && "Trying to post unregistered message");
-            return;
-        }*/
+        uint16_t id;
+        MessageSocket*s = GetSocketInternal(socket, id);
 
         uint32_t data_size = sizeof(Message) + message_data_size;
         Message *new_message = (Message *) new uint8_t[data_size];
@@ -77,43 +121,39 @@ namespace dmMessage
         new_message->m_Next = 0;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
-        // mutex lock
+        dmMutex::Lock(s->m_Mutex);
 
-        if (!socket->m_Header)
+        if (!s->m_Header)
         {
-            socket->m_Header = new_message;
-            socket->m_Tail = new_message;
+            s->m_Header = new_message;
+            s->m_Tail = new_message;
         }
         else
         {
-            socket->m_Tail->m_Next = new_message;
-            socket->m_Tail = new_message;
+            s->m_Tail->m_Next = new_message;
+            s->m_Tail = new_message;
         }
 
-        // mutex unlock
+        dmMutex::Unlock(s->m_Mutex);
     }
 
-    uint32_t Dispatch(uint32_t socket_id, DispatchCallback dispatch_callback, void* user_ptr)
+    uint32_t Dispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr)
     {
-        SMessageSocket *socket = m_Sockets.Get(socket_id);
-        if (!socket)
-        {
-            assert(false && "Invalid socket parameter");
-            return 0;
-        }
+        uint16_t id;
+        MessageSocket*s = GetSocketInternal(socket, id);
+        DM_PROFILE(Message, s->m_Name);
 
-        if (!socket->m_Header)
+        if (!s->m_Header)
             return 0;
         uint32_t dispatch_count = 0;
 
-        // mutex lock
+        dmMutex::Lock(s->m_Mutex);
 
-        Message *message_object = socket->m_Header;
-        //Message *last_message_object = socket->m_Tail;
-        socket->m_Header = 0;
-        socket->m_Tail = 0;
+        Message *message_object = s->m_Header;
+        s->m_Header = 0;
+        s->m_Tail = 0;
 
-        // mutex unlock
+        dmMutex::Unlock(s->m_Mutex);
 
         while (message_object)
         {
@@ -131,10 +171,9 @@ namespace dmMessage
     {
     }
 
-    uint32_t Consume(uint32_t socket_id)
+    uint32_t Consume(HSocket socket)
     {
-        return Dispatch(socket_id, &ConsumeCallback, 0);
+        return Dispatch(socket, &ConsumeCallback, 0);
     }
-
-};
+}
 
