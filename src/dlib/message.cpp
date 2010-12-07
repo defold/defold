@@ -170,6 +170,8 @@ namespace dmMessage
             delete p;
             p = next;
         }
+        if (s->m_Allocator.m_CurrentPage)
+            delete s->m_Allocator.m_CurrentPage;
 
         dmMutex::Delete(s->m_Mutex);
 
