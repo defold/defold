@@ -62,6 +62,7 @@ namespace dmGameSystem
             }
         }
         dmGui::Delete(gui_world->m_Gui);
+        dmMessage::DeleteSocket(gui_world->m_Socket);
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
