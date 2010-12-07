@@ -75,7 +75,7 @@ namespace dmGameSystem
         char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight) + 9];
         dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*) (buf + sizeof(dmGameObject::InstanceMessageData));
 
-        uint32_t socket_id = dmHashString32("render");
+        dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
         uint32_t message_id = dmHashString32("set_light");
 
         for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)

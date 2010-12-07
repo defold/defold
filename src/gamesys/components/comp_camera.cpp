@@ -141,7 +141,8 @@ namespace dmGameSystem
             char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetViewProjection) + 9];
             dmGameSystemDDF::SetViewProjection* set_view_projection = (dmGameSystemDDF::SetViewProjection*) (buf + sizeof(dmGameObject::InstanceMessageData));
 
-            uint32_t socket_id = dmHashString32("render");
+
+            dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
             uint32_t message_id = dmHashString32(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_ScriptName);
 
             const char* id = "game"; // TODO: How should this be handle, ddf-property in the camera?

@@ -34,18 +34,16 @@ namespace dmGameSystem
 
         GuiWorld* gui_world = new GuiWorld();
         DM_SNPRINTF(socket_name, sizeof(socket_name), "dmgui_from_%X", (unsigned int) gui_world);
-        uint32_t socket_name_hash = dmHashString32(socket_name);
-        dmMessage::Result mr = dmMessage::CreateSocket(socket_name_hash, 128); // TODO: 128
+        dmMessage::Result mr = dmMessage::NewSocket(socket_name, &gui_world->m_Socket);
         if (mr != dmMessage::RESULT_OK)
         {
             dmLogFatal("Unable to create gui socket: %s (%d)", socket_name, mr);
             delete gui_world;
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        gui_world->m_Socket = socket_name_hash;
 
         dmGui::NewGuiParams gui_params;
-        gui_params.m_Socket = socket_name_hash;
+        gui_params.m_Socket = gui_world->m_Socket;
         gui_world->m_Gui = dmGui::New(&gui_params);
         gui_world->m_Components.SetCapacity(16);
         *world = gui_world;
@@ -143,7 +141,7 @@ namespace dmGameSystem
         data.m_DDFDescriptor = 0x0;
         data.m_MessageId = gui_message->m_MessageId;
         data.m_Instance = instance;
-        uint32_t socket = dmGameObject::GetReplyMessageSocketId(regist);
+        dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(regist);
         uint32_t message = dmGameObject::GetMessageId(regist);
         dmMessage::Post(socket, message, &data, sizeof(dmGameObject::InstanceMessageData));
     }
