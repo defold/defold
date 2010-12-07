@@ -73,6 +73,8 @@ namespace dmMessage
     static MessageSocket* GetSocketInternal(HSocket socket, uint16_t& id)
     {
         uint16_t version = socket >> 16;
+        assert(version != 0);
+
         id = socket & 0xffff;
 
         MessageSocket* s = &g_Sockets[id];
