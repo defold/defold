@@ -143,6 +143,11 @@ namespace dmProfile
     void AddCounter(const char* name, uint32_t amount)
     {
         uint32_t name_hash = dmHashString32(name);
+        AddCounterHash(name, name_hash, amount);
+    }
+
+    void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
+    {
         Counter* counter = FindCounter(name_hash);
 
         if (!counter)

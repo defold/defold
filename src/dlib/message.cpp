@@ -195,10 +195,11 @@ namespace dmMessage
         return 0;
     }
 
+    uint32_t g_MessagesHash = dmHashString32("Messages");
     void Post(HSocket socket, uint32_t message_id, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
-        DM_COUNTER("Messages", 1)
+        DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
 
         uint16_t id;
         MessageSocket*s = GetSocketInternal(socket, id);
