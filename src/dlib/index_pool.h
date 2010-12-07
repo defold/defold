@@ -16,7 +16,7 @@ class dmIndexPool
 {
     enum STATE_FLAGS
     {
-        STATE_DEFAULT           = 0x0, 
+        STATE_DEFAULT           = 0x0,
         STATE_USER_ALLOCATED    = 0x1
     };
 
@@ -48,15 +48,15 @@ public:
     }
 
     /**
-     * Destructor. 
+     * Destructor.
      * @note If user allocated, memory is not free'd
      */
     ~dmIndexPool()
     {
         if(!(m_State & STATE_USER_ALLOCATED))
         {
-            assert(m_Pool != NULL);
-            free(m_Pool);
+            if (m_Pool)
+                free(m_Pool);
         }
     }
 
@@ -109,7 +109,7 @@ public:
     {
         assert(m_Pool);
         assert(m_Size != 0 && m_Size <= m_Capacity);
-	m_Pool[--m_Size] = node;
+        m_Pool[--m_Size] = node;
     }
 
     /**
@@ -124,8 +124,8 @@ public:
     }
 
 private:
-    T*	 m_Pool;
-    T	 m_Capacity;
+    T*   m_Pool;
+    T    m_Capacity;
     T    m_Size;
     uint16_t m_State : 1;
 };
