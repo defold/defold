@@ -18,6 +18,14 @@ namespace dmGameSystem
 
     struct ModelComponent
     {
+        ModelComponent()
+        : m_Model(0)
+        , m_Instance(0)
+        , m_RenderObject()
+        , m_ModelWorld(0x0)
+        , m_Index(0)
+        {}
+
         dmModel::HModel m_Model;
         dmGameObject::HInstance m_Instance;
         dmRender::RenderObject m_RenderObject;
@@ -38,7 +46,6 @@ namespace dmGameSystem
         const uint32_t max_component_count = 1024;
         model_world->m_Components.SetCapacity(max_component_count);
         model_world->m_Components.SetSize(max_component_count);
-        memset((void*)&model_world->m_Components[0], 0, max_component_count * sizeof(ModelComponent));
         model_world->m_ComponentIndices.SetCapacity(max_component_count);
         *world = model_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -79,6 +86,7 @@ namespace dmGameSystem
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro.m_VertexStart = 0;
             ro.m_VertexCount = dmModel::GetPrimitiveCount(mesh);
+            ro.m_TextureTransform = Matrix4::identity();
             *user_data = (uintptr_t)&component;
 
             return dmGameObject::CREATE_RESULT_OK;
