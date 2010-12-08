@@ -23,9 +23,6 @@ namespace dmRender
         Vector4 m_Color;
     };
 
-    void RenderTypeDebugDraw3d(HRenderContext rendercontext, void* user_context, dmRender::RenderObject* ro, uint32_t count);
-    void RenderTypeDebugDraw2d(HRenderContext rendercontext, void* user_context, dmRender::RenderObject* ro, uint32_t count);
-
     void InitializeDebugRenderer(dmRender::HRenderContext render_context, const void* vp_data, uint32_t vp_data_size, const void* fp_data, uint32_t fp_data_size)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
@@ -59,30 +56,21 @@ namespace dmRender
         SetMaterialVertexProgram(material2d, vertex_program);
         SetMaterialFragmentProgram(material2d, fragment_program);
 
-        RenderType render_type;
-        uint32_t debug_render_type;
-
         dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_QUADS, dmGraphics::PRIMITIVE_LINES};
 
-        render_type.m_DrawCallback = RenderTypeDebugDraw3d;
-        dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             RenderObject* ro = &debug_renderer.m_RenderObject3d[i];
             ro->m_Material = material3d;
-            ro->m_Type = debug_render_type;
             ro->m_PrimitiveType = primitive_types[i];
             ro->m_VertexBuffer = debug_renderer.m_VertexBuffer;
             ro->m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
         }
 
-        render_type.m_DrawCallback = RenderTypeDebugDraw2d;
-        dmRender::RegisterRenderType(render_context, render_type, &debug_render_type);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             RenderObject* ro = &debug_renderer.m_RenderObject2d[i];
             ro->m_Material = material2d;
-            ro->m_Type = debug_render_type;
             ro->m_PrimitiveType = primitive_types[i];
             ro->m_VertexBuffer = debug_renderer.m_VertexBuffer;
             ro->m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
@@ -193,22 +181,4 @@ namespace dmRender
     }
 
 #undef ADD_TO_RENDER
-
-    void RenderTypeDebugDraw3d(HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
-    {
-        dmGraphics::HContext context = render_context->m_GFXContext;
-
-        dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
-        dmGraphics::Draw(context, ro->m_PrimitiveType, 0, ro->m_VertexCount);
-        dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
-    }
-
-    void RenderTypeDebugDraw2d(HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
-    {
-        dmGraphics::HContext context = render_context->m_GFXContext;
-
-        dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
-        dmGraphics::Draw(context, ro->m_PrimitiveType, 0, ro->m_VertexCount);
-        dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
-    }
 }

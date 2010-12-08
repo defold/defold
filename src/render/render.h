@@ -41,10 +41,8 @@ namespace dmRender
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         HMaterial                       m_Material;
         dmGraphics::HTexture            m_Texture;
-        void*                           m_UserData;
         dmGraphics::PrimitiveType       m_PrimitiveType;
         dmGraphics::Type                m_IndexType;
-        uint32_t                        m_Type;
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint8_t                         m_VertexConstantMask;
@@ -53,20 +51,6 @@ namespace dmRender
 
     typedef struct RenderContext* HRenderContext;
     typedef struct RenderTargetSetup* HRenderTargetSetup;
-
-    typedef void (*RenderTypeBeginCallback)(HRenderContext render_context, void* user_context);
-    typedef void (*RenderTypeDrawCallback)(HRenderContext render_context, void* user_context, RenderObject* ro, uint32_t count);
-    typedef void (*RenderTypeEndCallback)(HRenderContext render_context, void* user_context);
-
-    struct RenderType
-    {
-        RenderType();
-
-        RenderTypeBeginCallback m_BeginCallback;
-        RenderTypeDrawCallback  m_DrawCallback;
-        RenderTypeEndCallback   m_EndCallback;
-        void*                   m_UserContext;
-    };
 
     struct RenderContextParams
     {
@@ -91,7 +75,6 @@ namespace dmRender
     HRenderContext NewRenderContext(const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context);
 
-    Result RegisterRenderType(HRenderContext render_context, RenderType render_type, HRenderType* out_render_type);
     Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, uint32_t hash);
     dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, uint32_t hash);
 

@@ -41,7 +41,6 @@ namespace dmRender
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         dmGraphics::HVertexDeclaration      m_VertexDecl;
         uint32_t                            m_RenderObjectIndex;
-        uint32_t                            m_TextRenderType;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;
     };
@@ -55,7 +54,6 @@ namespace dmRender
     struct RenderContext
     {
         dmArray<RenderTargetSetup>  m_RenderTargets;
-        dmArray<RenderType>         m_RenderTypes;
         dmArray<RenderObject*>      m_RenderObjects;
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;

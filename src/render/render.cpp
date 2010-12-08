@@ -23,16 +23,6 @@ namespace dmRender
         m_TextureTransform = Vectormath::Aos::Matrix4::identity();
     }
 
-
-    RenderType::RenderType()
-    : m_BeginCallback(0x0)
-    , m_DrawCallback(0x0)
-    , m_EndCallback(0x0)
-    , m_UserContext(0x0)
-    {
-
-    }
-
     RenderContextParams::RenderContextParams()
     : m_MaxRenderTypes(0)
     , m_MaxInstances(0)
@@ -49,7 +39,6 @@ namespace dmRender
     {
         RenderContext* context = new RenderContext;
 
-        context->m_RenderTypes.SetCapacity(params.m_MaxRenderTypes);
         context->m_RenderTargets.SetCapacity(params.m_MaxRenderTargets);
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
@@ -77,17 +66,6 @@ namespace dmRender
         FinalizeTextContext(render_context);
         delete render_context;
 
-        return RESULT_OK;
-    }
-
-    Result RegisterRenderType(HRenderContext render_context, RenderType render_type, HRenderType* out_render_type)
-    {
-        if (render_context == 0x0)
-            return RESULT_INVALID_CONTEXT;
-        if (render_context->m_RenderTypes.Full())
-            return RESULT_BUFFER_IS_FULL;
-        render_context->m_RenderTypes.Push(render_type);
-        *out_render_type = render_context->m_RenderTypes.Size() - 1;
         return RESULT_OK;
     }
 
@@ -184,25 +162,15 @@ namespace dmRender
         uint32_t tag_mask = 0;
         if (predicate != 0x0)
             tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
-        uint32_t type = ~0u;
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
-            if ((GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
+            if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
                 dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
                 dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(ro->m_Material));
                 dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(ro->m_Material));
-
-                void* user_context = render_context->m_RenderTypes[ro->m_Type].m_UserContext;
-                // check if we need to change render type and run its setup func
-                if (type != ro->m_Type)
-                {
-                    if (render_context->m_RenderTypes[ro->m_Type].m_BeginCallback)
-                        render_context->m_RenderTypes[ro->m_Type].m_BeginCallback(render_context, user_context);
-                    type = ro->m_Type;
-                }
 
                 uint32_t material_vertex_mask = GetMaterialVertexConstantMask(ro->m_Material);
                 uint32_t material_fragment_mask = GetMaterialFragmentConstantMask(ro->m_Material);
@@ -273,15 +241,17 @@ namespace dmRender
                     }
                 }
 
-                // dispatch
-                if (render_context->m_RenderTypes[ro->m_Type].m_DrawCallback)
-                    render_context->m_RenderTypes[ro->m_Type].m_DrawCallback(render_context, user_context, ro, 1);
+                if (ro->m_Texture)
+                    dmGraphics::SetTexture(context, ro->m_Texture);
 
-                if (i == render_context->m_RenderObjects.Size() - 1 || type != render_context->m_RenderObjects[i+1]->m_Type)
-                {
-                    if (render_context->m_RenderTypes[ro->m_Type].m_EndCallback)
-                        render_context->m_RenderTypes[ro->m_Type].m_EndCallback(render_context, user_context);
-                }
+                dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
+
+                if (ro->m_IndexBuffer)
+                    dmGraphics::DrawRangeElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
+                else
+                    dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
+
+                dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
             }
         }
         return RESULT_OK;

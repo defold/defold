@@ -90,12 +90,6 @@ namespace dmRender
     {
         TextContext& text_context = render_context->m_TextContext;
 
-        RenderType text_render_type;
-        text_render_type.m_BeginCallback = RenderTypeTextBegin;
-        text_render_type.m_DrawCallback = RenderTypeTextDraw;
-        text_render_type.m_EndCallback = 0x0;
-        RegisterRenderType(render_context, text_render_type, &text_context.m_TextRenderType);
-
         text_context.m_MaxVertexCount = max_characters * 4;
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         text_context.m_VertexIndex = 0;
@@ -115,7 +109,6 @@ namespace dmRender
             ro->m_VertexBuffer = text_context.m_VertexBuffer;
             ro->m_VertexDeclaration = text_context.m_VertexDecl;
             ro->m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
-            ro->m_Type = text_context.m_TextRenderType;
         }
     }
 
@@ -221,26 +214,5 @@ namespace dmRender
             AddToRender(render_context, ro);
         }
         dmGraphics::UnmapVertexBuffer(text_context.m_VertexBuffer);
-    }
-
-    void RenderTypeTextBegin(HRenderContext render_context, void* user_context)
-    {
-        (void)render_context;
-    }
-
-    void RenderTypeTextDraw(HRenderContext render_context, void* user_context, RenderObject* ro, uint32_t count)
-    {
-        if (ro->m_VertexCount == 0)
-            return;
-
-        dmGraphics::HContext context = render_context->m_GFXContext;
-
-        dmGraphics::SetTexture(context, ro->m_Texture);
-
-        dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
-
-        dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
-
-        dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
     }
 }
