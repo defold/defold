@@ -19,7 +19,6 @@
 typedef volatile int32_t int32_atomic_t;
 
 /**
- * dmAtomicIncrement32
  * Atomic increment of a int32_atomic_t.
  * @param ptr Pointer to a int32_atomic_t to increment.
  * @return Previous value
@@ -43,7 +42,6 @@ inline int32_t dmAtomicIncrement32(int32_atomic_t* ptr)
 }
 
 /**
- * dmAtomicDecrement32
  * Atomic decrement of a int32_atomic_t.
  * @param ptr Pointer to a int32_atomic_t to decrement.
  * @return Previous value
@@ -67,7 +65,6 @@ inline int32_t dmAtomicDecrement32(int32_atomic_t* ptr)
 }
 
 /**
- * @fn dmAtomicAdd32
  * Atomic addition of a int32_atomic_t.
  * @param ptr Pointer to a int32_atomic_t to add.
  * @param value Value to add.
@@ -92,10 +89,9 @@ inline int32_t dmAtomicAdd32(int32_atomic_t *ptr, int32_t value)
 }
 
 /**
- * @fn dmAtomicSub32
  * Atomic subtraction of a int32_atomic_t.
- * @ptr Pointer to a int32_atomic_t to subtract.
- * @value Value to subtract.
+ * @param ptr Pointer to a int32_atomic_t to subtract.
+ * @param value Value to subtract.
  * @return Previous value
  */
 inline int32_t dmAtomicSub32(int32_atomic_t *ptr, int32_t value)
@@ -117,10 +113,9 @@ inline int32_t dmAtomicSub32(int32_atomic_t *ptr, int32_t value)
 }
 
 /**
- * @fn dmAtomicStore32
  * Atomic exchange of a int32_atomic_t.
- * @ptr Pointer to a int32_atomic_t to store into.
- * @value Value to store.
+ * @param ptr Pointer to a int32_atomic_t to store into.
+ * @param value Value to store.
  * @return Previous value.
  */
 inline int32_t dmAtomicStore32(int32_atomic_t *ptr, int32_t value)
@@ -142,28 +137,27 @@ inline int32_t dmAtomicStore32(int32_atomic_t *ptr, int32_t value)
 }
 
 /**
- * @fn dmAtomicCompareStore32
  * Atomic exchange of a int32_atomic_t if comparand is equal to the value of #ptr
- * @ptr Pointer to a int32_atomic_t to store into.
- * @value Value to store.
- * @comperand Value to compare to.
+ * @param ptr Pointer to a int32_atomic_t to store into.
+ * @param value Value to store.
+ * @param comparand Value to compare to.
  * @return Previous value
  */
-inline int32_t dmAtomicCompareStore32(int32_atomic_t *ptr, int32_t value, int32_t comperand)
+inline int32_t dmAtomicCompareStore32(int32_atomic_t *ptr, int32_t value, int32_t comparand)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
 	int32_t tmp[32] __attribute__((aligned(128)));
-	int32_t result = cellAtomicCompareAndSwap32(tmp, (unsigned long *) ptr, (unsigned long) comperand, (unsigned long) value);
+	int32_t result = cellAtomicCompareAndSwap32(tmp, (unsigned long *) ptr, (unsigned long) comparand, (unsigned long) value);
 #else
-	int32_t result = cellAtomicCompareAndSwap32((unsigned long *) ptr, (unsigned long) comperand, (unsigned long) value);
+	int32_t result = cellAtomicCompareAndSwap32((unsigned long *) ptr, (unsigned long) comparand, (unsigned long) value);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return InterlockedCompareExchange((volatile long*) ptr, (long) value, (long) comperand);
+	return InterlockedCompareExchange((volatile long*) ptr, (long) value, (long) comparand);
 #else
-	return __sync_val_compare_and_swap((volatile long*) ptr, comperand, value);
+	return __sync_val_compare_and_swap((volatile long*) ptr, comparand, value);
 #endif
 }
 
