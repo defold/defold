@@ -130,15 +130,11 @@ namespace dmMemProfile
         char* trace = getenv("DMMEMPROFILE_TRACE");
         if (trace && strlen(trace) > 0 && trace[0] != '0')
         {
-            g_TraceFile = open("memprofile.trace", O_WRONLY|O_CREAT|O_TRUNC);
+            g_TraceFile = open("memprofile.trace", O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
             if (g_TraceFile == -1)
             {
                 sprintf(buf, "WARNING: Unable to open memprofile.trace\n");
                 write(2, buf, strlen(buf));
-            }
-            else
-            {
-                fchmod(g_TraceFile, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
             }
         }
     }
