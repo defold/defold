@@ -3,17 +3,17 @@
 
 #include <stdint.h>
 
-namespace dmSpinlock
-{
-    /// Initial spinlock value
-    const int32_t INITIAL_VALUE = 0;
-}
-
 #if defined(__linux__)
 #include <pthread.h>
 namespace dmSpinlock
 {
     typedef pthread_spinlock_t lock_t;
+
+    static inline void Init(lock_t* lock)
+    {
+        int ret = pthread_spin_init(lock, 0);
+        assert(ret == 0);
+    }
 
     static inline void Lock(lock_t* lock)
     {
@@ -33,6 +33,11 @@ namespace dmSpinlock
 {
     typedef OSSpinLock lock_t;
 
+    static inline void Init(lock_t* lock)
+    {
+        *lock = 0;
+    }
+
     static inline void Lock(lock_t* lock)
     {
         OSSpinLockLock(lock);
@@ -48,6 +53,11 @@ namespace dmSpinlock
 namespace dmSpinlock
 {
     typedef volatile long lock_t;
+
+    static inline void Init(lock_t* lock)
+    {
+        *lock = 0;
+    }
 
     static inline void Lock(lock_t* lock)
     {

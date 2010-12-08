@@ -7,7 +7,7 @@
 
 // NOTE: volatile. Otherwise gcc will consider the addition loop invariant
 volatile int32_t g_Value = 0;
-dmSpinlock::lock_t g_Lock = dmSpinlock::INITIAL_VALUE;
+dmSpinlock::lock_t g_Lock;
 
 const int32_t ITER = 400000;
 
@@ -23,6 +23,7 @@ void Thread(void* arg)
 
 TEST(dmSpinlock, Test)
 {
+    dmSpinlock::Init(&g_Lock);
     dmThread::Thread t1 = dmThread::New(Thread, 0xf000, 0);
     dmThread::Thread t2 = dmThread::New(Thread, 0xf000, 0);
     dmThread::Join(t1);
