@@ -8,51 +8,51 @@
 
 TEST(atomic, Increment)
 {
-    uint32_atomic_t x = 0;
-    ASSERT_EQ(0U, x);
-    ASSERT_EQ(0U, dmAtomicIncrement32(&x));
-    ASSERT_EQ(1U, dmAtomicIncrement32(&x));
+    int32_atomic_t x = 0;
+    ASSERT_EQ(0, x);
+    ASSERT_EQ(0, dmAtomicIncrement32(&x));
+    ASSERT_EQ(1, dmAtomicIncrement32(&x));
 }
 
 TEST(atomic, Decrement)
 {
-    uint32_atomic_t x = 10;
-    ASSERT_EQ(10U, dmAtomicDecrement32(&x));
-    ASSERT_EQ(9U, dmAtomicDecrement32(&x));
+    int32_atomic_t x = 10;
+    ASSERT_EQ(10, dmAtomicDecrement32(&x));
+    ASSERT_EQ(9, dmAtomicDecrement32(&x));
 }
 
 TEST(atomic, Add)
 {
-    uint32_atomic_t x = 0;
-    ASSERT_EQ(0U, x);
-    ASSERT_EQ(0U, dmAtomicAdd32(&x, 10));
-    ASSERT_EQ(10U, dmAtomicAdd32(&x, 10));
+    int32_atomic_t x = 0;
+    ASSERT_EQ(0, x);
+    ASSERT_EQ(0, dmAtomicAdd32(&x, 10));
+    ASSERT_EQ(10, dmAtomicAdd32(&x, 10));
 }
 
 TEST(atomic, Sub)
 {
-    uint32_atomic_t x = 10;
-    ASSERT_EQ(10U, dmAtomicSub32(&x, 2));
-    ASSERT_EQ(8U, dmAtomicSub32(&x, 2));
+    int32_atomic_t x = 10;
+    ASSERT_EQ(10, dmAtomicSub32(&x, 2));
+    ASSERT_EQ(8, dmAtomicSub32(&x, 2));
 }
 
 TEST(atomic, Store)
 {
-    uint32_atomic_t x = 10;
-    ASSERT_EQ(10U, dmAtomicStore32(&x, 2));
-    ASSERT_EQ(2U, dmAtomicStore32(&x, 123));
-    ASSERT_EQ(123U, x);
+    int32_atomic_t x = 10;
+    ASSERT_EQ(10, dmAtomicStore32(&x, 2));
+    ASSERT_EQ(2, dmAtomicStore32(&x, 123));
+    ASSERT_EQ(123, x);
 }
 
 TEST(atomic, CompareStore)
 {
-    uint32_atomic_t x = 10;
+    int32_atomic_t x = 10;
     // Nop, (123 != 10)
-    ASSERT_EQ(10U, dmAtomicCompareStore32(&x, 123, 123));
-    ASSERT_EQ(10U, x);
+    ASSERT_EQ(10, dmAtomicCompareStore32(&x, 123, 123));
+    ASSERT_EQ(10, x);
     // Return old value but set new (10 == 10)
-    ASSERT_EQ(10U, dmAtomicCompareStore32(&x, 123U, 10U));
-    ASSERT_EQ(123U, x);
+    ASSERT_EQ(10, dmAtomicCompareStore32(&x, 123, 10));
+    ASSERT_EQ(123, x);
 }
 
 int main(int argc, char **argv)

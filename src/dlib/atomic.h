@@ -16,154 +16,154 @@
 #endif
 
 //! Type definitions of atomic types
-typedef volatile uint32_t uint32_atomic_t;
+typedef volatile int32_t int32_atomic_t;
 
 /**
  * dmAtomicIncrement32
- * Atomic increment of a uint32_atomic_t.
- * @param ptr Pointer to a uint32_atomic_t to increment.
+ * Atomic increment of a int32_atomic_t.
+ * @param ptr Pointer to a int32_atomic_t to increment.
  * @return Previous value
  */
-inline uint32_t dmAtomicIncrement32(uint32_atomic_t* ptr)
+inline int32_t dmAtomicIncrement32(int32_atomic_t* ptr)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
-	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32_t result = (uint32_t) cellAtomicIncr32(tmp, (unsigned long *) ptr);
+	int32_t tmp[32] __attribute__((aligned(128)));
+	int32_t result = cellAtomicIncr32(tmp, (unsigned long *) ptr);
 #else
-	uint32_t result = (uint32_t) cellAtomicIncr32((unsigned long *) ptr);
+	int32_t result = cellAtomicIncr32((unsigned long *) ptr);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedIncrement((volatile long*) ptr)-1;
+	return InterlockedIncrement((volatile long*) ptr)-1;
 #else
-	return (uint32_t) __sync_fetch_and_add((volatile long*) ptr, 1);
+	return __sync_fetch_and_add((volatile long*) ptr, 1);
 #endif
 }
 
 /**
  * dmAtomicDecrement32
- * Atomic decrement of a uint32_atomic_t.
- * @param ptr Pointer to a uint32_atomic_t to decrement.
+ * Atomic decrement of a int32_atomic_t.
+ * @param ptr Pointer to a int32_atomic_t to decrement.
  * @return Previous value
  */
-inline uint32_t dmAtomicDecrement32(uint32_atomic_t* ptr)
+inline int32_t dmAtomicDecrement32(int32_atomic_t* ptr)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
-	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32_t result = (uint32_t) cellAtomicDecr32(tmp, (unsigned long *) ptr);
+	int32_t tmp[32] __attribute__((aligned(128)));
+	int32_t result = cellAtomicDecr32(tmp, (unsigned long *) ptr);
 #else
-	uint32_t result = (uint32_t) cellAtomicDecr32((unsigned long *) ptr);
+	int32_t result = cellAtomicDecr32((unsigned long *) ptr);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedDecrement((volatile long*) ptr)+1;
+	return InterlockedDecrement((volatile long*) ptr)+1;
 #else
-	return (uint32_t) __sync_fetch_and_sub((volatile long*) ptr, 1);
+	return __sync_fetch_and_sub((volatile long*) ptr, 1);
 #endif
 }
 
 /**
  * @fn dmAtomicAdd32
- * Atomic addition of a uint32_atomic_t.
- * @param ptr Pointer to a uint32_atomic_t to add.
+ * Atomic addition of a int32_atomic_t.
+ * @param ptr Pointer to a int32_atomic_t to add.
  * @param value Value to add.
  * @return Previous value
  */
-inline uint32_t dmAtomicAdd32(uint32_atomic_t *ptr, uint32_t value)
+inline int32_t dmAtomicAdd32(int32_atomic_t *ptr, int32_t value)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
-	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32 result = (uint32)cellAtomicAdd32(tmp, (unsigned long *) ptr, (unsigned long) value);
+	int32_t tmp[32] __attribute__((aligned(128)));
+	int32_t result = cellAtomicAdd32(tmp, (unsigned long *) ptr, (unsigned long) value);
 #else
-	uint32 result = (uint32)cellAtomicAdd32((unsigned long *) ptr, (unsigned long) value);
+	int32_t result = cellAtomicAdd32((unsigned long *) ptr, (unsigned long) value);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, (long) value);
+	return InterlockedExchangeAdd((volatile long*) ptr, (long) value);
 #else
-	return (uint32_t) __sync_fetch_and_add((volatile long*) ptr, (long) value);
+	return __sync_fetch_and_add((volatile long*) ptr, (long) value);
 #endif
 }
 
 /**
  * @fn dmAtomicSub32
- * Atomic subtraction of a uint32_atomic_t.
- * @ptr Pointer to a uint32_atomic_t to subtract.
+ * Atomic subtraction of a int32_atomic_t.
+ * @ptr Pointer to a int32_atomic_t to subtract.
  * @value Value to subtract.
  * @return Previous value
  */
-inline uint32_t dmAtomicSub32(uint32_atomic_t *ptr, uint32_t value)
+inline int32_t dmAtomicSub32(int32_atomic_t *ptr, int32_t value)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
-	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32_t result = (uint32_t) cellAtomicSub32(tmp, (unsigned long *) ptr, (unsigned long) value);
+	int32_t tmp[32] __attribute__((aligned(128)));
+	int32_t result = cellAtomicSub32(tmp, (unsigned long *) ptr, (unsigned long) value);
 #else
-	uint32_t result = (uint32_t) cellAtomicSub32((unsigned long *) ptr, (unsigned long) value);
+	int32_t result = cellAtomicSub32((unsigned long *) ptr, (unsigned long) value);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchangeAdd((volatile long*) ptr, -((long)value));
+	return InterlockedExchangeAdd((volatile long*) ptr, -((long)value));
 #else
-	return (uint32_t) __sync_fetch_and_sub((volatile long*) ptr, (long) value);
+	return __sync_fetch_and_sub((volatile long*) ptr, (long) value);
 #endif
 }
 
 /**
  * @fn dmAtomicStore32
- * Atomic exchange of a uint32_atomic_t.
- * @ptr Pointer to a uint32_atomic_t to store into.
+ * Atomic exchange of a int32_atomic_t.
+ * @ptr Pointer to a int32_atomic_t to store into.
  * @value Value to store.
  * @return Previous value.
  */
-inline uint32_t dmAtomicStore32(uint32_atomic_t *ptr, uint32_t value)
+inline int32_t dmAtomicStore32(int32_atomic_t *ptr, int32_t value)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
-	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32 result = (uint32_t) cellAtomicStore32(tmp, (unsigned long *) ptr, (unsigned long) value);
+	int32_t tmp[32] __attribute__((aligned(128)));
+	int32_t result = cellAtomicStore32(tmp, (unsigned long *) ptr, (unsigned long) value);
 #else
-	uint32 result = (uint32_t) cellAtomicStore32((unsigned long *) ptr, (unsigned long) value);
+	int32_t result = cellAtomicStore32((unsigned long *) ptr, (unsigned long) value);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedExchange((volatile long*) ptr, (long) value);
+	return InterlockedExchange((volatile long*) ptr, (long) value);
 #else
-	return (uint32_t) __sync_lock_test_and_set((volatile long*) ptr, value);
+	return __sync_lock_test_and_set((volatile long*) ptr, value);
 #endif
 }
 
 /**
  * @fn dmAtomicCompareStore32
- * Atomic exchange of a uint32_atomic_t if comparand is equal to the value of #ptr
- * @ptr Pointer to a uint32_atomic_t to store into.
+ * Atomic exchange of a int32_atomic_t if comparand is equal to the value of #ptr
+ * @ptr Pointer to a int32_atomic_t to store into.
  * @value Value to store.
  * @comperand Value to compare to.
  * @return Previous value
  */
-inline uint32_t dmAtomicCompareStore32(uint32_atomic_t *ptr, uint32_t value, uint32_t comperand)
+inline int32_t dmAtomicCompareStore32(int32_atomic_t *ptr, int32_t value, int32_t comperand)
 {
 #if defined(__PS3_GCC_REVISION__)
 #if defined(__SPU__)
-	uint32_t tmp[32] __attribute__((aligned(128)));
-	uint32 result = (uint32_t) cellAtomicCompareAndSwap32(tmp, (unsigned long *) ptr, (unsigned long) comperand, (unsigned long) value);
+	int32_t tmp[32] __attribute__((aligned(128)));
+	int32_t result = cellAtomicCompareAndSwap32(tmp, (unsigned long *) ptr, (unsigned long) comperand, (unsigned long) value);
 #else
-	uint32 result = (uint32_t) cellAtomicCompareAndSwap32((unsigned long *) ptr, (unsigned long) comperand, (unsigned long) value);
+	int32_t result = cellAtomicCompareAndSwap32((unsigned long *) ptr, (unsigned long) comperand, (unsigned long) value);
 #endif
 	__lwsync();
 	return result;
 #elif defined(_MSC_VER)
-	return (uint32_t) InterlockedCompareExchange((volatile long*) ptr, (long) value, (long) comperand);
+	return InterlockedCompareExchange((volatile long*) ptr, (long) value, (long) comperand);
 #else
-	return (uint32_t) __sync_val_compare_and_swap((volatile long*) ptr, comperand, value);
+	return __sync_val_compare_and_swap((volatile long*) ptr, comperand, value);
 #endif
 }
 

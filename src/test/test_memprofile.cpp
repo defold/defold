@@ -21,11 +21,11 @@ TEST(dmMemProfile, TestMalloc)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028U);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
     }
 
     free(p);
@@ -33,10 +33,10 @@ TEST(dmMemProfile, TestMalloc)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
     }
 }
 
@@ -52,11 +52,11 @@ TEST(dmMemProfile, TestCalloc)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028U);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
     }
 
     free(p);
@@ -64,10 +64,10 @@ TEST(dmMemProfile, TestCalloc)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028U);
+        ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1028);
     }
 }
 
@@ -88,11 +88,11 @@ TEST(dmMemProfile, TestRealloc)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(2U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028U);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*1028U);
+        ASSERT_EQ(2, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1028);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*1024);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 2*1028);
     }
 
     free(p);
@@ -100,10 +100,10 @@ TEST(dmMemProfile, TestRealloc)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(2U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*1028U);
+        ASSERT_EQ(2, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*1024);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 2*1028);
     }
 }
 
@@ -123,11 +123,11 @@ TEST(dmMemProfile, TestMemAlign)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1044U);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
+        ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1044);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1044);
     }
 
     free(p);
@@ -135,10 +135,10 @@ TEST(dmMemProfile, TestMemAlign)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
+        ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044);
     }
 }
 #endif
@@ -158,11 +158,11 @@ TEST(dmMemProfile, TestPosixMemAlign)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024U);
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1044U);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
+        ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, 1024);
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 1044);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 1044);
     }
 
     free(p);
@@ -170,10 +170,10 @@ TEST(dmMemProfile, TestPosixMemAlign)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024U);
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044U);
+        ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1024);
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 1044);
     }
 }
 #endif
@@ -190,11 +190,11 @@ TEST(dmMemProfile, TestNewDelete1)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, sizeof(int));
-        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 20U);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 20U);
+        ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, (int) sizeof(int));
+        ASSERT_LE(stats2.m_TotalActive - stats1.m_TotalActive, 20);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, (int) sizeof(int));
+        ASSERT_LE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, 20);
     }
 
     delete p;
@@ -202,10 +202,10 @@ TEST(dmMemProfile, TestNewDelete1)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 20U);
+        ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, (int) sizeof(int));
+        ASSERT_LE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, 20);
     }
 }
 
@@ -221,11 +221,11 @@ TEST(dmMemProfile, TestNewDelete2)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats2.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, sizeof(int));
-        ASSERT_LE(12U, stats2.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(12U, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_EQ(1, stats2.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_GE(stats2.m_TotalActive - stats1.m_TotalActive, (int) sizeof(int));
+        ASSERT_LE(12, stats2.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats2.m_TotalAllocated - stats1.m_TotalAllocated, (int) sizeof(int));
+        ASSERT_LE(12, stats2.m_TotalAllocated - stats1.m_TotalAllocated);
     }
 
     delete[] p;
@@ -233,10 +233,10 @@ TEST(dmMemProfile, TestNewDelete2)
 
     if (g_MemprofileActive)
     {
-        ASSERT_EQ(1U, stats3.m_AllocationCount - stats1.m_AllocationCount);
-        ASSERT_EQ(0U, stats3.m_TotalActive - stats1.m_TotalActive);
-        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, sizeof(int));
-        ASSERT_LE(12U, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
+        ASSERT_EQ(1, stats3.m_AllocationCount - stats1.m_AllocationCount);
+        ASSERT_EQ(0, stats3.m_TotalActive - stats1.m_TotalActive);
+        ASSERT_GE(stats3.m_TotalAllocated - stats1.m_TotalAllocated, (int) sizeof(int));
+        ASSERT_LE(12, stats3.m_TotalAllocated - stats1.m_TotalAllocated);
     }
 }
 

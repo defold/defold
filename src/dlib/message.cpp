@@ -97,7 +97,7 @@ namespace dmMessage
 
     const uint32_t MAX_SOCKETS = 128;
     bool g_Initialized = false;
-    uint32_atomic_t g_NextVersionNumber = 0;
+    int32_atomic_t g_NextVersionNumber = 0;
     dmArray<MessageSocket> g_Sockets;
     dmIndexPool16 g_SocketPool;
 

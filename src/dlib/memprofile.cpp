@@ -161,7 +161,7 @@ namespace dmMemProfile
 
     void DumpBacktrace(char type, void* ptr, uint32_t size)
     {
-        static uint32_atomic_t call_depth = 0;
+        static int32_atomic_t call_depth = 0;
 
         if (!dmMemProfile::g_Mutex)
             return;

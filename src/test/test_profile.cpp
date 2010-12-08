@@ -6,6 +6,7 @@
 #include "dlib/hash.h"
 #include "dlib/profile.h"
 #include "dlib/time.h"
+#include "dlib/thread.h"
 
 #if not defined(_WIN32)
 
@@ -179,8 +180,8 @@ TEST(dlib, Counter1)
             std::map<std::string, dmProfile::Counter*> counters;
             dmProfile::IterateCounters(&counters, ProfileCounterCallback);
 
-            ASSERT_EQ(7U, counters["c1"]->m_Counter);
-            ASSERT_EQ(123U, counters["c2"]->m_Counter);
+            ASSERT_EQ(7, counters["c1"]->m_Counter);
+            ASSERT_EQ(123, counters["c2"]->m_Counter);
         }
     }
 

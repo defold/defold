@@ -11,13 +11,13 @@ namespace dmMemProfile
     struct Stats
     {
         /// Total memory allocated
-        uint32_atomic_t m_TotalAllocated;
+        int32_atomic_t m_TotalAllocated;
 
         /// Total active memory
-        uint32_atomic_t m_TotalActive;
+        int32_atomic_t m_TotalActive;
 
         /// Total number of allocations
-        uint32_atomic_t m_AllocationCount;
+        int32_atomic_t m_AllocationCount;
     };
 
     /**

@@ -108,7 +108,7 @@ namespace dmProfile
         /// Counter name hash
         uint32_t         m_NameHash;
         /// Counter value
-        uint32_atomic_t  m_Counter;
+        int32_atomic_t  m_Counter;
     };
 
     /**
