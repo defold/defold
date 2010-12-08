@@ -22,6 +22,7 @@ namespace dmProfile
     bool g_OutOfSamples = false;
     bool g_OutOfCounters = false;
     bool g_MaxDepthReached = false;
+    bool g_IsInitialized = false;
     dmSpinlock::lock_t g_CounterLock;
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
@@ -34,11 +35,13 @@ namespace dmProfile
         QueryPerformanceFrequency((LARGE_INTEGER *) &g_TicksPerSecond);
 #endif
         dmSpinlock::Init(&g_CounterLock);
+        g_IsInitialized = true;
     }
 
     void Finalize()
     {
         g_Samples.SetCapacity(0);
+        g_IsInitialized = false;
     }
 
     void Begin()
@@ -151,6 +154,10 @@ namespace dmProfile
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
+        // Make sure that the spin-lock below is initialized
+        if (!g_IsInitialized)
+            return;
+
         dmSpinlock::Lock(&g_CounterLock);
         Counter* counter = FindCounter(name_hash);
 

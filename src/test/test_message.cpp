@@ -6,6 +6,7 @@
 #include "../../src/dlib/dstrings.h"
 #include "../../src/dlib/thread.h"
 #include "../../src/dlib/time.h"
+#include "../../src/dlib/profile.h"
 
 const uint32_t m_HashMessage1 = 0x35d47694;
 const uint32_t m_HashMessage2 = 0x35d47695;
@@ -283,6 +284,9 @@ TEST(dmMessage, Integrity)
 
 int main(int argc, char **argv)
 {
+    dmProfile::Initialize(1024, 1024 * 16, 64);
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int ret = RUN_ALL_TESTS();
+    dmProfile::Finalize();
+    return ret;
 }
