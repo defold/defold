@@ -11,7 +11,6 @@
 #include <render/material.h>
 
 #include "gamesys.h"
-#include "gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -201,7 +200,6 @@ namespace dmGameSystem
         uint32_t ro_count = world->m_RenderObjects.Size();
         world->m_RenderObjects.SetSize(ro_count + 1);
         dmRender::RenderObject* ro = &world->m_RenderObjects[ro_count];
-        ro->m_Type = world->m_EmitterContext->m_ParticleRenderType;
         ro->m_Material = (dmRender::HMaterial)material;
         ro->m_Texture = (dmGraphics::HTexture)texture;
         ro->m_VertexStart = vertex_index;
@@ -214,16 +212,5 @@ namespace dmGameSystem
     void RenderLineCallback(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
     {
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
-    }
-
-    void RenderTypeParticleDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
-    {
-        dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
-
-        dmGraphics::SetTexture(gfx_context, ro->m_Texture);
-
-        dmGraphics::EnableVertexDeclaration(gfx_context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
-        dmGraphics::Draw(gfx_context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
-        dmGraphics::DisableVertexDeclaration(gfx_context, ro->m_VertexDeclaration);
     }
 }

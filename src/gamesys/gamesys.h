@@ -22,7 +22,6 @@ namespace dmGameSystem
         dmRender::HRenderContext m_RenderContext;
         uint32_t m_MaxEmitterCount;
         uint32_t m_MaxParticleCount;
-        uint32_t m_ParticleRenderType;
         bool m_Debug;
     };
 

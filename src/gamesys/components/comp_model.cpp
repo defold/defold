@@ -10,8 +10,6 @@
 #include <render/model/model.h>
 #include <render/model_ddf.h>
 
-#include "../gamesys_private.h"
-
 namespace dmGameSystem
 {
     struct ModelWorld;
@@ -76,7 +74,6 @@ namespace dmGameSystem
             component.m_ModelWorld = model_world;
             component.m_Index = index;
             dmRender::RenderObject& ro = component.m_RenderObject;
-            ro.m_Type = g_ModelRenderType;
             ro.m_Material = dmModel::GetMaterial(prototype);
             ro.m_Texture = dmModel::GetTexture0(prototype);
             ro.m_VertexBuffer = dmModel::GetVertexBuffer(mesh);
@@ -174,27 +171,5 @@ namespace dmGameSystem
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
-    }
-
-    void RenderTypeModelBegin(dmRender::HRenderContext render_context, void* user_context)
-    {
-    }
-
-    void RenderTypeModelDraw(dmRender::HRenderContext render_context, void* user_context, dmRender::RenderObject* ro, uint32_t count)
-    {
-        if (ro->m_VertexCount == 0)
-            return;
-
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
-        dmGraphics::SetTexture(graphics_context, ro->m_Texture);
-
-        dmGraphics::EnableVertexDeclaration(graphics_context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
-        dmGraphics::DrawRangeElements(graphics_context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
-        dmGraphics::DisableVertexDeclaration(graphics_context, ro->m_VertexDeclaration);
-    }
-
-    void RenderTypeModelEnd(const dmRender::HRenderContext render_context, void* user_context)
-    {
     }
 }
