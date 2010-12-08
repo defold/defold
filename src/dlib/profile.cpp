@@ -129,14 +129,15 @@ namespace dmProfile
     Sample g_DummySample = { 0 };
     Sample* AllocateSample()
     {
+        dmSpinlock::Lock(&g_ProfileLock);
         if (g_Samples.Full() || g_IsInitialized == false)
         {
             g_OutOfSamples = true;
+            dmSpinlock::Unlock(&g_ProfileLock);
             return &g_DummySample;
         }
         else
         {
-            dmSpinlock::Lock(&g_ProfileLock);
             uint32_t size = g_Samples.Size();
             g_Samples.SetSize(size + 1);
             Sample* ret = &g_Samples[size];
