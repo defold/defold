@@ -284,7 +284,7 @@ TEST(dmMessage, Integrity)
 
 int main(int argc, char **argv)
 {
-    dmProfile::Initialize(1024, 1024 * 16, 64);
+    dmProfile::Initialize(1024, 1024 * 1024, 64);
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmProfile::Finalize();
