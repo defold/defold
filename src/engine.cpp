@@ -435,6 +435,8 @@ bail:
             if (engine->m_ShowProfile)
             {
                 dmProfileRender::Draw(engine->m_RenderContext, engine->m_SmallFont);
+                dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmRender::GetDisplayWidth(engine->m_RenderContext), dmRender::GetDisplayHeight(engine->m_RenderContext), 0.0f, 1.0f, -1.0f));
                 dmRender::Draw(engine->m_RenderContext, 0x0);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
