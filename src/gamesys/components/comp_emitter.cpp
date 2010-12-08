@@ -32,17 +32,14 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject> m_RenderObjects;
         EmitterContext* m_EmitterContext;
         dmParticle::HContext m_ParticleContext;
-        float* m_VertexBuffer;
-        uint32_t m_VertexSize;
+        dmGraphics::HVertexBuffer m_VertexBuffer;
+        dmGraphics::HVertexDeclaration m_VertexDeclaration;
+        uint32_t m_VertexCount;
     };
 
-    struct ROUserData
+    struct ParticleVertex
     {
-        EmitterWorld* m_World;
-        dmRender::HMaterial m_Material;
-        dmGraphics::HTexture m_Texture;
-        uint32_t m_VertexCount;
-        uint32_t m_VertexIndex;
+        Vector4 m_Position;
     };
 
     dmGameObject::CreateResult CompEmitterNewWorld(void* context, void** world)
@@ -53,7 +50,15 @@ namespace dmGameSystem
         emitter_world->m_EmitterContext = ctx;
         emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
-        emitter_world->m_RenderObjects.SetCapacity(1000);
+        emitter_world->m_RenderObjects.SetCapacity(MAX_COUNT);
+        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(MAX_COUNT * ctx->m_MaxParticleCount * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::VertexElement ve[] =
+        {
+            {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
+            {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
+            {2, 1, dmGraphics::TYPE_FLOAT, 0, 0}
+        };
+        emitter_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(ve, 3);
         *world = emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -124,7 +129,7 @@ namespace dmGameSystem
         uint32_t                m_VertexCount;
     };
 
-    void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size);
+    void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size, uint32_t vertex_count);
     void RenderTearDownCallback(void* render_context);
     void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
@@ -145,11 +150,6 @@ namespace dmGameSystem
         }
         EmitterContext* ctx = (EmitterContext*)context;
 
-        for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
-        {
-            ROUserData* user_data = (ROUserData*)w->m_RenderObjects[i].m_UserData;
-            delete user_data;
-        }
         w->m_RenderObjects.SetSize(0);
 
         dmParticle::Update(w->m_ParticleContext, update_context->m_DT);
@@ -188,28 +188,27 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void RenderSetUpCallback(void* context, float* vertex_buffer, uint32_t vertex_size)
+    void RenderSetUpCallback(void* context, float* vertex_buffer, uint32_t vertex_size, uint32_t vertex_count)
     {
         EmitterWorld* world = (EmitterWorld*)context;
-        world->m_VertexBuffer = vertex_buffer;
-        world->m_VertexSize = vertex_size;
+        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_size * vertex_count, (const void*)vertex_buffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     void RenderEmitterCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
         EmitterWorld* world = (EmitterWorld*)context;
 
-        world->m_RenderObjects.SetSize(world->m_RenderObjects.Size() + 1);
-        dmRender::RenderObject* ro = &world->m_RenderObjects[world->m_RenderObjects.Size()];
+        uint32_t ro_count = world->m_RenderObjects.Size();
+        world->m_RenderObjects.SetSize(ro_count + 1);
+        dmRender::RenderObject* ro = &world->m_RenderObjects[ro_count];
         ro->m_Type = world->m_EmitterContext->m_ParticleRenderType;
         ro->m_Material = (dmRender::HMaterial)material;
-        ROUserData* user_data = new ROUserData();
-        user_data->m_World = world;
-        user_data->m_Material = (dmRender::HMaterial)material;
-        user_data->m_Texture = (dmGraphics::HTexture)texture;
-        user_data->m_VertexCount = vertex_count;
-        user_data->m_VertexIndex = vertex_index;
-        ro->m_UserData = user_data;
+        ro->m_Texture = (dmGraphics::HTexture)texture;
+        ro->m_VertexStart = vertex_index;
+        ro->m_VertexCount = vertex_count;
+        ro->m_VertexBuffer = world->m_VertexBuffer;
+        ro->m_VertexDeclaration = world->m_VertexDeclaration;
+        ro->m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
     }
 
     void RenderLineCallback(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)
@@ -221,21 +220,10 @@ namespace dmGameSystem
     {
         dmGraphics::HContext gfx_context = dmRender::GetGraphicsContext(render_context);
 
-        ROUserData* user_data = (ROUserData*)ro->m_UserData;
+        dmGraphics::SetTexture(gfx_context, ro->m_Texture);
 
-        float* vertex_buffer = user_data->m_World->m_VertexBuffer;
-        uint32_t vertex_size = user_data->m_World->m_VertexSize;
-        // positions
-        dmGraphics::SetVertexStream(gfx_context, 0, 3, dmGraphics::TYPE_FLOAT, vertex_size, (void*)vertex_buffer);
-        // uv's
-        dmGraphics::SetVertexStream(gfx_context, 1, 2, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[3]);
-        // alpha
-        dmGraphics::SetVertexStream(gfx_context, 2, 1, dmGraphics::TYPE_FLOAT, vertex_size, (void*)&vertex_buffer[5]);
-
-        dmGraphics::SetVertexConstantBlock(gfx_context, (const Vector4*)dmRender::GetViewProjectionMatrix(render_context), 0, 4);
-
-        dmGraphics::SetTexture(gfx_context, user_data->m_Texture);
-
-        dmGraphics::Draw(gfx_context, dmGraphics::PRIMITIVE_QUADS, user_data->m_VertexIndex, user_data->m_VertexCount);
+        dmGraphics::EnableVertexDeclaration(gfx_context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
+        dmGraphics::Draw(gfx_context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
+        dmGraphics::DisableVertexDeclaration(gfx_context, ro->m_VertexDeclaration);
     }
 }
