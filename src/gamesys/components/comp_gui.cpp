@@ -190,8 +190,6 @@ namespace dmGameSystem
 
             if(node->m_NodeType == dmGui::NODE_TYPE_BOX)
             {
-                Matrix4 m = Matrix4::orthographic( -1, 1, 1, -1, 10, -10 );
-
                 Point3 p = Point3(pos.getXYZ());
                 p.setX(p.getX() / 960.0f);
                 p.setY(p.getY() / 540.0f);
