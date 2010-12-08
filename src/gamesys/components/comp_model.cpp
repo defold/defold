@@ -44,6 +44,7 @@ namespace dmGameSystem
         const uint32_t max_component_count = 1024;
         model_world->m_Components.SetCapacity(max_component_count);
         model_world->m_Components.SetSize(max_component_count);
+        memset(&model_world->m_Components[0], 0, max_component_count * sizeof(ModelComponent));
         model_world->m_ComponentIndices.SetCapacity(max_component_count);
         *world = model_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -75,7 +76,7 @@ namespace dmGameSystem
             component.m_Index = index;
             dmRender::RenderObject& ro = component.m_RenderObject;
             ro.m_Material = dmModel::GetMaterial(prototype);
-            ro.m_Texture = dmModel::GetTexture0(prototype);
+            ro.m_Texture = dmModel::GetTexture(prototype, 0);
             ro.m_VertexBuffer = dmModel::GetVertexBuffer(mesh);
             ro.m_VertexDeclaration = dmModel::GetVertexDeclarationBuffer(mesh);
             ro.m_IndexBuffer = dmModel::GetIndexBuffer(mesh);
