@@ -25,6 +25,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
