@@ -220,3 +220,12 @@ def build(bld):
 
     test_atomic.install_path = None
 
+    test_spinlock = bld.new_task_gen(features = 'cxx cprogram',
+                                     source = 'test_spinlock.cpp',
+                                     uselib = 'GTEST THREAD',
+                                     uselib_local = "dlib",
+                                     includes = ['../../src'],
+                                     target = 'test_spinlock')
+
+    test_spinlock.install_path = None
+
