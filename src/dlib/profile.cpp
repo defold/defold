@@ -105,9 +105,11 @@ namespace dmProfile
     Scope g_DummyScope = { 0 };
     Scope* AllocateScope(const char* name)
     {
+        dmSpinlock::Lock(&g_ProfileLock);
         if (g_Scopes.Full())
         {
             g_OutOfScopes = true;
+            dmSpinlock::Unlock(&g_ProfileLock);
             return &g_DummyScope;
         }
         else
@@ -117,7 +119,10 @@ namespace dmProfile
             for (uint32_t i = 0; i < n; ++i)
             {
                 if (strcmp(name, g_Scopes[i].m_Name) == 0)
+                {
+                    dmSpinlock::Unlock(&g_ProfileLock);
                     return &g_Scopes[i];
+                }
             }
 
             uint32_t i = g_Scopes.Size();
@@ -127,7 +132,9 @@ namespace dmProfile
             s.m_Index = i;
             s.m_Count = 0;
             g_Scopes.Push(s);
-            return &g_Scopes[i];
+            Scope* ret = &g_Scopes[i];
+            dmSpinlock::Unlock(&g_ProfileLock);
+            return ret;
         }
     }
 
