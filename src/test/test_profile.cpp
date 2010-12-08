@@ -28,7 +28,7 @@ void ProfileCounterCallback(void* context, const dmProfile::Counter* counter)
     (*counters)[std::string(counter->m_Name)] = counter;
 }
 
-TEST(dlib, Profile)
+TEST(dmProfile, Profile)
 {
     dmProfile::Initialize(128, 1024, 0);
 
@@ -85,14 +85,6 @@ TEST(dlib, Profile)
         ASSERT_STREQ("a_b2_c2", samples[5].m_Name);
         ASSERT_STREQ("a_d", samples[6].m_Name);
 
-        ASSERT_EQ(0U, samples[0].m_Depth);
-        ASSERT_EQ(1U, samples[1].m_Depth);
-        ASSERT_EQ(2U, samples[2].m_Depth);
-        ASSERT_EQ(1U, samples[3].m_Depth);
-        ASSERT_EQ(2U, samples[4].m_Depth);
-        ASSERT_EQ(2U, samples[5].m_Depth);
-        ASSERT_EQ(0U, samples[6].m_Depth);
-
     // TODO: TOL increased due to valgrind... Command line option or detect valgrind.
     #define TOL (40.0 / 1000.0)
         ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, samples[0].m_Elapsed / ticks_per_sec, TOL);
@@ -125,7 +117,7 @@ TEST(dlib, Profile)
     dmProfile::Finalize();
 }
 
-TEST(dlib, ProfileOverflow1)
+TEST(dmProfile, ProfileOverflow1)
 {
     dmProfile::Initialize(4, 2, 0);
     {
@@ -146,7 +138,7 @@ TEST(dlib, ProfileOverflow1)
     dmProfile::Finalize();
 }
 
-TEST(dlib, ProfileOverflow2)
+TEST(dmProfile, ProfileOverflow2)
 {
     dmProfile::Initialize(0, 0, 0);
     {
@@ -163,8 +155,7 @@ TEST(dlib, ProfileOverflow2)
     dmProfile::Finalize();
 }
 
-
-TEST(dlib, Counter1)
+TEST(dmProfile, Counter1)
 {
     dmProfile::Initialize(0, 0, 16);
     {
@@ -197,7 +188,7 @@ void CounterThread(void* arg)
     }
 }
 
-TEST(dlib, Counter2)
+TEST(dmProfile, Counter2)
 {
     dmProfile::Initialize(0, 0, 16);
 
@@ -213,6 +204,41 @@ TEST(dlib, Counter2)
     dmProfile::IterateCounters(&counters, ProfileCounterCallback);
 
     ASSERT_EQ(2000 * 2, counters["c1"]->m_Counter);
+
+    dmProfile::Finalize();
+}
+
+void ProfileThread(void* arg)
+{
+    for (int i = 0; i < 20000; ++i)
+    {
+        DM_PROFILE(X, "a")
+    }
+}
+
+TEST(dmProfile, ThreadProfile)
+{
+    dmProfile::Initialize(32, 1024 * 1024, 16);
+
+    dmProfile::Begin();
+    uint64_t start = dmTime::GetTime();
+    dmThread::Thread t1 = dmThread::New(ProfileThread, 0xf0000, 0);
+    dmThread::Thread t2 = dmThread::New(ProfileThread, 0xf0000, 0);
+    dmThread::Join(t1);
+    dmThread::Join(t2);
+    uint64_t end = dmTime::GetTime();
+    dmProfile::End();
+
+    printf("Elapsed: %f ms\n", (end-start) / 1000.0f);
+
+    std::vector<dmProfile::Sample> samples;
+    std::map<std::string, const dmProfile::Scope*> scopes;
+
+    dmProfile::IterateSamples(&samples, &ProfileSampleCallback);
+    dmProfile::IterateScopes(&scopes, &ProfileScopeCallback);
+
+    ASSERT_EQ(20000 * 2, scopes["X"]->m_Count);
+    ASSERT_EQ(20000U * 2U, samples.size());
 
     dmProfile::Finalize();
 }

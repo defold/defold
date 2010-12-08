@@ -72,13 +72,11 @@ namespace dmProfile
         /// Scope name
         const char* m_Name;
         /// Total time spent in scope (in ticks)
-        uint32_t    m_Elapsed;
+        int32_t     m_Elapsed;
         /// Scope index, range [0, scopes-1]
         uint16_t    m_Index;
         /// Occurrences of this scope (nestled occurrences do not count)
-        uint16_t    m_Count;
-        /// True while this scope has been entered
-        uint32_t    m_Entered : 1;
+        int32_t     m_Count;
     };
 
     /**
@@ -94,8 +92,8 @@ namespace dmProfile
         uint32_t     m_Start;
         /// Elasped time in ticks
         uint32_t     m_Elapsed : 28;
-        /// Call depth
-        uint32_t     m_Depth : 4;
+
+        uint32_t     m_Reserved : 4;
     };
 
     /**
@@ -164,9 +162,15 @@ namespace dmProfile
     /**
      * Internal function
      * @param name
-     * @return
+     * @return #Scope
      */
     Scope* AllocateScope(const char* name);
+
+    /**
+     * Internal function
+     * @return #Sample
+     */
+    Sample* AllocateSample();
 
     /**
      * Add #amount to counter with #name
@@ -196,12 +200,6 @@ namespace dmProfile
     float GetMaxFrameTime();
 
     /**
-     * Check if max nesting depth is reached
-     * @return True if reached
-     */
-    bool IsMaxDepthReached();
-
-    /**
      * Check of out of scope resources
      * @return True if out of scope resources
      */
@@ -214,19 +212,7 @@ namespace dmProfile
     bool IsOutOfSamples();
 
     /// Internal, do not use.
-    extern dmArray<Sample> g_Samples;
-    /// Internal, do not use.
-    extern uint32_t g_Depth;
-    /// Internal, do not use.
     extern uint32_t g_BeginTime;
-    /// Internal, do not use.
-    extern uint64_t g_TicksPerSecond;
-    /// Internal, do not use.
-    extern bool g_OutOfScopes;
-    /// Internal, do not use.
-    extern bool g_OutOfSamples;
-    /// Internal, do not use.
-    extern bool g_MaxDepthReached;
 
     /// Internal, do not use.
     struct ProfileScope
@@ -236,35 +222,12 @@ namespace dmProfile
         Scope*      m_Scope;
         inline ProfileScope(Scope* scope, const char* name)
         {
-            if (scope == 0)
-                g_OutOfScopes = true;
-            if (g_Samples.Full())
-                g_OutOfSamples = true;
-            if (g_Depth > 16)
-                g_MaxDepthReached = true;
-            if (scope == 0 || g_Samples.Full() || g_Depth > 16)
-            {
-                m_Sample = 0;
-                return;
-            }
+            Sample*s = AllocateSample();
+            m_Scope = scope;
 
-            if (scope->m_Entered)
-            {
-                m_Scope = 0x0;
-            }
-            else
-            {
-                m_Scope = scope;
-                m_Scope->m_Entered = 1;
-            }
-
-            uint32_t size = g_Samples.Size();
-            g_Samples.SetSize(size + 1);
-            m_Sample = &g_Samples[size];
-
-            g_Depth++;
-            m_Sample->m_Name = name;
-            m_Sample->m_Scope = scope;
+            s->m_Name = name;
+            s->m_Scope = scope;
+            m_Sample = s;
 
 #if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *)&m_Start);
@@ -277,17 +240,6 @@ namespace dmProfile
 
         inline ~ProfileScope()
         {
-            if (!m_Sample)
-                return;
-
-            if (g_Depth == 0)
-            {
-                dmLogWarning("Running dmProfile::End within a scope?");
-            }
-            else
-            {
-                --g_Depth;
-            }
             uint64_t end;
 #if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *) &end);
@@ -299,13 +251,8 @@ namespace dmProfile
             uint64_t diff = end - m_Start;
             m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
             m_Sample->m_Elapsed = diff;
-            m_Sample->m_Depth = g_Depth;
-            if (m_Scope != 0x0)
-            {
-                m_Scope->m_Elapsed += (uint32_t) diff;
-                m_Scope->m_Count++;
-                m_Scope->m_Entered = 0;
-            }
+            dmAtomicAdd32(&m_Scope->m_Elapsed, (int32_t) diff);
+            dmAtomicIncrement32(&m_Scope->m_Count);
         }
     };
 

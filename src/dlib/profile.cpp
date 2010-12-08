@@ -4,7 +4,6 @@
 #include "hashtable.h"
 #include "hash.h"
 #include "spinlock.h"
-
 #include "math.h"
 
 namespace dmProfile
@@ -12,7 +11,6 @@ namespace dmProfile
     dmArray<Sample> g_Samples;
     dmArray<Scope> g_Scopes;
     dmArray<Counter> g_Counters;
-    uint32_t g_Depth = 0;
     uint32_t g_BeginTime = 0;
     uint64_t g_TicksPerSecond = 1000000;
     float g_FrameTime = 0.0f;
@@ -21,20 +19,22 @@ namespace dmProfile
     bool g_OutOfScopes = false;
     bool g_OutOfSamples = false;
     bool g_OutOfCounters = false;
-    bool g_MaxDepthReached = false;
     bool g_IsInitialized = false;
     dmSpinlock::lock_t g_CounterLock;
+    dmSpinlock::lock_t g_ProfileLock;
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
         g_Scopes.SetCapacity(max_scopes);
         g_Scopes.SetSize(0);
         g_Samples.SetCapacity(max_samples);
+
         g_Counters.SetCapacity(max_counters);
 #if defined(_WIN32)
         QueryPerformanceFrequency((LARGE_INTEGER *) &g_TicksPerSecond);
 #endif
         dmSpinlock::Init(&g_CounterLock);
+        dmSpinlock::Init(&g_ProfileLock);
         g_IsInitialized = true;
     }
 
@@ -60,7 +60,6 @@ namespace dmProfile
         }
 
         g_Samples.SetSize(0);
-        g_Depth = 0;
 
 #if defined(_WIN32)
         uint64_t pcnt;
@@ -75,12 +74,10 @@ namespace dmProfile
         g_OutOfScopes = false;
         g_OutOfSamples = false;
         g_OutOfCounters = false;
-        g_MaxDepthReached = false;
     }
 
     void End()
     {
-        g_Depth = 0xffffffff;
         if (g_Scopes.Size() > 0)
         {
             g_FrameTime = g_Scopes[0].m_Elapsed/(0.001f * g_TicksPerSecond);
@@ -98,11 +95,14 @@ namespace dmProfile
         }
     }
 
+    // Used when out of scopes in order to remove conditional branches
+    Scope g_DummyScope = { 0 };
     Scope* AllocateScope(const char* name)
     {
         if (g_Scopes.Full())
         {
-            return 0;
+            g_OutOfScopes = true;
+            return &g_DummyScope;
         }
         else
         {
@@ -120,9 +120,28 @@ namespace dmProfile
             s.m_Elapsed = 0;
             s.m_Index = i;
             s.m_Count = 0;
-            s.m_Entered = 0;
             g_Scopes.Push(s);
             return &g_Scopes[i];
+        }
+    }
+
+    // Used when out of samples in order to remove conditional branches
+    Sample g_DummySample = { 0 };
+    Sample* AllocateSample()
+    {
+        if (g_Samples.Full() || g_IsInitialized == false)
+        {
+            g_OutOfSamples = true;
+            return &g_DummySample;
+        }
+        else
+        {
+            dmSpinlock::Lock(&g_ProfileLock);
+            uint32_t size = g_Samples.Size();
+            g_Samples.SetSize(size + 1);
+            Sample* ret = &g_Samples[size];
+            dmSpinlock::Unlock(&g_ProfileLock);
+            return ret;
         }
     }
 
@@ -199,11 +218,6 @@ namespace dmProfile
     uint64_t GetTicksPerSecond()
     {
         return g_TicksPerSecond;
-    }
-
-    bool IsMaxDepthReached()
-    {
-        return g_MaxDepthReached;
     }
 
     bool IsOutOfScopes()
