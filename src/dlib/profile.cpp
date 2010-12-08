@@ -3,6 +3,7 @@
 #include "profile.h"
 #include "hashtable.h"
 #include "hash.h"
+#include "spinlock.h"
 
 #include "math.h"
 
@@ -21,6 +22,7 @@ namespace dmProfile
     bool g_OutOfSamples = false;
     bool g_OutOfCounters = false;
     bool g_MaxDepthReached = false;
+    dmSpinlock::lock_t g_CounterLock;
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
@@ -31,6 +33,7 @@ namespace dmProfile
 #if defined(_WIN32)
         QueryPerformanceFrequency((LARGE_INTEGER *) &g_TicksPerSecond);
 #endif
+        dmSpinlock::Init(&g_CounterLock);
     }
 
     void Finalize()
@@ -148,6 +151,7 @@ namespace dmProfile
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
+        dmSpinlock::Lock(&g_CounterLock);
         Counter* counter = FindCounter(name_hash);
 
         if (!counter)
@@ -155,6 +159,7 @@ namespace dmProfile
             if (g_Counters.Full())
             {
                 g_OutOfCounters = true;
+                dmSpinlock::Unlock(&g_CounterLock);
                 return;
             }
 
@@ -167,9 +172,10 @@ namespace dmProfile
             Counter* start = &g_Counters[0];
             Counter* end = &g_Counters[0] + g_Counters.Size();
             std::sort(start, end, &CounterPred);
+            counter = FindCounter(name_hash);
         }
 
-        counter = FindCounter(name_hash);
+        dmSpinlock::Unlock(&g_CounterLock);
         dmAtomicAdd32(&counter->m_Counter, amount);
     }
 
