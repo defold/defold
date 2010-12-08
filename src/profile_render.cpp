@@ -232,14 +232,6 @@ namespace dmProfileRender
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         bool profile_valid = true;
-        if (dmProfile::IsMaxDepthReached())
-        {
-            profile_valid = false;
-            params.m_X = g_Scope_x0;
-            params.m_Text = "Max scope depth reached!";
-            dmRender::DrawText(render_context, font, params);
-            y0 += g_Spacing;
-        }
         if (dmProfile::IsOutOfScopes())
         {
             profile_valid = false;
