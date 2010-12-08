@@ -66,6 +66,8 @@ namespace dmGameSystem
     {
         EmitterWorld* emitter_world = (EmitterWorld*)world;
         dmParticle::DestroyContext(emitter_world->m_ParticleContext);
+        dmGraphics::DeleteVertexBuffer(emitter_world->m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(emitter_world->m_VertexDeclaration);
         delete emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
