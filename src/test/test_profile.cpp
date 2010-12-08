@@ -188,6 +188,35 @@ TEST(dlib, Counter1)
     dmProfile::Finalize();
 }
 
+uint32_t g_c1hash = dmHashString32("c1");
+void CounterThread(void* arg)
+{
+    for (int i = 0; i < 2000; ++i)
+    {
+        DM_COUNTER_HASH("c1", g_c1hash, 1);
+    }
+}
+
+TEST(dlib, Counter2)
+{
+    dmProfile::Initialize(0, 0, 16);
+
+    dmProfile::Begin();
+    dmThread::Thread t1 = dmThread::New(CounterThread, 0xf0000, 0);
+    dmThread::Thread t2 = dmThread::New(CounterThread, 0xf0000, 0);
+
+    dmThread::Join(t1);
+    dmThread::Join(t2);
+    dmProfile::End();
+
+    std::map<std::string, dmProfile::Counter*> counters;
+    dmProfile::IterateCounters(&counters, ProfileCounterCallback);
+
+    ASSERT_EQ(2000 * 2, counters["c1"]->m_Counter);
+
+    dmProfile::Finalize();
+}
+
 #else
 #endif
 
