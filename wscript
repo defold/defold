@@ -34,13 +34,6 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "linux":
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif 'darwin' in platform:
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    else:
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
-
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="INPUT"')
 
