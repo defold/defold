@@ -36,7 +36,7 @@ namespace dmParticle
     /// Config key to use for tweaking the total maximum number of particles in a context.
     extern const char* MAX_PARTICLE_COUNT_KEY;
 
-    typedef void (*RenderSetUpCallback)(void* usercontext, float* vertex_buffer, uint32_t vertex_size);
+    typedef void (*RenderSetUpCallback)(void* usercontext, float* vertex_buffer, uint32_t vertex_size, uint32_t vertex_count);
     typedef void (*RenderTearDownCallback)(void* usercontext);
     typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     typedef void (*RenderLineCallback)(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);

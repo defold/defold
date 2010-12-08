@@ -577,7 +577,7 @@ namespace dmParticle
             return;
 
         if (render_setup_callback != 0x0)
-            render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE);
+            render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE, context->m_MaxVertexCount);
 
         if (render_emitter_callback != 0x0)
         {
