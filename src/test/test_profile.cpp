@@ -22,10 +22,10 @@ void ProfileScopeCallback(void* context, const dmProfile::Scope* scope)
     (*scopes)[std::string(scope->m_Name)] = scope;
 }
 
-void ProfileCounterCallback(void* context, const dmProfile::Counter* counter)
+void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter)
 {
-    std::map<std::string, const dmProfile::Counter*>* counters = (std::map<std::string, const dmProfile::Counter*>*) context;
-    (*counters)[std::string(counter->m_Name)] = counter;
+    std::map<std::string, const dmProfile::CounterData*>* counters = (std::map<std::string, const dmProfile::CounterData*>*) context;
+    (*counters)[std::string(counter->m_Counter->m_Name)] = counter;
 }
 
 TEST(dmProfile, Profile)
@@ -168,11 +168,12 @@ TEST(dmProfile, Counter1)
             { DM_COUNTER("c2", 123); }
             dmProfile::End();
 
-            std::map<std::string, dmProfile::Counter*> counters;
+            std::map<std::string, dmProfile::CounterData*> counters;
             dmProfile::IterateCounters(&counters, ProfileCounterCallback);
 
-            ASSERT_EQ(7, counters["c1"]->m_Counter);
-            ASSERT_EQ(123, counters["c2"]->m_Counter);
+            ASSERT_EQ(7, counters["c1"]->m_Value);
+            ASSERT_EQ(123, counters["c2"]->m_Value);
+            ASSERT_EQ(2U, counters.size());
         }
     }
 
@@ -200,10 +201,11 @@ TEST(dmProfile, Counter2)
     dmThread::Join(t2);
     dmProfile::End();
 
-    std::map<std::string, dmProfile::Counter*> counters;
+    std::map<std::string, dmProfile::CounterData*> counters;
     dmProfile::IterateCounters(&counters, ProfileCounterCallback);
 
-    ASSERT_EQ(2000 * 2, counters["c1"]->m_Counter);
+    ASSERT_EQ(2000 * 2, counters["c1"]->m_Value);
+    ASSERT_EQ(1U, counters.size());
 
     dmProfile::Finalize();
 }

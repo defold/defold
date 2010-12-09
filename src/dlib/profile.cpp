@@ -10,7 +10,11 @@ namespace dmProfile
 {
     dmArray<Sample> g_Samples;
     dmArray<Scope> g_Scopes;
+
+    dmHashTable32<uint32_t> g_CountersTable;
     dmArray<Counter> g_Counters;
+    dmArray<CounterData> g_CountersData;
+
     uint32_t g_BeginTime = 0;
     uint64_t g_TicksPerSecond = 1000000;
     float g_FrameTime = 0.0f;
@@ -37,9 +41,19 @@ namespace dmProfile
     {
         g_Scopes.SetCapacity(max_scopes);
         g_Scopes.SetSize(0);
+
         g_Samples.SetCapacity(max_samples);
+        g_Samples.SetSize(0);
+
+        g_CountersTable.SetCapacity(dmMath::Max(16U,  2 * max_counters / 3), max_counters);
+        g_CountersTable.Clear();
+
+        g_CountersData.SetCapacity(max_counters);
+        g_CountersData.SetSize(0);
 
         g_Counters.SetCapacity(max_counters);
+        g_Counters.SetSize(0);
+
 #if defined(_WIN32)
         QueryPerformanceFrequency((LARGE_INTEGER *) &g_TicksPerSecond);
 #endif
@@ -59,10 +73,10 @@ namespace dmProfile
             g_Scopes[i].m_Count = 0;
         }
 
-        n = g_Counters.Size();
+        n = g_CountersData.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            g_Counters[i].m_Counter = 0;
+            g_CountersData[i].m_Value = 0;
         }
 
         g_Samples.SetSize(0);
@@ -165,21 +179,6 @@ namespace dmProfile
         return c1.m_NameHash < c2.m_NameHash;
     }
 
-    static Counter* FindCounter(uint32_t name_hash)
-    {
-        if (g_Counters.Size() == 0) return 0;
-
-        Counter* start = &g_Counters[0];
-        Counter* end = &g_Counters[0] + g_Counters.Size();
-        Counter tmp;
-        tmp.m_NameHash = name_hash;
-        Counter*c = std::lower_bound(start, end, tmp, &CounterPred);
-        if (c != end && c->m_NameHash == name_hash)
-            return c;
-        else
-            return 0;
-    }
-
     void AddCounter(const char* name, uint32_t amount)
     {
         uint32_t name_hash = dmHashString32(name);
@@ -189,9 +188,9 @@ namespace dmProfile
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
         dmSpinlock::Lock(&g_CounterLock);
-        Counter* counter = FindCounter(name_hash);
+        uint32_t* counter_index = g_CountersTable.Get(name_hash);
 
-        if (!counter)
+        if (!counter_index)
         {
             if (g_Counters.Full())
             {
@@ -200,20 +199,25 @@ namespace dmProfile
                 return;
             }
 
-            Counter c;
-            c.m_Name = name;
-            c.m_NameHash = dmHashString32(name);
-            c.m_Counter = 0;
-            g_Counters.Push(c);
+            uint32_t new_index = g_CountersData.Size();
+            g_Counters.SetSize(new_index+1);
+            g_CountersData.SetSize(new_index+1);
 
-            Counter* start = &g_Counters[0];
-            Counter* end = &g_Counters[0] + g_Counters.Size();
-            std::sort(start, end, &CounterPred);
-            counter = FindCounter(name_hash);
+            Counter* c = &g_Counters[new_index];
+            c->m_Name = name;
+            c->m_NameHash = dmHashString32(name);
+
+            CounterData* cd = &g_CountersData[new_index];
+            cd->m_Counter = c;
+            cd->m_Value = 0;
+
+            g_CountersTable.Put(c->m_NameHash, new_index);
+
+            counter_index = g_CountersTable.Get(name_hash);
         }
 
         dmSpinlock::Unlock(&g_CounterLock);
-        dmAtomicAdd32(&counter->m_Counter, amount);
+        dmAtomicAdd32(&g_CountersData[*counter_index].m_Value, amount);
     }
 
     float GetFrameTime()
@@ -259,12 +263,12 @@ namespace dmProfile
         }
     }
 
-    void IterateCounters(void* context, void (*call_back)(void* context, const Counter* counter))
+    void IterateCounters(void* context, void (*call_back)(void* context, const CounterData* counter))
     {
-        uint32_t n = g_Counters.Size();
+        uint32_t n = g_CountersData.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            call_back(context, &g_Counters[i]);
+            call_back(context, &g_CountersData[i]);
         }
     }
 }

@@ -105,8 +105,17 @@ namespace dmProfile
         const char*      m_Name;
         /// Counter name hash
         uint32_t         m_NameHash;
+    };
+
+    /**
+     * Profile counter data
+     */
+    struct CounterData
+    {
+        /// The counter
+        Counter*       m_Counter;
         /// Counter value
-        int32_atomic_t  m_Counter;
+        int32_atomic_t m_Value;
     };
 
     /**
@@ -157,7 +166,7 @@ namespace dmProfile
      * @param context User context
      * @param call_back Call-back function pointer
      */
-    void IterateCounters(void* context, void (*call_back)(void* context, const Counter* counter));
+    void IterateCounters(void* context, void (*call_back)(void* context, const CounterData* counter));
 
     /**
      * Internal function

@@ -256,7 +256,6 @@ void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 
 TEST(dmMessage, Integrity)
 {
-    const uint32_t max_message_count = 16;
     dmMessage::HSocket socket;
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &socket);
