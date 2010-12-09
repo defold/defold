@@ -150,9 +150,9 @@ namespace dmProfileRender
         c->m_Index++;
     }
 
-    void ProfileCounterCallback(void* context, const dmProfile::Counter* counter)
+    void ProfileCounterCallback(void* context, const dmProfile::CounterData* counter_data)
     {
-        if (counter->m_Counter == 0)
+        if (counter_data->m_Value == 0)
             return;
 
         Context* c = (Context*) context;
@@ -171,11 +171,11 @@ namespace dmProfileRender
         params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
-        DM_SNPRINTF(buf, sizeof(buf), "%s", counter->m_Name);
+        DM_SNPRINTF(buf, sizeof(buf), "%s", counter_data->m_Counter->m_Name);
         params.m_X = g_Counter_x0;
         dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
-        DM_SNPRINTF(buf, sizeof(buf), "%u", counter->m_Counter);
+        DM_SNPRINTF(buf, sizeof(buf), "%u", counter_data->m_Value);
         params.m_X = g_Counter_Amount_x0;
         dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
