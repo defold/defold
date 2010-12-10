@@ -50,7 +50,7 @@ namespace dmGameSystem
         emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
         emitter_world->m_RenderObjects.SetCapacity(MAX_COUNT);
-        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(MAX_COUNT * ctx->m_MaxParticleCount * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(ctx->m_MaxParticleCount * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
             {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
@@ -130,8 +130,6 @@ namespace dmGameSystem
         uint32_t                m_VertexCount;
     };
 
-    void RenderSetUpCallback(void* render_context, float* vertex_buffer, uint32_t vertex_size, uint32_t vertex_count);
-    void RenderTearDownCallback(void* render_context);
     void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
@@ -153,8 +151,11 @@ namespace dmGameSystem
 
         w->m_RenderObjects.SetSize(0);
 
-        dmParticle::Update(w->m_ParticleContext, update_context->m_DT);
-        dmParticle::Render(w->m_ParticleContext, w, RenderSetUpCallback, 0x0, RenderEmitterCallback);
+        float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(w->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
+        uint32_t vertex_buffer_size = MAX_COUNT * ctx->m_MaxParticleCount * sizeof(ParticleVertex);
+        dmParticle::Update(w->m_ParticleContext, update_context->m_DT, vertex_buffer, vertex_buffer_size);
+        dmGraphics::UnmapVertexBuffer(w->m_VertexBuffer);
+        dmParticle::Render(w->m_ParticleContext, w, RenderEmitterCallback);
         for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
         {
             dmRender::AddToRender(ctx->m_RenderContext, &w->m_RenderObjects[i]);
@@ -187,12 +188,6 @@ namespace dmGameSystem
             dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
         return dmGameObject::UPDATE_RESULT_OK;
-    }
-
-    void RenderSetUpCallback(void* context, float* vertex_buffer, uint32_t vertex_size, uint32_t vertex_count)
-    {
-        EmitterWorld* world = (EmitterWorld*)context;
-        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_size * vertex_count, (const void*)vertex_buffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     void RenderEmitterCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
