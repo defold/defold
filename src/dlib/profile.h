@@ -64,6 +64,11 @@ namespace dmProfile
 {
 #ifndef DM_PROFILE_DISABLE
 
+    /// Profile snapshot handle
+    typedef struct Profile* HProfile;
+
+    struct ScopeData;
+
     /**
      * Profile scope
      */
@@ -71,12 +76,23 @@ namespace dmProfile
     {
         /// Scope name
         const char* m_Name;
-        /// Total time spent in scope (in ticks)
-        int32_t     m_Elapsed;
         /// Scope index, range [0, scopes-1]
         uint16_t    m_Index;
-        /// Occurrences of this scope (nestled occurrences do not count)
-        int32_t     m_Count;
+        /// Internal data
+        void*       m_Internal;
+    };
+
+    /**
+     * Scope data
+     */
+    struct ScopeData
+    {
+        /// The scope
+        Scope*  m_Scope;
+        /// Total time spent in scope (in ticks) summed over all threads
+        int32_t m_Elapsed;
+        /// Occurrences of this scope summed over all threads
+        int32_t m_Count;
     };
 
     /**
@@ -85,15 +101,17 @@ namespace dmProfile
     struct Sample
     {
         /// Sample name
-        const char*  m_Name;
+        const char* m_Name;
         /// Sampled within scope
-        Scope*       m_Scope;
+        Scope*      m_Scope;
         /// Start time in ticks
-        uint32_t     m_Start;
-        /// Elasped time in ticks
-        uint32_t     m_Elapsed : 28;
-
-        uint32_t     m_Reserved : 4;
+        uint32_t    m_Start;
+        /// Elapsed time in ticks
+        uint32_t    m_Elapsed : 28;
+        /// Reserved
+        uint32_t    m_Reserved : 4;
+        /// Thread id this sample belongs to
+        uint16_t    m_ThreadId;
     };
 
     /**
@@ -133,13 +151,21 @@ namespace dmProfile
 
     /**
      * Begin profiling, eg start of frame
+     * @return A snapshot of the current profile. Must be release by #Release after processed. It's valid to keep the profile snapshot throughout a "frame".
      */
-    void Begin();
+    HProfile Begin();
 
     /**
-     * End profiling, eg end of frame
+     * Pause profiling
+     * @param pause True to pause. False to resume.
      */
-    void End();
+    void Pause(bool pause);
+
+    /**
+     * Release profile returned by #Begin
+     * @param profile Profile to release
+     */
+    void Release(HProfile profile);
 
     /**
      * Get ticks per second
@@ -149,24 +175,27 @@ namespace dmProfile
 
     /**
      * Iterate over all scopes
+     * @param profile Profile snapshot to iterate over
      * @param context User context
      * @param call_back Call-back function pointer
      */
-    void IterateScopes(void* context, void (*call_back)(void* context, const Scope* sample));
+    void IterateScopes(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data));
 
     /**
      * Iterate over all samples
+     * @param profile Profile snapshot to iterate over
      * @param context User context
      * @param call_back Call-back function pointer
      */
-    void IterateSamples(void* context, void (*call_back)(void* context, const Sample* sample));
+    void IterateSamples(HProfile profile, void* context, void (*call_back)(void* context, const Sample* sample));
 
     /**
      * Iterate over all counters
+     * @param profile Profile snapshot to iterate over
      * @param context User context
      * @param call_back Call-back function pointer
      */
-    void IterateCounters(void* context, void (*call_back)(void* context, const CounterData* counter));
+    void IterateCounters(HProfile profile, void* context, void (*call_back)(void* context, const CounterData* counter));
 
     /**
      * Internal function
@@ -260,8 +289,6 @@ namespace dmProfile
             uint64_t diff = end - m_Start;
             m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
             m_Sample->m_Elapsed = diff;
-            dmAtomicAdd32(&m_Scope->m_Elapsed, (int32_t) diff);
-            dmAtomicIncrement32(&m_Scope->m_Count);
         }
     };
 
