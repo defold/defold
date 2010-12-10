@@ -8,6 +8,7 @@
 namespace dmThread
 {
     typedef pthread_t Thread;
+    typedef pthread_key_t TlsKey;
 }
 
 #elif defined(_WIN32)
@@ -15,6 +16,7 @@ namespace dmThread
 namespace dmThread
 {
     typedef HANDLE Thread;
+    typedef DWORD TlsKey;
 }
 
 #else
@@ -25,8 +27,48 @@ namespace dmThread
 {
     typedef void (*ThreadStart)(void*);
 
+    /**
+     * Create a new thread
+     * @param thread_start Thread entry function
+     * @param stack_size Stack size
+     * @param arg Thread argument
+     * @return Thread handle
+     */
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg);
-    void   Join(Thread thread);
+
+    /**
+     * Join thread
+     * @param thread Thread to join
+     */
+    void Join(Thread thread);
+
+    /**
+     * Allocate thread local storage key
+     * @return Key
+     */
+
+    TlsKey AllocTls();
+
+    /**
+     * Free thread local storage key
+     * @param key Key
+     */
+
+    void FreeTls(TlsKey key);
+
+    /**
+     * Set thread specific data
+     * @param key Key
+     * @param value Value
+     */
+    void SetTlsValue(TlsKey key, void* value);
+
+    /**
+     * Get thread specific data
+     * @param key Key
+     */
+    void* GetTlsValue(TlsKey key);
+
 }
 
 #endif // DM_THREAD_H

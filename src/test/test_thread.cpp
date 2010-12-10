@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 #include "../dlib/thread.h"
+#include "../dlib/atomic.h"
 
 struct ThreadArg
 {
@@ -25,7 +26,7 @@ TEST(Thread, Basic1)
     a2.m_P = arr;
     a2.m_Index = 1;
     a2.m_Value = 20;
-    
+
     dmThread::Thread t1 = dmThread::New(&ThreadFunction, 0x80000, &a1);
     dmThread::Thread t2 = dmThread::New(&ThreadFunction, 0x80000, &a2);
 
@@ -34,6 +35,43 @@ TEST(Thread, Basic1)
 
     ASSERT_EQ((uint32_t) 10, arr[0]);
     ASSERT_EQ((uint32_t) 20, arr[1]);
+}
+
+dmThread::TlsKey g_TlsKey;
+int g_TlsData[2];
+int32_atomic_t g_NextTlsIndex = 0;
+
+static void TlsThreadFunction(void* arg)
+{
+    uintptr_t n = (uintptr_t) arg;
+
+    void* data = dmThread::GetTlsValue(g_TlsKey);
+    assert(data == 0);
+    int32_t i = dmAtomicIncrement32(&g_NextTlsIndex);
+    data = &g_TlsData[i];
+    dmThread::SetTlsValue(g_TlsKey, data);
+
+    for (uintptr_t i = 0; i < n; ++i)
+    {
+        int* tls_data = (int*) dmThread::GetTlsValue(g_TlsKey);
+        *tls_data = *tls_data + 1;
+    }
+}
+
+TEST(Thread, Tls)
+{
+    g_TlsKey = dmThread::AllocTls();
+
+    dmThread::Thread t1 = dmThread::New(&TlsThreadFunction, 0x80000, (void*) 1000);
+    dmThread::Thread t2 = dmThread::New(&TlsThreadFunction, 0x80000, (void*) 2000);
+
+    dmThread::Join(t1);
+    dmThread::Join(t2);
+
+    ASSERT_EQ(1000, g_TlsData[0]);
+    ASSERT_EQ(2000, g_TlsData[1]);
+
+    dmThread::FreeTls(g_TlsKey);
 }
 
 int main(int argc, char **argv)
