@@ -116,16 +116,17 @@ namespace dmProfileRender
         }
     }
 
-    void ProfileScopeCallback(void* context, const dmProfile::Scope* scope)
+    void ProfileScopeCallback(void* context, const dmProfile::ScopeData* scope_data)
     {
         Context* c = (Context*) context;
+        dmProfile::Scope* scope = scope_data->m_Scope;
 
         int y = c->m_Y + c->m_Index * g_Spacing;
 
         float col[3];
         HslToRgb2( (scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
 
-        float e = scope->m_Elapsed / c->m_TicksPerSecond;
+        float e = scope_data->m_Elapsed / c->m_TicksPerSecond;
 
         char buf[256];
 
@@ -143,7 +144,7 @@ namespace dmProfileRender
         params.m_X = g_Scope_Time_x0;
         dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
-        DM_SNPRINTF(buf, sizeof(buf), "%d", scope->m_Count);
+        DM_SNPRINTF(buf, sizeof(buf), "%d", scope_data->m_Count);
         params.m_X = g_Scope_Count_x0;
         dmRender::DrawText(c->m_RenderContext, c->m_Font, params);
 
@@ -215,7 +216,7 @@ namespace dmProfileRender
         context->m_Index++;
     }
 
-    void Draw(dmRender::HRenderContext render_context, dmRender::HFont font)
+    void Draw(dmProfile::HProfile profile, dmRender::HRenderContext render_context, dmRender::HFont font)
     {
         uint32_t display_width = dmRender::GetDisplayWidth(render_context);
         uint32_t display_height = dmRender::GetDisplayHeight(render_context);
@@ -293,10 +294,10 @@ namespace dmProfileRender
             ctx.m_Font = font;
             ctx.m_SampleStats.SetCapacity(64, 256);
 
-            dmProfile::IterateSamples(&ctx, &ProfileSampleCallback);
+            dmProfile::IterateSamples(profile, &ctx, &ProfileSampleCallback);
 
             ctx.m_Index = 0;
-            dmProfile::IterateScopes(&ctx, &ProfileScopeCallback);
+            dmProfile::IterateScopes(profile, &ctx, &ProfileScopeCallback);
 
             ctx.m_Index = 0;
             if (ctx.m_SampleStats.Size() > 0)
@@ -327,7 +328,7 @@ namespace dmProfileRender
             ctx.m_RenderContext = render_context;
             ctx.m_Font = font;
 
-            dmProfile::IterateCounters(&ctx, &ProfileCounterCallback);
+            dmProfile::IterateCounters(profile, &ctx, &ProfileCounterCallback);
         }
     }
 }
