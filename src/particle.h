@@ -36,8 +36,6 @@ namespace dmParticle
     /// Config key to use for tweaking the total maximum number of particles in a context.
     extern const char* MAX_PARTICLE_COUNT_KEY;
 
-    typedef void (*RenderSetUpCallback)(void* usercontext, float* vertex_buffer, uint32_t vertex_size, uint32_t vertex_count);
-    typedef void (*RenderTearDownCallback)(void* usercontext);
     typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     typedef void (*RenderLineCallback)(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
     /**
@@ -155,14 +153,16 @@ namespace dmParticle
      * Update the emitters within the specified context.
      * @param context Context of the emitters to update.
      * @param dt Time step.
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no rendering will occur.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      */
-    void                    Update(HContext context, float dt);
+    void                    Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size);
 
     /**
      * Render the emitters within the specified context.
      * @param context Context of the emitters to render.
      */
-    void                    Render(HContext context, void* user_context, RenderSetUpCallback render_setup_callback, RenderTearDownCallback render_tear_down_callback, RenderEmitterCallback render_emitter_callback);
+    void                    Render(HContext context, void* user_context, RenderEmitterCallback render_emitter_callback);
     /**
      * Debug render the status of the emitters within the specified context.
      * @param context Context of the emitters to render.

@@ -115,20 +115,17 @@ namespace dmParticle
             }
             m_EmitterIndexPool.SetCapacity(max_emitter_count);
 
-            m_MaxVertexCount = max_particle_count * 4; // 4 vertices per particle
-            m_VertexBuffer = new float[m_MaxVertexCount * VERTEX_FIELD_COUNT];
-
             m_DefaultModifierProperties[dmParticleDDF::MODIFIER_KEY_T] = 0.5f;
             m_DefaultModifierProperties[dmParticleDDF::MODIFIER_KEY_MIN] = 0.0f;
             m_DefaultModifierProperties[dmParticleDDF::MODIFIER_KEY_MID] = 0.5f;
             m_DefaultModifierProperties[dmParticleDDF::MODIFIER_KEY_MAX] = 1.0f;
 
             m_ParticleStates = new float[max_particle_count * PARTICLE_PROPERTY_FIELD_COUNT];
+            m_MaxParticleCount = max_particle_count;
         }
 
         ~Context()
         {
-            delete [] m_VertexBuffer;
             delete [] m_ParticleStates;
         }
 
@@ -136,14 +133,12 @@ namespace dmParticle
         dmArray<Emitter*>   m_Emitters;
         /// Index pool used to index the emitter buffer.
         dmIndexPool16       m_EmitterIndexPool;
-        /// Vertex buffer to use to draw all particles.
-        float*              m_VertexBuffer;
-        /// Maximum number of vertices that can be stored in the vertex buffer.
-        uint32_t            m_MaxVertexCount;
         /// Default modifier properties to use when evaluating at spawn time
         float m_DefaultModifierProperties[dmParticleDDF::MODIFIER_KEY_COUNT];
         /// Scratch data used in particle update
         float*              m_ParticleStates;
+        /// Maximum number of particles allowed
+        uint32_t            m_MaxParticleCount;
         /// Version number used to create new handles.
         uint16_t            m_NextVersionNumber;
     };

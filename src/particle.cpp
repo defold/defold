@@ -65,9 +65,9 @@ namespace dmParticle
             dmLogWarning("Emitter could not be created since the buffer is full (%d). Tweak \"%s\" in the config file.", context->m_Emitters.Capacity(), MAX_EMITTER_COUNT_KEY);
             return 0;
         }
-        if (prototype->m_DDF->m_MaxParticleCount * 4 > context->m_MaxVertexCount)
+        if (prototype->m_DDF->m_MaxParticleCount > context->m_MaxParticleCount)
         {
-            dmLogWarning("Emitter could not be created since it has a higher particle count than the maximum number allowed (%d). Tweak \"%s\" in the config file.", context->m_MaxVertexCount / 4, MAX_EMITTER_COUNT_KEY);
+            dmLogWarning("Emitter could not be created since it has a higher particle count than the maximum number allowed (%d). Tweak \"%s\" in the config file.", context->m_MaxParticleCount, MAX_EMITTER_COUNT_KEY);
             return 0;
         }
         Emitter* e = new Emitter;
@@ -195,9 +195,9 @@ namespace dmParticle
     // helper functions in update
     static void SpawnParticle(HContext context, Particle* particle, Emitter* emitter);
     static void ApplyParticleModifiers(Emitter* emitter, float* particle_states);
-    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state);
+    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size);
 
-    void Update(HContext context, float dt)
+    void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size)
     {
         DM_PROFILE(Particle, "Update");
 
@@ -225,7 +225,7 @@ namespace dmParticle
             // Resize particle buffer if the resource has been reloaded, wipe particles
             if (emitter->m_Particles.Size() != emitter->m_Prototype->m_DDF->m_MaxParticleCount)
             {
-                if (emitter->m_Prototype->m_DDF->m_MaxParticleCount * 4 <= context->m_MaxVertexCount)
+                if (emitter->m_Prototype->m_DDF->m_MaxParticleCount <= context->m_MaxParticleCount)
                 {
                     emitter->m_Particles.SetCapacity(emitter->m_Prototype->m_DDF->m_MaxParticleCount);
                     emitter->m_Particles.SetSize(emitter->m_Prototype->m_DDF->m_MaxParticleCount);
@@ -237,7 +237,7 @@ namespace dmParticle
                 {
                     if (emitter->m_ResizeWarning == 0)
                     {
-                        dmLogWarning("Maximum number of particles (%d) exceeded, emitter will not be resized. Change the max particle count for the emitter or \"%s\" in the config file.", context->m_MaxVertexCount / 4, MAX_PARTICLE_COUNT_KEY);
+                        dmLogWarning("Maximum number of particles (%d) exceeded, emitter will not be resized. Change the max particle count for the emitter or \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
                         emitter->m_ResizeWarning = 1;
                     }
                 }
@@ -283,7 +283,8 @@ namespace dmParticle
             }
 
             // Render data
-            vertex_index += UpdateRenderData(context, emitter, vertex_index, context->m_ParticleStates);
+            if (vertex_buffer != 0x0)
+                vertex_index += UpdateRenderData(context, emitter, vertex_index, context->m_ParticleStates, vertex_buffer, vertex_buffer_size);
 
             // Update emitter
             if (emitter->m_IsSpawning)
@@ -455,30 +456,30 @@ namespace dmParticle
         SetParticleProperty(particle->m_Properties, PARTICLE_KEY_ALPHA, &particle_alpha);
     }
 
-    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state)
+    static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
-        emitter->m_VertexIndex = vertex_index;
-        emitter->m_VertexCount = 0;
-
-        // texture animation
-        uint32_t total_frames = emitter->m_Prototype->m_DDF->m_Texture.m_TX * emitter->m_Prototype->m_DDF->m_Texture.m_TY;
-        float dU = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TX);
-        float dV = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TY);
-
-        // calculate emission space
-        Quat emission_rotation = Quat::identity();
-        Vector3 emission_position(0.0f, 0.0f, 0.0f);
-        if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_EMITTER)
-        {
-            emission_rotation = emitter->m_Rotation;
-            emission_position = Vector3(emitter->m_Position);
-        }
-
         uint32_t particle_count = emitter->m_Particles.Size();
-        if (particle_count * 4 <= context->m_MaxVertexCount - vertex_index)
+        if (particle_count * 4 <= vertex_buffer_size - vertex_index)
         {
+            emitter->m_VertexIndex = vertex_index;
+            emitter->m_VertexCount = 0;
+
+            // texture animation
+            uint32_t total_frames = emitter->m_Prototype->m_DDF->m_Texture.m_TX * emitter->m_Prototype->m_DDF->m_Texture.m_TY;
+            float dU = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TX);
+            float dV = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TY);
+
+            // calculate emission space
+            Quat emission_rotation = Quat::identity();
+            Vector3 emission_position(0.0f, 0.0f, 0.0f);
+            if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_EMITTER)
+            {
+                emission_rotation = emitter->m_Rotation;
+                emission_position = Vector3(emitter->m_Position);
+            }
+
             for (uint32_t j = 0; j < particle_count; j++)
             {
                 Particle* particle = &emitter->m_Particles[j];
@@ -523,36 +524,36 @@ namespace dmParticle
 
                 // store values in the buffer
                 uint32_t field_index = vertex_index * VERTEX_FIELD_COUNT;
-                context->m_VertexBuffer[field_index + 0] = p0.getX();
-                context->m_VertexBuffer[field_index + 1] = p0.getY();
-                context->m_VertexBuffer[field_index + 2] = p0.getZ();
-                context->m_VertexBuffer[field_index + 3] = u0;
-                context->m_VertexBuffer[field_index + 4] = v0;
-                context->m_VertexBuffer[field_index + 5] = alpha;
+                vertex_buffer[field_index + 0] = p0.getX();
+                vertex_buffer[field_index + 1] = p0.getY();
+                vertex_buffer[field_index + 2] = p0.getZ();
+                vertex_buffer[field_index + 3] = u0;
+                vertex_buffer[field_index + 4] = v0;
+                vertex_buffer[field_index + 5] = alpha;
                 ++vertex_index;
                 field_index += VERTEX_FIELD_COUNT;
-                context->m_VertexBuffer[field_index + 0] = p1.getX();
-                context->m_VertexBuffer[field_index + 1] = p1.getY();
-                context->m_VertexBuffer[field_index + 2] = p1.getZ();
-                context->m_VertexBuffer[field_index + 3] = u1;
-                context->m_VertexBuffer[field_index + 4] = v1;
-                context->m_VertexBuffer[field_index + 5] = alpha;
+                vertex_buffer[field_index + 0] = p1.getX();
+                vertex_buffer[field_index + 1] = p1.getY();
+                vertex_buffer[field_index + 2] = p1.getZ();
+                vertex_buffer[field_index + 3] = u1;
+                vertex_buffer[field_index + 4] = v1;
+                vertex_buffer[field_index + 5] = alpha;
                 ++vertex_index;
                 field_index += VERTEX_FIELD_COUNT;
-                context->m_VertexBuffer[field_index + 0] = p2.getX();
-                context->m_VertexBuffer[field_index + 1] = p2.getY();
-                context->m_VertexBuffer[field_index + 2] = p2.getZ();
-                context->m_VertexBuffer[field_index + 3] = u2;
-                context->m_VertexBuffer[field_index + 4] = v2;
-                context->m_VertexBuffer[field_index + 5] = alpha;
+                vertex_buffer[field_index + 0] = p2.getX();
+                vertex_buffer[field_index + 1] = p2.getY();
+                vertex_buffer[field_index + 2] = p2.getZ();
+                vertex_buffer[field_index + 3] = u2;
+                vertex_buffer[field_index + 4] = v2;
+                vertex_buffer[field_index + 5] = alpha;
                 ++vertex_index;
                 field_index += VERTEX_FIELD_COUNT;
-                context->m_VertexBuffer[field_index + 0] = p3.getX();
-                context->m_VertexBuffer[field_index + 1] = p3.getY();
-                context->m_VertexBuffer[field_index + 2] = p3.getZ();
-                context->m_VertexBuffer[field_index + 3] = u3;
-                context->m_VertexBuffer[field_index + 4] = v3;
-                context->m_VertexBuffer[field_index + 5] = alpha;
+                vertex_buffer[field_index + 0] = p3.getX();
+                vertex_buffer[field_index + 1] = p3.getY();
+                vertex_buffer[field_index + 2] = p3.getZ();
+                vertex_buffer[field_index + 3] = u3;
+                vertex_buffer[field_index + 4] = v3;
+                vertex_buffer[field_index + 5] = alpha;
                 ++vertex_index;
             }
         }
@@ -560,7 +561,7 @@ namespace dmParticle
         {
             if (emitter->m_RenderWarning == 0)
             {
-                dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.", context->m_MaxVertexCount / 4, MAX_PARTICLE_COUNT_KEY);
+                dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
                 emitter->m_RenderWarning = 1;
             }
         }
@@ -569,15 +570,12 @@ namespace dmParticle
     }
 
 
-    void Render(HContext context, void* usercontext, RenderSetUpCallback render_setup_callback, RenderTearDownCallback render_teardown_callback, RenderEmitterCallback render_emitter_callback)
+    void Render(HContext context, void* usercontext, RenderEmitterCallback render_emitter_callback)
     {
         DM_PROFILE(Particle, "Render");
 
         if (context->m_Emitters.Size() == 0)
             return;
-
-        if (render_setup_callback != 0x0)
-            render_setup_callback(usercontext, context->m_VertexBuffer, VERTEX_SIZE, context->m_MaxVertexCount);
 
         if (render_emitter_callback != 0x0)
         {
@@ -589,9 +587,6 @@ namespace dmParticle
                 render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
             }
         }
-
-        if (render_teardown_callback != 0x0)
-            render_teardown_callback(usercontext);
     }
 
     void DebugRender(HContext context, void* user_context, RenderLineCallback render_line_callback)

@@ -18,6 +18,8 @@ protected:
         m_Prototype.m_DDF = 0;
         m_Prototype.m_Material = 0;
         m_Prototype.m_Texture = 0;
+        m_VertexBufferSize = 1024 * 4 * 6 * sizeof(float);
+        m_VertexBuffer = new float[m_VertexBufferSize];
     }
 
     virtual void TearDown()
@@ -25,10 +27,13 @@ protected:
         dmParticle::DestroyContext(m_Context);
         if (m_Prototype.m_DDF != 0)
             dmDDF::FreeMessage(m_Prototype.m_DDF);
+        delete [] m_VertexBuffer;
     }
 
     dmParticle::HContext m_Context;
     dmParticle::Prototype m_Prototype;
+    float* m_VertexBuffer;
+    uint32_t m_VertexBufferSize;
 };
 
 bool LoadPrototype(const char* filename, dmParticle::Prototype* prototype)
@@ -88,14 +93,14 @@ TEST_F(ParticleTest, StartEmitter)
 
     ASSERT_EQ(1U, m_Context->m_Emitters[index]->m_IsSpawning);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_NE((void*)0, (void*)m_Context->m_Emitters[index]);
     ASSERT_LT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_EQ(1U, m_Context->m_Emitters[index]->m_IsSpawning);
     ASSERT_GT(m_Context->m_Emitters[index]->m_Prototype->m_DDF->m_Duration, m_Context->m_Emitters[index]->m_Timer);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_NE((void*)0, (void*)m_Context->m_Emitters[index]);
     ASSERT_GT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
@@ -103,7 +108,7 @@ TEST_F(ParticleTest, StartEmitter)
     ASSERT_EQ(0U, m_Context->m_Emitters[index]->m_IsSpawning);
     ASSERT_LT(m_Context->m_Emitters[index]->m_Prototype->m_DDF->m_Duration, m_Context->m_Emitters[index]->m_Timer);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_LT(m_Context->m_Emitters[index]->m_Prototype->m_DDF->m_Duration, m_Context->m_Emitters[index]->m_Timer);
     ASSERT_EQ(0U, m_Context->m_Emitters[index]->m_IsSpawning);
@@ -121,11 +126,11 @@ TEST_F(ParticleTest, StartOnceEmitter)
 
     dmParticle::StartEmitter(m_Context, emitter);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_LT(m_Context->m_Emitters[index]->m_Prototype->m_DDF->m_Duration, m_Context->m_Emitters[index]->m_Timer);
     ASSERT_EQ(0U, m_Context->m_Emitters[index]->m_IsSpawning);
@@ -143,11 +148,11 @@ TEST_F(ParticleTest, StartLoopEmitter)
 
     dmParticle::StartEmitter(m_Context, emitter);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_EQ(1U, m_Context->m_Emitters[index]->m_IsSpawning);
 
@@ -167,15 +172,15 @@ TEST_F(ParticleTest, FireAndForget)
     ASSERT_EQ(1U, m_Context->m_EmitterIndexPool.Size());
     ASSERT_EQ(1U, m_Context->m_Emitters[index]->m_IsSpawning);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_NE((void*)0, (void*)m_Context->m_Emitters[index]);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_NE((void*)0, (void*)m_Context->m_Emitters[index]);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_EQ((void*)0, (void*)m_Context->m_Emitters[index]);
     ASSERT_EQ(0U, m_Context->m_EmitterIndexPool.Size());
@@ -194,7 +199,7 @@ TEST_F(ParticleTest, EmissionSpace)
     dmParticle::SetPosition(m_Context, emitter, Vectormath::Aos::Point3(10.0f, 0.0f, 0.0f));
     dmParticle::StartEmitter(m_Context, emitter);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_LT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_EQ(10.0f, m_Context->m_Emitters[index]->m_Particles[0].m_Position.getX());
@@ -210,7 +215,7 @@ TEST_F(ParticleTest, EmissionSpace)
     dmParticle::SetPosition(m_Context, emitter, Vectormath::Aos::Point3(10.0f, 0.0f, 0.0f));
     dmParticle::StartEmitter(m_Context, emitter);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_LT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_EQ(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_Position.getX());
@@ -233,14 +238,14 @@ TEST_F(ParticleTest, RestartEmitter)
     ASSERT_GE(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_GE(0.0f, m_Context->m_Emitters[index]->m_Particles[1].m_TimeLeft);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_LT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_GE(0.0f, m_Context->m_Emitters[index]->m_Particles[1].m_TimeLeft);
 
     dmParticle::RestartEmitter(m_Context, emitter);
 
-    dmParticle::Update(m_Context, dt);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize);
 
     ASSERT_GT(0.0f, m_Context->m_Emitters[index]->m_Particles[0].m_TimeLeft);
     ASSERT_LT(0.0f, m_Context->m_Emitters[index]->m_Particles[1].m_TimeLeft);
