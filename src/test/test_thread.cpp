@@ -68,8 +68,17 @@ TEST(Thread, Tls)
     dmThread::Join(t1);
     dmThread::Join(t2);
 
-    ASSERT_EQ(1000, g_TlsData[0]);
-    ASSERT_EQ(2000, g_TlsData[1]);
+    // Don't rely on thread start order
+    if (g_TlsData[0] == 1000)
+    {
+        ASSERT_EQ(1000, g_TlsData[0]);
+        ASSERT_EQ(2000, g_TlsData[1]);
+    }
+    else
+    {
+        ASSERT_EQ(1000, g_TlsData[1]);
+        ASSERT_EQ(2000, g_TlsData[0]);
+    }
 
     dmThread::FreeTls(g_TlsKey);
 }
