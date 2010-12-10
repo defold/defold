@@ -38,7 +38,7 @@ TEST(Thread, Basic1)
 }
 
 dmThread::TlsKey g_TlsKey;
-int g_TlsData[2];
+int g_TlsData[2] = { 0, 0 };
 int32_atomic_t g_NextTlsIndex = 0;
 
 static void TlsThreadFunction(void* arg)
