@@ -13,7 +13,6 @@
 #include <sound/sound.h>
 
 #include <render/material.h>
-#include <render/model_ddf.h>
 
 // Windows defines DrawText
 #undef DrawText
@@ -25,6 +24,7 @@
 
 #include <gameobject/gameobject_ddf.h>
 
+#include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 
 #include "physics_debug_render.h"
@@ -679,11 +679,11 @@ bail:
         dmGameObject::RegisterDDFType(dmEngineDDF::SetTimeStep::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawText::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawLine::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::SetTexture::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::SetVertexConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::ResetVertexConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::SetFragmentConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::ResetFragmentConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmModelDDF::SetTexture::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmModelDDF::SetVertexConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmModelDDF::ResetVertexConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmModelDDF::SetFragmentConstant::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::LoadCollection::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::UnloadCollection::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::ActivateCollection::m_DDFDescriptor);

@@ -2,7 +2,6 @@
 
 #include <ddf/ddf.h>
 #include <render/render.h>
-#include <render/mesh_ddf.h>
 
 namespace PhysicsDebugRender
 {
