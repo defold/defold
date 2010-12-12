@@ -25,7 +25,7 @@ namespace dmGameSystem
     {
         dmGui::HGui         m_Gui;
         dmArray<Component*> m_Components;
-        uint32_t            m_Socket;
+        dmMessage::HSocket  m_Socket;
     };
 
     dmGameObject::CreateResult CompGuiNewWorld(void* context, void** world)
