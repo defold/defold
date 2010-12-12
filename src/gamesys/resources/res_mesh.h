@@ -5,8 +5,17 @@
 
 #include <resource/resource.h>
 
+#include <graphics/graphics_device.h>
+
 namespace dmGameSystem
 {
+    struct Mesh
+    {
+        dmGraphics::HVertexBuffer m_VertexBuffer;
+        dmGraphics::HVertexDeclaration m_VertexDeclaration;
+        uint32_t m_VertexCount;
+    };
+
     dmResource::CreateResult ResCreateMesh(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,

@@ -21,3 +21,5 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/gui_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/gamesys_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/model_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/mesh_ddf.proto')

@@ -6,9 +6,10 @@
 #include <dlib/log.h>
 
 #include <render/render.h>
-#include <render/mesh_ddf.h>
-#include <render/model/model.h>
-#include <render/model_ddf.h>
+
+#include "../resources/res_model.h"
+
+#include "model_ddf.h"
 
 namespace dmGameSystem
 {
@@ -17,14 +18,14 @@ namespace dmGameSystem
     struct ModelComponent
     {
         ModelComponent()
-        : m_Model(0)
+        : m_Model(0x0)
         , m_Instance(0)
         , m_RenderObject()
         , m_ModelWorld(0x0)
         , m_Index(0)
         {}
 
-        dmModel::HModel m_Model;
+        Model* m_Model;
         dmGameObject::HInstance m_Instance;
         dmRender::RenderObject m_RenderObject;
         ModelWorld* m_ModelWorld;
@@ -66,24 +67,22 @@ namespace dmGameSystem
         ModelWorld* model_world = (ModelWorld*)world;
         if (model_world->m_ComponentIndices.Remaining() > 0)
         {
-            dmModel::HModel prototype = (dmModel::HModel)resource;
-            dmModel::HMesh mesh = dmModel::GetMesh(prototype);
+            Model* model = (Model*)resource;
+            Mesh* mesh = model->m_Mesh;
             uint32_t index = model_world->m_ComponentIndices.Pop();
             ModelComponent& component = model_world->m_Components[index];
             component.m_Instance = instance;
-            component.m_Model = prototype;
+            component.m_Model = model;
             component.m_ModelWorld = model_world;
             component.m_Index = index;
             dmRender::RenderObject& ro = component.m_RenderObject;
-            ro.m_Material = dmModel::GetMaterial(prototype);
-            ro.m_Texture = dmModel::GetTexture(prototype, 0);
-            ro.m_VertexBuffer = dmModel::GetVertexBuffer(mesh);
-            ro.m_VertexDeclaration = dmModel::GetVertexDeclarationBuffer(mesh);
-            ro.m_IndexBuffer = dmModel::GetIndexBuffer(mesh);
-            ro.m_IndexType = dmGraphics::TYPE_UNSIGNED_INT;
+            ro.m_Material = model->m_Material;
+            ro.m_Texture = model->m_Texture;
+            ro.m_VertexBuffer = mesh->m_VertexBuffer;
+            ro.m_VertexDeclaration = mesh->m_VertexDeclaration;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro.m_VertexStart = 0;
-            ro.m_VertexCount = dmModel::GetPrimitiveCount(mesh);
+            ro.m_VertexCount = mesh->m_VertexCount;
             ro.m_TextureTransform = Matrix4::identity();
             *user_data = (uintptr_t)&component;
 
@@ -134,29 +133,29 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)*user_data;
         dmRender::RenderObject* ro = &component->m_RenderObject;
-        if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString32(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
-            dmRenderDDF::SetVertexConstant* ddf = (dmRenderDDF::SetVertexConstant*)message_data->m_Buffer;
+            dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)message_data->m_Buffer;
             dmRender::SetVertexConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        else if (message_data->m_MessageId == dmHashString32(dmRenderDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString32(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
-            dmRenderDDF::ResetVertexConstant* ddf = (dmRenderDDF::ResetVertexConstant*)message_data->m_Buffer;
+            dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)message_data->m_Buffer;
             dmRender::ResetVertexConstant(ro, ddf->m_Register);
         }
-        if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString32(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
         {
-            dmRenderDDF::SetFragmentConstant* ddf = (dmRenderDDF::SetFragmentConstant*)message_data->m_Buffer;
+            dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)message_data->m_Buffer;
             dmRender::SetFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        if (message_data->m_MessageId == dmHashString32(dmRenderDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString32(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
         {
-            dmRenderDDF::ResetFragmentConstant* ddf = (dmRenderDDF::ResetFragmentConstant*)message_data->m_Buffer;
+            dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)message_data->m_Buffer;
             dmRender::ResetFragmentConstant(ro, ddf->m_Register);
         }
-        else if (message_data->m_MessageId == dmHashString32(dmRenderDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString32(dmModelDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
         {
-            dmRenderDDF::SetTexture* ddf = (dmRenderDDF::SetTexture*)message_data->m_Buffer;
+            dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)message_data->m_Buffer;
             ddf->m_TextureHash = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_TextureHash);
             uint32_t hash;
             sscanf(ddf->m_TextureHash, "%X", &hash);

@@ -5,8 +5,19 @@
 
 #include <resource/resource.h>
 
+#include <render/render.h>
+
+#include "res_mesh.h"
+
 namespace dmGameSystem
 {
+    struct Model
+    {
+        Mesh* m_Mesh;
+        dmRender::HMaterial m_Material;
+        dmGraphics::HTexture m_Texture;
+    };
+
     dmResource::CreateResult ResCreateModel(dmResource::HFactory factory,
                                       void* context,
                                       const void* buffer, uint32_t buffer_size,

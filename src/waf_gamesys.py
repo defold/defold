@@ -3,7 +3,7 @@ from TaskGen import extension
 from waf_content import proto_compile_task
 
 def configure(conf):
-    conf.find_file('modelc.py', var='MODELC', mandatory = True)
+    conf.find_file('meshc.py', var='MESHC', mandatory = True)
 
 def transform_collection(msg):
     for i in msg.Instances:
@@ -54,7 +54,7 @@ def transform_spawnpoint(msg):
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.emitter', '.emitterc', transform_emitter)
-proto_compile_task('model', 'render.model_ddf_pb2', 'model_ddf_pb2.ModelDesc', '.model', '.modelc', transform_model)
+proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('gameobject',  'gameobject_ddf_pb2', 'PrototypeDesc', '.go', '.goc', transform_gameobject)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')
 proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc', '.collisionobject', '.collisionobjectc', transform_collisionobject)
@@ -105,7 +105,7 @@ def testresourcecont_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-Task.simple_task_type('mesh', 'python ${MODELC} ${SRC} -o ${TGT}',
+Task.simple_task_type('mesh', 'python ${MESHC} ${SRC} -o ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
