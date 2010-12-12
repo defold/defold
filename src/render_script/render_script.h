@@ -42,12 +42,6 @@ namespace dmEngine
     };
     typedef RenderScriptInstance* HRenderScriptInstance;
 
-    struct RenderScriptWorld
-    {
-        RenderScriptWorld();
-
-        dmArray<RenderScriptInstance*> m_Instances;
-    };
 
     void    InitializeRenderScript();
     void    FinalizeRenderScript();

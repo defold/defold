@@ -10,6 +10,7 @@
 #include <script/script.h>
 #include <gameobject/gameobject.h>
 #include <gamesys/gamesys_ddf.h>
+#include "render_operations.h"
 
 extern "C"
 {
@@ -35,14 +36,28 @@ namespace dmEngine
         "on_message"
     };
 
-    lua_State* g_LuaState = 0;
-    dmMessage::HSocket g_Socket = 0;
 
-    RenderScriptWorld::RenderScriptWorld()
-    : m_Instances()
+    struct RenderScriptWorld
     {
-        m_Instances.SetCapacity(512);
+        RenderScriptWorld()
+        {
+            m_LuaState = 0;
+            m_Socket = 0;
+            m_RenderCommands.SetCapacity(1024);
+        }
+
+        lua_State*              m_LuaState;
+        dmMessage::HSocket      m_Socket;
+        dmArray<RenderCommand>  m_RenderCommands;
+    };
+
+    RenderScriptWorld g_RenderScriptWorld;
+
+    void InsertRenderCommand(RenderCommand rendercommand)
+    {
+        g_RenderScriptWorld.m_RenderCommands.Push(rendercommand);
     }
+
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L, int index)
     {
@@ -117,24 +132,27 @@ namespace dmEngine
     int RenderScript_EnableState(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         uint32_t state = luaL_checknumber(L, 2);
+
         switch (state)
         {
             case dmGraphics::DEPTH_TEST:
             case dmGraphics::ALPHA_TEST:
             case dmGraphics::BLEND:
             case dmGraphics::CULL_FACE:
-                dmGraphics::EnableState(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::RenderState)state);
                 break;
             default:
                 luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
+        InsertRenderCommand(RenderCommand(CMD_ENABLE_STATE, state));
         return 0;
     }
 
     int RenderScript_DisableState(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         uint32_t state = luaL_checknumber(L, 2);
         switch (state)
         {
@@ -142,21 +160,21 @@ namespace dmEngine
             case dmGraphics::ALPHA_TEST:
             case dmGraphics::BLEND:
             case dmGraphics::CULL_FACE:
-                dmGraphics::DisableState(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::RenderState)state);
                 break;
             default:
                 luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
+        InsertRenderCommand(RenderCommand(CMD_DISABLE_STATE, state));
         return 0;
     }
 
     int RenderScript_SetViewport(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         uint32_t width = luaL_checknumber(L, 2);
         uint32_t height = luaL_checknumber(L, 3);
-
-        dmGraphics::SetViewport(dmRender::GetGraphicsContext(i->m_RenderContext), width, height);
+        InsertRenderCommand(RenderCommand(CMD_SETVIEWPORT, width, height));
 
         return 0;
     }
@@ -179,27 +197,29 @@ namespace dmEngine
     int RenderScript_EnableRendertarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         dmGraphics::HRenderTarget rendertarget = 0x0;
 
         if (lua_islightuserdata(L, 2))
         {
             rendertarget = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
         }
-        dmGraphics::EnableRenderTarget(dmRender::GetGraphicsContext(i->m_RenderContext), rendertarget );
 
+        InsertRenderCommand(RenderCommand(CMD_ENABLE_RENDERTARGET, (uint32_t)rendertarget));
         return 0;
     }
 
     int RenderScript_DisableRendertarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         dmGraphics::HRenderTarget rendertarget = 0x0;
 
         if (lua_islightuserdata(L, 2))
         {
             rendertarget = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
         }
-        dmGraphics::DisableRenderTarget(dmRender::GetGraphicsContext(i->m_RenderContext), rendertarget );
+        InsertRenderCommand(RenderCommand(CMD_DISABLE_RENDERTARGET, (uint32_t)rendertarget));
 
         return 0;
     }
@@ -245,8 +265,25 @@ namespace dmEngine
             }
             lua_pop(L, 1);
         }
+        uint32_t clear_color = 0;
+        clear_color |= ((uint8_t)(color.getX() * 255.0f)) << 0;
+        clear_color |= ((uint8_t)(color.getY() * 255.0f)) << 8;
+        clear_color |= ((uint8_t)(color.getZ() * 255.0f)) << 16;
+        clear_color |= ((uint8_t)(color.getW() * 255.0f)) << 24;
 
-        dmGraphics::Clear(dmRender::GetGraphicsContext(i->m_RenderContext), flags, (uint8_t)(color.getX() * 255.0f), (uint8_t)(color.getY() * 255.0f), (uint8_t)(color.getZ() * 255.0f), (uint8_t)(color.getW() * 255.0f), depth, stencil);
+        union float_to_uint32_t {float f; uint32_t i;};
+        float_to_uint32_t ftoi;
+        ftoi.f = depth;
+        InsertRenderCommand(RenderCommand(CMD_CLEAR, flags, clear_color, ftoi.i, stencil));
+
+        dmGraphics::Clear(dmRender::GetGraphicsContext(i->m_RenderContext),
+                flags,
+                (uint8_t)(color.getX() * 255.0f),
+                (uint8_t)(color.getY() * 255.0f),
+                (uint8_t)(color.getZ() * 255.0f),
+                (uint8_t)(color.getW() * 255.0f),
+                depth,
+                stencil);
 
         assert(top == lua_gettop(L));
 
@@ -256,48 +293,60 @@ namespace dmEngine
     int RenderScript_Draw(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         dmRender::Predicate* predicate = 0x0;
         if (lua_islightuserdata(L, 2))
         {
             predicate = (dmRender::Predicate*)lua_touserdata(L, 2);
         }
-        dmRender::Draw(i->m_RenderContext, predicate);
+        InsertRenderCommand(RenderCommand(CMD_DRAW, (uint32_t)predicate));
+
         return 1;
     }
 
     int RenderScript_DrawDebug3d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        dmRender::DrawDebug3d(i->m_RenderContext);
+        (void)i;
+        InsertRenderCommand(RenderCommand(CMD_DRAWDEBUG3D));
         return 1;
     }
 
     int RenderScript_DrawDebug2d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        dmRender::DrawDebug2d(i->m_RenderContext);
+        (void)i;
+        InsertRenderCommand(RenderCommand(CMD_DRAWDEBUG2D));
         return 1;
     }
 
     int RenderScript_SetView(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 2);
-        dmRender::SetViewMatrix(i->m_RenderContext, view);
+
+        Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
+        *matrix = view;
+        InsertRenderCommand(RenderCommand(CMD_SETVIEW, (uint32_t)matrix));
         return 0;
     }
 
     int RenderScript_SetProjection(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 2);
-        dmRender::SetProjectionMatrix(i->m_RenderContext, projection);
+        Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
+        *matrix = projection;
+        InsertRenderCommand(RenderCommand(CMD_SETPROJECTION, (uint32_t)matrix));
         return 0;
     }
 
     int RenderScript_SetBlendFunc(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         uint32_t factors[2];
         for (uint32_t i = 0; i < 2; ++i)
         {
@@ -327,18 +376,19 @@ namespace dmEngine
                     luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
             }
         }
-        dmGraphics::SetBlendFunc(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::BlendFactor)factors[0], (dmGraphics::BlendFactor)factors[1]);
+        InsertRenderCommand(RenderCommand(CMD_SETBLENDFUNC, factors[0], factors[1]));
         return 0;
     }
 
     int RenderScript_SetDepthMask(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
 
         if (lua_isboolean(L, 2))
         {
             bool mask = lua_toboolean(L, 2);
-            dmGraphics::SetDepthMask(dmRender::GetGraphicsContext(i->m_RenderContext), mask);
+            InsertRenderCommand(RenderCommand(CMD_SETDEPTHMASK, (uint32_t)mask));
         }
         else
         {
@@ -350,17 +400,18 @@ namespace dmEngine
     int RenderScript_SetCullFace(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         uint32_t face_type = luaL_checknumber(L, 2);
         switch (face_type)
         {
             case dmGraphics::FRONT:
             case dmGraphics::BACK:
             case dmGraphics::FRONT_AND_BACK:
-                dmGraphics::SetCullFace(dmRender::GetGraphicsContext(i->m_RenderContext), (dmGraphics::FaceType)face_type);
                 break;
             default:
                 return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
         }
+        InsertRenderCommand(RenderCommand(CMD_SETCULLFACE, (uint32_t)face_type));
         return 0;
     }
 
@@ -427,10 +478,10 @@ namespace dmEngine
 
     void InitializeRenderScript()
     {
-        dmMessage::NewSocket(RENDER_SCRIPT_SOCKET_NAME, &g_Socket);
+        dmMessage::NewSocket(RENDER_SCRIPT_SOCKET_NAME, &g_RenderScriptWorld.m_Socket);
 
         lua_State *L = lua_open();
-        g_LuaState = L;
+        g_RenderScriptWorld.m_LuaState = L;
 
         luaopen_base(L);
         luaopen_table(L);
@@ -491,16 +542,18 @@ namespace dmEngine
         dmScript::Initialize(L);
 
         assert(top == lua_gettop(L));
+
+
     }
 
     void FinalizeRenderScript()
     {
-        if (g_Socket)
-            dmMessage::DeleteSocket(g_Socket);
+        if (g_RenderScriptWorld.m_Socket)
+            dmMessage::DeleteSocket(g_RenderScriptWorld.m_Socket);
 
-        if (g_LuaState)
-            lua_close(g_LuaState);
-        g_LuaState = 0;
+        if (g_RenderScriptWorld.m_LuaState)
+            lua_close(g_RenderScriptWorld.m_LuaState);
+        g_RenderScriptWorld.m_LuaState = 0;
     }
 
     struct LuaData
@@ -589,7 +642,7 @@ bail:
 
     HRenderScript NewRenderScript(const void* buffer, uint32_t buffer_size, const char* filename)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = g_RenderScriptWorld.m_LuaState;
 
         RenderScript temp_render_script;
         if (LoadRenderScript(L, buffer, buffer_size, filename, &temp_render_script))
@@ -606,12 +659,12 @@ bail:
 
     bool ReloadRenderScript(HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename)
     {
-        return LoadRenderScript(g_LuaState, buffer, buffer_size, filename, render_script);
+        return LoadRenderScript(g_RenderScriptWorld.m_LuaState, buffer, buffer_size, filename, render_script);
     }
 
     void DeleteRenderScript(HRenderScript render_script)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = g_RenderScriptWorld.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (render_script->m_FunctionReferences[i])
@@ -622,7 +675,7 @@ bail:
 
     HRenderScriptInstance NewRenderScriptInstance(HRenderScript render_script, dmRender::HRenderContext render_context)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = g_RenderScriptWorld.m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -653,7 +706,7 @@ bail:
 
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = g_RenderScriptWorld.m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -673,7 +726,7 @@ bail:
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
-            lua_State* L = g_LuaState;
+            lua_State* L = g_RenderScriptWorld.m_LuaState;
             int top = lua_gettop(L);
             (void) top;
 
@@ -742,7 +795,11 @@ bail:
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
-        dmMessage::Dispatch(g_Socket, &Dispatch, (void*)instance);
-        return RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
+        dmMessage::Dispatch(g_RenderScriptWorld.m_Socket, &Dispatch, (void*)instance);
+        g_RenderScriptWorld.m_RenderCommands.SetSize(0);
+        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
+
+        ParseRenderCommands(instance->m_RenderContext, &g_RenderScriptWorld.m_RenderCommands.Front(), g_RenderScriptWorld.m_RenderCommands.Size());
+        return result;
     }
 }
