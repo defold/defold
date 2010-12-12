@@ -44,8 +44,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < mesh_desc->m_Components.m_Count; ++i)
         {
             vertex_count += mesh_desc->m_Components[i].m_Positions.m_Count / 3;
-            assert(vertex_count * 3 == mesh_desc->m_Components[i].m_Normals.m_Count);
-            assert(mesh_desc->m_Components[i].m_Texcoord0.m_Count == 0 || vertex_count * 2 == mesh_desc->m_Components[i].m_Texcoord0.m_Count);
+            assert(mesh_desc->m_Components[i].m_Positions.m_Count == mesh_desc->m_Components[i].m_Normals.m_Count);
+            assert(mesh_desc->m_Components[i].m_Texcoord0.m_Count == 0 || mesh_desc->m_Components[i].m_Positions.m_Count / 3 == mesh_desc->m_Components[i].m_Texcoord0.m_Count / 2);
         }
         mesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(vertex_count * sizeof(MeshVertex), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         mesh->m_VertexCount = vertex_count;
