@@ -11,9 +11,6 @@
 #include "render_private.h"
 #include "debug_renderer.h"
 #include "font_renderer.h"
-#include "render/mesh_ddf.h"
-
-#include "model/model.h"
 
 namespace dmRender
 {

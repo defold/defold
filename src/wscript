@@ -20,7 +20,7 @@ def build(bld):
                            ddf_jar = 'render.jar',
                            install_path='${PREFIX}/lib')
 
-    obj.find_sources_in_dirs('. ../proto/render model render', exts = ['.cpp', '.proto'])
+    obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
     #obj.source.append('../proto/render_ddf.proto')
 
     classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
@@ -40,7 +40,6 @@ def build(bld):
                      destfile='fontc.jar')
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
-    bld.install_files('${PREFIX}/include/render/model', 'model/model.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
     bld.install_files('${PREFIX}/include/render', 'render/material.h')
 
@@ -49,8 +48,6 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/proto', '../proto/render/material_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../proto/render/mesh_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../proto/render/model_ddf.proto')
 
 # need to sort out shader include dirs before we can reenable this one
 #    test_app = bld.new_task_gen(
