@@ -46,7 +46,7 @@ namespace dmProfile
     dmSpinlock::lock_t g_ProfileLock;
 
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
-    int32_atomic_t g_ThreadCount = 0;
+    uint32_t g_ThreadCount = 0;
 
     struct InitSpinLocks
     {
@@ -132,7 +132,7 @@ namespace dmProfile
         uint32_t n_samples = profile->m_Samples.Size();
         uint32_t n_scopes = g_Scopes.Size();
 
-        for (int32_t thread_id = 0; thread_id < g_ThreadCount; ++thread_id)
+        for (uint32_t thread_id = 0; thread_id < g_ThreadCount; ++thread_id)
         {
             for (uint32_t i = 0; i < n_scopes; ++i)
             {
@@ -359,7 +359,8 @@ namespace dmProfile
             if (tls_data == 0)
             {
                 // NOTE: We store thread_id + 1. Otherwise we can't differentiate between thread-id 0 and not initialized
-                int32_t thread_id = dmAtomicIncrement32(&g_ThreadCount) + 1;
+                int32_t thread_id = g_ThreadCount + 1;
+                g_ThreadCount++;
                 dmThread::SetTlsValue(g_TlsKey, (void*) thread_id);
                 tls_data = (void*) thread_id;
             }
@@ -418,8 +419,8 @@ namespace dmProfile
             counter_index = g_CountersTable.Get(name_hash);
         }
 
+        profile->m_CountersData[*counter_index].m_Value += amount;
         dmSpinlock::Unlock(&g_ProfileLock);
-        dmAtomicAdd32(&profile->m_CountersData[*counter_index].m_Value, amount);
     }
 
     float GetFrameTime()
