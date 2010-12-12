@@ -140,6 +140,8 @@ namespace dmGameSystem
     {
 
         EmitterWorld* w = (EmitterWorld*)world;
+        if (w->m_Emitters.Size() == 0)
+            return dmGameObject::UPDATE_RESULT_OK;
 
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
