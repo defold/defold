@@ -388,6 +388,10 @@ namespace dmProfile
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
+        // dmProfile::Initialize allocates memory. Is memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
+        if (!g_IsInitialized)
+            return;
+
         dmSpinlock::Lock(&g_ProfileLock);
         Profile* profile = g_ActiveProfile;
 

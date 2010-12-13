@@ -3,7 +3,8 @@
 #include <malloc.h>
 #endif
 #include <gtest/gtest.h>
-#include "dlib/memprofile.h"
+#include "../dlib/memprofile.h"
+#include "../dlib/profile.h"
 
 bool g_MemprofileActive = false;
 
@@ -296,9 +297,11 @@ int main(int argc, char **argv)
     g_MemprofileActive = argc >= 2;
 
     dmMemProfile::Initialize();
+    dmProfile::Initialize(128, 1024 * 1024, 16);
 
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
+    dmProfile::Finalize();
     dmMemProfile::Finalize();
     return ret;
 }
