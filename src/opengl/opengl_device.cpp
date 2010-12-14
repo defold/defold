@@ -193,6 +193,7 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
+        DM_PROFILE(Graphics, "Clear");
 
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
@@ -213,6 +214,7 @@ namespace dmGraphics
 
     void Flip()
     {
+        DM_PROFILE(Graphics, "Flip");
         glfwSwapBuffers();
         CHECK_GL_ERROR
     }
@@ -234,6 +236,7 @@ namespace dmGraphics
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        DM_PROFILE(Graphics, "SetVertexBufferData");
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
@@ -244,6 +247,7 @@ namespace dmGraphics
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        DM_PROFILE(Graphics, "SetVertexBufferSubData");
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
@@ -254,6 +258,7 @@ namespace dmGraphics
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
+        DM_PROFILE(Graphics, "MapVertexBuffer");
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         void* result = glMapBufferARB(GL_ARRAY_BUFFER_ARB, access);
@@ -291,6 +296,7 @@ namespace dmGraphics
 
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        DM_PROFILE(Graphics, "SetIndexBufferData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, buffer_usage);
@@ -301,6 +307,7 @@ namespace dmGraphics
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        DM_PROFILE(Graphics, "SetIndexBufferSubData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
@@ -311,6 +318,7 @@ namespace dmGraphics
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
+        DM_PROFILE(Graphics, "MapIndexBuffer");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         void* result = glMapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, access);
@@ -437,6 +445,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_buffer);
+        DM_PROFILE(Graphics, "SetVertexStream");
 
         glEnableVertexAttribArray(stream);
         CHECK_GL_ERROR
