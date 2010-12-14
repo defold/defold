@@ -19,6 +19,7 @@
 #include <dlib/http_client.h>
 #include <dlib/http_server.h>
 #include <dlib/uri.h>
+#include <dlib/profile.h>
 
 #include "resource.h"
 
@@ -474,6 +475,8 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
 {
     assert(name);
     assert(resource);
+
+    DM_PROFILE(Resource, "Get");
 
     *resource = 0;
 
