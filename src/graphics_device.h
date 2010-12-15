@@ -202,7 +202,6 @@ namespace dmGraphics
      * @param stencil
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
-    void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
 
     HVertexBuffer NewVertexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage);
     void DeleteVertexBuffer(HVertexBuffer buffer);
@@ -223,6 +222,7 @@ namespace dmGraphics
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
 
+    void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
     void DisableVertexStream(HContext context, uint16_t stream);
     void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer);
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer);
@@ -253,10 +253,10 @@ namespace dmGraphics
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget);
 
-    HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format);
+    HTexture NewTexture();
     void SetTextureData(HTexture texture,
                            uint16_t mip_map,
-                           uint16_t width, uint16_t height, uint16_t border,
+                           uint16_t width, uint16_t height,
                            TextureFormat texture_format, const void* data, uint32_t data_size);
 
     void DeleteTexture(HTexture t);

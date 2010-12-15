@@ -25,6 +25,7 @@ def build(bld):
     obj.find_sources_in_dirs('. null ../proto')
 
     bld.add_subdirs('glfw')
+    bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_device.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_device_defines.h')

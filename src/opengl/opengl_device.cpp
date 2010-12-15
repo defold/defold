@@ -614,8 +614,8 @@ namespace dmGraphics
     {
         RenderTarget* rt = new RenderTarget;
 
-        rt->m_Texture = NewTexture(width, height, TEXTURE_FORMAT_RGBA);
-        SetTextureData(rt->m_Texture, 0, width, height, 0, TEXTURE_FORMAT_RGBA, 0x0, 0);
+        rt->m_Texture = NewTexture();
+        SetTextureData(rt->m_Texture, 0, width, height, TEXTURE_FORMAT_RGBA, 0x0, 0);
 
         glGenFramebuffers(1, &rt->m_FboId);
         CHECK_GL_ERROR
@@ -693,7 +693,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HTexture NewTexture(uint32_t width, uint32_t height, TextureFormat texture_format)
+    HTexture NewTexture()
     {
         GLuint t;
         glGenTextures( 1, &t );
@@ -718,7 +718,7 @@ namespace dmGraphics
 
     void SetTextureData(HTexture texture,
                            uint16_t mip_map,
-                           uint16_t width, uint16_t height, uint16_t border,
+                           uint16_t width, uint16_t height,
                            TextureFormat texture_format, const void* data, uint32_t data_size)
     {
         GLenum gl_format;
@@ -763,7 +763,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_LUMINANCE:
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
-            glTexImage2D(GL_TEXTURE_2D, mip_map, internal_format, width, height, border, gl_format, gl_type, data);
+            glTexImage2D(GL_TEXTURE_2D, mip_map, internal_format, width, height, 0, gl_format, gl_type, data);
             CHECK_GL_ERROR
             break;
 
@@ -771,7 +771,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGBA_DXT1:
         case TEXTURE_FORMAT_RGBA_DXT3:
         case TEXTURE_FORMAT_RGBA_DXT5:
-            glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, gl_format, width, height, border, data_size, data);
+            glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, gl_format, width, height, 0, data_size, data);
             CHECK_GL_ERROR
             break;
         default:

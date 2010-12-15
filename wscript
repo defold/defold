@@ -65,7 +65,7 @@ def configure(conf):
 
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
-    
+
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
@@ -79,3 +79,5 @@ def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
+def shutdown():
+    waf_dynamo.run_gtests(valgrind = True)
