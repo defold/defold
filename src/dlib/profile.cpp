@@ -93,19 +93,6 @@ namespace dmProfile
         }
     }
 
-    static void SendScopes(const dmHttpServer::Request* request)
-    {
-        dmHttpServer::Result r;
-        SEND_LOG_RETURN("SCPS", 4)
-
-        uint32_t n_scopes = g_Scopes.Size();
-        SEND_LOG_RETURN(&n_scopes, sizeof(n_scopes))
-        if (n_scopes > 0)
-        {
-            SEND_LOG_RETURN(&g_Scopes[0], sizeof(g_Scopes[0]) * n_scopes)
-        }
-    }
-
     static void SendScopesData(const dmHttpServer::Request* request)
     {
         Profile* profile = g_ActiveProfile;
