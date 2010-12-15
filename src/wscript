@@ -35,17 +35,19 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
 
-    dlib = bld.new_task_gen(features = 'cxx cstaticlib',
+    dlib = bld.new_task_gen(features = 'cxx cstaticlib embed',
                             includes = '.',
                             target = 'dlib',
                             defines= 'VALGRIND',
+                            embed_source = '../data/profiler.html',
                             install_path = '${PREFIX}/lib')
     dlib.find_sources_in_dirs('dlib')
 
-    dlib = bld.new_task_gen(features = 'cxx cshlib',
+    dlib = bld.new_task_gen(features = 'cxx cshlib embed',
                             includes = '.',
                             target = 'dlib_shared',
                             defines= 'VALGRIND',
+                            embed_source = '../data/profiler.html',
                             uselib = 'PLATFORM_SOCKET')
     dlib.find_sources_in_dirs('dlib')
 

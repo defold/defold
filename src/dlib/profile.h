@@ -107,11 +107,11 @@ namespace dmProfile
         /// Start time in ticks
         uint32_t    m_Start;
         /// Elapsed time in ticks
-        uint32_t    m_Elapsed : 28;
-        /// Reserved
-        uint32_t    m_Reserved : 4;
+        uint32_t    m_Elapsed;
         /// Thread id this sample belongs to
         uint16_t    m_ThreadId;
+        /// Padding
+        uint16_t    m_Pad;
     };
 
     /**
