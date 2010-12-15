@@ -16,7 +16,7 @@ namespace dmRender
 {
     RenderObject::RenderObject()
     {
-        memset(this, sizeof(RenderObject), 0);
+        memset(this, 0, sizeof(RenderObject));
         m_TextureTransform = Vectormath::Aos::Matrix4::identity();
     }
 
