@@ -52,13 +52,13 @@ namespace dmGameSystem
 
         dmGraphics::TextureFormat format;
         format = TextureImageToTextureFormat(image);
-        dmGraphics::HTexture texture = dmGraphics::NewTexture(image->m_Width, image->m_Height, format);
+        dmGraphics::HTexture texture = dmGraphics::NewTexture();
 
         int w = image->m_Width;
         int h = image->m_Height;
         for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
         {
-            dmGraphics::SetTextureData(texture, i, w, h, 0, format, &image->m_Data[image->m_MipMapOffset[i]], image->m_MipMapSize[i]);
+            dmGraphics::SetTextureData(texture, i, w, h, format, &image->m_Data[image->m_MipMapOffset[i]], image->m_MipMapSize[i]);
             w >>= 1;
             h >>= 1;
             if (w == 0) w = 1;
