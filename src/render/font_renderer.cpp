@@ -50,12 +50,10 @@ namespace dmRender
         Font* ret = new Font();
         ret->m_Material = 0;
         ret->m_ImageFont = (dmRenderDDF::ImageFont*) image_font;
-        ret->m_Texture = dmGraphics::NewTexture(ret->m_ImageFont->m_ImageWidth,
-                                                   ret->m_ImageFont->m_ImageHeight,
-                                                   dmGraphics::TEXTURE_FORMAT_RGB);
+        ret->m_Texture = dmGraphics::NewTexture();
 
         // TODO: Texture data is duplicated in memory. (m_Texture + m_Font->m_ImageData)
-        dmGraphics::SetTextureData(ret->m_Texture, 0, ret->m_ImageFont->m_ImageWidth, ret->m_ImageFont->m_ImageHeight, 0,
+        dmGraphics::SetTextureData(ret->m_Texture, 0, ret->m_ImageFont->m_ImageWidth, ret->m_ImageFont->m_ImageHeight,
                                    dmGraphics::TEXTURE_FORMAT_RGB, &ret->m_ImageFont->m_ImageData[0], ret->m_ImageFont->m_ImageData.m_Count);
 
         return ret;
