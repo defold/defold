@@ -108,7 +108,8 @@ namespace dmGraphics
         vb->m_Buffer = new char[size];
         vb->m_Copy = 0x0;
         vb->m_Size = size;
-        memcpy(vb->m_Buffer, data, size);
+        if (size > 0 && data != 0x0)
+            memcpy(vb->m_Buffer, data, size);
         return (uint32_t)vb;
     }
 
