@@ -55,7 +55,7 @@ def configure(conf):
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     if platform == "win32":
-        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', 'opengl32.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
 
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
