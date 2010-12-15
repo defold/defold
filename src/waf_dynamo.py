@@ -134,6 +134,7 @@ def detect(conf):
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
         conf.env.append_value('LINKFLAGS', '/DEBUG')
+        conf.env.append_value('LINKFLAGS', 'WS2_32.LIB')
 
     conf.env['CCFLAGS'] = conf.env['CXXFLAGS']
 
