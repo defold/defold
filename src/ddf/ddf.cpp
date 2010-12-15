@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <dlib/profile.h>
 #include "ddf.h"
 #include "ddf_inputbuffer.h"
 #include "ddf_load.h"
@@ -89,6 +90,7 @@ namespace dmDDF
 
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message)
     {
+        DM_PROFILE(DDF, "LoadMessage");
         assert(buffer);
         assert(desc);
         assert(out_message);
