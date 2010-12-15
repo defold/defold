@@ -110,7 +110,7 @@ def build(bld):
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_memprofile.cpp',
-                                 uselib = 'GTEST THREAD',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
                                  uselib_local = "dlib",
                                  includes = ['../../src'],
                                  target = 'test_memprofile')
