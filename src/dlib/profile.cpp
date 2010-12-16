@@ -27,6 +27,8 @@ namespace dmProfile
         dmArray<Sample>      m_Samples;
         dmArray<CounterData> m_CountersData;
         dmArray<ScopeData>   m_ScopesData;
+        uint32_t             m_ScopeCount;
+        uint32_t             m_CounterCount;
     };
 
     // Default profile if not dmProfile::Initialize is invoked
@@ -245,6 +247,9 @@ namespace dmProfile
             p->m_ScopesData.SetCapacity(max_scopes);
             p->m_ScopesData.SetSize(max_scopes);
 
+            p->m_ScopeCount = 0;
+            p->m_CounterCount = 0;
+
             g_FreeProfiles.Push(p);
         }
 
@@ -438,6 +443,7 @@ namespace dmProfile
         g_ActiveProfile = profile;
 
         uint32_t n = g_Scopes.Size();
+        profile->m_ScopeCount = n;
         for (uint32_t i = 0; i < n; ++i)
         {
             ScopeData* scope_data = &profile->m_ScopesData[i];
@@ -447,6 +453,7 @@ namespace dmProfile
         }
 
         n = g_Counters.Size();
+        profile->m_CounterCount = n;
         for (uint32_t i = 0; i < n; ++i)
         {
             profile->m_CountersData[i].m_Counter = &g_Counters[i];
@@ -638,7 +645,7 @@ namespace dmProfile
 
     void IterateScopes(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data))
     {
-        uint32_t n = g_Scopes.Size();
+        uint32_t n = profile->m_ScopeCount;
         for (uint32_t i = 0; i < n; ++i)
         {
             call_back(context, &profile->m_ScopesData[i]);
@@ -656,7 +663,7 @@ namespace dmProfile
 
     void IterateCounters(HProfile profile, void* context, void (*call_back)(void* context, const CounterData* counter))
     {
-        uint32_t n = g_Counters.Size();
+        uint32_t n = profile->m_CounterCount;
         for (uint32_t i = 0; i < n; ++i)
         {
             call_back(context, &profile->m_CountersData[i]);
