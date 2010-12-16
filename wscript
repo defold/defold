@@ -73,6 +73,7 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
+    conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
 
     if sys.platform == "linux2":
         conf.env['LIB_PLATFORM_SOCKET'] = ''
