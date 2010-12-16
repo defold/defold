@@ -238,6 +238,9 @@ namespace dmRender
                     }
                 }
 
+                if (ro->m_SetBlendFactors)
+                    dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+
                 if (ro->m_Texture)
                     dmGraphics::SetTexture(context, ro->m_Texture);
 

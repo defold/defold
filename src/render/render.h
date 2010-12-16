@@ -43,10 +43,13 @@ namespace dmRender
         dmGraphics::HTexture            m_Texture;
         dmGraphics::PrimitiveType       m_PrimitiveType;
         dmGraphics::Type                m_IndexType;
+        dmGraphics::BlendFactor         m_SourceBlendFactor;
+        dmGraphics::BlendFactor         m_DestinationBlendFactor;
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint8_t                         m_VertexConstantMask;
         uint8_t                         m_FragmentConstantMask;
+        uint8_t                         m_SetBlendFactors : 1;
     };
 
     typedef struct RenderContext* HRenderContext;
