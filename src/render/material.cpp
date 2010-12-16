@@ -128,7 +128,7 @@ namespace dmRender
         return material->m_TagMask;
     }
 
-    void AddMaterialTag(HMaterial material, uint32_t tag)
+    uint32_t ConvertTagToBitfield(uint32_t tag)
     {
         Tag t;
         t.m_Tag = tag;
@@ -137,20 +137,27 @@ namespace dmRender
         Tag* result = std::lower_bound(begin, end, t, TagCompare);
         if (result != end && result->m_Tag == tag)
         {
-            material->m_TagMask |= 1 << result->m_BitIndex;
+            return 1 << result->m_BitIndex;
         }
         else if (g_TagCount < MAX_TAG_COUNT)
         {
             g_Tags[g_TagCount].m_Tag = tag;
             g_Tags[g_TagCount].m_BitIndex = g_TagCount;
-            material->m_TagMask |= 1 << g_TagCount;
+            uint32_t result = 1 << g_TagCount;
             ++g_TagCount;
             std::sort(g_Tags, g_Tags + g_TagCount, TagCompare);
+            return result;
         }
         else
         {
             dmLogWarning("The material tag could not be registered since the maximum number of material tags (%d) has been reached.", MAX_TAG_COUNT);
+            return 0;
         }
+    }
+
+    void AddMaterialTag(HMaterial material, uint32_t tag)
+    {
+        material->m_TagMask |= ConvertTagToBitfield(tag);
     }
 
     uint32_t ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count)
@@ -158,19 +165,7 @@ namespace dmRender
         uint32_t mask = 0;
         for (uint32_t i = 0; i < tag_count; ++i)
         {
-            Tag t;
-            t.m_Tag = tags[i];
-            Tag* begin = g_Tags;
-            Tag* end = g_Tags + g_TagCount;
-            Tag* result = std::lower_bound(begin, end, t, TagCompare);
-            if (result != end && result->m_Tag == t.m_Tag)
-            {
-                mask |= 1 << result->m_BitIndex;
-            }
-            else
-            {
-                return 0;
-            }
+            mask |= ConvertTagToBitfield(tags[i]);
         }
         return mask;
     }
