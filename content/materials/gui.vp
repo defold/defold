@@ -1,0 +1,13 @@
+uniform float4x4 ViewProj   : (c0);
+uniform float4x4 World      : (c4);
+
+void main(float4 position : ATTR0,
+          float2 texcoord : ATTR1,
+          out float4 oPosition : POSITION,
+          out float2 oTexcoord : TEXCOORD0)
+{
+    float4x4 mvp = mul(World, ViewProj);
+
+    oPosition = mul(float4(position.x, position.y, position.z, 1.0f), mvp);
+    oTexcoord = texcoord;
+}

@@ -55,22 +55,40 @@ namespace dmGameSystem
             dmResource::FactoryResult r = dmResource::Get(factory, scene_desc->m_Fonts[i].m_Font, (void**) &font);
             if (r != dmResource::FACTORY_RESULT_OK)
             {
-                for (uint32_t j = 0; j < scene_prototype->m_Fonts.Size(); ++j)
-                {
-                    dmResource::Release(factory, scene_prototype->m_Fonts[j]);
-                }
-                dmResource::Release(factory, (void*) scene_prototype->m_Script);
-                dmDDF::FreeMessage(scene_desc);
-                delete scene_prototype;
-                return dmResource::CREATE_RESULT_UNKNOWN;
+                goto bail;
             }
             scene_prototype->m_Fonts.Push(font);
         }
-        scene_prototype->m_Path = strdup(scene_desc->m_Script);
 
+        scene_prototype->m_Textures.SetCapacity(scene_desc->m_Textures.m_Count);
+        for (uint32_t i = 0; i < scene_desc->m_Textures.m_Count; ++i)
+        {
+            dmGraphics::HTexture texture;
+            dmResource::FactoryResult r = dmResource::Get(factory, scene_desc->m_Textures[i], (void**) &texture);
+            if (r != dmResource::FACTORY_RESULT_OK)
+            {
+                goto bail;
+            }
+            scene_prototype->m_Textures.Push(texture);
+        }
+
+        scene_prototype->m_Path = strdup(scene_desc->m_Script);
         resource->m_Resource = (void*) scene_prototype;
 
         return dmResource::CREATE_RESULT_OK;
+bail:
+        for (uint32_t j = 0; j < scene_prototype->m_Fonts.Size(); ++j)
+        {
+            dmResource::Release(factory, scene_prototype->m_Fonts[j]);
+        }
+        for (uint32_t j = 0; j < scene_prototype->m_Textures.Size(); ++j)
+        {
+            dmResource::Release(factory, scene_prototype->m_Textures[j]);
+        }
+        dmResource::Release(factory, (void*) scene_prototype->m_Script);
+        dmDDF::FreeMessage(scene_desc);
+        delete scene_prototype;
+        return dmResource::CREATE_RESULT_UNKNOWN;
     }
 
     dmResource::CreateResult ResDestroySceneDesc(dmResource::HFactory factory,
@@ -82,6 +100,11 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_prototype->m_Fonts.Size(); ++i)
         {
             dmResource::Release(factory, (void*) scene_prototype->m_Fonts[i]);
+        }
+
+        for (uint32_t i = 0; i < scene_prototype->m_Textures.Size(); ++i)
+        {
+            dmResource::Release(factory, (void*) scene_prototype->m_Textures[i]);
         }
 
         dmResource::Release(factory, (void*) scene_prototype->m_Script);

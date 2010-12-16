@@ -11,10 +11,11 @@ namespace dmGameSystem
 {
     struct GuiScenePrototype
     {
-        dmGuiDDF::SceneDesc*     m_SceneDesc;
-        const char*              m_Script;
-        dmArray<dmRender::HFont> m_Fonts;
-        const char*              m_Path;
+        dmGuiDDF::SceneDesc*          m_SceneDesc;
+        const char*                   m_Script;
+        dmArray<dmRender::HFont>      m_Fonts;
+        dmArray<dmGraphics::HTexture> m_Textures;
+        const char*                   m_Path;
     };
 
     dmResource::CreateResult ResCreateSceneDesc(dmResource::HFactory factory,

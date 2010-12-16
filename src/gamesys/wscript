@@ -2,7 +2,7 @@
 import os
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                                 includes = '. ../../proto',
                                 proto_gen_py = True,
                                 proto_gen_java = True,
@@ -11,6 +11,7 @@ def build(bld):
                                 classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                 target = 'gamesys',
                                 ddf_jar = 'gamesys.jar',
+                                embed_source='../../content/materials/gui.arbvp ../../content/materials/gui.arbfp',
                                 install_path='${PREFIX}/lib')
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])

@@ -3,9 +3,12 @@
 
 #include <stdint.h>
 #include <gameobject/gameobject.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
+    extern dmRender::HRenderType g_GuiRenderType;
+
     dmGameObject::CreateResult CompGuiNewWorld(void* context, void** world);
 
     dmGameObject::CreateResult CompGuiDeleteWorld(void* context, void* world);

@@ -1,0 +1,13 @@
+#! /usr/bin/env python
+import os
+
+def set_options(opt):
+    pass
+
+def build(bld):
+    obj = bld.new_task_gen(source = [])
+    obj.find_sources_in_dirs('materials')
+
+def configure(conf):
+    pass
+

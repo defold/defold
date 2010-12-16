@@ -5,6 +5,11 @@ from waf_content import proto_compile_task
 def configure(conf):
     conf.find_file('meshc.py', var='MESHC', mandatory = True)
 
+def transform_texture_name(name):
+    name = name.replace('.png', '.texturec')
+    name = name.replace('.tga', '.texturec')
+    return name
+
 def transform_collection(msg):
     for i in msg.Instances:
         i.Prototype = i.Prototype.replace('.go', '.goc')
@@ -18,8 +23,7 @@ def transform_collisionobject(msg):
 
 def transform_emitter(msg):
     msg.Material = msg.Material.replace('.material', '.materialc')
-    msg.Texture.Name = msg.Texture.Name.replace('.png', '.texturec')
-    msg.Texture.Name = msg.Texture.Name.replace('.tga', '.texturec')
+    msg.Texture.Name = transform_texture_name(msg.Texture.Name)
     return msg
 
 def transform_gameobject(msg):
@@ -38,14 +42,15 @@ def transform_gameobject(msg):
 def transform_model(msg):
     msg.Mesh = msg.Mesh.replace('.dae', '.meshc')
     msg.Material = msg.Material.replace('.material', '.materialc')
-    msg.Texture0 = msg.Texture0.replace('.png', '.texturec')
-    msg.Texture0 = msg.Texture0.replace('.tga', '.texturec')
+    msg.Texture0 = transform_texture_name(msg.Texture0)
     return msg
 
 def transform_gui(msg):
     msg.Script = msg.Script.replace('.gui_script', '.gui_scriptc')
     for f in msg.Fonts:
         f.Font = f.Font.replace('.font', '.fontc')
+    for i,n in enumerate(msg.Textures):
+        msg.Textures[i] = transform_texture_name(n)
     return msg
 
 def transform_spawnpoint(msg):

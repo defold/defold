@@ -16,4 +16,5 @@ message SceneDesc
 
     required string Script = 1;
     repeated FontDesc Fonts = 2;
+    repeated string Textures = 3;
 }

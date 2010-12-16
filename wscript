@@ -80,6 +80,8 @@ def build(bld):
     sys.path.append(bld.path.find_dir('src').abspath())
     sys.path.append('default/proto')
 
+    bld.add_subdirs('content')
+    bld.add_group()
     bld.add_subdirs('src')
 
     bld.install_files('${PREFIX}/bin', 'tools/gamemapc.py', chmod=493)
