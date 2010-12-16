@@ -29,7 +29,7 @@ TEST(dmMaterialTest, TestPrograms)
 
     Vectormath::Aos::Vector4 user_value(1.0f, 2.0f, 3.0f, 4.0f);
     Vectormath::Aos::Vector4 user_value2;
-    uint32_t mask = 0b11;
+    uint32_t mask = 3;
 
     dmRender::SetMaterialVertexProgramConstantType(material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
     ASSERT_EQ(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ, dmRender::GetMaterialVertexProgramConstantType(material, 0));
