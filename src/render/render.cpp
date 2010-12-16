@@ -23,10 +23,13 @@ namespace dmRender
     RenderContextParams::RenderContextParams()
     : m_MaxRenderTypes(0)
     , m_MaxInstances(0)
+    , m_MaxRenderTargets(0)
     , m_VertexProgramData(0x0)
     , m_VertexProgramDataSize(0)
     , m_FragmentProgramData(0x0)
     , m_FragmentProgramDataSize(0)
+    , m_DisplayWidth(0)
+    , m_DisplayHeight(0)
     , m_MaxCharacters(0)
     {
 

@@ -2,7 +2,26 @@
 #include <gtest/gtest.h>
 #include "render/render.h"
 
-TEST(dmRenderTest, InitializeFinalize)
+class dmRenderTest : public ::testing::Test
+{
+protected:
+    dmRender::HRenderContext m_Context;
+
+    virtual void SetUp()
+    {
+        dmRender::RenderContextParams params;
+        params.m_DisplayWidth = 600;
+        params.m_DisplayHeight = 400;
+        m_Context = dmRender::NewRenderContext(params);
+    }
+
+    virtual void TearDown()
+    {
+        dmRender::DeleteRenderContext(m_Context);
+    }
+};
+
+TEST_F(dmRenderTest, TestContextNewDelete)
 {
 
 }
