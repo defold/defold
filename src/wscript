@@ -7,7 +7,7 @@ def set_options(opt):
     pass
 
 def configure(cont):
-    conf.sub_config('test')
+    pass
 
 def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
@@ -48,20 +48,3 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/proto', '../proto/render/material_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
-
-# need to sort out shader include dirs before we can reenable this one
-#    test_app = bld.new_task_gen(
-#        features = 'cxx cprogram',
-#        uselib = 'graphics',
-#        uselib_local = 'render',
-#        target = 'test_app')
-#    test_app.find_sources_in_dirs('test')
-#    test_app.install_path = None
-
-
-def configure(conf):
-    pass
-
-
-
-

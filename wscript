@@ -70,6 +70,10 @@ def configure(conf):
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
+    conf.env['LIB_GTEST'] = 'gtest'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
+
     if sys.platform == "linux2":
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif platform == "darwin":

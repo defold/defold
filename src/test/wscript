@@ -1,13 +1,20 @@
-def configure(cont):
-    conf.sub_config('fontview')
+#! /usr/bin/env python
 
 def build(bld):
-#    test_render = bld.new_task_gen(features = 'cxx cprogram',
-#                                    source = 'test_render.cpp',
-#                                    uselib = 'DLIB GTEST GRAPHICS',
-#                                    uselib_local = 'render',
-#                                    includes = ['../../src', '..'],
-#                                    target = 'test_render')
-#
-#    test_render = None
-    pass
+    test_render = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_render.cpp',
+                                    uselib = 'DLIB GTEST GRAPHICS',
+                                    uselib_local = 'render',
+                                    includes = ['../../src'],
+                                    target = 'test_render')
+
+    test_render.install_path = None
+
+    test_material = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_material.cpp',
+                                    uselib = 'DLIB GTEST GRAPHICS',
+                                    uselib_local = 'render',
+                                    includes = ['../../src'],
+                                    target = 'test_material')
+
+    test_material.install_path = None

@@ -41,8 +41,8 @@ namespace dmRender
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         uint32_t                                m_TagMask;
-        uint16_t                                 m_VertexConstantMask;
-        uint16_t                                 m_FragmentConstantMask;
+        uint16_t                                m_VertexConstantMask;
+        uint16_t                                m_FragmentConstantMask;
     };
 
 
