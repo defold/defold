@@ -414,6 +414,8 @@ namespace dmProfile
 
         CalculateScopeProfile(g_ActiveProfile);
         Profile* ret = g_ActiveProfile;
+        ret->m_ScopeCount = g_Scopes.Size();
+        ret->m_CounterCount = g_Counters.Size();
 
         bool last_pause = g_Paused;
         g_Paused = true;
@@ -443,7 +445,6 @@ namespace dmProfile
         g_ActiveProfile = profile;
 
         uint32_t n = g_Scopes.Size();
-        profile->m_ScopeCount = n;
         for (uint32_t i = 0; i < n; ++i)
         {
             ScopeData* scope_data = &profile->m_ScopesData[i];
@@ -453,7 +454,6 @@ namespace dmProfile
         }
 
         n = g_Counters.Size();
-        profile->m_CounterCount = n;
         for (uint32_t i = 0; i < n; ++i)
         {
             profile->m_CountersData[i].m_Counter = &g_Counters[i];
