@@ -485,13 +485,16 @@ namespace dmGameObject
         lua_State *L = lua_open();
         g_LuaState = L;
 
+        int top = lua_gettop(L);
+
         luaopen_base(L);
         luaopen_table(L);
         luaopen_string(L);
         luaopen_math(L);
         luaopen_debug(L);
 
-        int top = lua_gettop(L);
+        // Pop all stack values generated from luaopen_*
+        lua_pop(L, lua_gettop(L));
 
         luaL_register(L, SCRIPTINSTANCE, ScriptInstance_methods);   // create methods table, add it to the globals
         int methods = lua_gettop(L);
