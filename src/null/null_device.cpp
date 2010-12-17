@@ -472,15 +472,6 @@ namespace dmGraphics
                            TextureFormat texture_format, const void* data, uint32_t data_size)
     {
         assert(texture);
-        // check power of 2
-        uint16_t tmp = width;
-        while (tmp > 1 && tmp != 2)
-            tmp >>= 1;
-        assert(tmp == 2);
-        tmp = height;
-        while (tmp > 1 && tmp != 2)
-            tmp >>= 1;
-        assert(tmp == 2);
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Data = new char[TEXTURE_FORMAT_SIZE[texture_format] * width * height];
