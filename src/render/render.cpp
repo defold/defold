@@ -48,6 +48,7 @@ namespace dmRender
 
         context->m_View = Vectormath::Aos::Matrix4::identity();
         context->m_Projection = Vectormath::Aos::Matrix4::identity();
+        context->m_ViewProj = context->m_Projection * context->m_View;
 
         InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
 
@@ -55,6 +56,9 @@ namespace dmRender
         context->m_DisplayHeight = params.m_DisplayHeight;
 
         InitializeTextContext(context, params.m_MaxCharacters);
+
+        context->m_OutOfResources = 0;
+
         return context;
     }
 
