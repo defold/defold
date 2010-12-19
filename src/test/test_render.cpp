@@ -3,6 +3,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
+#include <dlib/math.h>
 
 #include <graphics/graphics_device.h>
 
