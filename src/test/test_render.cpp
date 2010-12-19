@@ -78,7 +78,49 @@ TEST_F(dmRenderTest, TestRenderObjects)
 {
     dmRender::RenderObject ro;
     ASSERT_EQ(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
+    ASSERT_NE(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
     ASSERT_EQ(dmRender::RESULT_OK, ClearRenderObjects(m_Context));
+    ASSERT_EQ(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
+}
+
+TEST_F(dmRenderTest, TestConstants)
+{
+    dmRender::RenderObject ro;
+
+    Vectormath::Aos::Vector4 val(1.0f, 2.0f, 3.0f, 4.0f);
+
+    ASSERT_EQ(0, ro.m_VertexConstantMask & 1);
+    SetVertexConstant(&ro, 0, val);
+    ASSERT_EQ(val.getX(), ro.m_VertexConstants[0].getX());
+    ASSERT_EQ(val.getY(), ro.m_VertexConstants[0].getY());
+    ASSERT_EQ(val.getZ(), ro.m_VertexConstants[0].getZ());
+    ASSERT_EQ(1, ro.m_VertexConstantMask & 1);
+    ResetVertexConstant(&ro, 0);
+    ASSERT_EQ(0, ro.m_VertexConstantMask & 1);
+
+    ASSERT_EQ(0, ro.m_FragmentConstantMask & 1);
+    SetFragmentConstant(&ro, 0, val);
+    ASSERT_EQ(val.getX(), ro.m_FragmentConstants[0].getX());
+    ASSERT_EQ(val.getY(), ro.m_FragmentConstants[0].getY());
+    ASSERT_EQ(val.getZ(), ro.m_FragmentConstants[0].getZ());
+    ASSERT_EQ(1, ro.m_FragmentConstantMask & 1);
+    ResetFragmentConstant(&ro, 0);
+    ASSERT_EQ(0, ro.m_FragmentConstantMask & 1);
+}
+
+TEST_F(dmRenderTest, TestSquare2d)
+{
+    Square2d(m_Context, 10.0f, 20.0f, 30.0f, 40.0f, Vector4(0.1f, 0.2f, 0.3f, 0.4f));
+}
+
+TEST_F(dmRenderTest, TestLine2d)
+{
+    Line2D(m_Context, 10.0f, 20.0f, 30.0f, 40.0f, Vector4(0.1f, 0.2f, 0.3f, 0.4f), Vector4(0.1f, 0.2f, 0.3f, 0.4f));
+}
+
+TEST_F(dmRenderTest, TestLine3d)
+{
+    Line3D(m_Context, Point3(10.0f, 20.0f, 30.0f), Point3(10.0f, 20.0f, 30.0f), Vector4(0.1f, 0.2f, 0.3f, 0.4f), Vector4(0.1f, 0.2f, 0.3f, 0.4f));
 }
 
 int main(int argc, char **argv)
