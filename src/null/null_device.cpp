@@ -504,9 +504,31 @@ namespace dmGraphics
         assert(context);
     }
 
+    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
+    {
+        assert(context);
+        gdevice.m_RedMask = red;
+        gdevice.m_GreenMask = green;
+        gdevice.m_BlueMask = blue;
+        gdevice.m_AlphaMask = alpha;
+    }
+
     void SetDepthMask(HContext context, bool mask)
     {
         assert(context);
+        gdevice.m_DepthMask = mask;
+    }
+
+    void SetIndexMask(HContext context, uint32_t mask)
+    {
+        assert(context);
+        gdevice.m_IndexMask = mask;
+    }
+
+    void SetStencilMask(HContext context, uint32_t mask)
+    {
+        assert(context);
+        gdevice.m_StencilMask = mask;
     }
 
     void SetCullFace(HContext context, FaceType face_type)

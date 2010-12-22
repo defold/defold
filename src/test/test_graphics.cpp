@@ -246,6 +246,35 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(target);
 }
 
+TEST_F(dmGraphicsTest, TestMasks)
+{
+    dmGraphics::SetColorMask(m_Context, false, false, false, false);
+    ASSERT_FALSE(m_Device->m_RedMask);
+    ASSERT_FALSE(m_Device->m_GreenMask);
+    ASSERT_FALSE(m_Device->m_BlueMask);
+    ASSERT_FALSE(m_Device->m_AlphaMask);
+    dmGraphics::SetColorMask(m_Context, true, true, true, true);
+    ASSERT_TRUE(m_Device->m_RedMask);
+    ASSERT_TRUE(m_Device->m_GreenMask);
+    ASSERT_TRUE(m_Device->m_BlueMask);
+    ASSERT_TRUE(m_Device->m_AlphaMask);
+
+    dmGraphics::SetDepthMask(m_Context, false);
+    ASSERT_FALSE(m_Device->m_DepthMask);
+    dmGraphics::SetDepthMask(m_Context, true);
+    ASSERT_TRUE(m_Device->m_DepthMask);
+
+    dmGraphics::SetIndexMask(m_Context, 0u);
+    ASSERT_EQ(0u, m_Device->m_IndexMask);
+    dmGraphics::SetIndexMask(m_Context, ~0u);
+    ASSERT_EQ(~0u, m_Device->m_IndexMask);
+
+    dmGraphics::SetStencilMask(m_Context, 0u);
+    ASSERT_EQ(0u, m_Device->m_StencilMask);
+    dmGraphics::SetStencilMask(m_Context, ~0u);
+    ASSERT_EQ(~0u, m_Device->m_StencilMask);
+}
+
 TEST_F(dmGraphicsTest, TestWindowParams)
 {
     ASSERT_TRUE(dmGraphics::GetWindowParam(dmGraphics::WINDOW_PARAM_OPENED));

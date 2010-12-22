@@ -809,10 +809,31 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
+    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
+    {
+        assert(context);
+        glColorMask(red, green, blue, alpha);
+        CHECK_GL_ERROR
+    }
+
     void SetDepthMask(HContext context, bool mask)
     {
         assert(context);
         glDepthMask(mask);
+        CHECK_GL_ERROR
+    }
+
+    void SetIndexMask(HContext context, uint32_t mask)
+    {
+        assert(context);
+        glIndexMask(mask);
+        CHECK_GL_ERROR
+    }
+
+    void SetStencilMask(HContext context, uint32_t mask)
+    {
+        assert(context);
+        glStencilMask(mask);
         CHECK_GL_ERROR
     }
 

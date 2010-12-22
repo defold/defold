@@ -41,7 +41,14 @@ namespace dmGraphics
         void*                       m_FragmentProgram;
         uint32_t                    m_DisplayWidth;
         uint32_t                    m_DisplayHeight;
+        uint32_t                    m_IndexMask;
+        uint32_t                    m_StencilMask;
         uint32_t                    m_Opened : 1;
+        uint32_t                    m_RedMask : 1;
+        uint32_t                    m_GreenMask : 1;
+        uint32_t                    m_BlueMask : 1;
+        uint32_t                    m_AlphaMask : 1;
+        uint32_t                    m_DepthMask : 1;
     };
 
     struct Context

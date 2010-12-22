@@ -244,7 +244,10 @@ namespace dmGraphics
     void EnableState(HContext context, RenderState state);
     void DisableState(HContext context, RenderState state);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
+    void SetIndexMask(HContext context, uint32_t mask);
+    void SetStencilMask(HContext context, uint32_t mask);
     void SetCullFace(HContext context, FaceType face_type);
 
     HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format);
