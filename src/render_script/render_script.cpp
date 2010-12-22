@@ -380,6 +380,26 @@ namespace dmEngine
         return 0;
     }
 
+    int RenderScript_SetColorMask(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+
+        if (lua_isboolean(L, 2) && lua_isboolean(L, 3) && lua_isboolean(L, 4) && lua_isboolean(L, 5))
+        {
+            bool red = lua_toboolean(L, 2);
+            bool green = lua_toboolean(L, 3);
+            bool blue = lua_toboolean(L, 4);
+            bool alpha = lua_toboolean(L, 5);
+            InsertRenderCommand(RenderCommand(CMD_SETCOLORMASK, (uint32_t)red, (uint32_t)green, (uint32_t)blue, (uint32_t)alpha));
+        }
+        else
+        {
+            return luaL_error(L, "Expected booleans but got %s, %s, %s, %s.", lua_typename(L, lua_type(L, 2)), lua_typename(L, lua_type(L, 3)), lua_typename(L, lua_type(L, 4)), lua_typename(L, lua_type(L, 5)));
+        }
+        return 0;
+    }
+
     int RenderScript_SetDepthMask(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -394,6 +414,26 @@ namespace dmEngine
         {
             return luaL_error(L, "Expected boolean but got %s.", lua_typename(L, lua_type(L, 2)));
         }
+        return 0;
+    }
+
+    int RenderScript_SetIndexMask(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+
+        uint32_t mask = (uint32_t)luaL_checknumber(L, 2);
+        InsertRenderCommand(RenderCommand(CMD_SETINDEXMASK, mask));
+        return 0;
+    }
+
+    int RenderScript_SetStencilMask(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+
+        uint32_t mask = (uint32_t)luaL_checknumber(L, 2);
+        InsertRenderCommand(RenderCommand(CMD_SETSTENCILMASK, mask));
         return 0;
     }
 
@@ -465,7 +505,10 @@ namespace dmEngine
         {"set_view",             RenderScript_SetView},
         {"set_projection",       RenderScript_SetProjection},
         {"set_blend_func",       RenderScript_SetBlendFunc},
+        {"set_color_mask",       RenderScript_SetColorMask},
         {"set_depth_mask",       RenderScript_SetDepthMask},
+        {"set_index_mask",       RenderScript_SetIndexMask},
+        {"set_stencil_mask",     RenderScript_SetStencilMask},
         {"set_cull_face",        RenderScript_SetCullFace},
         {"draw",                 RenderScript_Draw},
         {"draw_debug3d",         RenderScript_DrawDebug3d},

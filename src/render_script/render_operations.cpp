@@ -70,9 +70,24 @@ namespace dmEngine
                     dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
                     break;
                 }
+                case CMD_SETCOLORMASK:
+                {
+                    dmGraphics::SetColorMask(context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], c->m_Operands[3]);
+                    break;
+                }
                 case CMD_SETDEPTHMASK:
                 {
                     dmGraphics::SetDepthMask(context, c->m_Operands[0]);
+                    break;
+                }
+                case CMD_SETINDEXMASK:
+                {
+                    dmGraphics::SetIndexMask(context, c->m_Operands[0]);
+                    break;
+                }
+                case CMD_SETSTENCILMASK:
+                {
+                    dmGraphics::SetStencilMask(context, c->m_Operands[0]);
                     break;
                 }
                 case CMD_SETCULLFACE:

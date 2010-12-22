@@ -18,12 +18,15 @@ namespace dmEngine
         CMD_SETVIEW                 = 6,
         CMD_SETPROJECTION           = 7,
         CMD_SETBLENDFUNC            = 8,
-        CMD_SETDEPTHMASK            = 9,
-        CMD_SETCULLFACE             = 10,
-        CMD_DRAW                    = 11,
-        CMD_DRAWDEBUG3D             = 12,
-        CMD_DRAWDEBUG2D             = 13,
-        CMD_MAX                     = 14
+        CMD_SETCOLORMASK            = 9,
+        CMD_SETDEPTHMASK            = 10,
+        CMD_SETINDEXMASK            = 11,
+        CMD_SETSTENCILMASK          = 12,
+        CMD_SETCULLFACE             = 13,
+        CMD_DRAW                    = 14,
+        CMD_DRAWDEBUG3D             = 15,
+        CMD_DRAWDEBUG2D             = 16,
+        CMD_MAX                     = 17
     };
 
     struct RenderCommand
