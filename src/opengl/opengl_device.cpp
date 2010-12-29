@@ -614,8 +614,11 @@ namespace dmGraphics
     {
         RenderTarget* rt = new RenderTarget;
 
-        rt->m_Texture = NewTexture();
-        SetTextureData(rt->m_Texture, 0, width, height, TEXTURE_FORMAT_RGBA, 0x0, 0);
+        TextureParams params;
+        params.m_Format = format;
+        params.m_Width = width;
+        params.m_Height = height;
+        rt->m_Texture = NewTexture(params);
 
         glGenFramebuffers(1, &rt->m_FboId);
         CHECK_GL_ERROR
@@ -675,60 +678,45 @@ namespace dmGraphics
         return rendertarget->m_Texture;
     }
 
-
-    void SetTexture(HContext context, HTexture texture)
-    {
-        assert(context);
-        assert(texture);
-
-        glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR
-
-        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
-        CHECK_GL_ERROR
-
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-        CHECK_GL_ERROR
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-        CHECK_GL_ERROR
-    }
-
-    HTexture NewTexture()
+    HTexture NewTexture(const TextureParams& params)
     {
         GLuint t;
         glGenTextures( 1, &t );
         CHECK_GL_ERROR
 
-        glBindTexture(GL_TEXTURE_2D, t);
+        Texture* tex = new Texture;
+        tex->m_Texture = t;
+
+        SetTexture(tex, params);
+
+        return (HTexture) tex;
+    }
+
+    void SetTexture(HTexture texture, const TextureParams& params)
+    {
+        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
 
         glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE );
         CHECK_GL_ERROR
 
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
         CHECK_GL_ERROR
 
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, params.m_MagFilter);
         CHECK_GL_ERROR
 
-        Texture* tex = new Texture;
-        tex->m_Texture = t;
-        return (HTexture) tex;
-    }
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, params.m_UWrap);
+        CHECK_GL_ERROR
 
-    void SetTextureData(HTexture texture,
-                           uint16_t mip_map,
-                           uint16_t width, uint16_t height,
-                           TextureFormat texture_format, const void* data, uint32_t data_size)
-    {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, params.m_VWrap);
+        CHECK_GL_ERROR
+
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE;
         GLint internal_format;
 
-        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
-        CHECK_GL_ERROR
-
-        switch (texture_format)
+        switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
             gl_format = GL_LUMINANCE;
@@ -755,15 +743,21 @@ namespace dmGraphics
             gl_format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
             CHECK_GL_ERROR
             break;
+        case TEXTURE_FORMAT_DEPTH:
+            gl_format = GL_DEPTH_COMPONENT;
+            internal_format = GL_DEPTH_COMPONENT;
+            gl_type = GL_FLOAT;
+            break;
         default:
             assert(0);
         }
-        switch (texture_format)
+        switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
-            glTexImage2D(GL_TEXTURE_2D, mip_map, internal_format, width, height, 0, gl_format, gl_type, data);
+        case TEXTURE_FORMAT_DEPTH:
+            glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
             CHECK_GL_ERROR
             break;
 
@@ -771,7 +765,8 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGBA_DXT1:
         case TEXTURE_FORMAT_RGBA_DXT3:
         case TEXTURE_FORMAT_RGBA_DXT5:
-            glCompressedTexImage2D(GL_TEXTURE_2D, mip_map, gl_format, width, height, 0, data_size, data);
+            if (params.m_DataSize > 0)
+                glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
             CHECK_GL_ERROR
             break;
         default:
@@ -786,6 +781,18 @@ namespace dmGraphics
         glDeleteTextures(1, &texture->m_Texture);
 
         delete texture;
+    }
+
+    void EnableTexture(HContext context, HTexture texture)
+    {
+        assert(context);
+        assert(texture);
+
+        glEnable(GL_TEXTURE_2D);
+        CHECK_GL_ERROR
+
+        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+        CHECK_GL_ERROR
     }
 
     void EnableState(HContext context, RenderState state)

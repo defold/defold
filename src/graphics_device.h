@@ -69,7 +69,25 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGB_DXT1                 = 3,
         TEXTURE_FORMAT_RGBA_DXT1                = 4,
         TEXTURE_FORMAT_RGBA_DXT3                = 5,
-        TEXTURE_FORMAT_RGBA_DXT5                = 6
+        TEXTURE_FORMAT_RGBA_DXT5                = 6,
+        TEXTURE_FORMAT_DEPTH                    = 7
+    };
+
+    // Texture format
+    enum TextureFilter
+    {
+        TEXTURE_FILTER_LINEAR = GFXDEVICE_TEXTURE_FILTER_LINEAR,
+        TEXTURE_FILTER_NEAREST = GFXDEVICE_TEXTURE_FILTER_NEAREST
+    };
+
+    // Texture format
+    enum TextureWrap
+    {
+        TEXTURE_WRAP_CLAMP = GFXDEVICE_TEXTURE_WRAP_CLAMP,
+        TEXTURE_WRAP_CLAMP_TO_BORDER = GFXDEVICE_TEXTURE_WRAP_CLAMP_TO_BORDER,
+        TEXTURE_WRAP_CLAMP_TO_EDGE = GFXDEVICE_TEXTURE_WRAP_CLAMP_TO_EDGE,
+        TEXTURE_WRAP_MIRRORED_REPEAT = GFXDEVICE_TEXTURE_WRAP_MIRRORED_REPEAT,
+        TEXTURE_WRAP_REPEAT = GFXDEVICE_TEXTURE_WRAP_REPEAT
     };
 
     // Blend factor
@@ -165,6 +183,34 @@ namespace dmGraphics
         uint32_t        m_Usage;
         uint32_t        m_UsageIndex;
     };
+
+    struct TextureParams
+    {
+        TextureParams()
+        : m_Format(TEXTURE_FORMAT_RGBA)
+        , m_MinFilter(TEXTURE_FILTER_LINEAR)
+        , m_MagFilter(TEXTURE_FILTER_LINEAR)
+        , m_UWrap(TEXTURE_WRAP_REPEAT)
+        , m_VWrap(TEXTURE_WRAP_REPEAT)
+        , m_Data(0x0)
+        , m_DataSize(0)
+        , m_MipMap(0)
+        , m_Width(0)
+        , m_Height(0)
+        {}
+
+        TextureFormat m_Format;
+        TextureFilter m_MinFilter;
+        TextureFilter m_MagFilter;
+        TextureWrap m_UWrap;
+        TextureWrap m_VWrap;
+        const void* m_Data;
+        uint32_t m_DataSize;
+        uint16_t m_MipMap;
+        uint16_t m_Width;
+        uint16_t m_Height;
+    };
+
     /**
      * Get context, soon to be deprecated
      * @return Current graphics context
@@ -256,14 +302,11 @@ namespace dmGraphics
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget);
 
-    HTexture NewTexture();
-    void SetTextureData(HTexture texture,
-                           uint16_t mip_map,
-                           uint16_t width, uint16_t height,
-                           TextureFormat texture_format, const void* data, uint32_t data_size);
+    HTexture NewTexture(const TextureParams& params);
+    void SetTexture(HTexture texture, const TextureParams& params);
 
     void DeleteTexture(HTexture t);
-    void SetTexture(HContext context, HTexture t);
+    void EnableTexture(HContext context, HTexture t);
 
     uint32_t GetWindowParam(WindowParam param);
 

@@ -224,12 +224,15 @@ TEST_F(dmGraphicsTest, TestViewport)
 
 TEST_F(dmGraphicsTest, TestTexture)
 {
-    dmGraphics::HTexture texture = dmGraphics::NewTexture();
-    uint32_t data_size = WIDTH * HEIGHT;
-    char* data = new char[data_size];
-    dmGraphics::SetTextureData(texture, 0, WIDTH, HEIGHT, dmGraphics::TEXTURE_FORMAT_LUMINANCE, data, data_size);
-    delete [] data;
-    dmGraphics::SetTexture(m_Context, texture);
+    dmGraphics::TextureParams params;
+    params.m_DataSize = WIDTH * HEIGHT;
+    params.m_Data = new char[params.m_DataSize];
+    params.m_Width = WIDTH;
+    params.m_Height = HEIGHT;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(params);
+    delete [] (char*)params.m_Data;
+    dmGraphics::EnableTexture(m_Context, texture);
     dmGraphics::DeleteTexture(texture);
 }
 

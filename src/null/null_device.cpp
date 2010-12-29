@@ -414,8 +414,11 @@ namespace dmGraphics
     {
         RenderTarget* rt = new RenderTarget();
 
-        rt->m_Texture = NewTexture();
-        dmGraphics::SetTextureData(rt->m_Texture, 0, width, height, format, 0x0, 0);
+        TextureParams params;
+        params.m_Format = format;
+        params.m_Width = width;
+        params.m_Height = height;
+        rt->m_Texture = NewTexture(params);
         rt->m_RenderBuffer.m_ColorBuffer = new char[4 * width * height];
         rt->m_RenderBuffer.m_DepthBuffer = new char[4 * width * height];
         rt->m_RenderBuffer.m_AccumBuffer = new char[4 * width * height];
@@ -453,32 +456,23 @@ namespace dmGraphics
         return rendertarget->m_Texture;
     }
 
-    void SetTexture(HContext context, HTexture t)
-    {
-        assert(context);
-        assert(t);
-    }
-
-    HTexture NewTexture()
+    HTexture NewTexture(const TextureParams& params)
     {
         Texture* tex = new Texture();
-        tex->m_Data = 0x0;
+        SetTexture(tex, params);
         return tex;
     }
 
-    void SetTextureData(HTexture texture,
-                           uint16_t mip_map,
-                           uint16_t width, uint16_t height,
-                           TextureFormat texture_format, const void* data, uint32_t data_size)
+    void SetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
-        texture->m_Data = new char[TEXTURE_FORMAT_SIZE[texture_format] * width * height];
-        texture->m_Format = texture_format;
-        texture->m_Width = width;
-        texture->m_Height = height;
-        memcpy(texture->m_Data, data, data_size);
+        texture->m_Data = new char[TEXTURE_FORMAT_SIZE[params.m_Format] * params.m_Width * params.m_Height];
+        texture->m_Format = params.m_Format;
+        texture->m_Width = params.m_Width;
+        texture->m_Height = params.m_Height;
+        memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
     }
 
     void DeleteTexture(HTexture t)
@@ -487,6 +481,12 @@ namespace dmGraphics
         if (t->m_Data != 0x0)
             delete [] (char*)t->m_Data;
         delete t;
+    }
+
+    void EnableTexture(HContext context, HTexture t)
+    {
+        assert(context);
+        assert(t);
     }
 
     void EnableState(HContext context, RenderState state)
