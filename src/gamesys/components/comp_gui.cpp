@@ -109,8 +109,13 @@ namespace dmGameSystem
                                     0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff };
 
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture();
-        dmGraphics::SetTextureData(gui_world->m_WhiteTexture, 0, 2, 2, dmGraphics::TEXTURE_FORMAT_RGBA, white_texture, sizeof(white_texture));
+        dmGraphics::TextureParams params;
+        params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_Data = white_texture;
+        params.m_DataSize = sizeof(white_texture);
+        params.m_Width = 2;
+        params.m_Height = 2;
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(params);
 
         *world = gui_world;
         return dmGameObject::CREATE_RESULT_OK;

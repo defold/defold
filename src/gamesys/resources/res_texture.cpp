@@ -50,19 +50,23 @@ namespace dmGameSystem
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        dmGraphics::TextureFormat format;
-        format = TextureImageToTextureFormat(image);
-        dmGraphics::HTexture texture = dmGraphics::NewTexture();
+        dmGraphics::TextureParams params;
+        params.m_Format = TextureImageToTextureFormat(image);
+        params.m_Width = image->m_Width;
+        params.m_Height = image->m_Height;
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(params);
 
-        int w = image->m_Width;
-        int h = image->m_Height;
         for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
         {
-            dmGraphics::SetTextureData(texture, i, w, h, format, &image->m_Data[image->m_MipMapOffset[i]], image->m_MipMapSize[i]);
-            w >>= 1;
-            h >>= 1;
-            if (w == 0) w = 1;
-            if (h == 0) h = 1;
+            params.m_MipMap = i;
+            params.m_Data = &image->m_Data[image->m_MipMapOffset[i]];
+            params.m_DataSize = image->m_MipMapSize[i];
+
+            dmGraphics::SetTexture(texture, params);
+            params.m_Width >>= 1;
+            params.m_Height >>= 1;
+            if (params.m_Width == 0) params.m_Width = 1;
+            if (params.m_Height == 0) params.m_Height = 1;
         }
 
         dmDDF::FreeMessage(image);
