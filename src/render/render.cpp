@@ -249,7 +249,7 @@ namespace dmRender
                     dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
 
                 if (ro->m_Texture)
-                    dmGraphics::SetTexture(context, ro->m_Texture);
+                    dmGraphics::EnableTexture(context, ro->m_Texture);
 
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
 
