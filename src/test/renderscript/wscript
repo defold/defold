@@ -5,5 +5,5 @@ import waf_gamesys
 
 def build(bld):
     obj = bld.new_task_gen()
-    obj.find_sources_in_dirs('.', exts = ['.fp', '.vp', '.gamepads', '.input_binding', '.collection', '.dae', '.model', '.go', '.font', '.material', '.png', '.camera', '.script', '.render_script', '.spawnpoint', '.collisionobject', '.convexshape'])
+    obj.find_sources_in_dirs('.', exts = ['.fp', '.vp', '.gamepads', '.input_binding', '.collection', '.dae', '.model', '.go', '.font', '.material', '.png', '.camera', '.script', '.render_script', '.spawnpoint', '.collisionobject', '.convexshape', '.light'])
     obj.install_path = None

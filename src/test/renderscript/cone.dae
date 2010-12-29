@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 2.55.0 r-UNKNOWN-</authoring_tool>
+    </contributor>
+    <created>2010-12-19T21:52:05</created>
+    <modified>2010-12-19T21:52:05</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_cameras>
+    <camera id="Camera-camera" name="Camera">
+      <optics>
+        <technique_common>
+          <perspective>
+            <xfov>49.13434</xfov>
+            <aspect_ratio>1.777778</aspect_ratio>
+            <znear>0.099999964237</znear>
+            <zfar>100</zfar>
+          </perspective>
+        </technique_common>
+      </optics>
+    </camera>
+  </library_cameras>
+  <library_lights>
+    <light id="Lamp-light" name="Lamp">
+      <technique_common>
+        <point>
+          <color>1 1 1</color>
+          <constant_attenuation>1</constant_attenuation>
+          <linear_attenuation>0</linear_attenuation>
+          <quadratic_attenuation>5.55556e-4</quadratic_attenuation>
+        </point>
+      </technique_common>
+    </light>
+  </library_lights>
+  <library_images/>
+  <library_effects/>
+  <library_materials/>
+  <library_geometries>
+    <geometry id="Cone-mesh">
+      <mesh>
+        <source id="Cone-mesh-positions">
+          <float_array id="Cone-mesh-positions-array" count="99">-0.353552639484 0.35355335474 0.500000536441 -0.415734052658 0.277785062789 0.500000655651 -0.461938977241 0.191341698169 0.500000715255 -0.490391850471 0.097545146942 0.500000715255 -0.499999225139 0 0.50000077486 -0.490391910076 -0.097545087337 0.500000715255 -0.461939036846 -0.191341638565 0.500000715255 -0.415734052658 -0.277785062789 0.500000655651 -0.353552639484 -0.35355335474 0.500000536441 -0.277784347534 -0.415734827518 0.500000417232 -0.191340863704 -0.461939811706 0.500000298023 -0.097544252872 -0.490392625331 0.500000119209 9.21888e-7 -0.5 0.5 0.097546100616 -0.490392565727 0.499999821186 0.191342651844 -0.461939632892 0.499999701976 0.277786076068 -0.415734648704 0.499999582767 0.353554368019 -0.353553175926 0.499999463558 0.415735721588 -0.277784824371 0.499999344348 0.461940646171 -0.191341340541 0.499999284744 0.490393459796 -0.097544729709 0.499999225139 0.50000077486 4.828e-7 0.499999225139 0.490393280982 0.097545623779 0.499999225139 0.461940288543 0.191342234611 0.499999284744 0.415735185146 0.277785599231 0.499999344348 0.353553652763 0.353553831577 0.499999463558 0.277785301208 0.415735185146 0.499999582767 0.191341757774 0.461940050125 0.499999701976 0.097545146942 0.490392744541 0.499999821186 0 0.5 0.5 -0.097545206546 0.490392446517 0.500000119209 -0.191341757774 0.461939394474 0.500000298023 -0.277785122394 0.415734291076 0.500000417232 -7.58967e-7 0 -0.5</float_array>
+          <technique_common>
+            <accessor source="#Cone-mesh-positions-array" count="33" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cone-mesh-normals">
+          <float_array id="Cone-mesh-normals-array" count="96">-0.692067444324 0.567964494228 -0.445487260818 -0.789574027061 0.422035574913 -0.445487141609 -0.856737554073 0.259888529777 -0.445487022399 -0.890977382659 0.087753474712 -0.445487022399 -0.890977382659 -0.087753176689 -0.445487022399 -0.856737554073 -0.259888529777 -0.445487022399 -0.789574086666 -0.422035515308 -0.445487141609 -0.692067444324 -0.567964494228 -0.445487260818 -0.567965269088 -0.692066729068 -0.445487499237 -0.422036230564 -0.789573311805 -0.44548767805 -0.259888768196 -0.856737017631 -0.445487916469 -0.087753891944 -0.890976727008 -0.445488154888 0.087753176689 -0.890976607799 -0.445488452911 0.25988805294 -0.856736838817 -0.445488691329 0.422035455703 -0.789573132991 -0.445488989353 0.567964196205 -0.69206649065 -0.445489168167 0.692066550254 -0.567964017391 -0.445489346981 0.789572834968 -0.422035217285 -0.445489525794 0.856736540794 -0.259887337684 -0.445489585399 0.890976071357 -0.087752997875 -0.445489704608 0.890975892543 0.0877546072 -0.445489704608 0.856736004352 0.259889245033 -0.445489645004 0.789572119712 0.422036588191 -0.445489525794 0.692065298557 0.567965507507 -0.445489346981 0.567963004112 0.692067444324 -0.445489168167 0.422034025192 0.789573848247 -0.445488929748 0.259886145591 0.856737375259 -0.445488691329 0.087751567363 0.890976846218 -0.445488452911 -0.08775550127 0.890976548194 -0.445488214492 -0.259890675544 0.856736421585 -0.445487916469 -0.42203760147 0.789572596549 -0.44548767805 -0.567965924739 0.692066133022 -0.445487499237</float_array>
+          <technique_common>
+            <accessor source="#Cone-mesh-normals-array" count="32" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Cone-mesh-vertices">
+          <input semantic="POSITION" source="#Cone-mesh-positions"/>
+        </vertices>
+        <polylist count="32">
+          <input semantic="VERTEX" source="#Cone-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#Cone-mesh-normals" offset="1"/>
+          <vcount>3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 </vcount>
+          <p>1 0 0 0 32 0 32 1 2 1 1 1 32 2 3 2 2 2 32 3 4 3 3 3 32 4 5 4 4 4 32 5 6 5 5 5 32 6 7 6 6 6 32 7 8 7 7 7 32 8 9 8 8 8 32 9 10 9 9 9 32 10 11 10 10 10 32 11 12 11 11 11 32 12 13 12 12 12 32 13 14 13 13 13 32 14 15 14 14 14 32 15 16 15 15 15 32 16 17 16 16 16 32 17 18 17 17 17 32 18 19 18 18 18 32 19 20 19 19 19 32 20 21 20 20 20 32 21 22 21 21 21 32 22 23 22 22 22 32 23 24 23 23 23 32 24 25 24 24 24 32 25 26 25 25 25 32 26 27 26 26 26 32 27 28 27 27 27 32 28 29 28 28 28 32 29 30 29 29 29 32 30 31 30 30 30 32 31 0 31 31 31</p>
+        </polylist>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_animations/>
+  <library_controllers/>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Cone" type="NODE">
+        <translate sid="location">0 0 0</translate>
+        <rotate sid="rotationZ">0 0 1 0</rotate>
+        <rotate sid="rotationY">0 1 0 0</rotate>
+        <rotate sid="rotationX">1 0 0 0</rotate>
+        <scale sid="scale">1 1 1</scale>
+        <instance_geometry url="#Cone-mesh"/>
+      </node>
+      <node id="Lamp" type="NODE">
+        <translate sid="location">4.076245 1.005454 5.903862</translate>
+        <rotate sid="rotationZ">0 0 1 106.9363</rotate>
+        <rotate sid="rotationY">0 1 0 3.163707</rotate>
+        <rotate sid="rotationX">1 0 0 37.26105</rotate>
+        <scale sid="scale">1 1 1</scale>
+        <instance_light url="#Lamp-light"/>
+      </node>
+      <node id="Camera" type="NODE">
+        <translate sid="location">7.481132 -6.50764 5.343665</translate>
+        <rotate sid="rotationZ">0 0 1 46.69194</rotate>
+        <rotate sid="rotationY">0 1 0 0.619767916163</rotate>
+        <rotate sid="rotationX">1 0 0 63.55929</rotate>
+        <scale sid="scale">1 1 1</scale>
+        <instance_camera url="#Camera-camera"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

@@ -1,0 +1,11 @@
+function init(self)
+    self.rotation_speed = 0.78
+end
+
+function update(self, dt)
+    local p = go.get_position(self)
+    local t = vmath.quat_axis_angle(vmath.vector3(0, 1, 0), dt * self.rotation_speed)
+    go.set_position(self, vmath.rotate(t, p))
+    local r = vmath.quat_from_to(vmath.vector3(0, 0, 1), vmath.normalize(-p))
+    go.set_rotation(self, r)
+end

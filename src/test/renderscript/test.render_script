@@ -39,8 +39,11 @@ end
 
 function on_message(self, message_id, message)
     if message_id == hash("set_light") then
-        self.light_view = message.view
-        self.light_proj = message.proj
+        local eye = message.position
+        local at = message.position + vmath.rotate(message.rotation, vmath.vector3(0, 0, 1))
+        local up = vmath.vector3(0, 1, 0)
+        self.light_view = vmath.matrix4_look_at(eye, at, up)
+        self.light_proj = vmath.matrix4_perspective(message.cone_angle, render.get_window_width(self) / render.get_window_height(self), 1, -1000)
     elseif message_id == hash("set_view_projection") then
         self.view = message.view
         self.proj = message.projection

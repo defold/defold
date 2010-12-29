@@ -1,0 +1,6 @@
+Id: "light"
+Radius: 0.25
+ConeAngle: 0.78
+DropOff: 1
+LightType: SPOT
+Color: { X: 1.0 Y: 1.0 Z: 1.0 }
