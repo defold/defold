@@ -55,7 +55,7 @@ int32_t Run(Context* context)
             break;
 
         dmGraphics::HContext gfx_context = dmGraphics::GetContext();
-        dmGraphics::Clear(gfx_context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
+        dmGraphics::Clear(gfx_context, dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH, 0, 0, 0, 0, 1.0, 0);
         dmGraphics::SetViewport(gfx_context, context->m_ScreenWidth, context->m_ScreenHeight);
 
         uint16_t x = 10;
