@@ -610,14 +610,10 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format)
+    HRenderTarget NewRenderTarget(const TextureParams& params)
     {
         RenderTarget* rt = new RenderTarget;
 
-        TextureParams params;
-        params.m_Format = format;
-        params.m_Width = width;
-        params.m_Height = height;
         rt->m_Texture = NewTexture(params);
 
         glGenFramebuffers(1, &rt->m_FboId);
@@ -625,17 +621,14 @@ namespace dmGraphics
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_FboId);
         CHECK_GL_ERROR
 
-
         glGenRenderbuffers(1, &rt->m_RboId);
         CHECK_GL_ERROR
         glBindRenderbuffer(GL_RENDERBUFFER_EXT, rt->m_RboId);
         CHECK_GL_ERROR
-        glRenderbufferStorage(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, width, height);
+        glRenderbufferStorage(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, params.m_Width, params.m_Height);
         CHECK_GL_ERROR
         glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
         CHECK_GL_ERROR
-
-
 
         // attach the texture to FBO color attachment point
         glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
@@ -666,11 +659,13 @@ namespace dmGraphics
     void EnableRenderTarget(HContext context, HRenderTarget rendertarget)
     {
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, rendertarget->m_FboId);
+        glBindRenderbuffer(GL_RENDERBUFFER_EXT, rendertarget->m_RboId);
     }
 
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
     {
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
+        glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget)

@@ -410,19 +410,15 @@ namespace dmGraphics
         memcpy(&gdevice.m_FragmentProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
     }
 
-    HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format)
+    HRenderTarget NewRenderTarget(const TextureParams& params)
     {
         RenderTarget* rt = new RenderTarget();
 
-        TextureParams params;
-        params.m_Format = format;
-        params.m_Width = width;
-        params.m_Height = height;
         rt->m_Texture = NewTexture(params);
-        rt->m_RenderBuffer.m_ColorBuffer = new char[4 * width * height];
-        rt->m_RenderBuffer.m_DepthBuffer = new char[4 * width * height];
-        rt->m_RenderBuffer.m_AccumBuffer = new char[4 * width * height];
-        rt->m_RenderBuffer.m_StencilBuffer = new char[4 * width * height];
+        rt->m_RenderBuffer.m_ColorBuffer = new char[4 * params.m_Width * params.m_Height];
+        rt->m_RenderBuffer.m_DepthBuffer = new char[4 * params.m_Width * params.m_Height];
+        rt->m_RenderBuffer.m_AccumBuffer = new char[4 * params.m_Width * params.m_Height];
+        rt->m_RenderBuffer.m_StencilBuffer = new char[4 * params.m_Width * params.m_Height];
 
         return rt;
     }

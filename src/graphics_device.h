@@ -296,7 +296,7 @@ namespace dmGraphics
     void SetStencilMask(HContext context, uint32_t mask);
     void SetCullFace(HContext context, FaceType face_type);
 
-    HRenderTarget NewRenderTarget(uint32_t width, uint32_t height, TextureFormat format);
+    HRenderTarget NewRenderTarget(const TextureParams& params);
     void DeleteRenderTarget(HRenderTarget renderbuffer);
     void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);

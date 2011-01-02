@@ -238,7 +238,11 @@ TEST_F(dmGraphicsTest, TestTexture)
 
 TEST_F(dmGraphicsTest, TestRenderTarget)
 {
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(WIDTH, HEIGHT, dmGraphics::TEXTURE_FORMAT_LUMINANCE);
+    dmGraphics::TextureParams params;
+    params.m_Width = WIDTH;
+    params.m_Height = HEIGHT;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(params);
     dmGraphics::EnableRenderTarget(m_Context, target);
     uint32_t flags = dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER | dmGraphics::CLEAR_STENCIL_BUFFER;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
