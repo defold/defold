@@ -32,11 +32,11 @@ namespace dmGraphics
     };
 
     // buffer clear types
-    enum BufferClear
+    enum BufferType
     {
-        CLEAR_COLOUR_BUFFER                     = GFXDEVICE_CLEAR_COLOURUFFER,
-        CLEAR_DEPTH_BUFFER                      = GFXDEVICE_CLEAR_DEPTHBUFFER,
-        CLEAR_STENCIL_BUFFER                    = GFXDEVICE_CLEAR_STENCILBUFFER
+        BUFFER_TYPE_COLOR   = GFXDEVICE_BUFFER_TYPE_COLOR,
+        BUFFER_TYPE_DEPTH   = GFXDEVICE_BUFFER_TYPE_DEPTH,
+        BUFFER_TYPE_STENCIL = GFXDEVICE_BUFFER_TYPE_STENCIL
     };
 
     // bool states

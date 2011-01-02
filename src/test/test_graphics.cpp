@@ -45,7 +45,7 @@ TEST_F(dmGraphicsTest, Flip)
 
 TEST_F(dmGraphicsTest, Clear)
 {
-    uint32_t flags = dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER | dmGraphics::CLEAR_STENCIL_BUFFER;
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH | dmGraphics::BUFFER_TYPE_STENCIL;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t data[WIDTH * HEIGHT];
     memset(data, 1, sizeof(data));
@@ -244,7 +244,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(params);
     dmGraphics::EnableRenderTarget(m_Context, target);
-    uint32_t flags = dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER | dmGraphics::CLEAR_STENCIL_BUFFER;
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH | dmGraphics::BUFFER_TYPE_STENCIL;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t data[WIDTH * HEIGHT];
     memset(data, 1, sizeof(data));

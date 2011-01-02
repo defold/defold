@@ -49,10 +49,10 @@ namespace dmGraphics
 #define GFXDEVICE_PRIMITIVE_QUADS                       (GL_QUADS)
 #define GFXDEVICE_PRIMITIVE_QUAD_STRIP                  (GL_QUAD_STRIP)
 
-// Clear flags
-#define GFXDEVICE_CLEAR_COLOURUFFER                     (GL_COLOR_BUFFER_BIT)
-#define GFXDEVICE_CLEAR_DEPTHBUFFER                     (GL_DEPTH_BUFFER_BIT)
-#define GFXDEVICE_CLEAR_STENCILBUFFER                   (GL_STENCIL_BUFFER_BIT)
+// Buffer type flags
+#define GFXDEVICE_BUFFER_TYPE_COLOR                     (GL_COLOR_BUFFER_BIT)
+#define GFXDEVICE_BUFFER_TYPE_DEPTH                     (GL_DEPTH_BUFFER_BIT)
+#define GFXDEVICE_BUFFER_TYPE_STENCIL                   (GL_STENCIL_BUFFER_BIT)
 
 // Render states
 #define GFXDEVICE_STATE_DEPTH_TEST                      (GL_DEPTH_TEST)

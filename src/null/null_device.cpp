@@ -77,20 +77,20 @@ namespace dmGraphics
     {
         assert(context);
         uint32_t buffer_size = gdevice.m_DisplayWidth * gdevice.m_DisplayHeight;
-        if (flags & dmGraphics::CLEAR_COLOUR_BUFFER)
+        if (flags & dmGraphics::BUFFER_TYPE_COLOR)
         {
             uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
             uint32_t* buffer = (uint32_t*)gdevice.m_RenderBuffer->m_ColorBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = colour;
         }
-        if (flags & dmGraphics::CLEAR_DEPTH_BUFFER)
+        if (flags & dmGraphics::BUFFER_TYPE_DEPTH)
         {
             float* buffer = (float*)gdevice.m_RenderBuffer->m_DepthBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = depth;
         }
-        if (flags & dmGraphics::CLEAR_STENCIL_BUFFER)
+        if (flags & dmGraphics::BUFFER_TYPE_STENCIL)
         {
             uint32_t* buffer = (uint32_t*)gdevice.m_RenderBuffer->m_StencilBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
