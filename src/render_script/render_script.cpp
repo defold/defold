@@ -304,17 +304,17 @@ namespace dmEngine
             const char* key = luaL_checkstring(L, -2);
             if (strncmp(key, RENDER_SCRIPT_COLOR_NAME, strlen(RENDER_SCRIPT_COLOR_NAME)) == 0)
             {
-                flags |= dmGraphics::CLEAR_COLOUR_BUFFER;
+                flags |= dmGraphics::BUFFER_TYPE_COLOR;
                 color = *dmScript::CheckVector4(L, -1);
             }
             else if (strncmp(key, RENDER_SCRIPT_DEPTH_NAME, strlen(RENDER_SCRIPT_DEPTH_NAME)) == 0)
             {
-                flags |= dmGraphics::CLEAR_DEPTH_BUFFER;
+                flags |= dmGraphics::BUFFER_TYPE_DEPTH;
                 depth = (float)luaL_checknumber(L, -1);
             }
             else if (strncmp(key, RENDER_SCRIPT_STENCIL_NAME, strlen(RENDER_SCRIPT_STENCIL_NAME)) == 0)
             {
-                flags |= dmGraphics::CLEAR_STENCIL_BUFFER;
+                flags |= dmGraphics::BUFFER_TYPE_STENCIL;
                 stencil = (uint32_t)luaL_checknumber(L, -1);
             }
             else

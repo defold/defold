@@ -422,7 +422,7 @@ bail:
                 {
                     dmGraphics::HContext context = dmGraphics::GetContext();
                     dmGraphics::SetViewport(context, dmRender::GetDisplayWidth(engine->m_RenderContext), dmRender::GetDisplayHeight(engine->m_RenderContext));
-                    dmGraphics::Clear(context, dmGraphics::CLEAR_COLOUR_BUFFER | dmGraphics::CLEAR_DEPTH_BUFFER, 0, 0, 0, 0, 1.0, 0);
+                    dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH, 0, 0, 0, 0, 1.0, 0);
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
 
