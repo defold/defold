@@ -2,12 +2,35 @@ function init(self)
     self.opaque_pred = render.predicate(self, {"opaque"})
     self.transp_pred = render.predicate(self, {"transp"})
     self.hud_pred = render.predicate(self, {"hud"})
+    self.shadow_rt = render.rendertarget(self, "shadow_rt", {
+        format = render.TEXTURE_FORMAT_DEPTH,
+        width = 512,
+        height = 512,
+        min_filter = render.TEXTURE_FILTER_NEAREST,
+        mag_filter = render.TEXTURE_FILTER_NEAREST,
+        u_wrap = render.TEXTURE_WRAP_CLAMP,
+        v_wrap = render.TEXTURE_WRAP_CLAMP})
     self.view = vmath.matrix4()
     self.proj = vmath.matrix4()
 end
 
 function update(self)
+    render.enable_rendertarget(self, self.shadow_rt)
     render.set_depth_mask(self, true)
+    render.set_color_mask(self, false, false, false, false)
+    render.set_viewport(self, 512, 512)
+    render.set_view(self, self.light_view)
+    render.set_projection(self, self.light_proj)
+    render.disable_state(self, render.BLEND)
+    render.enable_state(self, render.DEPTH_TEST)
+    render.set_depth_mask(self, true)
+    render.enable_state(self, render.CULL_FACE)
+    render.set_cull_face(self, render.FRONT)
+    render.draw(self, self.opaque_pred)
+    render.disable_rendertarget(self, self.shadow_rt)
+
+    render.set_depth_mask(self, true)
+    render.set_color_mask(self, true, true, true, true)
     render.clear(self, {color = vmath.vector4(0, 0, 0, 0), depth = 1})
 
     render.set_viewport(self, render.get_window_width(self), render.get_window_height(self))

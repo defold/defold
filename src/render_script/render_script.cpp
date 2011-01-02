@@ -28,6 +28,13 @@ namespace dmEngine
     #define RENDER_SCRIPT_COLOR_NAME "color"
     #define RENDER_SCRIPT_DEPTH_NAME "depth"
     #define RENDER_SCRIPT_STENCIL_NAME "stencil"
+    #define RENDER_SCRIPT_FORMAT_NAME "format"
+    #define RENDER_SCRIPT_WIDTH_NAME "width"
+    #define RENDER_SCRIPT_HEIGHT_NAME "height"
+    #define RENDER_SCRIPT_MIN_FILTER_NAME "min_filter"
+    #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
+    #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
+    #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -181,12 +188,65 @@ namespace dmEngine
 
     int RenderScript_Rendertarget(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
 
-        uint32_t width = luaL_checknumber(L, 2);
-        uint32_t height = luaL_checknumber(L, 3);
-        const char* name = luaL_checkstring(L, 4);
-        dmGraphics::HRenderTarget rendertarget = dmGraphics::NewRenderTarget(width, height, dmGraphics::TEXTURE_FORMAT_RGBA);
+        const char* name = luaL_checkstring(L, 2);
+        dmGraphics::TextureParams params;
+        if (top > 3)
+        {
+            luaL_checktype(L, 5, LUA_TTABLE);
+            lua_pushnil(L);
+            while (lua_next(L, 2))
+            {
+                const char* key = luaL_checkstring(L, -2);
+                if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
+                {
+                    params.m_Format = (dmGraphics::TextureFormat)luaL_checknumber(L, -1);
+                }
+                else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
+                {
+                    params.m_Width = luaL_checknumber(L, -1);
+                }
+                else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
+                {
+                    params.m_Height = luaL_checknumber(L, -1);
+                }
+                else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
+                {
+                    params.m_MinFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
+                }
+                else if (strncmp(key, RENDER_SCRIPT_MAG_FILTER_NAME, strlen(RENDER_SCRIPT_MAG_FILTER_NAME)) == 0)
+                {
+                    params.m_MagFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
+                }
+                else if (strncmp(key, RENDER_SCRIPT_U_WRAP_NAME, strlen(RENDER_SCRIPT_U_WRAP_NAME)) == 0)
+                {
+                    params.m_UWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
+                }
+                else if (strncmp(key, RENDER_SCRIPT_V_WRAP_NAME, strlen(RENDER_SCRIPT_V_WRAP_NAME)) == 0)
+                {
+                    params.m_VWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
+                }
+                else
+                {
+                    lua_pop(L, 2);
+                    assert(top == lua_gettop(L));
+                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s.",
+                        RENDER_SCRIPT_LIB_NAME, key,
+                        RENDER_SCRIPT_FORMAT_NAME,
+                        RENDER_SCRIPT_WIDTH_NAME,
+                        RENDER_SCRIPT_HEIGHT_NAME,
+                        RENDER_SCRIPT_MIN_FILTER_NAME,
+                        RENDER_SCRIPT_MAG_FILTER_NAME,
+                        RENDER_SCRIPT_U_WRAP_NAME,
+                        RENDER_SCRIPT_V_WRAP_NAME);
+                }
+                lua_pop(L, 1);
+            }
+        }
+        dmGraphics::HRenderTarget rendertarget = dmGraphics::NewRenderTarget(params);
         dmRender::RegisterRenderTarget(i->m_RenderContext, rendertarget, dmHashString32(name));
 
         lua_pushlightuserdata(L, (void*)rendertarget);
@@ -560,6 +620,24 @@ namespace dmEngine
         REGISTER_RENDER_CONSTANT(ALPHA_TEST);
         REGISTER_RENDER_CONSTANT(BLEND);
         REGISTER_RENDER_CONSTANT(CULL_FACE);
+
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_LUMINANCE);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGB);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGB_DXT1);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA_DXT1);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA_DXT3);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA_DXT5);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_DEPTH);
+
+        REGISTER_RENDER_CONSTANT(TEXTURE_FILTER_LINEAR);
+        REGISTER_RENDER_CONSTANT(TEXTURE_FILTER_NEAREST);
+
+        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_CLAMP);
+        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_CLAMP_TO_BORDER);
+        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_CLAMP_TO_EDGE);
+        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_MIRRORED_REPEAT);
+        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_REPEAT);
 
         REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ZERO);
         REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE);
