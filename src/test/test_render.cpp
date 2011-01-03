@@ -44,7 +44,8 @@ TEST_F(dmRenderTest, TestRenderTarget)
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(params);
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(flags, params);
     dmGraphics::DeleteRenderTarget(target);
     uint32_t hash = dmHashString32("rt");
     ASSERT_EQ(0x0, dmRender::GetRenderTarget(m_Context, hash));
