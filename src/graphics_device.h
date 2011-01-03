@@ -307,7 +307,7 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params);
 
     void DeleteTexture(HTexture t);
-    void EnableTexture(HContext context, HTexture t);
+    void SetTextureUnit(HContext context, uint32_t unit, HTexture texture);
 
     uint32_t GetWindowParam(WindowParam param);
 

@@ -232,7 +232,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(params);
     delete [] (char*)params.m_Data;
-    dmGraphics::EnableTexture(m_Context, texture);
+    dmGraphics::SetTextureUnit(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
 

@@ -482,10 +482,11 @@ namespace dmGraphics
         delete t;
     }
 
-    void EnableTexture(HContext context, HTexture t)
+    void SetTextureUnit(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
-        assert(t);
+        assert(unit < 32);
+        assert(texture);
     }
 
     void EnableState(HContext context, RenderState state)
