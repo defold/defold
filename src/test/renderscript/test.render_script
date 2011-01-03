@@ -2,14 +2,16 @@ function init(self)
     self.opaque_pred = render.predicate(self, {"opaque"})
     self.transp_pred = render.predicate(self, {"transp"})
     self.hud_pred = render.predicate(self, {"hud"})
-    self.shadow_rt = render.rendertarget(self, "shadow_rt", {render.BUFFER_TYPE_DEPTH}, {
+    local depth_params = {
         format = render.TEXTURE_FORMAT_DEPTH,
         width = 512,
         height = 512,
         min_filter = render.TEXTURE_FILTER_NEAREST,
         mag_filter = render.TEXTURE_FILTER_NEAREST,
         u_wrap = render.TEXTURE_WRAP_CLAMP,
-        v_wrap = render.TEXTURE_WRAP_CLAMP})
+        v_wrap = render.TEXTURE_WRAP_CLAMP
+    }
+    self.shadow_rt = render.rendertarget(self, "shadow_rt", {[render.BUFFER_TYPE_DEPTH] = depth_params})
     self.view = vmath.matrix4()
     self.proj = vmath.matrix4()
 end
@@ -21,6 +23,7 @@ function update(self)
     render.set_viewport(self, 512, 512)
     render.set_view(self, self.light_view)
     render.set_projection(self, self.light_proj)
+    render.clear(self, {[render.BUFFER_TYPE_DEPTH] = 1})
     render.disable_state(self, render.BLEND)
     render.enable_state(self, render.DEPTH_TEST)
     render.set_depth_mask(self, true)
@@ -31,12 +34,13 @@ function update(self)
 
     render.set_depth_mask(self, true)
     render.set_color_mask(self, true, true, true, true)
-    render.clear(self, {color = vmath.vector4(0, 0, 0, 0), depth = 1})
+    render.clear(self, {[render.BUFFER_TYPE_COLOR] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH] = 1})
 
     render.set_viewport(self, render.get_window_width(self), render.get_window_height(self))
     render.set_view(self, self.view)
     render.set_projection(self, self.proj)
 
+    render.set_texture_unit(self, 1, self.shadow_rt, render.BUFFER_TYPE_DEPTH)
     render.disable_state(self, render.BLEND)
     render.enable_state(self, render.DEPTH_TEST)
     render.set_depth_mask(self, true)

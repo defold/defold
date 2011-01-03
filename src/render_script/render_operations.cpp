@@ -34,6 +34,11 @@ namespace dmEngine
                     dmGraphics::DisableRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0] );
                     break;
                 }
+                case CMD_SET_TEXTURE_UNIT:
+                {
+                    dmGraphics::SetTextureUnit(context, c->m_Operands[0], (dmGraphics::HTexture)c->m_Operands[1]);
+                    break;
+                }
                 case CMD_CLEAR:
                 {
                     uint8_t r = (c->m_Operands[1] >> 0) & 0xff;

@@ -25,9 +25,6 @@ namespace dmEngine
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
 
     #define RENDER_SCRIPT_LIB_NAME "render"
-    #define RENDER_SCRIPT_COLOR_NAME "color"
-    #define RENDER_SCRIPT_DEPTH_NAME "depth"
-    #define RENDER_SCRIPT_STENCIL_NAME "stencil"
     #define RENDER_SCRIPT_FORMAT_NAME "format"
     #define RENDER_SCRIPT_WIDTH_NAME "width"
     #define RENDER_SCRIPT_HEIGHT_NAME "height"
@@ -196,49 +193,46 @@ namespace dmEngine
 
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
+        dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         lua_pushnil(L);
         while (lua_next(L, 3))
         {
-            uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -1);
+            uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
             buffer_type_flags |= buffer_type;
-            lua_pop(L, 1);
-        }
-
-        dmGraphics::TextureParams params;
-        if (top > 3)
-        {
-            luaL_checktype(L, 4, LUA_TTABLE);
+            uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
+            dmGraphics::TextureParams* p = &params[index];
+            luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
-            while (lua_next(L, 4))
+            while (lua_next(L, -2))
             {
                 const char* key = luaL_checkstring(L, -2);
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
-                    params.m_Format = (dmGraphics::TextureFormat)luaL_checknumber(L, -1);
+                    p->m_Format = (dmGraphics::TextureFormat)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
-                    params.m_Width = luaL_checknumber(L, -1);
+                    p->m_Width = luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
                 {
-                    params.m_Height = luaL_checknumber(L, -1);
+                    p->m_Height = luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
-                    params.m_MinFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
+                    p->m_MinFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MAG_FILTER_NAME, strlen(RENDER_SCRIPT_MAG_FILTER_NAME)) == 0)
                 {
-                    params.m_MagFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
+                    p->m_MagFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_U_WRAP_NAME, strlen(RENDER_SCRIPT_U_WRAP_NAME)) == 0)
                 {
-                    params.m_UWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
+                    p->m_UWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_V_WRAP_NAME, strlen(RENDER_SCRIPT_V_WRAP_NAME)) == 0)
                 {
-                    params.m_VWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
+                    p->m_VWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
                 }
                 else
                 {
@@ -256,7 +250,9 @@ namespace dmEngine
                 }
                 lua_pop(L, 1);
             }
+            lua_pop(L, 1);
         }
+
         dmGraphics::HRenderTarget rendertarget = dmGraphics::NewRenderTarget(buffer_type_flags, params);
         dmRender::RegisterRenderTarget(i->m_RenderContext, rendertarget, dmHashString32(name));
 
@@ -295,6 +291,28 @@ namespace dmEngine
         return 0;
     }
 
+    int RenderScript_SetTextureUnit(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+        dmGraphics::HRenderTarget render_target = 0x0;
+
+        uint32_t unit = luaL_checknumber(L, 2);
+        dmGraphics::HTexture texture = 0;
+        if (lua_islightuserdata(L, 3))
+        {
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 3);
+            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)luaL_checknumber(L, 4);
+            texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+        }
+        else if (!lua_isnil(L, 3))
+        {
+            return luaL_error(L, "%s.set_texture_unit called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
+        }
+        InsertRenderCommand(RenderCommand(CMD_SET_TEXTURE_UNIT, unit, (uint32_t)texture));
+        return 0;
+    }
+
     int RenderScript_Clear(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -311,27 +329,23 @@ namespace dmEngine
         lua_pushnil(L);
         while (lua_next(L, 2))
         {
-            const char* key = luaL_checkstring(L, -2);
-            if (strncmp(key, RENDER_SCRIPT_COLOR_NAME, strlen(RENDER_SCRIPT_COLOR_NAME)) == 0)
+            uint32_t buffer_type = luaL_checknumber(L, -2);
+            flags |= buffer_type;
+            switch (buffer_type)
             {
-                flags |= dmGraphics::BUFFER_TYPE_COLOR;
-                color = *dmScript::CheckVector4(L, -1);
-            }
-            else if (strncmp(key, RENDER_SCRIPT_DEPTH_NAME, strlen(RENDER_SCRIPT_DEPTH_NAME)) == 0)
-            {
-                flags |= dmGraphics::BUFFER_TYPE_DEPTH;
-                depth = (float)luaL_checknumber(L, -1);
-            }
-            else if (strncmp(key, RENDER_SCRIPT_STENCIL_NAME, strlen(RENDER_SCRIPT_STENCIL_NAME)) == 0)
-            {
-                flags |= dmGraphics::BUFFER_TYPE_STENCIL;
-                stencil = (uint32_t)luaL_checknumber(L, -1);
-            }
-            else
-            {
-                lua_pop(L, 2);
-                assert(top == lua_gettop(L));
-                return luaL_error(L, "Unknown key supplied to %s.clear: %s. Available keys are %s, %s and %s.", RENDER_SCRIPT_LIB_NAME, key, RENDER_SCRIPT_COLOR_NAME, RENDER_SCRIPT_DEPTH_NAME, RENDER_SCRIPT_STENCIL_NAME);
+                case dmGraphics::BUFFER_TYPE_COLOR:
+                    color = *dmScript::CheckVector4(L, -1);
+                    break;
+                case dmGraphics::BUFFER_TYPE_DEPTH:
+                    depth = (float)luaL_checknumber(L, -1);
+                    break;
+                case dmGraphics::BUFFER_TYPE_STENCIL:
+                    stencil = (uint32_t)luaL_checknumber(L, -1);
+                    break;
+                default:
+                    lua_pop(L, 2);
+                    assert(top == lua_gettop(L));
+                    return luaL_error(L, "Unknown buffer type supplied to %s.clear.", RENDER_SCRIPT_LIB_NAME);
             }
             lua_pop(L, 1);
         }
@@ -570,6 +584,7 @@ namespace dmEngine
         {"enable_rendertarget",  RenderScript_EnableRendertarget},
         {"disable_rendertarget", RenderScript_DisableRendertarget},
         {"rendertarget",         RenderScript_Rendertarget},
+        {"set_texture_unit",     RenderScript_SetTextureUnit},
         {"clear",                RenderScript_Clear},
         {"set_viewport",         RenderScript_SetViewport},
         {"set_view",             RenderScript_SetView},
