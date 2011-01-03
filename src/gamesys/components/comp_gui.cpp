@@ -299,8 +299,10 @@ namespace dmGameSystem
             ro.m_Material = gui_world->m_Material;
 
             // Set default texture
-            ro.m_Textures[0] = gui_world->m_WhiteTexture;
-            ro.m_Textures[0] = (dmGraphics::HTexture) n->m_Texture;
+            if (n->m_Texture)
+                ro.m_Textures[0] = (dmGraphics::HTexture) n->m_Texture;
+            else
+                ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
             if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
             {
