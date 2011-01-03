@@ -77,7 +77,8 @@ namespace dmGameSystem
             component.m_Index = index;
             dmRender::RenderObject& ro = component.m_RenderObject;
             ro.m_Material = model->m_Material;
-            ro.m_Texture = model->m_Texture;
+            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+                ro.m_Textures[i] = model->m_Textures[i];
             ro.m_VertexBuffer = mesh->m_VertexBuffer;
             ro.m_VertexDeclaration = mesh->m_VertexDeclaration;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
@@ -159,12 +160,12 @@ namespace dmGameSystem
             ddf->m_TextureHash = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_TextureHash);
             uint32_t hash;
             sscanf(ddf->m_TextureHash, "%X", &hash);
-            uint32_t slot = ddf->m_TextureSlot;
+            uint32_t unit = ddf->m_TextureUnit;
             dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)context;
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, hash);
             if (rendertarget)
             {
-                ro->m_Texture = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR);
+                ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR);
             }
             else
                 dmLogWarning("No such render target: 0x%x (%d)", hash, hash);

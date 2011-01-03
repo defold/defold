@@ -200,7 +200,7 @@ namespace dmGameSystem
         world->m_RenderObjects.SetSize(ro_count + 1);
         dmRender::RenderObject* ro = &world->m_RenderObjects[ro_count];
         ro->m_Material = (dmRender::HMaterial)material;
-        ro->m_Texture = (dmGraphics::HTexture)texture;
+        ro->m_Textures[0] = (dmGraphics::HTexture)texture;
         ro->m_VertexStart = vertex_index;
         ro->m_VertexCount = vertex_count;
         ro->m_VertexBuffer = world->m_VertexBuffer;

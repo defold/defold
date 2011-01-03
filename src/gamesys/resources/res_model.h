@@ -15,7 +15,7 @@ namespace dmGameSystem
     {
         Mesh* m_Mesh;
         dmRender::HMaterial m_Material;
-        dmGraphics::HTexture m_Texture;
+        dmGraphics::HTexture m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
     dmResource::CreateResult ResCreateModel(dmResource::HFactory factory,

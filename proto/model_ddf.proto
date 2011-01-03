@@ -12,7 +12,7 @@ message ModelDesc
     required string Name = 1;
     required string Mesh = 2;
     required string Material = 3;
-    optional string Texture0 = 4;
+    repeated string Textures = 4;
 }
 
 message SetVertexConstant
@@ -40,5 +40,5 @@ message ResetFragmentConstant
 message SetTexture
 {
     required string TextureHash = 1;
-    required uint32 TextureSlot = 2;
+    required uint32 TextureUnit = 2;
 }

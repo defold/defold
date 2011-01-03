@@ -42,7 +42,8 @@ def transform_gameobject(msg):
 def transform_model(msg):
     msg.Mesh = msg.Mesh.replace('.dae', '.meshc')
     msg.Material = msg.Material.replace('.material', '.materialc')
-    msg.Texture0 = transform_texture_name(msg.Texture0)
+    for i,n in enumerate(msg.Textures):
+        msg.Textures[i] = transform_texture_name(msg.Textures[i])
     return msg
 
 def transform_gui(msg):
