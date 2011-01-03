@@ -1,4 +1,4 @@
 Name: "ground"
 Mesh: "ground.dae"
 Material: "ground.material"
-Texture0: "blue.png"
+Textures: "blue.png"

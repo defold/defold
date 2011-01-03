@@ -295,7 +295,6 @@ namespace dmEngine
         return 0;
     }
 
-
     int RenderScript_Clear(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
