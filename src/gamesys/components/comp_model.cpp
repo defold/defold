@@ -164,7 +164,7 @@ namespace dmGameSystem
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, hash);
             if (rendertarget)
             {
-                ro->m_Texture = dmGraphics::GetRenderTargetTexture(rendertarget);
+                ro->m_Texture = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR);
             }
             else
                 dmLogWarning("No such render target: 0x%x (%d)", hash, hash);
