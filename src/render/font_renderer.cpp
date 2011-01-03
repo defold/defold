@@ -158,7 +158,7 @@ namespace dmRender
             uint16_t y = params.m_Y;
             RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
             ro->m_Material = font->m_Material;
-            ro->m_Texture = font->m_Texture;
+            ro->m_Textures[0] = font->m_Texture;
             ro->m_VertexStart = text_context.m_VertexIndex;
             for (int j = 0; j < 3; ++j)
             {

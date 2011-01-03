@@ -11,7 +11,7 @@
 
 namespace dmRender
 {
-	using namespace Vectormath::Aos;
+    using namespace Vectormath::Aos;
 
     enum Result
     {
@@ -32,6 +32,8 @@ namespace dmRender
     {
         RenderObject();
 
+        static const uint32_t MAX_TEXTURE_COUNT = 32;
+
         Vector4                         m_VertexConstants[MAX_CONSTANT_COUNT];
         Vector4                         m_FragmentConstants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
@@ -40,7 +42,7 @@ namespace dmRender
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         HMaterial                       m_Material;
-        dmGraphics::HTexture            m_Texture;
+        dmGraphics::HTexture            m_Textures[MAX_TEXTURE_COUNT];
         dmGraphics::PrimitiveType       m_PrimitiveType;
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;

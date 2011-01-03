@@ -248,8 +248,9 @@ namespace dmRender
                 if (ro->m_SetBlendFactors)
                     dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
 
-                if (ro->m_Texture)
-                    dmGraphics::EnableTexture(context, ro->m_Texture);
+                for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+                    if (ro->m_Textures[i])
+                        dmGraphics::SetTextureUnit(context, i, ro->m_Textures[i]);
 
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
 
@@ -259,6 +260,10 @@ namespace dmRender
                     dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
 
                 dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
+
+                for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+                    if (ro->m_Textures[i])
+                        dmGraphics::SetTextureUnit(context, i, 0);
             }
         }
         return RESULT_OK;
