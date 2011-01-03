@@ -2,7 +2,7 @@ function init(self)
     self.opaque_pred = render.predicate(self, {"opaque"})
     self.transp_pred = render.predicate(self, {"transp"})
     self.hud_pred = render.predicate(self, {"hud"})
-    self.shadow_rt = render.rendertarget(self, "shadow_rt", {
+    self.shadow_rt = render.rendertarget(self, "shadow_rt", {render.BUFFER_TYPE_DEPTH}, {
         format = render.TEXTURE_FORMAT_DEPTH,
         width = 512,
         height = 512,

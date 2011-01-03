@@ -193,12 +193,23 @@ namespace dmEngine
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
 
         const char* name = luaL_checkstring(L, 2);
+
+        uint32_t buffer_type_flags = 0;
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 3))
+        {
+            uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -1);
+            buffer_type_flags |= buffer_type;
+            lua_pop(L, 1);
+        }
+
         dmGraphics::TextureParams params;
         if (top > 3)
         {
-            luaL_checktype(L, 5, LUA_TTABLE);
+            luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushnil(L);
-            while (lua_next(L, 2))
+            while (lua_next(L, 4))
             {
                 const char* key = luaL_checkstring(L, -2);
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
@@ -246,7 +257,7 @@ namespace dmEngine
                 lua_pop(L, 1);
             }
         }
-        dmGraphics::HRenderTarget rendertarget = dmGraphics::NewRenderTarget(params);
+        dmGraphics::HRenderTarget rendertarget = dmGraphics::NewRenderTarget(buffer_type_flags, params);
         dmRender::RegisterRenderTarget(i->m_RenderContext, rendertarget, dmHashString32(name));
 
         lua_pushlightuserdata(L, (void*)rendertarget);
@@ -658,6 +669,10 @@ namespace dmEngine
         REGISTER_RENDER_CONSTANT(FRONT);
         REGISTER_RENDER_CONSTANT(BACK);
         REGISTER_RENDER_CONSTANT(FRONT_AND_BACK);
+
+        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_COLOR);
+        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_DEPTH);
+        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_STENCIL);
 
         #undef REGISTER_RENDER_CONSTANT
 
