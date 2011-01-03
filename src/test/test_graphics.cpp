@@ -49,7 +49,7 @@ TEST_F(dmGraphicsTest, Clear)
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t data[WIDTH * HEIGHT];
     memset(data, 1, sizeof(data));
-    ASSERT_EQ(0, memcmp(data, m_Device->m_RenderBuffer->m_ColorBuffer, sizeof(data)));
+    ASSERT_EQ(0, memcmp(data, m_Device->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
 }
 
 TEST_F(dmGraphicsTest, VertexBuffer)
@@ -242,13 +242,13 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(params);
-    dmGraphics::EnableRenderTarget(m_Context, target);
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH | dmGraphics::BUFFER_TYPE_STENCIL;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(flags, params);
+    dmGraphics::EnableRenderTarget(m_Context, target);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t data[WIDTH * HEIGHT];
     memset(data, 1, sizeof(data));
-    ASSERT_EQ(0, memcmp(data, m_Device->m_RenderBuffer->m_ColorBuffer, sizeof(data)));
+    ASSERT_EQ(0, memcmp(data, m_Device->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
     dmGraphics::DisableRenderTarget(m_Context, target);
     dmGraphics::DeleteRenderTarget(target);
 }

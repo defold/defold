@@ -610,67 +610,56 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HRenderTarget NewRenderTarget(const TextureParams& params)
+    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams& params)
     {
         RenderTarget* rt = new RenderTarget;
 
-        rt->m_Texture = NewTexture(params);
-
-        glGenFramebuffers(1, &rt->m_FboId);
+        glGenFramebuffers(1, &rt->m_Id);
         CHECK_GL_ERROR
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_FboId);
+        glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_Id);
         CHECK_GL_ERROR
 
-        glGenRenderbuffers(1, &rt->m_RboId);
-        CHECK_GL_ERROR
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, rt->m_RboId);
-        CHECK_GL_ERROR
-        glRenderbufferStorage(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, params.m_Width, params.m_Height);
-        CHECK_GL_ERROR
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
-        CHECK_GL_ERROR
-
-        // attach the texture to FBO color attachment point
-        glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, rt->m_Texture->m_Texture, 0);
-        CHECK_GL_ERROR
-
-        // attach the renderbuffer to depth attachment point
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, rt->m_RboId);
-        CHECK_GL_ERROR
+        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR, BUFFER_TYPE_DEPTH, BUFFER_TYPE_STENCIL};
+        GLenum buffer_attachments[MAX_BUFFER_TYPE_COUNT] = {GL_COLOR_ATTACHMENT0_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_STENCIL_ATTACHMENT_EXT};
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            if (buffer_type_flags & buffer_types[i])
+            {
+                rt->m_BufferTextures[i] = NewTexture(params);
+                // attach the texture to FBO color attachment point
+                glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
+                CHECK_GL_ERROR
+            }
+        }
 
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
         CHECK_GL_ERROR
 
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
-        CHECK_GL_ERROR
         return rt;
     }
 
 
-    void DeleteRenderTarget(HRenderTarget rendertarget)
+    void DeleteRenderTarget(HRenderTarget render_target)
     {
-        glDeleteFramebuffers(1, &rendertarget->m_FboId);
-        glDeleteRenderbuffers(1, &rendertarget->m_RboId);
-
-        DeleteTexture(rendertarget->m_Texture);
-        delete rendertarget;
+        glDeleteFramebuffers(1, &render_target->m_Id);
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+            DeleteTexture(render_target->m_BufferTextures[i]);
+        delete render_target;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget rendertarget)
+    void EnableRenderTarget(HContext context, HRenderTarget render_target)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, rendertarget->m_FboId);
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, rendertarget->m_RboId);
+        glBindFramebuffer(GL_FRAMEBUFFER_EXT, render_target->m_Id);
     }
 
-    void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
+    void DisableRenderTarget(HContext context, HRenderTarget render_target)
     {
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
-        glBindRenderbuffer(GL_RENDERBUFFER_EXT, 0);
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget)
+    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        return rendertarget->m_Texture;
+        return render_target->m_BufferTextures[buffer_type];
     }
 
     HTexture NewTexture(const TextureParams& params)

@@ -34,9 +34,10 @@ namespace dmGraphics
     // buffer clear types
     enum BufferType
     {
-        BUFFER_TYPE_COLOR   = GFXDEVICE_BUFFER_TYPE_COLOR,
-        BUFFER_TYPE_DEPTH   = GFXDEVICE_BUFFER_TYPE_DEPTH,
-        BUFFER_TYPE_STENCIL = GFXDEVICE_BUFFER_TYPE_STENCIL
+        BUFFER_TYPE_COLOR       = GFXDEVICE_BUFFER_TYPE_COLOR,
+        BUFFER_TYPE_DEPTH       = GFXDEVICE_BUFFER_TYPE_DEPTH,
+        BUFFER_TYPE_STENCIL     = GFXDEVICE_BUFFER_TYPE_STENCIL,
+        MAX_BUFFER_TYPE_COUNT   = 3
     };
 
     // bool states
@@ -296,11 +297,11 @@ namespace dmGraphics
     void SetStencilMask(HContext context, uint32_t mask);
     void SetCullFace(HContext context, FaceType face_type);
 
-    HRenderTarget NewRenderTarget(const TextureParams& params);
+    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams& params);
     void DeleteRenderTarget(HRenderTarget renderbuffer);
     void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget);
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type);
 
     HTexture NewTexture(const TextureParams& params);
     void SetTexture(HTexture texture, const TextureParams& params);

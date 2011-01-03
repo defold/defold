@@ -59,9 +59,8 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        GLuint      m_RboId;
-        GLuint      m_FboId;
-        Texture*    m_Texture;
+        GLuint      m_Id;
+        HTexture    m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
     };
 
 }

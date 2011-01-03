@@ -48,11 +48,10 @@ namespace dmGraphics
         gdevice.m_DisplayWidth = params->m_DisplayWidth;
         gdevice.m_DisplayHeight = params->m_DisplayHeight;
         gdevice.m_Opened = 1;
-        gdevice.m_FrameBuffer.m_ColorBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_FrameBuffer.m_DepthBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_FrameBuffer.m_AccumBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_FrameBuffer.m_StencilBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_RenderBuffer = &gdevice.m_FrameBuffer;
+        gdevice.m_MainFrameBuffer.m_ColorBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        gdevice.m_MainFrameBuffer.m_DepthBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        gdevice.m_MainFrameBuffer.m_StencilBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        gdevice.m_CurrentFrameBuffer = &gdevice.m_MainFrameBuffer;
         gdevice.m_VertexProgram = 0x0;
         gdevice.m_FragmentProgram = 0x0;
         return (HDevice)&gdevice;
@@ -61,10 +60,9 @@ namespace dmGraphics
     void DeleteDevice(HDevice device)
     {
         gdevice.m_Opened = 0;
-        delete [] (char*)gdevice.m_FrameBuffer.m_ColorBuffer;
-        delete [] (char*)gdevice.m_FrameBuffer.m_DepthBuffer;
-        delete [] (char*)gdevice.m_FrameBuffer.m_AccumBuffer;
-        delete [] (char*)gdevice.m_FrameBuffer.m_StencilBuffer;
+        delete [] (char*)gdevice.m_MainFrameBuffer.m_ColorBuffer;
+        delete [] (char*)gdevice.m_MainFrameBuffer.m_DepthBuffer;
+        delete [] (char*)gdevice.m_MainFrameBuffer.m_StencilBuffer;
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
         {
             VertexStream& vs = gdevice.m_VertexStreams[i];
@@ -80,19 +78,19 @@ namespace dmGraphics
         if (flags & dmGraphics::BUFFER_TYPE_COLOR)
         {
             uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
-            uint32_t* buffer = (uint32_t*)gdevice.m_RenderBuffer->m_ColorBuffer;
+            uint32_t* buffer = (uint32_t*)gdevice.m_CurrentFrameBuffer->m_ColorBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = colour;
         }
         if (flags & dmGraphics::BUFFER_TYPE_DEPTH)
         {
-            float* buffer = (float*)gdevice.m_RenderBuffer->m_DepthBuffer;
+            float* buffer = (float*)gdevice.m_CurrentFrameBuffer->m_DepthBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = depth;
         }
         if (flags & dmGraphics::BUFFER_TYPE_STENCIL)
         {
-            uint32_t* buffer = (uint32_t*)gdevice.m_RenderBuffer->m_StencilBuffer;
+            uint32_t* buffer = (uint32_t*)gdevice.m_CurrentFrameBuffer->m_StencilBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = stencil;
         }
@@ -379,14 +377,12 @@ namespace dmGraphics
         assert(context);
         gdevice.m_DisplayWidth = width;
         gdevice.m_DisplayHeight = height;
-        delete [] (char*)gdevice.m_FrameBuffer.m_ColorBuffer;
-        delete [] (char*)gdevice.m_FrameBuffer.m_DepthBuffer;
-        delete [] (char*)gdevice.m_FrameBuffer.m_AccumBuffer;
-        delete [] (char*)gdevice.m_FrameBuffer.m_StencilBuffer;
-        gdevice.m_FrameBuffer.m_ColorBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_FrameBuffer.m_DepthBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_FrameBuffer.m_AccumBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_FrameBuffer.m_StencilBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        delete [] (char*)gdevice.m_CurrentFrameBuffer->m_ColorBuffer;
+        delete [] (char*)gdevice.m_CurrentFrameBuffer->m_DepthBuffer;
+        delete [] (char*)gdevice.m_CurrentFrameBuffer->m_StencilBuffer;
+        gdevice.m_CurrentFrameBuffer->m_ColorBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        gdevice.m_CurrentFrameBuffer->m_DepthBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        gdevice.m_CurrentFrameBuffer->m_StencilBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
     }
 
     void SetFragmentConstant(HContext context, const Vector4* data, int base_register)
@@ -410,26 +406,33 @@ namespace dmGraphics
         memcpy(&gdevice.m_FragmentProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
     }
 
-    HRenderTarget NewRenderTarget(const TextureParams& params)
+    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams& params)
     {
         RenderTarget* rt = new RenderTarget();
+        memset(rt, 0, sizeof(RenderTarget));
 
-        rt->m_Texture = NewTexture(params);
-        rt->m_RenderBuffer.m_ColorBuffer = new char[4 * params.m_Width * params.m_Height];
-        rt->m_RenderBuffer.m_DepthBuffer = new char[4 * params.m_Width * params.m_Height];
-        rt->m_RenderBuffer.m_AccumBuffer = new char[4 * params.m_Width * params.m_Height];
-        rt->m_RenderBuffer.m_StencilBuffer = new char[4 * params.m_Width * params.m_Height];
+        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
+        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR, BUFFER_TYPE_DEPTH, BUFFER_TYPE_STENCIL};
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            if (buffer_type_flags & buffer_types[i])
+            {
+                *(buffers[i]) = new char[4 * params.m_Width * params.m_Height];
+                rt->m_BufferTextures[i] = NewTexture(params);
+            }
+        }
 
         return rt;
     }
 
     void DeleteRenderTarget(HRenderTarget rt)
     {
-        DeleteTexture(rt->m_Texture);
-        delete [] (char*)rt->m_RenderBuffer.m_ColorBuffer;
-        delete [] (char*)rt->m_RenderBuffer.m_DepthBuffer;
-        delete [] (char*)rt->m_RenderBuffer.m_AccumBuffer;
-        delete [] (char*)rt->m_RenderBuffer.m_StencilBuffer;
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+            if (rt->m_BufferTextures[i])
+                DeleteTexture(rt->m_BufferTextures[i]);
+        delete [] (char*)rt->m_FrameBuffer.m_ColorBuffer;
+        delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
+        delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
         delete rt;
     }
 
@@ -437,19 +440,19 @@ namespace dmGraphics
     {
         assert(context);
         assert(rendertarget);
-        gdevice.m_RenderBuffer = &rendertarget->m_RenderBuffer;
+        gdevice.m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
     }
 
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
     {
         assert(context);
         assert(rendertarget);
-        gdevice.m_RenderBuffer = &gdevice.m_FrameBuffer;
+        gdevice.m_CurrentFrameBuffer = &gdevice.m_MainFrameBuffer;
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget)
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
-        return rendertarget->m_Texture;
+        return rendertarget->m_BufferTextures[buffer_type];
     }
 
     HTexture NewTexture(const TextureParams& params)
