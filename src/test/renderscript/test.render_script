@@ -41,6 +41,7 @@ function update(self)
     render.set_projection(self, self.proj)
 
     render.set_texture_unit(self, 1, self.shadow_rt, render.BUFFER_TYPE_DEPTH)
+    render.set_fragment_constant(self, 3, vmath.vector4(1, 0.5, 0.5, 1))
     render.disable_state(self, render.BLEND)
     render.enable_state(self, render.DEPTH_TEST)
     render.set_depth_mask(self, true)
