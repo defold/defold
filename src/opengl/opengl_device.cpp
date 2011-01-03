@@ -94,6 +94,8 @@ namespace dmGraphics
         } \
     }\
 
+    extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
+    extern GLenum TEXTURE_UNIT_NAMES[32];
 
     Device gdevice;
     Context gcontext;
@@ -610,7 +612,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams& params)
+    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget;
 
@@ -619,13 +621,12 @@ namespace dmGraphics
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_Id);
         CHECK_GL_ERROR
 
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR, BUFFER_TYPE_DEPTH, BUFFER_TYPE_STENCIL};
         GLenum buffer_attachments[MAX_BUFFER_TYPE_COUNT] = {GL_COLOR_ATTACHMENT0_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_STENCIL_ATTACHMENT_EXT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            if (buffer_type_flags & buffer_types[i])
+            if (buffer_type_flags & BUFFER_TYPES[i])
             {
-                rt->m_BufferTextures[i] = NewTexture(params);
+                rt->m_BufferTextures[i] = NewTexture(params[i]);
                 // attach the texture to FBO color attachment point
                 glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
                 CHECK_GL_ERROR
@@ -659,7 +660,7 @@ namespace dmGraphics
 
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        return render_target->m_BufferTextures[buffer_type];
+        return render_target->m_BufferTextures[GetBufferTypeIndex(buffer_type)];
     }
 
     HTexture NewTexture(const TextureParams& params)
@@ -767,8 +768,6 @@ namespace dmGraphics
         delete texture;
     }
 
-    extern GLenum TEXTURE_UNIT_NAMES[32];
-
     void SetTextureUnit(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
@@ -855,6 +854,8 @@ namespace dmGraphics
     {
         return gdevice.m_DisplayHeight;
     }
+
+    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR, BUFFER_TYPE_DEPTH, BUFFER_TYPE_STENCIL};
 
     GLenum TEXTURE_UNIT_NAMES[32] =
     {

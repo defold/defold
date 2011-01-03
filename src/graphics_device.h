@@ -297,10 +297,11 @@ namespace dmGraphics
     void SetStencilMask(HContext context, uint32_t mask);
     void SetCullFace(HContext context, FaceType face_type);
 
-    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams& params);
+    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget renderbuffer);
     void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
+    inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type);
 
     HTexture NewTexture(const TextureParams& params);
@@ -313,6 +314,17 @@ namespace dmGraphics
 
     uint32_t GetWindowWidth();
     uint32_t GetWindowHeight();
+
+    uint32_t GetBufferTypeIndex(BufferType buffer_type)
+    {
+        switch (buffer_type)
+        {
+            case BUFFER_TYPE_COLOR: return 0;
+            case BUFFER_TYPE_DEPTH: return 1;
+            case BUFFER_TYPE_STENCIL: return 2;
+            default: return ~0u;
+        }
+    }
 }
 
 #endif // GRAPHICSDEVICE_H

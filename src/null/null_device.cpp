@@ -406,7 +406,7 @@ namespace dmGraphics
         memcpy(&gdevice.m_FragmentProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
     }
 
-    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams& params)
+    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
@@ -417,8 +417,8 @@ namespace dmGraphics
         {
             if (buffer_type_flags & buffer_types[i])
             {
-                *(buffers[i]) = new char[4 * params.m_Width * params.m_Height];
-                rt->m_BufferTextures[i] = NewTexture(params);
+                *(buffers[i]) = new char[4 * params[i].m_Width * params[i].m_Height];
+                rt->m_BufferTextures[i] = NewTexture(params[i]);
             }
         }
 
