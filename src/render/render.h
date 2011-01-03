@@ -99,10 +99,15 @@ namespace dmRender
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
-    void SetVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void ResetVertexConstant(RenderObject* ro, uint32_t reg);
-    void SetFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void ResetFragmentConstant(RenderObject* ro, uint32_t reg);
+    void SetVertexConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetVertexConstant(HRenderContext context, uint32_t reg);
+    void SetFragmentConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetFragmentConstant(HRenderContext context, uint32_t reg);
+
+    void SetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg);
+    void SetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
+    void ResetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).

@@ -55,6 +55,9 @@ namespace dmRender
         context->m_DisplayWidth = params.m_DisplayWidth;
         context->m_DisplayHeight = params.m_DisplayHeight;
 
+        context->m_VertexConstantMask = 0;
+        context->m_FragmentConstantMask = 0;
+
         InitializeTextContext(context, params.m_MaxCharacters);
 
         context->m_OutOfResources = 0;
@@ -167,12 +170,26 @@ namespace dmRender
         if (predicate != 0x0)
             tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
 
+        dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+
+        for (uint32_t i = 0; i < MAX_CONSTANT_COUNT; ++i)
+        {
+            uint32_t mask = 1 << i;
+            if (render_context->m_VertexConstantMask & mask)
+            {
+                dmGraphics::SetVertexConstantBlock(context, &render_context->m_VertexConstants[i], i, 1);
+            }
+            if (render_context->m_FragmentConstantMask & mask)
+            {
+                dmGraphics::SetFragmentConstant(context, &render_context->m_FragmentConstants[i], i);
+            }
+        }
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
             if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
-                dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
                 dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(ro->m_Material));
                 dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(ro->m_Material));
 
@@ -264,6 +281,59 @@ namespace dmRender
                 for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
                     if (ro->m_Textures[i])
                         dmGraphics::SetTextureUnit(context, i, 0);
+
+                for (uint32_t j = 0; j < MAX_CONSTANT_COUNT; ++j)
+                {
+                    uint32_t mask = 1 << j;
+                    if (render_context->m_VertexConstantMask & mask)
+                    {
+                        uint32_t register_count = 0;
+                        if (ro->m_VertexConstantMask & mask)
+                        {
+                            register_count = 1;
+                        }
+                        else if (material_vertex_mask & mask)
+                        {
+                            switch (GetMaterialVertexProgramConstantType(ro->m_Material, j))
+                            {
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+                                    register_count = 1;
+                                    break;
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
+                                    register_count = 4;
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        for (uint32_t k = 0; k < register_count; ++k)
+                            dmGraphics::SetVertexConstantBlock(context, (Vector4*)&render_context->m_VertexConstants[j + k], j + k, 1);
+                    }
+                    if (render_context->m_FragmentConstantMask & mask)
+                    {
+                        uint32_t register_count = 0;
+                        if (ro->m_FragmentConstantMask & (1 << j))
+                            register_count = 1;
+                        else if (material_fragment_mask & mask)
+                        {
+                            switch (GetMaterialFragmentProgramConstantType(ro->m_Material, j))
+                            {
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+                                    register_count = 1;
+                                    break;
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
+                                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
+                                    register_count = 4;
+                                    break;
+                            }
+                        }
+                        for (uint32_t k = 0; k < register_count; ++k)
+                            dmGraphics::SetFragmentConstant(context, &render_context->m_FragmentConstants[j + k], j + k);
+                    }
+                }
             }
         }
         return RESULT_OK;
@@ -279,8 +349,55 @@ namespace dmRender
         return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
-    void SetVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetVertexConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value)
     {
+        assert(context);
+        if (reg < MAX_CONSTANT_COUNT)
+        {
+            context->m_VertexConstants[reg] = value;
+            context->m_VertexConstantMask |= 1 << reg;
+        }
+        else
+        {
+            dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
+        }
+    }
+
+    void ResetVertexConstant(HRenderContext context, uint32_t reg)
+    {
+        assert(context);
+        if (reg < MAX_CONSTANT_COUNT)
+            context->m_VertexConstantMask &= ~(1 << reg);
+        else
+            dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
+    }
+
+    void SetFragmentConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    {
+        assert(context);
+        if (reg < MAX_CONSTANT_COUNT)
+        {
+            context->m_FragmentConstants[reg] = value;
+            context->m_FragmentConstantMask |= 1 << reg;
+        }
+        else
+        {
+            dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
+        }
+    }
+
+    void ResetFragmentConstant(HRenderContext context, uint32_t reg)
+    {
+        assert(context);
+        if (reg < MAX_CONSTANT_COUNT)
+            context->m_FragmentConstantMask &= ~(1 << reg);
+        else
+            dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
+    }
+
+    void SetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    {
+        assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
         {
             ro->m_VertexConstants[reg] = value;
@@ -292,16 +409,18 @@ namespace dmRender
         }
     }
 
-    void ResetVertexConstant(RenderObject* ro, uint32_t reg)
+    void ResetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg)
     {
+        assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
             ro->m_VertexConstantMask &= ~(1 << reg);
         else
             dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
     }
 
-    void SetFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
     {
+        assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
         {
             ro->m_FragmentConstants[reg] = value;
@@ -313,8 +432,9 @@ namespace dmRender
         }
     }
 
-    void ResetFragmentConstant(RenderObject* ro, uint32_t reg)
+    void ResetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg)
     {
+        assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
             ro->m_FragmentConstantMask &= ~(1 << reg);
         else

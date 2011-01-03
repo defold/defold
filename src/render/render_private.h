@@ -53,6 +53,8 @@ namespace dmRender
 
     struct RenderContext
     {
+        Vectormath::Aos::Vector4    m_VertexConstants[MAX_CONSTANT_COUNT];
+        Vectormath::Aos::Vector4    m_FragmentConstants[MAX_CONSTANT_COUNT];
         dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
         DebugRenderer               m_DebugRenderer;
@@ -66,6 +68,9 @@ namespace dmRender
 
         uint32_t                    m_DisplayWidth;
         uint32_t                    m_DisplayHeight;
+
+        uint32_t                    m_VertexConstantMask;
+        uint32_t                    m_FragmentConstantMask;
 
         uint32_t                    m_OutOfResources : 1;
     };
