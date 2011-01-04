@@ -1,0 +1,3 @@
+instructions.configure=\
+  addRepository(type:0,location:http${#58}//overrated.dyndns.org/cr/1.0/repository/);\
+  addRepository(type:1,location:http${#58}//overrated.dyndns.org/cr/1.0/repository/);

@@ -1,0 +1,33 @@
+Name: "test"
+Instances {
+  Id: "attacker"
+  Prototype: "attacker.go"
+  Position {
+    X: 2.0
+    Y: 0.0
+    Z: 0.0
+    d: 0.0
+  }
+  Rotation {
+    X: 0.0
+    Y: 0.0
+    Z: 0.0
+    W: 1.0
+  }
+}
+Instances {
+  Id: "target"
+  Prototype: "target.go"
+  Position {
+    X: -0.37459782
+    Y: 0.0
+    Z: 2.6518583
+    d: 0.0
+  }
+  Rotation {
+    X: 0.0
+    Y: 0.0
+    Z: 0.0
+    W: 1.0
+  }
+}

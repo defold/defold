@@ -1,0 +1,16 @@
+package com.dynamo.server.git;
+
+import java.io.IOException;
+
+public class GitException extends IOException {
+
+    /**
+     *
+     */
+    private static final long serialVersionUID = 5133535096852292587L;
+
+    public GitException(String string) {
+        super(string);
+    }
+
+}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            name="Lua Editor"
+            extensions="lua,script,gui_script"
+            icon="icons/lua.gif"
+            contributorClass="org.eclipse.ui.texteditor.BasicTextEditorActionContributor"
+            class="com.dynamo.cr.luaeditor.LuaEditor"
+            id="com.dynamo.cr.luaeditor.LuaEditor">
+      </editor>
+   </extension>
+
+</plugin>

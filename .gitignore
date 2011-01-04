@@ -1,0 +1,12 @@
+bin
+tmp
+.DS_Store
+.lock-wscript
+build
+slask
+*.pyc
+java_bin
+DYNAMO_HOME
+target
+log
+

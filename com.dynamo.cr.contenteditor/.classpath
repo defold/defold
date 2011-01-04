@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry exported="true" kind="lib" path="lib/junit.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/openmali.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/render.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gamesys.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/ddf.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gameobject.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/gluegen-rt.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jogl.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/vecmath.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

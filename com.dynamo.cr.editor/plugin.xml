@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <extension
+         id="application"
+         point="org.eclipse.core.runtime.applications">
+      <application>
+         <run
+               class="com.dynamo.cr.editor.Application">
+         </run>
+      </application>
+   </extension>
+   <extension
+         point="org.eclipse.ui.perspectives">
+      <perspective
+            name="RCP Perspective"
+            class="com.dynamo.cr.editor.Perspective"
+            id="com.dynamo.cr.editor.perspective">
+      </perspective>
+   </extension>
+   <extension
+         id="product"
+         point="org.eclipse.core.runtime.products">
+      <product
+            application="com.dynamo.cr.editor.application"
+            name="Dynamo Editor">
+         <property
+               name="appName"
+               value="Dynamo Editor">
+         </property>
+         <property
+               name="startupProgressRect"
+               value="5,275,445,15">
+         </property>
+         <property
+               name="preferenceCustomization"
+               value="plugin_customization.ini">
+         </property>
+      </product>
+   </extension>
+
+   <extension
+         point="org.eclipse.core.filesystem.filesystems">
+      <filesystem
+            scheme="crepo">
+         <run
+               class="com.dynamo.cr.editor.fs.RepositoryFileSystem">
+         </run>
+      </filesystem>
+   </extension>
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            class="com.dynamo.cr.editor.status.ChangedFilesView"
+            icon="icons/repository_rep.gif"
+            id="com.dynamo.crepo.changedfiles"
+            name="Changed Files"
+            restorable="true">
+      </view>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=additions">
+         <toolbar
+               id="com.dynamo.crepo.toolbar"
+               label="Content Repository">
+            <command
+                  commandId="org.eclipse.ui.file.save"
+                  icon="icons/save_edit.gif"
+                  label="Save"
+                  mode="FORCE_TEXT"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.connect"
+                  icon="icons/repository_rep.gif"
+                  label="Connect"
+                  mode="FORCE_TEXT"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.launch"
+                  icon="icons/start_task.gif"
+                  id="com.dynamo.crepo.commands.toolbar.launch"
+                  label="Launch"
+                  mode="FORCE_TEXT"
+                  style="pulldown">
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.publish"
+                  icon="icons/cvs_synch.gif"
+                  label="Publish"
+                  mode="FORCE_TEXT"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.update"
+                  icon="icons/synced.gif"
+                  label="Update"
+                  mode="FORCE_TEXT"
+                  style="push">
+            </command>
+         </toolbar>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:com.dynamo.crepo.commands.toolbar.launch">
+         <command
+               commandId="com.dynamo.crepo.commands.launch"
+               label="Build"
+               style="push">
+            <parameter
+                  name="com.dynamo.crepo.commands.launch.type"
+                  value="build">
+            </parameter>
+         </command>
+         <separator
+               name="com.dynamo.cr.editor.separator1">
+         </separator>
+         <command
+               commandId="com.dynamo.crepo.commands.launch"
+               label="Rebuild"
+               style="push">
+            <parameter
+                  name="com.dynamo.crepo.commands.launch.type"
+                  value="rebuild">
+            </parameter>
+         </command>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:edit">
+         <command
+               commandId="com.dynamo.crepo.commands.reloadresource"
+               label="Reload resource"
+               style="push"
+               tooltip="Reload resources">
+         </command>
+         <command
+               commandId="org.eclipse.ui.navigate.openResource"
+               label="Open resource..."
+               style="push"
+               tooltip="Open resource">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <category
+            name="Content Repository"
+            id="com.dynamo.crepo.category">
+      </category>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.ConnectHandler"
+            description="Connect to resource server"
+            id="com.dynamo.crepo.commands.connect"
+            name="Connect">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.LaunchHandler"
+            description="Launch game"
+            id="com.dynamo.crepo.commands.launch"
+            name="Launch game">
+         <commandParameter
+               id="com.dynamo.crepo.commands.launch.type"
+               name="com.dynamo.crepo.commands.launch.type"
+               optional="true">
+         </commandParameter>
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.PublishHandler"
+            description="Publish changes"
+            id="com.dynamo.crepo.commands.publish"
+            name="Publish changes">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.UpdateHandler"
+            description="Update resources"
+            id="com.dynamo.crepo.commands.update"
+            name="Update resources">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.ReloadResourceHandler"
+            description="Reload resource"
+            id="com.dynamo.crepo.commands.reloadresource"
+            name="Reload resource">
+      </command>
+   </extension>
+
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            class="com.dynamo.cr.editor.preferences.PreferencePage"
+            id="com.dynamo.rclient.preferences.PreferencePage"
+            name="Content Repository">
+      </page>
+   </extension>
+   <extension
+         point="org.eclipse.core.runtime.preferences">
+      <initializer
+            class="com.dynamo.cr.editor.preferences.PreferenceInitializer">
+      </initializer>
+   </extension>
+   <extension
+         id="crnature"
+         point="org.eclipse.core.resources.natures">
+      <runtime>
+         <run
+               class="com.dynamo.cr.editor.ProjectNature">
+         </run>
+      </runtime>
+   </extension>
+   <extension
+         id="com.dynamo.cr.editor.builders.contentbuilder"
+         name="Content Builder"
+         point="org.eclipse.core.resources.builders">
+      <builder
+            callOnEmptyDelta="true">
+         <run
+               class="com.dynamo.cr.editor.builders.ContentBuilder">
+         </run></builder>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.dynamo.crepo.commands.reloadresource"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+R">
+      </key>
+   </extension>
+
+</plugin>

@@ -1,0 +1,42 @@
+package dmResourceServer;
+
+//import "ddf_extensions.proto";
+
+option java_package = "com.dynamo.cr.proto";
+option java_outer_classname = "Config";
+//option (ddf_java_package) = "com.dynamo.cr.ddf";
+
+message Command
+{
+    repeated string Args = 1;
+}
+
+message Application
+{
+    required string Platform = 1;
+    required string Name = 2;
+    required string Path = 3;
+}
+
+message ProjectConfiguration
+{
+    required string Id = 1;
+    required string Name = 2;
+    required string Root = 3;
+    required string ProgressRe = 4;
+    required Command ConfigureCommand = 5;
+    required Command BuildCommand = 6;
+    required Command RebuildCommand = 7;
+    required Command ExeCommand = 8;
+    repeated Application Applications = 9;
+}
+
+message Configuration
+{
+    repeated ProjectConfiguration projects = 1;
+    required string BranchRoot = 2;
+    repeated string Filters = 3;
+    required int32 ServicePort = 4;
+    required int32 BuildDataPort = 5;
+}
+

@@ -1,0 +1,186 @@
+package dmContentRepoProtocol;
+
+//import "ddf_extensions.proto";
+
+option java_package = "com.dynamo.cr.protocol.proto";
+option java_outer_classname = "Protocol";
+//option (ddf_java_package) = "com.dynamo.cr.protocol.ddf";
+
+/*
+  URI REST schemes:
+
+  Projects:
+    GET: http://host/projects/id
+    GET: http://host/projects/
+
+  Branches:
+    GET, PUT, DELETE: http://host/branch/project/user/branch_name
+
+  Merge/Update/Publish/Commit/Resolve:
+    POST: http://host/branch/project/user/branch_name/commits/update
+    POST: http://host/branch/project/user/branch_name/commits/commit
+    POST: http://host/branch/project/user/branch_name/commits/commit_merge
+    POST: http://host/branch/project/user/branch_name/commits/publish
+    PUT: http://host/branch/project/user/branch_name/resolve/stage/path
+
+  Resources:
+    GET, PUT, DELETE: http://host/branch/project/user/branch_name/resources/path
+
+  Builds:
+    POST: http://host/branch/project/user/branch_name/builds
+    GET: http://host/branch/project/user/branch_name/builds/build_nr
+*/
+
+// Some messages below are currently not used. See TODO
+
+enum CommandType
+{
+    LOGIN = 1;
+}
+
+enum Status
+{
+    NOT_LOGGED_IN = 1;
+    OK = 0;
+    FAILURE = -1;
+}
+
+message ProjectInfo {
+    required string id = 1;
+    required string name = 2;
+    required string root = 3;
+}
+
+message ApplicationInfo {
+    required string name = 1;
+    required string version = 2;
+    required int32 size = 3;
+}
+
+message ProjectList {
+    repeated ProjectInfo projects = 1;
+}
+
+message BranchStatus
+{
+    enum State
+    {
+        CLEAN = 0;
+        DIRTY = 1;
+        MERGE = 2;
+    }
+
+    message Status
+    {
+        // Path relative to branch root
+        required string Name = 1;
+
+        // "M" => for modified
+        // "U" => for unmerged
+        // "A" => for added
+        // "D" => for deleteted
+        // "R" => for renamed
+        required string Status = 2;
+
+        // Original name, only set if file is renamed
+        optional string Original = 3;
+    }
+
+    // TODO: Change to Path?
+    required string Name = 1;
+    required State BranchState = 2;
+    repeated Status FileStatus = 3;
+    optional uint32 CommitsAhead = 4 [default = 0];
+    optional uint32 CommitsBehind = 5 [default = 0];
+}
+
+message BranchList
+{
+    repeated string branches = 1;
+}
+
+message BuildDesc
+{
+    enum Activity
+    {
+        IDLE = 0;
+        BUILDING = 1;
+    }
+
+    enum Result
+    {
+        OK = 0;
+        ERROR = 1;
+    }
+
+    required int32 Id = 1;
+    required Activity BuildActivity = 2;
+    required Result BuildResult = 3;
+    required int32 Progress = 4;
+    required int32 WorkAmount = 5;
+}
+
+message BuildLog
+{
+    required string StdOut = 1;
+    required string StdErr = 2;
+}
+
+enum ResolveStage
+{
+    BASE = 1;
+    YOURS = 2;
+    THEIRS = 3;
+}
+
+enum ResourceType
+{
+    FILE = 1;
+    DIRECTORY = 2;
+}
+
+message ResourceInfo
+{
+    required string Path = 1;
+    required string Name = 2;
+    required ResourceType Type = 3;
+    required int64 LastModified = 4;
+    optional int32 Size = 5;
+
+    // Only valid if Type == ResourceType.DIRECTORY
+    repeated string SubResourceNames = 6;
+}
+
+message CommitDesc
+{
+    required string Id = 1;
+    required string Message = 2;
+}
+
+message ResourceDesc
+{
+    required string Path = 1;
+}
+
+message Response
+{
+    required Status Status = 1;
+    required string Message = 2;
+}
+
+message CommandPayload
+{
+    required CommandType Type = 1;
+    required string LoginToken = 2;
+    required bytes Payload = 3;
+}
+
+message LoginCommand
+{
+    required string UserName = 1;
+}
+
+message NewBuild
+{
+    optional int32 DUMMY = 99;
+}

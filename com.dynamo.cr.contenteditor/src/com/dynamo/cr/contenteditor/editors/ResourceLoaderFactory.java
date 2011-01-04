@@ -1,0 +1,70 @@
+package com.dynamo.cr.contenteditor.editors;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+
+import org.eclipse.core.filesystem.EFS;
+import org.eclipse.core.filesystem.IFileStore;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Path;
+
+import com.dynamo.cr.contenteditor.scene.LoaderFactory;
+
+public class ResourceLoaderFactory extends LoaderFactory {
+
+    private IContainer contentRoot;
+
+    @Override
+    protected InputStream getInputStream(String name) throws IOException {
+
+        IFile f;
+        if (name.startsWith("/")) {
+            f = contentRoot.getWorkspace().getRoot().getFile(new Path(name));
+            //System.out.println(f.getFullPath().toPortableString());
+        }
+        else {
+            f = contentRoot.getFile(new Path(name));
+        }
+
+        try {
+            // TODO: EFS REALLY NECCESSARY
+            URI uri = f.getLocationURI();
+            IFileStore store = EFS.getStore(uri);
+            if (!store.fetchInfo().exists()) {
+                throw new IOException(String.format("File %s doesn't exists", name));
+            }
+
+            return store.openInputStream(EFS.NONE, new NullProgressMonitor());
+
+            //return f.getContents();
+        } catch (CoreException e) {
+            throw new IOException(e);
+        }
+    }
+
+    public IContainer getContentRoot() {
+        return contentRoot;
+    }
+
+    public boolean findContentRoot(IFile file) {
+        IContainer c = file.getParent();
+        while (c != null) {
+            if (c instanceof IFolder) {
+                IFolder folder = (IFolder) c;
+                IFile f = folder.getFile("game.project");
+                if (f.exists()) {
+                    this.contentRoot = c;
+                    return true;
+                }
+            }
+            c = c.getParent();
+        }
+        return false;
+    }
+
+}
