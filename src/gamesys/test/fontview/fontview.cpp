@@ -82,8 +82,8 @@ int32_t Run(Context* context)
         dmRender::DrawText(context->m_RenderContext, context->m_Font, params);
 
         dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::EnableState(gfx_context, dmGraphics::BLEND);
-        dmGraphics::DisableState(gfx_context, dmGraphics::DEPTH_TEST);
+        dmGraphics::EnableState(gfx_context, dmGraphics::STATE_BLEND);
+        dmGraphics::DisableState(gfx_context, dmGraphics::STATE_DEPTH_TEST);
         dmRender::Draw(context->m_RenderContext, 0x0);
         dmRender::ClearRenderObjects(context->m_RenderContext);
 
@@ -123,7 +123,7 @@ bool Init(Context* context, int argc, char* argv[])
 
         dmGraphics::HContext gfx_context = dmGraphics::GetContext();
 
-        dmGraphics::EnableState(gfx_context, dmGraphics::DEPTH_TEST);
+        dmGraphics::EnableState(gfx_context, dmGraphics::STATE_DEPTH_TEST);
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 10;
