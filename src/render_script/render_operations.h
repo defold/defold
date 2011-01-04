@@ -24,10 +24,11 @@ namespace dmEngine
         CMD_SETINDEXMASK            = 12,
         CMD_SETSTENCILMASK          = 13,
         CMD_SETCULLFACE             = 14,
-        CMD_DRAW                    = 15,
-        CMD_DRAWDEBUG3D             = 16,
-        CMD_DRAWDEBUG2D             = 17,
-        CMD_MAX                     = 18
+        CMD_SETPOLYGONOFFSET        = 15,
+        CMD_DRAW                    = 16,
+        CMD_DRAWDEBUG3D             = 17,
+        CMD_DRAWDEBUG2D             = 18,
+        CMD_MAX                     = 19
     };
 
     struct RenderCommand

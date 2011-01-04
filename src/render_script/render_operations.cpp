@@ -16,12 +16,12 @@ namespace dmEngine
             {
                 case CMD_ENABLE_STATE:
                 {
-                    dmGraphics::EnableState(context, (dmGraphics::RenderState)c->m_Operands[0]);
+                    dmGraphics::EnableState(context, (dmGraphics::State)c->m_Operands[0]);
                     break;
                 }
                 case CMD_DISABLE_STATE:
                 {
-                    dmGraphics::DisableState(context, (dmGraphics::RenderState)c->m_Operands[0]);
+                    dmGraphics::DisableState(context, (dmGraphics::State)c->m_Operands[0]);
                     break;
                 }
                 case CMD_ENABLE_RENDERTARGET:
@@ -98,6 +98,11 @@ namespace dmEngine
                 case CMD_SETCULLFACE:
                 {
                     dmGraphics::SetCullFace(context, (dmGraphics::FaceType)c->m_Operands[0]);
+                    break;
+                }
+                case CMD_SETPOLYGONOFFSET:
+                {
+                    dmGraphics::SetPolygonOffset(context, (float)c->m_Operands[0], (float)c->m_Operands[1]);
                     break;
                 }
                 case CMD_DRAW:

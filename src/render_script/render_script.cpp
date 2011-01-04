@@ -141,10 +141,13 @@ namespace dmEngine
 
         switch (state)
         {
-            case dmGraphics::DEPTH_TEST:
-            case dmGraphics::ALPHA_TEST:
-            case dmGraphics::BLEND:
-            case dmGraphics::CULL_FACE:
+            case dmGraphics::STATE_DEPTH_TEST:
+            case dmGraphics::STATE_ALPHA_TEST:
+            case dmGraphics::STATE_BLEND:
+            case dmGraphics::STATE_CULL_FACE:
+            case dmGraphics::STATE_POLYGON_OFFSET_FILL:
+            case dmGraphics::STATE_POLYGON_OFFSET_LINE:
+            case dmGraphics::STATE_POLYGON_OFFSET_POINT:
                 break;
             default:
                 luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
@@ -160,10 +163,13 @@ namespace dmEngine
         uint32_t state = luaL_checknumber(L, 2);
         switch (state)
         {
-            case dmGraphics::DEPTH_TEST:
-            case dmGraphics::ALPHA_TEST:
-            case dmGraphics::BLEND:
-            case dmGraphics::CULL_FACE:
+            case dmGraphics::STATE_DEPTH_TEST:
+            case dmGraphics::STATE_ALPHA_TEST:
+            case dmGraphics::STATE_BLEND:
+            case dmGraphics::STATE_CULL_FACE:
+            case dmGraphics::STATE_POLYGON_OFFSET_FILL:
+            case dmGraphics::STATE_POLYGON_OFFSET_LINE:
+            case dmGraphics::STATE_POLYGON_OFFSET_POINT:
                 break;
             default:
                 luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
@@ -539,6 +545,16 @@ namespace dmEngine
         return 0;
     }
 
+    int RenderScript_SetPolygonOffset(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+        float factor = luaL_checknumber(L, 2);
+        float units = luaL_checknumber(L, 3);
+        InsertRenderCommand(RenderCommand(CMD_SETPOLYGONOFFSET, (uint32_t)factor, (uint32_t)units));
+        return 0;
+    }
+
     int RenderScript_GetWindowWidth(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -649,6 +665,7 @@ namespace dmEngine
         {"set_index_mask",          RenderScript_SetIndexMask},
         {"set_stencil_mask",        RenderScript_SetStencilMask},
         {"set_cull_face",           RenderScript_SetCullFace},
+        {"set_polygon_offset",      RenderScript_SetPolygonOffset},
         {"draw",                    RenderScript_Draw},
         {"draw_debug3d",            RenderScript_DrawDebug3d},
         {"draw_debug2d",            RenderScript_DrawDebug2d},
@@ -697,10 +714,13 @@ namespace dmEngine
         lua_pushnumber(L, dmGraphics::name);\
         lua_settable(L, -3);
 
-        REGISTER_RENDER_CONSTANT(DEPTH_TEST);
-        REGISTER_RENDER_CONSTANT(ALPHA_TEST);
-        REGISTER_RENDER_CONSTANT(BLEND);
-        REGISTER_RENDER_CONSTANT(CULL_FACE);
+        REGISTER_RENDER_CONSTANT(STATE_DEPTH_TEST);
+        REGISTER_RENDER_CONSTANT(STATE_ALPHA_TEST);
+        REGISTER_RENDER_CONSTANT(STATE_BLEND);
+        REGISTER_RENDER_CONSTANT(STATE_CULL_FACE);
+        REGISTER_RENDER_CONSTANT(STATE_POLYGON_OFFSET_FILL);
+        REGISTER_RENDER_CONSTANT(STATE_POLYGON_OFFSET_LINE);
+        REGISTER_RENDER_CONSTANT(STATE_POLYGON_OFFSET_POINT);
 
         REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_LUMINANCE);
         REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGB);
