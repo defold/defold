@@ -120,6 +120,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     private boolean isRendering;
     private boolean updateDirtyStateAsyncInflight = false;
+    private long lastUpdateAsyncTime = 0;
 
     public CollectionEditor() {
         factory = new ResourceLoaderFactory();
@@ -1145,12 +1146,22 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
          * We need to postpone dirty check as the undo operation can
          * still be active at this point. (Triggered from a method in IUndoableOperation)
          */
+
+        int delay = 10;
+        long time = System.currentTimeMillis();
+        if (time - lastUpdateAsyncTime < 200) {
+            delay = 300;
+        }
+        lastUpdateAsyncTime = time;
+
+        // We need to calculate delay before returning here
+        // lastUpdateAsyncTime needs to be updated for every call
         if (updateDirtyStateAsyncInflight)
             return;
 
         Display display = getSite().getShell().getDisplay();
         updateDirtyStateAsyncInflight = true;
-        display.timerExec(300, new Runnable()
+        display.timerExec(delay, new Runnable()
         {
             @Override
             public void run()
