@@ -187,10 +187,14 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
                                           String.format("Identifier %s already used.", value));
             }
             else {
-                SetIdentifierOperation op = new SetIdentifierOperation(node, (String) value);
-                m_Editor.executeOperation(op);
-                viewer.update(node, new String[] {});
-                viewer.refresh(node);
+                String stringValue = (String) value;
+                // Check if new value equals old
+                if (!node.getIdentifier().equals(stringValue)) {
+                    SetIdentifierOperation op = new SetIdentifierOperation(node, (String) value);
+                    m_Editor.executeOperation(op);
+                    viewer.update(node, new String[] {});
+                    viewer.refresh(node);
+                }
             }
         }
     }
