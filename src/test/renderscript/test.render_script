@@ -2,16 +2,17 @@ function init(self)
     self.opaque_pred = render.predicate(self, {"opaque"})
     self.transp_pred = render.predicate(self, {"transp"})
     self.hud_pred = render.predicate(self, {"hud"})
-    local depth_params = {
+    self.shadow_map_size = 1024
+    local shadow_params = {
         format = render.TEXTURE_FORMAT_DEPTH,
-        width = 512,
-        height = 512,
+        width = self.shadow_map_size,
+        height = self.shadow_map_size,
         min_filter = render.TEXTURE_FILTER_NEAREST,
         mag_filter = render.TEXTURE_FILTER_NEAREST,
         u_wrap = render.TEXTURE_WRAP_CLAMP,
         v_wrap = render.TEXTURE_WRAP_CLAMP
     }
-    self.shadow_rt = render.rendertarget(self, "shadow_rt", {[render.BUFFER_TYPE_DEPTH] = depth_params})
+    self.shadow_rt = render.rendertarget(self, "shadow_rt", {[render.BUFFER_TYPE_DEPTH] = shadow_params})
     self.view = vmath.matrix4()
     self.proj = vmath.matrix4()
 end
@@ -20,17 +21,20 @@ function update(self)
     render.enable_rendertarget(self, self.shadow_rt)
     render.set_depth_mask(self, true)
     render.set_color_mask(self, false, false, false, false)
-    render.set_viewport(self, 512, 512)
+    render.set_viewport(self, self.shadow_map_size, self.shadow_map_size)
     render.set_view(self, self.light_view)
     render.set_projection(self, self.light_proj)
     render.clear(self, {[render.BUFFER_TYPE_DEPTH] = 1})
-    render.disable_state(self, render.BLEND)
-    render.enable_state(self, render.DEPTH_TEST)
+    render.disable_state(self, render.STATE_BLEND)
+    render.enable_state(self, render.STATE_DEPTH_TEST)
     render.set_depth_mask(self, true)
-    render.enable_state(self, render.CULL_FACE)
-    render.set_cull_face(self, render.FRONT)
+    render.enable_state(self, render.STATE_CULL_FACE)
+    render.set_cull_face(self, render.BACK)
+    render.enable_state(self, render.STATE_POLYGON_OFFSET_FILL)
+    render.set_polygon_offset(self, 2, 1)
     render.draw(self, self.opaque_pred)
     render.disable_rendertarget(self, self.shadow_rt)
+    render.disable_state(self, render.STATE_POLYGON_OFFSET_FILL)
 
     render.set_depth_mask(self, true)
     render.set_color_mask(self, true, true, true, true)
@@ -41,22 +45,31 @@ function update(self)
     render.set_projection(self, self.proj)
 
     render.set_texture_unit(self, 1, self.shadow_rt, render.BUFFER_TYPE_DEPTH)
-    render.disable_state(self, render.BLEND)
-    render.enable_state(self, render.DEPTH_TEST)
+    render.set_vertex_constant(self, 12, self.light_view_proj)
+    render.set_fragment_constant(self, 1, vmath.vector4(0.1, 0.1, 0.1, 0))
+    render.set_fragment_constant(self, 2, vmath.vector4(self.light_color.x, self.light_color.y, self.light_color.z, 1))
+    render.set_fragment_constant(self, 3, vmath.vector4(self.light_position.x, self.light_position.y, self.light_position.z, 1))
+    render.set_fragment_constant(self, 4, vmath.vector4(self.light_direction.x, self.light_direction.y, self.light_direction.z, 0))
+    render.set_fragment_constant(self, 5, vmath.vector4(self.light_radius, math.cos(self.light_cone_angle * 0.5), self.light_drop_off, 1/self.shadow_map_size))
+    render.disable_state(self, render.STATE_BLEND)
+    render.enable_state(self, render.STATE_DEPTH_TEST)
     render.set_depth_mask(self, true)
-    render.enable_state(self, render.CULL_FACE)
+    render.enable_state(self, render.STATE_CULL_FACE)
     render.set_cull_face(self, render.BACK)
     render.draw(self, self.opaque_pred)
 
-    render.enable_state(self, render.BLEND)
+    render.enable_state(self, render.STATE_BLEND)
     render.set_blend_func(self, render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-    render.enable_state(self, render.DEPTH_TEST)
+    render.enable_state(self, render.STATE_DEPTH_TEST)
     render.set_depth_mask(self, false)
-    render.disable_state(self, render.CULL_FACE)
+    render.disable_state(self, render.STATE_CULL_FACE)
+    render.enable_state(self, render.STATE_POLYGON_OFFSET_FILL)
+    render.set_polygon_offset(self, 2, 1)
     render.draw(self, self.transp_pred)
     render.draw_debug3d(self)
+    render.disable_state(self, render.STATE_POLYGON_OFFSET_FILL)
 
-    render.disable_state(self, render.DEPTH_TEST)
+    render.disable_state(self, render.STATE_DEPTH_TEST)
     render.set_depth_mask(self, false)
     render.set_view(self, vmath.matrix4())
     render.set_projection(self, vmath.matrix4_orthographic(0, render.get_window_width(self), render.get_window_height(self), 0, 1, -1))
@@ -66,11 +79,18 @@ end
 
 function on_message(self, message_id, message)
     if message_id == hash("set_light") then
+        self.light_direction = vmath.rotate(message.rotation, vmath.vector3(0, 0, 1))
         local eye = message.position
         local at = message.position + vmath.rotate(message.rotation, vmath.vector3(0, 0, 1))
         local up = vmath.vector3(0, 1, 0)
         self.light_view = vmath.matrix4_look_at(eye, at, up)
-        self.light_proj = vmath.matrix4_perspective(message.cone_angle, render.get_window_width(self) / render.get_window_height(self), 1, -1000)
+        self.light_proj = vmath.matrix4_perspective(message.cone_angle, render.get_window_width(self) / render.get_window_height(self), 1, -message.radius)
+        self.light_view_proj = self.light_proj * self.light_view
+        self.light_position = message.position
+        self.light_radius = message.radius
+        self.light_cone_angle = message.cone_angle
+        self.light_drop_off = message.drop_off
+        self.light_color = message.color
     elseif message_id == hash("set_view_projection") then
         self.view = message.view
         self.proj = message.projection
