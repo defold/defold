@@ -215,10 +215,10 @@
       <view
             allowMultiple="false"
             category="com.dynamo.cr.editorcategory"
-            class="com.dynamo.cr.contenteditor.views.PropertyGridView"
+            class="com.dynamo.cr.contenteditor.views.PropertiesView"
             icon="icons/prop_ps.gif"
-            id="com.dynamo.cr.contenteditor.views.PropertyGridView"
-            name="Property Grid View">
+            id="com.dynamo.cr.contenteditor.views.PropertiesView"
+            name="Properties">
       </view>
    </extension>
    <extension
@@ -227,7 +227,7 @@
             targetID="com.dynamo.cr.editor.perspective">
          <view
                closeable="false"
-               id="com.dynamo.cr.contenteditor.views.PropertyGridView"
+               id="com.dynamo.cr.contenteditor.views.PropertiesView"
                moveable="true"
                ratio="0.65"
                relationship="right"

@@ -49,13 +49,13 @@ import com.dynamo.cr.contenteditor.scene.Scene;
 import com.dynamo.cr.contenteditor.scene.SceneEvent;
 import com.dynamo.cr.contenteditor.scene.ScenePropertyChangedEvent;
 
-public class PropertyGridView extends ViewPart implements ISelectionListener,
+public class PropertiesView extends ViewPart implements ISelectionListener,
         ISceneListener {
 
     /**
      * The ID of the view as specified by the extension.
      */
-    public static final String ID = "com.dynamo.cr.contenteditor.views.PropertyGridView";
+    public static final String ID = "com.dynamo.cr.contenteditor.views.PropertiesView";
 
     private TreeViewer viewer;
     Node node;
@@ -317,7 +317,7 @@ public class PropertyGridView extends ViewPart implements ISelectionListener,
     /**
      * The constructor.
      */
-    public PropertyGridView() {
+    public PropertiesView() {
         updateThread = new PropertyUpdateThread();
         updateThread.start();
 
