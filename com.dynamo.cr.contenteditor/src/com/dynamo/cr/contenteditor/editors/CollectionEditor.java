@@ -119,6 +119,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private Node pasteTarget = null;
 
     private boolean isRendering;
+    private boolean updateDirtyStateAsyncInflight = false;
 
     public CollectionEditor() {
         factory = new ResourceLoaderFactory();
@@ -940,6 +941,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_CameraController.mouseUp(e);
         m_ManipulatorController.mouseUp(e);
         m_RectangleSelectController.mouseUp(e, this);
+
+        // A little more snappy experience... (the little dirty * in editor)
+        updateDirtyState();
     }
 
     @Override
@@ -1140,24 +1144,31 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         /*
          * We need to postpone dirty check as the undo operation can
          * still be active at this point. (Triggered from a method in IUndoableOperation)
-         * TODO: This is called for every movement... A lot of calls when
-         * moving an object.
          */
+        if (updateDirtyStateAsyncInflight)
+            return;
+
         Display display = getSite().getShell().getDisplay();
-        display.asyncExec(new Runnable()
+        updateDirtyStateAsyncInflight = true;
+        display.timerExec(300, new Runnable()
         {
             @Override
             public void run()
             {
-                IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
-
-                m_Dirty = history.getUndoHistory(m_UndoContext).length != m_CleanUndoStackDepth;
-                firePropertyChange(PROP_DIRTY);
-
-                if (m_OutlinePage != null)
-                    m_OutlinePage.refresh();
+                updateDirtyState();
+                updateDirtyStateAsyncInflight = false;
             }
         });
+    }
+
+    void updateDirtyState() {
+        IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+
+        m_Dirty = history.getUndoHistory(m_UndoContext).length != m_CleanUndoStackDepth;
+        firePropertyChange(PROP_DIRTY);
+
+        if (m_OutlinePage != null)
+            m_OutlinePage.refresh();
     }
 
     @Override
