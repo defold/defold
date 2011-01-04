@@ -24,12 +24,7 @@ function gitclone {
 
     mkdir -p $BUILD_DIRECTORY/plugins
     mkdir -p $BUILD_DIRECTORY/features
-    pushd $BUILD_DIRECTORY/plugins > /dev/null
-
-    for P in $PROJECTS; do
-        git clone overrated.dyndns.org:/repo/$P
-    done
-    popd > /dev/null
+    git clone overrated.dyndns.org:/repo/com.dynamo.cr $BUILD_DIRECTORY/plugins
 }
 
 function build {
