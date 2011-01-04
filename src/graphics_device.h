@@ -40,13 +40,16 @@ namespace dmGraphics
         MAX_BUFFER_TYPE_COUNT   = 3
     };
 
-    // bool states
-    enum RenderState
+    // states
+    enum State
     {
-        DEPTH_TEST                              = GFXDEVICE_STATE_DEPTH_TEST,
-        ALPHA_TEST                              = GFXDEVICE_STATE_ALPHA_TEST,
-        BLEND                                   = GFXDEVICE_STATE_BLEND,
-        CULL_FACE                               = GFXDEVICE_STATE_CULL_FACE,
+        STATE_DEPTH_TEST            = GFXDEVICE_STATE_DEPTH_TEST,
+        STATE_ALPHA_TEST            = GFXDEVICE_STATE_ALPHA_TEST,
+        STATE_BLEND                 = GFXDEVICE_STATE_BLEND,
+        STATE_CULL_FACE             = GFXDEVICE_STATE_CULL_FACE,
+        STATE_POLYGON_OFFSET_FILL   = GFXDEVICE_STATE_POLYGON_OFFSET_FILL,
+        STATE_POLYGON_OFFSET_LINE   = GFXDEVICE_STATE_POLYGON_OFFSET_LINE,
+        STATE_POLYGON_OFFSET_POINT  = GFXDEVICE_STATE_POLYGON_OFFSET_POINT
     };
 
     // Types
@@ -288,14 +291,15 @@ namespace dmGraphics
 
     void SetViewport(HContext context, int width, int height);
 
-    void EnableState(HContext context, RenderState state);
-    void DisableState(HContext context, RenderState state);
+    void EnableState(HContext context, State state);
+    void DisableState(HContext context, State state);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
     void SetIndexMask(HContext context, uint32_t mask);
     void SetStencilMask(HContext context, uint32_t mask);
     void SetCullFace(HContext context, FaceType face_type);
+    void SetPolygonOffset(HContext context, float factor, float units);
 
     HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget renderbuffer);

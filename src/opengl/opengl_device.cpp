@@ -784,14 +784,14 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void EnableState(HContext context, RenderState state)
+    void EnableState(HContext context, State state)
     {
         assert(context);
         glEnable(state);
         CHECK_GL_ERROR
     }
 
-    void DisableState(HContext context, RenderState state)
+    void DisableState(HContext context, State state)
     {
         assert(context);
         glDisable(state);
@@ -838,6 +838,12 @@ namespace dmGraphics
         assert(context);
         glCullFace(face_type);
         CHECK_GL_ERROR
+    }
+
+    void SetPolygonOffset(HContext context, float factor, float units)
+    {
+        assert(context);
+        glPolygonOffset(factor, units);
     }
 
     uint32_t GetWindowParam(WindowParam param)

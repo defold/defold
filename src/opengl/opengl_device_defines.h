@@ -59,6 +59,9 @@ namespace dmGraphics
 #define GFXDEVICE_STATE_ALPHA_TEST                      (GL_ALPHA_TEST)
 #define GFXDEVICE_STATE_BLEND                           (GL_BLEND)
 #define GFXDEVICE_STATE_CULL_FACE                       (GL_CULL_FACE)
+#define GFXDEVICE_STATE_POLYGON_OFFSET_FILL             (GL_POLYGON_OFFSET_FILL)
+#define GFXDEVICE_STATE_POLYGON_OFFSET_LINE             (GL_POLYGON_OFFSET_LINE)
+#define GFXDEVICE_STATE_POLYGON_OFFSET_POINT            (GL_POLYGON_OFFSET_POINT)
 
 // Types
 #define GFXDEVICE_TYPE_BYTE                             (GL_BYTE)

@@ -489,12 +489,12 @@ namespace dmGraphics
         assert(texture);
     }
 
-    void EnableState(HContext context, RenderState state)
+    void EnableState(HContext context, State state)
     {
         assert(context);
     }
 
-    void DisableState(HContext context, RenderState state)
+    void DisableState(HContext context, State state)
     {
         assert(context);
     }
@@ -532,6 +532,11 @@ namespace dmGraphics
     }
 
     void SetCullFace(HContext context, FaceType face_type)
+    {
+        assert(context);
+    }
+
+    void SetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
     }
