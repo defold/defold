@@ -97,23 +97,23 @@ TEST_F(dmRenderTest, TestConstants)
 {
     Vectormath::Aos::Vector4 val(1.0f, 2.0f, 3.0f, 4.0f);
 
-    ASSERT_EQ(0, m_Context->m_VertexConstantMask & 1);
+    ASSERT_EQ(0u, m_Context->m_VertexConstantMask & 1);
     SetVertexConstant(m_Context, 0, val);
     ASSERT_EQ(val.getX(), m_Context->m_VertexConstants[0].getX());
     ASSERT_EQ(val.getY(), m_Context->m_VertexConstants[0].getY());
     ASSERT_EQ(val.getZ(), m_Context->m_VertexConstants[0].getZ());
-    ASSERT_EQ(1, m_Context->m_VertexConstantMask & 1);
+    ASSERT_EQ(1u, m_Context->m_VertexConstantMask & 1);
     ResetVertexConstant(m_Context, 0);
-    ASSERT_EQ(0, m_Context->m_VertexConstantMask & 1);
+    ASSERT_EQ(0u, m_Context->m_VertexConstantMask & 1);
 
-    ASSERT_EQ(0, m_Context->m_FragmentConstantMask & 1);
+    ASSERT_EQ(0u, m_Context->m_FragmentConstantMask & 1);
     SetFragmentConstant(m_Context, 0, val);
     ASSERT_EQ(val.getX(), m_Context->m_FragmentConstants[0].getX());
     ASSERT_EQ(val.getY(), m_Context->m_FragmentConstants[0].getY());
     ASSERT_EQ(val.getZ(), m_Context->m_FragmentConstants[0].getZ());
-    ASSERT_EQ(1, m_Context->m_FragmentConstantMask & 1);
+    ASSERT_EQ(1u, m_Context->m_FragmentConstantMask & 1);
     ResetFragmentConstant(m_Context, 0);
-    ASSERT_EQ(0, m_Context->m_FragmentConstantMask & 1);
+    ASSERT_EQ(0u, m_Context->m_FragmentConstantMask & 1);
 }
 
 TEST_F(dmRenderTest, TestRenderObjectConstants)
