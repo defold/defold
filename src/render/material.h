@@ -13,7 +13,7 @@
 
 namespace dmRender
 {
-    static const uint32_t           MAX_CONSTANT_COUNT = 12;
+    static const uint32_t           MAX_CONSTANT_COUNT = 32;
     typedef struct Material*        HMaterial;
 
     HMaterial                       NewMaterial();
