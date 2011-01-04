@@ -217,8 +217,6 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
             public int compare(Viewer viewer, Object e1, Object e2)
             {
                 if (e1 instanceof Node && e2 instanceof Node) {
-                    Node n1 = (Node) e1;
-                    Node n2 = (Node) e2;
 
                     if (e1 instanceof CollectionInstanceNode && !(e2 instanceof CollectionInstanceNode)) {
                         return -1;

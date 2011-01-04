@@ -4,6 +4,7 @@ import javax.media.opengl.GLException;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.UndoContext;
 import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
@@ -39,5 +40,9 @@ public interface IEditor {
 
     Node[] selectNode(int x, int y, int w, int h, boolean multi_select, boolean add_to_selection, boolean update_ui) throws GLException;
 
-    void setSelectedNodes(Node[] nodes, boolean update_ui);
+    void setSelectedNodes(Node[] nodes);
+
+    UndoContext getUndoContext();
+
+    boolean isSelecting();
 }

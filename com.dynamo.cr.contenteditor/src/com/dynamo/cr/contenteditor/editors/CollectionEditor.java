@@ -118,7 +118,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private List<ISelectionChangedListener> m_Listeners = new ArrayList<ISelectionChangedListener>();
     private Node pasteTarget = null;
 
-    private PropertyGrid m_PropertyGrid;
     private boolean isRendering;
 
     public CollectionEditor() {
@@ -133,7 +132,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void dispose() {
-        m_PropertyGrid.dispose();
     }
 
     @SuppressWarnings("rawtypes")
@@ -290,16 +288,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_Canvas.addMouseMoveListener(this);
         m_Canvas.addKeyListener(this);
 
-        m_PropertyGrid = new PropertyGrid(this, m_Scene, container, SWT.NONE);
-
-        GridData properties_gd = new GridData(GridData.FILL_BOTH);
-        properties_gd.widthHint = 200;
-        properties_gd.heightHint = 200; // TODO: HACK. Ska inte beh�vas... Borde fylla ut...
-        properties_gd.grabExcessVerticalSpace = false;
-        properties_gd.grabExcessHorizontalSpace = false;
-        m_PropertyGrid.setLayoutData(properties_gd);
-
-
         m_UndoContext = new UndoContext();
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         // TODO: Really?
@@ -344,6 +332,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 }
             }
         });
+    }
+
+    public UndoContext getUndoContext() {
+        return m_UndoContext;
     }
 
     IAction getUndoAction() {
@@ -786,7 +778,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         }
     }
 
-    public void setSelectedNodes(Node[] nodes, boolean update_ui)
+    public void setSelectedNodes(Node[] nodes)
     {
         // Go upwards in hierarchy until a selectable node is found
         for (int i = 0; i < nodes.length; ++i) {
@@ -832,14 +824,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         if (m_SelectedNodes.length > 0) {
             e = new SelectionChangedEvent(this, new StructuredSelection(m_SelectedNodes));
             pasteTarget = m_SelectedNodes[0];
-            if (update_ui)
-                m_PropertyGrid.setInput(m_SelectedNodes[0]);
         }
         else {
             e = new SelectionChangedEvent(this, new StructuredSelection());
             pasteTarget = null;
-            if (update_ui)
-                m_PropertyGrid.setInput(null);
         }
 
         for (ISelectionChangedListener l : m_Listeners)
@@ -939,7 +927,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         {
             // Try selecting a node instead
             Node[] nodes = selectNode(e.x, e.y, 5, 5, false, e.stateMask == SWT.SHIFT, true);
-            setSelectedNodes(nodes, true);
+            setSelectedNodes(nodes);
 
             if (m_SelectedNodes.length == 0)
                 m_RectangleSelectController.mouseDown(e, this);
@@ -1148,9 +1136,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public void keyReleased(KeyEvent e) {
     }
 
-    @Override
-    public void sceneChanged(SceneEvent event) {
-
+    void updateDirtyStateAsync() {
         /*
          * We need to postpone dirty check as the undo operation can
          * still be active at this point. (Triggered from a method in IUndoableOperation)
@@ -1172,14 +1158,20 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                     m_OutlinePage.refresh();
             }
         });
+    }
 
+    @Override
+    public void sceneChanged(SceneEvent event) {
+
+        updateDirtyStateAsync();
         if (event.m_Type == SceneEvent.NODE_REMOVED) {
-            setSelectedNodes(new Node[] {}, false);
+            setSelectedNodes(new Node[] {});
         }
     }
 
     @Override
     public void propertyChanged(ScenePropertyChangedEvent event) {
+        updateDirtyStateAsync();
     }
 
     // SelectionProvider
@@ -1222,7 +1214,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 }
                 Node[] nodes = new Node[list.size()];
                 list.toArray(nodes);
-                setSelectedNodes(nodes, false);
+                setSelectedNodes(nodes);
             }
         }
     }
@@ -1245,5 +1237,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public void setPasteTarget(Node node) {
         pasteTarget = node;
+    }
+
+    @Override
+    public boolean isSelecting() {
+        return m_RectangleSelectController.isSelecting();
     }
 }

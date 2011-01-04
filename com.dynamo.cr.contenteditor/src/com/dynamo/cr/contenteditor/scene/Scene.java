@@ -40,6 +40,26 @@ public class Scene implements IDisposable
     {
     }
 
+    void fireSceneEvent(SceneEvent e) {
+        // Make a copy of listeners. We could get concurrent modification problems
+        // if a listener would respond by added/removing a listener.
+        ArrayList<ISceneListener> listeners = new ArrayList<ISceneListener>(m_Listeners);
+        for (ISceneListener l : listeners)
+        {
+            l.sceneChanged(e);
+        }
+    }
+
+    void fireScenePropertyChangedEvent(ScenePropertyChangedEvent e) {
+        // Make a copy of listeners. We could get concurrent modification problems
+        // if a listener would respond by added/removing a listener.
+        ArrayList<ISceneListener> listeners = new ArrayList<ISceneListener>(m_Listeners);
+        for (ISceneListener l : listeners)
+        {
+            l.propertyChanged(e);
+        }
+    }
+
     public void addSceneListener(ISceneListener listener)
     {
         m_Listeners.add(listener);
@@ -53,27 +73,18 @@ public class Scene implements IDisposable
     public void nodeTransformChanged(Node node)
     {
         SceneEvent e = new SceneEvent(SceneEvent.PROPERTY_CHANGED);
-        for (ISceneListener l : m_Listeners)
-        {
-            l.sceneChanged(e);
-        }
+        fireSceneEvent(e);
     }
 
     public void propertyChanged(Node node, IProperty property)
     {
         ScenePropertyChangedEvent e = new ScenePropertyChangedEvent(node, property);
-        for (ISceneListener l : m_Listeners)
-        {
-            l.propertyChanged(e);
-        }
+        fireScenePropertyChangedEvent(e);
     }
 
     public void identifierChanged(Node node) {
         SceneEvent e = new SceneEvent(SceneEvent.NODE_IDENTIFIER_CHANGED);
-        for (ISceneListener l : m_Listeners)
-        {
-            l.sceneChanged(e);
-        }
+        fireSceneEvent(e);
     }
 
     public void setIdentifier(Node node, String key) {
@@ -91,10 +102,7 @@ public class Scene implements IDisposable
         identifierToNode.put(node.getIdentifier(), node);
 
         SceneEvent e = new SceneEvent(SceneEvent.NODE_ADDED);
-        for (ISceneListener l : m_Listeners)
-        {
-            l.sceneChanged(e);
-        }
+        fireSceneEvent(e);
     }
 
     public void nodeRemoved(Node node)
@@ -102,18 +110,12 @@ public class Scene implements IDisposable
         identifierToNode.remove(node.getIdentifier());
         //identifiers.remove(node);
         SceneEvent e = new SceneEvent(SceneEvent.NODE_REMOVED);
-        for (ISceneListener l : m_Listeners)
-        {
-            l.sceneChanged(e);
-        }
+        fireSceneEvent(e);
     }
 
     public void nodeReparented(Node node, Node parent) {
         SceneEvent e = new SceneEvent(SceneEvent.NODE_REPARENTED);
-        for (ISceneListener l : m_Listeners)
-        {
-            l.sceneChanged(e);
-        }
+        fireSceneEvent(e);
     }
 
     Map<String, Node> identifierToNode = new HashMap<String, Node>();

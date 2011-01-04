@@ -14,6 +14,10 @@ public class RectangleSelectController {
     boolean selecting;
     Node[] nodes = new Node[0];
 
+    public boolean isSelecting() {
+        return selecting;
+    }
+
     public void mouseDown(MouseEvent e, IEditor editor) {
         nodes = new Node[0];
         startX = endX = e.x;
@@ -22,9 +26,12 @@ public class RectangleSelectController {
     }
 
     public void mouseUp(MouseEvent e, IEditor editor) {
-        if (selecting)
-            editor.setSelectedNodes(nodes, true);
-        selecting = false;
+        if (selecting) {
+            // NOTE: We must reset selecting *before* calling setSelectedNodes
+            // Property view etc might call this from the callback
+            selecting = false;
+            editor.setSelectedNodes(nodes);
+        }
     }
 
     public void mouseMove(MouseEvent e, IEditor editor) {
@@ -37,7 +44,7 @@ public class RectangleSelectController {
             int w = Math.abs(endX - startX);
             int h = Math.abs(endY - startY);
             nodes = editor.selectNode(x+w/2, y+h/2, w, h, true, false, false);
-            editor.setSelectedNodes(nodes, false);
+            editor.setSelectedNodes(nodes);
         }
     }
 

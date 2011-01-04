@@ -120,7 +120,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	 */
 	public void start(BundleContext bundleContext) throws Exception {
 	    super.start(bundleContext);
-	    this.logger = Logger.getLogger(this.PLUGIN_ID);
+	    this.logger = Logger.getLogger(Activator.PLUGIN_ID);
 
         proxyTracker = new ServiceTracker(bundleContext, IProxyService.class
                 .getName(), null);

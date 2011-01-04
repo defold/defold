@@ -44,7 +44,6 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.IRepositoryListener;
 import com.dynamo.cr.editor.RepositoryChangeEvent;
-import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 

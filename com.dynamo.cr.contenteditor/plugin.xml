@@ -210,5 +210,30 @@
          </activeWhen>
       </handler>
    </extension>
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            allowMultiple="false"
+            category="com.dynamo.cr.editorcategory"
+            class="com.dynamo.cr.contenteditor.views.PropertyGridView"
+            icon="icons/prop_ps.gif"
+            id="com.dynamo.cr.contenteditor.views.PropertyGridView"
+            name="Property Grid View">
+      </view>
+   </extension>
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension
+            targetID="com.dynamo.cr.editor.perspective">
+         <view
+               closeable="false"
+               id="com.dynamo.cr.contenteditor.views.PropertyGridView"
+               moveable="true"
+               ratio="0.65"
+               relationship="right"
+               relative="org.eclipse.ui.editorss">
+         </view>
+      </perspectiveExtension>
+   </extension>
 
 </plugin>
