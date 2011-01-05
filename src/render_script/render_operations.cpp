@@ -77,7 +77,7 @@ namespace dmEngine
                 }
                 case CMD_SETCOLORMASK:
                 {
-                    dmGraphics::SetColorMask(context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], c->m_Operands[3]);
+                    dmGraphics::SetColorMask(context, c->m_Operands[0] != 0, c->m_Operands[1] != 0, c->m_Operands[2] != 0, c->m_Operands[3] != 0);
                     break;
                 }
                 case CMD_SETDEPTHMASK:

@@ -214,7 +214,7 @@ namespace dmEngine
                 const char* key = luaL_checkstring(L, -2);
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
-                    p->m_Format = (dmGraphics::TextureFormat)luaL_checknumber(L, -1);
+                    p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
@@ -226,19 +226,19 @@ namespace dmEngine
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
-                    p->m_MinFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
+                    p->m_MinFilter = (dmGraphics::TextureFilter)(int)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MAG_FILTER_NAME, strlen(RENDER_SCRIPT_MAG_FILTER_NAME)) == 0)
                 {
-                    p->m_MagFilter = (dmGraphics::TextureFilter)luaL_checknumber(L, -1);
+                    p->m_MagFilter = (dmGraphics::TextureFilter)(int)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_U_WRAP_NAME, strlen(RENDER_SCRIPT_U_WRAP_NAME)) == 0)
                 {
-                    p->m_UWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
+                    p->m_UWrap = (dmGraphics::TextureWrap)(int)luaL_checknumber(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_V_WRAP_NAME, strlen(RENDER_SCRIPT_V_WRAP_NAME)) == 0)
                 {
-                    p->m_VWrap = (dmGraphics::TextureWrap)luaL_checknumber(L, -1);
+                    p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checknumber(L, -1);
                 }
                 else
                 {
@@ -308,7 +308,7 @@ namespace dmEngine
         if (lua_islightuserdata(L, 3))
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 3);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)luaL_checknumber(L, 4);
+            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 4);
             texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
         }
         else if (!lua_isnil(L, 3))
@@ -477,10 +477,10 @@ namespace dmEngine
 
         if (lua_isboolean(L, 2) && lua_isboolean(L, 3) && lua_isboolean(L, 4) && lua_isboolean(L, 5))
         {
-            bool red = lua_toboolean(L, 2);
-            bool green = lua_toboolean(L, 3);
-            bool blue = lua_toboolean(L, 4);
-            bool alpha = lua_toboolean(L, 5);
+            bool red = lua_toboolean(L, 2) != 0;
+            bool green = lua_toboolean(L, 3) != 0;
+            bool blue = lua_toboolean(L, 4) != 0;
+            bool alpha = lua_toboolean(L, 5) != 0;
             InsertRenderCommand(RenderCommand(CMD_SETCOLORMASK, (uint32_t)red, (uint32_t)green, (uint32_t)blue, (uint32_t)alpha));
         }
         else
@@ -497,7 +497,7 @@ namespace dmEngine
 
         if (lua_isboolean(L, 2))
         {
-            bool mask = lua_toboolean(L, 2);
+            bool mask = lua_toboolean(L, 2) != 0;
             InsertRenderCommand(RenderCommand(CMD_SETDEPTHMASK, (uint32_t)mask));
         }
         else
