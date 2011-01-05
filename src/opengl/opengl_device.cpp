@@ -49,7 +49,7 @@ typedef void (APIENTRY * PFNGLDELETERENDERBUFFERSPROC) (GLsizei, GLuint*);
 typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
 typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
 typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
-
+typedef void (APIENTRY * PFNGLACTIVETEXTURE) (GLenum);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -77,6 +77,7 @@ PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
 PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
 PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
 PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
+PFNGLACTIVETEXTURE glActiveTexture = NULL;
 #else
 #error "Platform not supported."
 #endif
