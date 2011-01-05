@@ -119,8 +119,8 @@ namespace dmGraphics
                 case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: \
                     dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT"); \
                     break; \
             } \
             assert(0); \
