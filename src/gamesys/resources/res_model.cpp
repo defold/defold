@@ -33,7 +33,7 @@ namespace dmGameSystem
         {
             if (mesh) dmResource::Release(factory, (void*) mesh);
             if (material) dmResource::Release(factory, (void*) material);
-            for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
 
             return dmResource::CREATE_RESULT_UNKNOWN;
@@ -42,8 +42,7 @@ namespace dmGameSystem
         Model* model = new Model();
         model->m_Mesh = mesh;
         model->m_Material = material;
-        for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            model->m_Textures[i] = textures[i];
+        memcpy(model->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         resource->m_Resource = (void*) model;
         return dmResource::CREATE_RESULT_OK;

@@ -196,16 +196,15 @@ namespace dmGameSystem
     {
         EmitterWorld* world = (EmitterWorld*)context;
 
-        uint32_t ro_count = world->m_RenderObjects.Size();
-        world->m_RenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject* ro = &world->m_RenderObjects[ro_count];
-        ro->m_Material = (dmRender::HMaterial)material;
-        ro->m_Textures[0] = (dmGraphics::HTexture)texture;
-        ro->m_VertexStart = vertex_index;
-        ro->m_VertexCount = vertex_count;
-        ro->m_VertexBuffer = world->m_VertexBuffer;
-        ro->m_VertexDeclaration = world->m_VertexDeclaration;
-        ro->m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+        dmRender::RenderObject ro;
+        ro.m_Material = (dmRender::HMaterial)material;
+        ro.m_Textures[0] = (dmGraphics::HTexture)texture;
+        ro.m_VertexStart = vertex_index;
+        ro.m_VertexCount = vertex_count;
+        ro.m_VertexBuffer = world->m_VertexBuffer;
+        ro.m_VertexDeclaration = world->m_VertexDeclaration;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+        world->m_RenderObjects.Push(ro);
     }
 
     void RenderLineCallback(void* usercontext, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color)

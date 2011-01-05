@@ -44,8 +44,10 @@ namespace dmGameSystem
         // TODO: How to configure?
         const uint32_t max_component_count = 1024;
         model_world->m_Components.SetCapacity(max_component_count);
-        model_world->m_Components.SetSize(max_component_count);
-        memset(&model_world->m_Components[0], 0, max_component_count * sizeof(ModelComponent));
+        for (uint32_t i = 0; i < max_component_count; ++i)
+        {
+            model_world->m_Components.Push(ModelComponent());
+        }
         model_world->m_ComponentIndices.SetCapacity(max_component_count);
         *world = model_world;
         return dmGameObject::CREATE_RESULT_OK;
