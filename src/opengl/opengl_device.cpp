@@ -17,11 +17,9 @@
 #elif defined (_WIN32)
 
 #ifdef GL_GLEXT_PROTOTYPES
-
 #undef GL_GLEXT_PROTOTYPES
 #include "win32/glext.h"
 #define GL_GLEXT_PROTOTYPES
-
 #else
 #include "win32/glext.h"
 #endif
@@ -37,19 +35,15 @@ typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboo
 typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
 typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
-typedef void (APIENTRY * PFNGLGENRENDERBUFFERSPROC) (GLenum, GLuint *);
 typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
 typedef void (APIENTRY * PFNGLRENDERBUFFERSTORAGEPROC) (GLenum, GLenum, GLsizei, GLsizei);
 typedef void (APIENTRY * PFNGLRENDERBUFFERTEXTURE2DPROC) (GLenum, GLenum, GLenum, GLuint, GLint);
 typedef void (APIENTRY * PFNGLFRAMEBUFFERRENDERBUFFERPROC) (GLenum, GLenum, GLenum, GLuint);
-typedef void (APIENTRY * PFNGLGENFRAMEBUFFERSPROC) (GLenum, GLuint *);
 typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLDELETEFRAMEBUFFERSPROC) (GLsizei, GLuint*);
-typedef void (APIENTRY * PFNGLDELETERENDERBUFFERSPROC) (GLsizei, GLuint*);
 typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
 typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
 typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
-typedef void (APIENTRY * PFNGLACTIVETEXTURE) (GLenum);
+typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -77,7 +71,8 @@ PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
 PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
 PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
 PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
-PFNGLACTIVETEXTURE glActiveTexture = NULL;
+PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
 #else
 #error "Platform not supported."
 #endif
@@ -98,34 +93,34 @@ namespace dmGraphics
 
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
-        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER_EXT); \
-        if (status != GL_FRAMEBUFFER_COMPLETE_EXT) \
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
+        if (status != GL_FRAMEBUFFER_COMPLETE) \
         { \
             switch (status) \
             { \
                 case GL_FRAMEBUFFER_UNDEFINED: \
                     dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER"); \
                     break; \
-                case GL_FRAMEBUFFER_UNSUPPORTED_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNSUPPORTED_EXT, "GL_FRAMEBUFFER_UNSUPPORTED"); \
+                case GL_FRAMEBUFFER_UNSUPPORTED: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_EXT, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS"); \
                     break; \
             } \
             assert(0); \
@@ -198,6 +193,8 @@ namespace dmGraphics
         glBufferSubDataARB = (PFNGLBUFFERSUBDATAPROC) wglGetProcAddress("glBufferSubDataARB");
         glMapBufferARB = (PFNGLMAPBUFFERPROC) wglGetProcAddress("glMapBufferARB");
         glUnmapBufferARB = (PFNGLUNMAPBUFFERPROC) wglGetProcAddress("glUnmapBufferARB");
+		glActiveTexture = (PFNGLACTIVETEXTUREPROC) wglGetProcAddress("glActiveTexture");
+        glCheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC) wglGetProcAddress("glCheckFrameBufferStatus");
     #endif
 
         return (HDevice)&gdevice;
@@ -632,17 +629,17 @@ namespace dmGraphics
 
         glGenFramebuffers(1, &rt->m_Id);
         CHECK_GL_ERROR
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, rt->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt->m_Id);
         CHECK_GL_ERROR
 
-        GLenum buffer_attachments[MAX_BUFFER_TYPE_COUNT] = {GL_COLOR_ATTACHMENT0_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_STENCIL_ATTACHMENT_EXT};
+        GLenum buffer_attachments[MAX_BUFFER_TYPE_COUNT] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             if (buffer_type_flags & BUFFER_TYPES[i])
             {
                 rt->m_BufferTextures[i] = NewTexture(params[i]);
                 // attach the texture to FBO color attachment point
-                glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
                 CHECK_GL_ERROR
             }
         }
@@ -653,7 +650,7 @@ namespace dmGraphics
             CHECK_GL_ERROR
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         CHECK_GL_ERROR
 
         CHECK_GL_FRAMEBUFFER_ERROR
@@ -672,14 +669,14 @@ namespace dmGraphics
 
     void EnableRenderTarget(HContext context, HRenderTarget render_target)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, render_target->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, render_target->m_Id);
         CHECK_GL_ERROR
         CHECK_GL_FRAMEBUFFER_ERROR
     }
 
     void DisableRenderTarget(HContext context, HRenderTarget render_target)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         CHECK_GL_ERROR
         CHECK_GL_FRAMEBUFFER_ERROR
     }
