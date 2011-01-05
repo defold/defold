@@ -486,7 +486,8 @@ namespace dmGraphics
     {
         assert(context);
         assert(unit < 32);
-        assert(texture);
+        if (texture)
+            assert(texture->m_Data);
     }
 
     void EnableState(HContext context, State state)

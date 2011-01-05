@@ -805,7 +805,10 @@ namespace dmGraphics
 
         GLuint texture_id = 0;
         if (texture)
+        {
             texture_id = texture->m_Texture;
+            assert(texture_id);
+        }
         glBindTexture(GL_TEXTURE_2D, texture_id);
         CHECK_GL_ERROR
     }
