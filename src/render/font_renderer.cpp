@@ -102,13 +102,13 @@ namespace dmRender
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         text_context.m_RenderObjects.SetCapacity(max_characters/8);
-        text_context.m_RenderObjects.SetSize(max_characters/8);
         for (uint32_t i = 0; i < text_context.m_RenderObjects.Capacity(); ++i)
         {
-            RenderObject* ro = &text_context.m_RenderObjects[i];
-            ro->m_VertexBuffer = text_context.m_VertexBuffer;
-            ro->m_VertexDeclaration = text_context.m_VertexDecl;
-            ro->m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+            RenderObject ro;
+            ro.m_VertexBuffer = text_context.m_VertexBuffer;
+            ro.m_VertexDeclaration = text_context.m_VertexDecl;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+            text_context.m_RenderObjects.Push(ro);
         }
     }
 

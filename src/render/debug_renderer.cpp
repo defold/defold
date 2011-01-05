@@ -60,20 +60,22 @@ namespace dmRender
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            RenderObject* ro = &debug_renderer.m_RenderObject3d[i];
-            ro->m_Material = material3d;
-            ro->m_PrimitiveType = primitive_types[i];
-            ro->m_VertexBuffer = debug_renderer.m_VertexBuffer;
-            ro->m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
+            RenderObject ro;
+            ro.m_Material = material3d;
+            ro.m_PrimitiveType = primitive_types[i];
+            ro.m_VertexBuffer = debug_renderer.m_VertexBuffer;
+            ro.m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
+            debug_renderer.m_RenderObject3d[i] = ro;
         }
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
-            RenderObject* ro = &debug_renderer.m_RenderObject2d[i];
-            ro->m_Material = material2d;
-            ro->m_PrimitiveType = primitive_types[i];
-            ro->m_VertexBuffer = debug_renderer.m_VertexBuffer;
-            ro->m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
+            RenderObject ro;
+            ro.m_Material = material2d;
+            ro.m_PrimitiveType = primitive_types[i];
+            ro.m_VertexBuffer = debug_renderer.m_VertexBuffer;
+            ro.m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
+            debug_renderer.m_RenderObject2d[i] = ro;
         }
 
         debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString32(DEBUG_3D_NAME);
