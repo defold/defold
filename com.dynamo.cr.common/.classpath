@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/ddf.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpclient-4.0.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpcore-4.0.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.3.jar"/>
