@@ -98,34 +98,34 @@ namespace dmGraphics
 
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
-        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
-        if (status != GL_FRAMEBUFFER_COMPLETE) \
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER_EXT); \
+        if (status != GL_FRAMEBUFFER_COMPLETE_EXT) \
         { \
             switch (status) \
             { \
                 case GL_FRAMEBUFFER_UNDEFINED: \
                     dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER"); \
                     break; \
-                case GL_FRAMEBUFFER_UNSUPPORTED: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED"); \
+                case GL_FRAMEBUFFER_UNSUPPORTED_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNSUPPORTED_EXT, "GL_FRAMEBUFFER_UNSUPPORTED"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_EXT, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
                     break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS"); \
+                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS"); \
                     break; \
             } \
             assert(0); \
