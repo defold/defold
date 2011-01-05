@@ -1,5 +1,6 @@
 #include <string.h>
 #include <assert.h>
+#include <dlib/log.h>
 #include <dlib/profile.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
@@ -89,10 +90,46 @@ namespace dmGraphics
         GLint err = glGetError(); \
         if (err != 0) \
         { \
-            printf("gl error: %d line: %d gluErrorString(): %s\n", err, __LINE__, gluErrorString(err)); \
+            dmLogError("gl error %d: %s\n", err, gluErrorString(err)); \
             assert(0); \
         } \
     }\
+
+#define CHECK_GL_FRAMEBUFFER_ERROR \
+    { \
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
+        if (status != GL_FRAMEBUFFER_COMPLETE) \
+        { \
+            switch (status) \
+            { \
+                case GL_FRAMEBUFFER_UNDEFINED: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED"); \
+                    break; \
+                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"); \
+                    break; \
+                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"); \
+                    break; \
+                case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"); \
+                    break; \
+                case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER"); \
+                    break; \
+                case GL_FRAMEBUFFER_UNSUPPORTED: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED"); \
+                    break; \
+                case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
+                    break; \
+                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS: \
+                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS"); \
+                    break; \
+            } \
+            assert(0); \
+        } \
+    } \
 
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
@@ -122,27 +159,6 @@ namespace dmGraphics
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
-
-
-#if 0
-        int ret = SDL_InitSubSystem(SDL_INIT_VIDEO);
-        assert(ret == 0);
-
-        uint32_t fullscreen = 0;
-        if (params->m_Fullscreen)
-            fullscreen = SDL_FULLSCREEN;
-
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 1);
-        SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 32 );
-
-
-        gdevice.m_SDLscreen = SDL_SetVideoMode(params->m_DisplayWidth, params->m_DisplayHeight, 32, SDL_OPENGL|SDL_RESIZABLE|fullscreen|SDL_DOUBLEBUF);
-        assert(gdevice.m_SDLscreen);
-
-        SDL_WM_SetCaption(params->m_AppTitle, params->m_AppTitle);
-#endif
-
         gdevice.m_DisplayWidth = params->m_DisplayWidth;
         gdevice.m_DisplayHeight = params->m_DisplayHeight;
 
@@ -153,7 +169,6 @@ namespace dmGraphics
             printf("GL_VENDOR     = %s\n", (char *) glGetString(GL_VENDOR));
             printf("GL_EXTENSIONS = %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
-
 
     #if defined (_WIN32)
         glGenProgramsARB = (PFNGLGENPROGRAMARBPROC) wglGetProcAddress("glGenProgramsARB");
@@ -405,7 +420,6 @@ namespace dmGraphics
         glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
         CHECK_GL_ERROR
 
-
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_Index);
@@ -420,7 +434,6 @@ namespace dmGraphics
 
             CHECK_GL_ERROR
         }
-
 
         #undef BUFFER_OFFSET
     }
@@ -632,9 +645,17 @@ namespace dmGraphics
                 CHECK_GL_ERROR
             }
         }
+        // Disable color buffer
+        if ((buffer_type_flags & BUFFER_TYPE_COLOR) == 0)
+        {
+            glDrawBuffer(GL_NONE);
+            CHECK_GL_ERROR
+        }
 
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
         CHECK_GL_ERROR
+
+        CHECK_GL_FRAMEBUFFER_ERROR
 
         return rt;
     }
@@ -651,11 +672,15 @@ namespace dmGraphics
     void EnableRenderTarget(HContext context, HRenderTarget render_target)
     {
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, render_target->m_Id);
+        CHECK_GL_ERROR
+        CHECK_GL_FRAMEBUFFER_ERROR
     }
 
     void DisableRenderTarget(HContext context, HRenderTarget render_target)
     {
         glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
+        CHECK_GL_ERROR
+        CHECK_GL_FRAMEBUFFER_ERROR
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
@@ -764,6 +789,7 @@ namespace dmGraphics
         assert(texture);
 
         glDeleteTextures(1, &texture->m_Texture);
+        CHECK_GL_ERROR
 
         delete texture;
     }
@@ -844,6 +870,7 @@ namespace dmGraphics
     {
         assert(context);
         glPolygonOffset(factor, units);
+        CHECK_GL_ERROR
     }
 
     uint32_t GetWindowParam(WindowParam param)
