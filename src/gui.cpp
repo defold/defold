@@ -152,6 +152,9 @@ namespace dmGui
     {
         lua_State* L = scene->m_Gui->m_LuaState;
 
+        lua_pushlightuserdata(L, (void*) scene);
+        lua_setglobal(L, "__scene__");
+
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
             const InputAction* ia = &input_actions[i];

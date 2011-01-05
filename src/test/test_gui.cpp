@@ -560,6 +560,25 @@ TEST_F(dmGuiTest, PostMessage1)
     ASSERT_EQ(dmHashString32("my_named_message"), message_id);
 }
 
+TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
+{
+    const char* s = "function update(self)\n"
+                    "end\n"
+                    "function on_input(self, action_id, action)\n"
+                    "   gui.post(\"my_named_message\")\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::InputAction input_action;
+    memset(&input_action, 0, sizeof(input_action));
+    input_action.m_ActionId = dmHashString32("SPACE");
+    r = dmGui::DispatchInput(scene, &input_action, 1);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 static void Dispatch2(dmMessage::Message* message, void* user_ptr)
 {
     dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
