@@ -648,6 +648,8 @@ namespace dmGraphics
         {
             glDrawBuffer(GL_NONE);
             CHECK_GL_ERROR
+            glReadBuffer(GL_NONE);
+            CHECK_GL_ERROR
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
