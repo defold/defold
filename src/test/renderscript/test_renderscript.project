@@ -11,3 +11,5 @@ game_binding = default.input_bindingc
 render_script = test.render_scriptc
 [resource]
 uri = build/default/src/test/renderscript
+[display]
+samples = 8
