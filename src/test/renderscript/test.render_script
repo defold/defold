@@ -48,7 +48,6 @@ function update(self)
     render.set_view(self, self.view)
     render.set_projection(self, self.proj)
 
-    print(self.light.decay)
     -- shadow map
     render.set_texture_unit(self, 1, self.shadow_rt, render.BUFFER_TYPE_DEPTH)
     -- light viewproj
