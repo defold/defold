@@ -1,8 +1,8 @@
 package com.dynamo.cr.protobind;
 
 /**
- * Field descriptor socket. Represents a field. Similar to FieldDescriptor but represents a path to the actual field for nested messages.
- * Due to the complete path fields can be set from the top value of the message
+ * Field descriptor socket. Represents a field. Similar to FieldDescriptor but represents a path to the actual field.
+ * Due to the complete path fields can be set from the top value of the message (for nested messages)
  * @author chmu
  *
  */
