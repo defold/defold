@@ -17,13 +17,13 @@ function init(self)
     self.proj = vmath.matrix4()
 end
 
-function update(self)
+local function render_shadow_map(self)
     render.enable_rendertarget(self, self.shadow_rt)
     render.set_depth_mask(self, true)
     render.set_color_mask(self, false, false, false, false)
     render.set_viewport(self, self.shadow_map_size, self.shadow_map_size)
-    render.set_view(self, self.light_view)
-    render.set_projection(self, self.light_proj)
+    render.set_view(self, self.light.view)
+    render.set_projection(self, self.light.proj)
     render.clear(self, {[render.BUFFER_TYPE_DEPTH] = 1})
     render.disable_state(self, render.STATE_BLEND)
     render.enable_state(self, render.STATE_DEPTH_TEST)
@@ -35,6 +35,10 @@ function update(self)
     render.draw(self, self.opaque_pred)
     render.disable_rendertarget(self, self.shadow_rt)
     render.disable_state(self, render.STATE_POLYGON_OFFSET_FILL)
+end
+
+function update(self)
+    render_shadow_map(self)
 
     render.set_depth_mask(self, true)
     render.set_color_mask(self, true, true, true, true)
@@ -44,13 +48,27 @@ function update(self)
     render.set_view(self, self.view)
     render.set_projection(self, self.proj)
 
+    print(self.light.decay)
+    -- shadow map
     render.set_texture_unit(self, 1, self.shadow_rt, render.BUFFER_TYPE_DEPTH)
-    render.set_vertex_constant(self, 12, self.light_view_proj)
-    render.set_fragment_constant(self, 1, vmath.vector4(0.1, 0.1, 0.1, 0))
-    render.set_fragment_constant(self, 2, vmath.vector4(self.light_color.x, self.light_color.y, self.light_color.z, 1))
-    render.set_fragment_constant(self, 3, vmath.vector4(self.light_position.x, self.light_position.y, self.light_position.z, 1))
-    render.set_fragment_constant(self, 4, vmath.vector4(self.light_direction.x, self.light_direction.y, self.light_direction.z, 0))
-    render.set_fragment_constant(self, 5, vmath.vector4(self.light_radius, math.cos(self.light_cone_angle * 0.5), self.light_drop_off, 1/self.shadow_map_size))
+    -- light viewproj
+    render.set_vertex_constant(self, 12, self.light.view_proj)
+    -- ambient light
+    local ambient = 0.25
+    render.set_fragment_constant(self, 1, vmath.vector4(ambient, ambient, ambient, 1))
+    -- light color
+    render.set_fragment_constant(self, 2, vmath.vector4(self.light.color.x, self.light.color.y, self.light.color.z, 1))
+    -- light position
+    render.set_fragment_constant(self, 3, vmath.vector4(self.light.position.x, self.light.position.y, self.light.position.z, 1))
+    -- light direction
+    render.set_fragment_constant(self, 4, vmath.vector4(self.light.direction.x, self.light.direction.y, self.light.direction.z, 0))
+    -- light parameters
+    render.set_fragment_constant(self, 5, vmath.vector4(self.light.intensity, self.light.range, self.light.decay, 1/self.shadow_map_size))
+    -- spot light parameters
+    local cone_angle = math.rad(self.light.cone_angle * 0.5)
+    local penumbra_cone_angle = cone_angle + math.rad(self.light.penumbra_angle)
+    render.set_fragment_constant(self, 6, vmath.vector4(math.cos(math.min(cone_angle, penumbra_cone_angle)), math.cos(math.max(cone_angle, penumbra_cone_angle)), self.light.drop_off, 0))
+    -- state settings
     render.disable_state(self, render.STATE_BLEND)
     render.enable_state(self, render.STATE_DEPTH_TEST)
     render.set_depth_mask(self, true)
@@ -79,18 +97,16 @@ end
 
 function on_message(self, message_id, message)
     if message_id == hash("set_light") then
-        self.light_direction = vmath.rotate(message.rotation, vmath.vector3(0, 0, 1))
+        self.light = message.light
+        self.light.direction = vmath.rotate(message.rotation, vmath.vector3(0, 0, 1))
         local eye = message.position
-        local at = message.position + vmath.rotate(message.rotation, vmath.vector3(0, 0, 1))
+        local at = message.position + self.light.direction
         local up = vmath.vector3(0, 1, 0)
-        self.light_view = vmath.matrix4_look_at(eye, at, up)
-        self.light_proj = vmath.matrix4_perspective(message.cone_angle, render.get_window_width(self) / render.get_window_height(self), 1, -message.radius)
-        self.light_view_proj = self.light_proj * self.light_view
-        self.light_position = message.position
-        self.light_radius = message.radius
-        self.light_cone_angle = message.cone_angle
-        self.light_drop_off = message.drop_off
-        self.light_color = message.color
+        self.light.view = vmath.matrix4_look_at(eye, at, up)
+        local spot_angle = message.light.cone_angle + 2 * message.light.penumbra_angle;
+        self.light.proj = vmath.matrix4_perspective(math.rad(spot_angle), render.get_window_width(self) / render.get_window_height(self), 1, -message.light.range)
+        self.light.view_proj = self.light.proj * self.light.view
+        self.light.position = message.position
     elseif message_id == hash("set_view_projection") then
         self.view = message.view
         self.proj = message.projection

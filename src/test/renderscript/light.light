@@ -1,6 +1,9 @@
 Id: "light"
-Radius: 30
-ConeAngle: 1.1
-DropOff: 0.2
-LightType: SPOT
+Type: SPOT
+Intensity: 3
 Color: { X: 1.0 Y: 1.0 Z: 1.0 }
+Range: 50
+Decay: 0.7
+ConeAngle: 50
+PenumbraAngle: 15
+DropOff: 0.5

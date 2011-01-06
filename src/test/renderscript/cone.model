@@ -1,4 +1,4 @@
 Name: "cone"
 Mesh: "cone.dae"
-Material: "transparent.material"
+Material: "opaque.material"
 Textures: "blue.png"
