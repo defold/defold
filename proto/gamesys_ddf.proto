@@ -26,26 +26,23 @@ enum LightType
 
 message LightDesc
 {
-    required string  Id               = 1;
-    required float          Radius    = 2;
+    required string         Id              = 1;
+    required LightType      Type            = 2;
+    required float          Intensity       = 3;
+    required dmMath.Vector3 Color           = 4;
+    required float          Range           = 5;
+    required float          Decay           = 6;
     // Only applicable for spot-lights
-    optional float          ConeAngle = 3;
-    required float          DropOff   = 4;
-    required LightType      LightType = 5;
-    required dmMath.Vector3 Color     = 6;
+    optional float          ConeAngle       = 7;
+    optional float          PenumbraAngle   = 8;
+    optional float          DropOff         = 9;
 }
 
 message SetLight
 {
-    required string  Id               = 1;
-    required float          Radius    = 2;
-    // Only applicable for spot-lights
-    optional float          ConeAngle = 3;
-    required float          DropOff   = 4;
-    required LightType      LightType = 5;
-    required dmMath.Vector3 Color     = 6;
-    required dmMath.Point3  Position  = 7;
-    required dmMath.Quat    Rotation  = 8;
+    required dmMath.Point3  Position    = 1;
+    required dmMath.Quat    Rotation    = 2;
+    required LightDesc      Light       = 3;
 }
 
 message SetViewProjection

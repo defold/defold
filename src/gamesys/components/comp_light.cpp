@@ -85,12 +85,15 @@ namespace dmGameSystem
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 
             DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light->m_LightDesc->m_Id));
-            set_light->m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
-            set_light->m_Radius = light->m_LightDesc->m_Radius;
-            set_light->m_ConeAngle = light->m_LightDesc->m_ConeAngle;
-            set_light->m_DropOff = light->m_LightDesc->m_DropOff;
-            set_light->m_LightType = light->m_LightDesc->m_LightType;
-            set_light->m_Color = light->m_LightDesc->m_Color;
+            set_light->m_Light.m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
+            set_light->m_Light.m_Type = light->m_LightDesc->m_Type;
+            set_light->m_Light.m_Intensity = light->m_LightDesc->m_Intensity;
+            set_light->m_Light.m_Color = light->m_LightDesc->m_Color;
+            set_light->m_Light.m_Range = light->m_LightDesc->m_Range;
+            set_light->m_Light.m_Decay = light->m_LightDesc->m_Decay;
+            set_light->m_Light.m_ConeAngle = light->m_LightDesc->m_ConeAngle;
+            set_light->m_Light.m_PenumbraAngle = light->m_LightDesc->m_PenumbraAngle;
+            set_light->m_Light.m_DropOff = light->m_LightDesc->m_DropOff;
             set_light->m_Position = position;
             set_light->m_Rotation = rotation;
 
