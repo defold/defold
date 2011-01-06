@@ -9,7 +9,6 @@
 
 #include <script/script.h>
 #include <gameobject/gameobject.h>
-#include <gamesys/gamesys_ddf.h>
 #include "render_operations.h"
 
 extern "C"
