@@ -7,10 +7,10 @@ import java.util.HashMap;
 
 import org.junit.Test;
 
-import com.dynamo.cr.protobind.IFieldDescriptorSocket;
+import com.dynamo.cr.protobind.IFieldPath;
 import com.dynamo.cr.protobind.IMessageDecriptor;
 import com.dynamo.cr.protobind.MessageMutator;
-import com.dynamo.cr.protobind.internal.FieldDescriptorSocket;
+import com.dynamo.cr.protobind.internal.FieldPath;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedNestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.SimpleMessage;
@@ -29,17 +29,17 @@ public class MessageMutatorTest {
         SimpleMessage simpleMessage = builder.build();
 
         MessageMutator<SimpleMessage> mutable = new MessageMutator<SimpleMessage>(simpleMessage);
-        IMessageDecriptor desc = mutable.getDescriptorSocket();
-        FieldDescriptorSocket[] fieldDescs = desc.getFieldDescriptors();
-        HashMap<String, FieldDescriptorSocket> fieldDescMap = new HashMap<String, FieldDescriptorSocket>();
-        for (FieldDescriptorSocket d : fieldDescs) {
-            fieldDescMap.put(d.getName(), d);
+        IMessageDecriptor desc = mutable.getMessageDescriptor();
+        FieldPath[] fieldPaths = desc.getFieldDescriptors();
+        HashMap<String, FieldPath> fieldPathsMap = new HashMap<String, FieldPath>();
+        for (FieldPath d : fieldPaths) {
+            fieldPathsMap.put(d.getName(), d);
         }
 
-        assertEquals(3, fieldDescs.length);
-        assertTrue(fieldDescMap.containsKey("a"));
-        assertTrue(fieldDescMap.containsKey("b"));
-        assertTrue(fieldDescMap.containsKey("s"));
+        assertEquals(3, fieldPaths.length);
+        assertTrue(fieldPathsMap.containsKey("a"));
+        assertTrue(fieldPathsMap.containsKey("b"));
+        assertTrue(fieldPathsMap.containsKey("s"));
     }
 
     @Test
@@ -51,7 +51,7 @@ public class MessageMutatorTest {
         SimpleMessage simpleMessage = builder.build();
 
         MessageMutator<SimpleMessage> mutable = new MessageMutator<SimpleMessage>(simpleMessage);
-        IMessageDecriptor desc = mutable.getDescriptorSocket();
+        IMessageDecriptor desc = mutable.getMessageDescriptor();
         assertEquals("a", desc.findFieldByName("a").getName());
         assertEquals("b", desc.findFieldByName("b").getName());
         assertEquals("s", desc.findFieldByName("s").getName());
@@ -66,7 +66,7 @@ public class MessageMutatorTest {
         SimpleMessage simpleMessage = builder.build();
 
         MessageMutator<SimpleMessage> mutable = new MessageMutator<SimpleMessage>(simpleMessage);
-        IMessageDecriptor desc = mutable.getDescriptorSocket();
+        IMessageDecriptor desc = mutable.getMessageDescriptor();
 
         assertEquals(1, mutable.getField(desc.findFieldByName("a")));
         assertEquals(123.0f, mutable.getField(desc.findFieldByName("b")));
@@ -89,13 +89,13 @@ public class MessageMutatorTest {
         NestedMessage nestedMessage = builder.build();
 
         MessageMutator<NestedMessage> mutable = new MessageMutator<NestedMessage>(nestedMessage);
-        IMessageDecriptor desc = mutable.getDescriptorSocket();
+        IMessageDecriptor desc = mutable.getMessageDescriptor();
         assertEquals("NestedMessage", desc.getName());
 
-        IFieldDescriptorSocket msgFieldDesc = desc.findFieldByName("msg");
-        IMessageDecriptor msgDesc = msgFieldDesc.getMessageDescriptor();
+        IFieldPath msgFieldPaths = desc.findFieldByName("msg");
+        IMessageDecriptor msgDesc = msgFieldPaths.getMessageDescriptor();
         assertEquals("SimpleMessage", msgDesc.getName());
-        assertEquals("NestedMessage", msgFieldDesc.getContainingDescriptor().getName());
+        assertEquals("NestedMessage", msgFieldPaths.getContainingDescriptor().getName());
 
         assertEquals(88, mutable.getField(desc.findFieldByName("x")));
         assertEquals(1, mutable.getField(msgDesc.findFieldByName("a")));
@@ -129,18 +129,18 @@ public class MessageMutatorTest {
         NestedNestedMessage nestedNestedMessage = builder.build();
 
         MessageMutator<NestedNestedMessage> mutable = new MessageMutator<NestedNestedMessage>(nestedNestedMessage);
-        IMessageDecriptor desc = mutable.getDescriptorSocket();
+        IMessageDecriptor desc = mutable.getMessageDescriptor();
         assertEquals("NestedNestedMessage", desc.getName());
 
-        IFieldDescriptorSocket nestedFieldDesc = desc.findFieldByName("nested");
-        IMessageDecriptor nestedDesc = nestedFieldDesc.getMessageDescriptor();
+        IFieldPath nestedFieldPaths = desc.findFieldByName("nested");
+        IMessageDecriptor nestedDesc = nestedFieldPaths.getMessageDescriptor();
         assertEquals("NestedMessage", nestedDesc.getName());
-        assertEquals("NestedNestedMessage", nestedFieldDesc.getContainingDescriptor().getName());
+        assertEquals("NestedNestedMessage", nestedFieldPaths.getContainingDescriptor().getName());
 
-        IFieldDescriptorSocket msgFieldDesc = nestedDesc.findFieldByName("msg");
-        IMessageDecriptor msgDesc = msgFieldDesc.getMessageDescriptor();
+        IFieldPath msgFieldPaths = nestedDesc.findFieldByName("msg");
+        IMessageDecriptor msgDesc = msgFieldPaths.getMessageDescriptor();
         assertEquals("SimpleMessage", msgDesc.getName());
-        assertEquals("NestedMessage", msgFieldDesc.getContainingDescriptor().getName());
+        assertEquals("NestedMessage", msgFieldPaths.getContainingDescriptor().getName());
 
         assertEquals(88, mutable.getField(nestedDesc.findFieldByName("x")));
         assertEquals(1, mutable.getField(msgDesc.findFieldByName("a")));

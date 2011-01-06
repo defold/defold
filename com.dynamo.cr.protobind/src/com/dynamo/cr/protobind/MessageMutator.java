@@ -3,7 +3,7 @@ package com.dynamo.cr.protobind;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dynamo.cr.protobind.internal.FieldDescriptorSocket;
+import com.dynamo.cr.protobind.internal.FieldPath;
 import com.dynamo.cr.protobind.internal.MessageDescriptor;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
@@ -19,7 +19,7 @@ import com.google.protobuf.Message.Builder;
 public class MessageMutator<T extends Message> {
     private Message.Builder builder;
     private Descriptor descriptorType;
-    private IMessageDecriptor descriptorSocket;
+    private IMessageDecriptor messageDescriptor;
 
     /**
      * Constructs a new message
@@ -28,15 +28,15 @@ public class MessageMutator<T extends Message> {
     public MessageMutator(T message) {
         this.builder = message.newBuilderForType().mergeFrom(message);
         this.descriptorType = message.getDescriptorForType();
-        this.descriptorSocket = new MessageDescriptor(this.descriptorType);
+        this.messageDescriptor = new MessageDescriptor(this.descriptorType);
     }
 
     /**
      * Get the {@link MessageDescriptor}
-     * @return the descriptor socket
+     * @return the message descriptor
      */
-    public IMessageDecriptor getDescriptorSocket() {
-        return descriptorSocket;
+    public IMessageDecriptor getMessageDescriptor() {
+        return messageDescriptor;
     }
 
     /**
@@ -49,21 +49,21 @@ public class MessageMutator<T extends Message> {
 
     /**
      * Get field value. The descriptor can represent a field at arbitrary depth
-     * @param fieldDescriptor the {@link FieldDescriptor} to get value for
+     * @param fieldPath the {@link IFieldPath} to get value for
      * @return the field value
      */
-    public Object getField(FieldDescriptorSocket fieldDescriptor) {
-        return doGetField(builder, fieldDescriptor);
+    public Object getField(FieldPath fieldPath) {
+        return doGetField(builder, fieldPath);
     }
 
     /**
      * Set field value. The descriptor can represent a field at arbitrary depth
-     * @param fieldDescriptor the {@link FieldDescriptor} to set value for
+     * @param fieldPath the {@link FieldPath} to set value for
      * @param value value to set
      */
-    public void setField(FieldDescriptorSocket fieldDescriptor, Object value) {
+    public void setField(FieldPath fieldPath, Object value) {
         ArrayList<FieldDescriptor> descriptorList = new ArrayList<FieldDescriptor>(32);
-        getTopDownDescriptorList(fieldDescriptor, descriptorList);
+        getTopDownDescriptorList(fieldPath, descriptorList);
         doSetField(builder, value, descriptorList, 0);
     }
 
@@ -87,15 +87,15 @@ public class MessageMutator<T extends Message> {
         }
     }
 
-    Object doGetField(Object object, FieldDescriptorSocket fieldDescriptor) {
-        FieldDescriptorSocket parent = fieldDescriptor.parent;
+    Object doGetField(Object object, FieldPath fieldPath) {
+        FieldPath parent = fieldPath.parent;
 
         if (parent == null) {
-            return genericGetField(object, fieldDescriptor.fieldDescriptor);
+            return genericGetField(object, fieldPath.fieldDescriptor);
         }
         else {
             Object tmp = doGetField(object, parent);
-            return genericGetField(tmp, fieldDescriptor.fieldDescriptor);
+            return genericGetField(tmp, fieldPath.fieldDescriptor);
         }
     }
 
@@ -128,7 +128,7 @@ public class MessageMutator<T extends Message> {
         }
     }
 
-    void getTopDownDescriptorList(FieldDescriptorSocket fieldDescriptor, List<FieldDescriptor> lst) {
+    void getTopDownDescriptorList(FieldPath fieldDescriptor, List<FieldDescriptor> lst) {
         if (fieldDescriptor.parent != null) {
             getTopDownDescriptorList(fieldDescriptor.parent, lst);
         }

@@ -1,6 +1,6 @@
 package com.dynamo.cr.protobind;
 
-import com.dynamo.cr.protobind.internal.FieldDescriptorSocket;
+import com.dynamo.cr.protobind.internal.FieldPath;
 
 /**
  * A wrapper for the message descriptor type.
@@ -10,10 +10,10 @@ import com.dynamo.cr.protobind.internal.FieldDescriptorSocket;
 public interface IMessageDecriptor {
 
     /**
-     * Get field descriptor sockets
-     * @return an array of field descriptor sockets
+     * Get field descriptor paths
+     * @return an array of field descriptor paths
      */
-    public abstract FieldDescriptorSocket[] getFieldDescriptors();
+    public abstract FieldPath[] getFieldDescriptors();
 
     /**
      * Get the message type name
@@ -24,8 +24,8 @@ public interface IMessageDecriptor {
     /**
      * Find field by name
      * @param name name of the field to get
-     * @return the field descriptor socket. null of the field doesn't exists
+     * @return the field descriptor pach. null of the field doesn't exists
      */
-    public abstract FieldDescriptorSocket findFieldByName(String name);
+    public abstract FieldPath findFieldByName(String name);
 
 }

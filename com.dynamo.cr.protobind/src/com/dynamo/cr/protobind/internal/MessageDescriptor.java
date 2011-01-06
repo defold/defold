@@ -9,52 +9,43 @@ import com.google.protobuf.Descriptors.FieldDescriptor;
 public class MessageDescriptor implements IMessageDecriptor {
 
     Descriptor descriptorType;
-    FieldDescriptorSocket[] fieldDescriptors;
+    FieldPath[] fieldPaths;
 
     public MessageDescriptor(Descriptor descriptorType) {
         this.descriptorType = descriptorType;
 
         List<FieldDescriptor> fields = descriptorType.getFields();
-        this.fieldDescriptors = new FieldDescriptorSocket[fields.size()];
+        this.fieldPaths = new FieldPath[fields.size()];
         int i = 0;
         for (FieldDescriptor fd : fields) {
-            fieldDescriptors[i] = new FieldDescriptorSocket(this, fd);
+            fieldPaths[i] = new FieldPath(this, fd);
             ++i;
         }
 
         resolveParents(this, null);
     }
 
-    static void resolveParents(MessageDescriptor descriptor, FieldDescriptorSocket parent) {
-        for (FieldDescriptorSocket f : descriptor.fieldDescriptors) {
+    static void resolveParents(MessageDescriptor descriptor, FieldPath parent) {
+        for (FieldPath f : descriptor.fieldPaths) {
             f.parent = parent;
-            if (f.messageDescriptorSocket != null)
-                resolveParents(f.messageDescriptorSocket, f);
+            if (f.messageDescriptor != null)
+                resolveParents(f.messageDescriptor, f);
         }
     }
 
-    /* (non-Javadoc)
-     * @see com.dynamo.cr.protobind.IMessageDecriptor#getFieldDescriptors()
-     */
     @Override
-    public FieldDescriptorSocket[] getFieldDescriptors() {
-        return fieldDescriptors;
+    public FieldPath[] getFieldDescriptors() {
+        return fieldPaths;
     }
 
-    /* (non-Javadoc)
-     * @see com.dynamo.cr.protobind.IMessageDecriptor#getName()
-     */
     @Override
     public String getName() {
         return descriptorType.getName();
     }
 
-    /* (non-Javadoc)
-     * @see com.dynamo.cr.protobind.IMessageDecriptor#findFieldByName(java.lang.String)
-     */
     @Override
-    public FieldDescriptorSocket findFieldByName(String name) {
-        for (FieldDescriptorSocket f : fieldDescriptors) {
+    public FieldPath findFieldByName(String name) {
+        for (FieldPath f : fieldPaths) {
             if (f.getName().equals(name))
                 return f;
         }
