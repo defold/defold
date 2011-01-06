@@ -11,12 +11,12 @@ import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
 
 /**
- * Wrapper class for google protocol buffers to create mutable messages
+ * Wrapper class for google protocol buffers to mutate messages
  * @author chmu
  *
  * @param <T> A message type
  */
-public class MutableMessage<T extends Message> {
+public class MessageMutator<T extends Message> {
     private Message.Builder builder;
     private Descriptor descriptorType;
     private IMessageDecriptor descriptorSocket;
@@ -25,7 +25,7 @@ public class MutableMessage<T extends Message> {
      * Constructs a new message
      * @param message Original message content
      */
-    public MutableMessage(T message) {
+    public MessageMutator(T message) {
         this.builder = message.newBuilderForType().mergeFrom(message);
         this.descriptorType = message.getDescriptorForType();
         this.descriptorSocket = new MessageDescriptor(this.descriptorType);
