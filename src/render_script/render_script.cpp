@@ -949,6 +949,26 @@ bail:
         assert(top == lua_gettop(L));
     }
 
+    void RelocateMessageStrings(const dmDDF::Descriptor* descriptor, char* buffer, char* data_start)
+    {
+        for (uint8_t i = 0; i < descriptor->m_FieldCount; ++i)
+        {
+            dmDDF::FieldDescriptor* field = &descriptor->m_Fields[i];
+            uint32_t field_type = field->m_Type;
+            switch (field_type)
+            {
+                case dmDDF::TYPE_MESSAGE:
+                    RelocateMessageStrings(field->m_MessageDescriptor, buffer + field->m_Offset, data_start);
+                    break;
+                case dmDDF::TYPE_STRING:
+                    *((uintptr_t*)&buffer[field->m_Offset]) = (uintptr_t)data_start + *((uintptr_t*)(buffer + field->m_Offset));
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
@@ -974,15 +994,7 @@ bail:
                 {
                     // adjust char ptrs to global mem space
                     char* data = (char*)instance_message_data->m_Buffer;
-                    for (uint8_t i = 0; i < instance_message_data->m_DDFDescriptor->m_FieldCount; ++i)
-                    {
-                        dmDDF::FieldDescriptor* field = &instance_message_data->m_DDFDescriptor->m_Fields[i];
-                        uint32_t field_type = field->m_Type;
-                        if (field_type == dmDDF::TYPE_STRING)
-                        {
-                            *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + *((uintptr_t*)(data + field->m_Offset));
-                        }
-                    }
+                    RelocateMessageStrings(instance_message_data->m_DDFDescriptor, data, data);
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
                     dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_Buffer);
