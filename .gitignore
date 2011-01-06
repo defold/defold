@@ -9,4 +9,5 @@ java_bin
 DYNAMO_HOME
 target
 log
+generated
 
