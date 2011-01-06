@@ -1,0 +1,26 @@
+package dmProtoBind;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.cr.protobind.proto";
+option java_outer_classname = "ProtoBind";
+option (ddf_java_package) = "com.dynamo.cr.protobind.ddf";
+
+message SimpleMessage
+{
+    required int32 a = 1;
+    required float b = 2;
+    required string s = 3;
+}
+
+message NestedMessage
+{
+    required SimpleMessage msg = 1;
+    required int32 x = 2;
+}
+
+message NestedNestedMessage
+{
+    required NestedMessage nested = 1;
+}

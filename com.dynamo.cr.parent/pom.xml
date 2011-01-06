@@ -19,7 +19,7 @@
 	<properties>
 		<tycho-version>0.10.0</tycho-version>
 		<tycho-groupid>org.sonatype.tycho</tycho-groupid>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
 	<build>
@@ -75,6 +75,8 @@
 		<module>../com.dynamo.cr.editor</module>
 		<module>../com.dynamo.cr.contenteditor</module>
 		<module>../com.dynamo.cr.luaeditor</module>
+		<module>../com.dynamo.cr.protobind</module>
+		<module>../com.dynamo.cr.protobind.test</module>
 	</modules>
 
 </project>
