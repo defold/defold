@@ -41,6 +41,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
+    bld.install_files('${PREFIX}/include/render', 'render/render_script.h')
     bld.install_files('${PREFIX}/include/render', 'render/material.h')
 
     bld.install_files('${PREFIX}/share/java', 'fontc.jar')
