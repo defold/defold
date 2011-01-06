@@ -169,6 +169,7 @@ namespace dmEngine
 
         graphics_params.m_DisplayWidth = dmConfigFile::GetInt(config, "display.width", 960);
         graphics_params.m_DisplayHeight = dmConfigFile::GetInt(config, "display.height", 540);
+        graphics_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
         graphics_params.m_AppTitle = dmConfigFile::GetString(config, "project.title", "TestTitle");
         graphics_params.m_Fullscreen = false;
         graphics_params.m_PrintDeviceInfo = false;
