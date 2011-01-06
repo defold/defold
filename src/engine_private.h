@@ -11,14 +11,13 @@
 
 #include <render/render.h>
 #include <render/font_renderer.h>
+#include <render/render_script.h>
 
 #include <input/input.h>
 
 #include <gameobject/gameobject.h>
 
 #include <gamesys/gamesys.h>
-
-#include "render_script/render_script.h"
 
 #include "engine_ddf.h"
 
@@ -66,8 +65,8 @@ namespace dmEngine
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
 
-        HRenderScript                               m_RenderScript;
-        HRenderScriptInstance                       m_RenderScriptInstance;
+        dmRender::HRenderScript                     m_RenderScript;
+        dmRender::HRenderScriptInstance             m_RenderScriptInstance;
 
         Stats                                       m_Stats;
     };

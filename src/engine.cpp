@@ -29,8 +29,6 @@
 
 #include "physics_debug_render.h"
 #include "profile_render.h"
-#include "render_script/render_script.h"
-#include "render_script/res_render_script.h"
 
 using namespace Vectormath::Aos;
 
@@ -125,7 +123,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmEngine::FinalizeRenderScript();
+        dmRender::FinalizeRenderScript();
 
         dmHID::Finalize();
 
@@ -210,7 +208,7 @@ namespace dmEngine
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
 
-        dmEngine::InitializeRenderScript();
+        dmRender::InitializeRenderScript();
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
@@ -227,10 +225,6 @@ namespace dmEngine
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
         fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory);
-        if (fact_result != dmResource::FACTORY_RESULT_OK)
-            goto bail;
-
-        fact_result = dmResource::RegisterType(engine->m_Factory, "render_scriptc", 0x0, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
@@ -417,7 +411,7 @@ bail:
 
                 if (engine->m_RenderScriptInstance)
                 {
-                    dmEngine::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
+                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
                 }
                 else
                 {
