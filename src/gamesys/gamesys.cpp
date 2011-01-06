@@ -23,6 +23,7 @@
 #include "resources/res_gamepad_map.h"
 #include "resources/res_spawn_point.h"
 #include "resources/res_light.h"
+#include "resources/res_render_script.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -80,6 +81,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("gamepadsc", ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
         REGISTER_RESOURCE_TYPE("spawnpointc", ResSpawnPointCreate, ResSpawnPointDestroy, 0);
         REGISTER_RESOURCE_TYPE("lightc", ResLightCreate, ResLightDestroy, 0);
+        REGISTER_RESOURCE_TYPE("render_scriptc", ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 
