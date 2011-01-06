@@ -424,31 +424,35 @@ public class PropertiesView extends ViewPart implements ISelectionListener,
                 Object first = structSelection.getFirstElement();
                 if (first instanceof Node) {
                     Node node = (Node) first;
-                    this.node = node;
-                    if (viewer.getInput() != null) {
-                        Object[] expanded = viewer.getExpandedElements();
-                        Set<String> expandedNames = new HashSet<String>();
-                        for (Object o : expanded) {
-                            if (o instanceof IProperty) {
-                                IProperty p = (IProperty) o;
-                                expandedNames.add(p.getName());
+
+                    // Only "selectable" nodes have editable properties
+                    if ((node.getFlags() & Node.FLAG_SELECTABLE) != 0) {
+                        this.node = node;
+                        if (viewer.getInput() != null) {
+                            Object[] expanded = viewer.getExpandedElements();
+                            Set<String> expandedNames = new HashSet<String>();
+                            for (Object o : expanded) {
+                                if (o instanceof IProperty) {
+                                    IProperty p = (IProperty) o;
+                                    expandedNames.add(p.getName());
+                                }
+                            }
+                            previouslyExpanded = expandedNames;
+                        }
+
+                        viewer.setInput(node);
+
+                        IProperty[] properties = node.getProperties();
+                        ArrayList<IProperty> toExpand = new ArrayList<IProperty>();
+                        for (IProperty p : properties) {
+                            if (previouslyExpanded.contains(p.getName())) {
+                                toExpand.add(p);
                             }
                         }
-                        previouslyExpanded = expandedNames;
+
+                        viewer.setExpandedElements(toExpand.toArray());
+                        return;
                     }
-
-                    viewer.setInput(node);
-
-                    IProperty[] properties = node.getProperties();
-                    ArrayList<IProperty> toExpand = new ArrayList<IProperty>();
-                    for (IProperty p : properties) {
-                        if (previouslyExpanded.contains(p.getName())) {
-                            toExpand.add(p);
-                        }
-                    }
-
-                    viewer.setExpandedElements(toExpand.toArray());
-                    return;
                 }
             }
         }
