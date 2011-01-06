@@ -145,6 +145,7 @@ namespace dmGraphics
         glfwInit(); // We can do this twice
 
 
+        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
         if( !glfwOpenWindow( params->m_DisplayWidth, params->m_DisplayHeight, 8,8,8,8, 32,0, GLFW_WINDOW ) )
         {
             glfwTerminate();

@@ -174,6 +174,7 @@ namespace dmGraphics
     {
         uint32_t        m_DisplayWidth;
         uint32_t        m_DisplayHeight;
+        uint32_t        m_Samples;
         const char*     m_AppTitle;
         bool            m_Fullscreen;
         bool            m_PrintDeviceInfo;
