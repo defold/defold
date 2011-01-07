@@ -8,7 +8,7 @@
 #include <graphics/graphics_device.h>
 
 #include <render/font_renderer.h>
-#include <render/render_ddf.h>
+#include <render/font_ddf.h>
 
 namespace dmGameSystem
 {
