@@ -29,7 +29,9 @@ import javax.vecmath.Vector4d;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
+import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -90,7 +92,7 @@ import com.dynamo.cr.contenteditor.scene.SceneEvent;
 import com.dynamo.cr.contenteditor.scene.ScenePropertyChangedEvent;
 import com.dynamo.cr.contenteditor.util.GLUtil;
 
-public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, KeyListener, ISceneListener, ISelectionProvider {
+public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, KeyListener, ISceneListener, ISelectionProvider, IOperationHistoryListener {
 
     private GLCanvas m_Canvas;
     private GLContext m_Context;
@@ -119,8 +121,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private Node pasteTarget = null;
 
     private boolean isRendering;
-    private boolean updateDirtyStateAsyncInflight = false;
-    private long lastUpdateAsyncTime = 0;
 
     public CollectionEditor() {
         factory = new ResourceLoaderFactory();
@@ -134,6 +134,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void dispose() {
+        IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+        history.removeOperationHistoryListener(this);
     }
 
     @SuppressWarnings("rawtypes")
@@ -292,6 +294,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         m_UndoContext = new UndoContext();
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+        history.addOperationHistoryListener(this);
         // TODO: Really?
         history.setLimit(m_UndoContext, 100);
 
@@ -985,7 +988,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         {
             System.err.println("Failed to execute operation: " + operation);
         }
-
     }
 
     @Override
@@ -1141,37 +1143,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public void keyReleased(KeyEvent e) {
     }
 
-    void updateDirtyStateAsync() {
-        /*
-         * We need to postpone dirty check as the undo operation can
-         * still be active at this point. (Triggered from a method in IUndoableOperation)
-         */
-
-        int delay = 10;
-        long time = System.currentTimeMillis();
-        if (time - lastUpdateAsyncTime < 200) {
-            delay = 300;
-        }
-        lastUpdateAsyncTime = time;
-
-        // We need to calculate delay before returning here
-        // lastUpdateAsyncTime needs to be updated for every call
-        if (updateDirtyStateAsyncInflight)
-            return;
-
-        Display display = getSite().getShell().getDisplay();
-        updateDirtyStateAsyncInflight = true;
-        display.timerExec(delay, new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                updateDirtyState();
-                updateDirtyStateAsyncInflight = false;
-            }
-        });
-    }
-
     void updateDirtyState() {
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
 
@@ -1185,7 +1156,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public void sceneChanged(SceneEvent event) {
 
-        updateDirtyStateAsync();
         if (event.m_Type == SceneEvent.NODE_REMOVED) {
             setSelectedNodes(new Node[] {});
         }
@@ -1193,7 +1163,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void propertyChanged(ScenePropertyChangedEvent event) {
-        updateDirtyStateAsync();
     }
 
     // SelectionProvider
@@ -1264,5 +1233,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public boolean isSelecting() {
         return m_RectangleSelectController.isSelecting();
+    }
+
+    @Override
+    public void historyNotification(OperationHistoryEvent event) {
+        updateDirtyState();
     }
 }
