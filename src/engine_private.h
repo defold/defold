@@ -11,7 +11,6 @@
 
 #include <render/render.h>
 #include <render/font_renderer.h>
-#include <render/render_script.h>
 
 #include <input/input.h>
 

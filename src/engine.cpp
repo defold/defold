@@ -82,6 +82,7 @@ namespace dmEngine
     , m_TimeStepFactor(1.0f)
     , m_TimeStepMode(dmEngineDDF::TIME_STEP_MODE_DISCRETE)
     , m_GraphicsDevice(0)
+    , m_RenderContext(0)
     , m_Factory(0x0)
     , m_Font(0x0)
     , m_SmallFont(0x0)
@@ -123,7 +124,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRender::FinalizeRenderScript();
+        dmRender::DeleteRenderContext(engine->m_RenderContext);
 
         dmHID::Finalize();
 
@@ -184,6 +185,7 @@ namespace dmEngine
         dmSound::Initialize(config, &sound_params);
 
         dmRender::RenderContextParams render_params;
+        render_params.m_DispatchCallback = DispatchRenderScript;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = 1024; // TODO: Should be configurable
         render_params.m_MaxRenderTargets = 32;
@@ -194,6 +196,7 @@ namespace dmEngine
         render_params.m_DisplayWidth = graphics_params.m_DisplayWidth;
         render_params.m_DisplayHeight = graphics_params.m_DisplayHeight;
         render_params.m_MaxCharacters = 2048 * 4;
+        render_params.m_CommandBufferSize = 1024;
         engine->m_RenderContext = dmRender::NewRenderContext(render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
@@ -207,8 +210,6 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
-
-        dmRender::InitializeRenderScript(DispatchRenderScript);
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
@@ -224,7 +225,7 @@ namespace dmEngine
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
@@ -724,7 +725,7 @@ bail:
             fact_error = dmResource::Get(engine->m_Factory, render_script_path, (void**)&engine->m_RenderScript);
             if (fact_error != dmResource::FACTORY_RESULT_OK)
                 return false;
-            engine->m_RenderScriptInstance = NewRenderScriptInstance(engine->m_RenderScript, engine->m_RenderContext);
+            engine->m_RenderScriptInstance = NewRenderScriptInstance(engine->m_RenderContext, engine->m_RenderScript);
         }
 
         return true;

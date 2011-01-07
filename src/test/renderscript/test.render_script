@@ -12,13 +12,13 @@ function init(self)
         u_wrap = render.TEXTURE_WRAP_CLAMP,
         v_wrap = render.TEXTURE_WRAP_CLAMP
     }
-    self.shadow_rt = render.rendertarget(self, "shadow_rt", {[render.BUFFER_TYPE_DEPTH] = shadow_params})
+    self.shadow_rt = render.render_target(self, "shadow_rt", {[render.BUFFER_TYPE_DEPTH] = shadow_params})
     self.view = vmath.matrix4()
     self.proj = vmath.matrix4()
 end
 
 local function render_shadow_map(self)
-    render.enable_rendertarget(self, self.shadow_rt)
+    render.enable_render_target(self, self.shadow_rt)
     render.set_depth_mask(self, true)
     render.set_color_mask(self, false, false, false, false)
     render.set_viewport(self, self.shadow_map_size, self.shadow_map_size)
@@ -33,7 +33,7 @@ local function render_shadow_map(self)
     render.enable_state(self, render.STATE_POLYGON_OFFSET_FILL)
     render.set_polygon_offset(self, 2, 1)
     render.draw(self, self.opaque_pred)
-    render.disable_rendertarget(self, self.shadow_rt)
+    render.disable_render_target(self, self.shadow_rt)
     render.disable_state(self, render.STATE_POLYGON_OFFSET_FILL)
 end
 
