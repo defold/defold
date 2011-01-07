@@ -18,11 +18,11 @@ public class Perspective implements IPerspectiveFactory {
 
         IFolderLayout left_folder = layout.createFolder("com.dynamo.cr.editor.left", IPageLayout.BOTTOM, 0.7f, IPageLayout.ID_PROJECT_EXPLORER);
 
-        left_folder.addView(ChangedFilesView.ID);
-        layout.getViewLayout(ChangedFilesView.ID).setCloseable(false);
-
         left_folder.addView(IPageLayout.ID_OUTLINE);
         layout.getViewLayout(IPageLayout.ID_OUTLINE).setCloseable(false);
+
+        left_folder.addView(ChangedFilesView.ID);
+        layout.getViewLayout(ChangedFilesView.ID).setCloseable(false);
 
         IFolderLayout folder = layout.createFolder("com.dynamo.cr.editor.bottom", IPageLayout.BOTTOM, 0.7f, editorArea);
         folder.addView(IConsoleConstants.ID_CONSOLE_VIEW);
