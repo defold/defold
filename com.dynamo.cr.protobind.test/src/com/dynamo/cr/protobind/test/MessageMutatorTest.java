@@ -10,7 +10,6 @@ import org.junit.Test;
 import com.dynamo.cr.protobind.IFieldPath;
 import com.dynamo.cr.protobind.IMessageDecriptor;
 import com.dynamo.cr.protobind.MessageMutator;
-import com.dynamo.cr.protobind.internal.FieldPath;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedNestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.SimpleMessage;
@@ -30,9 +29,9 @@ public class MessageMutatorTest {
 
         MessageMutator<SimpleMessage> mutable = new MessageMutator<SimpleMessage>(simpleMessage);
         IMessageDecriptor desc = mutable.getMessageDescriptor();
-        FieldPath[] fieldPaths = desc.getFieldPaths();
-        HashMap<String, FieldPath> fieldPathsMap = new HashMap<String, FieldPath>();
-        for (FieldPath d : fieldPaths) {
+        IFieldPath[] fieldPaths = desc.getFieldPaths();
+        HashMap<String, IFieldPath> fieldPathsMap = new HashMap<String, IFieldPath>();
+        for (IFieldPath d : fieldPaths) {
             fieldPathsMap.put(d.getName(), d);
         }
 

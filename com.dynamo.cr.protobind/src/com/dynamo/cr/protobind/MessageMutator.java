@@ -52,8 +52,8 @@ public class MessageMutator<T extends Message> {
      * @param fieldPath the {@link IFieldPath} to get value for
      * @return the field value
      */
-    public Object getField(FieldPath fieldPath) {
-        return doGetField(builder, fieldPath);
+    public Object getField(IFieldPath fieldPath) {
+        return doGetField(builder, (FieldPath) fieldPath);
     }
 
     /**
@@ -61,9 +61,9 @@ public class MessageMutator<T extends Message> {
      * @param fieldPath the {@link FieldPath} to set value for
      * @param value value to set
      */
-    public void setField(FieldPath fieldPath, Object value) {
+    public void setField(IFieldPath fieldPath, Object value) {
         ArrayList<FieldDescriptor> descriptorList = new ArrayList<FieldDescriptor>(32);
-        getTopDownDescriptorList(fieldPath, descriptorList);
+        getTopDownDescriptorList((FieldPath) fieldPath, descriptorList);
         doSetField(builder, value, descriptorList, 0);
     }
 
