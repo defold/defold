@@ -27,7 +27,7 @@ namespace dmGameSystem
 
     void RegisterDDFTypes();
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory);
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,

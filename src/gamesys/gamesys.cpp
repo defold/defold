@@ -50,38 +50,38 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context)
     {
         dmResource::FactoryResult e;
 
-#define REGISTER_RESOURCE_TYPE(extension, create_func, destroy_func, recreate_func)\
-    e = dmResource::RegisterType(factory, extension, 0, create_func, destroy_func, recreate_func);\
+#define REGISTER_RESOURCE_TYPE(extension, context, create_func, destroy_func, recreate_func)\
+    e = dmResource::RegisterType(factory, extension, context, create_func, destroy_func, recreate_func);\
     if( e != dmResource::FACTORY_RESULT_OK )\
     {\
         dmLogFatal("Unable to register resource type: %s", extension);\
         return e;\
     }\
 
-        REGISTER_RESOURCE_TYPE("collisionobjectc", ResCollisionObjectCreate, ResCollisionObjectDestroy, 0);
-        REGISTER_RESOURCE_TYPE("convexshapec", ResConvexShapeCreate, ResConvexShapeDestroy, 0);
-        REGISTER_RESOURCE_TYPE("emitterc", ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
-        REGISTER_RESOURCE_TYPE("texturec", ResTextureCreate, ResTextureDestroy, 0);
-        REGISTER_RESOURCE_TYPE("arbvp", ResVertexProgramCreate, ResVertexProgramDestroy, 0);
-        REGISTER_RESOURCE_TYPE("arbfp", ResFragmentProgramCreate, ResFragmentProgramDestroy, 0);
-        REGISTER_RESOURCE_TYPE("imagefontc", ResImageFontCreate, ResImageFontDestroy, 0);
-        REGISTER_RESOURCE_TYPE("fontc", ResFontCreate, ResFontDestroy, 0);
-        REGISTER_RESOURCE_TYPE("modelc", ResCreateModel, ResDestroyModel, ResRecreateModel);
-        REGISTER_RESOURCE_TYPE("meshc", ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
-        REGISTER_RESOURCE_TYPE("materialc", ResMaterialCreate, ResMaterialDestroy, ResMaterialRecreate);
-        REGISTER_RESOURCE_TYPE("guic", ResCreateSceneDesc, ResDestroySceneDesc, 0);
-        REGISTER_RESOURCE_TYPE("gui_scriptc", ResCreateGuiScript, ResDestroyGuiScript, 0);
-        REGISTER_RESOURCE_TYPE("wavc", ResSoundDataCreate, ResSoundDataDestroy, 0);
-        REGISTER_RESOURCE_TYPE("camerac", ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
-        REGISTER_RESOURCE_TYPE("input_bindingc", ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
-        REGISTER_RESOURCE_TYPE("gamepadsc", ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
-        REGISTER_RESOURCE_TYPE("spawnpointc", ResSpawnPointCreate, ResSpawnPointDestroy, 0);
-        REGISTER_RESOURCE_TYPE("lightc", ResLightCreate, ResLightDestroy, 0);
-        REGISTER_RESOURCE_TYPE("render_scriptc", ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", 0, ResCollisionObjectCreate, ResCollisionObjectDestroy, 0);
+        REGISTER_RESOURCE_TYPE("convexshapec", 0, ResConvexShapeCreate, ResConvexShapeDestroy, 0);
+        REGISTER_RESOURCE_TYPE("emitterc", 0, ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
+        REGISTER_RESOURCE_TYPE("texturec", 0, ResTextureCreate, ResTextureDestroy, 0);
+        REGISTER_RESOURCE_TYPE("arbvp", 0, ResVertexProgramCreate, ResVertexProgramDestroy, 0);
+        REGISTER_RESOURCE_TYPE("arbfp", 0, ResFragmentProgramCreate, ResFragmentProgramDestroy, 0);
+        REGISTER_RESOURCE_TYPE("imagefontc", 0, ResImageFontCreate, ResImageFontDestroy, 0);
+        REGISTER_RESOURCE_TYPE("fontc", 0, ResFontCreate, ResFontDestroy, 0);
+        REGISTER_RESOURCE_TYPE("modelc", 0, ResCreateModel, ResDestroyModel, ResRecreateModel);
+        REGISTER_RESOURCE_TYPE("meshc", 0, ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
+        REGISTER_RESOURCE_TYPE("materialc", 0, ResMaterialCreate, ResMaterialDestroy, ResMaterialRecreate);
+        REGISTER_RESOURCE_TYPE("guic", 0, ResCreateSceneDesc, ResDestroySceneDesc, 0);
+        REGISTER_RESOURCE_TYPE("gui_scriptc", 0, ResCreateGuiScript, ResDestroyGuiScript, 0);
+        REGISTER_RESOURCE_TYPE("wavc", 0, ResSoundDataCreate, ResSoundDataDestroy, 0);
+        REGISTER_RESOURCE_TYPE("camerac", 0, ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
+        REGISTER_RESOURCE_TYPE("input_bindingc", 0, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
+        REGISTER_RESOURCE_TYPE("gamepadsc", 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
+        REGISTER_RESOURCE_TYPE("spawnpointc", 0, ResSpawnPointCreate, ResSpawnPointDestroy, 0);
+        REGISTER_RESOURCE_TYPE("lightc", 0, ResLightCreate, ResLightDestroy, 0);
+        REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 

@@ -25,7 +25,7 @@ protected:
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
 
-        assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory));
+        assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, 0));
 
         memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
         memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
