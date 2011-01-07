@@ -2,6 +2,8 @@
 #define DMRENDER_RENDER_SCRIPT_H
 
 #include <dlib/array.h>
+#include <dlib/message.h>
+
 #include <render/render.h>
 
 namespace dmRender
@@ -42,8 +44,15 @@ namespace dmRender
     };
     typedef RenderScriptInstance* HRenderScriptInstance;
 
+    struct Message
+    {
+        uint32_t m_Id;
+        const dmDDF::Descriptor* m_DDFDescriptor;
+        uint32_t m_BufferSize;
+        void* m_Buffer;
+    };
 
-    void    InitializeRenderScript();
+    void    InitializeRenderScript(dmMessage::DispatchCallback dispatch_callback);
     void    FinalizeRenderScript();
 
     HRenderScript NewRenderScript(const void* buffer, uint32_t buffer_size, const char* filename);
@@ -54,6 +63,7 @@ namespace dmRender
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    void                    OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message);
 }
 
 #endif // DMRENDER_RENDER_SCRIPT_H

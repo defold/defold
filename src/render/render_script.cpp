@@ -8,7 +8,7 @@
 #include <dlib/profile.h>
 
 #include <script/script.h>
-#include <gameobject/gameobject.h>
+
 #include "render_operations.h"
 
 extern "C"
@@ -46,12 +46,14 @@ namespace dmRender
         {
             m_LuaState = 0;
             m_Socket = 0;
+            m_DispatchCallback = 0;
             m_RenderCommands.SetCapacity(1024);
         }
 
-        lua_State*              m_LuaState;
-        dmMessage::HSocket      m_Socket;
-        dmArray<RenderCommand>  m_RenderCommands;
+        lua_State*                      m_LuaState;
+        dmMessage::HSocket              m_Socket;
+        dmMessage::DispatchCallback     m_DispatchCallback;
+        dmArray<RenderCommand>          m_RenderCommands;
     };
 
     RenderScriptWorld g_RenderScriptWorld;
@@ -676,9 +678,10 @@ namespace dmRender
         {0, 0}
     };
 
-    void InitializeRenderScript()
+    void InitializeRenderScript(dmMessage::DispatchCallback dispatch_callback)
     {
         dmMessage::NewSocket(RENDER_SCRIPT_SOCKET_NAME, &g_RenderScriptWorld.m_Socket);
+        g_RenderScriptWorld.m_DispatchCallback = dispatch_callback;
 
         lua_State *L = lua_open();
         g_RenderScriptWorld.m_LuaState = L;
@@ -987,23 +990,24 @@ bail:
             {
                 arg_count = 3;
 
-                dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*)args;
-                dmScript::PushHash(L, instance_message_data->m_MessageId);
-                if (instance_message_data->m_DDFDescriptor)
+                Message* message = (Message*)args;
+                dmScript::PushHash(L, message->m_Id);
+                if (message->m_DDFDescriptor)
                 {
                     // adjust char ptrs to global mem space
-                    char* data = (char*)instance_message_data->m_Buffer;
-                    RelocateMessageStrings(instance_message_data->m_DDFDescriptor, data, data);
+                    char* data = (char*)message->m_Buffer;
+                    RelocateMessageStrings(message->m_DDFDescriptor, data, data);
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
-                    dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_Buffer);
+                    dmScript::PushDDF(L, message->m_DDFDescriptor, (const char*)message->m_Buffer);
+                }
+                else if (message->m_BufferSize > 0)
+                {
+                    dmScript::PushTable(L, (const char*)message->m_Buffer);
                 }
                 else
                 {
-                    if (instance_message_data->m_BufferSize > 0)
-                        dmScript::PushTable(L, (const char*)instance_message_data->m_Buffer);
-                    else
-                        lua_newtable(L);
+                    lua_newtable(L);
                 }
             }
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
@@ -1025,21 +1029,19 @@ bail:
         return RunScript(instance, RENDER_SCRIPT_FUNCTION_INIT, 0x0);
     }
 
-    static void Dispatch(dmMessage::Message *message, void* user_ptr)
-    {
-        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message->m_Data;
-        HRenderScriptInstance script_instance = (HRenderScriptInstance)user_ptr;
-        RunScript(script_instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, (void*)instance_message_data);
-    }
-
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
-        dmMessage::Dispatch(g_RenderScriptWorld.m_Socket, &Dispatch, (void*)instance);
+        dmMessage::Dispatch(g_RenderScriptWorld.m_Socket, g_RenderScriptWorld.m_DispatchCallback, (void*)instance);
         g_RenderScriptWorld.m_RenderCommands.SetSize(0);
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         ParseRenderCommands(instance->m_RenderContext, &g_RenderScriptWorld.m_RenderCommands.Front(), g_RenderScriptWorld.m_RenderCommands.Size());
         return result;
+    }
+
+    void OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message)
+    {
+        RunScript(render_script_instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 }
