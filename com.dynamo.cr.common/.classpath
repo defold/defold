@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gameobject.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gamesys.jar"/>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/render.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/ddf.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpclient-4.0.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpcore-4.0.1.jar"/>
