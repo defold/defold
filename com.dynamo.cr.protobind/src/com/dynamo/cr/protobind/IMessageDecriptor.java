@@ -13,7 +13,7 @@ public interface IMessageDecriptor {
      * Get field descriptor paths
      * @return an array of field descriptor paths
      */
-    public abstract FieldPath[] getFieldDescriptors();
+    public abstract FieldPath[] getFieldPaths();
 
     /**
      * Get the message type name

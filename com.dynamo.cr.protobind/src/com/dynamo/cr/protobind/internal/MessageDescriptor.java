@@ -34,7 +34,7 @@ public class MessageDescriptor implements IMessageDecriptor {
     }
 
     @Override
-    public FieldPath[] getFieldDescriptors() {
+    public FieldPath[] getFieldPaths() {
         return fieldPaths;
     }
 

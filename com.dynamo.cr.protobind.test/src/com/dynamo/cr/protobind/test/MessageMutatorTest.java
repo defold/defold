@@ -30,7 +30,7 @@ public class MessageMutatorTest {
 
         MessageMutator<SimpleMessage> mutable = new MessageMutator<SimpleMessage>(simpleMessage);
         IMessageDecriptor desc = mutable.getMessageDescriptor();
-        FieldPath[] fieldPaths = desc.getFieldDescriptors();
+        FieldPath[] fieldPaths = desc.getFieldPaths();
         HashMap<String, FieldPath> fieldPathsMap = new HashMap<String, FieldPath>();
         for (FieldPath d : fieldPaths) {
             fieldPathsMap.put(d.getName(), d);
