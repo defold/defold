@@ -16,7 +16,7 @@ def transform_material(msg):
     msg.FragmentProgram = msg.FragmentProgram.replace('.fp', '.arbfp')
     return msg
 
-proto_compile_task('font', 'render.render_ddf_pb2', 'render_ddf_pb2.FontDesc', '.font', '.fontc', transform_font)
+proto_compile_task('font', 'render.font_ddf_pb2', 'font_ddf_pb2.FontDesc', '.font', '.fontc', transform_font)
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
 #Task.simple_task_type('ttf', 'python ${FONTC} -s ${size} -o ${TGT} ${SRC}',

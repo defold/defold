@@ -49,3 +49,4 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/proto', '../proto/render/material_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../proto/render/render_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../proto/render/font_ddf.proto')

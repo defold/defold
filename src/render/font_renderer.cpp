@@ -11,7 +11,7 @@
 #include <graphics/graphics_device.h>
 
 #include "render_private.h"
-#include "render/render_ddf.h"
+#include "render/font_ddf.h"
 
 using namespace Vectormath::Aos;
 
