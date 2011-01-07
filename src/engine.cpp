@@ -61,7 +61,7 @@ namespace dmEngine
     }
 
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
-    void DispatchGui(dmMessage::Message *message_object, void* user_ptr);
+    void DispatchRenderScript(dmMessage::Message *message_object, void* user_ptr);
 
     Stats::Stats()
     : m_FrameCount(0)
@@ -208,7 +208,7 @@ namespace dmEngine
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
 
-        dmRender::InitializeRenderScript();
+        dmRender::InitializeRenderScript(DispatchRenderScript);
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
@@ -399,9 +399,6 @@ bail:
                     dmGameObject::HCollection collections[2] = {engine->m_MainCollection, engine->m_ActiveCollection};
                     dmGameObject::DispatchInput(collections, 2, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
                 }
-
-                dmMessage::HSocket socket = dmGameObject::GetMessageSocket(engine->m_Register);
-                dmMessage::Dispatch(socket, &Dispatch, engine);
 
                 dmGameObject::UpdateContext update_contexts[2];
                 update_contexts[0].m_DT = dt;
@@ -615,21 +612,16 @@ bail:
         }
     }
 
-    void DispatchGui(dmMessage::Message *message_object, void* user_ptr)
+    void DispatchRenderScript(dmMessage::Message *message_object, void* user_ptr)
     {
-        Engine* self = (Engine*) user_ptr;
-
-        dmGui::MessageData* gui_message = (dmGui::MessageData*) message_object->m_Data;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData(gui_message->m_Scene);
-
-        dmGameObject::InstanceMessageData data;
-        data.m_Component = 0xff;
-        data.m_DDFDescriptor = 0x0;
-        data.m_MessageId = gui_message->m_MessageId;
-        data.m_Instance = instance;
-        dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(self->m_Register);
-        uint32_t message_id = dmGameObject::GetMessageId(self->m_Register);
-        dmMessage::Post(socket, message_id, &data, sizeof(dmGameObject::InstanceMessageData));
+        dmRender::HRenderScriptInstance instance = (dmRender::HRenderScriptInstance)user_ptr;
+        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
+        dmRender::Message message;
+        message.m_Id = message_object->m_ID;
+        message.m_DDFDescriptor = instance_message_data->m_DDFDescriptor;
+        message.m_BufferSize = instance_message_data->m_BufferSize;
+        message.m_Buffer = instance_message_data->m_Buffer;
+        dmRender::OnMessageRenderScriptInstance(instance, &message);
     }
 
     void LoadCollection(HEngine engine, const char* collection_name)
