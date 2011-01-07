@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/container.h>
+#include <dlib/message.h>
 #include <graphics/graphics_device.h>
 
 #include "material.h"
@@ -19,6 +20,13 @@ namespace dmRender
         RESULT_INVALID_CONTEXT = -1,
         RESULT_OUT_OF_RESOURCES = -2,
         RESULT_BUFFER_IS_FULL = -3,
+    };
+
+    enum RenderScriptResult
+    {
+        RENDER_SCRIPT_RESULT_FAILED = -1,
+        RENDER_SCRIPT_RESULT_NO_FUNCTION = 0,
+        RENDER_SCRIPT_RESULT_OK = 1
     };
 
     struct Predicate
@@ -54,26 +62,37 @@ namespace dmRender
         uint8_t                         m_SetBlendFactors : 1;
     };
 
-    typedef struct RenderContext* HRenderContext;
-    typedef struct RenderTargetSetup* HRenderTargetSetup;
-
     struct RenderContextParams
     {
         RenderContextParams();
 
-        uint32_t        m_MaxRenderTypes;
-        uint32_t        m_MaxInstances;
-        uint32_t        m_MaxRenderTargets;
-        void*           m_VertexProgramData;
-        uint32_t        m_VertexProgramDataSize;
-        void*           m_FragmentProgramData;
-        uint32_t        m_FragmentProgramDataSize;
-        uint32_t        m_DisplayWidth;
-        uint32_t        m_DisplayHeight;
-        uint32_t        m_MaxCharacters;
+        dmMessage::DispatchCallback     m_DispatchCallback;
+        void*                           m_VertexProgramData;
+        void*                           m_FragmentProgramData;
+        uint32_t                        m_MaxRenderTypes;
+        uint32_t                        m_MaxInstances;
+        uint32_t                        m_MaxRenderTargets;
+        uint32_t                        m_VertexProgramDataSize;
+        uint32_t                        m_FragmentProgramDataSize;
+        uint32_t                        m_DisplayWidth;
+        uint32_t                        m_DisplayHeight;
+        uint32_t                        m_MaxCharacters;
+        uint32_t                        m_CommandBufferSize;
     };
 
-    typedef uint32_t HRenderType;
+    struct Message
+    {
+        uint32_t m_Id;
+        const dmDDF::Descriptor* m_DDFDescriptor;
+        uint32_t m_BufferSize;
+        void* m_Buffer;
+    };
+
+    typedef struct RenderContext*           HRenderContext;
+    typedef struct RenderTargetSetup*       HRenderTargetSetup;
+    typedef uint32_t                        HRenderType;
+    typedef struct RenderScript*            HRenderScript;
+    typedef struct RenderScriptInstance*    HRenderScriptInstance;
 
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
@@ -140,6 +159,16 @@ namespace dmRender
      * @param color Color
      */
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
+
+    HRenderScript   NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename);
+    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename);
+    void            DeleteRenderScript(HRenderContext render_context, HRenderScript render_script);
+
+    HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);
+    void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    void                    OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message);
 }
 
 #endif /* RENDER_H */

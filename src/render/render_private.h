@@ -9,6 +9,13 @@
 
 #include "render.h"
 
+extern "C"
+{
+#include <lua/lua.h>
+#include <lua/lauxlib.h>
+#include <lua/lualib.h>
+}
+
 namespace dmRender
 {
     using namespace Vectormath::Aos;
@@ -51,14 +58,25 @@ namespace dmRender
         uint32_t                    m_Hash;
     };
 
+    struct RenderScriptContext
+    {
+        RenderScriptContext();
+
+        lua_State*                  m_LuaState;
+        dmMessage::HSocket          m_Socket;
+        dmMessage::DispatchCallback m_DispatchCallback;
+        uint32_t                    m_CommandBufferSize;
+    };
+
     struct RenderContext
     {
         Vectormath::Aos::Vector4    m_VertexConstants[MAX_CONSTANT_COUNT];
         Vectormath::Aos::Vector4    m_FragmentConstants[MAX_CONSTANT_COUNT];
-        dmArray<RenderTargetSetup>  m_RenderTargets;
-        dmArray<RenderObject*>      m_RenderObjects;
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
+        RenderScriptContext         m_RenderScriptContext;
+        dmArray<RenderTargetSetup>  m_RenderTargets;
+        dmArray<RenderObject*>      m_RenderObjects;
 
         dmGraphics::HContext        m_GFXContext;
 

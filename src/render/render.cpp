@@ -9,6 +9,7 @@
 #include <graphics/graphics_device.h>
 
 #include "render_private.h"
+#include "render_script.h"
 #include "debug_renderer.h"
 #include "font_renderer.h"
 
@@ -21,16 +22,27 @@ namespace dmRender
     }
 
     RenderContextParams::RenderContextParams()
-    : m_MaxRenderTypes(0)
+    : m_DispatchCallback(0x0)
+    , m_VertexProgramData(0x0)
+    , m_FragmentProgramData(0x0)
+    , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
-    , m_VertexProgramData(0x0)
     , m_VertexProgramDataSize(0)
-    , m_FragmentProgramData(0x0)
     , m_FragmentProgramDataSize(0)
     , m_DisplayWidth(0)
     , m_DisplayHeight(0)
     , m_MaxCharacters(0)
+    , m_CommandBufferSize(1024)
+    {
+
+    }
+
+    RenderScriptContext::RenderScriptContext()
+    : m_LuaState(0)
+    , m_Socket(0)
+    , m_DispatchCallback(0)
+    , m_CommandBufferSize(0)
     {
 
     }
@@ -49,6 +61,8 @@ namespace dmRender
         context->m_View = Vectormath::Aos::Matrix4::identity();
         context->m_Projection = Vectormath::Aos::Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
+
+        InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_DispatchCallback, params.m_CommandBufferSize);
 
         InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
 
@@ -69,6 +83,7 @@ namespace dmRender
     {
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
+        FinalizeRenderScriptContext(render_context->m_RenderScriptContext);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         delete render_context;

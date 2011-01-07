@@ -75,6 +75,8 @@ def configure(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
+    conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_LUA'] = 'lua'
 
     if sys.platform == "linux2":
         conf.env['LIB_PLATFORM_SOCKET'] = ''
