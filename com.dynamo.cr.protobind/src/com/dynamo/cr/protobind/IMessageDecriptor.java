@@ -1,5 +1,7 @@
 package com.dynamo.cr.protobind;
 
+import com.google.protobuf.Descriptors.Descriptor;
+
 
 /**
  * A wrapper for the message descriptor type.
@@ -26,5 +28,11 @@ public interface IMessageDecriptor {
      * @return the field descriptor pach. null of the field doesn't exists
      */
     public abstract IFieldPath findFieldByName(String name);
+
+    /**
+     * Get represented google protocol buffers message descriptor
+     * @return
+     */
+    public abstract Descriptor getDescriptor();
 
 }

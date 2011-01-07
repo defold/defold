@@ -51,4 +51,9 @@ public class MessageDescriptor implements IMessageDecriptor {
         }
         return null;
     }
+
+    @Override
+    public Descriptor getDescriptor() {
+        return descriptorType;
+    }
 }

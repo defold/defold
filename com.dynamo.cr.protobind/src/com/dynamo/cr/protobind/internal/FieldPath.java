@@ -35,4 +35,9 @@ public class FieldPath implements IFieldPath {
         return fieldDescriptor.getName();
     }
 
+    @Override
+    public FieldDescriptor getFieldDescriptor() {
+        return fieldDescriptor;
+    }
+
 }

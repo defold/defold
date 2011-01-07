@@ -1,5 +1,7 @@
 package com.dynamo.cr.protobind;
 
+import com.google.protobuf.Descriptors.FieldDescriptor;
+
 /**
  * Field descriptor path. Represents a field. Similar to FieldDescriptor but represents a path to the actual field.
  * Due to the complete path fields can be set from the top value of the message (for nested messages)
@@ -25,4 +27,10 @@ public interface IFieldPath {
      * @return the field name
      */
     public abstract String getName();
+
+    /**
+     * Get represented google protocol buffers field descriptor
+     * @return
+     */
+    public abstract FieldDescriptor getFieldDescriptor();
 }
