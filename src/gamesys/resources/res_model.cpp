@@ -23,13 +23,17 @@ namespace dmGameSystem
         dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
 
-        dmResource::Get(factory, model_desc->m_Mesh, (void**) &mesh);
-        dmResource::Get(factory, model_desc->m_Material, (void**) &material);
+        bool result = true;
+        if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, model_desc->m_Mesh, (void**) &mesh))
+            result = false;
+        if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, model_desc->m_Material, (void**) &material))
+            result = false;
         for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            dmResource::Get(factory, model_desc->m_Textures[i], (void**) &textures[i]);
+            if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, model_desc->m_Textures[i], (void**) &textures[i]))
+                result = false;
 
         dmDDF::FreeMessage((void*) model_desc);
-        if (mesh == 0 || material == 0 || textures[0] == 0)
+        if (!result)
         {
             if (mesh) dmResource::Release(factory, (void*) mesh);
             if (material) dmResource::Release(factory, (void*) material);
