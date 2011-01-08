@@ -11,7 +11,7 @@ namespace dmInput
     struct KeyTrigger
     {
         dmInputDDF::Key m_Input;
-        uint32_t m_ActionId;
+        dmhash_t m_ActionId;
     };
 
     struct KeyboardBinding
@@ -24,7 +24,7 @@ namespace dmInput
     struct MouseTrigger
     {
         dmInputDDF::Mouse m_Input;
-        uint32_t m_ActionId;
+        dmhash_t m_ActionId;
     };
 
     struct MouseBinding
@@ -37,7 +37,7 @@ namespace dmInput
     struct GamepadTrigger
     {
         dmInputDDF::Gamepad m_Input;
-        uint32_t m_ActionId;
+        dmhash_t m_ActionId;
     };
 
     struct GamepadBinding
@@ -58,7 +58,7 @@ namespace dmInput
         KeyboardBinding* m_KeyboardBinding;
         MouseBinding* m_MouseBinding;
         GamepadBinding* m_GamepadBinding;
-        dmHashTable32< Action > m_Actions;
+        dmHashTable64< Action > m_Actions;
     };
 
     struct GamepadInput

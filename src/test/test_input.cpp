@@ -59,7 +59,7 @@ TEST_F(InputTest, Keyboard)
 
     dmHID::Update();
 
-    uint32_t key_0_id = dmHashString32("KEY_0");
+    dmhash_t key_0_id = dmHashString64("KEY_0");
 
     float v = dmInput::GetValue(binding, key_0_id);
     ASSERT_EQ(0.0f, v);
@@ -96,7 +96,7 @@ TEST_F(InputTest, Mouse)
 
     dmHID::Update();
 
-    uint32_t mouse_up_id = dmHashString32("MOUSE_UP");
+    dmhash_t mouse_up_id = dmHashString64("MOUSE_UP");
 
     float v = dmInput::GetValue(binding, mouse_up_id);
     ASSERT_EQ(0.0f, v);
@@ -127,7 +127,7 @@ TEST_F(InputTest, Gamepad)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
 
-    uint32_t action_id = dmHashString32("GAMEPAD_LSTICK_UP");
+    dmhash_t action_id = dmHashString64("GAMEPAD_LSTICK_UP");
     dmInputDDF::Gamepad input = dmInputDDF::GAMEPAD_LSTICK_UP;
 
     dmInput::GamepadConfig* map = m_Context->m_GamepadMaps.Get(dmHashString32("null_device"));
@@ -169,8 +169,8 @@ TEST_F(InputTest, Gamepad)
 
     // Test modifiers
 
-    uint32_t up_id = dmHashString32("GAMEPAD_RSTICK_UP");
-    uint32_t down_id = dmHashString32("GAMEPAD_RSTICK_DOWN");
+    dmhash_t up_id = dmHashString64("GAMEPAD_RSTICK_UP");
+    dmhash_t down_id = dmHashString64("GAMEPAD_RSTICK_DOWN");
 
     dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, 2, 1.0f);
 
@@ -191,7 +191,7 @@ TEST_F(InputTest, Gamepad)
     dmInput::DeleteBinding(binding);
 }
 
-void ActionCallback(uint32_t action_id, dmInput::Action* action, void* user_data)
+void ActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
 {
     float* value = (float*)user_data;
     *value = action->m_Value;
@@ -225,8 +225,8 @@ TEST_F(InputTest, Combinations)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_ComboDDF);
 
-    uint32_t action0 = dmHashString32("Action0");
-    uint32_t action1 = dmHashString32("Action1");
+    dmhash_t action0 = dmHashString64("Action0");
+    dmhash_t action1 = dmHashString64("Action1");
 
     dmHID::SetKey(dmHID::KEY_0, true);
 
@@ -252,7 +252,7 @@ TEST_F(InputTest, DeadZone)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
 
-    uint32_t action_id = dmHashString32("GAMEPAD_LSTICK_UP");
+    dmhash_t action_id = dmHashString64("GAMEPAD_LSTICK_UP");
     dmInputDDF::Gamepad input = dmInputDDF::GAMEPAD_LSTICK_UP;
 
     dmInput::GamepadConfig* config = m_Context->m_GamepadMaps.Get(dmHashString32("null_device"));
@@ -292,7 +292,7 @@ TEST_F(InputTest, TestRepeat)
 
     dmHID::Update();
 
-    uint32_t key_0_id = dmHashString32("KEY_0");
+    dmhash_t key_0_id = dmHashString64("KEY_0");
 
     float v = dmInput::GetValue(binding, key_0_id);
     ASSERT_EQ(0.0f, v);

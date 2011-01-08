@@ -2,7 +2,7 @@
 #define DM_INPUT_H
 
 #include <ddf/ddf.h>
-
+#include <dlib/hash.h>
 #include <hid/hid.h>
 
 #include "input_ddf.h"
@@ -42,12 +42,12 @@ namespace dmInput
 
     void UpdateBinding(HBinding binding, float dt);
 
-    float GetValue(HBinding binding, uint32_t action_id);
-    bool Pressed(HBinding binding, uint32_t action_id);
-    bool Released(HBinding binding, uint32_t action_id);
-    bool Repeated(HBinding binding, uint32_t action_id);
+    float GetValue(HBinding binding, dmhash_t action_id);
+    bool Pressed(HBinding binding, dmhash_t action_id);
+    bool Released(HBinding binding, dmhash_t action_id);
+    bool Repeated(HBinding binding, dmhash_t action_id);
 
-    typedef void (*ActionCallback)(uint32_t action_id, Action* action, void* user_data);
+    typedef void (*ActionCallback)(dmhash_t action_id, Action* action, void* user_data);
 
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
 }

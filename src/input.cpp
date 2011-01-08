@@ -64,7 +64,7 @@ namespace dmInput
             {
                 const dmInputDDF::KeyTrigger& ddf_trigger = ddf->m_KeyTrigger[i];
                 dmInput::KeyTrigger trigger;
-                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
+                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
                 trigger.m_Input = ddf_trigger.m_Input;
                 binding->m_KeyboardBinding->m_Triggers.Push(trigger);
                 binding->m_Actions.Put(trigger.m_ActionId, action);
@@ -79,7 +79,7 @@ namespace dmInput
             {
                 const dmInputDDF::MouseTrigger& ddf_trigger = ddf->m_MouseTrigger[i];
                 dmInput::MouseTrigger trigger;
-                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
+                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
                 trigger.m_Input = ddf_trigger.m_Input;
                 binding->m_MouseBinding->m_Triggers.Push(trigger);
                 binding->m_Actions.Put(trigger.m_ActionId, action);
@@ -112,7 +112,7 @@ namespace dmInput
             {
                 const dmInputDDF::GamepadTrigger& ddf_trigger = ddf->m_GamepadTrigger[i];
                 dmInput::GamepadTrigger trigger;
-                trigger.m_ActionId = dmHashString32(ddf_trigger.m_Action);
+                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
                 trigger.m_Input = ddf_trigger.m_Input;
                 binding->m_GamepadBinding->m_Triggers.Push(trigger);
                 binding->m_Actions.Put(trigger.m_ActionId, action);
@@ -184,7 +184,7 @@ namespace dmInput
 
     float ApplyGamepadModifiers(dmHID::GamepadPacket* packet, const GamepadInput& input);
 
-    void ClearAction(void*, const uint32_t* id, Action* action)
+    void ClearAction(void*, const dmhash_t* id, Action* action)
     {
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
@@ -196,7 +196,7 @@ namespace dmInput
         Context* m_Context;
     };
 
-    void UpdateAction(void* context, const uint32_t* id, Action* action)
+    void UpdateAction(void* context, const dmhash_t* id, Action* action)
     {
         action->m_Pressed = (action->m_PrevValue == 0.0f && action->m_Value > 0.0f) ? 1 : 0;
         action->m_Released = (action->m_PrevValue > 0.0f && action->m_Value == 0.0f) ? 1 : 0;
@@ -335,7 +335,7 @@ namespace dmInput
                     {
                         const GamepadTrigger& trigger = binding->m_GamepadBinding->m_Triggers[i];
                         const GamepadInput& input = config->m_Inputs[trigger.m_Input];
-                        if (input.m_Index != ~0)
+                        if (input.m_Index != (uint16_t)~0)
                         {
                             float v = ApplyGamepadModifiers(&binding->m_GamepadBinding->m_Packet, input);
                             Action* action = binding->m_Actions.Get(trigger.m_ActionId);
@@ -364,7 +364,7 @@ namespace dmInput
         binding->m_Actions.Iterate<void>(UpdateAction, &context);
     }
 
-    float GetValue(HBinding binding, uint32_t action_id)
+    float GetValue(HBinding binding, dmhash_t action_id)
     {
         Action* action = binding->m_Actions.Get(action_id);
         if (action != 0x0)
@@ -373,7 +373,7 @@ namespace dmInput
             return 0.0f;
     }
 
-    bool Pressed(HBinding binding, uint32_t action_id)
+    bool Pressed(HBinding binding, dmhash_t action_id)
     {
         Action* action = binding->m_Actions.Get(action_id);
         if (action != 0x0)
@@ -382,7 +382,7 @@ namespace dmInput
             return false;
     }
 
-    bool Released(HBinding binding, uint32_t action_id)
+    bool Released(HBinding binding, dmhash_t action_id)
     {
         Action* action = binding->m_Actions.Get(action_id);
         if (action != 0x0)
@@ -391,7 +391,7 @@ namespace dmInput
             return false;
     }
 
-    bool Repeated(HBinding binding, uint32_t action_id)
+    bool Repeated(HBinding binding, dmhash_t action_id)
     {
         Action* action = binding->m_Actions.Get(action_id);
         if (action != 0x0)
@@ -406,7 +406,7 @@ namespace dmInput
         void* m_UserData;
     };
 
-    void ForEachActiveCallback(CallbackData* data, const uint32_t* key, Action* action)
+    void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
         if (action->m_Value != 0.0f || action->m_Pressed || action->m_Released)
             data->m_Callback(*key, action, data->m_UserData);
