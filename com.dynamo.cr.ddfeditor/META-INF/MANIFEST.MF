@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Ddf Editor
+Bundle-SymbolicName: com.dynamo.cr.ddfeditor;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: DYNAMO
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Require-Bundle: org.eclipse.ui;bundle-version="3.6.1",
+ org.eclipse.core.runtime;bundle-version="3.6.0",
+ com.dynamo.cr.protobind;bundle-version="1.0.0",
+ com.dynamo.cr.common;bundle-version="1.0.0",
+ org.eclipse.core.resources;bundle-version="3.6.0",
+ org.eclipse.ui.ide;bundle-version="3.6.1"

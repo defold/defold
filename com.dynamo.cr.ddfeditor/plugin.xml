@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.ddfeditor.ModelEditor"
+            default="false"
+            extensions="model"
+            icon="icons/16-cube-green_16x16.png"
+            id="com.dynamo.cr.ddfeditor.modeleditor"
+            name="Model Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.GameObjectEditor"
+            default="false"
+            extensions="go"
+            icon="icons/brick.png"
+            id="com.dynamo.cr.ddfeditor.gameobjecteditor"
+            name="Game Object Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.CameraEditor"
+            default="false"
+            extensions="camera"
+            icon="icons/camera.png"
+            id="com.dynamo.cr.ddfeditor.cameraeditor"
+            name="Camera Editor">
+      </editor>
+   </extension>
+
+</plugin>
