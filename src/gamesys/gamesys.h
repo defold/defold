@@ -25,6 +25,13 @@ namespace dmGameSystem
         bool m_Debug;
     };
 
+    struct RenderScriptPrototype
+    {
+        dmRender::HRenderScriptInstance m_Instance;
+        dmRender::HRenderScript m_Script;
+        dmArray<dmRender::HMaterial> m_Materials;
+    };
+
     void RegisterDDFTypes();
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context);

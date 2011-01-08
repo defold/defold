@@ -58,6 +58,12 @@ def transform_spawnpoint(msg):
     msg.Prototype = msg.Prototype.replace('.go', '.goc')
     return msg
 
+def transform_render(msg):
+    msg.Script = msg.Script.replace('.render_script', '.render_scriptc')
+    for m in msg.Materials:
+        m.Material = m.Material.replace('.material', '.materialc')
+    return msg
+
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.emitter', '.emitterc', transform_emitter)
 proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
@@ -70,6 +76,7 @@ proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_bin
 proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
 proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoint', '.spawnpointc', transform_spawnpoint)
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
+proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 

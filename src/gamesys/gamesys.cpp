@@ -24,6 +24,7 @@
 #include "resources/res_spawn_point.h"
 #include "resources/res_light.h"
 #include "resources/res_render_script.h"
+#include "resources/res_render_prototype.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -82,6 +83,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spawnpointc", 0, ResSpawnPointCreate, ResSpawnPointDestroy, 0);
         REGISTER_RESOURCE_TYPE("lightc", 0, ResLightCreate, ResLightDestroy, 0);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
+        REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 
