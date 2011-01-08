@@ -66,7 +66,7 @@ TEST_F(ScriptHashTest, TestHash)
     int top = lua_gettop(L);
 
     const char* s = "test_value";
-    uint32_t hash = dmHashString32(s);
+    dmhash_t hash = dmHashString64(s);
     dmScript::PushHash(L, hash);
     ASSERT_EQ(hash, dmScript::CheckHash(L, -1));
     lua_pop(L, 1);

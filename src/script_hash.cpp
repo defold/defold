@@ -13,49 +13,85 @@ extern "C"
 
 namespace dmScript
 {
+    #define SCRIPT_TYPE_NAME "hash"
+
     int Script_Hash(lua_State* L)
     {
         int top = lua_gettop(L);
 
         const char* str = luaL_checkstring(L, 1);
-        PushHash(L, dmHashString32(str));
+        dmhash_t hash = dmHashString64(str);
+        PushHash(L, hash);
 
         assert(top + 1 == lua_gettop(L));
 
         return 1;
     }
 
-    void PushHash(lua_State* L, uint32_t hash)
+    void PushHash(lua_State* L, dmhash_t hash)
     {
-        char buf[9];
-        DM_SNPRINTF(buf, sizeof(buf), "%X", hash);
-        lua_pushstring(L, buf);
+        dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
+        *lua_hash = hash;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME);
+        lua_setmetatable(L, -2);
     }
 
-    uint32_t CheckHash(lua_State* L, int index)
+    dmhash_t CheckHash(lua_State* L, int index)
     {
-        const char* str = luaL_checkstring(L, index);
-        uint32_t hash;
-        int items = sscanf(str, "%X", &hash);
-        if (items != 1)
-            return luaL_error(L, "Hash has the wrong format: '%s'.", str);
-        return hash;
+        dmhash_t* lua_hash = 0x0;
+        if (lua_isuserdata(L, index))
+        {
+            lua_hash = (dmhash_t*)lua_touserdata(L, index);
+            return *lua_hash;
+        }
+
+        return 0;
+    }
+
+    int Script_eq(lua_State* L)
+    {
+        dmhash_t hash1 = CheckHash(L, 1);
+        dmhash_t hash2 = CheckHash(L, 2);
+
+        lua_pushboolean(L, hash1 == hash2);
+
+        return 1;
+    }
+
+    static int Script_gc (lua_State *L)
+    {
+        dmhash_t hash = CheckHash(L, 1);
+        (void)hash;
+        return 0;
     }
 
     static const luaL_reg ScriptHash_methods[] =
     {
-        {"hash", Script_Hash},
+        {SCRIPT_TYPE_NAME, Script_Hash},
         {0, 0}
     };
 
     void InitializeHash(lua_State* L)
     {
         int top = lua_gettop(L);
+        luaL_newmetatable(L, SCRIPT_TYPE_NAME);
 
-        lua_pushvalue(L, LUA_GLOBALSINDEX);
-        luaL_register(L, 0x0, ScriptHash_methods);
+        luaL_openlib(L, 0x0, ScriptHash_methods, 0);
+        lua_pushstring(L, "__gc");
+        lua_pushcfunction(L, Script_gc);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "__eq");
+        lua_pushcfunction(L, Script_eq);
+        lua_settable(L, -3);
+
+        lua_pushcfunction(L, Script_Hash);
+        lua_setglobal(L, SCRIPT_TYPE_NAME);
+
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
     }
+
+    #undef SCRIPT_TYPE_NAME
 }

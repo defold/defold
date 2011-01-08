@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
-
+#include <dlib/hash.h>
 #include <ddf/ddf.h>
 
 extern "C"
@@ -61,7 +61,7 @@ namespace dmScript
      * @param L Lua state
      * @param hash Hash value to push
      */
-    void PushHash(lua_State* L, uint32_t hash);
+    void PushHash(lua_State* L, dmhash_t hash);
 
     /**
      * Check if the value in the supplied index on the lua stack is a hash.
@@ -69,7 +69,7 @@ namespace dmScript
      * @param index Index of the value
      * @return The hash value
      */
-    uint32_t CheckHash(lua_State* L, int index);
+    dmhash_t CheckHash(lua_State* L, int index);
 
     /**
      * Check is the value at #index is a vector3

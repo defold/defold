@@ -42,6 +42,16 @@ namespace dmScript
             }
             break;
 
+            case dmDDF::TYPE_UINT64:
+            {
+                if (nil_val)
+                    *((dmhash_t *) &buffer[f->m_Offset]) = 0;
+                else
+                    *((dmhash_t *) &buffer[f->m_Offset]) = *(dmhash_t*)lua_touserdata(L, -1);
+//                    *((dmhash_t *) &buffer[f->m_Offset]) = (dmhash_t) luaL_checkinteger(L, -1);
+            }
+            break;
+
             case dmDDF::TYPE_FLOAT:
             {
                 if (nil_val)
@@ -179,6 +189,12 @@ namespace dmScript
             case dmDDF::TYPE_UINT32:
             {
                 lua_pushinteger(L, (int) *((uint32_t*) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_UINT64:
+            {
+                dmScript::PushHash(L, (dmhash_t) *((dmhash_t*) &data[f->m_Offset]));
             }
             break;
 
