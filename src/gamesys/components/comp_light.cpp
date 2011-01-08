@@ -84,7 +84,8 @@ namespace dmGameSystem
             Point3 position = dmGameObject::GetPosition(light->m_Instance);
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 
-            set_light->m_Light.m_Id = light->m_LightDesc->m_Id;
+            DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light->m_LightDesc->m_Id));
+            set_light->m_Light.m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
             set_light->m_Light.m_Type = light->m_LightDesc->m_Type;
             set_light->m_Light.m_Intensity = light->m_LightDesc->m_Intensity;
             set_light->m_Light.m_Color = light->m_LightDesc->m_Color;

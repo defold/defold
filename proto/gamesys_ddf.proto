@@ -26,7 +26,7 @@ enum LightType
 
 message LightDesc
 {
-    required uint64         Id              = 1;
+    required string         Id              = 1;
     required LightType      Type            = 2;
     required float          Intensity       = 3;
     required dmMath.Vector3 Color           = 4;
