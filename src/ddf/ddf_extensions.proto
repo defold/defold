@@ -9,6 +9,11 @@ extend google.protobuf.MessageOptions
     optional string alias = 50000;
 }
 
+extend google.protobuf.FieldOptions
+{
+    optional bool resource = 50100;
+}
+
 extend google.protobuf.FileOptions
 {
     optional string ddf_java_package = 50000;
