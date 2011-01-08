@@ -284,6 +284,8 @@ namespace dmRender
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
         }
+        if (render_target == 0x0)
+            return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
         if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDERTARGET, (uint32_t)render_target)))
             return 0;
@@ -1085,7 +1087,8 @@ bail:
         instance->m_CommandBuffer.SetSize(0);
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
-        ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+        if (instance->m_CommandBuffer.Size() > 0)
+            ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
         return result;
     }
 
