@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.ComboBoxCellEditor;
 import org.eclipse.jface.viewers.DialogCellEditor;
 import org.eclipse.jface.viewers.EditingSupport;
 import org.eclipse.jface.viewers.ISelection;
@@ -68,7 +70,10 @@ import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.Node;
 import com.dynamo.cr.protobind.PathElement;
 import com.dynamo.cr.protobind.RepeatedNode;
+import com.google.protobuf.Descriptors.EnumDescriptor;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.Descriptors.FieldDescriptor.Type;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -140,12 +145,18 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     class ProtoFieldValueLabelProvider extends ColumnLabelProvider {
         public String getText(Object element) {
+
             if (element instanceof IPath) {
                 IPath fieldPath = (IPath) element;
 
                 Object fieldValue = message.getField(fieldPath);
+
                 if (fieldValue instanceof Node) {
                     return "";
+                }
+                else if (fieldValue instanceof EnumValueDescriptor) {
+                    EnumValueDescriptor enumValueDescriptor = (EnumValueDescriptor) fieldValue;
+                    return enumValueDescriptor.getName();
                 }
                 else {
                     return fieldValue.toString();
@@ -184,15 +195,33 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         }
     }
 
+    class EnumCellEditor extends ComboBoxCellEditor {
+        public EnumCellEditor(Composite parent) {
+            super(parent, new String[] {});
+        }
+
+        public void setEnumDescriptor(EnumDescriptor enumDescriptor) {
+            List<EnumValueDescriptor> values = enumDescriptor.getValues();
+            List<String> itemList = new ArrayList<String>(values.size());
+            for (EnumValueDescriptor enumValue : values) {
+                itemList.add(enumValue.getName());
+            }
+            String[] items = new String[itemList.size()];
+            setItems(itemList.toArray(items));
+        }
+    }
+
     class ProtoFieldEditingSupport extends EditingSupport {
 
         private TextCellEditor textEditor;
         private ResourceDialogCellEditor resourceEditor;
+        private EnumCellEditor enumEditor;
 
         public ProtoFieldEditingSupport(TreeViewer viewer) {
             super(viewer);
             textEditor = new TextCellEditor(viewer.getTree());
             resourceEditor = new ResourceDialogCellEditor(viewer.getTree());
+            enumEditor = new EnumCellEditor(viewer.getTree());
         }
 
         @Override
@@ -201,7 +230,11 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             PathElement lastElement = fieldPath.lastElement();
 
             FieldDescriptor fieldDescriptor = lastElement.fieldDescriptor;
-            if (isResource(fieldDescriptor)) {
+            if (fieldDescriptor.getType() == Type.ENUM) {
+                enumEditor.setEnumDescriptor(fieldDescriptor.getEnumType());
+                return enumEditor;
+            }
+            else if (isResource(fieldDescriptor)) {
                 return resourceEditor;
             }
             else {
@@ -216,6 +249,9 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 Object value = message.getField(fieldPath);
                 // Currently only support for string and number editing
                 if (value instanceof String) {
+                    return true;
+                }
+                else if (value instanceof EnumValueDescriptor) {
                     return true;
                 }
                 else if (value instanceof Number) {
@@ -239,7 +275,21 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         @Override
         protected Object getValue(Object element) {
             IPath fieldPath = (IPath) element;
-            return message.getField(fieldPath).toString();
+
+            Object value = message.getField(fieldPath);
+            PathElement lastElement = fieldPath.lastElement();
+            if (lastElement.fieldDescriptor.getType() == Type.ENUM) {
+                if (value instanceof EnumValueDescriptor) {
+                    EnumValueDescriptor enumValueDesc = (EnumValueDescriptor) value;
+                    return enumValueDesc.getNumber();
+                }
+                else {
+                    return value;
+                }
+            }
+            else {
+                return value.toString();
+            }
         }
 
         Object coerceNumber(Object template, Object value) {
@@ -261,7 +311,11 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             IPath fieldPath = (IPath) element;
             Object oldValue = message.getField(fieldPath);
 
-            if (oldValue instanceof Number) {
+            if (value instanceof Number && fieldPath.lastElement().fieldDescriptor.getType() == Type.ENUM) {
+                EnumDescriptor enumDesc = fieldPath.lastElement().fieldDescriptor.getEnumType();
+                value = enumDesc.findValueByNumber((Integer) value);
+            }
+            else if (oldValue instanceof Number) {
                 try {
                     value = coerceNumber(oldValue, value);
                 }
@@ -474,11 +528,6 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 menuItems[i].dispose();
             }
 
-            /*
-            TreeItem treeItem = viewer.getTree().getItem(new Point(event.x, event.y));
-            Object data = treeItem.getData();
-            System.out.println("!!!!!!!!!!: " + data + ", " + treeItem);
-            */
             ISelection selection = viewer.getSelection();
 
             if (!selection.isEmpty()) {

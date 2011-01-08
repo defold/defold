@@ -27,6 +27,38 @@
             id="com.dynamo.cr.ddfeditor.cameraeditor"
             name="Camera Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.LightEditor"
+            default="false"
+            extensions="light"
+            icon="icons/lightbulb.png"
+            id="com.dynamo.cr.ddfeditor.lighteditor"
+            name="Light Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.SpawnPointEditor"
+            default="false"
+            extensions="spawnpoint"
+            icon="icons/table_multiple.png"
+            id="com.dynamo.cr.ddfeditor.spawnpointeditor"
+            name="Spawn Point Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.CollisionObjectEditor"
+            default="false"
+            extensions="collisionobject"
+            icon="icons/weight.png"
+            id="com.dynamo.cr.ddfeditor.collisionobjecteditor"
+            name="Collision Object Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.GuiEditor"
+            default="false"
+            extensions="gui"
+            icon="icons/text_allcaps.png"
+            id="com.dynamo.cr.ddfeditor.guieditor"
+            name="Gui Editor">
+      </editor>
    </extension>
 
 </plugin>
