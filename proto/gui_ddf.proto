@@ -11,10 +11,10 @@ message SceneDesc
     message FontDesc
     {
         required string Name = 1;
-        required string Font = 2;
+        required string Font = 2 [(resource)=true];
     }
 
-    required string Script = 1;
-    repeated FontDesc Fonts = 2;
-    repeated string Textures = 3;
+    required string Script = 1 [(resource)=true];
+    repeated FontDesc Fonts = 2 [(resource)=true];
+    repeated string Textures = 3 [(resource)=true];
 }

@@ -9,7 +9,7 @@ option (ddf_java_package) = "com.dynamo.gamesystem.ddf";
 
 message SpawnPointDesc
 {
-    required string Prototype = 1;
+    required string Prototype = 1 [(resource)=true];
 }
 
 message SpawnObject

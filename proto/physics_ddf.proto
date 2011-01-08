@@ -46,7 +46,7 @@ enum CollisionObjectType
 
 message CollisionObjectDesc
 {
-    required string CollisionShape = 1;
+    required string CollisionShape = 1 [(resource)=true];
     required CollisionObjectType Type = 2;
     required float Mass = 3;
     required float Friction = 4;
