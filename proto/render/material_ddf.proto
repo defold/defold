@@ -26,8 +26,8 @@ message MaterialDesc
 
     required string Name = 1;
     repeated string Tags = 2;
-    required string VertexProgram = 3;
-    required string FragmentProgram = 4;
+    required string VertexProgram = 3 [(resource)=true];
+    required string FragmentProgram = 4 [(resource)=true];
     repeated Constant VertexConstants = 5;
     repeated Constant FragmentConstants = 6;
 }
