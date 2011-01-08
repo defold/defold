@@ -11,8 +11,8 @@ message ModelDesc
 {
     required string Name = 1;
     required string Mesh = 2;
-    required string Material = 3;
-    repeated string Textures = 4;
+    required string Material = 3 [(resource)=true];
+    repeated string Textures = 4 [(resource)=true];
 }
 
 message SetVertexConstant
