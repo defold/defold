@@ -24,3 +24,8 @@ message NestedNestedMessage
 {
     required NestedMessage nested = 1;
 }
+
+message ListMessage
+{
+    repeated SimpleMessage messages = 1;
+}
