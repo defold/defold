@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationApprover;
@@ -16,6 +17,7 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -23,6 +25,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.DialogCellEditor;
 import org.eclipse.jface.viewers.EditingSupport;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -36,6 +39,7 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
@@ -49,6 +53,8 @@ import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.dialogs.ListDialog;
+import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
@@ -60,6 +66,7 @@ import com.dynamo.cr.ddfeditor.operations.SetFieldOperation;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.Node;
+import com.dynamo.cr.protobind.PathElement;
 import com.dynamo.cr.protobind.RepeatedNode;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
@@ -148,18 +155,58 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         }
     }
 
+    class ResourceDialogCellEditor extends DialogCellEditor {
+
+        public ResourceDialogCellEditor(Composite parent) {
+            super(parent, SWT.NONE);
+        }
+
+        @Override
+        protected Object openDialogBox(Control cellEditorWindow) {
+
+            IFileEditorInput fi = (IFileEditorInput) getEditorInput();
+            IContainer contentRoot = findContentRoot(fi.getFile());
+            if (contentRoot == null) {
+                return null;
+            }
+
+            ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(getSite().getShell(), contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
+
+            int ret = dialog.open();
+
+            if (ret == ListDialog.OK)
+            {
+                IResource r = (IResource) dialog.getResult()[0];
+                org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
+                return fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
+            }
+            return null;
+        }
+    }
+
     class ProtoFieldEditingSupport extends EditingSupport {
 
         private TextCellEditor textEditor;
+        private ResourceDialogCellEditor resourceEditor;
 
         public ProtoFieldEditingSupport(TreeViewer viewer) {
             super(viewer);
             textEditor = new TextCellEditor(viewer.getTree());
+            resourceEditor = new ResourceDialogCellEditor(viewer.getTree());
         }
 
         @Override
         protected CellEditor getCellEditor(Object element) {
-            return textEditor;
+            IPath fieldPath = (IPath) element;
+            PathElement lastElement = fieldPath.lastElement();
+
+            FieldDescriptor fieldDescriptor = lastElement.fieldDescriptor;
+            if (isResource(fieldDescriptor)) {
+                return resourceEditor;
+            }
+            else {
+                return textEditor;
+            }
         }
 
         @Override
@@ -173,6 +220,17 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 }
                 else if (value instanceof Number) {
                     return true;
+                }
+            }
+            return false;
+        }
+
+        boolean isResource(FieldDescriptor fieldDescriptor) {
+            Map<FieldDescriptor, Object> allFields = fieldDescriptor.getOptions().getAllFields();
+            for (FieldDescriptor fd : allFields.keySet()) {
+                if (fd.getName().equals("resource")) {
+                    Boolean b = (Boolean) allFields.get(fd);
+                    return b.booleanValue();
                 }
             }
             return false;
