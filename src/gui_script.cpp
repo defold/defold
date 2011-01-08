@@ -330,7 +330,7 @@ namespace dmGui
         lua_pop(L, 1);
 
         const char* type_name = luaL_checkstring(L, 1);
-        message_data->m_MessageId = dmHashString32(type_name);
+        message_data->m_MessageId = dmHashString64(type_name);
         message_data->m_Scene = scene;
 
         if (lua_istable(L, 2))

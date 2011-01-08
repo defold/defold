@@ -528,7 +528,7 @@ TEST_F(dmGuiTest, ScriptInput)
 
     dmGui::InputAction input_action;
     memset(&input_action, 0, sizeof(input_action));
-    input_action.m_ActionId = dmHashString32("SPACE");
+    input_action.m_ActionId = dmHashString64("SPACE");
     dmGui::DispatchInput(scene, &input_action, 1);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -537,7 +537,7 @@ TEST_F(dmGuiTest, ScriptInput)
 static void Dispatch1(dmMessage::Message* message, void* user_ptr)
 {
     dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
-    uint32_t* mh = (uint32_t*) user_ptr;
+    dmhash_t* mh = (dmhash_t*) user_ptr;
     *mh = md->m_MessageId;
 }
 
@@ -554,10 +554,10 @@ TEST_F(dmGuiTest, PostMessage1)
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    uint32_t message_id;
+    dmhash_t message_id;
     dmMessage::Dispatch(socket, &Dispatch1, &message_id);
 
-    ASSERT_EQ(dmHashString32("my_named_message"), message_id);
+    ASSERT_EQ(dmHashString64("my_named_message"), message_id);
 }
 
 TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
@@ -641,7 +641,7 @@ TEST_F(dmGuiTest, PostMessageToGui)
 
     dmTestGuiDDF::AMessage amessage;
     amessage.m_a = 123;
-    r = dmGui::DispatchMessage(scene, dmHashString32("amessage"), &amessage, dmTestGuiDDF::AMessage::m_DDFDescriptor);
+    r = dmGui::DispatchMessage(scene, dmHashString64("amessage"), &amessage, dmTestGuiDDF::AMessage::m_DDFDescriptor);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);

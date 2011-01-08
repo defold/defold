@@ -16,7 +16,7 @@ namespace dmGui
 {
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
 
-    extern dmHashTable32<const dmDDF::Descriptor*> m_DDFDescriptors;
+    extern dmHashTable64<const dmDDF::Descriptor*> m_DDFDescriptors;
 
     struct Gui
     {
@@ -27,7 +27,7 @@ namespace dmGui
     struct InternalNode
     {
         Node     m_Node;
-        uint64_t m_NameHash;
+        dmhash_t m_NameHash;
         uint16_t m_Version;
         uint16_t m_Index;
     };

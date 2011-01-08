@@ -107,7 +107,7 @@ void OnKey(int key, int state)
 
     if (key == GLFW_KEY_SPACE)
     {
-        input_action.m_ActionId = dmHashString32("SPACE");
+        input_action.m_ActionId = dmHashString64("SPACE");
         if (state)
         {
             input_action.m_Pressed = 1;

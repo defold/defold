@@ -16,7 +16,7 @@
 
 namespace dmGui
 {
-    dmHashTable32<const dmDDF::Descriptor*> m_DDFDescriptors;
+    dmHashTable64<const dmDDF::Descriptor*> m_DDFDescriptors;
 
     InternalNode* GetNode(HScene scene, HNode node)
     {
@@ -60,7 +60,7 @@ namespace dmGui
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-        m_DDFDescriptors.Put(dmHashString32(descriptor->m_ScriptName), descriptor);
+        m_DDFDescriptors.Put(dmHashString64(descriptor->m_ScriptName), descriptor);
         return RESULT_OK;
     }
 
@@ -201,7 +201,7 @@ namespace dmGui
     }
 
     Result DispatchMessage(HScene scene,
-                           uint32_t message_id,
+                           dmhash_t message_id,
                            const void* message,
                            const dmDDF::Descriptor* descriptor)
     {
@@ -517,7 +517,7 @@ bail:
 
     HNode GetNodeByName(HScene scene, const char* name)
     {
-        uint64_t name_hash = dmHashString64(name);
+        dmhash_t name_hash = dmHashString64(name);
 
         uint32_t n = scene->m_Nodes.Size();
         for (uint32_t i = 0; i < n; ++i)
