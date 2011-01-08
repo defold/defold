@@ -177,15 +177,15 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         Emitter* emitter = (Emitter*)*user_data;
-        if (message_data->m_MessageId == dmHashString32("start"))
+        if (message_data->m_MessageId == dmHashString64("start"))
         {
             dmParticle::StartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else if (message_data->m_MessageId == dmHashString32("restart"))
+        else if (message_data->m_MessageId == dmHashString64("restart"))
         {
             dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else if (message_data->m_MessageId == dmHashString32("stop"))
+        else if (message_data->m_MessageId == dmHashString64("stop"))
         {
             dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }

@@ -179,20 +179,15 @@ namespace dmGameSystem
         if (response.m_Hit)
         {
             dmGameObject::HCollection collection = (dmGameObject::HCollection)request.m_UserData;
+
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, request.m_UserId);
-
-            const uint32_t offset = sizeof(dmPhysicsDDF::RayCastResponse);
-            const uint32_t message_size = offset + 9;
-            char buffer[message_size];
-
-            dmPhysicsDDF::RayCastResponse* ddf = (dmPhysicsDDF::RayCastResponse*)&buffer;
-            DM_SNPRINTF(&buffer[offset], 9, "%X", dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData));
-            ddf->m_Fraction = response.m_Fraction;
-            ddf->m_GameObjectId = (const char*)sizeof(dmPhysicsDDF::RayCastResponse);
-            ddf->m_Group = response.m_CollisionObjectGroup;
-            ddf->m_Position = response.m_Position;
-            ddf->m_Normal = response.m_Normal;
-            dmGameObject::PostDDFMessageTo(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (char*)ddf);
+            dmPhysicsDDF::RayCastResponse ddf;
+            ddf.m_Fraction = response.m_Fraction;
+            ddf.m_GameObjectId = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
+            ddf.m_Group = response.m_CollisionObjectGroup;
+            ddf.m_Position = response.m_Position;
+            ddf.m_Normal = response.m_Normal;
+            dmGameObject::PostDDFMessageTo(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, &ddf);
         }
     }
 

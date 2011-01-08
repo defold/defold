@@ -106,54 +106,50 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance instance_a = (dmGameObject::HInstance)user_data_a;
         dmGameObject::HInstance instance_b = (dmGameObject::HInstance)user_data_b;
-        const uint32_t data_size = sizeof(dmPhysicsDDF::CollisionMessage) + 9;
-        char data[data_size];
-        dmPhysicsDDF::CollisionMessage* ddf = (dmPhysicsDDF::CollisionMessage*)&data;
-        ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysicsDDF::CollisionMessage);
-        char* id = &data[sizeof(dmPhysicsDDF::CollisionMessage)];
-        // Broadcast to A components
-        DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
-        ddf->m_Group = group_b;
-        dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
+        dmPhysicsDDF::CollisionMessage ddf;
+        ddf.m_Group = group_b;
+        ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_b);
+        dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, &ddf);
+
         // Broadcast to B components
-        DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
-        ddf->m_Group = group_a;
-        dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, data);
+        ddf.m_Group = group_a;
+        ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
+        dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, &ddf);
     }
 
     void ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
         dmGameObject::HInstance instance_a = (dmGameObject::HInstance)contact_point.m_UserDataA;
         dmGameObject::HInstance instance_b = (dmGameObject::HInstance)contact_point.m_UserDataB;
-        char data[sizeof(dmPhysicsDDF::ContactPointMessage) + 9];
-        dmPhysicsDDF::ContactPointMessage* ddf = (dmPhysicsDDF::ContactPointMessage*)&data;
-        ddf->m_OtherGameObjectId = (char*)sizeof(dmPhysicsDDF::ContactPointMessage);
-        char* id = &data[sizeof(dmPhysicsDDF::ContactPointMessage)];
+
+        dmPhysicsDDF::ContactPointMessage ddf;
         float mass_a = dmMath::Select(-contact_point.m_InvMassA, 0.0f, 1.0f / contact_point.m_InvMassA);
         float mass_b = dmMath::Select(-contact_point.m_InvMassB, 0.0f, 1.0f / contact_point.m_InvMassB);
+
         // Broadcast to A components
-        ddf->m_Position = contact_point.m_PositionA;
-        ddf->m_Normal = -contact_point.m_Normal;
-        ddf->m_RelativeVelocity = -contact_point.m_RelativeVelocity;
-        ddf->m_Distance = contact_point.m_Distance;
-        ddf->m_AppliedImpulse = contact_point.m_AppliedImpulse;
-        ddf->m_Mass = mass_a;
-        ddf->m_OtherMass = mass_b;
-        DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_b));
-        ddf->m_Group = contact_point.m_GroupB;
-        dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
+        ddf.m_Position = contact_point.m_PositionA;
+        ddf.m_Normal = -contact_point.m_Normal;
+        ddf.m_RelativeVelocity = -contact_point.m_RelativeVelocity;
+        ddf.m_Distance = contact_point.m_Distance;
+        ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+        ddf.m_Mass = mass_a;
+        ddf.m_OtherMass = mass_b;
+        ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_b);
+        ddf.m_Group = contact_point.m_GroupB;
+        dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, &ddf);
+
         // Broadcast to B components
-        ddf->m_Position = contact_point.m_PositionB;
-        ddf->m_Normal = contact_point.m_Normal;
-        ddf->m_RelativeVelocity = contact_point.m_RelativeVelocity;
-        ddf->m_Distance = contact_point.m_Distance;
-        ddf->m_AppliedImpulse = contact_point.m_AppliedImpulse;
-        ddf->m_Mass = mass_b;
-        ddf->m_OtherMass = mass_a;
-        DM_SNPRINTF(id, 9, "%X", dmGameObject::GetIdentifier(instance_a));
-        ddf->m_Group = contact_point.m_GroupA;
-        ddf->m_LifeTime = contact_point.m_LifeTime;
-        dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, data);
+        ddf.m_Position = contact_point.m_PositionB;
+        ddf.m_Normal = contact_point.m_Normal;
+        ddf.m_RelativeVelocity = contact_point.m_RelativeVelocity;
+        ddf.m_Distance = contact_point.m_Distance;
+        ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+        ddf.m_Mass = mass_b;
+        ddf.m_OtherMass = mass_a;
+        ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
+        ddf.m_Group = contact_point.m_GroupA;
+        ddf.m_LifeTime = contact_point.m_LifeTime;
+        dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, &ddf);
     }
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(dmGameObject::HCollection collection,
@@ -177,20 +173,18 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        if (message_data->m_MessageId == dmHashString32(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_ScriptName))
         {
             dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) message_data->m_Buffer;
             dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject) *user_data;
             dmPhysics::ApplyForce(collision_object, af->m_Force, af->m_Position);
         }
-        if (message_data->m_MessageId == dmHashString32(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_ScriptName))
         {
             dmPhysicsDDF::VelocityRequest* request = (dmPhysicsDDF::VelocityRequest*)message_data->m_Buffer;
-            request->m_ClientId = (const char*)((uintptr_t)request + (uintptr_t)request->m_ClientId);
-            uint32_t id;
-            if (sscanf(request->m_ClientId, "%X", &id) > 0)
+            if (request->m_ClientId)
             {
-                dmGameObject::HInstance client = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), id);
+                dmGameObject::HInstance client = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), request->m_ClientId);
                 dmPhysicsDDF::VelocityResponse response;
                 dmPhysics::HCollisionObject collision_object = (dmPhysics::HCollisionObject)*user_data;
                 response.m_LinearVelocity = dmPhysics::GetLinearVelocity(collision_object);

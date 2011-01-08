@@ -63,7 +63,7 @@ message ApplyForceMessage
 
 message CollisionMessage
 {
-    required string OtherGameObjectId = 1;
+    required uint64 OtherGameObjectId = 1;
     required uint32 Group = 2;
 }
 
@@ -77,7 +77,7 @@ message ContactPointMessage
     required float LifeTime = 6;
     required float Mass = 7;
     required float OtherMass = 8;
-    required string OtherGameObjectId = 9;
+    required uint64 OtherGameObjectId = 9;
     required uint32 Group = 10;
 }
 
@@ -93,13 +93,13 @@ message RayCastResponse
     required float Fraction = 1;
     required dmMath.Point3 Position = 2;
     required dmMath.Vector3 Normal = 3;
-    required string GameObjectId = 4;
+    required uint64 GameObjectId = 4;
     required uint32 Group = 5;
 }
 
 message VelocityRequest
 {
-    required string ClientId = 1;
+    required uint64 ClientId = 1;
 }
 
 message VelocityResponse

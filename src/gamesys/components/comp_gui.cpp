@@ -228,7 +228,7 @@ namespace dmGameSystem
         data.m_MessageId = gui_message->m_MessageId;
         data.m_Instance = instance;
         dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(regist);
-        uint32_t message = dmGameObject::GetMessageId(regist);
+        dmhash_t message = dmGameObject::GetMessageId(regist);
         dmMessage::Post(socket, message, &data, sizeof(dmGameObject::InstanceMessageData));
     }
 
@@ -369,11 +369,11 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         Component* gui_component = (Component*)*user_data;
-        if (message_data->m_MessageId == dmHashString32("enable"))
+        if (message_data->m_MessageId == dmHashString64("enable"))
         {
             gui_component->m_Enabled = 1;
         }
-        else if (message_data->m_MessageId == dmHashString32("disable"))
+        else if (message_data->m_MessageId == dmHashString64("disable"))
         {
             gui_component->m_Enabled = 0;
         }

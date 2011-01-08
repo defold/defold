@@ -61,7 +61,7 @@ namespace dmGameSystem
                                                 void* context,
                                                 uintptr_t* user_data)
     {
-        if (message_data->m_MessageId == dmHashString32("play_sound"))
+        if (message_data->m_MessageId == dmHashString64("play_sound"))
         {
             dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*user_data;
             dmSound::Result r = dmSound::Play(sound_instance);

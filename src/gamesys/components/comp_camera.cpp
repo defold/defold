@@ -143,11 +143,9 @@ namespace dmGameSystem
 
 
             dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
-            uint32_t message_id = dmHashString32(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_ScriptName);
+            dmhash_t message_id = dmHashString64(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_ScriptName);
 
-            const char* id = "game"; // TODO: How should this be handle, ddf-property in the camera?
-            DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetViewProjection), 9, "%X", dmHashString32(id));
-            set_view_projection->m_Id = (const char*) sizeof(dmGameSystemDDF::SetViewProjection);
+            set_view_projection->m_Id = dmHashString64("game");
             set_view_projection->m_View = view;
             set_view_projection->m_Projection = projection;
 
@@ -180,11 +178,11 @@ namespace dmGameSystem
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
         }
-        else if (message_data->m_MessageId == dmHashString32("acquire_camera_focus"))
+        else if (message_data->m_MessageId == dmHashString64("acquire_camera_focus"))
         {
             camera->m_World->m_FocusStack.Push(camera);
         }
-        else if (message_data->m_MessageId == dmHashString32("release_camera_focus"))
+        else if (message_data->m_MessageId == dmHashString64("release_camera_focus"))
         {
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
             {

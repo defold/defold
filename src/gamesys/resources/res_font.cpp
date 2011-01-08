@@ -9,6 +9,7 @@
 
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
+#include <render/render_ddf.h>
 
 namespace dmGameSystem
 {

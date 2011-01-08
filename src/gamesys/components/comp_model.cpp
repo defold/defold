@@ -136,41 +136,38 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)*user_data;
         dmRender::RenderObject* ro = &component->m_RenderObject;
-        if (message_data->m_MessageId == dmHashString32(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)message_data->m_Buffer;
             dmRender::SetRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        else if (message_data->m_MessageId == dmHashString32(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)message_data->m_Buffer;
             dmRender::ResetRenderObjectVertexConstant(ro, ddf->m_Register);
         }
-        if (message_data->m_MessageId == dmHashString32(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)message_data->m_Buffer;
             dmRender::SetRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        if (message_data->m_MessageId == dmHashString32(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)message_data->m_Buffer;
             dmRender::ResetRenderObjectFragmentConstant(ro, ddf->m_Register);
         }
-        else if (message_data->m_MessageId == dmHashString32(dmModelDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)message_data->m_Buffer;
-            ddf->m_TextureHash = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_TextureHash);
-            uint32_t hash;
-            sscanf(ddf->m_TextureHash, "%X", &hash);
             uint32_t unit = ddf->m_TextureUnit;
             dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)context;
-            dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, hash);
+            dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, ddf->m_TextureHash);
             if (rendertarget)
             {
                 ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR);
             }
             else
-                dmLogWarning("No such render target: 0x%x (%d)", hash, hash);
+                dmLogWarning("No such render target: 0x%x (%llu)", ddf->m_TextureHash, ddf->m_TextureHash);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

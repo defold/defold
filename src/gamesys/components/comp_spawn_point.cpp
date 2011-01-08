@@ -55,7 +55,7 @@ namespace dmGameSystem
                                                 void* context,
                                                 uintptr_t* user_data)
     {
-        if (message_data->m_MessageId == dmHashString32("spawn_object"))
+        if (message_data->m_MessageId == dmHashString64("spawn_object"))
         {
             SpawnPoint* spawn_point = (SpawnPoint*) *user_data;
             if (message_data->m_DDFDescriptor == dmGameSystemDDF::SpawnObject::m_DDFDescriptor)
