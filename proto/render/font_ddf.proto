@@ -9,8 +9,8 @@ option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message FontDesc
 {
-    required string Font = 1;
-    required string Material = 2;
+    required string Font = 1 [(resource)=true];
+    required string Material = 2 [(resource)=true];
     required uint32 Size = 3;
     optional uint32 Antialias = 4 [default = 1];
     optional float Alpha = 5 [default = 1.0];
