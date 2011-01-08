@@ -75,6 +75,14 @@
             id="com.dynamo.cr.ddfeditor.materialeditor"
             name="Material Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.RenderEditor"
+            default="false"
+            extensions="render"
+            icon="icons/paintcan.png"
+            id="com.dynamo.cr.ddfeditor.rendereditor"
+            name="Render Editor">
+      </editor>
    </extension>
 
 </plugin>
