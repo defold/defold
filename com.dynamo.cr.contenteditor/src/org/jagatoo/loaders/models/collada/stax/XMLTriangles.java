@@ -131,7 +131,7 @@ public class XMLTriangles
 
                 case XMLStreamConstants.END_ELEMENT:
                 {
-                    if ( parser.getLocalName().equals( "triangles" ) )
+                    if ( parser.getLocalName().equals( "triangles" ) || parser.getLocalName().equals( "polylist" ) )
                     {
                         p = XMLIntArray.toArray(triangles_buffer.toString());
                         return;
