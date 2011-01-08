@@ -67,6 +67,14 @@
             id="com.dynamo.cr.ddfeditor.fonteditor"
             name="Font Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.MaterialEditor"
+            default="false"
+            extensions="material"
+            icon="icons/large_tiles.png"
+            id="com.dynamo.cr.ddfeditor.materialeditor"
+            name="Material Editor">
+      </editor>
    </extension>
 
 </plugin>
