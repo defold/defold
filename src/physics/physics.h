@@ -2,7 +2,7 @@
 #define PHYSICS_H
 
 #include <stdint.h>
-
+#include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 class btCollisionShape;
@@ -254,7 +254,7 @@ namespace dmPhysics
         /// End of ray, exclusive since the ray is valid in [m_From, m_To)
         Vectormath::Aos::Point3 m_To;
         /// User supplied id to identify this query when the response is handled
-        uint32_t m_UserId;
+        dmhash_t m_UserId;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
         /// All collision objects with this user data will be ignored in the ray cast
