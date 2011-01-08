@@ -211,7 +211,7 @@ namespace dmConfigFile
     {
         int c = GetChar(context);
         int i = 0;
-        while (!isspace(c))
+        while (c != '\n' && c != '\r')
         {
             buf[i] = c;
             if (i >= (int) buf_len - 1)
