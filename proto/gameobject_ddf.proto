@@ -9,7 +9,7 @@ option (ddf_java_package) = "com.dynamo.gameobject.ddf";
 
 message ComponentDesc
 {
-    required string Resource = 1;
+    required string Resource = 1 [(resource) = true];
 }
 
 message PrototypeDesc
