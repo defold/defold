@@ -312,7 +312,7 @@ bail:
         }
     }
 
-    void GOActionCallback(uint32_t action_id, dmInput::Action* action, void* user_data)
+    void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         dmArray<dmGameObject::InputAction>* input_buffer = (dmArray<dmGameObject::InputAction>*)user_data;
         dmGameObject::InputAction input_action;
@@ -490,14 +490,11 @@ bail:
         else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
         {
             dmGameObjectDDF::AcquireInputFocus* ddf = (dmGameObjectDDF::AcquireInputFocus*) instance_message_data->m_Buffer;
-            ddf->m_GameObjectId = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_GameObjectId);
-            uint32_t id;
-            sscanf(ddf->m_GameObjectId, "%X", &id);
             dmGameObject::HCollection collection = self->m_MainCollection;
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, id);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, ddf->m_GameObjectId);
             if (!instance && self->m_ActiveCollection != 0)
             {
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, id);
+                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, ddf->m_GameObjectId);
                 collection = self->m_ActiveCollection;
             }
             if (instance)
@@ -506,20 +503,17 @@ bail:
             }
             else
             {
-                dmLogWarning("Game object with id %X could not be found when trying to acquire input focus.", id);
+                dmLogWarning("Game object with id %llu could not be found when trying to acquire input focus.", ddf->m_GameObjectId);
             }
         }
         else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
         {
             dmGameObjectDDF::ReleaseInputFocus* ddf = (dmGameObjectDDF::ReleaseInputFocus*) instance_message_data->m_Buffer;
-            ddf->m_GameObjectId = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_GameObjectId);
-            uint32_t id;
-            sscanf(ddf->m_GameObjectId, "%X", &id);
             dmGameObject::HCollection collection = self->m_MainCollection;
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, id);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, ddf->m_GameObjectId);
             if (!instance && self->m_ActiveCollection != 0)
             {
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, id);
+                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, ddf->m_GameObjectId);
                 collection = self->m_ActiveCollection;
             }
             if (instance)
@@ -531,33 +525,30 @@ bail:
         {
             dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
             dmGameObjectDDF::GameObjectTransformQuery* pq = (dmGameObjectDDF::GameObjectTransformQuery*) instance_message_data->m_Buffer;
-            pq->m_GameObjectId = (const char*)((uintptr_t)pq + (uintptr_t)pq->m_GameObjectId);
-            uint32_t id;
-            sscanf(pq->m_GameObjectId, "%X", &id);
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, id);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, pq->m_GameObjectId);
             if (!instance && self->m_ActiveCollection != 0)
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, id);
+                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, pq->m_GameObjectId);
             if (instance)
             {
                 const uint32_t offset = sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameObjectDDF::GameObjectTransformResult);
-                char buf[offset + 9];
+                char buf[offset];
                 dmGameObject::InstanceMessageData* out_instance_message_data = (dmGameObject::InstanceMessageData*)buf;
-                out_instance_message_data->m_MessageId = dmHashString32(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_ScriptName);
+                out_instance_message_data->m_MessageId = dmHashString64(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_ScriptName);
                 out_instance_message_data->m_Instance = instance_message_data->m_Instance;
                 out_instance_message_data->m_Component = 0xff;
                 out_instance_message_data->m_DDFDescriptor = dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
+
                 dmGameObjectDDF::GameObjectTransformResult* result = (dmGameObjectDDF::GameObjectTransformResult*)(buf + sizeof(dmGameObject::InstanceMessageData));
-                DM_SNPRINTF(&buf[offset], 9, "%s", pq->m_GameObjectId);
-                result->m_GameObjectId = (const char*)sizeof(dmGameObjectDDF::GameObjectTransformResult);
+                result->m_GameObjectId = pq->m_GameObjectId;
                 result->m_Position = dmGameObject::GetPosition(instance);
                 result->m_Rotation = dmGameObject::GetRotation(instance);
                 dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(self->m_Register);
-                uint32_t reply_message_id = dmGameObject::GetMessageId(self->m_Register);
+                dmhash_t reply_message_id = dmGameObject::GetMessageId(self->m_Register);
                 dmMessage::Post(reply_socket, reply_message_id, buf, dmGameObject::INSTANCE_MESSAGE_MAX);
             }
             else
             {
-                dmLogWarning("Could not find instance with id %d (%s).", id, pq->m_GameObjectId);
+                dmLogWarning("Could not find instance with id %llu.", pq->m_GameObjectId);
             }
         }
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
@@ -597,11 +588,11 @@ bail:
         }
         else
         {
-            if (instance_message_data->m_MessageId == dmHashString32("toggle_profile"))
+            if (instance_message_data->m_MessageId == dmHashString64("toggle_profile"))
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
             }
-            else if (instance_message_data->m_MessageId == dmHashString32("reset_time_step"))
+            else if (instance_message_data->m_MessageId == dmHashString64("reset_time_step"))
             {
                 self->m_WarpTimeStep = false;
             }
