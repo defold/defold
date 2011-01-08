@@ -25,7 +25,7 @@ class dmArray
 {
     enum STATE_FLAGS
     {
-        STATE_DEFAULT           = 0x0, 
+        STATE_DEFAULT           = 0x0,
         STATE_USER_ALLOCATED    = 0x1
     };
 
@@ -58,7 +58,7 @@ public:
     }
 
     /**
-     * Destructor. 
+     * Destructor.
      * @note If user allocated, memory is not free'd
      */
     ~dmArray()
@@ -265,6 +265,26 @@ public:
     {
         assert ( Size() > 0 );
         m_End--;
+    }
+
+    /**
+     * Swaps the content of two arrays.
+     * @param rhs Array to swap with.
+     */
+    void Swap(dmArray<T>& rhs)
+    {
+        T* tmp_t = rhs.m_Front;
+        rhs.m_Front = m_Front;
+        m_Front = tmp_t;
+        tmp_t = rhs.m_End;
+        rhs.m_End = m_End;
+        m_End = tmp_t;
+        tmp_t = rhs.m_Back;
+        rhs.m_Back = m_Back;
+        m_Back = tmp_t;
+        uint16_t tmp_i = rhs.m_State;
+        rhs.m_State = m_State;
+        m_State = tmp_i;
     }
 
 private:
