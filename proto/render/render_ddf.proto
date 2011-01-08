@@ -12,10 +12,10 @@ message RenderPrototypeDesc
     message MaterialDesc
     {
         required string Name = 1;
-        required string Material = 2;
+        required string Material = 2 [(resource) = true];
     }
 
-    required string Script = 1;
+    required string Script = 1 [(resource) = true];
     repeated MaterialDesc Materials = 2;
 }
 
