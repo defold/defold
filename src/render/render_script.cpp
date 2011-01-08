@@ -991,6 +991,11 @@ bail:
         render_script_instance->~RenderScriptInstance();
     }
 
+    void SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script)
+    {
+        render_script_instance->m_RenderScript = render_script;
+    }
+
     void AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material)
     {
         if (render_script_instance->m_Materials.Full())
@@ -999,6 +1004,11 @@ bail:
             render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
         }
         render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
+    }
+
+    void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
+    {
+        render_script_instance->m_Materials.Clear();
     }
 
     void RelocateMessageStrings(const dmDDF::Descriptor* descriptor, char* buffer, char* data_start)
