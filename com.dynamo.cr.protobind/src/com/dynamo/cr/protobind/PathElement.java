@@ -1,6 +1,10 @@
 package com.dynamo.cr.protobind;
 
+import com.google.protobuf.Descriptors.FieldDescriptor;
+
 public abstract class PathElement {
+
+    public FieldDescriptor fieldDescriptor;
 
     /**
      * Is the element a field reference

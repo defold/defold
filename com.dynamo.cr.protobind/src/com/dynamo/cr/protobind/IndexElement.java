@@ -1,10 +1,14 @@
 package com.dynamo.cr.protobind;
 
+import com.google.protobuf.Descriptors.FieldDescriptor;
+
 
 public class IndexElement extends PathElement {
 
     public int index;
-    public IndexElement(int index) {
+
+    public IndexElement(int index, FieldDescriptor fieldDescriptor) {
+        this.fieldDescriptor = fieldDescriptor;
         this.index = index;
     }
 

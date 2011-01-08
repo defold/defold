@@ -32,7 +32,7 @@ public class RepeatedNode extends Node {
      * @return absolute to path to the field
      */
     public IPath getPathTo(int index) {
-        IPath path = new Path(thisPath, new IndexElement(index));
+        IPath path = new Path(thisPath, new IndexElement(index, this.fieldDescriptor));
         return path;
     }
 
@@ -40,7 +40,7 @@ public class RepeatedNode extends Node {
     public IPath[] getAllPaths() {
         IPath[] ret = new IPath[this.list.size()];
         for (int i = 0; i < this.list.size(); ++i) {
-            ret[i] = new Path(thisPath, new IndexElement(i));
+            ret[i] = new Path(thisPath, new IndexElement(i, this.fieldDescriptor));
         }
         return ret;
     }
@@ -78,11 +78,11 @@ public class RepeatedNode extends Node {
     void doSetElement(int index, Object value) {
         if (value instanceof Message) {
             Message message = (Message) value;
-            this.list.set(index, new MessageNode(message, new Path(this.thisPath, new IndexElement(index))));
+            this.list.set(index, new MessageNode(message, new Path(this.thisPath, new IndexElement(index, this.fieldDescriptor))));
         }
         else if (value instanceof MessageNode) {
             MessageNode messageNode = (MessageNode) value;
-            messageNode.thisPath = new Path(this.thisPath, new IndexElement(index));
+            messageNode.thisPath = new Path(this.thisPath, new IndexElement(index, this.fieldDescriptor));
             this.list.set(index, messageNode);
         }
         else {
@@ -93,11 +93,11 @@ public class RepeatedNode extends Node {
     public void doAddElement(Object value) {
         if (value instanceof Message) {
             Message message = (Message) value;
-            this.list.add(new MessageNode(message, new Path(this.thisPath, new IndexElement(this.list.size()))));
+            this.list.add(new MessageNode(message, new Path(this.thisPath, new IndexElement(this.list.size(), this.fieldDescriptor))));
         }
         else if (value instanceof MessageNode) {
             MessageNode messageNode = (MessageNode) value;
-            messageNode.thisPath = new Path(this.thisPath, new IndexElement(this.list.size()));
+            messageNode.thisPath = new Path(this.thisPath, new IndexElement(this.list.size(), this.fieldDescriptor));
             this.list.add(messageNode);
         }
         else {

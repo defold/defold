@@ -1,11 +1,8 @@
-package com.dynamo.cr.protobind.internal;
+package com.dynamo.cr.protobind;
 
-import com.dynamo.cr.protobind.PathElement;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 
 public class FieldElement extends PathElement {
-
-    public FieldDescriptor fieldDescriptor;
 
     public FieldElement(FieldDescriptor fieldDescriptor) {
         this.fieldDescriptor = fieldDescriptor;
