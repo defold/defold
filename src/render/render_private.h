@@ -78,11 +78,13 @@ namespace dmRender
         dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
 
-        dmGraphics::HContext        m_GFXContext;
-
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
+
+        dmGraphics::HContext        m_GFXContext;
+
+        HMaterial                   m_Material;
 
         uint32_t                    m_DisplayWidth;
         uint32_t                    m_DisplayHeight;

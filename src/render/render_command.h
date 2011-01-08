@@ -28,7 +28,8 @@ namespace dmRender
         COMMAND_TYPE_DRAW                   = 16,
         COMMAND_TYPE_DRAWDEBUG3D            = 17,
         COMMAND_TYPE_DRAWDEBUG2D            = 18,
-        COMMAND_TYPE_MAX                    = 19
+        COMMAND_TYPE_SETMATERIAL            = 19,
+        COMMAND_TYPE_MAX
     };
 
     struct Command

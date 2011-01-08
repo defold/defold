@@ -166,6 +166,7 @@ namespace dmRender
 
     HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    void                    AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material);
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message);

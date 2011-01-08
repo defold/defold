@@ -58,6 +58,8 @@ namespace dmRender
 
         context->m_GFXContext = dmGraphics::GetContext();
 
+        context->m_Material = 0;
+
         context->m_View = Vectormath::Aos::Matrix4::identity();
         context->m_Projection = Vectormath::Aos::Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
@@ -203,13 +205,18 @@ namespace dmRender
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
-            if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
-            {
-                dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(ro->m_Material));
-                dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(ro->m_Material));
 
-                uint32_t material_vertex_mask = GetMaterialVertexConstantMask(ro->m_Material);
-                uint32_t material_fragment_mask = GetMaterialFragmentConstantMask(ro->m_Material);
+            HMaterial material = ro->m_Material;
+            if (render_context->m_Material)
+                material = render_context->m_Material;
+
+            if (ro->m_VertexCount > 0 && (GetMaterialTagMask(material) & tag_mask) == tag_mask)
+            {
+                dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(material));
+                dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(material));
+
+                uint32_t material_vertex_mask = GetMaterialVertexConstantMask(material);
+                uint32_t material_fragment_mask = GetMaterialFragmentConstantMask(material);
                 for (uint32_t j = 0; j < MAX_CONSTANT_COUNT; ++j)
                 {
                     uint32_t mask = 1 << j;
@@ -219,11 +226,11 @@ namespace dmRender
                     }
                     else if (material_vertex_mask & mask)
                     {
-                        switch (GetMaterialVertexProgramConstantType(ro->m_Material, j))
+                        switch (GetMaterialVertexProgramConstantType(material, j))
                         {
                             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                             {
-                                Vector4 constant = GetMaterialVertexProgramConstant(ro->m_Material, j);
+                                Vector4 constant = GetMaterialVertexProgramConstant(material, j);
                                 dmGraphics::SetVertexConstantBlock(context, &constant, j, 1);
                                 break;
                             }
@@ -250,11 +257,11 @@ namespace dmRender
                     }
                     else if (material_fragment_mask & mask)
                     {
-                        switch (GetMaterialFragmentProgramConstantType(ro->m_Material, j))
+                        switch (GetMaterialFragmentProgramConstantType(material, j))
                         {
                             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                             {
-                                Vector4 constant = GetMaterialFragmentProgramConstant(ro->m_Material, j);
+                                Vector4 constant = GetMaterialFragmentProgramConstant(material, j);
                                 dmGraphics::SetFragmentConstantBlock(context, &constant, j, 1);
                                 break;
                             }
@@ -309,7 +316,7 @@ namespace dmRender
                         }
                         else if (material_vertex_mask & mask)
                         {
-                            switch (GetMaterialVertexProgramConstantType(ro->m_Material, j))
+                            switch (GetMaterialVertexProgramConstantType(material, j))
                             {
                                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                                     register_count = 1;
@@ -333,7 +340,7 @@ namespace dmRender
                             register_count = 1;
                         else if (material_fragment_mask & mask)
                         {
-                            switch (GetMaterialFragmentProgramConstantType(ro->m_Material, j))
+                            switch (GetMaterialFragmentProgramConstantType(material, j))
                             {
                                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                                     register_count = 1;

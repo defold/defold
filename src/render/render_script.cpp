@@ -46,6 +46,7 @@ namespace dmRender
 
     RenderScriptInstance::RenderScriptInstance()
     : m_CommandBuffer()
+    , m_Materials()
     , m_RenderContext(0)
     , m_RenderScript(0)
     , m_PredicateCount(0)
@@ -657,6 +658,31 @@ namespace dmRender
         return 0;
     }
 
+    int RenderScript_SetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        HMaterial material = 0;
+        if (!lua_isnil(L, 2))
+        {
+            const char* material_id = luaL_checkstring(L, 2);
+            dmRender::HMaterial* mat = i->m_Materials.Get(dmHashString64(material_id));
+            if (mat == 0x0)
+            {
+                return luaL_error(L, "Could not find material '%s'.", material_id);
+            }
+            else
+            {
+                material = *mat;
+            }
+        }
+        assert(top == lua_gettop(L));
+        if (InsertCommand(i, Command(COMMAND_TYPE_SETMATERIAL, (uint32_t)material)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
     static const luaL_reg RenderScript_methods[] =
     {
         {"enable_state",            RenderScript_EnableState},
@@ -684,6 +710,7 @@ namespace dmRender
         {"predicate",               RenderScript_Predicate},
         {"set_vertex_constant",     RenderScript_SetVertexConstant},
         {"set_fragment_constant",   RenderScript_SetFragmentConstant},
+        {"set_material",            RenderScript_SetMaterial},
         {0, 0}
     };
 
@@ -928,6 +955,7 @@ bail:
         i->m_RenderScript = render_script;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
+        i->m_Materials.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
@@ -959,6 +987,16 @@ bail:
         assert(top == lua_gettop(L));
 
         render_script_instance->~RenderScriptInstance();
+    }
+
+    void AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material)
+    {
+        if (render_script_instance->m_Materials.Full())
+        {
+            uint32_t new_capacity = 2 * render_script_instance->m_Materials.Capacity();
+            render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
+        }
+        render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
     }
 
     void RelocateMessageStrings(const dmDDF::Descriptor* descriptor, char* buffer, char* data_start)

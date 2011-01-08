@@ -2,6 +2,7 @@
 #define DMRENDER_RENDER_SCRIPT_H
 
 #include <dlib/array.h>
+#include <dlib/hashtable.h>
 #include <dlib/message.h>
 
 #include "render.h"
@@ -16,13 +17,14 @@ namespace dmRender
         RenderScriptInstance();
         ~RenderScriptInstance();
 
-        dmArray<Command>    m_CommandBuffer;
-        Predicate*          m_Predicates[MAX_PREDICATE_COUNT];
-        RenderContext*      m_RenderContext;
-        HRenderScript       m_RenderScript;
-        uint32_t            m_PredicateCount;
-        int                 m_InstanceReference;
-        int                 m_RenderScriptDataReference;
+        dmArray<Command>            m_CommandBuffer;
+        dmHashTable64<HMaterial>    m_Materials;
+        Predicate*                  m_Predicates[MAX_PREDICATE_COUNT];
+        RenderContext*              m_RenderContext;
+        HRenderScript               m_RenderScript;
+        uint32_t                    m_PredicateCount;
+        int                         m_InstanceReference;
+        int                         m_RenderScriptDataReference;
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmMessage::DispatchCallback dispatch_callback, uint32_t command_buffer_size);

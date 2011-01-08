@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <dlib/log.h>
 #include "render_command.h"
+#include "render_private.h"
 
 namespace dmRender
 {
@@ -151,6 +152,11 @@ namespace dmRender
                 case COMMAND_TYPE_DRAWDEBUG2D:
                 {
                     dmRender::DrawDebug2d(render_context);
+                    break;
+                }
+                case COMMAND_TYPE_SETMATERIAL:
+                {
+                    render_context->m_Material = (HMaterial)c->m_Operands[0];
                     break;
                 }
                 default:
