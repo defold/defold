@@ -2,6 +2,7 @@
 #define DM_MESSAGE_H
 
 #include <stdint.h>
+#include <dlib/hash.h>
 
 namespace dmMessage
 {
@@ -22,7 +23,7 @@ namespace dmMessage
      */
     struct Message
     {
-        uint32_t        m_ID;           //! Unique ID of message
+        dmhash_t        m_ID;           //! Unique ID of message
         uint32_t        m_DataSize;     //! Size of userdata in bytes
         struct Message* m_Next;         //! Ptr to next message (or 0 if last)
         uint8_t         m_Data[0];      //! Payload
@@ -68,7 +69,7 @@ namespace dmMessage
      * @param message_data Message data reference
      * @param message_data_size Message data size in bytes
      */
-    void Post(HSocket socket, uint32_t message_id, const void* message_data, uint32_t message_data_size);
+    void Post(HSocket socket, dmhash_t message_id, const void* message_data, uint32_t message_data_size);
 
     /**
      * Dispatch messages

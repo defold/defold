@@ -79,20 +79,20 @@ namespace dmMessage
         }
 
         MemoryPage* page = allocator->m_CurrentPage;
-        void*ret = (void*) ((uintptr_t) &page->m_Memory[0] + page->m_Current);
+        void* ret = (void*) ((uintptr_t) &page->m_Memory[0] + page->m_Current);
         page->m_Current += size;
         return ret;
     }
 
     struct MessageSocket
     {
+        dmhash_t        m_NameHash;
         Message*        m_Header;
         Message*        m_Tail;
-        uint32_t        m_NameHash;
-        uint16_t        m_Version;
         const char*     m_Name;
         dmMutex::Mutex  m_Mutex;
         MemoryAllocator m_Allocator;
+        uint16_t        m_Version;
     };
 
     const uint32_t MAX_SOCKETS = 128;
@@ -125,7 +125,7 @@ namespace dmMessage
         }
 
         uint16_t id  = g_SocketPool.Pop();
-        uint32_t name_hash = dmHashString32(name);
+        dmhash_t name_hash = dmHashString64(name);
 
         MessageSocket s;
         s.m_Header = 0;
@@ -183,7 +183,7 @@ namespace dmMessage
     {
         DM_PROFILE(Message, "GetSocket")
 
-        uint32_t name_hash = dmHashString32(name);
+        dmhash_t name_hash = dmHashString64(name);
         for (uint32_t i = 0; i < g_Sockets.Size(); ++i)
         {
             MessageSocket* socket = &g_Sockets[i];
@@ -196,7 +196,7 @@ namespace dmMessage
     }
 
     uint32_t g_MessagesHash = dmHashString32("Messages");
-    void Post(HSocket socket, uint32_t message_id, const void* message_data, uint32_t message_data_size)
+    void Post(HSocket socket, dmhash_t message_id, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER_HASH("Messages", g_MessagesHash, 1)

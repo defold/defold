@@ -8,8 +8,8 @@
 #include "../../src/dlib/time.h"
 #include "../../src/dlib/profile.h"
 
-const uint32_t m_HashMessage1 = 0x35d47694;
-const uint32_t m_HashMessage2 = 0x35d47695;
+const dmhash_t m_HashMessage1 = 0x35d47694;
+const dmhash_t m_HashMessage2 = 0x35d47695;
 
 struct CustomMessageData1
 {
@@ -250,7 +250,7 @@ TEST(dmMessage, ThreadTest1)
 
 void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 {
-    uint32_t hash = dmHashBuffer32(message_object->m_Data, message_object->m_DataSize);
+    dmhash_t hash = dmHashBuffer64(message_object->m_Data, message_object->m_DataSize);
     assert(hash == message_object->m_ID);
 }
 
@@ -270,7 +270,7 @@ TEST(dmMessage, Integrity)
             {
                 msg[i] = rand() % 255;
             }
-            uint32_t hash = dmHashBuffer32(msg, size);
+            dmhash_t hash = dmHashBuffer64(msg, size);
 
             dmMessage::Post(socket, hash, msg, size);
         }

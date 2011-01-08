@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "shared_library.h"
 
+typedef uint64_t dmhash_t;
+
 extern "C"
 {
 
