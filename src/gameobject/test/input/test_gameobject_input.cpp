@@ -134,7 +134,7 @@ dmGameObject::InputResult InputTest::CompInputTargetOnInput(dmGameObject::HInsta
 {
     InputTest* self = (InputTest*) context;
 
-    if (input_action->m_ActionId == dmHashString32("test_action"))
+    if (input_action->m_ActionId == dmHashString64("test_action"))
     {
         self->m_InputCounter++;
         return dmGameObject::INPUT_RESULT_CONSUMED;
@@ -158,7 +158,7 @@ TEST_F(InputTest, TestComponentInput)
     ASSERT_EQ(0U, m_InputCounter);
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;
@@ -169,7 +169,7 @@ TEST_F(InputTest, TestComponentInput)
     ASSERT_EQ(1U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 0.0f;
     action.m_Pressed = 0;
     action.m_Released = 1;
@@ -189,7 +189,7 @@ TEST_F(InputTest, TestComponentInput2)
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;
@@ -208,7 +208,7 @@ TEST_F(InputTest, TestComponentInput3)
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;
@@ -232,7 +232,7 @@ TEST_F(InputTest, TestDeleteFocusInstance)
     dmGameObject::UpdateResult r;
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;

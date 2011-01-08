@@ -97,10 +97,10 @@ public:
     uint32_t m_MessageTargetCounter;
 };
 
-const static uint32_t POST_NAMED_ID = dmHashString32("post_named");
-const static uint32_t POST_DDF_ID = dmHashString32(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
-const static uint32_t POST_NAMED_TO_INST_ID = dmHashString32("post_named_to_instance");
-const static uint32_t POST_DDF_TO_INST_ID = dmHashString32(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
+const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
+const static dmhash_t POST_DDF_ID = dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
+const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
+const static dmhash_t POST_DDF_TO_INST_ID = dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
 
 dmResource::CreateResult MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
@@ -149,15 +149,15 @@ dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(dmGameObject:
 {
     MessageTest* self = (MessageTest*) context;
 
-    if (message_data->m_MessageId == dmHashString32("inc"))
+    if (message_data->m_MessageId == dmHashString64("inc"))
     {
         self->m_MessageTargetCounter++;
         if (self->m_MessageTargetCounter == 2)
         {
-            dmGameObject::PostNamedMessageTo(instance, "component_message.scriptc", dmHashString32("test_message"), 0x0, 0);
+            dmGameObject::PostNamedMessageTo(instance, "component_message.scriptc", dmHashString64("test_message"), 0x0, 0);
         }
     }
-    else if (message_data->m_MessageId == dmHashString32("dec"))
+    else if (message_data->m_MessageId == dmHashString64("dec"))
     {
         self->m_MessageTargetCounter--;
     }
@@ -235,16 +235,16 @@ TEST_F(MessageTest, TestComponentMessage)
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, "does_not_exists", dmHashString32("inc"), 0x0, 0);
+    r = dmGameObject::PostNamedMessageTo(go, "does_not_exists", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, r);
 
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
+    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString32("inc"), 0x0, 0);
+    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_EQ(2U, m_MessageTargetCounter);
@@ -263,11 +263,11 @@ TEST_F(MessageTest, TestBroadcastMessage)
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("inc"), 0x0, 0);
+    r = dmGameObject::PostNamedMessageTo(go, 0, dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;

@@ -73,22 +73,22 @@ message ActivateCollection
 
 message AcquireInputFocus
 {
-    required string GameObjectId = 1;
+    required uint64 GameObjectId = 1;
 }
 
 message ReleaseInputFocus
 {
-    required string GameObjectId = 1;
+    required uint64 GameObjectId = 1;
 }
 
 message GameObjectTransformQuery
 {
-    required string GameObjectId = 1;
+    required uint64 GameObjectId = 1;
 }
 
 message GameObjectTransformResult
 {
-    required string GameObjectId = 1;
+    required uint64 GameObjectId = 1;
     required dmMath.Point3 Position = 2;
     required dmMath.Quat Rotation = 3;
 }

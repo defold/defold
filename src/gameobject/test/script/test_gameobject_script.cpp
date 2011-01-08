@@ -131,7 +131,7 @@ TEST_F(ScriptTest, TestScript01)
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;
@@ -251,12 +251,12 @@ TEST_F(ScriptTest, Null)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString32("test"), 0x0, 0));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString64("test"), 0x0, 0));
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::InputAction action;
-    action.m_ActionId = dmHashString32("test_action");
+    action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
     action.m_Released = 0;

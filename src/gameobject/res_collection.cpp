@@ -38,7 +38,7 @@ namespace dmGameObject
             loading_root = true;
             // TODO: How to configure 1024. In collection?
             collection = NewCollection(factory, regist, 1024);
-            collection->m_NameHash = dmHashString32(collection_desc->m_Name);
+            collection->m_NameHash = dmHashString64(collection_desc->m_Name);
             regist->m_CurrentCollection = collection;
             regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
             regist->m_AccumulatedRotation = Quat::identity();
@@ -66,8 +66,8 @@ namespace dmGameObject
                 dmGameObject::SetPosition(instance, Point3(pos));
                 dmGameObject::SetRotation(instance, rot);
 
-                dmHashInit32(&instance->m_CollectionPathHashState);
-                dmHashUpdateBuffer32(&instance->m_CollectionPathHashState, regist->m_CurrentIdentifierPath, strlen(regist->m_CurrentIdentifierPath));
+                dmHashInit64(&instance->m_CollectionPathHashState);
+                dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, regist->m_CurrentIdentifierPath, strlen(regist->m_CurrentIdentifierPath));
 
                 dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
                 dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
@@ -112,7 +112,7 @@ namespace dmGameObject
             dmStrlCpy(tmp_ident, regist->m_CurrentIdentifierPath, sizeof(tmp_ident));
             dmStrlCat(tmp_ident, instance_desc.m_Id, sizeof(tmp_ident));
 
-            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString32(tmp_ident));
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(tmp_ident));
             assert(parent);
 
             for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)

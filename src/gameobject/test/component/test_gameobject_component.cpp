@@ -283,7 +283,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    uint32_t message_id = dmHashString32("test");
+    dmhash_t message_id = dmHashString64("test");
 
     dmGameObject::InstanceMessageData data;
     data.m_MessageId = message_id;

@@ -177,7 +177,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        uint32_t id = dmScript::CheckHash(L, 1);
+        dmhash_t id = dmScript::CheckHash(L, 1);
         const char* component_name = luaL_checkstring(L, 2);
         const char* message_name = luaL_checkstring(L, 3);
 
@@ -224,7 +224,7 @@ namespace dmGameObject
             }
 
             if (desc == 0x0)
-                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name), buffer, actual_buffer_size);
+                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString64(message_name), buffer, actual_buffer_size);
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
@@ -233,7 +233,8 @@ namespace dmGameObject
         }
         else
         {
-            luaL_error(L, "Error sending message. Unknown instance: %p", (void*)id);
+            printf("error: %llu\n", id);
+            luaL_error(L, "Error sending message. Unknown instance: %lld", id);
         }
         assert(top == lua_gettop(L));
 
@@ -244,8 +245,8 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        uint32_t collection_name_hash = dmScript::CheckHash(L, 1);
-        uint32_t id = dmScript::CheckHash(L, 2);
+        dmhash_t collection_name_hash = dmScript::CheckHash(L, 1);
+        dmhash_t id = dmScript::CheckHash(L, 2);
         const char* component_name = luaL_checkstring(L, 3);
         const char* message_name = luaL_checkstring(L, 4);
 
@@ -308,7 +309,7 @@ namespace dmGameObject
             }
 
             if (desc == 0x0)
-                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString32(message_name), buffer, actual_buffer_size);
+                r = dmGameObject::PostNamedMessageTo(instance, component_name, dmHashString64(message_name), buffer, actual_buffer_size);
             if (r != dmGameObject::RESULT_OK)
             {
                 // TODO: Translate r to string
@@ -317,7 +318,8 @@ namespace dmGameObject
         }
         else
         {
-            luaL_error(L, "Error sending message. Unknown instance: %p", (void*)id);
+            printf("error: %llu\n", id);
+            luaL_error(L, "Error sending message. Unknown instance: %lld", id);
         }
         assert(top == lua_gettop(L));
 
@@ -332,7 +334,7 @@ namespace dmGameObject
 
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* instance_message_data = (InstanceMessageData*) buf;
-        instance_message_data->m_MessageId = dmHashString32(message_name);
+        instance_message_data->m_MessageId = dmHashString64(message_name);
         instance_message_data->m_DDFDescriptor = 0x0;
 
         if (top > 1)

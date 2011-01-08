@@ -26,12 +26,12 @@ namespace dmGameObject
                 m_Resource(resource),
                 m_ResourceType(resource_type)
             {
-                m_NameHash = dmHashString32(name);
+                m_NameHash = dmHashString64(name);
             }
 
             void*    m_Resource;
             uint32_t m_ResourceType;
-            uint32_t m_NameHash;
+            dmhash_t m_NameHash;
         };
 
         dmArray<Component>     m_Components;
@@ -50,7 +50,7 @@ namespace dmGameObject
             m_Position = Point3(0,0,0);
             m_Prototype = prototype;
             m_Identifier = UNNAMED_IDENTIFIER;
-            dmHashInit32(&m_CollectionPathHashState);
+            dmHashInit64(&m_CollectionPathHashState);
             m_Depth = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
@@ -71,11 +71,11 @@ namespace dmGameObject
         Quat            m_Rotation;
         Point3          m_Position;
         Prototype*      m_Prototype;
-        uint32_t        m_Identifier;
+        dmhash_t        m_Identifier;
 
         // Collection path hash-state. Used for calculating global identifiers. Contains the hash-state for the collection-path to the instance.
         // We might, in the future, for memory reasons, move this hash-state to a data-structure shared among all instances from the same collection.
-        HashState32     m_CollectionPathHashState;
+        HashState64     m_CollectionPathHashState;
 
         // Hard pointer to the script instance, if any
         // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
@@ -161,9 +161,9 @@ namespace dmGameObject
         Vector3                     m_AccumulatedTranslation;
         Quat                        m_AccumulatedRotation;
 
-        uint32_t                    m_MessageId;
+        dmhash_t                    m_MessageId;
         dmMessage::HSocket          m_SocketId;
-        uint32_t                    m_SpawnMessageId;
+        dmhash_t                    m_SpawnMessageId;
         dmMessage::HSocket          m_SpawnSocketId;
         dmMessage::HSocket          m_ReplySocketId;
 
@@ -255,13 +255,13 @@ namespace dmGameObject
         dmArray<uint16_t>        m_InstancesToDelete;
 
         // Identifier to Instance mapping
-        dmHashTable32<Instance*> m_IDToInstance;
+        dmHashTable64<Instance*> m_IDToInstance;
 
         // Stack keeping track of which instance has the input focus
         dmCircularArray<Instance*> m_FocusStack;
 
         // Name-hash of the collection.
-        uint32_t                   m_NameHash;
+        dmhash_t                   m_NameHash;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

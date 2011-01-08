@@ -5,7 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/message.h>
-
+#include <dlib/hash.h>
 #include <ddf/ddf.h>
 
 #include <resource/resource.h>
@@ -103,7 +103,7 @@ namespace dmGameObject
         uint8_t   m_Pad[3];
 
         /// Message id
-        uint32_t  m_MessageId;
+        dmhash_t  m_MessageId;
 
         /// Pay-load DDF descriptor. NULL if not present
         const dmDDF::Descriptor* m_DDFDescriptor;
@@ -119,7 +119,7 @@ namespace dmGameObject
     struct InputAction
     {
         /// Action id, hashed action name
-        uint32_t m_ActionId;
+        dmhash_t m_ActionId;
         /// Value of the input [0,1]
         float m_Value;
         /// If the input was 0 last update
@@ -364,7 +364,7 @@ namespace dmGameObject
      * @param instance Instance
      * @return Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
      */
-    uint32_t GetIdentifier(HInstance instance);
+    dmhash_t GetIdentifier(HInstance instance);
 
     /**
      * Get absolute identifier relative to #instance. The returned identifier is the
@@ -374,7 +374,7 @@ namespace dmGameObject
      * @param id Identifier relative to #instance
      * @return Absolute identifier
      */
-    uint32_t GetAbsoluteIdentifier(HInstance instance, const char* id);
+    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id);
 
     /**
      * Get instance from identifier
@@ -382,7 +382,7 @@ namespace dmGameObject
      * @param identifier Identifier
      * @return Instance. NULL if instance isn't found.
      */
-    HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier);
+    HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
     /**
      * Post named message
@@ -390,7 +390,7 @@ namespace dmGameObject
      * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedMessage(HRegister reg, uint32_t message_id);
+    Result PostNamedMessage(HRegister reg, dmhash_t message_id);
 
     /**
      * Post ddf message
@@ -399,7 +399,7 @@ namespace dmGameObject
      * @param ddf_data The actual ddf message to send
      * @return RESULT_OK on success
      */
-    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
+    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
 
     /**
      * Post named message to instance
@@ -408,7 +408,7 @@ namespace dmGameObject
      * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id, char* buffer, uint32_t buffer_size);
+    Result PostNamedMessageTo(HInstance instance, const char* component_name, dmhash_t message_id, const void* buffer, uint32_t buffer_size);
 
     /**
      * Post ddf message to instance
@@ -418,7 +418,7 @@ namespace dmGameObject
      * @param ddf_data The actual ddf message to send
      * @return RESULT_OK on success
      */
-    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data);
+    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
 
     /**
      * Set integer property in instance script
@@ -526,7 +526,7 @@ namespace dmGameObject
      * @param reg Register handle
      * @return The message id of the specified collection
      */
-    uint32_t GetMessageId(HRegister reg);
+    dmhash_t GetMessageId(HRegister reg);
 
     /**
      * Set gameobject instance position

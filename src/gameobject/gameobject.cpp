@@ -25,7 +25,7 @@
 namespace dmGameObject
 {
     uint32_t g_RegisterIndex = 0;
-    const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer32("__unnamed__", strlen("__unnamed__"));
+    const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
 
@@ -48,13 +48,13 @@ namespace dmGameObject
         char buffer[32];
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_MESSAGE_NAME, g_RegisterIndex);
-        m_MessageId = dmHashString32(buffer);
+        m_MessageId = dmHashString64(buffer);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SOCKET_NAME, g_RegisterIndex);
         dmMessage::NewSocket(buffer, &m_SocketId);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_MESSAGE_NAME, g_RegisterIndex);
-        m_SpawnMessageId = dmHashString32(buffer);
+        m_SpawnMessageId = dmHashString64(buffer);
 
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_SOCKET_NAME, g_RegisterIndex);
         dmMessage::NewSocket(buffer, &m_SpawnSocketId);
@@ -725,7 +725,7 @@ namespace dmGameObject
 
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier)
     {
-        uint32_t id = dmHashBuffer32(identifier, strlen(identifier));
+        dmhash_t id = dmHashBuffer64(identifier, strlen(identifier));
         if (collection->m_IDToInstance.Get(id))
             return RESULT_IDENTIFIER_IN_USE;
 
@@ -738,20 +738,20 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    uint32_t GetIdentifier(HInstance instance)
+    dmhash_t GetIdentifier(HInstance instance)
     {
         return instance->m_Identifier;
     }
 
-    uint32_t GetAbsoluteIdentifier(HInstance instance, const char* id)
+    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id)
     {
         // Make a copy of the state.
-        HashState32 tmp_state = instance->m_CollectionPathHashState;
-        dmHashUpdateBuffer32(&tmp_state, id, strlen(id));
-        return dmHashFinal32(&tmp_state);
+        HashState64 tmp_state = instance->m_CollectionPathHashState;
+        dmHashUpdateBuffer64(&tmp_state, id, strlen(id));
+        return dmHashFinal64(&tmp_state);
     }
 
-    HInstance GetInstanceFromIdentifier(HCollection collection, uint32_t identifier)
+    HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier)
     {
         Instance** instance = collection->m_IDToInstance.Get(identifier);
         if (instance)
@@ -768,7 +768,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result PostNamedMessage(HRegister reg, uint32_t message_id)
+    Result PostNamedMessage(HRegister reg, dmhash_t message_id)
     {
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
@@ -778,14 +778,14 @@ namespace dmGameObject
         return PostMessage(reg, e);
     }
 
-    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, const void* ddf_data)
     {
         assert(ddf_desc != 0x0);
         assert(ddf_data != 0x0);
 
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = dmHashString32(ddf_desc->m_ScriptName);
+        e->m_MessageId = dmHashString64(ddf_desc->m_ScriptName);
         e->m_DDFDescriptor = ddf_desc;
 
         uint32_t max_data_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
@@ -805,7 +805,7 @@ namespace dmGameObject
         // Send to component or broadcast?
         if (component_name != 0 && *component_name != '\0')
         {
-            uint32_t component_name_hash = dmHashString32(component_name);
+            dmhash_t component_name_hash = dmHashString64(component_name);
             Prototype* p = instance_message_data->m_Instance->m_Prototype;
             for (uint32_t i = 0; i < p->m_Components.Size(); ++i)
             {
@@ -828,7 +828,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result PostNamedMessageTo(HInstance instance, const char* component_name, uint32_t message_id, char* buffer, uint32_t buffer_size)
+    Result PostNamedMessageTo(HInstance instance, const char* component_name, dmhash_t message_id, const void* buffer, uint32_t buffer_size)
     {
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
@@ -842,14 +842,14 @@ namespace dmGameObject
         return PostMessageTo(component_name, e);
     }
 
-    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, char* ddf_data)
+    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, const void* ddf_data)
     {
         assert(ddf_desc != 0x0);
         assert(ddf_data != 0x0);
 
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = dmHashString32(ddf_desc->m_ScriptName);
+        e->m_MessageId = dmHashString64(ddf_desc->m_ScriptName);
         e->m_Instance = instance;
         e->m_DDFDescriptor = ddf_desc;
 
@@ -1277,7 +1277,7 @@ namespace dmGameObject
             return 0;
     }
 
-    uint32_t GetMessageId(HRegister reg)
+    dmhash_t GetMessageId(HRegister reg)
     {
         if (reg)
             return reg->m_MessageId;
