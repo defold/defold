@@ -89,8 +89,7 @@ namespace dmEngine
     , m_DebugMaterial(0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
-    , m_RenderScript(0x0)
-    , m_RenderScriptInstance(0x0)
+    , m_RenderScriptPrototype(0x0)
     , m_Stats()
     {
         m_Register = dmGameObject::NewRegister(Dispatch, this);
@@ -242,8 +241,8 @@ namespace dmEngine
             goto bail;
         }
 
-        if (engine->m_RenderScriptInstance)
-            InitRenderScriptInstance(engine->m_RenderScriptInstance);
+        if (engine->m_RenderScriptPrototype)
+            InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
@@ -407,9 +406,9 @@ bail:
                 dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
                 dmGameObject::Update(collections, update_contexts, 2);
 
-                if (engine->m_RenderScriptInstance)
+                if (engine->m_RenderScriptPrototype)
                 {
-                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptInstance);
+                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
                 }
                 else
                 {
@@ -719,13 +718,12 @@ bail:
             return false;
         }
 
-        const char* render_script_path = dmConfigFile::GetString(config, "bootstrap.render_script", 0x0);
-        if (render_script_path != 0x0)
+        const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", 0x0);
+        if (render_path != 0x0)
         {
-            fact_error = dmResource::Get(engine->m_Factory, render_script_path, (void**)&engine->m_RenderScript);
+            fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
             if (fact_error != dmResource::FACTORY_RESULT_OK)
                 return false;
-            engine->m_RenderScriptInstance = NewRenderScriptInstance(engine->m_RenderContext, engine->m_RenderScript);
         }
 
         return true;
@@ -733,11 +731,8 @@ bail:
 
     void UnloadBootstrapContent(HEngine engine)
     {
-        if (engine->m_RenderScript)
-        {
-            DeleteRenderScriptInstance(engine->m_RenderScriptInstance);
-            dmResource::Release(engine->m_Factory, engine->m_RenderScript);
-        }
+        if (engine->m_RenderScriptPrototype)
+            dmResource::Release(engine->m_Factory, engine->m_RenderScriptPrototype);
         if (engine->m_Font)
             dmResource::Release(engine->m_Factory, engine->m_Font);
         if (engine->m_SmallFont)

@@ -64,8 +64,7 @@ namespace dmEngine
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
 
-        dmRender::HRenderScript                     m_RenderScript;
-        dmRender::HRenderScriptInstance             m_RenderScriptInstance;
+        dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
         Stats                                       m_Stats;
     };
