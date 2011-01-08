@@ -1,7 +1,0 @@
-Name: "Opaque"
-Tags: "opaque"
-VertexProgram: "shadow.vp"
-VertexConstants { Register: 0 Type: CONSTANT_TYPE_VIEWPROJ }
-VertexConstants { Register: 4 Type: CONSTANT_TYPE_WORLD }
-FragmentProgram: "shadow.fp"
-FragmentConstants { Register: 0 Type: CONSTANT_TYPE_USER Value: { X: 0.3 Y: 0.5 Z: 0.3 W: 1.0 } }

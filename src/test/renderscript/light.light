@@ -1,9 +1,0 @@
-Id: "light"
-Type: SPOT
-Intensity: 10
-Color: { X: 1.0 Y: 1.0 Z: 1.0 }
-Range: 50
-Decay: 0.9
-ConeAngle: 50
-PenumbraAngle: 15
-DropOff: 0.5

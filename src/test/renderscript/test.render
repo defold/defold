@@ -1,2 +1,0 @@
-Script: "test.render_script"
-Materials: { Name: "opaque" Material: "opaque.material" }

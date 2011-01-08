@@ -1,2 +1,0 @@
---function on_message(self, message_id, message)
---end
