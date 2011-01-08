@@ -6,7 +6,7 @@
          point="org.eclipse.ui.editors">
       <editor
             name="Lua Editor"
-            extensions="lua,script,gui_script"
+            extensions="lua,script,gui_script,render_script"
             icon="icons/lua.gif"
             contributorClass="org.eclipse.ui.texteditor.BasicTextEditorActionContributor"
             class="com.dynamo.cr.luaeditor.LuaEditor"
