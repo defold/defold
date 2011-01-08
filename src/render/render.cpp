@@ -93,7 +93,7 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, uint32_t hash)
+    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash)
     {
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
@@ -108,7 +108,7 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, uint32_t hash)
+    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, dmhash_t hash)
     {
         for (uint32_t i=0; i < render_context->m_RenderTargets.Size(); i++)
         {

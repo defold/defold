@@ -51,7 +51,7 @@ TEST_F(dmRenderTest, TestRenderTarget)
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(flags, params);
     dmGraphics::DeleteRenderTarget(target);
-    uint32_t hash = dmHashString32("rt");
+    dmhash_t hash = dmHashString64("rt");
     ASSERT_EQ(0x0, dmRender::GetRenderTarget(m_Context, hash));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::RegisterRenderTarget(m_Context, target, hash));
     ASSERT_NE((void*)0x0, dmRender::GetRenderTarget(m_Context, hash));

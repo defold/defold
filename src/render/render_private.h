@@ -55,7 +55,7 @@ namespace dmRender
     struct RenderTargetSetup
     {
         dmGraphics::HRenderTarget   m_RenderTarget;
-        uint32_t                    m_Hash;
+        dmhash_t                    m_Hash;
     };
 
     struct RenderScriptContext

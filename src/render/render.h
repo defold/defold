@@ -6,6 +6,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/container.h>
 #include <dlib/message.h>
+#include <dlib/hash.h>
 #include <graphics/graphics_device.h>
 
 #include "material.h"
@@ -82,7 +83,7 @@ namespace dmRender
 
     struct Message
     {
-        uint32_t m_Id;
+        dmhash_t m_Id;
         const dmDDF::Descriptor* m_DDFDescriptor;
         uint32_t m_BufferSize;
         void* m_Buffer;
@@ -99,8 +100,8 @@ namespace dmRender
     HRenderContext NewRenderContext(const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context);
 
-    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, uint32_t hash);
-    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, uint32_t hash);
+    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash);
+    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, dmhash_t hash);
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 

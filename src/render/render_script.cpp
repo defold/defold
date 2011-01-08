@@ -268,7 +268,7 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(buffer_type_flags, params);
-        RegisterRenderTarget(i->m_RenderContext, render_target, dmHashString32(name));
+        RegisterRenderTarget(i->m_RenderContext, render_target, dmHashString64(name));
 
         lua_pushlightuserdata(L, (void*)render_target);
 
