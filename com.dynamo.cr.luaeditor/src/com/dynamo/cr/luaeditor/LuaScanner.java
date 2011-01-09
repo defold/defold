@@ -1,7 +1,15 @@
 package com.dynamo.cr.luaeditor;
 
-import org.eclipse.jface.text.*;
-import org.eclipse.jface.text.rules.*;
+import org.eclipse.jface.text.TextAttribute;
+import org.eclipse.jface.text.rules.IRule;
+import org.eclipse.jface.text.rules.IToken;
+import org.eclipse.jface.text.rules.IWordDetector;
+import org.eclipse.jface.text.rules.RuleBasedScanner;
+import org.eclipse.jface.text.rules.SingleLineRule;
+import org.eclipse.jface.text.rules.Token;
+import org.eclipse.jface.text.rules.WhitespaceRule;
+import org.eclipse.jface.text.rules.WordRule;
+import org.eclipse.swt.SWT;
 
 public class LuaScanner extends RuleBasedScanner {
 
@@ -12,9 +20,13 @@ public class LuaScanner extends RuleBasedScanner {
 
         IToken keyword =
             new Token(
-                new TextAttribute(manager.getColor(ILuaColorConstants.KEYWORD)));
+                new TextAttribute(manager.getColor(ILuaColorConstants.KEYWORD), null, SWT.BOLD));
 
-        IRule[] rules = new IRule[4];
+        IToken defaultToken =
+            new Token(
+                new TextAttribute(manager.getColor(ILuaColorConstants.DEFAULT)));
+
+        IRule[] rules = new IRule[5];
 
         // Add rule for double quotes
         rules[0] = new SingleLineRule("\"", "\"", string, '\\');
@@ -58,6 +70,8 @@ public class LuaScanner extends RuleBasedScanner {
         name_rule.addWord("while", keyword);
         name_rule.addWord("self", keyword);
         rules[3] = name_rule;
+
+        rules[4] = new WordRule(nameDetector, defaultToken);
 
         setRules(rules);
     }
