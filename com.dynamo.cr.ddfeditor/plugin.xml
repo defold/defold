@@ -91,6 +91,14 @@
             id="com.dynamo.cr.ddfeditor.inputeditor"
             name="Input Binding Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.GamepadMapEditor"
+            default="false"
+            extensions="gamepads"
+            icon="icons/controller.png"
+            id="com.dynamo.cr.ddfeditor.gamepadmapeditor"
+            name="Gamepad map Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
