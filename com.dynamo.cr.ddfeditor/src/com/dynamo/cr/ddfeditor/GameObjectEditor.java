@@ -8,8 +8,10 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
+import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.google.protobuf.Descriptors.Descriptor;
 
 public class GameObjectEditor extends DdfEditor {
 
@@ -46,8 +48,17 @@ public class GameObjectEditor extends DdfEditor {
             return null;
         }
         return null;
-
     }
 
+    @Override
+    public String getMessageNodeLabelValue(MessageNode messageNode) {
+        Descriptor descriptor = messageNode.getDescriptor();
+        String name = descriptor.getName();
+        if (name.equals("ComponentDesc")) {
+            ComponentDesc componentDesc = (ComponentDesc) messageNode.build();
+            return componentDesc.getResource();
+        }
+        return super.getMessageNodeLabelValue(messageNode);
+    }
 }
 
