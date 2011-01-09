@@ -8,10 +8,10 @@
 #include <resource/resource.h>
 
 // Embedded resources
-extern char DEBUG_ARBVP[];
-extern uint32_t DEBUG_ARBVP_SIZE;
-extern char DEBUG_ARBFP[];
-extern uint32_t DEBUG_ARBFP_SIZE;
+extern char DEBUG_VPC[];
+extern uint32_t DEBUG_VPC_SIZE;
+extern char DEBUG_FPC[];
+extern uint32_t DEBUG_FPC_SIZE;
 
 namespace dmEngine
 {

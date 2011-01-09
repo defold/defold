@@ -188,10 +188,10 @@ namespace dmEngine
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = 1024; // TODO: Should be configurable
         render_params.m_MaxRenderTargets = 32;
-        render_params.m_VertexProgramData = ::DEBUG_ARBVP;
-        render_params.m_VertexProgramDataSize = ::DEBUG_ARBVP_SIZE;
-        render_params.m_FragmentProgramData = ::DEBUG_ARBFP;
-        render_params.m_FragmentProgramDataSize = ::DEBUG_ARBFP_SIZE;
+        render_params.m_VertexProgramData = ::DEBUG_VPC;
+        render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
+        render_params.m_FragmentProgramData = ::DEBUG_FPC;
+        render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
         render_params.m_DisplayWidth = graphics_params.m_DisplayWidth;
         render_params.m_DisplayHeight = graphics_params.m_DisplayHeight;
         render_params.m_MaxCharacters = 2048 * 4;

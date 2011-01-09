@@ -4,8 +4,8 @@ title = test
 main_collection = main.collectionc
 font = test.fontc
 small_font = test.fontc
-debug_fp = debug.arbfp
-debug_vp = debug.arbvp
+debug_fp = debug.fpc
+debug_vp = debug.vpc
 gamepads = default.gamepadsc
 game_binding = default.input_bindingc
 [resource]
