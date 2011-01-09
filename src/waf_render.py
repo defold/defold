@@ -12,8 +12,8 @@ def transform_font(msg):
     return msg
 
 def transform_material(msg):
-    msg.VertexProgram = msg.VertexProgram.replace('.vp', '.arbvp')
-    msg.FragmentProgram = msg.FragmentProgram.replace('.fp', '.arbfp')
+    msg.VertexProgram = msg.VertexProgram.replace('.vp', '.vpc')
+    msg.FragmentProgram = msg.FragmentProgram.replace('.fp', '.fpc')
     return msg
 
 proto_compile_task('font', 'render.font_ddf_pb2', 'font_ddf_pb2.FontDesc', '.font', '.fontc', transform_font)
