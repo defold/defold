@@ -9,9 +9,11 @@ import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.protobind.MessageNode;
+import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Message;
 
 public class GameObjectEditor extends DdfEditor {
 
@@ -59,6 +61,10 @@ public class GameObjectEditor extends DdfEditor {
             return componentDesc.getResource();
         }
         return super.getMessageNodeLabelValue(messageNode);
+    }
+
+    public static Message newInitialWizardContent() {
+        return GameObject.PrototypeDesc.newBuilder().build();
     }
 }
 

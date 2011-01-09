@@ -10,6 +10,7 @@ import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.model.proto.Model.ModelDesc;
+import com.google.protobuf.Message;
 
 public class ModelEditor extends DdfEditor {
 
@@ -55,5 +56,13 @@ public class ModelEditor extends DdfEditor {
             return null;
         }
         return null;
+    }
+
+    public static Message newInitialWizardContent() {
+        return ModelDesc.newBuilder()
+            .setName("unnamed")
+            .setMesh("")
+            .setMaterial("")
+             .build();
     }
 }
