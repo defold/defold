@@ -83,6 +83,14 @@
             id="com.dynamo.cr.ddfeditor.rendereditor"
             name="Render Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.InputBindingEditor"
+            default="false"
+            extensions="input_binding"
+            icon="icons/keyboard.png"
+            id="com.dynamo.cr.ddfeditor.inputeditor"
+            name="Input Binding Editor">
+      </editor>
    </extension>
 
 </plugin>

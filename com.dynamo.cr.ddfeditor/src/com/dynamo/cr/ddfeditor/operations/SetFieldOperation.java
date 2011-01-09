@@ -34,7 +34,9 @@ public class SetFieldOperation extends AbstractOperation {
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         message.setField(this.path, newValue);
-        viewer.update(element, null);
+        // NOTE: We use refresh here with parent in order to update label for parent as well
+        // when editing messages
+        viewer.refresh(path.getParent(), true);
         return Status.OK_STATUS;
     }
 
@@ -42,7 +44,7 @@ public class SetFieldOperation extends AbstractOperation {
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         message.setField(this.path, newValue);
-        viewer.update(element, null);
+        viewer.refresh(path.getParent(), true);
         return Status.OK_STATUS;
     }
 
@@ -50,7 +52,7 @@ public class SetFieldOperation extends AbstractOperation {
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         message.setField(this.path, oldValue);
-        viewer.update(element, null);
+        viewer.refresh(path.getParent(), true);
         return Status.OK_STATUS;
     }
 

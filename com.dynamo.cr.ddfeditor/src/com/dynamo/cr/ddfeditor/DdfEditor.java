@@ -143,6 +143,16 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         }
     }
 
+    /**
+     * Label for root node of a message. Subclasses can override this present custom
+     * appropriate message label
+     * @param messageNode message label node
+     * @return label
+     */
+    public String getMessageNodeLabelValue(MessageNode messageNode) {
+        return "";
+    }
+
     class ProtoFieldValueLabelProvider extends ColumnLabelProvider {
         public String getText(Object element) {
 
@@ -152,6 +162,10 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 Object fieldValue = message.getField(fieldPath);
 
                 if (fieldValue instanceof Node) {
+                    if (fieldValue instanceof MessageNode) {
+                        MessageNode messageNode = (MessageNode) fieldValue;
+                        return getMessageNodeLabelValue(messageNode);
+                    }
                     return "";
                 }
                 else if (fieldValue instanceof EnumValueDescriptor) {
