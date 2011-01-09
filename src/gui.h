@@ -54,11 +54,11 @@ namespace dmGui
 
     struct MessageData
     {
-        /// Gui scene handle
-        HScene                   m_Scene;
-
         /// Message hash
         dmhash_t                 m_MessageId;
+
+        /// Gui scene handle
+        HScene                   m_Scene;
 
         /// Pay-load DDF descriptor. NULL if not present
         const dmDDF::Descriptor* m_DDFDescriptor;

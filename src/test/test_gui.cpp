@@ -574,7 +574,7 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
 
     dmGui::InputAction input_action;
     memset(&input_action, 0, sizeof(input_action));
-    input_action.m_ActionId = dmHashString32("SPACE");
+    input_action.m_ActionId = dmHashString64("SPACE");
     r = dmGui::DispatchInput(scene, &input_action, 1);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
