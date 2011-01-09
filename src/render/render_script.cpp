@@ -609,26 +609,45 @@ namespace dmRender
     int RenderScript_SetVertexConstant(lua_State* L)
     {
         int top = lua_gettop(L);
-        RenderScriptInstance* rsi = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         uint32_t reg = luaL_checknumber(L, 2);
         if (top == 2 || lua_isnil(L, 3))
         {
-            dmRender::ResetVertexConstant(rsi->m_RenderContext, reg);
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANT, (uint32_t)reg, (uint32_t)0)))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsVector4(L, 3))
         {
             Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 3);
-            dmRender::SetVertexConstant(rsi->m_RenderContext, reg, *v);
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        else
+        {
+            return luaL_error(L, "%s.set_vertex_constant takes a vector4 or nil as its third argument.", RENDER_SCRIPT_LIB_NAME);
+        }
+        return 0;
+    }
+
+    int RenderScript_SetVertexConstantBlock(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t reg = luaL_checknumber(L, 2);
+        if (top == 2 || lua_isnil(L, 3))
+        {
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANTBLOCK, (uint32_t)reg, (uint32_t)0)))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsMatrix4(L, 3))
         {
             Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 3);
-            for (uint32_t i = 0; i < 4; ++i)
-                dmRender::SetVertexConstant(rsi->m_RenderContext, reg + i, m->getCol(i));
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANTBLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
         {
-            return luaL_error(L, "%s.set_vertex_constant takes nil, a vector4 or matrix4 as its last argument.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.set_vertex_constant_block takes a matrix4 or nil as its 3rd argument.", RENDER_SCRIPT_LIB_NAME);
         }
         return 0;
     }
@@ -636,26 +655,45 @@ namespace dmRender
     int RenderScript_SetFragmentConstant(lua_State* L)
     {
         int top = lua_gettop(L);
-        RenderScriptInstance* rsi = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         uint32_t reg = luaL_checknumber(L, 2);
         if (top == 2 || lua_isnil(L, 3))
         {
-            dmRender::ResetFragmentConstant(rsi->m_RenderContext, reg);
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANT, (uint32_t)reg, (uint32_t)0)))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsVector4(L, 3))
         {
             Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 3);
-            dmRender::SetFragmentConstant(rsi->m_RenderContext, reg, *v);
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        else
+        {
+            return luaL_error(L, "%s.set_fragment_constant takes a vector4 or nil as its third argument.", RENDER_SCRIPT_LIB_NAME);
+        }
+        return 0;
+    }
+
+    int RenderScript_SetFragmentConstantBlock(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t reg = luaL_checknumber(L, 2);
+        if (top == 2 || lua_isnil(L, 3))
+        {
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANTBLOCK, (uint32_t)reg, (uint32_t)0)))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsMatrix4(L, 3))
         {
             Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 3);
-            for (uint32_t i = 0; i < 4; ++i)
-                dmRender::SetFragmentConstant(rsi->m_RenderContext, reg + i, m->getCol(i));
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANTBLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
         {
-            return luaL_error(L, "%s.set_fragment_constant takes nil, a vector4 or matrix4 as its last argument.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.set_fragment_constant_block takes a matrix4 or nil as its 3rd argument.", RENDER_SCRIPT_LIB_NAME);
         }
         return 0;
     }
@@ -687,32 +725,34 @@ namespace dmRender
 
     static const luaL_reg RenderScript_methods[] =
     {
-        {"enable_state",            RenderScript_EnableState},
-        {"disable_state",           RenderScript_DisableState},
-        {"enable_render_target",    RenderScript_EnableRenderTarget},
-        {"disable_render_target",   RenderScript_DisableRenderTarget},
-        {"render_target",           RenderScript_RenderTarget},
-        {"set_texture_unit",        RenderScript_SetTextureUnit},
-        {"clear",                   RenderScript_Clear},
-        {"set_viewport",            RenderScript_SetViewport},
-        {"set_view",                RenderScript_SetView},
-        {"set_projection",          RenderScript_SetProjection},
-        {"set_blend_func",          RenderScript_SetBlendFunc},
-        {"set_color_mask",          RenderScript_SetColorMask},
-        {"set_depth_mask",          RenderScript_SetDepthMask},
-        {"set_index_mask",          RenderScript_SetIndexMask},
-        {"set_stencil_mask",        RenderScript_SetStencilMask},
-        {"set_cull_face",           RenderScript_SetCullFace},
-        {"set_polygon_offset",      RenderScript_SetPolygonOffset},
-        {"draw",                    RenderScript_Draw},
-        {"draw_debug3d",            RenderScript_DrawDebug3d},
-        {"draw_debug2d",            RenderScript_DrawDebug2d},
-        {"get_window_width",        RenderScript_GetWindowWidth},
-        {"get_window_height",       RenderScript_GetWindowHeight},
-        {"predicate",               RenderScript_Predicate},
-        {"set_vertex_constant",     RenderScript_SetVertexConstant},
-        {"set_fragment_constant",   RenderScript_SetFragmentConstant},
-        {"set_material",            RenderScript_SetMaterial},
+        {"enable_state",                RenderScript_EnableState},
+        {"disable_state",               RenderScript_DisableState},
+        {"enable_render_target",        RenderScript_EnableRenderTarget},
+        {"disable_render_target",       RenderScript_DisableRenderTarget},
+        {"render_target",               RenderScript_RenderTarget},
+        {"set_texture_unit",            RenderScript_SetTextureUnit},
+        {"clear",                       RenderScript_Clear},
+        {"set_viewport",                RenderScript_SetViewport},
+        {"set_view",                    RenderScript_SetView},
+        {"set_projection",              RenderScript_SetProjection},
+        {"set_blend_func",              RenderScript_SetBlendFunc},
+        {"set_color_mask",              RenderScript_SetColorMask},
+        {"set_depth_mask",              RenderScript_SetDepthMask},
+        {"set_index_mask",              RenderScript_SetIndexMask},
+        {"set_stencil_mask",            RenderScript_SetStencilMask},
+        {"set_cull_face",               RenderScript_SetCullFace},
+        {"set_polygon_offset",          RenderScript_SetPolygonOffset},
+        {"draw",                        RenderScript_Draw},
+        {"draw_debug3d",                RenderScript_DrawDebug3d},
+        {"draw_debug2d",                RenderScript_DrawDebug2d},
+        {"get_window_width",            RenderScript_GetWindowWidth},
+        {"get_window_height",           RenderScript_GetWindowHeight},
+        {"predicate",                   RenderScript_Predicate},
+        {"set_vertex_constant",         RenderScript_SetVertexConstant},
+        {"set_vertex_constant_block",   RenderScript_SetVertexConstantBlock},
+        {"set_fragment_constant",       RenderScript_SetFragmentConstant},
+        {"set_fragment_constant_block", RenderScript_SetFragmentConstantBlock},
+        {"set_material",                RenderScript_SetMaterial},
         {0, 0}
     };
 

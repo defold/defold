@@ -76,6 +76,8 @@ namespace dmRender
         context->m_VertexConstantMask = 0;
         context->m_FragmentConstantMask = 0;
 
+        memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
+
         InitializeTextContext(context, params.m_MaxCharacters);
 
         context->m_OutOfResources = 0;
@@ -220,19 +222,6 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
-        for (uint32_t i = 0; i < MAX_CONSTANT_COUNT; ++i)
-        {
-            uint32_t mask = 1 << i;
-            if (render_context->m_VertexConstantMask & mask)
-            {
-                dmGraphics::SetVertexConstantBlock(context, &render_context->m_VertexConstants[i], i, 1);
-            }
-            if (render_context->m_FragmentConstantMask & mask)
-            {
-                dmGraphics::SetFragmentConstant(context, &render_context->m_FragmentConstants[i], i);
-            }
-        }
-
         /*
         if (render_context->m_RenderObjects.Size() > 0)
         {
@@ -241,17 +230,18 @@ namespace dmRender
                    sizeof(RenderObject),
                    sort_func);
         }
-*/
+        */
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
 
-            HMaterial material = ro->m_Material;
-            if (render_context->m_Material)
-                material = render_context->m_Material;
-
-            if (ro->m_VertexCount > 0 && (GetMaterialTagMask(material) & tag_mask) == tag_mask)
+            if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
+                HMaterial material = ro->m_Material;
+                if (render_context->m_Material)
+                    material = render_context->m_Material;
+
                 dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(material));
                 dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(material));
 
@@ -322,14 +312,27 @@ namespace dmRender
                             }
                         }
                     }
+                    if (render_context->m_VertexConstantMask & mask)
+                    {
+                        dmGraphics::SetVertexConstantBlock(context, &render_context->m_VertexConstants[j], j, 1);
+                    }
+                    if (render_context->m_FragmentConstantMask & mask)
+                    {
+                        dmGraphics::SetFragmentConstant(context, &render_context->m_FragmentConstants[j], j);
+                    }
                 }
 
                 if (ro->m_SetBlendFactors)
                     dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
 
                 for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
-                    if (ro->m_Textures[i])
-                        dmGraphics::SetTextureUnit(context, i, ro->m_Textures[i]);
+                {
+                    dmGraphics::HTexture texture = ro->m_Textures[i];
+                    if (render_context->m_Textures[i])
+                        texture = render_context->m_Textures[i];
+                    if (texture)
+                        dmGraphics::SetTextureUnit(context, i, texture);
+                }
 
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
 
@@ -341,8 +344,13 @@ namespace dmRender
                 dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
 
                 for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
-                    if (ro->m_Textures[i])
+                {
+                    dmGraphics::HTexture texture = ro->m_Textures[i];
+                    if (render_context->m_Textures[i])
+                        texture = render_context->m_Textures[i];
+                    if (texture)
                         dmGraphics::SetTextureUnit(context, i, 0);
+                }
 
                 for (uint32_t j = 0; j < MAX_CONSTANT_COUNT; ++j)
                 {

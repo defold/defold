@@ -72,7 +72,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_TEXTURE_UNIT:
                 {
-                    dmGraphics::SetTextureUnit(context, c->m_Operands[0], (dmGraphics::HTexture)c->m_Operands[1]);
+                    render_context->m_Textures[c->m_Operands[0]] = (dmGraphics::HTexture)c->m_Operands[1];
                     break;
                 }
                 case COMMAND_TYPE_CLEAR:
@@ -161,6 +161,70 @@ namespace dmRender
                 case COMMAND_TYPE_SETMATERIAL:
                 {
                     render_context->m_Material = (HMaterial)c->m_Operands[0];
+                    break;
+                }
+                case COMMAND_TYPE_SETVERTEXCONSTANT:
+                {
+                    uint32_t reg = c->m_Operands[0];
+                    Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)c->m_Operands[1];
+                    if (v != 0x0)
+                    {
+                        dmRender::SetVertexConstant(render_context, reg, *v);
+                        delete v;
+                    }
+                    else
+                    {
+                        dmRender::ResetVertexConstant(render_context, reg);
+                    }
+                    break;
+                }
+                case COMMAND_TYPE_SETVERTEXCONSTANTBLOCK:
+                {
+                    uint32_t reg = c->m_Operands[0];
+                    Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)c->m_Operands[1];
+                    if (m != 0x0)
+                    {
+                        for (uint32_t i = 0; i < 4; ++i)
+                            dmRender::SetVertexConstant(render_context, reg + i, m->getCol(i));
+                        delete m;
+                    }
+                    else
+                    {
+                        for (uint32_t i = 0; i < 4; ++i)
+                            dmRender::ResetVertexConstant(render_context, reg + i);
+                    }
+                    break;
+                }
+                case COMMAND_TYPE_SETFRAGMENTCONSTANT:
+                {
+                    uint32_t reg = c->m_Operands[0];
+                    Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)c->m_Operands[1];
+                    if (v != 0x0)
+                    {
+                        dmRender::SetFragmentConstant(render_context, reg, *v);
+                        delete v;
+                    }
+                    else
+                    {
+                        dmRender::ResetFragmentConstant(render_context, reg);
+                    }
+                    break;
+                }
+                case COMMAND_TYPE_SETFRAGMENTCONSTANTBLOCK:
+                {
+                    uint32_t reg = c->m_Operands[0];
+                    Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)c->m_Operands[1];
+                    if (m != 0x0)
+                    {
+                        for (uint32_t i = 0; i < 4; ++i)
+                            dmRender::SetFragmentConstant(render_context, reg + i, m->getCol(i));
+                        delete m;
+                    }
+                    else
+                    {
+                        for (uint32_t i = 0; i < 4; ++i)
+                            dmRender::ResetFragmentConstant(render_context, reg + i);
+                    }
                     break;
                 }
                 default:

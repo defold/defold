@@ -72,6 +72,7 @@ namespace dmRender
     {
         Vectormath::Aos::Vector4    m_VertexConstants[MAX_CONSTANT_COUNT];
         Vectormath::Aos::Vector4    m_FragmentConstants[MAX_CONSTANT_COUNT];
+        dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         RenderScriptContext         m_RenderScriptContext;
