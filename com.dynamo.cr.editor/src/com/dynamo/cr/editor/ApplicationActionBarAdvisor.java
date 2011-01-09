@@ -11,6 +11,7 @@ import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.actions.ActionFactory.IWorkbenchAction;
 import org.eclipse.ui.application.ActionBarAdvisor;
 import org.eclipse.ui.application.IActionBarConfigurer;
 import org.eclipse.ui.menus.CommandContributionItem;
@@ -31,6 +32,9 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
     private IAction quitAction;
     private IAction preferencsAction;
     private IWorkbenchWindow window;
+    private IWorkbenchAction cutAction;
+    private IWorkbenchAction copyAction;
+    private IWorkbenchAction pasteAction;
 
     public ApplicationActionBarAdvisor(IActionBarConfigurer configurer) {
         super(configurer);
@@ -64,6 +68,16 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
 
         redoAction = ActionFactory.REDO.create(window);
         register(redoAction);
+
+        cutAction = ActionFactory.CUT.create(window);
+        register(cutAction);
+
+        copyAction = ActionFactory.COPY.create(window);
+        register(copyAction);
+
+        pasteAction = ActionFactory.PASTE.create(window);
+        register(pasteAction);
+
     }
 
     protected void fillMenuBar(IMenuManager menuBar) {
