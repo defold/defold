@@ -300,4 +300,8 @@ public class MessageNode extends Node {
         return this.descriptor.getName();
     }
 
+    public Descriptor getDescriptor() {
+        return this.descriptor;
+    }
+
 }
