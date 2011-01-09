@@ -27,7 +27,7 @@ public class CgScanner extends RuleBasedScanner {
             new Token(
                 new TextAttribute(manager.getColor(ICgColorConstants.DEFAULT)));
 
-        IRule[] rules = new IRule[6];
+        IRule[] rules = new IRule[7];
 
         // Add a rule for single-line comment
         rules[0] = new CommentRule(manager);
@@ -85,7 +85,10 @@ public class CgScanner extends RuleBasedScanner {
          // any word prefixed by '__' is considered a keyword
          rules[4] = new WordPatternRule(nameDetector, "__", "", keyword);
 
-         rules[5] = new WordRule(nameDetector, defaultToken);
+         // preprocessor directives
+         rules[5] = new WordPatternRule(nameDetector, "#", "", keyword);
+
+         rules[6] = new WordRule(nameDetector, defaultToken);
 
         setRules(rules);
     }
