@@ -128,7 +128,7 @@ public class CameraController
             if (camera.getType() == Camera.Type.ORTHOGRAPHIC)
             {
                 double fov = camera.getFov();
-                fov += dy * fov * 0.002;
+                fov += -dy * fov * 0.002;
                 fov = Math.max(0.01, fov);
                 camera.setFov(fov);
             }
@@ -144,7 +144,7 @@ public class CameraController
                 Vector4d delta = new Vector4d();
 
                 m.getColumn(2, delta);
-                delta.scale(dy * focusDistance * 0.001);
+                delta.scale(-dy * focusDistance * 0.001);
                 camera.move(delta.x, delta.y, delta.z);
             }
         }
