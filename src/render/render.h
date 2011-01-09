@@ -37,12 +37,17 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
+    struct RenderKey
+    {
+        uint64_t    m_Key[2];
+    };
+
     struct RenderObject
     {
         RenderObject();
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
-
+        RenderKey                       m_RenderKey;
         Vector4                         m_VertexConstants[MAX_CONSTANT_COUNT];
         Vector4                         m_FragmentConstants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
