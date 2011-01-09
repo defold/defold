@@ -3,13 +3,7 @@
 build
 *.mesh
 *.material
-*.arbvp
-*.arbfp
+*.vpc
+*.fpc
 *.model
 *.pyc
-
-
-
-
-
-
