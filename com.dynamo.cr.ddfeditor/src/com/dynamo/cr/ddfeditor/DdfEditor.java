@@ -342,7 +342,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             if (oldValue.equals(value))
                 return;
 
-            SetFieldOperation op = new SetFieldOperation(viewer, message, fieldPath, oldValue, value, element);
+            SetFieldOperation op = new SetFieldOperation(viewer, message, fieldPath, oldValue, value);
             executeOperation(op);
             getViewer().update(element, null);
         }

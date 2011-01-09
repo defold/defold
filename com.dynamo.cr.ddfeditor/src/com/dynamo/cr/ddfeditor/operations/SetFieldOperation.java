@@ -18,16 +18,14 @@ public class SetFieldOperation extends AbstractOperation {
     private Object newValue;
     private MessageNode message;
     private TreeViewer viewer;
-    private Object element;
 
-    public SetFieldOperation(TreeViewer viewer, MessageNode message, IPath path, Object oldValue, Object newValue, Object element) {
+    public SetFieldOperation(TreeViewer viewer, MessageNode message, IPath path, Object oldValue, Object newValue) {
         super("set " + path.getName());
         this.viewer = viewer;
         this.message = message;
         this.path = path;
         this.oldValue = oldValue;
         this.newValue = newValue;
-        this.element = element;
     }
 
     void update() {
