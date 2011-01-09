@@ -15,10 +15,12 @@
 
 namespace dmRender
 {
+    using namespace Vectormath::Aos;
+
     RenderObject::RenderObject()
     {
         memset(this, 0, sizeof(RenderObject));
-        m_TextureTransform = Vectormath::Aos::Matrix4::identity();
+        m_TextureTransform = Matrix4::identity();
     }
 
     RenderContextParams::RenderContextParams()
@@ -60,8 +62,8 @@ namespace dmRender
 
         context->m_Material = 0;
 
-        context->m_View = Vectormath::Aos::Matrix4::identity();
-        context->m_Projection = Vectormath::Aos::Matrix4::identity();
+        context->m_View = Matrix4::identity();
+        context->m_Projection = Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
 
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_DispatchCallback, params.m_CommandBufferSize);
@@ -129,13 +131,13 @@ namespace dmRender
         return &render_context->m_ViewProj;
     }
 
-    void SetViewMatrix(HRenderContext render_context, const Vectormath::Aos::Matrix4& view)
+    void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
     {
         render_context->m_View = view;
         render_context->m_ViewProj = render_context->m_Projection * view;
     }
 
-    void SetProjectionMatrix(HRenderContext render_context, const Vectormath::Aos::Matrix4& projection)
+    void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection)
     {
         render_context->m_Projection = projection;
         render_context->m_ViewProj = projection * render_context->m_View;
@@ -179,10 +181,39 @@ namespace dmRender
         return RESULT_OK;
     }
 
+    Result GenerateKeyDepth(HRenderContext render_context, const Matrix4& view_matrix)
+    {
+        DM_PROFILE(Render, "GenerateKeyDepth");
+
+        if (render_context == 0x0)
+            return RESULT_INVALID_CONTEXT;
+
+        Vector3 camera_position = view_matrix.getTranslation();
+        for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
+        {
+            RenderObject* ro = render_context->m_RenderObjects[i];
+            Vector3 pos = ro->m_WorldTransform.getTranslation();
+            float dist = length(camera_position - pos);
+
+            ro->m_RenderKey.m_Depth = (uint32_t)dist;
+        }
+
+        return RESULT_OK;
+    }
+
+
+    static int sort_func ( const void *a, const void* b )
+    {
+        RenderObject* _a = (RenderObject*)a;
+        RenderObject* _b = (RenderObject*)b;
+        return _a->m_RenderKey.m_Key - _b->m_RenderKey.m_Key;
+    }
+
     Result Draw(HRenderContext render_context, Predicate* predicate)
     {
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
+
         uint32_t tag_mask = 0;
         if (predicate != 0x0)
             tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
@@ -202,6 +233,15 @@ namespace dmRender
             }
         }
 
+        /*
+        if (render_context->m_RenderObjects.Size() > 0)
+        {
+            qsort(&render_context->m_RenderObjects.Front(),
+                   render_context->m_RenderObjects.Size(),
+                   sizeof(RenderObject),
+                   sort_func);
+        }
+*/
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
@@ -371,7 +411,7 @@ namespace dmRender
         return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
-    void SetVertexConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetVertexConstant(HRenderContext context, uint32_t reg, const Vector4& value)
     {
         assert(context);
         if (reg < MAX_CONSTANT_COUNT)
@@ -394,7 +434,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
     }
 
-    void SetFragmentConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetFragmentConstant(HRenderContext context, uint32_t reg, const Vector4& value)
     {
         assert(context);
         if (reg < MAX_CONSTANT_COUNT)
@@ -417,7 +457,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
     }
 
-    void SetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vector4& value)
     {
         assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
@@ -440,7 +480,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
     }
 
-    void SetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value)
+    void SetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vector4& value)
     {
         assert(ro);
         if (reg < MAX_CONSTANT_COUNT)

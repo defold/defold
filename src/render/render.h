@@ -39,7 +39,14 @@ namespace dmRender
 
     struct RenderKey
     {
-        uint64_t    m_Key[2];
+        union
+        {
+            uint64_t    m_Depth:32;
+            uint64_t    m_Translucency:1;
+            uint64_t    m_MaterialId:31;
+
+            uint64_t    m_Key;
+        };
     };
 
     struct RenderObject
