@@ -175,6 +175,13 @@
             id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
             name="Input binding file">
       </wizard>
+      <wizard
+            category="com.dynamo.cr.ddfeditor"
+            class="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
+            icon="icons/bricks.png"
+            id="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
+            name="Collection file">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -231,6 +238,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>

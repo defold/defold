@@ -13,6 +13,7 @@ import com.dynamo.cr.ddfeditor.MaterialEditor;
 import com.dynamo.cr.ddfeditor.ModelEditor;
 import com.dynamo.cr.ddfeditor.RenderEditor;
 import com.dynamo.cr.ddfeditor.SpawnPointEditor;
+import com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard;
 
 public class NewDdfContentTest {
 
@@ -30,5 +31,6 @@ public class NewDdfContentTest {
         MaterialEditor.newInitialWizardContent();
         RenderEditor.newInitialWizardContent();
         InputBindingEditor.newInitialWizardContent();
+        CollectionNewWizard.newInitialWizardContent();
     }
 }
