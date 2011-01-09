@@ -70,23 +70,12 @@ namespace dmGameSystem
         if (model_world->m_ComponentIndices.Remaining() > 0)
         {
             Model* model = (Model*)resource;
-            Mesh* mesh = model->m_Mesh;
             uint32_t index = model_world->m_ComponentIndices.Pop();
             ModelComponent& component = model_world->m_Components[index];
             component.m_Instance = instance;
             component.m_Model = model;
             component.m_ModelWorld = model_world;
             component.m_Index = index;
-            dmRender::RenderObject& ro = component.m_RenderObject;
-            ro.m_Material = model->m_Material;
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-                ro.m_Textures[i] = model->m_Textures[i];
-            ro.m_VertexBuffer = mesh->m_VertexBuffer;
-            ro.m_VertexDeclaration = mesh->m_VertexDeclaration;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_VertexStart = 0;
-            ro.m_VertexCount = mesh->m_VertexCount;
-            ro.m_TextureTransform = Matrix4::identity();
             *user_data = (uintptr_t)&component;
 
             return dmGameObject::CREATE_RESULT_OK;
@@ -121,8 +110,18 @@ namespace dmGameSystem
             ModelComponent& component = model_world->m_Components[i];
             if (component.m_Model != 0)
             {
+                dmRender::RenderObject& ro = component.m_RenderObject;
+                ro.m_Material = component.m_Model->m_Material;
+                for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+                    ro.m_Textures[i] = component.m_Model->m_Textures[i];
+                ro.m_VertexBuffer = component.m_Model->m_Mesh->m_VertexBuffer;
+                ro.m_VertexDeclaration = component.m_Model->m_Mesh->m_VertexDeclaration;
+                ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+                ro.m_VertexStart = 0;
+                ro.m_VertexCount = component.m_Model->m_Mesh->m_VertexCount;
+                ro.m_TextureTransform = Matrix4::identity();
                 Matrix4 world(dmGameObject::GetWorldRotation(component.m_Instance), Vector3(dmGameObject::GetWorldPosition(component.m_Instance)));
-                component.m_RenderObject.m_WorldTransform = world;
+                ro.m_WorldTransform = world;
                 dmRender::AddToRender(render_context, &component.m_RenderObject);
             }
         }
