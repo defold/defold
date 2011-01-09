@@ -48,6 +48,10 @@ public class MessageNodeTest {
         assertEquals(123.0f, simpleNode.getField(b));
         assertEquals("foo", simpleNode.getField(s));
 
+        assertEquals(1, simpleNode.getField("a"));
+        assertEquals(123.0f, simpleNode.getField("b"));
+        assertEquals("foo", simpleNode.getField("s"));
+
         simpleNode.setField(a, 10);
         simpleNode.setField(b, 1234.0f);
         simpleNode.setField(s, "foobar");
@@ -104,6 +108,10 @@ public class MessageNodeTest {
         assertEquals(1, nestedNode.getField(a));
         assertEquals(123.0f, nestedNode.getField(b));
         assertEquals("foo", nestedNode.getField(s));
+
+        assertEquals(1, simpleNode.getField("a"));
+        assertEquals(123.0f, simpleNode.getField("b"));
+        assertEquals("foo", simpleNode.getField("s"));
 
         nestedNode.setField(a, 10);
         nestedNode.setField(b, 1234.0f);

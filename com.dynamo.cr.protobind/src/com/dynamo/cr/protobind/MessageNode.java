@@ -88,6 +88,21 @@ public class MessageNode extends Node {
     }
 
     /**
+     * Get field value in this node.
+     * @param fieldName Field name to get value for
+     * @throws RuntimeException if the field doesn't exists.
+     * @return field value
+     */
+    public Object getField(String fieldName) {
+        for (FieldDescriptor fd : fieldDescriptors) {
+            if (fd.getName().equals(fieldName)) {
+                return this.valuesMap.get(fd);
+            }
+        }
+        throw new RuntimeException(String.format("Field %s does not exist in %s", fieldName, this.descriptor.getName()));
+    }
+
+    /**
      * Set value from {@link IPath}. The value to be set should be of the underlying google protocol buffers type,
      * eg Message for messages. Wrapped values, eg {@link MessageNode}, are not supported.
      * @param path path to set value for
