@@ -203,6 +203,9 @@ TEST_F(dmGraphicsTest, TestVertexProgram)
     dmGraphics::SetVertexProgram(m_Context, vp);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetVertexConstantBlock(m_Context, &constant, 0, 1);
+    program_data = new char[1024];
+    dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
+    delete [] program_data;
     dmGraphics::DeleteVertexProgram(vp);
 }
 
@@ -214,6 +217,9 @@ TEST_F(dmGraphicsTest, TestFragmentProgram)
     dmGraphics::SetFragmentProgram(m_Context, fp);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetFragmentConstantBlock(m_Context, &constant, 0, 1);
+    program_data = new char[1024];
+    dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
+    delete [] program_data;
     dmGraphics::DeleteFragmentProgram(fp);
 }
 

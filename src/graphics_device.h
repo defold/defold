@@ -281,6 +281,8 @@ namespace dmGraphics
 
     HVertexProgram NewVertexProgram(const void* program, uint32_t program_size);
     HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size);
+    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
+    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
     void SetVertexProgram(HContext context, HVertexProgram program);

@@ -525,6 +525,20 @@ namespace dmGraphics
         return shader[0];
     }
 
+    static void LoadProgram(GLenum type, uint32_t program_id, const void* program, uint32_t program_size)
+    {
+        glEnable(type);
+
+        glBindProgramARB(type, program_id);
+        CHECK_GL_ERROR
+
+        glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
+        CHECK_GL_ERROR
+
+        glDisable(type);
+        CHECK_GL_ERROR
+    }
+
     HVertexProgram NewVertexProgram(const void* program, uint32_t program_size)
     {
         assert(program);
@@ -537,6 +551,20 @@ namespace dmGraphics
         assert(program);
 
         return CreateProgram(GL_FRAGMENT_PROGRAM_ARB, program, program_size);
+    }
+
+    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    {
+        assert(program);
+
+        return LoadProgram(GL_VERTEX_PROGRAM_ARB, prog, program, program_size);
+    }
+
+    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    {
+        assert(program);
+
+        return LoadProgram(GL_FRAGMENT_PROGRAM_ARB, prog, program, program_size);
     }
 
     void DeleteVertexProgram(HVertexProgram program)

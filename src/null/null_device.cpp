@@ -332,32 +332,66 @@ namespace dmGraphics
         assert(context);
     }
 
+    struct VertexProgram
+    {
+        char* m_Data;
+    };
+
+    struct FragmentProgram
+    {
+        char* m_Data;
+    };
+
     HVertexProgram NewVertexProgram(const void* program, uint32_t program_size)
     {
         assert(program);
-        char* p = new char[program_size];
-        memcpy(p, program, program_size);
+        VertexProgram* p = new VertexProgram();
+        p->m_Data = new char[program_size];
+        memcpy(p->m_Data, program, program_size);
         return (uint32_t)p;
     }
 
     HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size)
     {
         assert(program);
-        char* p = new char[program_size];
-        memcpy(p, program, program_size);
+        FragmentProgram* p = new FragmentProgram();
+        p->m_Data = new char[program_size];
+        memcpy(p->m_Data, program, program_size);
         return (uint32_t)p;
+    }
+
+    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    {
+        assert(program);
+        VertexProgram* p = (VertexProgram*)prog;
+        delete [] (char*)p->m_Data;
+        p->m_Data = new char[program_size];
+        memcpy((char*)p->m_Data, program, program_size);
+    }
+
+    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    {
+        assert(program);
+        FragmentProgram* p = (FragmentProgram*)prog;
+        delete [] (char*)p->m_Data;
+        p->m_Data = new char[program_size];
+        memcpy((char*)p->m_Data, program, program_size);
     }
 
     void DeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        delete [] (char*)program;
+        VertexProgram* p = (VertexProgram*)program;
+        delete [] (char*)p->m_Data;
+        delete p;
     }
 
     void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        delete [] (char*)program;
+        FragmentProgram* p = (FragmentProgram*)program;
+        delete [] (char*)p->m_Data;
+        delete p;
     }
 
     void SetVertexProgram(HContext context, HVertexProgram program)
