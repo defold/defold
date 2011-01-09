@@ -11,7 +11,7 @@ def build(bld):
                                 classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                 target = 'gamesys',
                                 ddf_jar = 'gamesys.jar',
-                                embed_source='../../content/materials/gui.arbvp ../../content/materials/gui.arbfp',
+                                embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc',
                                 install_path='${PREFIX}/lib')
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])

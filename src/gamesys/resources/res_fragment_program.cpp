@@ -25,4 +25,18 @@ namespace dmGameSystem
         dmGraphics::DeleteFragmentProgram((dmGraphics::HFragmentProgram) resource->m_Resource);
         return dmResource::CREATE_RESULT_OK;
     }
+
+    dmResource::CreateResult ResFragmentProgramRecreate(dmResource::HFactory factory,
+                                                 void* context,
+                                                 const void* buffer, uint32_t buffer_size,
+                                                 dmResource::SResourceDescriptor* resource,
+                                                 const char* filename)
+    {
+        dmGraphics::HFragmentProgram prog = (dmGraphics::HFragmentProgram)resource->m_Resource;
+        if (prog == 0 )
+            return dmResource::CREATE_RESULT_UNKNOWN;
+
+        dmGraphics::ReloadFragmentProgram(prog, buffer, buffer_size);
+        return dmResource::CREATE_RESULT_OK;
+    }
 }

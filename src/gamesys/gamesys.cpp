@@ -67,8 +67,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("convexshapec", 0, ResConvexShapeCreate, ResConvexShapeDestroy, 0);
         REGISTER_RESOURCE_TYPE("emitterc", 0, ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
         REGISTER_RESOURCE_TYPE("texturec", 0, ResTextureCreate, ResTextureDestroy, 0);
-        REGISTER_RESOURCE_TYPE("arbvp", 0, ResVertexProgramCreate, ResVertexProgramDestroy, 0);
-        REGISTER_RESOURCE_TYPE("arbfp", 0, ResFragmentProgramCreate, ResFragmentProgramDestroy, 0);
+        REGISTER_RESOURCE_TYPE("vpc", 0, ResVertexProgramCreate, ResVertexProgramDestroy, ResVertexProgramRecreate);
+        REGISTER_RESOURCE_TYPE("fpc", 0, ResFragmentProgramCreate, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
         REGISTER_RESOURCE_TYPE("imagefontc", 0, ResImageFontCreate, ResImageFontDestroy, 0);
         REGISTER_RESOURCE_TYPE("fontc", 0, ResFontCreate, ResFontDestroy, 0);
         REGISTER_RESOURCE_TYPE("modelc", 0, ResCreateModel, ResDestroyModel, ResRecreateModel);

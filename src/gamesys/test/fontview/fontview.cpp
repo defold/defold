@@ -150,8 +150,8 @@ bool Init(Context* context, int argc, char* argv[])
         }\
 
         REGISTER_RESOURCE_TYPE("fontc", dmGameSystem::ResFontCreate, dmGameSystem::ResFontDestroy, 0);
-        REGISTER_RESOURCE_TYPE("arbvp", dmGameSystem::ResVertexProgramCreate, dmGameSystem::ResVertexProgramDestroy, 0);
-        REGISTER_RESOURCE_TYPE("arbfp", dmGameSystem::ResFragmentProgramCreate, dmGameSystem::ResFragmentProgramDestroy, 0);
+        REGISTER_RESOURCE_TYPE("vpc", dmGameSystem::ResVertexProgramCreate, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate);
+        REGISTER_RESOURCE_TYPE("fpc", dmGameSystem::ResFragmentProgramCreate, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate);
         REGISTER_RESOURCE_TYPE("imagefontc", dmGameSystem::ResImageFontCreate, dmGameSystem::ResImageFontDestroy, 0);
         REGISTER_RESOURCE_TYPE("materialc", dmGameSystem::ResMaterialCreate, dmGameSystem::ResMaterialDestroy, 0);
 

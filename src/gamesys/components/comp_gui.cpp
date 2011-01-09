@@ -14,11 +14,11 @@
 
 #include "../resources/res_gui.h"
 
-extern char GUI_ARBVP[];
-extern uint32_t GUI_ARBVP_SIZE;
+extern char GUI_VPC[];
+extern uint32_t GUI_VPC_SIZE;
 
-extern char GUI_ARBFP[];
-extern uint32_t GUI_ARBFP_SIZE;
+extern char GUI_FPC[];
+extern uint32_t GUI_FPC_SIZE;
 
 namespace dmGameSystem
 {
@@ -73,8 +73,8 @@ namespace dmGameSystem
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
-        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(GUI_ARBVP, GUI_ARBVP_SIZE);
-        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(GUI_ARBFP, GUI_ARBFP_SIZE);
+        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(GUI_VPC, GUI_VPC_SIZE);
+        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(GUI_FPC, GUI_FPC_SIZE);
 
         gui_world->m_Material = dmRender::NewMaterial();
         SetMaterialVertexProgramConstantType(gui_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);

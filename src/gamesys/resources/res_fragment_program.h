@@ -16,6 +16,12 @@ namespace dmGameSystem
     dmResource::CreateResult ResFragmentProgramDestroy(dmResource::HFactory factory,
                                                     void* context,
                                                     dmResource::SResourceDescriptor* resource);
+
+    dmResource::CreateResult ResFragmentProgramRecreate(dmResource::HFactory factory,
+                                                 void* context,
+                                                 const void* buffer, uint32_t buffer_size,
+                                                 dmResource::SResourceDescriptor* resource,
+                                                 const char* filename);
 }
 
 #endif // DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
