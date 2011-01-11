@@ -66,10 +66,10 @@ namespace dmGraphics
         memset(context->m_VertexStreams, 0, sizeof(context->m_VertexStreams));
         memset(context->m_VertexProgramRegisters, 0, sizeof(context->m_VertexProgramRegisters));
         memset(context->m_FragmentProgramRegisters, 0, sizeof(context->m_FragmentProgramRegisters));
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
+        context->m_WindowWidth = params->m_Width;
+        context->m_WindowHeight = params->m_Height;
         context->m_WindowOpened = 1;
-        uint32_t buffer_size = 4 * context->m_Width * context->m_Height;
+        uint32_t buffer_size = 4 * context->m_WindowWidth * context->m_WindowHeight;
         context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
         context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
         context->m_MainFrameBuffer.m_StencilBuffer = new char[buffer_size];
@@ -95,7 +95,7 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
-        uint32_t buffer_size = context->m_Width * context->m_Height;
+        uint32_t buffer_size = context->m_WindowWidth * context->m_WindowHeight;
         if (flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
         {
             uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
@@ -439,18 +439,9 @@ namespace dmGraphics
         context->m_FragmentProgram = 0x0;
     }
 
-    void SetViewport(HContext context, int width, int height)
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
-        context->m_Width = width;
-        context->m_Height = height;
-        delete [] (char*)context->m_CurrentFrameBuffer->m_ColorBuffer;
-        delete [] (char*)context->m_CurrentFrameBuffer->m_DepthBuffer;
-        delete [] (char*)context->m_CurrentFrameBuffer->m_StencilBuffer;
-        uint32_t buffer_size = 4 * context->m_Width * context->m_Height;
-        context->m_CurrentFrameBuffer->m_ColorBuffer = new char[buffer_size];
-        context->m_CurrentFrameBuffer->m_DepthBuffer = new char[buffer_size];
-        context->m_CurrentFrameBuffer->m_StencilBuffer = new char[buffer_size];
     }
 
     void SetVertexConstant(HContext context, const Vector4* data, int base_register)
@@ -632,11 +623,11 @@ namespace dmGraphics
 
     uint32_t GetWindowWidth(HContext context)
     {
-        return context->m_Width;
+        return context->m_WindowWidth;
     }
 
     uint32_t GetWindowHeight(HContext context)
     {
-        return context->m_Height;
+        return context->m_WindowHeight;
     }
 }

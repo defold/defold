@@ -260,7 +260,7 @@ TEST_F(dmGraphicsTest, TestFragmentProgram)
 
 TEST_F(dmGraphicsTest, TestViewport)
 {
-    dmGraphics::SetViewport(m_Context, WIDTH*2, HEIGHT*2);
+    dmGraphics::SetViewport(m_Context, 0, 0, WIDTH, HEIGHT);
 }
 
 TEST_F(dmGraphicsTest, TestTexture)

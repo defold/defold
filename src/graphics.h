@@ -325,7 +325,7 @@ namespace dmGraphics
     void SetVertexConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
     void SetFragmentConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
 
-    void SetViewport(HContext context, int width, int height);
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);
     void DisableState(HContext context, State state);

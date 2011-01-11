@@ -9,8 +9,8 @@ namespace dmGraphics
 {
     struct Context
     {
-        uint32_t    m_Width;
-        uint32_t    m_Height;
+        uint32_t    m_WindowWidth;
+        uint32_t    m_WindowHeight;
     };
 
     struct Texture

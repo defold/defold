@@ -200,8 +200,8 @@ namespace dmGraphics
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
+        context->m_WindowWidth = params->m_Width;
+        context->m_WindowHeight = params->m_Height;
 
         if (params->m_PrintDeviceInfo)
         {
@@ -631,11 +631,11 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void SetViewport(HContext context, int width, int height)
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
 
-        glViewport(0, 0, width, height);
+        glViewport(x, y, width, height);
         CHECK_GL_ERROR
     }
 
@@ -949,12 +949,12 @@ namespace dmGraphics
 
     uint32_t GetWindowWidth(HContext context)
     {
-        return context->m_Width;
+        return context->m_WindowWidth;
     }
 
     uint32_t GetWindowHeight(HContext context)
     {
-        return context->m_Height;
+        return context->m_WindowHeight;
     }
 
     BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
