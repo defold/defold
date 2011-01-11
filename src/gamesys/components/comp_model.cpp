@@ -140,22 +140,22 @@ namespace dmGameSystem
         if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)message_data->m_Buffer;
-            dmRender::SetRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
+            dmRender::EnableRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
         }
         else if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)message_data->m_Buffer;
-            dmRender::ResetRenderObjectVertexConstant(ro, ddf->m_Register);
+            dmRender::DisableRenderObjectVertexConstant(ro, ddf->m_Register);
         }
         if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)message_data->m_Buffer;
-            dmRender::SetRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
+            dmRender::EnableRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
         }
         if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
         {
             dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)message_data->m_Buffer;
-            dmRender::ResetRenderObjectFragmentConstant(ro, ddf->m_Register);
+            dmRender::DisableRenderObjectFragmentConstant(ro, ddf->m_Register);
         }
         else if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
         {

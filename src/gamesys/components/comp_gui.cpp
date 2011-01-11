@@ -319,7 +319,7 @@ namespace dmGameSystem
                             Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
 
                 ro.m_WorldTransform = m;
-                dmRender::SetRenderObjectFragmentConstant(&ro, 0, color);
+                dmRender::EnableRenderObjectFragmentConstant(&ro, 0, color);
                 gui_world->m_GuiRenderObjects.Push(ro);
                 dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);
             }
