@@ -129,8 +129,6 @@ bool Init(Context* context, int argc, char* argv[])
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 10;
         render_params.m_MaxInstances = 100;
-        render_params.m_DisplayWidth = 960;
-        render_params.m_DisplayHeight = 540;
         render_params.m_MaxCharacters = 1024;
         context->m_RenderContext = dmRender::NewRenderContext(context->m_GraphicsContext, render_params);
         dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
