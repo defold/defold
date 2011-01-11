@@ -296,7 +296,7 @@ namespace dmGraphics
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
 
-    void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
+    void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
     void DisableVertexStream(HContext context, uint16_t stream);
     void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer);
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer);
@@ -308,9 +308,12 @@ namespace dmGraphics
     void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
-    void SetVertexProgram(HContext context, HVertexProgram program);
-    void SetFragmentProgram(HContext context, HFragmentProgram program);
+    void EnableVertexProgram(HContext context, HVertexProgram program);
+    void DisableVertexProgram(HContext context);
+    void EnableFragmentProgram(HContext context, HFragmentProgram program);
+    void DisableFragmentProgram(HContext context);
 
+    void SetVertexConstant(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetFragmentConstant(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetVertexConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
     void SetFragmentConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
@@ -334,10 +337,10 @@ namespace dmGraphics
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type);
 
     HTexture NewTexture(HContext context, const TextureParams& params);
-    void SetTexture(HTexture texture, const TextureParams& params);
-
     void DeleteTexture(HTexture t);
-    void SetTextureUnit(HContext context, uint32_t unit, HTexture texture);
+    void SetTexture(HTexture texture, const TextureParams& params);
+    void EnableTexture(HContext context, uint32_t unit, HTexture texture);
+    void DisableTexture(HContext context, uint32_t unit);
 
     uint32_t GetWindowState(HContext context, WindowState state);
 

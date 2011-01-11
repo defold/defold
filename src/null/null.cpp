@@ -223,7 +223,7 @@ namespace dmGraphics
             VertexElement& ve = vertex_declaration->m_Elements[i];
             if (ve.m_Size > 0)
             {
-                SetVertexStream(context, i, ve.m_Size, ve.m_Type, stride, &vb->m_Buffer[offset]);
+                EnableVertexStream(context, i, ve.m_Size, ve.m_Type, stride, &vb->m_Buffer[offset]);
                 offset += ve.m_Size * TYPE_SIZE[ve.m_Type - dmGraphics::TYPE_BYTE];
             }
         }
@@ -239,7 +239,7 @@ namespace dmGraphics
     }
 
 
-    void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
         assert(context);
         assert(vertex_buffer);
@@ -390,16 +390,28 @@ namespace dmGraphics
         delete p;
     }
 
-    void SetVertexProgram(HContext context, HVertexProgram program)
+    void EnableVertexProgram(HContext context, HVertexProgram program)
     {
         assert(context);
         context->m_VertexProgram = (void*)program;
     }
 
-    void SetFragmentProgram(HContext context, HFragmentProgram program)
+    void DisableVertexProgram(HContext context)
+    {
+        assert(context);
+        context->m_VertexProgram = 0x0;
+    }
+
+    void EnableFragmentProgram(HContext context, HFragmentProgram program)
     {
         assert(context);
         context->m_FragmentProgram = (void*)program;
+    }
+
+    void DisableFragmentProgram(HContext context)
+    {
+        assert(context);
+        context->m_FragmentProgram = 0x0;
     }
 
     void SetViewport(HContext context, int width, int height)
@@ -414,6 +426,13 @@ namespace dmGraphics
         context->m_CurrentFrameBuffer->m_ColorBuffer = new char[buffer_size];
         context->m_CurrentFrameBuffer->m_DepthBuffer = new char[buffer_size];
         context->m_CurrentFrameBuffer->m_StencilBuffer = new char[buffer_size];
+    }
+
+    void SetVertexConstant(HContext context, const Vector4* data, int base_register)
+    {
+        assert(context);
+        assert(context->m_VertexProgram != 0x0);
+        memcpy(&context->m_VertexProgramRegisters[base_register], data, sizeof(Vector4));
     }
 
     void SetFragmentConstant(HContext context, const Vector4* data, int base_register)
@@ -493,6 +512,14 @@ namespace dmGraphics
         return tex;
     }
 
+    void DeleteTexture(HTexture t)
+    {
+        assert(t);
+        if (t->m_Data != 0x0)
+            delete [] (char*)t->m_Data;
+        delete t;
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);
@@ -505,20 +532,20 @@ namespace dmGraphics
         memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
     }
 
-    void DeleteTexture(HTexture t)
-    {
-        assert(t);
-        if (t->m_Data != 0x0)
-            delete [] (char*)t->m_Data;
-        delete t;
-    }
-
-    void SetTextureUnit(HContext context, uint32_t unit, HTexture texture)
+    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
-        assert(unit < 32);
-        if (texture)
-            assert(texture->m_Data);
+        assert(unit < MAX_TEXTURE_COUNT);
+        assert(texture);
+        assert(texture->m_Data);
+        context->m_Textures[unit] = texture;
+    }
+
+    void DisableTexture(HContext context, uint32_t unit)
+    {
+        assert(context);
+        assert(unit < MAX_TEXTURE_COUNT);
+        context->m_Textures[unit] = 0;
     }
 
     void EnableState(HContext context, State state)

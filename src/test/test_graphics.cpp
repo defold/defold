@@ -140,8 +140,8 @@ TEST_F(dmGraphicsTest, VertexStream)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
 
-    dmGraphics::SetVertexStream(m_Context, 0, 3, dmGraphics::TYPE_FLOAT, 20, v);
-    dmGraphics::SetVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
+    dmGraphics::EnableVertexStream(m_Context, 0, 3, dmGraphics::TYPE_FLOAT, 20, v);
+    dmGraphics::EnableVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
     ASSERT_EQ(sizeof(p) / 2, m_Context->m_VertexStreams[0].m_Size);
@@ -162,8 +162,8 @@ TEST_F(dmGraphicsTest, Drawing)
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f };
     uint32_t i[] = { 0, 1, 2 };
 
-    dmGraphics::SetVertexStream(m_Context, 0, 3, dmGraphics::TYPE_FLOAT, 20, v);
-    dmGraphics::SetVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
+    dmGraphics::EnableVertexStream(m_Context, 0, 3, dmGraphics::TYPE_FLOAT, 20, v);
+    dmGraphics::EnableVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
 
     dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, dmGraphics::TYPE_UNSIGNED_INT, i);
 
@@ -202,12 +202,14 @@ TEST_F(dmGraphicsTest, TestVertexProgram)
     char* program_data = new char[1024];
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, program_data, 1024);
     delete [] program_data;
-    dmGraphics::SetVertexProgram(m_Context, vp);
+    dmGraphics::EnableVertexProgram(m_Context, vp);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetVertexConstantBlock(m_Context, &constant, 0, 1);
+    dmGraphics::SetVertexConstant(m_Context, &constant, 0);
+    dmGraphics::SetVertexConstantBlock(m_Context, &constant, 1, 1);
     program_data = new char[1024];
     dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
     delete [] program_data;
+    dmGraphics::DisableVertexProgram(m_Context);
     dmGraphics::DeleteVertexProgram(vp);
 }
 
@@ -216,12 +218,14 @@ TEST_F(dmGraphicsTest, TestFragmentProgram)
     char* program_data = new char[1024];
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, program_data, 1024);
     delete [] program_data;
-    dmGraphics::SetFragmentProgram(m_Context, fp);
+    dmGraphics::EnableFragmentProgram(m_Context, fp);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetFragmentConstantBlock(m_Context, &constant, 0, 1);
+    dmGraphics::SetFragmentConstant(m_Context, &constant, 0);
+    dmGraphics::SetFragmentConstantBlock(m_Context, &constant, 1, 1);
     program_data = new char[1024];
     dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
     delete [] program_data;
+    dmGraphics::DisableFragmentProgram(m_Context);
     dmGraphics::DeleteFragmentProgram(fp);
 }
 
@@ -240,7 +244,8 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
     delete [] (char*)params.m_Data;
-    dmGraphics::SetTextureUnit(m_Context, 0, texture);
+    dmGraphics::EnableTexture(m_Context, 0, texture);
+    dmGraphics::DisableTexture(m_Context, 0);
     dmGraphics::DeleteTexture(texture);
 }
 

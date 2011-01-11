@@ -464,7 +464,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void SetVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
         assert(context);
         assert(vertex_buffer);
@@ -590,7 +590,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    static void SetProgram(GLenum type, uint32_t program)
+    static void EnableProgram(GLenum type, uint32_t program)
     {
         glEnable(type);
         CHECK_GL_ERROR
@@ -598,18 +598,32 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void SetVertexProgram(HContext context, HVertexProgram program)
+    void EnableVertexProgram(HContext context, HVertexProgram program)
     {
         assert(context);
-
-        SetProgram(GL_VERTEX_PROGRAM_ARB, program);
+        assert(program);
+        EnableProgram(GL_VERTEX_PROGRAM_ARB, program);
     }
 
-    void SetFragmentProgram(HContext context, HFragmentProgram program)
+    void DisableVertexProgram(HContext context, HVertexProgram program)
     {
         assert(context);
+        glDisable(GL_VERTEX_PROGRAM_ARB);
+        CHECK_GL_ERROR
+    }
 
-        SetProgram(GL_FRAGMENT_PROGRAM_ARB, program);
+    void EnableFragmentProgram(HContext context, HFragmentProgram program)
+    {
+        assert(context);
+        assert(program);
+        EnableProgram(GL_FRAGMENT_PROGRAM_ARB, program);
+    }
+
+    void DisableFragmentProgram(HContext context, HFragmentProgram program)
+    {
+        assert(context);
+        glDisable(GL_FRAGMENT_PROGRAM_ARB);
+        CHECK_GL_ERROR
     }
 
     void SetViewport(HContext context, int width, int height)
@@ -635,6 +649,14 @@ namespace dmGraphics
             CHECK_GL_ERROR
         }
 
+    }
+
+    void SetVertexConstant(HContext context, const Vector4* data, int base_register)
+    {
+        assert(context);
+
+        SetProgramConstantBlock(context, GL_VERTEX_PROGRAM_ARB, data, base_register, 1);
+        CHECK_GL_ERROR
     }
 
     void SetFragmentConstant(HContext context, const Vector4* data, int base_register)
@@ -740,6 +762,16 @@ namespace dmGraphics
         return (HTexture) tex;
     }
 
+    void DeleteTexture(HTexture texture)
+    {
+        assert(texture);
+
+        glDeleteTextures(1, &texture->m_Texture);
+        CHECK_GL_ERROR
+
+        delete texture;
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
@@ -822,17 +854,21 @@ namespace dmGraphics
         }
     }
 
-    void DeleteTexture(HTexture texture)
+    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
+        assert(context);
         assert(texture);
 
-        glDeleteTextures(1, &texture->m_Texture);
+        glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 
-        delete texture;
+        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
+        CHECK_GL_ERROR
+        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+        CHECK_GL_ERROR
     }
 
-    void SetTextureUnit(HContext context, uint32_t unit, HTexture texture)
+    void DisableTexture(HContext context, uint32_t unit)
     {
         assert(context);
 
@@ -840,14 +876,8 @@ namespace dmGraphics
         CHECK_GL_ERROR
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-
-        GLuint texture_id = 0;
-        if (texture)
-        {
-            texture_id = texture->m_Texture;
-            assert(texture_id);
-        }
-        glBindTexture(GL_TEXTURE_2D, texture_id);
+        CHECK_GL_ERROR
+        glBindTexture(GL_TEXTURE_2D, 0);
         CHECK_GL_ERROR
     }
 

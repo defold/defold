@@ -21,6 +21,7 @@ namespace dmGraphics
 
     const static uint32_t MAX_VERTEX_STREAM_COUNT = 8;
     const static uint32_t MAX_REGISTER_COUNT = 16;
+    const static uint32_t MAX_TEXTURE_COUNT = 32;
 
     struct FrameBuffer
     {
@@ -59,6 +60,7 @@ namespace dmGraphics
         VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         Vectormath::Aos::Vector4    m_VertexProgramRegisters[MAX_REGISTER_COUNT];
         Vectormath::Aos::Vector4    m_FragmentProgramRegisters[MAX_REGISTER_COUNT];
+        HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer                 m_MainFrameBuffer;
         FrameBuffer*                m_CurrentFrameBuffer;
         void*                       m_VertexProgram;
