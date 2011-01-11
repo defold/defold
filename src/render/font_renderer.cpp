@@ -8,8 +8,6 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
-#include <graphics/graphics_device.h>
-
 #include "render_private.h"
 #include "render/font_ddf.h"
 
@@ -45,7 +43,7 @@ namespace dmRender
         dmDDF::FreeMessage(font);
     }
 
-    HFont NewFont(HImageFont image_font)
+    HFont NewFont(HRenderContext render_context, HImageFont image_font)
     {
         Font* ret = new Font();
         ret->m_Material = 0;
@@ -56,7 +54,7 @@ namespace dmRender
         params.m_DataSize = ret->m_ImageFont->m_ImageData.m_Count;
         params.m_Width = ret->m_ImageFont->m_ImageWidth;
         params.m_Height = ret->m_ImageFont->m_ImageHeight;
-        ret->m_Texture = dmGraphics::NewTexture(params);
+        ret->m_Texture = dmGraphics::NewTexture(render_context->m_GraphicsContext, params);
 
         return ret;
     }
@@ -91,7 +89,7 @@ namespace dmRender
         TextContext& text_context = render_context->m_TextContext;
 
         text_context.m_MaxVertexCount = max_characters * 4;
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, 4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         text_context.m_VertexIndex = 0;
 
         dmGraphics::VertexElement ve[] =
@@ -99,7 +97,7 @@ namespace dmRender
                 {0, 4, dmGraphics::TYPE_FLOAT, 0, 0}
         };
 
-        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         text_context.m_RenderObjects.SetCapacity(max_characters/8);
         for (uint32_t i = 0; i < text_context.m_RenderObjects.Capacity(); ++i)

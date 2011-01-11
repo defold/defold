@@ -4,10 +4,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
+
 #include <dlib/container.h>
 #include <dlib/message.h>
 #include <dlib/hash.h>
-#include <graphics/graphics_device.h>
+
+#include <graphics/graphics.h>
 
 #include "material.h"
 
@@ -109,7 +111,7 @@ namespace dmRender
 
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
-    HRenderContext NewRenderContext(const RenderContextParams& params);
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context);
 
     Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash);

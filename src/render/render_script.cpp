@@ -189,9 +189,11 @@ namespace dmRender
     int RenderScript_SetViewport(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t width = luaL_checknumber(L, 2);
-        uint32_t height = luaL_checknumber(L, 3);
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETVIEWPORT, width, height)))
+        int32_t x = luaL_checknumber(L, 2);
+        int32_t y = luaL_checknumber(L, 3);
+        int32_t width = luaL_checknumber(L, 2);
+        int32_t height = luaL_checknumber(L, 3);
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, width, height)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -267,7 +269,7 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(buffer_type_flags, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
         RegisterRenderTarget(i->m_RenderContext, render_target, dmHashString64(name));
 
         lua_pushlightuserdata(L, (void*)render_target);
@@ -287,7 +289,7 @@ namespace dmRender
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDERTARGET, (uint32_t)render_target)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDER_TARGET, (uint32_t)render_target)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -302,30 +304,39 @@ namespace dmRender
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDERTARGET, (uint32_t)render_target)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDER_TARGET, (uint32_t)render_target)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    int RenderScript_SetTextureUnit(lua_State* L)
+    int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         dmGraphics::HRenderTarget render_target = 0x0;
 
         uint32_t unit = luaL_checknumber(L, 2);
-        dmGraphics::HTexture texture = 0;
         if (lua_islightuserdata(L, 3))
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 3);
             dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 4);
-            texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+            dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
+                return 0;
+            else
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
-        else if (!lua_isnil(L, 3))
+        else
         {
-            return luaL_error(L, "%s.set_texture_unit called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.enable_texture(self, unit, render_target) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_TEXTURE_UNIT, unit, (uint32_t)texture)))
+    }
+
+    int RenderScript_DisableTexture(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        uint32_t unit = luaL_checknumber(L, 2);
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, unit)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -351,13 +362,13 @@ namespace dmRender
             flags |= buffer_type;
             switch (buffer_type)
             {
-                case dmGraphics::BUFFER_TYPE_COLOR:
+                case dmGraphics::BUFFER_TYPE_COLOR_BIT:
                     color = *dmScript::CheckVector4(L, -1);
                     break;
-                case dmGraphics::BUFFER_TYPE_DEPTH:
+                case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
                     depth = (float)luaL_checknumber(L, -1);
                     break;
-                case dmGraphics::BUFFER_TYPE_STENCIL:
+                case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
                     stencil = (uint32_t)luaL_checknumber(L, -1);
                     break;
                 default:
@@ -401,7 +412,7 @@ namespace dmRender
     int RenderScript_DrawDebug3d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAWDEBUG3D)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -410,7 +421,7 @@ namespace dmRender
     int RenderScript_DrawDebug2d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAWDEBUG2D)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG2D)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -423,7 +434,7 @@ namespace dmRender
 
         Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
         *matrix = view;
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETVIEW, (uint32_t)matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uint32_t)matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -435,7 +446,7 @@ namespace dmRender
         Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 2);
         Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
         *matrix = projection;
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETPROJECTION, (uint32_t)matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uint32_t)matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -473,7 +484,7 @@ namespace dmRender
                     luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
             }
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETBLENDFUNC, factors[0], factors[1])))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC, factors[0], factors[1])))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -489,7 +500,7 @@ namespace dmRender
             bool green = lua_toboolean(L, 3) != 0;
             bool blue = lua_toboolean(L, 4) != 0;
             bool alpha = lua_toboolean(L, 5) != 0;
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETCOLORMASK, (uint32_t)red, (uint32_t)green, (uint32_t)blue, (uint32_t)alpha)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uint32_t)red, (uint32_t)green, (uint32_t)blue, (uint32_t)alpha)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -506,7 +517,7 @@ namespace dmRender
         if (lua_isboolean(L, 2))
         {
             bool mask = lua_toboolean(L, 2) != 0;
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETDEPTHMASK, (uint32_t)mask)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uint32_t)mask)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -516,23 +527,12 @@ namespace dmRender
         return 0;
     }
 
-    int RenderScript_SetIndexMask(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-
-        uint32_t mask = (uint32_t)luaL_checknumber(L, 2);
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETINDEXMASK, mask)))
-            return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-    }
-
     int RenderScript_SetStencilMask(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
 
         uint32_t mask = (uint32_t)luaL_checknumber(L, 2);
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETSTENCILMASK, mask)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_MASK, mask)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -544,14 +544,14 @@ namespace dmRender
         uint32_t face_type = luaL_checknumber(L, 2);
         switch (face_type)
         {
-            case dmGraphics::FRONT:
-            case dmGraphics::BACK:
-            case dmGraphics::FRONT_AND_BACK:
+            case dmGraphics::FACE_TYPE_FRONT:
+            case dmGraphics::FACE_TYPE_BACK:
+            case dmGraphics::FACE_TYPE_FRONT_AND_BACK:
                 break;
             default:
                 return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETCULLFACE, (uint32_t)face_type)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uint32_t)face_type)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -562,7 +562,7 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         float factor = luaL_checknumber(L, 2);
         float units = luaL_checknumber(L, 3);
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETPOLYGONOFFSET, (uint32_t)factor, (uint32_t)units)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uint32_t)factor, (uint32_t)units)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -572,7 +572,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         (void)i;
-        lua_pushnumber(L, dmGraphics::GetWindowWidth());
+        lua_pushnumber(L, dmGraphics::GetWindowWidth(i->m_RenderContext->m_GraphicsContext));
         return 1;
     }
 
@@ -580,7 +580,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         (void)i;
-        lua_pushnumber(L, dmGraphics::GetWindowHeight());
+        lua_pushnumber(L, dmGraphics::GetWindowHeight(i->m_RenderContext->m_GraphicsContext));
         return 1;
     }
 
@@ -613,13 +613,13 @@ namespace dmRender
         uint32_t reg = luaL_checknumber(L, 2);
         if (top == 2 || lua_isnil(L, 3))
         {
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANT, (uint32_t)reg, (uint32_t)0)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_VERTEX_CONSTANT, (uint32_t)reg, (uint32_t)0)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsVector4(L, 3))
         {
             Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 3);
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_VERTEX_CONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -636,13 +636,13 @@ namespace dmRender
         uint32_t reg = luaL_checknumber(L, 2);
         if (top == 2 || lua_isnil(L, 3))
         {
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANTBLOCK, (uint32_t)reg, (uint32_t)0)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_VERTEX_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)0)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsMatrix4(L, 3))
         {
             Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 3);
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETVERTEXCONSTANTBLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_VERTEX_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -659,13 +659,13 @@ namespace dmRender
         uint32_t reg = luaL_checknumber(L, 2);
         if (top == 2 || lua_isnil(L, 3))
         {
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANT, (uint32_t)reg, (uint32_t)0)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_FRAGMENT_CONSTANT, (uint32_t)reg, (uint32_t)0)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsVector4(L, 3))
         {
             Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 3);
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_FRAGMENT_CONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -682,13 +682,13 @@ namespace dmRender
         uint32_t reg = luaL_checknumber(L, 2);
         if (top == 2 || lua_isnil(L, 3))
         {
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANTBLOCK, (uint32_t)reg, (uint32_t)0)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_FRAGMENT_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)0)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else if (dmScript::IsMatrix4(L, 3))
         {
             Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 3);
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SETFRAGMENTCONSTANTBLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_FRAGMENT_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -698,11 +698,10 @@ namespace dmRender
         return 0;
     }
 
-    int RenderScript_SetMaterial(lua_State* L)
+    int RenderScript_EnableMaterial(lua_State* L)
     {
         int top = lua_gettop(L);
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        HMaterial material = 0;
         if (!lua_isnil(L, 2))
         {
             const char* material_id = luaL_checkstring(L, 2);
@@ -713,11 +712,24 @@ namespace dmRender
             }
             else
             {
-                material = *mat;
+                HMaterial material = *mat;
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint32_t)material)))
+                    return 0;
+                else
+                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
+        else
+        {
+            return luaL_error(L, "%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
+        }
         assert(top == lua_gettop(L));
-        if (InsertCommand(i, Command(COMMAND_TYPE_SETMATERIAL, (uint32_t)material)))
+    }
+
+    int RenderScript_DisableMaterial(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -730,7 +742,8 @@ namespace dmRender
         {"enable_render_target",        RenderScript_EnableRenderTarget},
         {"disable_render_target",       RenderScript_DisableRenderTarget},
         {"render_target",               RenderScript_RenderTarget},
-        {"set_texture_unit",            RenderScript_SetTextureUnit},
+        {"enable_texture",              RenderScript_EnableTexture},
+        {"disable_texture",             RenderScript_DisableTexture},
         {"clear",                       RenderScript_Clear},
         {"set_viewport",                RenderScript_SetViewport},
         {"set_view",                    RenderScript_SetView},
@@ -738,7 +751,6 @@ namespace dmRender
         {"set_blend_func",              RenderScript_SetBlendFunc},
         {"set_color_mask",              RenderScript_SetColorMask},
         {"set_depth_mask",              RenderScript_SetDepthMask},
-        {"set_index_mask",              RenderScript_SetIndexMask},
         {"set_stencil_mask",            RenderScript_SetStencilMask},
         {"set_cull_face",               RenderScript_SetCullFace},
         {"set_polygon_offset",          RenderScript_SetPolygonOffset},
@@ -752,7 +764,8 @@ namespace dmRender
         {"set_vertex_constant_block",   RenderScript_SetVertexConstantBlock},
         {"set_fragment_constant",       RenderScript_SetFragmentConstant},
         {"set_fragment_constant_block", RenderScript_SetFragmentConstantBlock},
-        {"set_material",                RenderScript_SetMaterial},
+        {"enable_material",             RenderScript_EnableMaterial},
+        {"disable_material",            RenderScript_DisableMaterial},
         {0, 0}
     };
 
@@ -837,13 +850,13 @@ namespace dmRender
         REGISTER_RENDER_CONSTANT(BLEND_FACTOR_CONSTANT_ALPHA);
         REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
 
-        REGISTER_RENDER_CONSTANT(FRONT);
-        REGISTER_RENDER_CONSTANT(BACK);
-        REGISTER_RENDER_CONSTANT(FRONT_AND_BACK);
+        REGISTER_RENDER_CONSTANT(FACE_TYPE_FRONT);
+        REGISTER_RENDER_CONSTANT(FACE_TYPE_BACK);
+        REGISTER_RENDER_CONSTANT(FACE_TYPE_FRONT_AND_BACK);
 
-        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_COLOR);
-        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_DEPTH);
-        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_STENCIL);
+        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_COLOR_BIT);
+        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_DEPTH_BIT);
+        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_STENCIL_BIT);
 
         #undef REGISTER_RENDER_CONSTANT
 

@@ -15,11 +15,13 @@ TEST(dmMaterialTest, TestPrograms)
 {
     dmRender::HMaterial material = dmRender::NewMaterial();
 
+    dmGraphics::HContext context = dmGraphics::NewContext();
+
     void* vp_source = new char[1024];
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(vp_source, 1024);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, vp_source, 1024);
     ASSERT_NE(0u, vp);
     void* fp_source = new char[1024];
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(fp_source, 1024);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, fp_source, 1024);
     ASSERT_NE(0u, fp);
 
     dmRender::SetMaterialVertexProgram(material, vp);
@@ -63,6 +65,8 @@ TEST(dmMaterialTest, TestPrograms)
     delete [] (char*)fp_source;
 
     dmRender::DeleteMaterial(material);
+
+    dmGraphics::DeleteContext(context);
 }
 
 TEST(dmMaterialTest, TestTags)

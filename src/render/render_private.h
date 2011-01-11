@@ -83,7 +83,7 @@ namespace dmRender
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
 
-        dmGraphics::HContext        m_GFXContext;
+        dmGraphics::HContext        m_GraphicsContext;
 
         HMaterial                   m_Material;
 

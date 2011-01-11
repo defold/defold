@@ -7,6 +7,8 @@
 
 namespace dmRender
 {
+    using namespace Vectormath::Aos;
+
     static const uint32_t MAX_TAG_COUNT = 32;
     struct Tag
     {

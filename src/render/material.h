@@ -7,7 +7,7 @@
 
 #include <ddf/ddf.h>
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 #include "render/material_ddf.h"
 
@@ -23,15 +23,15 @@ namespace dmRender
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
     dmRenderDDF::MaterialDesc::ConstantType GetMaterialVertexProgramConstantType(HMaterial material, uint32_t reg);
     void                            SetMaterialVertexProgramConstantType(HMaterial material, uint32_t reg, dmRenderDDF::MaterialDesc::ConstantType type);
-    void                            SetMaterialVertexProgramConstant(HMaterial material, uint32_t reg, Vector4 constant);
-    Vector4                         GetMaterialVertexProgramConstant(HMaterial material, uint32_t reg);
+    void                            SetMaterialVertexProgramConstant(HMaterial material, uint32_t reg, Vectormath::Aos::Vector4 constant);
+    Vectormath::Aos::Vector4        GetMaterialVertexProgramConstant(HMaterial material, uint32_t reg);
 
     void                            SetMaterialFragmentProgram(HMaterial material, dmGraphics::HFragmentProgram fragmentprogram);
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     dmRenderDDF::MaterialDesc::ConstantType GetMaterialFragmentProgramConstantType(HMaterial material, uint32_t reg);
     void                            SetMaterialFragmentProgramConstantType(HMaterial material, uint32_t reg, dmRenderDDF::MaterialDesc::ConstantType type);
-    void                            SetMaterialFragmentProgramConstant(HMaterial material, uint32_t reg, Vector4 constant);
-    Vector4                         GetMaterialFragmentProgramConstant(HMaterial material, uint32_t reg);
+    void                            SetMaterialFragmentProgramConstant(HMaterial material, uint32_t reg, Vectormath::Aos::Vector4 constant);
+    Vectormath::Aos::Vector4        GetMaterialFragmentProgramConstant(HMaterial material, uint32_t reg);
 
     void                            SetMaterialVertexConstantMask(HMaterial material, uint32_t mask);
     void                            SetMaterialFragmentConstantMask(HMaterial material, uint32_t mask);

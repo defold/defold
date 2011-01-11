@@ -6,8 +6,6 @@
 
 #include <ddf/ddf.h>
 
-#include <graphics/graphics_device.h>
-
 #include "render_private.h"
 #include "render_script.h"
 #include "debug_renderer.h"
@@ -49,7 +47,7 @@ namespace dmRender
 
     }
 
-    HRenderContext NewRenderContext(const RenderContextParams& params)
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
         RenderContext* context = new RenderContext;
 
@@ -58,7 +56,7 @@ namespace dmRender
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
 
-        context->m_GFXContext = dmGraphics::GetContext();
+        context->m_GraphicsContext = graphics_context;
 
         context->m_Material = 0;
 
@@ -125,7 +123,7 @@ namespace dmRender
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context)
     {
-        return render_context->m_GFXContext;
+        return render_context->m_GraphicsContext;
     }
 
     Matrix4* GetViewProjectionMatrix(HRenderContext render_context)
@@ -242,8 +240,8 @@ namespace dmRender
                 if (render_context->m_Material)
                     material = render_context->m_Material;
 
-                dmGraphics::SetFragmentProgram(context, GetMaterialFragmentProgram(material));
-                dmGraphics::SetVertexProgram(context, GetMaterialVertexProgram(material));
+                dmGraphics::EnableFragmentProgram(context, GetMaterialFragmentProgram(material));
+                dmGraphics::EnableVertexProgram(context, GetMaterialVertexProgram(material));
 
                 uint32_t material_vertex_mask = GetMaterialVertexConstantMask(material);
                 uint32_t material_fragment_mask = GetMaterialFragmentConstantMask(material);
@@ -331,7 +329,7 @@ namespace dmRender
                     if (render_context->m_Textures[i])
                         texture = render_context->m_Textures[i];
                     if (texture)
-                        dmGraphics::SetTextureUnit(context, i, texture);
+                        dmGraphics::EnableTexture(context, i, texture);
                 }
 
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer);
@@ -349,7 +347,7 @@ namespace dmRender
                     if (render_context->m_Textures[i])
                         texture = render_context->m_Textures[i];
                     if (texture)
-                        dmGraphics::SetTextureUnit(context, i, 0);
+                        dmGraphics::DisableTexture(context, i);
                 }
 
                 for (uint32_t j = 0; j < MAX_CONSTANT_COUNT; ++j)

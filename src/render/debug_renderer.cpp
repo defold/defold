@@ -6,7 +6,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 #include "render.h"
 #include "render_private.h"
@@ -29,20 +29,20 @@ namespace dmRender
 
         debug_renderer.m_RenderContext = render_context;
         debug_renderer.m_VertexIndex = 0;
-        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(MAX_VERTEX_COUNT * sizeof(DebugVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, MAX_VERTEX_COUNT * sizeof(DebugVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
             {0, 4, dmGraphics::TYPE_FLOAT, 0, 0 },
             {1, 4, dmGraphics::TYPE_FLOAT, 0, 0 }
         };
-        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(ve, 2);
+        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, 2);
 
         dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
         if (vp_data_size > 0)
-            vertex_program = dmGraphics::NewVertexProgram(vp_data, vp_data_size);
+            vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, vp_data, vp_data_size);
         dmGraphics::HFragmentProgram fragment_program = dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE;
         if (fp_data_size > 0)
-            fragment_program = dmGraphics::NewFragmentProgram(fp_data, fp_data_size);
+            fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, fp_data, fp_data_size);
 
         HMaterial material3d = NewMaterial();
         SetMaterialVertexProgramConstantType(material3d, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);

@@ -3,14 +3,10 @@
 
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include <graphics/graphics_device.h>
-
 #include "render.h"
 
 namespace dmRender
 {
-    using namespace Vectormath::Aos;
-
     /**
      * Initialize debug render system
      * @param renderworld Global renderworld to add entities to

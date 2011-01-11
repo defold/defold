@@ -5,32 +5,35 @@
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
-#include <graphics/graphics_device.h>
-
 #include "render/render.h"
 #include "render/render_private.h"
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
 
+using namespace Vectormath::Aos;
+
 class dmRenderTest : public ::testing::Test
 {
 protected:
     dmRender::HRenderContext m_Context;
+    dmGraphics::HContext m_GraphicsContext;
 
     virtual void SetUp()
     {
+        m_GraphicsContext = dmGraphics::NewContext();
         dmRender::RenderContextParams params;
         params.m_DisplayWidth = WIDTH;
         params.m_DisplayHeight = HEIGHT;
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 1;
-        m_Context = dmRender::NewRenderContext(params);
+        m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
     }
 
     virtual void TearDown()
     {
         dmRender::DeleteRenderContext(m_Context);
+        dmGraphics::DeleteContext(m_GraphicsContext);
     }
 };
 
@@ -48,8 +51,8 @@ TEST_F(dmRenderTest, TestRenderTarget)
     params[1].m_Width = WIDTH;
     params[1].m_Height = HEIGHT;
     params[1].m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(flags, params);
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, flags, params);
     dmGraphics::DeleteRenderTarget(target);
     dmhash_t hash = dmHashString64("rt");
     ASSERT_EQ(0x0, dmRender::GetRenderTarget(m_Context, hash));

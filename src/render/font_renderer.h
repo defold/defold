@@ -5,7 +5,7 @@
 
 #include <ddf/ddf.h>
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 #include "material.h"
 
@@ -46,7 +46,7 @@ namespace dmRender
      * @param image_font Image font
      * @return Font handle on success. NULL on failure.
      */
-    HFont NewFont(HImageFont image_font);
+    HFont NewFont(HRenderContext render_context, HImageFont image_font);
 
     /**
      * Get image font for font
