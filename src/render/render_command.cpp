@@ -173,6 +173,7 @@ namespace dmRender
                     uint32_t reg = c->m_Operands[0];
                     Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)c->m_Operands[1];
                     dmRender::EnableVertexConstant(render_context, reg, *v);
+                    delete v;
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_VERTEX_CONSTANT:
@@ -195,6 +196,7 @@ namespace dmRender
                     uint32_t reg = c->m_Operands[0];
                     for (uint32_t i = 0; i < 4; ++i)
                         dmRender::DisableVertexConstant(render_context, reg + i);
+                    break;
                 }
                 case COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT:
                 {

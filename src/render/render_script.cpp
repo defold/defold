@@ -191,8 +191,8 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         int32_t x = luaL_checknumber(L, 2);
         int32_t y = luaL_checknumber(L, 3);
-        int32_t width = luaL_checknumber(L, 2);
-        int32_t height = luaL_checknumber(L, 3);
+        int32_t width = luaL_checknumber(L, 4);
+        int32_t height = luaL_checknumber(L, 5);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, width, height)))
             return 0;
         else
