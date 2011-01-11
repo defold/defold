@@ -17,7 +17,7 @@ namespace dmGraphics
     typedef struct VertexDeclaration* HVertexDeclaration;
     typedef struct RenderTarget*      HRenderTarget;
 
-    typedef void (*WindowResizeCallback)(HContext context, uint32_t width, uint32_t height);
+    typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
@@ -225,6 +225,7 @@ namespace dmGraphics
 
         /// Window resize callback
         WindowResizeCallback    m_ResizeCallback;
+        void*                   m_ResizeCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
         /// Window height, 480 by default

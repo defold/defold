@@ -71,6 +71,7 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
         context->m_WindowResizeCallback = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
         context->m_WindowWidth = params->m_Width;
         context->m_WindowHeight = params->m_Height;
         context->m_WindowOpened = 1;
@@ -144,7 +145,7 @@ namespace dmGraphics
             main.m_StencilBuffer = new char[buffer_size];
             main.m_StencilBufferSize = buffer_size;
             if (context->m_WindowResizeCallback)
-                context->m_WindowResizeCallback(context, width, height);
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
     }
 

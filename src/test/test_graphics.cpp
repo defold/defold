@@ -12,20 +12,24 @@
 
 using namespace Vectormath::Aos;
 
-static uint32_t g_Width = 0;
-static uint32_t g_Height = 0;
-
 class dmGraphicsTest : public ::testing::Test
 {
 protected:
+    struct ResizeData
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+    };
+
     dmGraphics::HContext m_Context;
     dmGraphics::WindowResult m_WindowResult;
+    ResizeData m_ResizeData;
 
-    static void OnWindowResize(dmGraphics::HContext context, uint32_t width, uint32_t height)
+    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
-        assert(context);
-        g_Width = width;
-        g_Height = height;
+        ResizeData* data = (ResizeData*)user_data;
+        data->m_Width = width;
+        data->m_Height = height;
     }
 
     virtual void SetUp()
@@ -33,12 +37,15 @@ protected:
         m_Context = dmGraphics::NewContext();
         dmGraphics::WindowParams params;
         params.m_ResizeCallback = OnWindowResize;
+        params.m_ResizeCallbackUserData = &m_ResizeData;
         params.m_Title = APP_TITLE;
         params.m_Width = WIDTH;
         params.m_Height = HEIGHT;
         params.m_Fullscreen = false;
         params.m_PrintDeviceInfo = false;
         m_WindowResult = dmGraphics::OpenWindow(m_Context, &params);
+        m_ResizeData.m_Width = 0;
+        m_ResizeData.m_Height = 0;
     }
 
     virtual void TearDown()
@@ -112,8 +119,8 @@ TEST_F(dmGraphicsTest, TestWindowSize)
     dmGraphics::SetWindowSize(m_Context, width, height);
     ASSERT_EQ(width, dmGraphics::GetWindowWidth(m_Context));
     ASSERT_EQ(height, dmGraphics::GetWindowHeight(m_Context));
-    ASSERT_EQ(width, g_Width);
-    ASSERT_EQ(height, g_Height);
+    ASSERT_EQ(width, m_ResizeData.m_Width);
+    ASSERT_EQ(height, m_ResizeData.m_Height);
 }
 
 TEST_F(dmGraphicsTest, Flip)

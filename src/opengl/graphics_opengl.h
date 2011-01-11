@@ -10,6 +10,7 @@ namespace dmGraphics
         Context();
 
         WindowResizeCallback    m_WindowResizeCallback;
+        void*                   m_WindowResizeCallbackUserData;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
         uint32_t                m_WindowOpened : 1;

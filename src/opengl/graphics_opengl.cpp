@@ -211,6 +211,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
 
         context->m_WindowResizeCallback = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
         context->m_WindowWidth = params->m_Width;
         context->m_WindowHeight = params->m_Height;
         context->m_WindowOpened = 1;
@@ -270,7 +271,7 @@ namespace dmGraphics
             // The callback is not called from glfw when the size is set manually
             if (context->m_WindowResizeCallback)
             {
-                context->m_WindowResizeCallback(context, width, height);
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
             }
         }
     }
