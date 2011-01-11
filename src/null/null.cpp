@@ -31,32 +31,44 @@ namespace dmGraphics
         4 // TEXTURE_FORMAT_RGBA_DXT5
     };
 
+    bool g_ContextCreated = false;
+
     HContext NewContext()
     {
-        return new Context();
+        if (!g_ContextCreated)
+        {
+            g_ContextCreated = true;
+            return new Context();
+        }
+        else
+        {
+            return 0x0;
+        }
     }
 
     void DeleteContext(HContext context)
     {
-        FrameBuffer& main = context->m_MainFrameBuffer;
-        if (main.m_ColorBuffer)
-            delete [] (char*)main.m_ColorBuffer;
-        if (main.m_DepthBuffer)
-            delete [] (char*)main.m_DepthBuffer;
-        if (main.m_StencilBuffer)
-            delete [] (char*)main.m_StencilBuffer;
-        delete context;
+        assert(context);
+        if (g_ContextCreated)
+        {
+            CloseWindow(context);
+            delete context;
+            g_ContextCreated = false;
+        }
     }
 
     WindowResult OpenWindow(HContext context, WindowParams* params)
     {
+        assert(context);
         assert(params);
+        if (context->m_WindowOpened)
+            return WINDOW_RESULT_ALREADY_OPENED;
         memset(context->m_VertexStreams, 0, sizeof(context->m_VertexStreams));
         memset(context->m_VertexProgramRegisters, 0, sizeof(context->m_VertexProgramRegisters));
         memset(context->m_FragmentProgramRegisters, 0, sizeof(context->m_FragmentProgramRegisters));
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
-        context->m_Opened = 1;
+        context->m_WindowOpened = 1;
         uint32_t buffer_size = 4 * context->m_Width * context->m_Height;
         context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
         context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
@@ -65,6 +77,19 @@ namespace dmGraphics
         context->m_VertexProgram = 0x0;
         context->m_FragmentProgram = 0x0;
         return WINDOW_RESULT_OK;
+    }
+
+    void CloseWindow(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            FrameBuffer& main = context->m_MainFrameBuffer;
+            delete [] (char*)main.m_ColorBuffer;
+            delete [] (char*)main.m_DepthBuffer;
+            delete [] (char*)main.m_StencilBuffer;
+            context->m_WindowOpened = 0;
+        }
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -599,7 +624,7 @@ namespace dmGraphics
         switch (state)
         {
             case WINDOW_STATE_OPENED:
-                return context->m_Opened;
+                return context->m_WindowOpened;
             default:
                 return 0;
         }

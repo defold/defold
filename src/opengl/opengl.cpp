@@ -215,6 +215,12 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
+    void CloseWindow(HContext context)
+    {
+        glfwCloseWindow();
+        g_WindowOpened = false;
+    }
+
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);

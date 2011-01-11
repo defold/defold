@@ -254,10 +254,17 @@ namespace dmGraphics
 
     /**
      * Open a window
+     * @param context Graphics context handle
      * @param params Window parameters
      * @return The result of the operation
      */
     WindowResult OpenWindow(HContext context, WindowParams *params);
+
+    /**
+     * Close the open window if any.
+     * @param context Graphics context handle
+     */
+    void CloseWindow(HContext context);
 
     /**
      * Flip screen buffers

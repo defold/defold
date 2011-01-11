@@ -40,6 +40,35 @@ TEST_F(dmGraphicsTest, NewDeleteContext)
     ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, m_WindowResult);
 }
 
+TEST_F(dmGraphicsTest, DoubleNewContext)
+{
+    ASSERT_NE((void*)0, m_Context);
+    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext());
+}
+
+TEST_F(dmGraphicsTest, DoubleDeleteContext)
+{
+    ASSERT_NE((void*)0, m_Context);
+    dmGraphics::DeleteContext(m_Context);
+}
+
+TEST_F(dmGraphicsTest, DoubleOpenWindow)
+{
+    dmGraphics::WindowParams params;
+    params.m_Title = APP_TITLE;
+    params.m_Width = WIDTH;
+    params.m_Height = HEIGHT;
+    params.m_Fullscreen = false;
+    params.m_PrintDeviceInfo = false;
+    ASSERT_EQ(dmGraphics::WINDOW_RESULT_ALREADY_OPENED, dmGraphics::OpenWindow(m_Context, &params));
+}
+
+TEST_F(dmGraphicsTest, CloseWindow)
+{
+    dmGraphics::CloseWindow(m_Context);
+    dmGraphics::CloseWindow(m_Context);
+}
+
 TEST_F(dmGraphicsTest, Flip)
 {
     dmGraphics::Flip(m_Context);
