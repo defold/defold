@@ -11,8 +11,7 @@ def build(bld):
                            proto_gen_py = True,
                            protoc_includes = '../proto',
                            target = 'graphics',
-                           install_path='${PREFIX}/lib',
-                           defines = 'DM_OPENGL')
+                           install_path='${PREFIX}/lib')
 
     obj.find_sources_in_dirs('. opengl ../proto')
 
@@ -21,8 +20,7 @@ def build(bld):
                            proto_gen_py = True,
                            protoc_includes = '../proto',
                            target = 'graphics_null',
-                           install_path='${PREFIX}/lib',
-                           defines = 'DM_NULL')
+                           install_path='${PREFIX}/lib')
 
     obj.find_sources_in_dirs('. null ../proto')
 
@@ -31,7 +29,6 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
-    bld.install_files('${PREFIX}/include/graphics/null', 'null/graphics_null_defines.h')
 
     bld.install_files('${PREFIX}/include/graphics/glfw', 'glfw/include/GL/glfw.h')
 

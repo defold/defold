@@ -7,7 +7,6 @@ def build(bld):
                                  uselib = 'GTEST DLIB',
                                  uselib_local = "graphics_null",
                                  includes = ['../../src'],
-                                 target = 'test_graphics',
-                                 defines = 'DM_NULL')
+                                 target = 'test_graphics')
 
     test_graphics.install_path = None
