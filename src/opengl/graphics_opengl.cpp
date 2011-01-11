@@ -297,7 +297,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void Flip()
+    void Flip(HContext context)
     {
         DM_PROFILE(Graphics, "Flip");
         glfwSwapBuffers();
