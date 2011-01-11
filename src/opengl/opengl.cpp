@@ -4,8 +4,8 @@
 #include <dlib/profile.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include "../graphics_device.h"
-#include "opengl_device.h"
+#include "../graphics.h"
+#include "opengl.h"
 
 #include "../glfw/include/GL/glfw.h"
 
@@ -130,34 +130,48 @@ namespace dmGraphics
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
-    Device gdevice;
-    Context gcontext;
-
-    HContext GetContext()
+    bool g_ContextCreated = false;
+    HContext NewContext()
     {
-        return (HContext)&gcontext;
+        if (!g_ContextCreated)
+        {
+            g_ContextCreated = true;
+            glfwInit();
+            return new Context();
+        }
+        else
+        {
+            return 0x0;
+        }
     }
 
-    HDevice NewDevice(int* argc, char** argv, CreateDeviceParams *params )
+    void DeleteContext(HContext context)
+    {
+        delete context;
+        glfwTerminate();
+    }
+
+    bool g_WindowOpened = false;
+
+    WindowResult OpenWindow(HContext context, WindowParams *params)
     {
         assert(params);
 
-        glfwInit(); // We can do this twice
-
+        if (g_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
 
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-        if( !glfwOpenWindow( params->m_DisplayWidth, params->m_DisplayHeight, 8,8,8,8, 32,0, GLFW_WINDOW ) )
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, GLFW_WINDOW))
         {
             glfwTerminate();
-            return 0;
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        glfwSetWindowTitle(params->m_AppTitle);
+        glfwSetWindowTitle(params->m_Title);
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
-        gdevice.m_DisplayWidth = params->m_DisplayWidth;
-        gdevice.m_DisplayHeight = params->m_DisplayHeight;
+        context->m_Width = params->m_Width;
+        context->m_Height = params->m_Height;
 
         if (params->m_PrintDeviceInfo)
         {
@@ -198,12 +212,7 @@ namespace dmGraphics
         glCheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC) wglGetProcAddress("glCheckFrameBufferStatus");
     #endif
 
-        return (HDevice)&gdevice;
-    }
-
-    void DeleteDevice(HDevice device)
-    {
-        glfwTerminate();
+        return WINDOW_RESULT_OK;
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -235,7 +244,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HVertexBuffer NewVertexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
+    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
@@ -295,7 +304,7 @@ namespace dmGraphics
         return result;
     }
 
-    HIndexBuffer NewIndexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
+    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
@@ -382,7 +391,7 @@ namespace dmGraphics
         return size;
     }
 
-    HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count)
+    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration;
 
@@ -539,14 +548,14 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HVertexProgram NewVertexProgram(const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
 
         return CreateProgram(GL_VERTEX_PROGRAM_ARB, program, program_size);
     }
 
-    HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
 
@@ -652,7 +661,7 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget;
 
@@ -666,14 +675,14 @@ namespace dmGraphics
         {
             if (buffer_type_flags & BUFFER_TYPES[i])
             {
-                rt->m_BufferTextures[i] = NewTexture(params[i]);
+                rt->m_BufferTextures[i] = NewTexture(context, params[i]);
                 // attach the texture to FBO color attachment point
                 glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
                 CHECK_GL_ERROR
             }
         }
         // Disable color buffer
-        if ((buffer_type_flags & BUFFER_TYPE_COLOR) == 0)
+        if ((buffer_type_flags & BUFFER_TYPE_COLOR_BIT) == 0)
         {
             glDrawBuffer(GL_NONE);
             CHECK_GL_ERROR
@@ -717,7 +726,7 @@ namespace dmGraphics
         return render_target->m_BufferTextures[GetBufferTypeIndex(buffer_type)];
     }
 
-    HTexture NewTexture(const TextureParams& params)
+    HTexture NewTexture(HContext context, const TextureParams& params)
     {
         GLuint t;
         glGenTextures( 1, &t );
@@ -877,13 +886,6 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void SetIndexMask(HContext context, uint32_t mask)
-    {
-        assert(context);
-        glIndexMask(mask);
-        CHECK_GL_ERROR
-    }
-
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
@@ -905,22 +907,22 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    uint32_t GetWindowParam(WindowParam param)
+    uint32_t GetWindowState(WindowState state)
     {
-        return glfwGetWindowParam(param);
+        return glfwGetWindowParam(state);
     }
 
-    uint32_t GetWindowWidth()
+    uint32_t GetWindowWidth(HContext context)
     {
-        return gdevice.m_DisplayWidth;
+        return context->m_Width;
     }
 
-    uint32_t GetWindowHeight()
+    uint32_t GetWindowHeight(HContext context)
     {
-        return gdevice.m_DisplayHeight;
+        return context->m_Height;
     }
 
-    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR, BUFFER_TYPE_DEPTH, BUFFER_TYPE_STENCIL};
+    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
 
     GLenum TEXTURE_UNIT_NAMES[32] =
     {

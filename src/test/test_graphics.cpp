@@ -1,62 +1,64 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 
-#include "graphics_device.h"
-#include "null/null_device.h"
+#include "graphics.h"
+#include "null/null.h"
 
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8
 #define HEIGHT 4
 
+using namespace Vectormath::Aos;
+
 class dmGraphicsTest : public ::testing::Test
 {
 protected:
     dmGraphics::HContext m_Context;
-    dmGraphics::HDevice m_Device;
+    dmGraphics::WindowResult m_WindowResult;
 
     virtual void SetUp()
     {
-        dmGraphics::CreateDeviceParams params;
-        params.m_AppTitle = APP_TITLE;
-        params.m_DisplayWidth = WIDTH;
-        params.m_DisplayHeight = HEIGHT;
+        m_Context = dmGraphics::NewContext();
+        dmGraphics::WindowParams params;
+        params.m_Title = APP_TITLE;
+        params.m_Width = WIDTH;
+        params.m_Height = HEIGHT;
         params.m_Fullscreen = false;
         params.m_PrintDeviceInfo = false;
-        m_Device = dmGraphics::NewDevice(0x0, 0x0, &params);
-        m_Context = dmGraphics::GetContext();
+        m_WindowResult = dmGraphics::OpenWindow(m_Context, &params);
     }
 
     virtual void TearDown()
     {
-        dmGraphics::DeleteDevice(m_Device);
+        dmGraphics::DeleteContext(m_Context);
     }
 };
 
-TEST_F(dmGraphicsTest, DeviceNewDelete)
+TEST_F(dmGraphicsTest, NewDeleteContext)
 {
-    ASSERT_NE((void*)0, m_Device);
     ASSERT_NE((void*)0, m_Context);
+    ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, m_WindowResult);
 }
 
 TEST_F(dmGraphicsTest, Flip)
 {
-    dmGraphics::Flip();
+    dmGraphics::Flip(m_Context);
 }
 
 TEST_F(dmGraphicsTest, Clear)
 {
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH | dmGraphics::BUFFER_TYPE_STENCIL;
+    const uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t data[WIDTH * HEIGHT];
     memset(data, 1, sizeof(data));
-    ASSERT_EQ(0, memcmp(data, m_Device->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
 }
 
 TEST_F(dmGraphicsTest, VertexBuffer)
 {
     char data[16];
     memset(data, 1, sizeof(data));
-    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(16, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, 16, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     dmGraphics::VertexBuffer* vb = (dmGraphics::VertexBuffer*)vertex_buffer;
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
@@ -82,7 +84,7 @@ TEST_F(dmGraphicsTest, IndexBuffer)
 {
     char data[16];
     memset(data, 1, sizeof(data));
-    dmGraphics::HIndexBuffer index_buffer = dmGraphics::NewIndexBuffer(16, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::HIndexBuffer index_buffer = dmGraphics::NewIndexBuffer(m_Context, 16, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     dmGraphics::IndexBuffer* ib = (dmGraphics::IndexBuffer*)index_buffer;
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
@@ -107,28 +109,28 @@ TEST_F(dmGraphicsTest, IndexBuffer)
 TEST_F(dmGraphicsTest, VertexDeclaration)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
-    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(sizeof(v), (void*)v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), (void*)v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
     dmGraphics::VertexElement ve[2] =
     {
         {0, 3, dmGraphics::TYPE_FLOAT, 0, 0 },
         {1, 2, dmGraphics::TYPE_FLOAT, 0, 0 }
     };
-    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(ve, 2);
+    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, vertex_buffer);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
-    ASSERT_EQ(sizeof(p) / 2, m_Device->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0, memcmp(p, m_Device->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
+    ASSERT_EQ(sizeof(p) / 2, m_Context->m_VertexStreams[0].m_Size);
+    ASSERT_EQ(0, memcmp(p, m_Context->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
     float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f };
-    ASSERT_EQ(sizeof(uv) / 2, m_Device->m_VertexStreams[1].m_Size);
-    ASSERT_EQ(0, memcmp(uv, m_Device->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
+    ASSERT_EQ(sizeof(uv) / 2, m_Context->m_VertexStreams[1].m_Size);
+    ASSERT_EQ(0, memcmp(uv, m_Context->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
 
     dmGraphics::DisableVertexDeclaration(m_Context, vertex_declaration);
 
-    ASSERT_EQ(0u, m_Device->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0u, m_Device->m_VertexStreams[1].m_Size);
+    ASSERT_EQ(0u, m_Context->m_VertexStreams[0].m_Size);
+    ASSERT_EQ(0u, m_Context->m_VertexStreams[1].m_Size);
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -142,17 +144,17 @@ TEST_F(dmGraphicsTest, VertexStream)
     dmGraphics::SetVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
-    ASSERT_EQ(sizeof(p) / 2, m_Device->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0, memcmp(p, m_Device->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
+    ASSERT_EQ(sizeof(p) / 2, m_Context->m_VertexStreams[0].m_Size);
+    ASSERT_EQ(0, memcmp(p, m_Context->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
     float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f };
-    ASSERT_EQ(sizeof(uv) / 2, m_Device->m_VertexStreams[1].m_Size);
-    ASSERT_EQ(0, memcmp(uv, m_Device->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
+    ASSERT_EQ(sizeof(uv) / 2, m_Context->m_VertexStreams[1].m_Size);
+    ASSERT_EQ(0, memcmp(uv, m_Context->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
 
     dmGraphics::DisableVertexStream(m_Context, 0);
     dmGraphics::DisableVertexStream(m_Context, 1);
 
-    ASSERT_EQ(0u, m_Device->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0u, m_Device->m_VertexStreams[1].m_Size);
+    ASSERT_EQ(0u, m_Context->m_VertexStreams[0].m_Size);
+    ASSERT_EQ(0u, m_Context->m_VertexStreams[1].m_Size);
 }
 
 TEST_F(dmGraphicsTest, Drawing)
@@ -166,9 +168,9 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, dmGraphics::TYPE_UNSIGNED_INT, i);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f, 10.0f, 11.0f, 12.0f };
-    ASSERT_EQ(0, memcmp(p, m_Device->m_VertexStreams[0].m_Buffer, sizeof(p)));
+    ASSERT_EQ(0, memcmp(p, m_Context->m_VertexStreams[0].m_Buffer, sizeof(p)));
     float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f, 13.0f, 14.0f };
-    ASSERT_EQ(0, memcmp(uv, m_Device->m_VertexStreams[1].m_Buffer, sizeof(uv)));
+    ASSERT_EQ(0, memcmp(uv, m_Context->m_VertexStreams[1].m_Buffer, sizeof(uv)));
 
     dmGraphics::DisableVertexStream(m_Context, 0);
     dmGraphics::DisableVertexStream(m_Context, 1);
@@ -178,9 +180,9 @@ TEST_F(dmGraphicsTest, Drawing)
         {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
         {1, 2, dmGraphics::TYPE_FLOAT, 0, 0}
     };
-    dmGraphics::HVertexDeclaration vd = dmGraphics::NewVertexDeclaration(ve, 2);
-    dmGraphics::HVertexBuffer vb = dmGraphics::NewVertexBuffer(sizeof(v), v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::HVertexDeclaration vd = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
+    dmGraphics::HVertexBuffer vb = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(m_Context, sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
     dmGraphics::DrawRangeElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
@@ -198,7 +200,7 @@ TEST_F(dmGraphicsTest, Drawing)
 TEST_F(dmGraphicsTest, TestVertexProgram)
 {
     char* program_data = new char[1024];
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(program_data, 1024);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, program_data, 1024);
     delete [] program_data;
     dmGraphics::SetVertexProgram(m_Context, vp);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
@@ -212,7 +214,7 @@ TEST_F(dmGraphicsTest, TestVertexProgram)
 TEST_F(dmGraphicsTest, TestFragmentProgram)
 {
     char* program_data = new char[1024];
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(program_data, 1024);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, program_data, 1024);
     delete [] program_data;
     dmGraphics::SetFragmentProgram(m_Context, fp);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
@@ -236,7 +238,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    dmGraphics::HTexture texture = dmGraphics::NewTexture(params);
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
     delete [] (char*)params.m_Data;
     dmGraphics::SetTextureUnit(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
@@ -251,13 +253,13 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
         params[i].m_Height = HEIGHT;
         params[i].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     }
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH | dmGraphics::BUFFER_TYPE_STENCIL;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(flags, params);
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     dmGraphics::EnableRenderTarget(m_Context, target);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t data[WIDTH * HEIGHT];
     memset(data, 1, sizeof(data));
-    ASSERT_EQ(0, memcmp(data, m_Device->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
     dmGraphics::DisableRenderTarget(m_Context, target);
     dmGraphics::DeleteRenderTarget(target);
 }
@@ -265,35 +267,30 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
 TEST_F(dmGraphicsTest, TestMasks)
 {
     dmGraphics::SetColorMask(m_Context, false, false, false, false);
-    ASSERT_FALSE(m_Device->m_RedMask);
-    ASSERT_FALSE(m_Device->m_GreenMask);
-    ASSERT_FALSE(m_Device->m_BlueMask);
-    ASSERT_FALSE(m_Device->m_AlphaMask);
+    ASSERT_FALSE(m_Context->m_RedMask);
+    ASSERT_FALSE(m_Context->m_GreenMask);
+    ASSERT_FALSE(m_Context->m_BlueMask);
+    ASSERT_FALSE(m_Context->m_AlphaMask);
     dmGraphics::SetColorMask(m_Context, true, true, true, true);
-    ASSERT_TRUE(m_Device->m_RedMask);
-    ASSERT_TRUE(m_Device->m_GreenMask);
-    ASSERT_TRUE(m_Device->m_BlueMask);
-    ASSERT_TRUE(m_Device->m_AlphaMask);
+    ASSERT_TRUE(m_Context->m_RedMask);
+    ASSERT_TRUE(m_Context->m_GreenMask);
+    ASSERT_TRUE(m_Context->m_BlueMask);
+    ASSERT_TRUE(m_Context->m_AlphaMask);
 
     dmGraphics::SetDepthMask(m_Context, false);
-    ASSERT_FALSE(m_Device->m_DepthMask);
+    ASSERT_FALSE(m_Context->m_DepthMask);
     dmGraphics::SetDepthMask(m_Context, true);
-    ASSERT_TRUE(m_Device->m_DepthMask);
-
-    dmGraphics::SetIndexMask(m_Context, 0u);
-    ASSERT_EQ(0u, m_Device->m_IndexMask);
-    dmGraphics::SetIndexMask(m_Context, ~0u);
-    ASSERT_EQ(~0u, m_Device->m_IndexMask);
+    ASSERT_TRUE(m_Context->m_DepthMask);
 
     dmGraphics::SetStencilMask(m_Context, 0u);
-    ASSERT_EQ(0u, m_Device->m_StencilMask);
+    ASSERT_EQ(0u, m_Context->m_StencilMask);
     dmGraphics::SetStencilMask(m_Context, ~0u);
-    ASSERT_EQ(~0u, m_Device->m_StencilMask);
+    ASSERT_EQ(~0u, m_Context->m_StencilMask);
 }
 
 TEST_F(dmGraphicsTest, TestWindowParams)
 {
-    ASSERT_TRUE(dmGraphics::GetWindowParam(dmGraphics::WINDOW_PARAM_OPENED));
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
 
 int main(int argc, char **argv)

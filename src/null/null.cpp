@@ -2,8 +2,8 @@
 #include <assert.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include "../graphics_device.h"
-#include "null_device.h"
+#include "../graphics.h"
+#include "null.h"
 
 using namespace Vectormath::Aos;
 
@@ -31,76 +31,72 @@ namespace dmGraphics
         4 // TEXTURE_FORMAT_RGBA_DXT5
     };
 
-    Device gdevice;
-    Context gcontext;
-
-    HContext GetContext()
+    HContext NewContext()
     {
-        return (HContext)&gcontext;
+        return new Context();
     }
 
-    HDevice NewDevice(int* argc, char** argv, CreateDeviceParams *params )
+    void DeleteContext(HContext context)
+    {
+        FrameBuffer& main = context->m_MainFrameBuffer;
+        if (main.m_ColorBuffer)
+            delete [] (char*)main.m_ColorBuffer;
+        if (main.m_DepthBuffer)
+            delete [] (char*)main.m_DepthBuffer;
+        if (main.m_StencilBuffer)
+            delete [] (char*)main.m_StencilBuffer;
+        delete context;
+    }
+
+    WindowResult OpenWindow(HContext context, WindowParams* params)
     {
         assert(params);
-        memset(gdevice.m_VertexStreams, 0, sizeof(gdevice.m_VertexStreams));
-        memset(gdevice.m_VertexProgramRegisters, 0, sizeof(gdevice.m_VertexProgramRegisters));
-        memset(gdevice.m_FragmentProgramRegisters, 0, sizeof(gdevice.m_FragmentProgramRegisters));
-        gdevice.m_DisplayWidth = params->m_DisplayWidth;
-        gdevice.m_DisplayHeight = params->m_DisplayHeight;
-        gdevice.m_Opened = 1;
-        gdevice.m_MainFrameBuffer.m_ColorBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_MainFrameBuffer.m_DepthBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_MainFrameBuffer.m_StencilBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_CurrentFrameBuffer = &gdevice.m_MainFrameBuffer;
-        gdevice.m_VertexProgram = 0x0;
-        gdevice.m_FragmentProgram = 0x0;
-        return (HDevice)&gdevice;
-    }
-
-    void DeleteDevice(HDevice device)
-    {
-        gdevice.m_Opened = 0;
-        delete [] (char*)gdevice.m_MainFrameBuffer.m_ColorBuffer;
-        delete [] (char*)gdevice.m_MainFrameBuffer.m_DepthBuffer;
-        delete [] (char*)gdevice.m_MainFrameBuffer.m_StencilBuffer;
-        for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
-        {
-            VertexStream& vs = gdevice.m_VertexStreams[i];
-            vs.m_Source = 0x0;
-            vs.m_Buffer = 0x0;
-        }
+        memset(context->m_VertexStreams, 0, sizeof(context->m_VertexStreams));
+        memset(context->m_VertexProgramRegisters, 0, sizeof(context->m_VertexProgramRegisters));
+        memset(context->m_FragmentProgramRegisters, 0, sizeof(context->m_FragmentProgramRegisters));
+        context->m_Width = params->m_Width;
+        context->m_Height = params->m_Height;
+        context->m_Opened = 1;
+        uint32_t buffer_size = 4 * context->m_Width * context->m_Height;
+        context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
+        context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
+        context->m_MainFrameBuffer.m_StencilBuffer = new char[buffer_size];
+        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
+        context->m_VertexProgram = 0x0;
+        context->m_FragmentProgram = 0x0;
+        return WINDOW_RESULT_OK;
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
-        uint32_t buffer_size = gdevice.m_DisplayWidth * gdevice.m_DisplayHeight;
-        if (flags & dmGraphics::BUFFER_TYPE_COLOR)
+        uint32_t buffer_size = context->m_Width * context->m_Height;
+        if (flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
         {
             uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
-            uint32_t* buffer = (uint32_t*)gdevice.m_CurrentFrameBuffer->m_ColorBuffer;
+            uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_ColorBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = colour;
         }
-        if (flags & dmGraphics::BUFFER_TYPE_DEPTH)
+        if (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT)
         {
-            float* buffer = (float*)gdevice.m_CurrentFrameBuffer->m_DepthBuffer;
+            float* buffer = (float*)context->m_CurrentFrameBuffer->m_DepthBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = depth;
         }
-        if (flags & dmGraphics::BUFFER_TYPE_STENCIL)
+        if (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
-            uint32_t* buffer = (uint32_t*)gdevice.m_CurrentFrameBuffer->m_StencilBuffer;
+            uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_StencilBuffer;
             for (uint32_t i = 0; i < buffer_size; ++i)
                 buffer[i] = stencil;
         }
     }
 
-    void Flip()
+    void Flip(HContext context)
     {
     }
 
-    HVertexBuffer NewVertexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
+    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();
         vb->m_Buffer = new char[size];
@@ -148,7 +144,7 @@ namespace dmGraphics
         return true;
     }
 
-    HIndexBuffer NewIndexBuffer(uint32_t size, const void* data, BufferUsage buffer_usage)
+    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         IndexBuffer* ib = new IndexBuffer();
         ib->m_Buffer = new char[size];
@@ -195,7 +191,7 @@ namespace dmGraphics
         return true;
     }
 
-    HVertexDeclaration NewVertexDeclaration(VertexElement* element, uint32_t count)
+    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(*vd));
@@ -247,7 +243,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_buffer);
-        VertexStream& s = gdevice.m_VertexStreams[stream];
+        VertexStream& s = context->m_VertexStreams[stream];
         assert(s.m_Source == 0x0);
         assert(s.m_Buffer == 0x0);
         s.m_Source = vertex_buffer;
@@ -258,7 +254,7 @@ namespace dmGraphics
     void DisableVertexStream(HContext context, uint16_t stream)
     {
         assert(context);
-        VertexStream& s = gdevice.m_VertexStreams[stream];
+        VertexStream& s = context->m_VertexStreams[stream];
         s.m_Size = 0;
         if (s.m_Buffer != 0x0)
         {
@@ -304,7 +300,7 @@ namespace dmGraphics
         assert(index_buffer);
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
         {
-            VertexStream& vs = gdevice.m_VertexStreams[i];
+            VertexStream& vs = context->m_VertexStreams[i];
             if (vs.m_Size > 0)
             {
                 vs.m_Buffer = new char[vs.m_Size * count];
@@ -315,7 +311,7 @@ namespace dmGraphics
             uint32_t index = GetIndex(type, index_buffer, i);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
-                VertexStream& vs = gdevice.m_VertexStreams[j];
+                VertexStream& vs = context->m_VertexStreams[j];
                 if (vs.m_Size > 0)
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
@@ -342,7 +338,7 @@ namespace dmGraphics
         char* m_Data;
     };
 
-    HVertexProgram NewVertexProgram(const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
         VertexProgram* p = new VertexProgram();
@@ -351,7 +347,7 @@ namespace dmGraphics
         return (uint32_t)p;
     }
 
-    HFragmentProgram NewFragmentProgram(const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
         FragmentProgram* p = new FragmentProgram();
@@ -397,62 +393,63 @@ namespace dmGraphics
     void SetVertexProgram(HContext context, HVertexProgram program)
     {
         assert(context);
-        gdevice.m_VertexProgram = (void*)program;
+        context->m_VertexProgram = (void*)program;
     }
 
     void SetFragmentProgram(HContext context, HFragmentProgram program)
     {
         assert(context);
-        gdevice.m_FragmentProgram = (void*)program;
+        context->m_FragmentProgram = (void*)program;
     }
 
     void SetViewport(HContext context, int width, int height)
     {
         assert(context);
-        gdevice.m_DisplayWidth = width;
-        gdevice.m_DisplayHeight = height;
-        delete [] (char*)gdevice.m_CurrentFrameBuffer->m_ColorBuffer;
-        delete [] (char*)gdevice.m_CurrentFrameBuffer->m_DepthBuffer;
-        delete [] (char*)gdevice.m_CurrentFrameBuffer->m_StencilBuffer;
-        gdevice.m_CurrentFrameBuffer->m_ColorBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_CurrentFrameBuffer->m_DepthBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
-        gdevice.m_CurrentFrameBuffer->m_StencilBuffer = new char[4 * gdevice.m_DisplayWidth * gdevice.m_DisplayHeight];
+        context->m_Width = width;
+        context->m_Height = height;
+        delete [] (char*)context->m_CurrentFrameBuffer->m_ColorBuffer;
+        delete [] (char*)context->m_CurrentFrameBuffer->m_DepthBuffer;
+        delete [] (char*)context->m_CurrentFrameBuffer->m_StencilBuffer;
+        uint32_t buffer_size = 4 * context->m_Width * context->m_Height;
+        context->m_CurrentFrameBuffer->m_ColorBuffer = new char[buffer_size];
+        context->m_CurrentFrameBuffer->m_DepthBuffer = new char[buffer_size];
+        context->m_CurrentFrameBuffer->m_StencilBuffer = new char[buffer_size];
     }
 
     void SetFragmentConstant(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
-        assert(gdevice.m_FragmentProgram != 0x0);
-        memcpy(&gdevice.m_FragmentProgramRegisters[base_register], data, sizeof(Vector4));
+        assert(context->m_FragmentProgram != 0x0);
+        memcpy(&context->m_FragmentProgramRegisters[base_register], data, sizeof(Vector4));
     }
 
     void SetVertexConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
     {
         assert(context);
-        assert(gdevice.m_VertexProgram != 0x0);
-        memcpy(&gdevice.m_VertexProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
+        assert(context->m_VertexProgram != 0x0);
+        memcpy(&context->m_VertexProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
     }
 
     void SetFragmentConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
     {
         assert(context);
-        assert(gdevice.m_FragmentProgram != 0x0);
-        memcpy(&gdevice.m_FragmentProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
+        assert(context->m_FragmentProgram != 0x0);
+        memcpy(&context->m_FragmentProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
     }
 
-    HRenderTarget NewRenderTarget(uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
 
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR, BUFFER_TYPE_DEPTH, BUFFER_TYPE_STENCIL};
+        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             if (buffer_type_flags & buffer_types[i])
             {
                 *(buffers[i]) = new char[4 * params[i].m_Width * params[i].m_Height];
-                rt->m_BufferTextures[i] = NewTexture(params[i]);
+                rt->m_BufferTextures[i] = NewTexture(context, params[i]);
             }
         }
 
@@ -474,14 +471,14 @@ namespace dmGraphics
     {
         assert(context);
         assert(rendertarget);
-        gdevice.m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
+        context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
     }
 
     void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
     {
         assert(context);
         assert(rendertarget);
-        gdevice.m_CurrentFrameBuffer = &gdevice.m_MainFrameBuffer;
+        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
@@ -489,7 +486,7 @@ namespace dmGraphics
         return rendertarget->m_BufferTextures[buffer_type];
     }
 
-    HTexture NewTexture(const TextureParams& params)
+    HTexture NewTexture(HContext context, const TextureParams& params)
     {
         Texture* tex = new Texture();
         SetTexture(tex, params);
@@ -542,28 +539,22 @@ namespace dmGraphics
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
-        gdevice.m_RedMask = red;
-        gdevice.m_GreenMask = green;
-        gdevice.m_BlueMask = blue;
-        gdevice.m_AlphaMask = alpha;
+        context->m_RedMask = red;
+        context->m_GreenMask = green;
+        context->m_BlueMask = blue;
+        context->m_AlphaMask = alpha;
     }
 
     void SetDepthMask(HContext context, bool mask)
     {
         assert(context);
-        gdevice.m_DepthMask = mask;
-    }
-
-    void SetIndexMask(HContext context, uint32_t mask)
-    {
-        assert(context);
-        gdevice.m_IndexMask = mask;
+        context->m_DepthMask = mask;
     }
 
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
-        gdevice.m_StencilMask = mask;
+        context->m_StencilMask = mask;
     }
 
     void SetCullFace(HContext context, FaceType face_type)
@@ -576,24 +567,24 @@ namespace dmGraphics
         assert(context);
     }
 
-    uint32_t GetWindowParam(WindowParam param)
+    uint32_t GetWindowState(HContext context, WindowState state)
     {
-        switch (param)
+        switch (state)
         {
-            case WINDOW_PARAM_OPENED:
-                return gdevice.m_Opened;
+            case WINDOW_STATE_OPENED:
+                return context->m_Opened;
             default:
                 return 0;
         }
     }
 
-    uint32_t GetWindowWidth()
+    uint32_t GetWindowWidth(HContext context)
     {
-        return gdevice.m_DisplayWidth;
+        return context->m_Width;
     }
 
-    uint32_t GetWindowHeight()
+    uint32_t GetWindowHeight(HContext context)
     {
-        return gdevice.m_DisplayHeight;
+        return context->m_Height;
     }
 }

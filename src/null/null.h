@@ -29,32 +29,6 @@ namespace dmGraphics
         void*   m_StencilBuffer;
     };
 
-    struct Device
-    {
-        VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
-        Vectormath::Aos::Vector4    m_VertexProgramRegisters[MAX_REGISTER_COUNT];
-        Vectormath::Aos::Vector4    m_FragmentProgramRegisters[MAX_REGISTER_COUNT];
-        FrameBuffer                 m_MainFrameBuffer;
-        FrameBuffer*                m_CurrentFrameBuffer;
-        void*                       m_VertexProgram;
-        void*                       m_FragmentProgram;
-        uint32_t                    m_DisplayWidth;
-        uint32_t                    m_DisplayHeight;
-        uint32_t                    m_IndexMask;
-        uint32_t                    m_StencilMask;
-        uint32_t                    m_Opened : 1;
-        uint32_t                    m_RedMask : 1;
-        uint32_t                    m_GreenMask : 1;
-        uint32_t                    m_BlueMask : 1;
-        uint32_t                    m_AlphaMask : 1;
-        uint32_t                    m_DepthMask : 1;
-    };
-
-    struct Context
-    {
-        Vectormath::Aos::Matrix4 m_ViewMatrix;
-    };
-
     struct VertexDeclaration
     {
         VertexElement m_Elements[MAX_VERTEX_STREAM_COUNT];
@@ -80,6 +54,25 @@ namespace dmGraphics
         HTexture    m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
     };
 
+    struct Context
+    {
+        VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
+        Vectormath::Aos::Vector4    m_VertexProgramRegisters[MAX_REGISTER_COUNT];
+        Vectormath::Aos::Vector4    m_FragmentProgramRegisters[MAX_REGISTER_COUNT];
+        FrameBuffer                 m_MainFrameBuffer;
+        FrameBuffer*                m_CurrentFrameBuffer;
+        void*                       m_VertexProgram;
+        void*                       m_FragmentProgram;
+        uint32_t                    m_Width;
+        uint32_t                    m_Height;
+        uint32_t                    m_StencilMask;
+        uint32_t                    m_Opened : 1;
+        uint32_t                    m_RedMask : 1;
+        uint32_t                    m_GreenMask : 1;
+        uint32_t                    m_BlueMask : 1;
+        uint32_t                    m_AlphaMask : 1;
+        uint32_t                    m_DepthMask : 1;
+    };
 }
 
 #endif // __GRAPHICS_DEVICE_NULL__
