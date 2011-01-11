@@ -12,6 +12,8 @@
 
 namespace dmProfileRender
 {
+    using namespace Vectormath::Aos;
+
     struct SampleStats
     {
         const dmProfile::Sample* m_Sample;
@@ -84,7 +86,7 @@ namespace dmProfileRender
 
         float y = c->m_Y + sample->m_Scope->m_Index * (c->m_Spacing + c->m_BarHeight);
 
-        uint32_t frame_width = dmRender::GetDisplayWidth(c->m_RenderContext) - c->m_FrameX;
+        uint32_t frame_width = dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(c->m_RenderContext)) - c->m_FrameX;
         float frames_per_tick = 60.0f / c->m_TicksPerSecond;
         float x = c->m_FrameX + frame_width * sample->m_Start * frames_per_tick;
         float w = frame_width * sample->m_Elapsed * frames_per_tick;
@@ -218,8 +220,9 @@ namespace dmProfileRender
 
     void Draw(dmProfile::HProfile profile, dmRender::HRenderContext render_context, dmRender::HFont font)
     {
-        uint32_t display_width = dmRender::GetDisplayWidth(render_context);
-        uint32_t display_height = dmRender::GetDisplayHeight(render_context);
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        uint32_t display_width = dmGraphics::GetWindowWidth(graphics_context);
+        uint32_t display_height = dmGraphics::GetWindowHeight(graphics_context);
         dmRender::Square2d(render_context, 0.0f, 0.0f, display_width, display_height, Vector4(0.1f, 0.1f, 0.1f, 0.4f));
 
         int y0 = 50 - g_Spacing;

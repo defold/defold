@@ -81,7 +81,7 @@ namespace dmEngine
     , m_WarpTimeStep(false)
     , m_TimeStepFactor(1.0f)
     , m_TimeStepMode(dmEngineDDF::TIME_STEP_MODE_DISCRETE)
-    , m_GraphicsDevice(0)
+    , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_Factory(0x0)
     , m_Font(0x0)
@@ -132,8 +132,8 @@ namespace dmEngine
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
 
-        if (engine->m_GraphicsDevice)
-            dmGraphics::DeleteDevice(engine->m_GraphicsDevice);
+        if (engine->m_GraphicsContext)
+            dmGraphics::DeleteContext(engine->m_GraphicsContext);
 
         dmProfile::Finalize();
 
@@ -153,7 +153,7 @@ namespace dmEngine
         dmConfigFile::Result config_result = dmConfigFile::Load(project_file, argc, (const char**) argv, &config);
         if (config_result != dmConfigFile::RESULT_OK)
         {
-            dmLogError("Unable to load %s", project_file);
+            dmLogFatal("Unable to load %s", project_file);
             return false;
         }
         const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
@@ -162,17 +162,22 @@ namespace dmEngine
         // This scope is mainly here to make sure the "Main" scope is created first.
         DM_PROFILE(Engine, "Init");
 
-        dmGraphics::HDevice device;
-        dmGraphics::CreateDeviceParams graphics_params;
+        engine->m_GraphicsContext = dmGraphics::NewContext();
 
-        graphics_params.m_DisplayWidth = dmConfigFile::GetInt(config, "display.width", 960);
-        graphics_params.m_DisplayHeight = dmConfigFile::GetInt(config, "display.height", 540);
-        graphics_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
-        graphics_params.m_AppTitle = dmConfigFile::GetString(config, "project.title", "TestTitle");
-        graphics_params.m_Fullscreen = false;
-        graphics_params.m_PrintDeviceInfo = false;
+        dmGraphics::WindowParams window_params;
+        window_params.m_Width = dmConfigFile::GetInt(config, "display.width", 960);
+        window_params.m_Height = dmConfigFile::GetInt(config, "display.height", 540);
+        window_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
+        window_params.m_Title = dmConfigFile::GetString(config, "project.title", "TestTitle");
+        window_params.m_Fullscreen = false;
+        window_params.m_PrintDeviceInfo = false;
 
-        device = dmGraphics::NewDevice(&argc, argv, &graphics_params);
+        dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
+        if (window_result != dmGraphics::WINDOW_RESULT_OK)
+        {
+            dmLogFatal("Could not open window (%d).", window_result);
+            return false;
+        }
 
         dmGameObject::Initialize();
 
@@ -192,11 +197,9 @@ namespace dmEngine
         render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
         render_params.m_FragmentProgramData = ::DEBUG_FPC;
         render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
-        render_params.m_DisplayWidth = graphics_params.m_DisplayWidth;
-        render_params.m_DisplayHeight = graphics_params.m_DisplayHeight;
         render_params.m_MaxCharacters = 2048 * 4;
         render_params.m_CommandBufferSize = 1024;
-        engine->m_RenderContext = dmRender::NewRenderContext(render_params);
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         engine->m_EmitterContext.m_RenderContext = engine->m_RenderContext;
         engine->m_EmitterContext.m_MaxEmitterCount = dmConfigFile::GetInt(config, dmParticle::MAX_EMITTER_COUNT_KEY, 0);
@@ -356,7 +359,7 @@ bail:
                 dmHID::KeyboardPacket keybdata;
                 dmHID::GetKeyboardPacket(&keybdata);
 
-                if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowParam(dmGraphics::WINDOW_PARAM_OPENED))
+                if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                 {
                     engine->m_Alive = false;
                     break;
@@ -412,9 +415,8 @@ bail:
                 }
                 else
                 {
-                    dmGraphics::HContext context = dmGraphics::GetContext();
-                    dmGraphics::SetViewport(context, dmRender::GetDisplayWidth(engine->m_RenderContext), dmRender::GetDisplayHeight(engine->m_RenderContext));
-                    dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH, 0, 0, 0, 0, 1.0, 0);
+                    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                    dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
 
@@ -428,14 +430,14 @@ bail:
             {
                 dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SmallFont);
                 dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmRender::GetDisplayWidth(engine->m_RenderContext), dmRender::GetDisplayHeight(engine->m_RenderContext), 0.0f, 1.0f, -1.0f));
+                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 0.0f, 1.0f, -1.0f));
                 dmRender::Draw(engine->m_RenderContext, 0x0);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
             dmProfile::Pause(false);
             dmProfile::Release(profile);
 
-            dmGraphics::Flip();
+            dmGraphics::Flip(engine->m_GraphicsContext);
 
             uint64_t new_time_stamp, delta;
             new_time_stamp = dmTime::GetTime();

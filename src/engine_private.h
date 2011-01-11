@@ -52,7 +52,7 @@ namespace dmEngine
         float                                       m_TimeStepFactor;
         dmEngineDDF::TimeStepMode                   m_TimeStepMode;
 
-        dmGraphics::HDevice                         m_GraphicsDevice;
+        dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::EmitterContext                m_EmitterContext;
