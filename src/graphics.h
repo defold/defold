@@ -225,6 +225,7 @@ namespace dmGraphics
 
         /// Window resize callback
         WindowResizeCallback    m_ResizeCallback;
+        /// User data supplied to the callback function
         void*                   m_ResizeCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
