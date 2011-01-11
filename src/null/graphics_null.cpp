@@ -78,6 +78,9 @@ namespace dmGraphics
         context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
         context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
         context->m_MainFrameBuffer.m_StencilBuffer = new char[buffer_size];
+        context->m_MainFrameBuffer.m_ColorBufferSize = buffer_size;
+        context->m_MainFrameBuffer.m_DepthBufferSize = buffer_size;
+        context->m_MainFrameBuffer.m_StencilBufferSize = buffer_size;
         context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
         context->m_VertexProgram = 0x0;
         context->m_FragmentProgram = 0x0;
@@ -135,8 +138,11 @@ namespace dmGraphics
             context->m_WindowHeight = height;
             uint32_t buffer_size = 4 * width * height;
             main.m_ColorBuffer = new char[buffer_size];
+            main.m_ColorBufferSize = buffer_size;
             main.m_DepthBuffer = new char[buffer_size];
+            main.m_DepthBufferSize = buffer_size;
             main.m_StencilBuffer = new char[buffer_size];
+            main.m_StencilBufferSize = buffer_size;
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context, width, height);
         }
@@ -145,24 +151,26 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
-        uint32_t buffer_size = context->m_WindowWidth * context->m_WindowHeight;
         if (flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
         {
             uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
             uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_ColorBuffer;
-            for (uint32_t i = 0; i < buffer_size; ++i)
+            uint32_t count = context->m_CurrentFrameBuffer->m_ColorBufferSize / sizeof(uint32_t);
+            for (uint32_t i = 0; i < count; ++i)
                 buffer[i] = colour;
         }
         if (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT)
         {
             float* buffer = (float*)context->m_CurrentFrameBuffer->m_DepthBuffer;
-            for (uint32_t i = 0; i < buffer_size; ++i)
+            uint32_t count = context->m_CurrentFrameBuffer->m_DepthBufferSize / sizeof(uint32_t);
+            for (uint32_t i = 0; i < count; ++i)
                 buffer[i] = depth;
         }
         if (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
             uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_StencilBuffer;
-            for (uint32_t i = 0; i < buffer_size; ++i)
+            uint32_t count = context->m_CurrentFrameBuffer->m_StencilBufferSize / sizeof(uint32_t);
+            for (uint32_t i = 0; i < count; ++i)
                 buffer[i] = stencil;
         }
     }
@@ -528,13 +536,19 @@ namespace dmGraphics
         memset(rt, 0, sizeof(RenderTarget));
 
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
         BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             if (buffer_type_flags & buffer_types[i])
             {
-                *(buffers[i]) = new char[4 * params[i].m_Width * params[i].m_Height];
+                uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
+                *(buffers[i]) = new char[buffer_size];
+                *(buffer_sizes[i]) = buffer_size;
                 rt->m_BufferTextures[i] = NewTexture(context, params[i]);
+                rt->m_BufferTextureParams[i] = params[i];
+                rt->m_BufferTextureParams[i].m_Data = 0x0;
+                rt->m_BufferTextureParams[i].m_DataSize = 0;
             }
         }
 
@@ -569,6 +583,25 @@ namespace dmGraphics
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
         return rendertarget->m_BufferTextures[buffer_type];
+    }
+
+    void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
+    {
+        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            if (rt->m_BufferTextures[i])
+            {
+                delete [] (char*)*(buffers[i]);
+                uint32_t buffer_size = sizeof(uint32_t) * width * height;
+                *(buffers[i]) = new char[buffer_size];
+                *(buffer_sizes[i]) = buffer_size;
+                rt->m_BufferTextureParams[i].m_Width = width;
+                rt->m_BufferTextureParams[i].m_Height = height;
+                SetTexture(rt->m_BufferTextures[i], rt->m_BufferTextureParams[i]);
+            }
+        }
     }
 
     HTexture NewTexture(HContext context, const TextureParams& params)

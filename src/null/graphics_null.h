@@ -25,9 +25,12 @@ namespace dmGraphics
 
     struct FrameBuffer
     {
-        void*   m_ColorBuffer;
-        void*   m_DepthBuffer;
-        void*   m_StencilBuffer;
+        void*       m_ColorBuffer;
+        void*       m_DepthBuffer;
+        void*       m_StencilBuffer;
+        uint32_t    m_ColorBufferSize;
+        uint32_t    m_DepthBufferSize;
+        uint32_t    m_StencilBufferSize;
     };
 
     struct VertexDeclaration
@@ -51,8 +54,9 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        FrameBuffer m_FrameBuffer;
-        HTexture    m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
+        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
+        HTexture        m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
+        FrameBuffer     m_FrameBuffer;
     };
 
     struct Context

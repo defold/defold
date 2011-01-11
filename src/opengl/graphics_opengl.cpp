@@ -752,6 +752,14 @@ namespace dmGraphics
         glBindFramebuffer(GL_FRAMEBUFFER, rt->m_Id);
         CHECK_GL_ERROR
 
+        memcpy(rt->m_BufferTextureParams, params, sizeof(TextureParams) * MAX_BUFFER_TYPE_COUNT);
+        // don't save the data
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            rt->m_BufferTextureParams[i].m_Data = 0x0;
+            rt->m_BufferTextureParams[i].m_DataSize = 0;
+        }
+
         GLenum buffer_attachments[MAX_BUFFER_TYPE_COUNT] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
@@ -806,6 +814,20 @@ namespace dmGraphics
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
         return render_target->m_BufferTextures[GetBufferTypeIndex(buffer_type)];
+    }
+
+    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    {
+        assert(render_target);
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            if (render_target->m_BufferTextures[i])
+            {
+                render_target->m_BufferTextureParams[i].m_Width = width;
+                render_target->m_BufferTextureParams[i].m_Height = height;
+                SetTexture(render_target->m_BufferTextures[i], render_target->m_BufferTextureParams[i]);
+            }
+        }
     }
 
     HTexture NewTexture(HContext context, const TextureParams& params)

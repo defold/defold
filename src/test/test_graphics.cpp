@@ -351,9 +351,24 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     dmGraphics::EnableRenderTarget(m_Context, target);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
-    uint32_t data[WIDTH * HEIGHT];
-    memset(data, 1, sizeof(data));
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
+
+    uint32_t width = WIDTH;
+    uint32_t height = HEIGHT;
+    uint32_t data_size = sizeof(uint32_t) * width * height;
+    char* data = new char[data_size];
+    memset(data, 1, data_size);
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    delete [] data;
+    width *= 2;
+    height *= 2;
+    data_size = sizeof(uint32_t) * width * height;
+    data = new char[data_size];
+    memset(data, 1, data_size);
+    dmGraphics::SetRenderTargetSize(target, width, height);
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    delete [] data;
+
     dmGraphics::DisableRenderTarget(m_Context, target);
     dmGraphics::DeleteRenderTarget(target);
 }

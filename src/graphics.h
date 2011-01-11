@@ -368,11 +368,12 @@ namespace dmGraphics
     void SetPolygonOffset(HContext context, float factor, float units);
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
-    void DeleteRenderTarget(HRenderTarget renderbuffer);
-    void EnableRenderTarget(HContext context, HRenderTarget rendertarget);
-    void DisableRenderTarget(HContext context, HRenderTarget rendertarget);
+    void DeleteRenderTarget(HRenderTarget render_target);
+    void EnableRenderTarget(HContext context, HRenderTarget render_target);
+    void DisableRenderTarget(HContext context, HRenderTarget render_target);
+    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
+    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type);
 
     HTexture NewTexture(HContext context, const TextureParams& params);
     void DeleteTexture(HTexture t);
