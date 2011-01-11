@@ -95,6 +95,24 @@ public class ProjectResourceTest {
         assertEquals(c.getName(), "Project 1");
     }
 
+    @Test
+    public void simpleBenchMark() throws Exception {
+        // Warm up the jit
+        for (int i = 0; i < 2000; ++i) {
+            ProjectConfiguration c = project_client.getProjectConfiguration();
+            assertEquals(c.getName(), "Project 1");
+        }
+        long start = System.currentTimeMillis();
+        final int iterations = 1000;
+        for (int i = 0; i < iterations; ++i) {
+            ProjectConfiguration c = project_client.getProjectConfiguration();
+        }
+        long end = System.currentTimeMillis();
+
+        double elapsed = (end-start);
+        System.out.format("simpleBenchMark: %f ms / request\n", elapsed / (iterations));
+    }
+
     @Test(expected = RepositoryException.class)
     public void createBranchInvalidProject() throws Exception {
         URI uri = UriBuilder.fromUri("http://localhost/invalid_project").port(port).build();
