@@ -402,7 +402,7 @@ namespace dmRender
         return Draw(context, &context->m_DebugRenderer.m_2dPredicate);
     }
 
-    void SetVertexConstant(HRenderContext context, uint32_t reg, const Vector4& value)
+    void EnableVertexConstant(HRenderContext context, uint32_t reg, const Vector4& value)
     {
         assert(context);
         if (reg < MAX_CONSTANT_COUNT)
@@ -416,7 +416,7 @@ namespace dmRender
         }
     }
 
-    void ResetVertexConstant(HRenderContext context, uint32_t reg)
+    void DisableVertexConstant(HRenderContext context, uint32_t reg)
     {
         assert(context);
         if (reg < MAX_CONSTANT_COUNT)
@@ -425,7 +425,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
     }
 
-    void SetFragmentConstant(HRenderContext context, uint32_t reg, const Vector4& value)
+    void EnableFragmentConstant(HRenderContext context, uint32_t reg, const Vector4& value)
     {
         assert(context);
         if (reg < MAX_CONSTANT_COUNT)
@@ -439,7 +439,7 @@ namespace dmRender
         }
     }
 
-    void ResetFragmentConstant(HRenderContext context, uint32_t reg)
+    void DisableFragmentConstant(HRenderContext context, uint32_t reg)
     {
         assert(context);
         if (reg < MAX_CONSTANT_COUNT)
@@ -448,7 +448,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as fragment constant.", reg);
     }
 
-    void SetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vector4& value)
+    void EnableRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vector4& value)
     {
         assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
@@ -462,7 +462,7 @@ namespace dmRender
         }
     }
 
-    void ResetRenderObjectVertexConstant(RenderObject* ro, uint32_t reg)
+    void DisableRenderObjectVertexConstant(RenderObject* ro, uint32_t reg)
     {
         assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
@@ -471,7 +471,7 @@ namespace dmRender
             dmLogWarning("Illegal register (%d) supplied as vertex constant.", reg);
     }
 
-    void SetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vector4& value)
+    void EnableRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vector4& value)
     {
         assert(ro);
         if (reg < MAX_CONSTANT_COUNT)
@@ -485,7 +485,7 @@ namespace dmRender
         }
     }
 
-    void ResetRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg)
+    void DisableRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg)
     {
         assert(ro);
         if (reg < MAX_CONSTANT_COUNT)

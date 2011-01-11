@@ -161,9 +161,9 @@ namespace dmRender
             for (int j = 0; j < 3; ++j)
             {
                 if (i == j)
-                    SetRenderObjectFragmentConstant(ro, j, colors[j]);
+                    EnableRenderObjectFragmentConstant(ro, j, colors[j]);
                 else
-                    SetRenderObjectFragmentConstant(ro, j, clear_color);
+                    EnableRenderObjectFragmentConstant(ro, j, clear_color);
             }
             for (int j = 0; j < n; ++j)
             {
