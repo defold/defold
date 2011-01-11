@@ -30,8 +30,8 @@ def build(bld):
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
-    bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/opengl_defines.h')
-    bld.install_files('${PREFIX}/include/graphics/null', 'null/null_defines.h')
+    bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
+    bld.install_files('${PREFIX}/include/graphics/null', 'null/graphics_null_defines.h')
 
     bld.install_files('${PREFIX}/include/graphics/glfw', 'glfw/include/GL/glfw.h')
 

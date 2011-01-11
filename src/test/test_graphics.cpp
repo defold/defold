@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 
 #include "graphics.h"
-#include "null/null.h"
+#include "null/graphics_null.h"
 
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u

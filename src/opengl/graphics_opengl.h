@@ -2,8 +2,6 @@
 #define __GRAPHICS_DEVICE_OPENGL__
 
 #include <vectormath/cpp/vectormath_aos.h>
-#include "opengl_defines.h"
-#include <sdl/SDL.h>
 
 namespace dmGraphics
 {

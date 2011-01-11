@@ -5,7 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "../graphics.h"
-#include "opengl.h"
+#include "graphics_opengl.h"
 
 #include "../glfw/include/GL/glfw.h"
 

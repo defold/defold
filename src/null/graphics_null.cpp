@@ -5,7 +5,7 @@
 #include <dlib/log.h>
 
 #include "../graphics.h"
-#include "null.h"
+#include "graphics_null.h"
 
 using namespace Vectormath::Aos;
 

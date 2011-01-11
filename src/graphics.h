@@ -4,12 +4,13 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+//TODO: How to solve this?
 #if defined(DM_OPENGL)
-#include "opengl/opengl_defines.h"
+#include "opengl/graphics_opengl_defines.h"
 #elif defined(DM_NULL)
-#include "null/null_defines.h"
+#include "null/graphics_null_defines.h"
 #else
-#include "opengl/opengl_defines.h"
+#include "opengl/graphics_opengl_defines.h"
 #endif
 
 namespace dmGraphics
