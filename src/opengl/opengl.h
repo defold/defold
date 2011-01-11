@@ -9,8 +9,12 @@ namespace dmGraphics
 {
     struct Context
     {
-        uint32_t    m_WindowWidth;
-        uint32_t    m_WindowHeight;
+        Context();
+
+        WindowResizeCallback    m_WindowResizeCallback;
+        uint32_t                m_WindowWidth;
+        uint32_t                m_WindowHeight;
+        uint32_t                m_WindowOpened : 1;
     };
 
     struct Texture

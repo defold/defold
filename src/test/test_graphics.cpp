@@ -1,14 +1,19 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 
+#include <dlib/log.h>
+
 #include "graphics.h"
 #include "null/null.h"
 
 #define APP_TITLE "GraphicsTest"
-#define WIDTH 8
-#define HEIGHT 4
+#define WIDTH 8u
+#define HEIGHT 4u
 
 using namespace Vectormath::Aos;
+
+static uint32_t g_Width = 0;
+static uint32_t g_Height = 0;
 
 class dmGraphicsTest : public ::testing::Test
 {
@@ -16,10 +21,18 @@ protected:
     dmGraphics::HContext m_Context;
     dmGraphics::WindowResult m_WindowResult;
 
+    static void OnWindowResize(dmGraphics::HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        g_Width = width;
+        g_Height = height;
+    }
+
     virtual void SetUp()
     {
         m_Context = dmGraphics::NewContext();
         dmGraphics::WindowParams params;
+        params.m_ResizeCallback = OnWindowResize;
         params.m_Title = APP_TITLE;
         params.m_Width = WIDTH;
         params.m_Height = HEIGHT;
@@ -69,6 +82,40 @@ TEST_F(dmGraphicsTest, CloseWindow)
     dmGraphics::CloseWindow(m_Context);
 }
 
+TEST_F(dmGraphicsTest, CloseOpenWindow)
+{
+    dmGraphics::CloseWindow(m_Context);
+    dmGraphics::WindowParams params;
+    params.m_Title = APP_TITLE;
+    params.m_Width = WIDTH;
+    params.m_Height = HEIGHT;
+    params.m_Fullscreen = false;
+    params.m_PrintDeviceInfo = true;
+    dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
+    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+}
+
+TEST_F(dmGraphicsTest, TestWindowState)
+{
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    dmGraphics::CloseWindow(m_Context);
+    ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+}
+
+TEST_F(dmGraphicsTest, TestWindowSize)
+{
+    ASSERT_EQ(m_Context->m_WindowWidth, dmGraphics::GetWindowWidth(m_Context));
+    ASSERT_EQ(m_Context->m_WindowHeight, dmGraphics::GetWindowHeight(m_Context));
+    uint32_t width = WIDTH * 2;
+    uint32_t height = HEIGHT * 2;
+    dmGraphics::SetWindowSize(m_Context, width, height);
+    ASSERT_EQ(width, dmGraphics::GetWindowWidth(m_Context));
+    ASSERT_EQ(height, dmGraphics::GetWindowHeight(m_Context));
+    ASSERT_EQ(width, g_Width);
+    ASSERT_EQ(height, g_Height);
+}
+
 TEST_F(dmGraphicsTest, Flip)
 {
     dmGraphics::Flip(m_Context);
@@ -78,9 +125,22 @@ TEST_F(dmGraphicsTest, Clear)
 {
     const uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
-    uint32_t data[WIDTH * HEIGHT];
-    memset(data, 1, sizeof(data));
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, sizeof(data)));
+    uint32_t width = WIDTH;
+    uint32_t height = HEIGHT;
+    uint32_t data_size = sizeof(uint32_t) * width * height;
+    uint32_t* data = new uint32_t[width * height];
+    memset(data, 1, data_size);
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    delete [] data;
+    width *= 2;
+    height *= 2;
+    data = new uint32_t[width * height];
+    data_size = sizeof(uint32_t) * width * height;
+    memset(data, 1, data_size);
+    dmGraphics::SetWindowSize(m_Context, width, height);
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    delete [] data;
 }
 
 TEST_F(dmGraphicsTest, VertexBuffer)
@@ -320,11 +380,6 @@ TEST_F(dmGraphicsTest, TestMasks)
     ASSERT_EQ(0u, m_Context->m_StencilMask);
     dmGraphics::SetStencilMask(m_Context, ~0u);
     ASSERT_EQ(~0u, m_Context->m_StencilMask);
-}
-
-TEST_F(dmGraphicsTest, TestWindowParams)
-{
-    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
 
 int main(int argc, char **argv)

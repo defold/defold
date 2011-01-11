@@ -2,6 +2,8 @@
 #include <assert.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dlib/log.h>
+
 #include "../graphics.h"
 #include "null.h"
 
@@ -33,6 +35,11 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
+    Context::Context()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     HContext NewContext()
     {
         if (!g_ContextCreated)
@@ -63,9 +70,7 @@ namespace dmGraphics
         assert(params);
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
-        memset(context->m_VertexStreams, 0, sizeof(context->m_VertexStreams));
-        memset(context->m_VertexProgramRegisters, 0, sizeof(context->m_VertexProgramRegisters));
-        memset(context->m_FragmentProgramRegisters, 0, sizeof(context->m_FragmentProgramRegisters));
+        context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowWidth = params->m_Width;
         context->m_WindowHeight = params->m_Height;
         context->m_WindowOpened = 1;
@@ -76,6 +81,10 @@ namespace dmGraphics
         context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
         context->m_VertexProgram = 0x0;
         context->m_FragmentProgram = 0x0;
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: null");
+        }
         return WINDOW_RESULT_OK;
     }
 
@@ -89,6 +98,47 @@ namespace dmGraphics
             delete [] (char*)main.m_DepthBuffer;
             delete [] (char*)main.m_StencilBuffer;
             context->m_WindowOpened = 0;
+        }
+    }
+
+    uint32_t GetWindowState(HContext context, WindowState state)
+    {
+        switch (state)
+        {
+            case WINDOW_STATE_OPENED:
+                return context->m_WindowOpened;
+            default:
+                return 0;
+        }
+    }
+
+    uint32_t GetWindowWidth(HContext context)
+    {
+        return context->m_WindowWidth;
+    }
+
+    uint32_t GetWindowHeight(HContext context)
+    {
+        return context->m_WindowHeight;
+    }
+
+    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            FrameBuffer& main = context->m_MainFrameBuffer;
+            delete [] (char*)main.m_ColorBuffer;
+            delete [] (char*)main.m_DepthBuffer;
+            delete [] (char*)main.m_StencilBuffer;
+            context->m_WindowWidth = width;
+            context->m_WindowHeight = height;
+            uint32_t buffer_size = 4 * width * height;
+            main.m_ColorBuffer = new char[buffer_size];
+            main.m_DepthBuffer = new char[buffer_size];
+            main.m_StencilBuffer = new char[buffer_size];
+            if (context->m_WindowResizeCallback)
+                context->m_WindowResizeCallback(context, width, height);
         }
     }
 
@@ -608,26 +658,5 @@ namespace dmGraphics
     void SetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
-    }
-
-    uint32_t GetWindowState(HContext context, WindowState state)
-    {
-        switch (state)
-        {
-            case WINDOW_STATE_OPENED:
-                return context->m_WindowOpened;
-            default:
-                return 0;
-        }
-    }
-
-    uint32_t GetWindowWidth(HContext context)
-    {
-        return context->m_WindowWidth;
-    }
-
-    uint32_t GetWindowHeight(HContext context)
-    {
-        return context->m_WindowHeight;
     }
 }

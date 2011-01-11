@@ -130,47 +130,50 @@ namespace dmGraphics
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
-    bool g_ContextCreated = false;
+    Context* g_Context = 0x0;
+
+    Context::Context()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     HContext NewContext()
     {
-        if (!g_ContextCreated)
+        if (g_Context == 0x0 && glfwInit() == GL_TRUE)
         {
-            g_ContextCreated = true;
-            if (glfwInit() == GL_TRUE)
-            {
-    #if defined (_WIN32)
-                glGenProgramsARB = (PFNGLGENPROGRAMARBPROC) wglGetProcAddress("glGenProgramsARB");
-                glBindProgramARB = (PFNGLBINDPROGRAMARBPROC) wglGetProcAddress("glBindProgramARB");
-                glDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) wglGetProcAddress("glDeleteProgramsARB");
-                glProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) wglGetProcAddress("glProgramStringARB");
-                glProgramLocalParameter4fARB = (PFNGLVERTEXPARAMFLOAT4ARBPROC) wglGetProcAddress("glProgramLocalParameter4fARB");
-                glEnableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glEnableVertexAttribArray");
-                glDisableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glDisableVertexAttribArray");
-                glVertexAttribPointer = (PFNGLVERTEXATTRIBPTRPROC) wglGetProcAddress("glVertexAttribPointer");
-                glCompressedTexImage2D = (PFNGLTEXPARAM2DPROC) wglGetProcAddress("glCompressedTexImage2D");
-                glGenBuffersARB = (PFNGLGENBUFFERSPROC) wglGetProcAddress("glGenBuffersARB");
-                glDeleteBuffersARB = (PFNGLDELETEBUFFERSPROC) wglGetProcAddress("glDeleteBuffersARB");
-                glBindBufferARB = (PFNGLBINDBUFFERPROC) wglGetProcAddress("glBindBufferARB");
-                glBufferDataARB = (PFNGLBUFFERDATAPROC) wglGetProcAddress("glBufferDataARB");
-                glDrawRangeElements = (PFNGLDRAWRANGEELEMENTSPROC) wglGetProcAddress("glDrawRangeElements");
-                glGenRenderbuffers = (PFNGLGENRENDERBUFFERSPROC) wglGetProcAddress("glGenRenderbuffers");
-                glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC) wglGetProcAddress("glBindRenderbuffer");
-                glRenderbufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC) wglGetProcAddress("glRenderbufferStorage");
-                glFramebufferTexture2D = (PFNGLRENDERBUFFERTEXTURE2DPROC) wglGetProcAddress("glFramebufferTexture2D");
-                glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC) wglGetProcAddress("glFramebufferRenderbuffer");
-                glGenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC) wglGetProcAddress("glGenFramebuffers");
-                glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC) wglGetProcAddress("glBindFramebuffer");
-                glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC) wglGetProcAddress("glDeleteFramebuffers");
-                glDeleteRenderbuffers = (PFNGLDELETERENDERBUFFERSPROC) wglGetProcAddress("glDeleteRenderbuffers");
-                glBufferSubDataARB = (PFNGLBUFFERSUBDATAPROC) wglGetProcAddress("glBufferSubDataARB");
-                glMapBufferARB = (PFNGLMAPBUFFERPROC) wglGetProcAddress("glMapBufferARB");
-                glUnmapBufferARB = (PFNGLUNMAPBUFFERPROC) wglGetProcAddress("glUnmapBufferARB");
-                glActiveTexture = (PFNGLACTIVETEXTUREPROC) wglGetProcAddress("glActiveTexture");
-                glCheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC) wglGetProcAddress("glCheckFrameBufferStatus");
-    #endif
+#if defined (_WIN32)
+            glGenProgramsARB = (PFNGLGENPROGRAMARBPROC) wglGetProcAddress("glGenProgramsARB");
+            glBindProgramARB = (PFNGLBINDPROGRAMARBPROC) wglGetProcAddress("glBindProgramARB");
+            glDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) wglGetProcAddress("glDeleteProgramsARB");
+            glProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) wglGetProcAddress("glProgramStringARB");
+            glProgramLocalParameter4fARB = (PFNGLVERTEXPARAMFLOAT4ARBPROC) wglGetProcAddress("glProgramLocalParameter4fARB");
+            glEnableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glEnableVertexAttribArray");
+            glDisableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glDisableVertexAttribArray");
+            glVertexAttribPointer = (PFNGLVERTEXATTRIBPTRPROC) wglGetProcAddress("glVertexAttribPointer");
+            glCompressedTexImage2D = (PFNGLTEXPARAM2DPROC) wglGetProcAddress("glCompressedTexImage2D");
+            glGenBuffersARB = (PFNGLGENBUFFERSPROC) wglGetProcAddress("glGenBuffersARB");
+            glDeleteBuffersARB = (PFNGLDELETEBUFFERSPROC) wglGetProcAddress("glDeleteBuffersARB");
+            glBindBufferARB = (PFNGLBINDBUFFERPROC) wglGetProcAddress("glBindBufferARB");
+            glBufferDataARB = (PFNGLBUFFERDATAPROC) wglGetProcAddress("glBufferDataARB");
+            glDrawRangeElements = (PFNGLDRAWRANGEELEMENTSPROC) wglGetProcAddress("glDrawRangeElements");
+            glGenRenderbuffers = (PFNGLGENRENDERBUFFERSPROC) wglGetProcAddress("glGenRenderbuffers");
+            glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC) wglGetProcAddress("glBindRenderbuffer");
+            glRenderbufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC) wglGetProcAddress("glRenderbufferStorage");
+            glFramebufferTexture2D = (PFNGLRENDERBUFFERTEXTURE2DPROC) wglGetProcAddress("glFramebufferTexture2D");
+            glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC) wglGetProcAddress("glFramebufferRenderbuffer");
+            glGenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC) wglGetProcAddress("glGenFramebuffers");
+            glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC) wglGetProcAddress("glBindFramebuffer");
+            glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC) wglGetProcAddress("glDeleteFramebuffers");
+            glDeleteRenderbuffers = (PFNGLDELETERENDERBUFFERSPROC) wglGetProcAddress("glDeleteRenderbuffers");
+            glBufferSubDataARB = (PFNGLBUFFERSUBDATAPROC) wglGetProcAddress("glBufferSubDataARB");
+            glMapBufferARB = (PFNGLMAPBUFFERPROC) wglGetProcAddress("glMapBufferARB");
+            glUnmapBufferARB = (PFNGLUNMAPBUFFERPROC) wglGetProcAddress("glUnmapBufferARB");
+            glActiveTexture = (PFNGLACTIVETEXTUREPROC) wglGetProcAddress("glActiveTexture");
+            glCheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC) wglGetProcAddress("glCheckFrameBufferStatus");
+#endif
 
-                return new Context();
-            }
+            g_Context = new Context();
+            return g_Context;
         }
         return 0x0;
     }
@@ -181,13 +184,19 @@ namespace dmGraphics
         glfwTerminate();
     }
 
-    bool g_WindowOpened = false;
+    void OnWindowResize(int width, int height)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowResizeCallback != 0x0)
+            g_Context->m_WindowResizeCallback(g_Context, (uint32_t)width, (uint32_t)height);
+    }
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
     {
+        assert(context);
         assert(params);
 
-        if (g_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
+        if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
 
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, GLFW_WINDOW))
@@ -197,18 +206,22 @@ namespace dmGraphics
         }
 
         glfwSetWindowTitle(params->m_Title);
+        glfwSetWindowSizeCallback(OnWindowResize);
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
+        context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowWidth = params->m_Width;
         context->m_WindowHeight = params->m_Height;
+        context->m_WindowOpened = 1;
 
         if (params->m_PrintDeviceInfo)
         {
-            printf("GL_RENDERER   = %s\n", (char *) glGetString(GL_RENDERER));
-            printf("GL_VERSION    = %s\n", (char *) glGetString(GL_VERSION));
-            printf("GL_VENDOR     = %s\n", (char *) glGetString(GL_VENDOR));
-            printf("GL_EXTENSIONS = %s\n", (char *) glGetString(GL_EXTENSIONS));
+            dmLogInfo("Device: OpenGL");
+            dmLogInfo("Renderer: %s\n", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s\n", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s\n", (char *) glGetString(GL_VENDOR));
+            dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
         return WINDOW_RESULT_OK;
@@ -216,8 +229,50 @@ namespace dmGraphics
 
     void CloseWindow(HContext context)
     {
-        glfwCloseWindow();
-        g_WindowOpened = false;
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwCloseWindow();
+            context->m_WindowResizeCallback = 0x0;
+            context->m_WindowWidth = 0;
+            context->m_WindowHeight = 0;
+            context->m_WindowOpened = false;
+        }
+    }
+
+    uint32_t GetWindowState(HContext context, WindowState state)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return glfwGetWindowParam(state);
+        else
+            return 0;
+    }
+
+    uint32_t GetWindowWidth(HContext context)
+    {
+        assert(context);
+        return context->m_WindowWidth;
+    }
+
+    uint32_t GetWindowHeight(HContext context)
+    {
+        assert(context);
+        return context->m_WindowHeight;
+    }
+
+    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwSetWindowSize((int)width, (int)height);
+            // The callback is not called from glfw when the size is set manually
+            if (context->m_WindowResizeCallback)
+            {
+                context->m_WindowResizeCallback(context, width, height);
+            }
+        }
     }
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -940,21 +995,6 @@ namespace dmGraphics
         assert(context);
         glPolygonOffset(factor, units);
         CHECK_GL_ERROR
-    }
-
-    uint32_t GetWindowState(WindowState state)
-    {
-        return glfwGetWindowParam(state);
-    }
-
-    uint32_t GetWindowWidth(HContext context)
-    {
-        return context->m_WindowWidth;
-    }
-
-    uint32_t GetWindowHeight(HContext context)
-    {
-        return context->m_WindowHeight;
     }
 
     BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};

@@ -57,6 +57,8 @@ namespace dmGraphics
 
     struct Context
     {
+        Context();
+
         VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         Vectormath::Aos::Vector4    m_VertexProgramRegisters[MAX_REGISTER_COUNT];
         Vectormath::Aos::Vector4    m_FragmentProgramRegisters[MAX_REGISTER_COUNT];
@@ -65,6 +67,7 @@ namespace dmGraphics
         FrameBuffer*                m_CurrentFrameBuffer;
         void*                       m_VertexProgram;
         void*                       m_FragmentProgram;
+        WindowResizeCallback        m_WindowResizeCallback;
         uint32_t                    m_WindowWidth;
         uint32_t                    m_WindowHeight;
         uint32_t                    m_StencilMask;

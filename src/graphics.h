@@ -23,6 +23,8 @@ namespace dmGraphics
     typedef struct VertexDeclaration* HVertexDeclaration;
     typedef struct RenderTarget*      HRenderTarget;
 
+    typedef void (*WindowResizeCallback)(HContext context, uint32_t width, uint32_t height);
+
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
@@ -227,18 +229,20 @@ namespace dmGraphics
     {
         WindowParams();
 
+        /// Window resize callback
+        WindowResizeCallback    m_ResizeCallback;
         /// Window width, 640 by default
-        uint32_t        m_Width;
+        uint32_t                m_Width;
         /// Window height, 480 by default
-        uint32_t        m_Height;
+        uint32_t                m_Height;
         /// Number of samples (for multi-sampling), 1 by default
-        uint32_t        m_Samples;
+        uint32_t                m_Samples;
         /// Window title, "Dynamo App" by default
-        const char*     m_Title;
+        const char*             m_Title;
         /// If the window should cover the full screen or not, false by default
-        bool            m_Fullscreen;
+        bool                    m_Fullscreen;
         /// Log info about the graphics device being used, false by default
-        bool            m_PrintDeviceInfo;
+        bool                    m_PrintDeviceInfo;
     };
 
     /**
@@ -267,7 +271,40 @@ namespace dmGraphics
     void CloseWindow(HContext context);
 
     /**
-     * Flip screen buffers
+     * Retrieve current state of the opened window, if any.
+     * @param context Graphics context handle
+     * @param state Aspect of the window state to query for
+     * @return State of the supplied aspect. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetWindowState(HContext context, WindowState state);
+
+    /**
+     * Return the width of the opened window, if any.
+     * @param context Graphics context handle
+     * @return Width of the window. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetWindowWidth(HContext context);
+
+    /**
+     * Return the height of the opened window, if any.
+     * @param context Graphics context handle
+     * @return Height of the window. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetWindowHeight(HContext context);
+
+    /**
+     * Set the size of the opened window, if any. If no window is opened, this function does nothing. If successfull,
+     * the WindowResizeCallback will be called, if any was supplied when the window was opened.
+     * @param context Graphics context handle
+     * @param width New width of the window
+     * @param height New height of the window
+     */
+    void SetWindowSize(HContext context, uint32_t width, uint32_t height);
+
+    /**
+     * Flip screen buffers.
+     *
+     * @param context Graphics context handle
      */
     void Flip(HContext context);
 
@@ -348,11 +385,6 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params);
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit);
-
-    uint32_t GetWindowState(HContext context, WindowState state);
-
-    uint32_t GetWindowWidth(HContext context);
-    uint32_t GetWindowHeight(HContext context);
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {

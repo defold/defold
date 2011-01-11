@@ -3,7 +3,8 @@
 namespace dmGraphics
 {
     WindowParams::WindowParams()
-    : m_Width(640)
+    : m_ResizeCallback(0x0)
+    , m_Width(640)
     , m_Height(480)
     , m_Samples(1)
     , m_Title("Dynamo App")
