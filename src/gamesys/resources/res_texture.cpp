@@ -1,7 +1,7 @@
 #include "res_texture.h"
 
 #include <graphics/graphics_ddf.h>
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
@@ -43,6 +43,7 @@ namespace dmGameSystem
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
     {
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::TextureImage* image;
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&image));
         if ( e != dmDDF::RESULT_OK )
@@ -54,7 +55,7 @@ namespace dmGameSystem
         params.m_Format = TextureImageToTextureFormat(image);
         params.m_Width = image->m_Width;
         params.m_Height = image->m_Height;
-        dmGraphics::HTexture texture = dmGraphics::NewTexture(params);
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(graphics_context, params);
 
         for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
         {

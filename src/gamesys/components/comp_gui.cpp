@@ -1,14 +1,18 @@
 #include "comp_gui.h"
 
 #include <string.h>
+
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
+
 #include <gui/gui.h>
-#include <graphics/graphics_device.h>
+
+#include <graphics/graphics.h>
+
 #include <render/material.h>
 #include <render/font_renderer.h>
 
@@ -56,6 +60,7 @@ namespace dmGameSystem
     {
         char socket_name[32];
 
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         GuiWorld* gui_world = new GuiWorld();
         DM_SNPRINTF(socket_name, sizeof(socket_name), "dmgui_from_%X", (unsigned int) gui_world);
         dmMessage::Result mr = dmMessage::NewSocket(socket_name, &gui_world->m_Socket);
@@ -73,8 +78,8 @@ namespace dmGameSystem
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
-        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(GUI_VPC, GUI_VPC_SIZE);
-        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(GUI_FPC, GUI_FPC_SIZE);
+        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), GUI_VPC, GUI_VPC_SIZE);
+        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), GUI_FPC, GUI_FPC_SIZE);
 
         gui_world->m_Material = dmRender::NewMaterial();
         SetMaterialVertexProgramConstantType(gui_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
@@ -91,7 +96,7 @@ namespace dmGameSystem
                 {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
         };
 
-        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         float ext = 0.5f;
         float quad[] = { -ext,-ext, 0, 0, 0,
@@ -102,7 +107,7 @@ namespace dmGameSystem
                           ext, -ext, 0, 1, 1,
                           ext, ext, 0, 1, 0 };
 
-        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(sizeof(float) * 5 * 6, (void*) quad, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), sizeof(float) * 5 * 6, (void*) quad, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -115,7 +120,7 @@ namespace dmGameSystem
         params.m_DataSize = sizeof(white_texture);
         params.m_Width = 2;
         params.m_Height = 2;
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture(params);
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(render_context), params);
 
         *world = gui_world;
         return dmGameObject::CREATE_RESULT_OK;

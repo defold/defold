@@ -25,16 +25,19 @@ protected:
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
 
-        assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, 0));
-
-        memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-        memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
-
+        m_GraphicsContext = dmGraphics::NewContext();
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 10;
         render_params.m_MaxInstances = 1000;
         render_params.m_MaxRenderTargets = 10;
-        m_RenderContext = dmRender::NewRenderContext(render_params);
+        m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
+
+        assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext));
+
+        memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
+        memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
+
+        m_EmitterContext.m_RenderContext = m_RenderContext;
 
         assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext));
 
@@ -44,6 +47,7 @@ protected:
     virtual void TearDown()
     {
         dmRender::DeleteRenderContext(m_RenderContext);
+        dmGraphics::DeleteContext(m_GraphicsContext);
         dmGameObject::DeleteCollection(m_Collection);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
@@ -57,6 +61,7 @@ public:
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
 
+    dmGraphics::HContext m_GraphicsContext;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::EmitterContext m_EmitterContext;

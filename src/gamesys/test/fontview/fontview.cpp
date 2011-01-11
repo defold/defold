@@ -18,6 +18,8 @@
 #include <Carbon/Carbon.h>
 #endif
 
+using namespace Vectormath::Aos;
+
 int main(int argc, char *argv[])
 {
     int32_t exit_code = 1;
@@ -54,9 +56,8 @@ int32_t Run(Context* context)
         if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC))
             break;
 
-        dmGraphics::HContext gfx_context = dmGraphics::GetContext();
-        dmGraphics::Clear(gfx_context, dmGraphics::BUFFER_TYPE_COLOR | dmGraphics::BUFFER_TYPE_DEPTH, 0, 0, 0, 0, 1.0, 0);
-        dmGraphics::SetViewport(gfx_context, context->m_ScreenWidth, context->m_ScreenHeight);
+        dmGraphics::Clear(context->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
+        dmGraphics::SetViewport(context->m_GraphicsContext, 0, 0, context->m_ScreenWidth, context->m_ScreenHeight);
 
         uint16_t x = 10;
         uint16_t y = 40;
@@ -81,13 +82,13 @@ int32_t Run(Context* context)
 
         dmRender::DrawText(context->m_RenderContext, context->m_Font, params);
 
-        dmGraphics::SetBlendFunc(gfx_context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        dmGraphics::EnableState(gfx_context, dmGraphics::STATE_BLEND);
-        dmGraphics::DisableState(gfx_context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::SetBlendFunc(context->m_GraphicsContext, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+        dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_BLEND);
+        dmGraphics::DisableState(context->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
         dmRender::Draw(context->m_RenderContext, 0x0);
         dmRender::ClearRenderObjects(context->m_RenderContext);
 
-        dmGraphics::Flip();
+        dmGraphics::Flip(context->m_GraphicsContext);
     }
 
     return 0;
@@ -106,24 +107,24 @@ bool Init(Context* context, int argc, char* argv[])
         else
             context->m_TestString = "The quick brown fox jumps over the lazy dog";
 
-        dmGraphics::CreateDeviceParams graphics_params;
+        dmGraphics::WindowParams window_params;
 
-        graphics_params.m_DisplayWidth = 960;
-        graphics_params.m_DisplayHeight = 540;
-        graphics_params.m_AppTitle = "FontView";
-        graphics_params.m_Fullscreen = false;
-        graphics_params.m_PrintDeviceInfo = false;
+        window_params.m_Width = 960;
+        window_params.m_Height = 540;
+        window_params.m_Title = "FontView";
+        window_params.m_Fullscreen = false;
+        window_params.m_PrintDeviceInfo = false;
 
-        context->m_ScreenWidth = graphics_params.m_DisplayWidth;
-        context->m_ScreenHeight = graphics_params.m_DisplayHeight;
+        context->m_ScreenWidth = window_params.m_Width;
+        context->m_ScreenHeight = window_params.m_Height;
 
         dmHID::Initialize();
 
-        context->m_GraphicsDevice = dmGraphics::NewDevice(&argc, argv, &graphics_params);
+        context->m_GraphicsContext = dmGraphics::NewContext();
 
-        dmGraphics::HContext gfx_context = dmGraphics::GetContext();
+        dmGraphics::OpenWindow(context->m_GraphicsContext, &window_params);
 
-        dmGraphics::EnableState(gfx_context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 10;
@@ -131,7 +132,7 @@ bool Init(Context* context, int argc, char* argv[])
         render_params.m_DisplayWidth = 960;
         render_params.m_DisplayHeight = 540;
         render_params.m_MaxCharacters = 1024;
-        context->m_RenderContext = dmRender::NewRenderContext(render_params);
+        context->m_RenderContext = dmRender::NewRenderContext(context->m_GraphicsContext, render_params);
         dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
         dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());
 
@@ -175,7 +176,6 @@ bool Init(Context* context, int argc, char* argv[])
 
 void Finalize(Context* context)
 {
-    dmGraphics::DeleteDevice(context->m_GraphicsDevice);
     dmHID::Finalize();
 
     if (context->m_Factory)
@@ -185,4 +185,5 @@ void Finalize(Context* context)
     }
     if (context->m_RenderContext)
         dmRender::DeleteRenderContext(context->m_RenderContext);
+    dmGraphics::DeleteContext(context->m_GraphicsContext);
 }

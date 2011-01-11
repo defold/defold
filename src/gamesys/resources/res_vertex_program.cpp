@@ -1,6 +1,6 @@
 #include "res_vertex_program.h"
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
@@ -10,7 +10,8 @@ namespace dmGameSystem
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename)
     {
-        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(buffer, buffer_size);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(graphics_context, buffer, buffer_size);
         if (prog == 0 )
             return dmResource::CREATE_RESULT_UNKNOWN;
 

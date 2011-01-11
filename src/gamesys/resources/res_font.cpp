@@ -5,8 +5,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
-#include <graphics/graphics_device.h>
-
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
 #include <render/render_ddf.h>
@@ -19,6 +17,7 @@ namespace dmGameSystem
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         dmRenderDDF::FontDesc* font_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontDesc>(buffer, buffer_size, &font_desc);
         if ( e != dmDDF::RESULT_OK )
@@ -49,7 +48,7 @@ namespace dmGameSystem
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        dmRender::HFont font = dmRender::NewFont(image_font);
+        dmRender::HFont font = dmRender::NewFont(render_context, image_font);
 
         dmRender::SetMaterial(font, material);
         resource->m_Resource = (void*)font;

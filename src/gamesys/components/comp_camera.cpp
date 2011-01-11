@@ -13,6 +13,8 @@
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+
     const uint8_t MAX_COUNT = 64;
     const uint8_t MAX_STACK_COUNT = 8;
 

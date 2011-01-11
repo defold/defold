@@ -22,6 +22,7 @@ namespace dmGameSystem
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmMeshDDF::MeshDesc* mesh_desc;
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
@@ -37,7 +38,7 @@ namespace dmGameSystem
                 {1, 3, dmGraphics::TYPE_FLOAT, 0, 0},
                 {2, 2, dmGraphics::TYPE_FLOAT, 0, 0}
         };
-        mesh->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(ve, 3);
+        mesh->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, 3);
 
         // TODO: move this bit to the mesh compiler
         uint32_t vertex_count = 0;
@@ -47,7 +48,7 @@ namespace dmGameSystem
             assert(mesh_desc->m_Components[i].m_Positions.m_Count == mesh_desc->m_Components[i].m_Normals.m_Count);
             assert(mesh_desc->m_Components[i].m_Texcoord0.m_Count == 0 || mesh_desc->m_Components[i].m_Positions.m_Count / 3 == mesh_desc->m_Components[i].m_Texcoord0.m_Count / 2);
         }
-        mesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(vertex_count * sizeof(MeshVertex), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        mesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_count * sizeof(MeshVertex), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         mesh->m_VertexCount = vertex_count;
         float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(mesh->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
         CopyVertexData(mesh_desc, vertex_buffer);

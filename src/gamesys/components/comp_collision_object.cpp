@@ -13,6 +13,8 @@
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+
     void GetWorldTransform(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)

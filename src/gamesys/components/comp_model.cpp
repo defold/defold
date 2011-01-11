@@ -13,6 +13,8 @@
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+
     struct ModelWorld;
 
     struct ModelComponent
@@ -163,7 +165,7 @@ namespace dmGameSystem
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, ddf->m_TextureHash);
             if (rendertarget)
             {
-                ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR);
+                ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
             }
             else
                 dmLogWarning("No such render target: 0x%x (%llu)", ddf->m_TextureHash, ddf->m_TextureHash);

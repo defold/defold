@@ -5,7 +5,7 @@
 
 #include <resource/resource.h>
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {

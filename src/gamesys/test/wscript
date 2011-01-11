@@ -12,6 +12,7 @@ def build(bld):
                                          uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL DLIB PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL',
                                          uselib_local = 'gamesys',
                                          proto_gen_py = True,
+                                         defines = 'DM_NULL',
                                          target = '%s/test_gamesys_%s' % (dir, dir))
         test_task_gen.find_sources_in_dirs(dir, exts)
         test_task_gen.install_path = None

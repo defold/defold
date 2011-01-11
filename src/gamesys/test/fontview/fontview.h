@@ -5,7 +5,7 @@
 
 #include <resource/resource.h>
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
 
 #include <render/render.h>
 #include <render/font_renderer.h>
@@ -15,7 +15,7 @@
 struct Context
 {
     const char* m_TestString;
-    dmGraphics::HDevice m_GraphicsDevice;
+    dmGraphics::HContext m_GraphicsContext;
     dmResource::HFactory m_Factory;
     dmRender::HFont m_Font;
     dmRender::HRenderContext m_RenderContext;

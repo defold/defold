@@ -7,7 +7,8 @@
 
 #include <particle/particle.h>
 
-#include <graphics/graphics_device.h>
+#include <graphics/graphics.h>
+
 #include <render/material.h>
 
 #include "gamesys.h"
@@ -50,14 +51,14 @@ namespace dmGameSystem
         emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
         emitter_world->m_RenderObjects.SetCapacity(MAX_COUNT);
-        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(ctx->m_MaxParticleCount * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), ctx->m_MaxParticleCount * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
             {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
             {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
             {2, 1, dmGraphics::TYPE_FLOAT, 0, 0}
         };
-        emitter_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(ve, 3);
+        emitter_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
         *world = emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
