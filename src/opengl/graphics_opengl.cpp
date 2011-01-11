@@ -236,7 +236,7 @@ namespace dmGraphics
             context->m_WindowResizeCallback = 0x0;
             context->m_WindowWidth = 0;
             context->m_WindowHeight = 0;
-            context->m_WindowOpened = false;
+            context->m_WindowOpened = 0;
         }
     }
 
