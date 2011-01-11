@@ -23,8 +23,6 @@ protected:
     {
         m_GraphicsContext = dmGraphics::NewContext();
         dmRender::RenderContextParams params;
-        params.m_DisplayWidth = WIDTH;
-        params.m_DisplayHeight = HEIGHT;
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 1;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
@@ -79,12 +77,6 @@ TEST_F(dmRenderTest, TestViewProj)
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
             ASSERT_EQ(viewproj.getElem(i, j), test.getElem(i, j));
-}
-
-TEST_F(dmRenderTest, TestScreenSize)
-{
-    ASSERT_EQ(WIDTH, dmRender::GetDisplayWidth(m_Context));
-    ASSERT_EQ(HEIGHT, dmRender::GetDisplayHeight(m_Context));
 }
 
 TEST_F(dmRenderTest, TestRenderObjects)

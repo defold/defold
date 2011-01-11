@@ -87,9 +87,6 @@ namespace dmRender
 
         HMaterial                   m_Material;
 
-        uint32_t                    m_DisplayWidth;
-        uint32_t                    m_DisplayHeight;
-
         uint32_t                    m_VertexConstantMask;
         uint32_t                    m_FragmentConstantMask;
 

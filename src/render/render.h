@@ -89,8 +89,6 @@ namespace dmRender
         uint32_t                        m_MaxRenderTargets;
         uint32_t                        m_VertexProgramDataSize;
         uint32_t                        m_FragmentProgramDataSize;
-        uint32_t                        m_DisplayWidth;
-        uint32_t                        m_DisplayHeight;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_CommandBufferSize;
     };
@@ -122,9 +120,6 @@ namespace dmRender
     Matrix4* GetViewProjectionMatrix(HRenderContext render_context);
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection);
-
-    uint32_t GetDisplayWidth(HRenderContext render_context);
-    uint32_t GetDisplayHeight(HRenderContext render_context);
 
     Result AddToRender(HRenderContext context, RenderObject* ro);
     Result ClearRenderObjects(HRenderContext context);

@@ -30,8 +30,6 @@ namespace dmRender
     , m_MaxRenderTargets(0)
     , m_VertexProgramDataSize(0)
     , m_FragmentProgramDataSize(0)
-    , m_DisplayWidth(0)
-    , m_DisplayHeight(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     {
@@ -67,9 +65,6 @@ namespace dmRender
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_DispatchCallback, params.m_CommandBufferSize);
 
         InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
-
-        context->m_DisplayWidth = params.m_DisplayWidth;
-        context->m_DisplayHeight = params.m_DisplayHeight;
 
         context->m_VertexConstantMask = 0;
         context->m_FragmentConstantMask = 0;
@@ -141,16 +136,6 @@ namespace dmRender
     {
         render_context->m_Projection = projection;
         render_context->m_ViewProj = projection * render_context->m_View;
-    }
-
-    uint32_t GetDisplayWidth(HRenderContext render_context)
-    {
-        return render_context->m_DisplayWidth;
-    }
-
-    uint32_t GetDisplayHeight(HRenderContext render_context)
-    {
-        return render_context->m_DisplayHeight;
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)
