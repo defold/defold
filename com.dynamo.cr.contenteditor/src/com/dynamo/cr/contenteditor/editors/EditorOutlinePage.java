@@ -6,6 +6,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.CellEditor;
+import org.eclipse.jface.viewers.ICellEditorListener;
 import org.eclipse.jface.viewers.ICellModifier;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -32,6 +33,7 @@ import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.contexts.IContextActivation;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.part.IPageSite;
@@ -142,11 +144,12 @@ class EditorOutlineLabelProvider extends LabelProvider
     }
 }
 
-public class EditorOutlinePage extends ContentOutlinePage implements ISelectionListener
+public class EditorOutlinePage extends ContentOutlinePage implements ISelectionListener, ICellEditorListener
 {
     private CollectionEditor m_Editor;
     private Node m_Root;
     private boolean m_Mac;
+    private IContextActivation contextActivation;
 
     public EditorOutlinePage(CollectionEditor editor)
     {
@@ -236,6 +239,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         viewer.addSelectionChangedListener(this);
 
         TextCellEditor cell_editor = new TextCellEditor(viewer.getTree());
+        cell_editor.addListener(this);
+
         viewer.setCellEditors(new CellEditor[] {cell_editor});
         final CellModifier cell_modifier = new CellModifier();
         viewer.setCellModifier(cell_modifier);
@@ -248,6 +253,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.keyCode == SWT.F2 || (e.keyCode == SWT.CR && m_Mac)) {
+                    deactiveContext();
+
                     cell_modifier.setEnabled(true);
                     ISelection selection = viewer.getSelection();
                     if (!selection.isEmpty()) {
@@ -310,8 +317,7 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         getSite().getPage().addSelectionListener(this);
 
         IContextService context_service = (IContextService) getSite().getService(IContextService.class);
-        context_service.activateContext("com.dynamo.cr.contenteditor.contexts.collectioneditor");
-
+        this.contextActivation = context_service.activateContext("com.dynamo.cr.contenteditor.contexts.collectioneditor");
     }
 
     @Override
@@ -343,6 +349,30 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
 
     public void refresh() {
         getTreeViewer().refresh();
+    }
+
+    void activateContext() {
+        IContextService context_service = (IContextService) getSite().getService(IContextService.class);
+        contextActivation = context_service.activateContext("com.dynamo.cr.contenteditor.contexts.collectioneditor");
+    }
+
+    void deactiveContext() {
+        IContextService context_service = (IContextService) getSite().getService(IContextService.class);
+        context_service.deactivateContext(contextActivation);
+    }
+
+    @Override
+    public void applyEditorValue() {
+        activateContext();
+    }
+
+    @Override
+    public void cancelEditor() {
+        deactiveContext();
+    }
+
+    @Override
+    public void editorValueChanged(boolean oldValidState, boolean newValidState) {
     }
 
 }
