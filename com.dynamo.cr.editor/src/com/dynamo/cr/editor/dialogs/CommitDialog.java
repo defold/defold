@@ -92,11 +92,12 @@ public class CommitDialog extends TitleAreaDialog implements ITextListener, Comm
                     case 'A':
                         desc = Activator.getImageDescriptor("/icons/add_obj.gif");
                         break;
-                    case 'M':
-                        desc = Activator.getImageDescriptor("/icons/change_obj.gif");
-                        break;
                     case 'D':
                         desc = Activator.getImageDescriptor("/icons/delete_obj.gif");
+                        break;
+                    case 'M':
+                    default:
+                        desc = Activator.getImageDescriptor("/icons/change_obj.gif");
                         break;
                 }
                 return desc.createImage();
