@@ -310,6 +310,25 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    int RenderScript_SetRenderTargetSize(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        dmGraphics::HRenderTarget render_target = 0x0;
+
+        if (lua_islightuserdata(L, 2))
+        {
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            uint32_t width = luaL_checknumber(L, 3);
+            uint32_t height = luaL_checknumber(L, 4);
+            dmGraphics::SetRenderTargetSize(render_target, width, height);
+            return 0;
+        }
+        else
+        {
+            return luaL_error(L, "Expected render target as the second argument to %s.set_render_target_size.", RENDER_SCRIPT_LIB_NAME);
+        }
+    }
+
     int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -723,9 +742,10 @@ namespace dmRender
     {
         {"enable_state",                    RenderScript_EnableState},
         {"disable_state",                   RenderScript_DisableState},
+        {"render_target",                   RenderScript_RenderTarget},
         {"enable_render_target",            RenderScript_EnableRenderTarget},
         {"disable_render_target",           RenderScript_DisableRenderTarget},
-        {"render_target",                   RenderScript_RenderTarget},
+        {"set_render_target_size",          RenderScript_SetRenderTargetSize},
         {"enable_texture",                  RenderScript_EnableTexture},
         {"disable_texture",                 RenderScript_DisableTexture},
         {"clear",                           RenderScript_Clear},
