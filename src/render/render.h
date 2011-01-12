@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include <dlib/container.h>
 #include <dlib/message.h>
 #include <dlib/hash.h>
 
