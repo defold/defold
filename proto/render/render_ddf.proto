@@ -31,3 +31,9 @@ message DrawLine
     required dmMath.Point3 EndPoint = 2;
     required dmMath.Vector4 Color = 3;
 }
+
+message WindowResized
+{
+    required uint32 Width = 1;
+    required uint32 Height = 2;
+}
