@@ -187,6 +187,8 @@ namespace dmGraphics
     void OnWindowResize(int width, int height)
     {
         assert(g_Context);
+        g_Context->m_WindowWidth = (uint32_t)width;
+        g_Context->m_WindowHeight = (uint32_t)height;
         if (g_Context->m_WindowResizeCallback != 0x0)
             g_Context->m_WindowResizeCallback(g_Context, (uint32_t)width, (uint32_t)height);
     }
