@@ -9,10 +9,11 @@ option (ddf_java_package) = "com.dynamo.camera.ddf";
 
 message CameraDesc
 {
-    required float  AspectRatio = 1;
-    required float  FOV         = 2;
-    required float  NearZ       = 3;
-    required float  FarZ        = 4;
+    required float  AspectRatio     = 1;
+    required float  FOV             = 2;
+    required float  NearZ           = 3;
+    required float  FarZ            = 4;
+    optional uint32 AutoAspectRatio = 5 [default = 0];
 }
 
 message SetCamera

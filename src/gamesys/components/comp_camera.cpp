@@ -29,6 +29,7 @@ namespace dmGameSystem
         float m_FOV;
         float m_NearZ;
         float m_FarZ;
+        uint32_t m_AutoAspectRatio : 1;
     };
 
     struct CameraWorld
@@ -70,6 +71,7 @@ namespace dmGameSystem
             camera.m_FOV = camera.m_Properties->m_DDF->m_FOV;
             camera.m_NearZ = camera.m_Properties->m_DDF->m_NearZ;
             camera.m_FarZ = camera.m_Properties->m_DDF->m_FarZ;
+            camera.m_AutoAspectRatio = camera.m_Properties->m_DDF->m_AutoAspectRatio != 0;
             w->m_Cameras.Push(camera);
             *user_data = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
@@ -131,7 +133,14 @@ namespace dmGameSystem
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)context;
 
-            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_FOV, camera->m_AspectRatio, camera->m_NearZ, camera->m_FarZ);
+            float aspect_ratio = camera->m_AspectRatio;
+            if (camera->m_AutoAspectRatio)
+            {
+                float width = (float)dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(render_context));
+                float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
+                aspect_ratio = width / height;
+            }
+            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_FOV, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
 
             Vectormath::Aos::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
             Vectormath::Aos::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
