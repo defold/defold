@@ -24,6 +24,8 @@
 
 #include <gameobject/gameobject_ddf.h>
 
+#include <render/render_ddf.h>
+
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 
@@ -58,6 +60,23 @@ namespace dmEngine
         dmGameObject::HInstance go = (dmGameObject::HInstance) visual_object;
         *position = dmGameObject::GetWorldPosition(go);
         *rotation = dmGameObject::GetWorldRotation(go);
+    }
+
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    {
+        char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmRenderDDF::WindowResized)];
+
+        dmGameObject::InstanceMessageData* msg = (dmGameObject::InstanceMessageData*) buf;
+        msg->m_BufferSize = sizeof(dmRenderDDF::WindowResized);
+        msg->m_DDFDescriptor = dmRenderDDF::WindowResized::m_DDFDescriptor;
+        msg->m_MessageId = dmHashString64("window_resized");
+
+        dmRenderDDF::WindowResized* window_resized = (dmRenderDDF::WindowResized*) (buf + sizeof(dmGameObject::InstanceMessageData));
+        window_resized->m_Width = width;
+        window_resized->m_Height = height;
+
+        dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
+        dmMessage::Post(socket_id, msg->m_MessageId, buf, sizeof(buf));
     }
 
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
@@ -165,6 +184,8 @@ namespace dmEngine
         engine->m_GraphicsContext = dmGraphics::NewContext();
 
         dmGraphics::WindowParams window_params;
+        window_params.m_ResizeCallback = OnWindowResize;
+        window_params.m_ResizeCallbackUserData = engine;
         window_params.m_Width = dmConfigFile::GetInt(config, "display.width", 960);
         window_params.m_Height = dmConfigFile::GetInt(config, "display.height", 540);
         window_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
