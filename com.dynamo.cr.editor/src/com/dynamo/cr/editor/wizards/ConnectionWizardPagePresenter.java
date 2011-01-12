@@ -5,6 +5,8 @@ import java.util.Collection;
 
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchPartSite;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -37,9 +39,11 @@ public class ConnectionWizardPagePresenter {
     private IProjectClient client;
     private boolean connectionOk;
     private String user;
+    private IWorkbenchPage page;
 
-    public ConnectionWizardPagePresenter(IDisplay display) {
+    public ConnectionWizardPagePresenter(IDisplay display, IWorkbenchPage page) {
         this.display = display;
+        this.page = page;
     }
 
     public void onSelectBranch(String branch) {
@@ -113,6 +117,10 @@ public class ConnectionWizardPagePresenter {
 
     public boolean finish() {
         try {
+            if (!this.page.closeAllEditors(true)) {
+                return false;
+            }
+
             Activator.getDefault().connectToBranch(user, display.getSelectedBranch());
         }
         catch (Throwable e) {
