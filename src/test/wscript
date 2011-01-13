@@ -18,3 +18,12 @@ def build(bld):
                                     target = 'test_material')
 
     test_material.install_path = None
+
+    test_render_script = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_render_script.cpp',
+                                    uselib = 'GTEST GRAPHICS_NULL DDF DLIB SCRIPT LUA',
+                                    uselib_local = 'render',
+                                    includes = ['../../src', '../../proto'],
+                                    target = 'test_render_script')
+
+    test_render_script.install_path = None
