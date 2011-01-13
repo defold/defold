@@ -1,9 +1,32 @@
 import Task
 from TaskGen import extension
-import hashlib, sys
+import hashlib, sys, os
 
 proto_module_sigs = {}
 def proto_compile_task(name, module, msg_type, input_ext, output_ext, transformer = None, append_to_all = False):
+
+    # NOTE: This could be cached
+    def is_resource(field_desc):
+        for options_field_desc, value in field_desc.GetOptions().ListFields():
+            if options_field_desc.name == 'resource' and value:
+                return True
+        return False
+
+    def validate_resource_files(task, msg):
+        descriptor = getattr(msg, 'DESCRIPTOR')
+        for field in descriptor.fields:
+            if is_resource(field):
+                resource_list = getattr(msg, field.name)
+                if isinstance(resource_list, str) or isinstance(resource_list, unicode):
+                    resource_list = [resource_list]
+                for r in resource_list:
+                    # TODO: ../content is hard-coded. Could find a better solution at the moment
+                    # Resources should perhaps always be relative to root, ie content/models/... instead of models/...
+                    path = os.path.join('../content', r)
+                    if not os.path.exists(path):
+                        print >>sys.stderr, 'ERROR: %s is missing dependent resource file %s' % (task.inputs[0].nice_path(), r)
+                        return False
+        return True
 
     def compile(task):
         try:
@@ -13,6 +36,9 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
             msg = eval('mod.' + msg_type)() # Call constructor on message type
             with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
                 google.protobuf.text_format.Merge(in_f.read(), msg)
+
+            if not validate_resource_files(task, msg):
+                return 1
 
             if transformer:
                 msg = transformer(msg)
