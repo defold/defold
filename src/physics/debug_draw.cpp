@@ -66,7 +66,7 @@ namespace dmPhysics
 
     void DebugDraw::reportErrorWarning(const char *warningString)
     {
-        dmLogWarning(warningString);
+        dmLogWarning("%s", warningString);
     }
 
     void DebugDraw::draw3dText(const btVector3 &location, const char *textString)
