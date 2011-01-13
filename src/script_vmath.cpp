@@ -531,9 +531,14 @@ namespace dmScript
             Vectormath::Aos::Vector4 v = *CheckVector4(L, 2);
             PushVector4(L, m1 * v);
         }
+        else if (lua_isnumber(L, 2))
+        {
+            float f = luaL_checknumber(L, 2);
+            PushMatrix4(L, m1 * f);
+        }
         else
         {
-            return luaL_error(L, "%s.%s can only be multiplied with another %s or a %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR4);
+            return luaL_error(L, "%s.%s can only be multiplied with a number, another %s or a %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR4);
         }
         return 1;
     }

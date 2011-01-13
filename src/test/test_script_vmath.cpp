@@ -258,7 +258,7 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     // new index
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nm.a = 1"));
     // mul
-    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * 1"));
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
 }
 
 int main(int argc, char **argv)
