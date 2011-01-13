@@ -311,31 +311,6 @@ bail:
         return false;
     }
 
-    void Reload(HEngine engine)
-    {
-        struct stat file_stat;
-        if (stat("build/default/content/reload", &file_stat) == 0 && engine->m_LastReloadMTime != (uint32_t) file_stat.st_mtime)
-        {
-            engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
-            ReloadResources(engine, "scriptc");
-            ReloadResources(engine, "emitterc");
-            ReloadResources(engine, "render_scriptc");
-        }
-    }
-
-    void ReloadResources(HEngine engine, const char* extension)
-    {
-        uint32_t type;
-        dmResource::FactoryResult r;
-        r = dmResource::GetTypeFromExtension(engine->m_Factory, extension, &type);
-        assert(r == dmResource::FACTORY_RESULT_OK);
-        r = dmResource::ReloadType(engine->m_Factory, type);
-        if (r != dmResource::FACTORY_RESULT_OK)
-        {
-            dmLogWarning("Failed to reload resources with extension \"%s\".", extension);
-        }
-    }
-
     void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         dmArray<dmGameObject::InputAction>* input_buffer = (dmArray<dmGameObject::InputAction>*)user_data;
@@ -372,7 +347,6 @@ bail:
                 fflush(stderr);
 
                 dmResource::UpdateFactory(engine->m_Factory);
-                Reload(engine);
 
                 dmHID::Update();
                 dmSound::Update();
