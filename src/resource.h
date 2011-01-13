@@ -158,6 +158,17 @@ namespace dmResource
                                               const char* filename);
 
     /**
+     * Function called when a resource has been reloaded.
+     * @param user_data User data supplied when the callback was registered
+     * @param resource Descriptor of the reloaded resource
+     * @param name Name of the resource, same as provided to Get() when the resource was obtained
+     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
+     * @see RegisterResourceReloadedCallback
+     * @see Get
+     */
+    typedef void (*ResourceReloadedCallback)(void* user_data, SResourceDescriptor* resource, const char* name);
+
+    /**
      * Set default NewFactoryParams params
      * @param params
      */
@@ -283,6 +294,26 @@ namespace dmResource
      * @param resource Resource
      */
     void Release(HFactory factory, void* resource);
+
+    /**
+     * Register a callback function that will be called with the specified user data when a resource has been reloaded.
+     * The callbacks will not necessarily be called in the order they were registered.
+     * This has only effect when reloading is supported.
+     * @param factory Handle of the factory to which the callback will be registered
+     * @param callback Callback function to register
+     * @param user_data User data that will be supplied to the callback when it is called
+     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
+     */
+    void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
+
+    /**
+     * Remove a registered callback function, O(n).
+     * @param factory Handle of the factory from which the callback will be removed
+     * @param callback Callback function to remove
+     * @param user_data User data that was supplied when the callback was registered
+     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
+     */
+    void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
 }
 
 #endif // RESOURCE_H

@@ -55,8 +55,15 @@ struct SResourceType
 const uint32_t RESOURCE_PATH_MAX = 1024;
 
 const uint32_t MAX_RESOURCE_TYPES = 128;
+const uint32_t MAX_CALLBACKS = 16;
 
 static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* resource_size);
+
+struct ResourceReloadedCallbackPair
+{
+    ResourceReloadedCallback    m_Callback;
+    void*                       m_UserData;
+};
 
 struct SResourceFactory
 {
@@ -66,6 +73,8 @@ struct SResourceFactory
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     // Used for reloading of resources
     dmHashTable<uint64_t, const char*>*          m_ResourceHashToFilename;
+    // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
+    dmArray<ResourceReloadedCallbackPair>*       m_ResourceReloadedCallbacks;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
 
@@ -323,10 +332,14 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         factory->m_ResourceHashToFilename = new dmHashTable<uint64_t, const char*>();
         factory->m_ResourceHashToFilename->SetCapacity(table_size, params->m_MaxResources);
+
+        factory->m_ResourceReloadedCallbacks = new dmArray<ResourceReloadedCallbackPair>();
+        factory->m_ResourceReloadedCallbacks->SetCapacity(MAX_CALLBACKS);
     }
     else
     {
         factory->m_ResourceHashToFilename = 0;
+        factory->m_ResourceReloadedCallbacks = 0;
     }
 
     return factory;
@@ -345,7 +358,10 @@ void DeleteFactory(HFactory factory)
     }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
-    delete factory->m_ResourceHashToFilename;
+    if (factory->m_ResourceHashToFilename)
+        delete factory->m_ResourceHashToFilename;
+    if (factory->m_ResourceReloadedCallbacks)
+        delete factory->m_ResourceReloadedCallbacks;
     delete factory;
 }
 
@@ -586,14 +602,28 @@ ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescrip
         return RELOAD_RESULT_LOAD_ERROR;
 
     CreateResult create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
-    switch (create_result)
+    if (create_result == CREATE_RESULT_OK)
     {
-        case CREATE_RESULT_OK:              return RELOAD_RESULT_OK;
-        case CREATE_RESULT_OUT_OF_MEMORY:   return RELOAD_RESULT_OUT_OF_MEMORY;
-        case CREATE_RESULT_FORMAT_ERROR:    return RELOAD_RESULT_FORMAT_ERROR;
-        case CREATE_RESULT_CONSTANT_ERROR:  return RELOAD_RESULT_CONSTANT_ERROR;
-        case CREATE_RESULT_UNKNOWN:         return RELOAD_RESULT_UNKNOWN;
-        default:                            return RELOAD_RESULT_UNKNOWN;
+        if (factory->m_ResourceReloadedCallbacks)
+        {
+            for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
+            {
+                ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
+                pair.m_Callback(pair.m_UserData, rd, name);
+            }
+        }
+        return RELOAD_RESULT_OK;
+    }
+    else
+    {
+        switch (create_result)
+        {
+            case CREATE_RESULT_OUT_OF_MEMORY:   return RELOAD_RESULT_OUT_OF_MEMORY;
+            case CREATE_RESULT_FORMAT_ERROR:    return RELOAD_RESULT_FORMAT_ERROR;
+            case CREATE_RESULT_CONSTANT_ERROR:  return RELOAD_RESULT_CONSTANT_ERROR;
+            case CREATE_RESULT_UNKNOWN:         return RELOAD_RESULT_UNKNOWN;
+            default:                            return RELOAD_RESULT_UNKNOWN;
+        }
     }
 }
 
@@ -694,6 +724,45 @@ void Release(HFactory factory, void* resource)
     }
 }
 
+void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data)
+{
+    if (factory->m_ResourceReloadedCallbacks)
+    {
+        if (!factory->m_ResourceReloadedCallbacks->Full())
+        {
+            ResourceReloadedCallbackPair pair;
+            pair.m_Callback = callback;
+            pair.m_UserData = user_data;
+            factory->m_ResourceReloadedCallbacks->Push(pair);
+        }
+        else
+        {
+            dmLogWarning("Resource reloaded callback could not be registered since the maximum capacity of callbacks has been reached (%d).", MAX_CALLBACKS);
+        }
+    }
+}
+
+void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data)
+{
+    if (factory->m_ResourceReloadedCallbacks)
+    {
+        uint32_t i = 0;
+        uint32_t size = factory->m_ResourceReloadedCallbacks->Size();
+        while (i < size)
+        {
+            ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
+            if (pair.m_Callback == callback && pair.m_UserData == user_data)
+            {
+                factory->m_ResourceReloadedCallbacks->EraseSwap(i);
+                --size;
+            }
+            else
+            {
+                ++i;
+            }
+        }
+    }
+}
 
 }
 

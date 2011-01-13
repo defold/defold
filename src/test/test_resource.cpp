@@ -635,6 +635,78 @@ TEST(FilenameTest, FilenameTest)
     dmResource::DeleteFactory(factory);
 }
 
+struct CallbackUserData
+{
+    CallbackUserData() : m_Descriptor(0x0), m_Name(0x0) {}
+    dmResource::SResourceDescriptor* m_Descriptor;
+    const char* m_Name;
+};
+
+void ReloadCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+{
+    CallbackUserData* data = (CallbackUserData*)user_data;
+    data->m_Descriptor = descriptor;
+    data->m_Name = name;
+}
+
+TEST(RecreateTest, ReloadCallbackTest)
+{
+    const char* tmp_dir = 0;
+#if defined(_MSC_VER)
+    tmp_dir = ".";
+#else
+    tmp_dir = ".";
+#endif
+
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::FactoryResult e;
+    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
+
+    const char* resource_name = "__testrecreate__.foo";
+    char file_name[512];
+    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
+
+    FILE* f;
+
+    f = fopen(file_name, "wb");
+    ASSERT_NE((FILE*) 0, f);
+    fprintf(f, "123");
+    fclose(f);
+
+    int* resource;
+    dmResource::FactoryResult fr = dmResource::Get(factory, resource_name, (void**) &resource);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+
+    CallbackUserData user_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ReloadCallback, &user_data);
+
+    dmResource::ReloadResult rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
+
+    ASSERT_NE((void*)0, user_data.m_Descriptor);
+    ASSERT_EQ(0, strcmp(resource_name, user_data.m_Name));
+
+    user_data = CallbackUserData();
+    dmResource::UnregisterResourceReloadedCallback(factory, ReloadCallback, &user_data);
+
+    rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
+
+    ASSERT_EQ((void*)0, user_data.m_Descriptor);
+    ASSERT_EQ((void*)0, user_data.m_Name);
+
+    unlink(file_name);
+
+    dmResource::Release(factory, resource);
+    dmResource::DeleteFactory(factory);
+}
+
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
