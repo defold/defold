@@ -22,17 +22,24 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
         return False
 
     def validate_resource_files(task, msg):
+        import google.protobuf
+        from google.protobuf.descriptor import FieldDescriptor
+
         descriptor = getattr(msg, 'DESCRIPTOR')
         for field in descriptor.fields:
             if is_resource(field):
                 resource_list = getattr(msg, field.name)
-                if isinstance(resource_list, str) or isinstance(resource_list, unicode):
+                if field.label != FieldDescriptor.LABEL_REPEATED:
                     resource_list = [resource_list]
                 for r in resource_list:
-                    path = os.path.join(task.generator.content_root, r)
-                    if not os.path.exists(path):
-                        print >>sys.stderr, 'ERROR: %s is missing dependent resource file %s' % (task.inputs[0].nice_path(), r)
-                        return False
+                    if isinstance(r, google.protobuf.message.Message):
+                        # Validate recursively if of message type
+                        validate_resource_files(task, r)
+                    else:
+                        path = os.path.join(task.generator.content_root, r)
+                        if not os.path.exists(path):
+                            print >>sys.stderr, 'ERROR: %s is missing dependent resource file %s' % (task.inputs[0].nice_path(), r)
+                            return False
         return True
 
     def compile(task):
