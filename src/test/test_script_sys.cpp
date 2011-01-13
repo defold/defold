@@ -39,7 +39,7 @@ bool RunFile(lua_State* L, const char* filename)
     DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
-        dmLogError(lua_tolstring(L, -1, 0));
+        dmLogError("%s", lua_tolstring(L, -1, 0));
         return false;
     }
     return true;
@@ -49,7 +49,7 @@ bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
     {
-        dmLogError(lua_tolstring(L, -1, 0));
+        dmLogError("%s", lua_tolstring(L, -1, 0));
         return false;
     }
     return true;
