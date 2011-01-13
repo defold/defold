@@ -9,4 +9,3 @@ def build(bld):
                               uselib = 'DDF PLATFORM_SOCKET HID DLIB INPUT DMGLFW ',
                               source = 'main.cpp',
                               target = 'gdc')
-    bld.install_files('${PREFIX}/bin', script.target)
