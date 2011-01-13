@@ -34,7 +34,12 @@ enum dmLogSeverity
 #endif
 #endif
 
+#ifdef __GNUC__
+void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...)
+    __attribute__ ((format (printf, 3, 4)));
+#else
 void dmLogInternal(dmLogSeverity severity, const char* domain, const char* format, ...);
+#endif
 
 #ifdef _MSC_VER
 #define dmLogInfo(format, ... ) dmLogInternal(DM_LOG_SEVERITY_INFO, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
