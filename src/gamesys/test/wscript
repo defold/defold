@@ -13,10 +13,11 @@ def build(bld):
                                          uselib_local = 'gamesys',
                                          proto_gen_py = True,
                                          target = '%s/test_gamesys_%s' % (dir, dir))
-        test_task_gen.find_sources_in_dirs(dir, exts)
+        test_task_gen.find_sources_in_dirs(dir + ' .', exts)
         test_task_gen.install_path = None
 
-    new_test('collisionobject', exts = ['.cpp', '.go', '.collisionobject', '.convexshape'])
+    new_test('camera', exts = ['.cpp'])
+    new_test('collision_object', exts = ['.cpp', '.go', '.collisionobject', '.convexshape'])
 
     bld.add_subdirs('fontview')
 
