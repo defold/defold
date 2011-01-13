@@ -1,6 +1,15 @@
 import Task
-from TaskGen import extension
+import Utils
+from TaskGen import extension, before, feature
 import hashlib, sys, os
+
+@feature('*')
+@before('apply_core')
+def apply_content_root(self):
+    Utils.def_attrs(self, content_root = '.')
+    if not self.path.find_dir(self.content_root):
+        raise Utils.WafError('content_root "%s" not found (relative to %s)', self.content_root, self.path)
+    self.content_root = self.path.find_dir(self.content_root).srcpath(self.env)
 
 proto_module_sigs = {}
 def proto_compile_task(name, module, msg_type, input_ext, output_ext, transformer = None, append_to_all = False):
@@ -20,9 +29,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                 if isinstance(resource_list, str) or isinstance(resource_list, unicode):
                     resource_list = [resource_list]
                 for r in resource_list:
-                    # TODO: ../content is hard-coded. Could find a better solution at the moment
-                    # Resources should perhaps always be relative to root, ie content/models/... instead of models/...
-                    path = os.path.join('../content', r)
+                    path = os.path.join(task.generator.content_root, r)
                     if not os.path.exists(path):
                         print >>sys.stderr, 'ERROR: %s is missing dependent resource file %s' % (task.inputs[0].nice_path(), r)
                         return False
