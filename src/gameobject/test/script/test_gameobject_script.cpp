@@ -185,31 +185,32 @@ static void CreateFile(const char* file_name, const char* contents)
 
 TEST_F(ScriptTest, TestReload)
 {
-    const char* script_file_name = "__test__.scriptc";
-    char script_path[512];
-    DM_SNPRINTF(script_path, sizeof(script_path), "%s/%s", m_Path, script_file_name);
+    const char* script_resource_name = "__test__.scriptc";
+    char script_file_name[512];
+    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "%s/%s", m_Path, script_resource_name);
 
+    const char* go_resource_name = "__go__.goc";
     char go_file_name[512];
-    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", m_Path, "__go__.goc");
+    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", m_Path, go_resource_name);
 
     dmGameObjectDDF::PrototypeDesc prototype;
     //memset(&prototype, 0, sizeof(prototype));
     prototype.m_Components.m_Count = 1;
     dmGameObjectDDF::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
-    component_desc.m_Resource = script_file_name;
+    component_desc.m_Resource = script_resource_name;
     prototype.m_Components.m_Data = &component_desc;
 
     dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name);
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
-    CreateFile(script_path,
+    CreateFile(script_file_name,
                "function update(self)\n"
                "    go.set_position(self, vmath.vector3(1,2,3))\n"
                "end\n");
 
     dmGameObject::HInstance go;
-    go = dmGameObject::New(m_Collection, "__go__.goc");
+    go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
 
     dmGameObject::Update(&m_Collection, 0, 1);
@@ -220,15 +221,13 @@ TEST_F(ScriptTest, TestReload)
 
     dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
-    CreateFile(script_path,
+    CreateFile(script_file_name,
                "function update(self)\n"
                "    go.set_position(self, vmath.vector3(10,20,30))\n"
                "end\n");
 
-    uint32_t type;
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "scriptc", &type));
-    dmResource::FactoryResult fr = dmResource::ReloadType(m_Factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
 
     dmGameObject::Update(&m_Collection, 0, 1);
     Point3 p2 = dmGameObject::GetPosition(go);
@@ -236,9 +235,9 @@ TEST_F(ScriptTest, TestReload)
     ASSERT_EQ(20, p2.getY());
     ASSERT_EQ(30, p2.getZ());
 
-    unlink(script_path);
-    fr = dmResource::ReloadType(m_Factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+    unlink(script_file_name);
+    rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_LOAD_ERROR, rr);
 
     unlink(go_file_name);
 }
