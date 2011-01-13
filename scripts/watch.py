@@ -1,39 +1,48 @@
+#!/usr/bin/python
+
 import Tkinter
-import glob, stat, os
+import glob, stat, os, urllib
 
 root_path = "content"
-dirs = ["prototypes"]
 
 state = {}
 
 def UpdateState():
-    changed = False
+    changed = []
     for root, dirs, files in os.walk(root_path):
+        root_dirs = root.split(os.pathsep)
+        root_dirs.pop(0)
+        path = os.pathsep.join(root_dirs)
         for f in files:
             name = os.path.join(root, f)
             mtime = os.stat(name)[stat.ST_MTIME]
             oldmtime = state.get(name, 0)
             if mtime != oldmtime:
-                changed = True
+                changed.append(os.path.join(path, f + "c"))
             state[name] = mtime
     return changed
-        
+
 root = Tkinter.Tk()
 root.minsize(300, 200)
 label = Tkinter.Label()
 label.config(text = "Waiting for resources to change")
 label.pack()
+UpdateState()
 
 def tick():
     label.config(text = "Waiting for resources to change")
-    if UpdateState():
+    changed = UpdateState()
+    if len(changed) > 0:
         label.config(text = "Compiling...")
         label.update()
         result = os.system('waf --skip-tests')
         if result == 0:
-            f = open('build/default/content/reload', 'wb')
-            f.close()
-            label.config(text = "Success!", foreground = "#080")
+            try:
+                for f in changed:
+                    request = urllib.urlopen("http://localhost:8001/reload/" + f)
+                label.config(text = "Success!", foreground = "#080")
+            except:
+                label.config(text = "No connection!", foreground = "#880")
         else:
             label.config(text = "Failure!", foreground = "#a00")
     label.after(1000, tick)
