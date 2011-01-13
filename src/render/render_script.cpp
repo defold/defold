@@ -277,6 +277,23 @@ namespace dmRender
         return 1;
     }
 
+    int RenderScript_DeleteRenderTarget(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
+        dmGraphics::HRenderTarget render_target = 0x0;
+
+        if (lua_islightuserdata(L, 2))
+        {
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+        }
+        if (render_target == 0x0)
+            return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
+
+        dmGraphics::DeleteRenderTarget(render_target);
+        return 0;
+    }
+
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
@@ -313,6 +330,7 @@ namespace dmRender
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
         if (lua_islightuserdata(L, 2))
@@ -743,6 +761,7 @@ namespace dmRender
         {"enable_state",                    RenderScript_EnableState},
         {"disable_state",                   RenderScript_DisableState},
         {"render_target",                   RenderScript_RenderTarget},
+        {"delete_render_target",            RenderScript_DeleteRenderTarget},
         {"enable_render_target",            RenderScript_EnableRenderTarget},
         {"disable_render_target",           RenderScript_DisableRenderTarget},
         {"set_render_target_size",          RenderScript_SetRenderTargetSize},
