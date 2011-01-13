@@ -82,7 +82,6 @@ namespace dmResource
 
         /// For internal use only
         void*    m_ResourceType;        // For internal use.
-        uint32_t m_ModificationTime;    // File modification time. For internal use.
     };
 
     /**
@@ -100,6 +99,21 @@ namespace dmResource
         CREATE_RESULT_FORMAT_ERROR      = -2,   //!< CREATE_RESULT_FORMAT_ERROR
         CREATE_RESULT_CONSTANT_ERROR    = -3,   //!< CREATE_RESULT_CONSTANT_ERROR
         CREATE_RESULT_UNKNOWN           = -1000,//!< CREATE_RESULT_UNKNOWN
+    };
+
+    /**
+     * Reload result
+     */
+    enum ReloadResult
+    {
+        RELOAD_RESULT_OK                = 0,    //!< RELOAD_RESULT_OK
+        RELOAD_RESULT_OUT_OF_MEMORY     = -1,   //!< RELOAD_RESULT_OUT_OF_MEMORY
+        RELOAD_RESULT_FORMAT_ERROR      = -2,   //!< RELOAD_RESULT_FORMAT_ERROR
+        RELOAD_RESULT_CONSTANT_ERROR    = -3,   //!< RELOAD_RESULT_CONSTANT_ERROR
+        RELOAD_RESULT_NOT_FOUND         = -4,   //!< RELOAD_RESULT_NOT_FOUND
+        RELOAD_RESULT_LOAD_ERROR        = -5,   //!< RELOAD_RESULT_LOAD_ERROR
+        RELOAD_RESULT_NOT_SUPPORTED     = -6,   //!< RELOAD_RESULT_NOT_SUPPORTED
+        RELOAD_RESULT_UNKNOWN           = -1000,//!< RELOAD_RESULT_UNKNOWN
     };
 
     /**
@@ -219,12 +233,13 @@ namespace dmResource
     FactoryResult Get(HFactory factory, const char* name, void** resource);
 
     /**
-     * Reload all resource of specified type
+     * Reload a specific resource
      * @param factory Resource factory
-     * @param type Resource type
-     * @return FACTORY_RESULT_OK on success
+     * @param name Name that identifies the resource, i.e. the same name used in Get
+     * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
+     * @see Get
      */
-    FactoryResult ReloadType(HFactory factory, uint32_t type);
+    ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor);
 
     /**
      * Get type for resource

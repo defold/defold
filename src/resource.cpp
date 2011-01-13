@@ -191,34 +191,33 @@ void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
     {
         const char* name = request->m_Resource + strlen("/reload/");
 
-        char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
-
-        uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-        SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
-        if (rd)
+        SResourceDescriptor* descriptor;
+        ReloadResult result = ReloadResource(factory, name, &descriptor);
+        switch (result)
         {
-            SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
-            if (!resource_type->m_RecreateFunction)
-            {
-                dmLogWarning("Reloading of resource type %s not supported", resource_type->m_Extension);
-                return;
-            }
-
-            uint32_t file_size;
-            FactoryResult result = LoadResource(factory, canonical_path, &file_size);
-            if (result != FACTORY_RESULT_OK)
-            {
-                return;
-            }
-
-            CreateResult create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
-            (void) create_result;
-        }
-        else
-        {
-            dmLogWarning("Unable to reload resource %s. Resource not loaded", name);
+            case RELOAD_RESULT_OK:
+                dmLogInfo("%s was successfully reloaded.", name);
+                break;
+            case RELOAD_RESULT_OUT_OF_MEMORY:
+                dmLogError("Not enough memory to reload %s.", name);
+                break;
+            case RELOAD_RESULT_FORMAT_ERROR:
+            case RELOAD_RESULT_CONSTANT_ERROR:
+                dmLogError("%s has invalid format and could not be reloaded.", name);
+                break;
+            case RELOAD_RESULT_NOT_FOUND:
+                dmLogError("%s could not be reloaded since it was never loaded before.", name);
+                break;
+            case RELOAD_RESULT_LOAD_ERROR:
+                dmLogError("%s could not be loaded, reloading failed.", name);
+                break;
+            case RELOAD_RESULT_NOT_SUPPORTED:
+                dmLogWarning("Reloading of resource type %s not supported.", ((SResourceType*)descriptor->m_ResourceType)->m_Extension);
+                break;
+            case RELOAD_RESULT_UNKNOWN:
+            default:
+                dmLogWarning("%s could not be reloaded, unknown error: %d.", name, result);
+                break;
         }
     }
     else if(strcmp("/", request->m_Resource) == 0)
@@ -527,18 +526,12 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         if (result != FACTORY_RESULT_OK)
             return result;
 
-        struct stat file_stat;
-        stat(canonical_path, &file_stat);
-        // TODO: Fix better resolution on this.
-        uint32_t mtime = (uint32_t) file_stat.st_mtime;
-
         // TODO: We should *NOT* allocate SResource dynamically...
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
         tmp_resource.m_NameHash = canonical_path_hash;
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
-        tmp_resource.m_ModificationTime = mtime;
 
         CreateResult create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, &tmp_resource, name);
 
@@ -568,65 +561,40 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
     }
 }
 
-struct ReloadTypeContext
+ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
-    HFactory      m_Factory;
-    uint32_t      m_Type;
-    FactoryResult m_Result;
-};
+    char canonical_path[RESOURCE_PATH_MAX];
+    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
 
-void ReloadTypeCallback(ReloadTypeContext* context, const uint64_t* resource_hash, const char** file_name)
-{
-    if (context->m_Result != FACTORY_RESULT_OK)
-        return;
+    uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceDescriptor* rd = context->m_Factory->m_Resources->Get(*resource_hash);
-    assert(rd);
+    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+
+    if (out_descriptor)
+        *out_descriptor = rd;
+
+    if (rd == 0x0)
+        return RELOAD_RESULT_NOT_FOUND;
 
     SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
-    // TODO: Not 64-bit friendly
-    if ((uint32_t) resource_type == context->m_Type)
+    if (!resource_type->m_RecreateFunction)
+        return RELOAD_RESULT_NOT_SUPPORTED;
+
+    uint32_t file_size;
+    FactoryResult result = LoadResource(factory, canonical_path, &file_size);
+    if (result != FACTORY_RESULT_OK)
+        return RELOAD_RESULT_LOAD_ERROR;
+
+    CreateResult create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
+    switch (create_result)
     {
-
-        uint32_t file_size;
-        FactoryResult result = LoadResource(context->m_Factory, *file_name, &file_size);
-        if (result != FACTORY_RESULT_OK)
-        {
-            context->m_Result = result;
-            return;
-        }
-
-        struct stat file_stat;
-        if (stat(*file_name, &file_stat) != 0)
-        {
-            context->m_Result = FACTORY_RESULT_RESOURCE_NOT_FOUND;
-            return;
-        }
-        // TODO: Fix better resolution on this.
-        uint32_t mtime = (uint32_t) file_stat.st_mtime;
-
-        if (mtime == rd->m_ModificationTime)
-            return;
-
-        // TODO: We should *NOT* allocate SResource dynamically...
-        CreateResult create_result = resource_type->m_RecreateFunction(context->m_Factory, resource_type->m_Context, context->m_Factory->m_StreamBuffer, file_size, rd, *file_name);
-
-        if (create_result != CREATE_RESULT_OK)
-        {
-            context->m_Result = FACTORY_RESULT_UNKNOWN;
-        }
+        case CREATE_RESULT_OK:              return RELOAD_RESULT_OK;
+        case CREATE_RESULT_OUT_OF_MEMORY:   return RELOAD_RESULT_OUT_OF_MEMORY;
+        case CREATE_RESULT_FORMAT_ERROR:    return RELOAD_RESULT_FORMAT_ERROR;
+        case CREATE_RESULT_CONSTANT_ERROR:  return RELOAD_RESULT_CONSTANT_ERROR;
+        case CREATE_RESULT_UNKNOWN:         return RELOAD_RESULT_UNKNOWN;
+        default:                            return RELOAD_RESULT_UNKNOWN;
     }
-}
-
-FactoryResult ReloadType(HFactory factory, uint32_t type)
-{
-    ReloadTypeContext context;
-    context.m_Factory = factory;
-    context.m_Type = type;
-    context.m_Result = FACTORY_RESULT_OK;
-    factory->m_ResourceHashToFilename->Iterate(&ReloadTypeCallback, &context);
-
-    return context.m_Result;
 }
 
 FactoryResult GetType(HFactory factory, void* resource, uint32_t* type)

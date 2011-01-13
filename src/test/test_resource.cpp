@@ -431,8 +431,9 @@ TEST(RecreateTest, RecreateTest)
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
+    const char* resource_name = "__testrecreate__.foo";
     char file_name[512];
-    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, "__testrecreate__.foo");
+    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 
@@ -442,24 +443,22 @@ TEST(RecreateTest, RecreateTest)
     fclose(f);
 
     int* resource;
-    dmResource::FactoryResult fr = dmResource::Get(factory, "__testrecreate__.foo", (void**) &resource);
+    dmResource::FactoryResult fr = dmResource::Get(factory, resource_name, (void**) &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
-
-    dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     f = fopen(file_name, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
 
-    fr = dmResource::ReloadType(factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    dmResource::ReloadResult rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
     ASSERT_EQ(456, *resource);
 
     unlink(file_name);
-    fr = dmResource::ReloadType(factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+    rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_LOAD_ERROR, rr);
 
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
@@ -498,8 +497,9 @@ TEST(RecreateTest, RecreateTestHttp)
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
+    const char* resource_name = "__testrecreate__.foo";
     char file_name[512];
-    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, "__testrecreate__.foo");
+    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 
@@ -509,7 +509,7 @@ TEST(RecreateTest, RecreateTestHttp)
     fclose(f);
 
     int* resource;
-    dmResource::FactoryResult fr = dmResource::Get(factory, "__testrecreate__.foo", (void**) &resource);
+    dmResource::FactoryResult fr = dmResource::Get(factory, resource_name, (void**) &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
@@ -527,12 +527,21 @@ TEST(RecreateTest, RecreateTestHttp)
     }
     dmThread::Join(send_thread);
 
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(456, *resource);
 
     unlink(file_name);
-    fr = dmResource::ReloadType(factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+
+    send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
+    SendReloadDone = false;
+    while (!SendReloadDone)
+    {
+        dmTime::Sleep(1000 * 10);
+        dmResource::UpdateFactory(factory);
+    }
+    dmThread::Join(send_thread);
+
+    dmResource::ReloadResult rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_LOAD_ERROR, rr);
 
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
@@ -594,7 +603,8 @@ TEST(FilenameTest, FilenameTest)
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-    DM_SNPRINTF(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, "__testfilename__.foo");
+    const char* resource_name = "__testfilename__.foo";
+    DM_SNPRINTF(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 
@@ -604,24 +614,22 @@ TEST(FilenameTest, FilenameTest)
     fclose(f);
 
     int* resource;
-    dmResource::FactoryResult fr = dmResource::Get(factory, "__testfilename__.foo", (void**) &resource);
+    dmResource::FactoryResult fr = dmResource::Get(factory, resource_name, (void**) &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
-
-    dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
     f = fopen(filename_resource_filename, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
 
-    fr = dmResource::ReloadType(factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, fr);
+    dmResource::ReloadResult rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
     ASSERT_EQ(456, *resource);
 
     unlink(filename_resource_filename);
-    fr = dmResource::ReloadType(factory, type);
-    ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, fr);
+    rr = dmResource::ReloadResource(factory, resource_name, 0);
+    ASSERT_EQ(dmResource::RELOAD_RESULT_LOAD_ERROR, rr);
 
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
