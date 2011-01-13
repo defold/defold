@@ -63,6 +63,7 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
 
 def build(bld):
+    bld.add_subdirs('scripts')
     bld.add_subdirs('src')
 
 def shutdown():
