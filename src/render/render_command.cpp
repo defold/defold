@@ -230,7 +230,7 @@ namespace dmRender
                 }
                 default:
                 {
-                    dmLogError("No such render command (%d)");
+                    dmLogError("No such render command (%d).", c->m_Type);
                 }
             }
         }
