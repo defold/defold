@@ -14,7 +14,7 @@ class CollisionObjectTest : public GamesysTest
 
 TEST_F(CollisionObjectTest, TestFailingInit)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "illegal_mass.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "collision_object/illegal_mass.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

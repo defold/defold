@@ -1,4 +1,4 @@
 Components
 {
-    Resource: "illegal_mass.collisionobject"
+    Resource: "collision_object/illegal_mass.collisionobject"
 }

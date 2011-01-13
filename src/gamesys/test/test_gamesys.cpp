@@ -10,7 +10,7 @@ void GamesysTest::SetUp()
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-    m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test/collisionobject");
+    m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_Register = dmGameObject::NewRegister(0, 0);
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register);

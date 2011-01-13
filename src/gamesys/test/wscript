@@ -17,7 +17,7 @@ def build(bld):
         test_task_gen.find_sources_in_dirs(dir + ' .', exts)
         test_task_gen.install_path = None
 
-    new_test('camera', exts = ['.cpp'])
+    new_test('camera', exts = ['.cpp', '.camera'])
     new_test('collision_object', exts = ['.cpp', '.go', '.collisionobject', '.convexshape'])
 
     bld.add_subdirs('fontview')
