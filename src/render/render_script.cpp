@@ -639,8 +639,12 @@ namespace dmRender
                     break;
             }
             lua_pushlightuserdata(L, (void*)predicate);
+            return 1;
         }
-        return 1;
+        else
+        {
+            return luaL_error(L, "Could not create more predicates since the buffer is full (%d).", MAX_PREDICATE_COUNT);
+        }
     }
 
     int RenderScript_EnableVertexConstant(lua_State* L)
