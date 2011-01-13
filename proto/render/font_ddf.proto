@@ -9,7 +9,8 @@ option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message FontDesc
 {
-    required string Font = 1 [(resource)=true];
+    // NOTE: no [(resource)=true for Font. Doesn't follow the standard path convention
+    required string Font = 1;
     required string Material = 2 [(resource)=true];
     required uint32 Size = 3;
     optional uint32 Antialias = 4 [default = 1];
