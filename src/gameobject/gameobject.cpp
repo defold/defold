@@ -878,7 +878,7 @@ namespace dmGameObject
         Instance* instance = instance_message_data->m_Instance;
         if (instance->m_ToBeDeleted)
         {
-            dmLogWarning("Message sent to game object (%X) that will be deleted, message ignored.", instance->m_Identifier);
+            dmLogWarning("Message sent to game object (%llX) that will be deleted, message ignored.", instance->m_Identifier);
             return;
         }
         Prototype* prototype = instance->m_Prototype;
