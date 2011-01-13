@@ -24,6 +24,8 @@ protected:
         params.m_MaxInstances = 1;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
         dmGraphics::WindowParams win_params;
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
         dmGraphics::OpenWindow(m_GraphicsContext, &win_params);
     }
 
@@ -52,17 +54,17 @@ TEST_F(dmRenderScriptTest, TestNewDeleteInstance)
 TEST_F(dmRenderScriptTest, TestReload)
 {
     const char* script_a =
-        "function init(self)"
-        "    if not self.counter then"
-        "        self.count = 0"
-        "    end"
-        "    self.count = self.count + 1"
-        "    assert(self.count == 1)"
-        "end";
+        "function init(self)\n"
+        "    if not self.counter then\n"
+        "        self.count = 0\n"
+        "    end\n"
+        "    self.count = self.count + 1\n"
+        "    assert(self.count == 1)\n"
+        "end\n";
     const char* script_b =
-        "function init(self)"
-        "    assert(self.count == 1)"
-        "end";
+        "function init(self)\n"
+        "    assert(self.count == 1)\n"
+        "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script_a, strlen(script_a), "none");
     ASSERT_NE((void*)0, render_script);
@@ -79,17 +81,17 @@ TEST_F(dmRenderScriptTest, TestReload)
 TEST_F(dmRenderScriptTest, TestSetRenderScript)
 {
     const char* script_a =
-        "function init(self)"
-        "    if not self.counter then"
-        "        self.count = 0"
-        "    end"
-        "    self.count = self.count + 1"
-        "    assert(self.count == 1)"
-        "end";
+        "function init(self)\n"
+        "    if not self.counter then\n"
+        "        self.count = 0\n"
+        "    end\n"
+        "    self.count = self.count + 1\n"
+        "    assert(self.count == 1)\n"
+        "end\n";
     const char* script_b =
-        "function init(self)"
-        "    assert(self.count == 1)"
-        "end";
+        "function init(self)\n"
+        "    assert(self.count == 1)\n"
+        "end\n";
 
     dmRender::HRenderScript render_script_a = dmRender::NewRenderScript(m_Context, script_a, strlen(script_a), "none");
     dmRender::HRenderScript render_script_b = dmRender::NewRenderScript(m_Context, script_b, strlen(script_b), "none");
@@ -108,17 +110,31 @@ TEST_F(dmRenderScriptTest, TestSetRenderScript)
 
 TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 {
-    const char* script = "function update(self)"
-    "    render.enable_material(self, \"test_material\")"
-    "end";
+    const char* script = "function init(self)\n"
+    "    render.enable_material(self, \"test_material\")\n"
+    "    render.disable_material(self, \"test_material\")\n"
+    "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     dmRender::HMaterial material = dmRender::NewMaterial();
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
     dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_MATERIAL, command->m_Type);
+    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+
+    command = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_MATERIAL, command->m_Type);
+
     dmRender::ClearRenderScriptInstanceMaterials(render_script_instance);
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
     dmRender::DeleteMaterial(material);
     dmRender::DeleteRenderScriptInstance(render_script_instance);
@@ -166,6 +182,12 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     "function update(self)\n"
     "    render.enable_state(self, render.STATE_ALPHA_TEST)\n"
     "    render.disable_state(self, render.STATE_ALPHA_TEST)\n"
+    "    render.set_blend_func(self, render.BLEND_FACTOR_ONE, render.BLEND_FACTOR_SRC_COLOR)\n"
+    "    render.set_color_mask(self, true, true, true, true)\n"
+    "    render.set_depth_mask(self, true)\n"
+    "    render.set_stencil_mask(self, 1)\n"
+    "    render.set_cull_face(self, render.FACE_TYPE_BACK)\n"
+    "    render.set_polygon_offset(self, 1, 2)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -173,13 +195,44 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(2u, commands.Size());
+    ASSERT_EQ(8u, commands.Size());
+
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_STATE, command->m_Type);
     ASSERT_EQ(dmGraphics::STATE_ALPHA_TEST, (int32_t)command->m_Operands[0]);
+
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_STATE, command->m_Type);
     ASSERT_EQ(dmGraphics::STATE_ALPHA_TEST, (int32_t)command->m_Operands[0]);
+
+    command = &commands[2];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_COLOR, (int32_t)command->m_Operands[1]);
+
+    command = &commands[3];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COLOR_MASK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    ASSERT_EQ(1u, command->m_Operands[1]);
+    ASSERT_EQ(1u, command->m_Operands[2]);
+    ASSERT_EQ(1u, command->m_Operands[3]);
+
+    command = &commands[4];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_DEPTH_MASK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+
+    command = &commands[5];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_STENCIL_MASK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+
+    command = &commands[6];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_CULL_FACE, command->m_Type);
+    ASSERT_EQ(dmGraphics::FACE_TYPE_BACK, (int32_t)command->m_Operands[0]);
+
+    command = &commands[7];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_POLYGON_OFFSET, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    ASSERT_EQ(2u, command->m_Operands[1]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -251,6 +304,183 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
     f_to_i.f = 1.0f;
     ASSERT_EQ(f_to_i.i, command->m_Operands[2]);
     ASSERT_EQ(0u, command->m_Operands[3]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaTransform)
+{
+    const char* script =
+    "function init(self)\n"
+    "    render.set_viewport(self, 1, 2, 3, 4)\n"
+    "    render.set_view(self, vmath.matrix4())\n"
+    "    render.set_projection(self, vmath.matrix4())\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(3u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_VIEWPORT, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    ASSERT_EQ(2u, command->m_Operands[1]);
+    ASSERT_EQ(3u, command->m_Operands[2]);
+    ASSERT_EQ(4u, command->m_Operands[3]);
+
+    Matrix4 identity = Matrix4::identity();
+
+    command = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_VIEW, command->m_Type);
+    Matrix4* m = (Matrix4*)command->m_Operands[0];
+    ASSERT_NE((void*)0, m);
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            ASSERT_EQ(m->getElem(i, j), identity.getElem(i, j));
+
+    command = &commands[2];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_PROJECTION, command->m_Type);
+    m = (Matrix4*)command->m_Operands[0];
+    ASSERT_NE((void*)0, m);
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            ASSERT_EQ(m->getElem(i, j), identity.getElem(i, j));
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaDraw)
+{
+    const char* script =
+    "function init(self)\n"
+    "    self.test_pred = render.predicate(self, {\"one\", \"two\"})\n"
+    "    render.draw(self, self.test_pred)\n"
+    "    render.draw_debug3d(self)\n"
+    "    render.draw_debug2d(self)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(3u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, command->m_Type);
+    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+
+    command = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
+
+    command = &commands[2];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG2D, command->m_Type);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaWindowSize)
+{
+    const char* script =
+    "function update(self)\n"
+    "    assert(render.get_window_width(self) == 20)\n"
+    "    assert(render.get_window_height(self) == 10)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaConstants)
+{
+    const char* script =
+    "function init(self)\n"
+    "    render.enable_vertex_constant(self, 1, vmath.vector4(1, 2, 3, 4))\n"
+    "    render.disable_vertex_constant(self, 1)\n"
+    "    render.enable_vertex_constant_block(self, 1, vmath.matrix4() * 2)\n"
+    "    render.disable_vertex_constant_block(self, 1)\n"
+    "    render.enable_fragment_constant(self, 1, vmath.vector4(1, 2, 3, 4))\n"
+    "    render.disable_fragment_constant(self, 1)\n"
+    "    render.enable_fragment_constant_block(self, 1, vmath.matrix4() * 2)\n"
+    "    render.disable_fragment_constant_block(self, 1)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(8u, commands.Size());
+
+    Vector4 test_v(1, 2, 3, 4);
+    Matrix4 test_m = Matrix4::identity();
+    test_m *= 2;
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_VERTEX_CONSTANT, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    Vector4* v = (Vector4*)command->m_Operands[1];
+    ASSERT_NE((void*)0, v);
+    for (int i = 0; i < 4; ++i)
+        ASSERT_EQ(test_v.getElem(i), v->getElem(i));
+
+    command = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_VERTEX_CONSTANT, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+
+    command = &commands[2];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_VERTEX_CONSTANT_BLOCK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    Matrix4* m = (Matrix4*)command->m_Operands[1];
+    ASSERT_NE((void*)0, m);
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            ASSERT_EQ(test_m.getElem(i, j), m->getElem(i, j));
+
+    command = &commands[3];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_VERTEX_CONSTANT_BLOCK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+
+    command = &commands[4];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    v = (Vector4*)command->m_Operands[1];
+    ASSERT_NE((void*)0, v);
+    for (int i = 0; i < 4; ++i)
+        ASSERT_EQ(test_v.getElem(i), v->getElem(i));
+
+    command = &commands[5];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+
+    command = &commands[6];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT_BLOCK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
+    m = (Matrix4*)command->m_Operands[1];
+    ASSERT_NE((void*)0, m);
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            ASSERT_EQ(test_m.getElem(i, j), m->getElem(i, j));
+
+    command = &commands[7];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT_BLOCK, command->m_Type);
+    ASSERT_EQ(1u, command->m_Operands[0]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
