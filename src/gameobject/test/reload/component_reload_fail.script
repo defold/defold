@@ -1,0 +1,3 @@
+function on_reload(self)
+    assert(false)
+end

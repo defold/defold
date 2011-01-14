@@ -18,6 +18,7 @@ create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResour
 create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='cc cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
 create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='cc cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
 create_simple_protoc_task('collection', '.collection', '.collectionc', 'dmGameObjectDDF.CollectionDesc', before='cc cxx', proto_file = '../proto/gameobject_ddf.proto')
+create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='cc cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
 
 Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObjectDDF.PrototypeDesc -I ../proto -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
                       color='PINK',
@@ -63,5 +64,6 @@ def build(bld):
     new_test('id')
     new_test('input', exts = ['.go_pb', '.script', '.cpp', '.proto', '.it_pb'])
     new_test('message', exts = ['.go_pb', '.script', '.cpp', '.proto', '.mt_pb'])
+    new_test('reload', exts = ['.go_pb', '.script', '.cpp', '.proto', '.rt_pb'])
     new_test('script')
     new_test('spawn')

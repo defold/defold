@@ -227,6 +227,19 @@ namespace dmGameObject
                                      uintptr_t* user_data);
 
     /**
+     * Called when the resource the component is based on has been reloaded.
+     * @param instance Instance handle
+     * @param descriptor Descriptor of the reloaded resource
+     * @param name Name of the reloaded resource
+     * @param context User context
+     * @param user_data User data storage pointer
+     */
+    typedef void (*ComponentOnReload)(HInstance instance,
+                                     void* resource,
+                                     void* context,
+                                     uintptr_t* user_data);
+
+    /**
      * Collection of component registration data.
      */
     struct ComponentType
@@ -244,6 +257,7 @@ namespace dmGameObject
         ComponentsUpdate        m_UpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
+        ComponentOnReload       m_OnReloadFunction;
         uint32_t                m_InstanceHasUserData : 1;
         uint32_t                m_Reserved : 31;
         uint16_t                m_UpdateOrderPrio;

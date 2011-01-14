@@ -45,7 +45,10 @@ namespace dmGameObject
                 uint32_t resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.Push(Prototype::Component(component, resource_type, component_resource));
+                dmResource::SResourceDescriptor descriptor;
+                fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
+                assert(fact_e == dmResource::FACTORY_RESULT_OK);
+                proto->m_Components.Push(Prototype::Component(component, resource_type, dmHashString64(component_resource), descriptor.m_NameHash));
             }
         }
 

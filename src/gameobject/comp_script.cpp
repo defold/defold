@@ -360,6 +360,51 @@ namespace dmGameObject
         return result;
     }
 
+    void CompScriptOnReload(HInstance instance,
+            void* resource,
+            void* context,
+            uintptr_t* user_data)
+    {
+        ScriptInstance* script_instance = (ScriptInstance*)*user_data;
+
+        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONRELOAD];
+        if (function_ref != LUA_NOREF)
+        {
+            lua_State* L = g_LuaState;
+            int top = lua_gettop(L);
+            (void)top;
+
+            lua_pushliteral(L, "__collection__");
+            lua_pushlightuserdata(L, (void*) instance->m_Collection);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__instance__");
+            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+
+            int ret = lua_pcall(L, 1, 0, 0);
+            const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONRELOAD];
+            if (ret != 0)
+            {
+                dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
+                lua_pop(L, 1);
+            }
+
+            lua_pushliteral(L, "__collection__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_pushliteral(L, "__instance__");
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            assert(top == lua_gettop(L));
+        }
+    }
+
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
     {
         ComponentType script_component;
@@ -374,6 +419,7 @@ namespace dmGameObject
         script_component.m_UpdateFunction = &CompScriptUpdate;
         script_component.m_OnMessageFunction = &CompScriptOnMessage;
         script_component.m_OnInputFunction = &CompScriptOnInput;
+        script_component.m_OnReloadFunction = &CompScriptOnReload;
         script_component.m_InstanceHasUserData = true;
         return RegisterComponentType(regist, script_component);
     }

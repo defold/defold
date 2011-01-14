@@ -126,6 +126,8 @@ namespace dmGameObject
         delete regist;
     }
 
+    void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
+
     HCollection NewCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
@@ -142,6 +144,8 @@ namespace dmGameObject
         }
         regist->m_Collections.Push(coll);
         dmMutex::Unlock(regist->m_Mutex);
+
+        dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, coll);
 
         return coll;
     }
@@ -171,6 +175,8 @@ namespace dmGameObject
         }
         assert(found);
         dmMutex::Unlock(regist->m_Mutex);
+
+        dmResource::UnregisterResourceReloadedCallback(collection->m_Factory, ResourceReloadedCallback, collection);
 
         delete collection;
     }
@@ -1433,5 +1439,41 @@ namespace dmGameObject
         }
 
         return false;
+    }
+
+    void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    {
+        Collection* collection = (Collection*)user_data;
+        for (uint32_t level = 0; level < MAX_HIERARCHICAL_DEPTH; ++level)
+        {
+            uint32_t max_instance = collection->m_Instances.Size();
+            for (uint32_t i = 0; i < collection->m_LevelInstanceCount[level]; ++i)
+            {
+                uint16_t index = collection->m_LevelIndices[level * max_instance + i];
+                Instance* instance = collection->m_Instances[index];
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)
+                {
+                    Prototype::Component& component = instance->m_Prototype->m_Components[j];
+                    if (component.m_ResourceNameHash == descriptor->m_NameHash)
+                    {
+                        ComponentType* type = FindComponentType(collection->m_Register, component.m_ResourceType, 0x0);
+                        if (type->m_OnReloadFunction)
+                        {
+                            uintptr_t* user_data = 0;
+                            if (type->m_InstanceHasUserData)
+                            {
+                                user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                            }
+                            type->m_OnReloadFunction(instance, descriptor->m_Resource, type->m_Context, user_data);
+                        }
+                        if (type->m_InstanceHasUserData)
+                        {
+                            next_component_instance_data++;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

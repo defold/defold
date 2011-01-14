@@ -1,0 +1,7 @@
+function update(self)
+    assert(self.reloaded)
+end
+
+function on_reload(self)
+    self.reloaded = true
+end

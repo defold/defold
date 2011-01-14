@@ -22,16 +22,18 @@ namespace dmGameObject
     {
         struct Component
         {
-            Component(void* resource, uint32_t resource_type, const char* name) :
+            Component(void* resource, uint32_t resource_type, dmhash_t name_hash, dmhash_t resource_name_hash) :
+                m_NameHash(name_hash),
+                m_ResourceNameHash(resource_name_hash),
                 m_Resource(resource),
                 m_ResourceType(resource_type)
             {
-                m_NameHash = dmHashString64(name);
             }
 
+            dmhash_t m_NameHash;
+            dmhash_t m_ResourceNameHash;
             void*    m_Resource;
             uint32_t m_ResourceType;
-            dmhash_t m_NameHash;
         };
 
         dmArray<Component>     m_Components;

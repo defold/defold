@@ -32,7 +32,8 @@ namespace dmGameObject
             "init",
             "update",
             "on_message",
-            "on_input"
+            "on_input",
+            "on_reload"
     };
 
     lua_State* g_LuaState = 0;

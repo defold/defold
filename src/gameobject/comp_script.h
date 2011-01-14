@@ -43,6 +43,11 @@ namespace dmGameObject
             const InputAction* input_action,
             void* context,
             uintptr_t* user_data);
+
+    void CompScriptOnReload(HInstance instance,
+            void* resource,
+            void* context,
+            uintptr_t* user_data);
 }
 
 #endif // DM_GAMEOBJECT_COMP_SCRIPT_H
