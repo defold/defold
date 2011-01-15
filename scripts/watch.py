@@ -9,16 +9,14 @@ state = {}
 
 def UpdateState():
     changed = []
-    for root, dirs, files in os.walk(root_path):
-        root_dirs = root.split(os.pathsep)
-        root_dirs.pop(0)
-        path = os.pathsep.join(root_dirs)
+    for path, dirs, files in os.walk(root_path):
+        (root, sep, sub_path) = path.partition(os.path.sep)
         for f in files:
-            name = os.path.join(root, f)
+            name = os.path.join(path, f)
             mtime = os.stat(name)[stat.ST_MTIME]
             oldmtime = state.get(name, 0)
             if mtime != oldmtime:
-                changed.append(os.path.join(path, f + "c"))
+                changed.append(os.path.join(sub_path, f + "c"))
             state[name] = mtime
     return changed
 
@@ -39,6 +37,7 @@ def tick():
         if result == 0:
             try:
                 for f in changed:
+                    print("Reloading: " + f)
                     request = urllib.urlopen("http://localhost:8001/reload/" + f)
                 label.config(text = "Success!", foreground = "#080")
             except:
