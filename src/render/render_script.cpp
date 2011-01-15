@@ -29,6 +29,7 @@ namespace dmRender
         RENDER_SCRIPT_FUNCTION_INIT,
         RENDER_SCRIPT_FUNCTION_UPDATE,
         RENDER_SCRIPT_FUNCTION_ONMESSAGE,
+        RENDER_SCRIPT_FUNCTION_ONRELOAD,
         MAX_RENDER_SCRIPT_FUNCTION_COUNT
     };
 
@@ -41,7 +42,8 @@ namespace dmRender
     {
         "init",
         "update",
-        "on_message"
+        "on_message",
+        "on_reload"
     };
 
     RenderScriptInstance::RenderScriptInstance()
@@ -1189,5 +1191,10 @@ bail:
     void OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message)
     {
         RunScript(render_script_instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
+    }
+
+    void OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance)
+    {
+        RunScript(render_script_instance, RENDER_SCRIPT_FUNCTION_ONRELOAD, 0x0);
     }
 }

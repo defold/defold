@@ -181,6 +181,7 @@ namespace dmRender
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message);
+    void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 }
 
 #endif /* RENDER_H */
