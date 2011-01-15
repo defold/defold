@@ -194,7 +194,7 @@ TEST_F(ScriptTest, TestReload)
     DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", m_Path, go_resource_name);
 
     dmGameObjectDDF::PrototypeDesc prototype;
-    //memset(&prototype, 0, sizeof(prototype));
+    memset(&prototype, 0, sizeof(prototype));
     prototype.m_Components.m_Count = 1;
     dmGameObjectDDF::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
