@@ -20,10 +20,9 @@ namespace dmGameSystem
 
     struct CameraWorld;
 
-    struct Camera
+    struct CameraComponent
     {
         dmGameObject::HInstance m_Instance;
-        dmGameSystem::CameraProperties* m_Properties;
         CameraWorld* m_World;
         float m_AspectRatio;
         float m_FOV;
@@ -34,8 +33,8 @@ namespace dmGameSystem
 
     struct CameraWorld
     {
-        dmArray<Camera> m_Cameras;
-        dmCircularArray<Camera*> m_FocusStack;
+        dmArray<CameraComponent> m_Cameras;
+        dmCircularArray<CameraComponent*> m_FocusStack;
     };
 
     dmGameObject::CreateResult CompCameraNewWorld(void* context, void** world)
@@ -61,17 +60,17 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         CameraWorld* w = (CameraWorld*)world;
-        if (w->m_Cameras.Size() < MAX_COUNT)
+        if (!w->m_Cameras.Full())
         {
-            Camera camera;
+            dmGameSystem::CameraResource* cam_resource = (CameraResource*)resource;
+            CameraComponent camera;
             camera.m_Instance = instance;
-            camera.m_Properties = (CameraProperties*)resource;
             camera.m_World = w;
-            camera.m_AspectRatio = camera.m_Properties->m_DDF->m_AspectRatio;
-            camera.m_FOV = camera.m_Properties->m_DDF->m_FOV;
-            camera.m_NearZ = camera.m_Properties->m_DDF->m_NearZ;
-            camera.m_FarZ = camera.m_Properties->m_DDF->m_FarZ;
-            camera.m_AutoAspectRatio = camera.m_Properties->m_DDF->m_AutoAspectRatio != 0;
+            camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
+            camera.m_FOV = cam_resource->m_DDF->m_FOV;
+            camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
+            camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
+            camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
             w->m_Cameras.Push(camera);
             *user_data = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
@@ -90,7 +89,7 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         CameraWorld* w = (CameraWorld*)world;
-        Camera* camera = (Camera*)*user_data;
+        CameraComponent* camera = (CameraComponent*)*user_data;
         for (uint8_t i = 0; i < w->m_FocusStack.Size(); ++i)
         {
             if (w->m_FocusStack[i] == camera)
@@ -117,10 +116,10 @@ namespace dmGameSystem
             void* context)
     {
         CameraWorld* w = (CameraWorld*)world;
-        Camera* camera = 0x0;
+        CameraComponent* camera = 0x0;
         while (w->m_FocusStack.Size() > 0)
         {
-            Camera* top = w->m_FocusStack.Top();
+            CameraComponent* top = w->m_FocusStack.Top();
             if (top != 0x0)
             {
                 camera = top;
@@ -180,10 +179,10 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        Camera* camera = (Camera*)*user_data;
-        if (message_data->m_DDFDescriptor == dmCameraDDF::SetCamera::m_DDFDescriptor)
+        CameraComponent* camera = (CameraComponent*)*user_data;
+        if (message_data->m_DDFDescriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
         {
-            dmCameraDDF::SetCamera* ddf = (dmCameraDDF::SetCamera*)message_data->m_Buffer;
+            dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)message_data->m_Buffer;
             camera->m_AspectRatio = ddf->m_AspectRatio;
             camera->m_FOV = ddf->m_FOV;
             camera->m_NearZ = ddf->m_NearZ;
@@ -212,12 +211,12 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data)
     {
-        Camera* camera = (Camera*)*user_data;
-        camera->m_Properties = (CameraProperties*)resource;
-        camera->m_AspectRatio = camera->m_Properties->m_DDF->m_AspectRatio;
-        camera->m_FOV = camera->m_Properties->m_DDF->m_FOV;
-        camera->m_NearZ = camera->m_Properties->m_DDF->m_NearZ;
-        camera->m_FarZ = camera->m_Properties->m_DDF->m_FarZ;
-        camera->m_AutoAspectRatio = camera->m_Properties->m_DDF->m_AutoAspectRatio != 0;
+        CameraResource* cam_resource = (CameraResource*)resource;
+        CameraComponent* camera = (CameraComponent*)*user_data;
+        camera->m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
+        camera->m_FOV = cam_resource->m_DDF->m_FOV;
+        camera->m_NearZ = cam_resource->m_DDF->m_NearZ;
+        camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
+        camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
     }
 }

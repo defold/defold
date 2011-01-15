@@ -10,11 +10,12 @@
 class GamesysTest : public ::testing::Test
 {
 protected:
+    static const char* ROOT;
+
     virtual void SetUp();
 
     virtual void TearDown();
 
-public:
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;

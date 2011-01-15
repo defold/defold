@@ -42,8 +42,8 @@ namespace dmGameSystem
 {
     void RegisterDDFTypes()
     {
-        dmGameObject::RegisterDDFType(dmCameraDDF::AddCameraTarget::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmCameraDDF::SetCamera::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGamesysDDF::AddCameraTarget::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGamesysDDF::SetCamera::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastRequest::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);

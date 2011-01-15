@@ -1,4 +1,4 @@
-package dmCameraDDF;
+package dmGamesysDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";

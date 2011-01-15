@@ -1,5 +1,7 @@
 #include "test_gamesys.h"
 
+const char* GamesysTest::ROOT = "build/default/src/gamesys/test";
+
 void GamesysTest::SetUp()
 {
     dmSound::Initialize(0x0, 0x0);

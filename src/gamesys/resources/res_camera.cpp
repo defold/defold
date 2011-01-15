@@ -8,14 +8,14 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        CameraProperties* properties = new CameraProperties();
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmCameraDDF_CameraDesc_DESCRIPTOR, (void**) &properties->m_DDF);
+        CameraResource* cam_resource = new CameraResource();
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGamesysDDF_CameraDesc_DESCRIPTOR, (void**) &cam_resource->m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
-            delete properties;
+            delete cam_resource;
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
-        resource->m_Resource = (void*) properties;
+        resource->m_Resource = (void*) cam_resource;
 
         return dmResource::CREATE_RESULT_OK;
     }
@@ -24,9 +24,9 @@ namespace dmGameSystem
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
-        CameraProperties* properties = (CameraProperties*)resource->m_Resource;
-        dmDDF::FreeMessage((void*) properties->m_DDF);
-        delete properties;
+        CameraResource* cam_resource = (CameraResource*)resource->m_Resource;
+        dmDDF::FreeMessage((void*) cam_resource->m_DDF);
+        delete cam_resource;
         return dmResource::CREATE_RESULT_OK;
     }
 
@@ -36,13 +36,15 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        CameraProperties* properties = (CameraProperties*)resource->m_Resource;
-        dmDDF::FreeMessage((void*)properties->m_DDF);
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmCameraDDF_CameraDesc_DESCRIPTOR, (void**) &properties->m_DDF);
+        dmGamesysDDF::CameraDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGamesysDDF_CameraDesc_DESCRIPTOR, (void**) &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
+        CameraResource* cam_resource = (CameraResource*)resource->m_Resource;
+        dmDDF::FreeMessage((void*)cam_resource->m_DDF);
+        cam_resource->m_DDF = ddf;
         return dmResource::CREATE_RESULT_OK;
     }
 }

@@ -9,9 +9,9 @@
 
 namespace dmGameSystem
 {
-    struct CameraProperties
+    struct CameraResource
     {
-        dmCameraDDF::CameraDesc* m_DDF;
+        dmGamesysDDF::CameraDesc* m_DDF;
     };
 
     dmResource::CreateResult ResCameraCreate(dmResource::HFactory factory,
