@@ -27,9 +27,10 @@ namespace dmGameSystem
 
     struct RenderScriptPrototype
     {
+        dmArray<dmRender::HMaterial>    m_Materials;
+        dmhash_t                        m_NameHash;
         dmRender::HRenderScriptInstance m_Instance;
-        dmRender::HRenderScript m_Script;
-        dmArray<dmRender::HMaterial> m_Materials;
+        dmRender::HRenderScript         m_Script;
     };
 
     void RegisterDDFTypes();

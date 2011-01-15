@@ -6,6 +6,15 @@
 
 namespace dmGameSystem
 {
+    void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    {
+        RenderScriptPrototype* prototype = (RenderScriptPrototype*)user_data;
+        if (descriptor->m_NameHash == prototype->m_NameHash)
+        {
+            dmRender::OnReloadRenderScriptInstance(prototype->m_Instance);
+        }
+    }
+
     bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
         dmRender::HRenderContext render_context, RenderScriptPrototype* prototype, const char* filename)
     {
@@ -21,6 +30,9 @@ namespace dmGameSystem
             uint32_t count = 0;
             if (prototype->m_Instance == 0x0)
             {
+                dmResource::SResourceDescriptor descriptor;
+                if (dmResource::FACTORY_RESULT_OK == dmResource::GetDescriptor(factory, prototype_desc->m_Script, &descriptor))
+                    prototype->m_NameHash = descriptor.m_NameHash;
                 prototype->m_Instance = dmRender::NewRenderScriptInstance(render_context, prototype->m_Script);
             }
             else
@@ -68,9 +80,11 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         RenderScriptPrototype* prototype = new RenderScriptPrototype();
         prototype->m_Instance = 0x0;
+        prototype->m_NameHash = 0;
         if (AcquireResources(factory, buffer, buffer_size, render_context, prototype, filename))
         {
             resource->m_Resource = (void*) prototype;
+            dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, prototype);
             return dmResource::CREATE_RESULT_OK;
         }
         else
@@ -89,6 +103,7 @@ namespace dmGameSystem
         ReleaseResources(factory, prototype);
         if (prototype->m_Instance)
             dmRender::DeleteRenderScriptInstance(prototype->m_Instance);
+        dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, prototype);
         delete prototype;
         return dmResource::CREATE_RESULT_OK;
     }
