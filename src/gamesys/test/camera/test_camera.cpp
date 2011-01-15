@@ -30,7 +30,6 @@ TEST_F(CameraTest, TestResource)
     DM_SNPRINTF(path, sizeof(path), "%s/%s", ROOT, resource_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToFile(ddf, dmGamesysDDF::CameraDesc::m_DDFDescriptor, path));
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, 0));
-    ASSERT_NE(ddf, cam_resource->m_DDF);
     ASSERT_EQ(5.0f, cam_resource->m_DDF->m_AspectRatio);
     ASSERT_EQ(6.0f, cam_resource->m_DDF->m_FOV);
     ASSERT_EQ(7.0f, cam_resource->m_DDF->m_NearZ);
