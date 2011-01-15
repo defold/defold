@@ -1,7 +1,7 @@
 #include "../test_gamesys.h"
 #include "gamesys/resources/res_camera.h"
 
-#include <unistd.h>
+#include <dlib/dstrings.h>
 
 class CameraTest : public GamesysTest
 {
