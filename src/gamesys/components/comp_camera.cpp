@@ -206,4 +206,18 @@ namespace dmGameSystem
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
+
+    void CompCameraOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* context,
+            uintptr_t* user_data)
+    {
+        Camera* camera = (Camera*)*user_data;
+        camera->m_Properties = (CameraProperties*)resource;
+        camera->m_AspectRatio = camera->m_Properties->m_DDF->m_AspectRatio;
+        camera->m_FOV = camera->m_Properties->m_DDF->m_FOV;
+        camera->m_NearZ = camera->m_Properties->m_DDF->m_NearZ;
+        camera->m_FarZ = camera->m_Properties->m_DDF->m_FarZ;
+        camera->m_AutoAspectRatio = camera->m_Properties->m_DDF->m_AutoAspectRatio != 0;
+    }
 }

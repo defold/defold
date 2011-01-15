@@ -32,6 +32,11 @@ namespace dmGameSystem
             const dmGameObject::InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data);
+
+    void CompCameraOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* context,
+            uintptr_t* user_data);
 }
 
 #endif // DM_GAMESYS_COMP_CAMERA_H
