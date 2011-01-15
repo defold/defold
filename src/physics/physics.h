@@ -26,7 +26,7 @@ namespace dmPhysics
     typedef void (*GetWorldTransformCallback)(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
     typedef void (*SetWorldTransformCallback)(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
 
-    typedef void (*CollisionCallback)(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
+    typedef bool (*CollisionCallback)(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 
     struct ContactPoint
     {
@@ -47,7 +47,7 @@ namespace dmPhysics
         uint16_t m_GroupB;
     };
 
-    typedef void (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
+    typedef bool (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
 
     /**
      * Create a new physics world

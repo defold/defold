@@ -221,6 +221,9 @@ namespace dmPhysics
     {
         // Assume world->stepSimulation or world->performDiscreteCollisionDetection has been called
 
+        bool requests_collision_callbacks = true;
+        bool requests_contact_callbacks = true;
+
         if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
             DM_PROFILE(Physics, "ForEachCollision");
@@ -234,15 +237,17 @@ namespace dmPhysics
                 if (!object_a->isActive() && !object_b->isActive())
                     continue;
 
-                if (collision_callback != 0x0)
+                if (collision_callback != 0x0 && requests_collision_callbacks)
                 {
-                    collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
+                    requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
+                    if (!requests_collision_callbacks && !requests_contact_callbacks)
+                        return;
                 }
 
                 if (contact_point_callback)
                 {
                     int num_contacts = contact_manifold->getNumContacts();
-                    for (int j = 0; j < num_contacts; ++j)
+                    for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
                     {
                         btManifoldPoint& pt = contact_manifold->getContactPoint(j);
                         btRigidBody* body_a = btRigidBody::upcast(object_a);
@@ -278,12 +283,14 @@ namespace dmPhysics
                         }
                         point.m_RelativeVelocity = vel_b - vel_a;
                         point.m_LifeTime = pt.getLifeTime();
-                        contact_point_callback(point, contact_point_callback_user_data);
+                        requests_contact_callbacks = contact_point_callback(point, contact_point_callback_user_data);
+                        if (!requests_collision_callbacks && !requests_contact_callbacks)
+                            return;
                     }
                 }
             }
             // check ghosts
-            if (collision_callback != 0x0)
+            if (collision_callback != 0x0 && requests_collision_callbacks)
             {
                 int num_collision_objects = world->m_DynamicsWorld->getNumCollisionObjects();
                 for (int i = 0; i < num_collision_objects; ++i)
@@ -296,7 +303,9 @@ namespace dmPhysics
                         for (int j = 0; j < num_overlaps; ++j)
                         {
                             btCollisionObject* collidee = ghost_object->getOverlappingObject(j);
-                            collision_callback(ghost_object->getUserPointer(), ghost_object->getBroadphaseHandle()->m_collisionFilterGroup, collidee->getUserPointer(), collidee->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
+                            requests_collision_callbacks = collision_callback(ghost_object->getUserPointer(), ghost_object->getBroadphaseHandle()->m_collisionFilterGroup, collidee->getUserPointer(), collidee->getBroadphaseHandle()->m_collisionFilterGroup, collision_callback_user_data);
+                            if (!requests_collision_callbacks)
+                                return;
                         }
                     }
                 }

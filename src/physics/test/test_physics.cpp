@@ -261,20 +261,36 @@ TEST_F(PhysicsTest, GroundBoxCollision)
     dmPhysics::DeleteCollisionShape(box_data.m_Shape);
 }
 
-void CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {
     VisualObject* vo = (VisualObject*)user_data_a;
     ++vo->m_CollisionCount;
     vo = (VisualObject*)user_data_b;
     ++vo->m_CollisionCount;
     int* count = (int*)user_data;
-    *count = *count + 1;
+    if (*count < 20)
+    {
+        *count += 1;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
-void ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
+bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
 {
     int* count = (int*)user_data;
-    *count = *count + 1;
+    if (*count < 20)
+    {
+        *count += 1;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 TEST_F(PhysicsTest, CollisionCallbacks)
@@ -307,15 +323,17 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     ASSERT_EQ(0, collision_count);
     ASSERT_EQ(0, contact_point_count);
 
+    collision_count = 0;
     contact_point_count = 0;
     float last_y = 0.0f;
     for (int i = 0; i < 200 && box_visual_object.m_Position.getY() != last_y; ++i)
     {
         last_y = box_visual_object.m_Position.getY();
         dmPhysics::StepWorld(m_World, 1.0f / 60.0f);
-        dmPhysics::ForEachCollision(m_World, 0x0, 0x0, ContactPointCallback, &contact_point_count);
+        dmPhysics::ForEachCollision(m_World, CollisionCallback, &collision_count, ContactPointCallback, &contact_point_count);
     }
-    ASSERT_GT(contact_point_count, 20);
+    ASSERT_EQ(collision_count, 20);
+    ASSERT_EQ(contact_point_count, 20);
 
     collision_count = 0;
     contact_point_count = 0;
@@ -333,12 +351,13 @@ TEST_F(PhysicsTest, CollisionCallbacks)
     dmPhysics::DeleteCollisionShape(box_data.m_Shape);
 }
 
-void TriggerCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+bool TriggerCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {
     VisualObject* vo = (VisualObject*)user_data_a;
     ++vo->m_CollisionCount;
     vo = (VisualObject*)user_data_b;
     ++vo->m_CollisionCount;
+    return true;
 }
 
 TEST_F(PhysicsTest, TriggerCollisions)
@@ -766,7 +785,7 @@ enum FilterGroup
     FILTER_GROUP_COUNT
 };
 
-void FilterCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+bool FilterCollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {
     VisualObject* vo_a = (VisualObject*)user_data_a;
     ++vo_a->m_CollisionCount;
@@ -786,9 +805,10 @@ void FilterCollisionCallback(void* user_data_a, uint16_t group_a, void* user_dat
     }
     collision_count[index_a] += 1;
     collision_count[index_b] += 1;
+    return true;
 }
 
-void FilterContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
+bool FilterContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
 {
     int* count = (int*)user_data;
     int index_a = 0;
@@ -804,6 +824,7 @@ void FilterContactPointCallback(const dmPhysics::ContactPoint& contact_point, vo
     }
     count[index_a] += 1;
     count[index_b] += 1;
+    return true;
 }
 
 TEST_F(PhysicsTest, CollisionFiltering)
