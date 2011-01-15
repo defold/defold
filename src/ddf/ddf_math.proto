@@ -12,20 +12,20 @@ message Point3
 {
     option (alias) = "Vectormath::Aos::Point3";
 
-    required float X = 1;
-    required float Y = 2;
-    required float Z = 3;
-    optional float d = 4;
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float d = 4 [default = 0.0];
 }
 
 message Vector3
 {
     option (alias) = "Vectormath::Aos::Vector3";
 
-    required float X = 1;
-    required float Y = 2;
-    required float Z = 3;
-    optional float d = 4;
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float d = 4 [default = 0.0];
 }
 
 
@@ -33,40 +33,40 @@ message Vector4
 {
     option (alias) = "Vectormath::Aos::Vector4";
 
-    required float X = 1;
-    required float Y = 2;
-    required float Z = 3;
-    required float W = 4;
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float W = 4 [default = 0.0];
 }
 
 message Quat
 {
     option (alias) = "Vectormath::Aos::Quat";
 
-    required float X = 1;
-    required float Y = 2;
-    required float Z = 3;
-    required float W = 4;
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float W = 4 [default = 1.0];
 }
 
 message Matrix4
 {
     option (alias) = "Vectormath::Aos::Matrix4";
 
-    required float M00 = 1;
-    required float M01 = 2;
-    required float M02 = 3;
-    required float M03 = 4;
-    required float M10 = 5;
-    required float M11 = 6;
-    required float M12 = 7;
-    required float M13 = 8;
-    required float M20 = 9;
-    required float M21 = 10;
-    required float M22 = 11;
-    required float M23 = 12;
-    required float M30 = 13;
-    required float M31 = 14;
-    required float M32 = 15;
-    required float M33 = 16;
+    optional float M00 = 1 [default = 1.0];
+    optional float M01 = 2 [default = 0.0];
+    optional float M02 = 3 [default = 0.0];
+    optional float M03 = 4 [default = 0.0];
+    optional float M10 = 5 [default = 0.0];
+    optional float M11 = 6 [default = 1.0];
+    optional float M12 = 7 [default = 0.0];
+    optional float M13 = 8 [default = 0.0];
+    optional float M20 = 9 [default = 0.0];
+    optional float M21 = 10 [default = 0.0];
+    optional float M22 = 11 [default = 1.0];
+    optional float M23 = 12 [default = 0.0];
+    optional float M30 = 13 [default = 0.0];
+    optional float M31 = 14 [default = 0.0];
+    optional float M32 = 15 [default = 0.0];
+    optional float M33 = 16 [default = 1.0];
 }
