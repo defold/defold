@@ -331,7 +331,7 @@ namespace dmPhysics
     HCollisionShape NewConvexHullShape(const float* vertices, uint32_t vertex_count)
     {
         assert(sizeof(btScalar) == sizeof(float));
-        return new btConvexHullShape(vertices, vertex_count);
+        return new btConvexHullShape(vertices, vertex_count / 3, sizeof(float) * 3);
     }
 
     void DeleteCollisionShape(HCollisionShape shape)
