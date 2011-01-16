@@ -625,11 +625,14 @@ namespace dmGraphics
         assert(texture);
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
-        texture->m_Data = new char[TEXTURE_FORMAT_SIZE[params.m_Format] * params.m_Width * params.m_Height];
         texture->m_Format = params.m_Format;
         texture->m_Width = params.m_Width;
         texture->m_Height = params.m_Height;
-        memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
+        if (params.m_DataSize > 0)
+        {
+            texture->m_Data = new char[params.m_DataSize];
+            memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
+        }
     }
 
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)
