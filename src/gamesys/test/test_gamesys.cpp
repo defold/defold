@@ -200,6 +200,17 @@ ResourceFailParams invalid_cs_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, ::testing::ValuesIn(invalid_cs_resources));
 
+/* Fragment Program */
+
+const char* valid_fp_resources[] = {"fragment_program/valid.fpc"};
+INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceTest, ::testing::ValuesIn(valid_fp_resources));
+
+ResourceFailParams invalid_fp_resources[] =
+{
+    {"fragment_program/valid.fpc", "fragment_program/missing.fpc"},
+};
+INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, ::testing::ValuesIn(invalid_fp_resources));
+
 /* Texture */
 
 const char* valid_texture_resources[] = {"texture/valid.texturec"};
