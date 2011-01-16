@@ -1,4 +1,4 @@
-CollisionShape: "collision_object/box.convexshape"
+CollisionShape: "convex_shape/box.convexshape"
 Type: COLLISION_OBJECT_TYPE_DYNAMIC
 Mass: 1.0
 Friction: 0.0

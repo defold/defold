@@ -158,17 +158,6 @@ INSTANTIATE_TEST_CASE_P(Camera, ComponentTest, ::testing::ValuesIn(valid_camera_
 const char* invalid_camera_gos[] = {"camera/invalid_camera.goc"};
 INSTANTIATE_TEST_CASE_P(Camera, ComponentFailTest, ::testing::ValuesIn(invalid_camera_gos));
 
-/* Vertex Program */
-
-const char* valid_vp_resources[] = {"vertex_program/valid.vpc"};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceTest, ::testing::ValuesIn(valid_vp_resources));
-
-ResourceFailParams invalid_vp_resources[] =
-{
-    {"vertex_program/valid.vpc", "vertex_program/missing.vpc"},
-};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(invalid_vp_resources));
-
 /* Collision Object */
 
 const char* valid_collision_object_resources[] = {"collision_object/valid.collisionobjectc"};
@@ -190,6 +179,37 @@ const char* invalid_collision_object_gos[] =
     "collision_object/invalid_shape.goc"
 };
 INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, ::testing::ValuesIn(invalid_collision_object_gos));
+
+/* Convex Shape */
+
+const char* valid_cs_resources[] =
+{
+    "convex_shape/box.convexshapec",
+    "convex_shape/capsule.convexshapec",
+    "convex_shape/hull.convexshapec",
+    "convex_shape/sphere.convexshapec",
+};
+INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceTest, ::testing::ValuesIn(valid_cs_resources));
+
+ResourceFailParams invalid_cs_resources[] =
+{
+    {"convex_shape/box.convexshapec", "convex_shape/invalid_box.convexshapec"},
+    {"convex_shape/capsule.convexshapec", "convex_shape/invalid_capsule.convexshapec"},
+    {"convex_shape/hull.convexshapec", "convex_shape/invalid_hull.convexshapec"},
+    {"convex_shape/sphere.convexshapec", "convex_shape/invalid_sphere.convexshapec"},
+};
+INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, ::testing::ValuesIn(invalid_cs_resources));
+
+/* Vertex Program */
+
+const char* valid_vp_resources[] = {"vertex_program/valid.vpc"};
+INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceTest, ::testing::ValuesIn(valid_vp_resources));
+
+ResourceFailParams invalid_vp_resources[] =
+{
+    {"vertex_program/valid.vpc", "vertex_program/missing.vpc"},
+};
+INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(invalid_vp_resources));
 
 int main(int argc, char **argv)
 {

@@ -6,8 +6,8 @@ from TaskGen import extension, declare_extension
 import waf_gamesys
 
 def build(bld):
-    dirs = ['camera', 'collision_object', 'vertex_program']
-    exts = ['camera', 'collisionobject', 'vp']
+    dirs = ['camera', 'collision_object', 'convex_shape', 'vertex_program']
+    exts = ['camera', 'collisionobject', 'convexshape', 'vp']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src ../../../proto %s' % (dir),
                                      uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL DLIB PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL',
