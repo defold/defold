@@ -58,17 +58,17 @@ namespace dmGameSystem
     {
         assert(user_data);
 
-        CollisionObjectPrototype* prototype = (CollisionObjectPrototype*) resource;
+        CollisionObjectResource* co_resource = (CollisionObjectResource*) resource;
         dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
         dmPhysics::CollisionObjectData data;
-        data.m_Shape = prototype->m_CollisionShape;
+        data.m_Shape = co_resource->m_ConvexShape->m_Shape;
         data.m_UserData = instance;
-        data.m_Type = prototype->m_Type;
-        data.m_Mass = prototype->m_Mass;
-        data.m_Friction = prototype->m_Friction;
-        data.m_Restitution = prototype->m_Restitution;
-        data.m_Group = prototype->m_Group;
-        data.m_Mask = prototype->m_Mask;
+        data.m_Type = (dmPhysics::CollisionObjectType)co_resource->m_DDF->m_Type;
+        data.m_Mass = co_resource->m_DDF->m_Mass;
+        data.m_Friction = co_resource->m_DDF->m_Friction;
+        data.m_Restitution = co_resource->m_DDF->m_Restitution;
+        data.m_Group = co_resource->m_DDF->m_Group;
+        data.m_Mask = co_resource->m_Mask;
         dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, data);
         if (collision_object != 0x0)
         {
@@ -252,5 +252,29 @@ namespace dmGameSystem
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    void CompCollisionObjectOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* world,
+            void* context,
+            uintptr_t* user_data)
+    {
+        CollisionObjectResource* co_resource = (CollisionObjectResource*) resource;
+        dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
+        dmPhysics::CollisionObjectData data;
+        data.m_Shape = co_resource->m_ConvexShape->m_Shape;
+        data.m_UserData = instance;
+        data.m_Type = (dmPhysics::CollisionObjectType)co_resource->m_DDF->m_Type;
+        data.m_Mass = co_resource->m_DDF->m_Mass;
+        data.m_Friction = co_resource->m_DDF->m_Friction;
+        data.m_Restitution = co_resource->m_DDF->m_Restitution;
+        data.m_Group = co_resource->m_DDF->m_Group;
+        data.m_Mask = co_resource->m_Mask;
+        dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, data);
+        if (collision_object != 0x0)
+        {
+            *user_data = (uintptr_t) collision_object;
+        }
     }
 }

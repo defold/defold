@@ -65,8 +65,8 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        REGISTER_RESOURCE_TYPE("collisionobjectc", 0, ResCollisionObjectCreate, ResCollisionObjectDestroy, 0);
-        REGISTER_RESOURCE_TYPE("convexshapec", 0, ResConvexShapeCreate, ResConvexShapeDestroy, 0);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", 0, ResCollisionObjectCreate, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
+        REGISTER_RESOURCE_TYPE("convexshapec", 0, ResConvexShapeCreate, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("emitterc", 0, ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTextureCreate, ResTextureDestroy, 0);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramCreate, ResVertexProgramDestroy, ResVertexProgramRecreate);
@@ -140,7 +140,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("collisionobjectc", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectInit, &CompCollisionObjectDestroy,
-                &CompCollisionObjectUpdate, &CompCollisionObjectOnMessage, 0, 0);
+                &CompCollisionObjectUpdate, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload);
 
         REGISTER_COMPONENT_TYPE("wavc", 0x0,
                 CompSoundNewWorld, CompSoundDeleteWorld,

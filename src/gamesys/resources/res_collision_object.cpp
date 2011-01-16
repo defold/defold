@@ -1,55 +1,106 @@
 #include "res_collision_object.h"
 
-#include "../proto/physics_ddf.h"
+#include <string.h>
 
 namespace dmGameSystem
 {
+    static const uint32_t MAX_PATH_LENGTH = 128;
+
+    bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+        CollisionObjectResource* resource, const char* previous_shape_path)
+    {
+        dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::CollisionObjectDesc>(buffer, buffer_size, &resource->m_DDF);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return false;
+        }
+
+        bool result = true;
+
+        resource->m_Mask = 0;
+        for (uint32_t i = 0; i < resource->m_DDF->m_Mask.m_Count; ++i)
+            resource->m_Mask |= resource->m_DDF->m_Mask[i];
+
+        bool reload_shape = true;
+        if (previous_shape_path != 0x0)
+        {
+            reload_shape = 0 != strncmp(previous_shape_path, resource->m_DDF->m_CollisionShape, MAX_PATH_LENGTH);
+        }
+        if (reload_shape)
+        {
+            dmResource::FactoryResult factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, (void**) &resource->m_ConvexShape);
+            if (factory_result != dmResource::FACTORY_RESULT_OK)
+                result = false;
+        }
+
+        return result;
+    }
+
+    void ReleaseResources(dmResource::HFactory factory, CollisionObjectResource* resource)
+    {
+        if (resource->m_ConvexShape)
+            dmResource::Release(factory, resource->m_ConvexShape);
+        if (resource->m_DDF)
+            dmDDF::FreeMessage(resource->m_DDF);
+    }
+
     dmResource::CreateResult ResCollisionObjectCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
                                              dmResource::SResourceDescriptor* resource,
                                              const char* filename)
     {
-        dmPhysicsDDF::CollisionObjectDesc* collision_object_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmPhysicsDDF::CollisionObjectDesc>(buffer, buffer_size, &collision_object_desc);
-        if ( e != dmDDF::RESULT_OK )
+        CollisionObjectResource* collision_object = new CollisionObjectResource();
+        collision_object->m_DDF = 0x0;
+        collision_object->m_ConvexShape = 0x0;
+        if (AcquireResources(factory, buffer, buffer_size, collision_object, 0x0))
         {
-            return dmResource::CREATE_RESULT_UNKNOWN;
+            resource->m_Resource = collision_object;
+            return dmResource::CREATE_RESULT_OK;
         }
-
-        dmPhysics::HCollisionShape collision_shape;
-        dmResource::FactoryResult FACTORY_RESULT;
-        FACTORY_RESULT = dmResource::Get(factory, collision_object_desc->m_CollisionShape, (void**) &collision_shape);
-        if (FACTORY_RESULT != dmResource::FACTORY_RESULT_OK)
+        else
         {
-            dmDDF::FreeMessage(collision_object_desc);
-            return dmResource::CREATE_RESULT_UNKNOWN; // TODO: Translate error... we need a new function...
+            ReleaseResources(factory, collision_object);
+            delete collision_object;
+            return dmResource::CREATE_RESULT_FORMAT_ERROR;
         }
-
-        CollisionObjectPrototype* collision_object_prototype = new CollisionObjectPrototype();
-        collision_object_prototype->m_CollisionShape = collision_shape;
-        collision_object_prototype->m_Type = (dmPhysics::CollisionObjectType)collision_object_desc->m_Type;
-        collision_object_prototype->m_Mass = collision_object_desc->m_Mass;
-        collision_object_prototype->m_Friction = collision_object_desc->m_Friction;
-        collision_object_prototype->m_Restitution = collision_object_desc->m_Restitution;
-        collision_object_prototype->m_Group = (uint16_t)collision_object_desc->m_Group;
-        collision_object_prototype->m_Mask = 0;
-        for (uint32_t i = 0; i < collision_object_desc->m_Mask.m_Count; ++i)
-            collision_object_prototype->m_Mask |= collision_object_desc->m_Mask[i];
-        resource->m_Resource = (void*) collision_object_prototype;
-
-        dmDDF::FreeMessage(collision_object_desc);
-
-        return dmResource::CREATE_RESULT_OK;
     }
 
     dmResource::CreateResult ResCollisionObjectDestroy(dmResource::HFactory factory,
                                               void* context,
                                               dmResource::SResourceDescriptor* resource)
     {
-        CollisionObjectPrototype* collision_object_prototype = (CollisionObjectPrototype*)resource->m_Resource;
-        dmResource::Release(factory, collision_object_prototype->m_CollisionShape);
-        delete collision_object_prototype;
+        CollisionObjectResource* collision_object = (CollisionObjectResource*)resource->m_Resource;
+        ReleaseResources(factory, collision_object);
+        delete collision_object;
         return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult ResCollisionObjectRecreate(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename)
+    {
+        CollisionObjectResource* collision_object = (CollisionObjectResource*)resource->m_Resource;
+        CollisionObjectResource tmp_collision_object;
+        tmp_collision_object.m_DDF = 0x0;
+        tmp_collision_object.m_ConvexShape = 0x0;
+        if (AcquireResources(factory, buffer, buffer_size, &tmp_collision_object, collision_object->m_DDF->m_CollisionShape))
+        {
+            if (tmp_collision_object.m_ConvexShape)
+                dmResource::Release(factory, collision_object->m_ConvexShape);
+            else
+                tmp_collision_object.m_ConvexShape = collision_object->m_ConvexShape;
+            if (collision_object->m_DDF)
+                dmDDF::FreeMessage(collision_object->m_DDF);
+            *collision_object = tmp_collision_object;
+            return dmResource::CREATE_RESULT_OK;
+        }
+        else
+        {
+            ReleaseResources(factory, &tmp_collision_object);
+            return dmResource::CREATE_RESULT_FORMAT_ERROR;
+        }
     }
 }

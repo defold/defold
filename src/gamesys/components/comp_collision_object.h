@@ -38,6 +38,12 @@ namespace dmGameSystem
             const dmGameObject::InstanceMessageData* message_data,
             void* context,
             uintptr_t* user_data);
+
+    void CompCollisionObjectOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* world,
+            void* context,
+            uintptr_t* user_data);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

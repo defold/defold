@@ -4,16 +4,16 @@
 #include <resource/resource.h>
 #include <physics/physics.h>
 
+#include "res_convex_shape.h"
+
+#include "../proto/physics_ddf.h"
+
 namespace dmGameSystem
 {
-    struct CollisionObjectPrototype
+    struct CollisionObjectResource
     {
-        dmPhysics::HCollisionShape m_CollisionShape;
-        dmPhysics::CollisionObjectType m_Type;
-        float m_Mass;
-        float m_Friction;
-        float m_Restitution;
-        uint16_t m_Group;
+        ConvexShapeResource* m_ConvexShape;
+        dmPhysicsDDF::CollisionObjectDesc* m_DDF;
         uint16_t m_Mask;
     };
 
@@ -26,6 +26,18 @@ namespace dmGameSystem
     dmResource::CreateResult ResCollisionObjectDestroy(dmResource::HFactory factory,
                                               void* context,
                                               dmResource::SResourceDescriptor* resource);
+
+    dmResource::CreateResult ResCollisionObjectRecreate(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename);
+
+    dmResource::CreateResult ResCollisionObjectRecreate(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename);
 }
 
 #endif

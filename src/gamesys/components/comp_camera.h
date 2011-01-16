@@ -35,6 +35,7 @@ namespace dmGameSystem
 
     void CompCameraOnReload(dmGameObject::HInstance instance,
             void* resource,
+            void* world,
             void* context,
             uintptr_t* user_data);
 }
