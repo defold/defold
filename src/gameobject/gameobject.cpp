@@ -1465,7 +1465,7 @@ namespace dmGameObject
                             {
                                 user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                             }
-                            type->m_OnReloadFunction(instance, descriptor->m_Resource, type->m_Context, user_data);
+                            type->m_OnReloadFunction(instance, descriptor->m_Resource, collection->m_ComponentWorlds[j], type->m_Context, user_data);
                         }
                         if (type->m_InstanceHasUserData)
                         {

@@ -79,6 +79,7 @@ protected:
                                                               uintptr_t* user_data);
     static void CompReloadTargetOnReload(dmGameObject::HInstance instance,
                                             void* resource,
+                                            void* world,
                                             void* context,
                                             uintptr_t* user_data);
 
@@ -154,6 +155,7 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetDestroy(dmGameObject::HCo
 
 void ReloadTest::CompReloadTargetOnReload(dmGameObject::HInstance instance,
                                         void* resource,
+                                        void* world,
                                         void* context,
                                         uintptr_t* user_data)
 {

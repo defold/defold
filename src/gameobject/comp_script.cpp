@@ -362,6 +362,7 @@ namespace dmGameObject
 
     void CompScriptOnReload(HInstance instance,
             void* resource,
+            void* world,
             void* context,
             uintptr_t* user_data)
     {
