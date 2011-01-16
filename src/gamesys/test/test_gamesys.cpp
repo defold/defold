@@ -200,6 +200,17 @@ ResourceFailParams invalid_cs_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, ::testing::ValuesIn(invalid_cs_resources));
 
+/* Texture */
+
+const char* valid_texture_resources[] = {"texture/valid.texturec"};
+INSTANTIATE_TEST_CASE_P(Texture, ResourceTest, ::testing::ValuesIn(valid_texture_resources));
+
+ResourceFailParams invalid_texture_resources[] =
+{
+    {"texture/valid.texturec", "texture/missing.texturec"},
+};
+INSTANTIATE_TEST_CASE_P(Texture, ResourceFailTest, ::testing::ValuesIn(invalid_texture_resources));
+
 /* Vertex Program */
 
 const char* valid_vp_resources[] = {"vertex_program/valid.vpc"};
