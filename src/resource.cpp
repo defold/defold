@@ -417,7 +417,7 @@ static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* 
         dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, path);
         if (http_result != dmHttpClient::RESULT_OK)
         {
-            dmLogWarning("Resource not found: %s", path);
+            dmLogError("Resource not found: %s", path);
 
             if (factory->m_HttpStatus == 404)
             {
@@ -456,7 +456,7 @@ static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* 
         FILE* f = fopen(path, "rb");
         if (f == 0)
         {
-            dmLogWarning("Resource not found: %s", path);
+            dmLogError("Resource not found: %s", path);
             return FACTORY_RESULT_RESOURCE_NOT_FOUND;
         }
 
