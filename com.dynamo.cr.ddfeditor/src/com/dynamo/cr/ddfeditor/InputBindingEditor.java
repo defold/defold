@@ -6,7 +6,6 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.input.proto.Input.KeyTrigger;
 import com.dynamo.input.proto.Input.MouseTrigger;
 import com.google.protobuf.Descriptors.Descriptor;
-import com.google.protobuf.Message;
 
 public class InputBindingEditor extends DdfEditor {
 
@@ -31,9 +30,5 @@ public class InputBindingEditor extends DdfEditor {
             return mouseTrigger.getAction();
         }
         return "";
-    }
-
-    public static Message newInitialWizardContent() {
-        return InputBinding.newBuilder().build();
     }
 }

@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.CameraEditor;
-
 
 public class CameraNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -20,11 +15,5 @@ public class CameraNewWizard extends AbstractNewDdfWizard {
     @Override
     public String getExtension() {
         return "camera";
-    }
-
-    @Override
-    InputStream openContentStream() {
-        String contents = CameraEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
     }
 }

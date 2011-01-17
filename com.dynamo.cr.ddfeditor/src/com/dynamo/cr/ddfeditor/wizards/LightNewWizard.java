@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.LightEditor;
-
 
 public class LightNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -22,9 +17,4 @@ public class LightNewWizard extends AbstractNewDdfWizard {
         return "light";
     }
 
-    @Override
-    InputStream openContentStream() {
-        String contents = LightEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
-    }
 }

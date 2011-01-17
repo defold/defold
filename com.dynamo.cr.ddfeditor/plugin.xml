@@ -97,7 +97,7 @@
             extensions="gamepads"
             icon="icons/controller.png"
             id="com.dynamo.cr.ddfeditor.gamepadmapeditor"
-            name="Gamepad map Editor">
+            name="Gamepad Map Editor">
       </editor>
    </extension>
    <extension

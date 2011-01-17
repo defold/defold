@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.InputBindingEditor;
-
 
 public class InputBindingNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -22,9 +17,4 @@ public class InputBindingNewWizard extends AbstractNewDdfWizard {
         return "input_binding";
     }
 
-    @Override
-    InputStream openContentStream() {
-        String contents = InputBindingEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
-    }
 }

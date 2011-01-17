@@ -1,5 +1,6 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -26,6 +27,10 @@ import org.eclipse.ui.IWorkbenchWizard;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
+
+import com.dynamo.cr.ddfeditor.ProtoFactory;
+import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
 
 public abstract class AbstractNewDdfWizard extends Wizard implements INewWizard {
 
@@ -93,7 +98,8 @@ public abstract class AbstractNewDdfWizard extends Wizard implements INewWizard 
         IContainer container = (IContainer) resource;
         final IFile file = container.getFile(new Path(fileName));
         try {
-            InputStream stream = openContentStream();
+            Message templateMessage = ProtoFactory.getTemplateMessageForExtension(getExtension());
+            InputStream stream = new ByteArrayInputStream(TextFormat.printToString(templateMessage).getBytes());
             if (file.exists()) {
                 file.setContents(stream, true, true, monitor);
             } else {
@@ -116,11 +122,6 @@ public abstract class AbstractNewDdfWizard extends Wizard implements INewWizard 
         });
         monitor.worked(1);
     }
-
-    /**
-     * We will initialize file contents with a sample text.
-     */
-    abstract InputStream openContentStream();
 
     private void throwCoreException(String message) throws CoreException {
         IStatus status =

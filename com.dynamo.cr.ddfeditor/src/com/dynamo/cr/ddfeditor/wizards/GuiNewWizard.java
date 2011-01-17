@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.GuiEditor;
-
 
 public class GuiNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -22,9 +17,4 @@ public class GuiNewWizard extends AbstractNewDdfWizard {
         return "gui";
     }
 
-    @Override
-    InputStream openContentStream() {
-        String contents = GuiEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
-    }
 }

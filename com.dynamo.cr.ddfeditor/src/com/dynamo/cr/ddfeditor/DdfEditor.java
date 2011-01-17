@@ -32,12 +32,10 @@ import org.eclipse.jface.viewers.EditingSupport;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITableLabelProvider;
-import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.TreeViewerColumn;
-import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
@@ -78,55 +76,6 @@ import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
 public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener, Listener {
-
-    class ProtoContentProvider implements ITreeContentProvider {
-
-        @Override
-        public void dispose() {}
-
-        @Override
-        public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {}
-
-        @Override
-        public Object[] getElements(Object inputElement) {
-            if (inputElement instanceof MessageNode) {
-                MessageNode message = (MessageNode) inputElement;
-                return message.getAllPaths();
-            }
-            return null;
-        }
-
-        @Override
-        public Object[] getChildren(Object parentElement) {
-            if (parentElement instanceof IPath) {
-                IPath fieldPath = (IPath) parentElement;
-                Object value = message.getField(fieldPath);
-                if (value instanceof Node) {
-                    Node node = (Node) value;
-                    return node.getAllPaths();
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public Object getParent(Object element) {
-            return null;
-        }
-
-        @Override
-        public boolean hasChildren(Object element) {
-            if (element instanceof IPath) {
-                IPath fieldPath = (IPath) element;
-                Object value = message.getField(fieldPath);
-                if (value instanceof Node) {
-                    Node node = (Node) value;
-                    return node.getAllPaths().length > 0;
-                }
-            }
-            return false;
-        }
-    }
 
     class ProtoLabelProvider extends LabelProvider implements ITableLabelProvider {
         public String getColumnText(Object obj, int index) {

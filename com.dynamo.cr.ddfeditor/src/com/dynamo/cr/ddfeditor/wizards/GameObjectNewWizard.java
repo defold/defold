@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.GameObjectEditor;
-
 
 public class GameObjectNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -22,9 +17,4 @@ public class GameObjectNewWizard extends AbstractNewDdfWizard {
         return "go";
     }
 
-    @Override
-    InputStream openContentStream() {
-        String contents = GameObjectEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
-    }
 }

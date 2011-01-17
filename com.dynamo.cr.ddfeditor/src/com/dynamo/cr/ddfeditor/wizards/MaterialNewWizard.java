@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.MaterialEditor;
-
 
 public class MaterialNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -22,9 +17,4 @@ public class MaterialNewWizard extends AbstractNewDdfWizard {
         return "material";
     }
 
-    @Override
-    InputStream openContentStream() {
-        String contents = MaterialEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
-    }
 }

@@ -1,10 +1,5 @@
 package com.dynamo.cr.ddfeditor.wizards;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-
-import com.dynamo.cr.ddfeditor.CollisionObjectEditor;
-
 
 public class CollisionObjectNewWizard extends AbstractNewDdfWizard {
     @Override
@@ -22,9 +17,4 @@ public class CollisionObjectNewWizard extends AbstractNewDdfWizard {
         return "collisionobject";
     }
 
-    @Override
-    InputStream openContentStream() {
-        String contents = CollisionObjectEditor.newInitialWizardContent().toString();
-        return new ByteArrayInputStream(contents.getBytes());
-    }
 }
