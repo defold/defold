@@ -200,6 +200,28 @@ ResourceFailParams invalid_cs_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, ::testing::ValuesIn(invalid_cs_resources));
 
+/* Emitter */
+
+const char* valid_emitter_resources[] = {"emitter/valid.emitterc"};
+INSTANTIATE_TEST_CASE_P(Emitter, ResourceTest, ::testing::ValuesIn(valid_emitter_resources));
+
+ResourceFailParams invalid_emitter_resources[] =
+{
+    {"emitter/valid.emitterc", "emitter/invalid_material.emitterc"},
+    {"emitter/valid.emitterc", "emitter/invalid_texture.emitterc"},
+};
+INSTANTIATE_TEST_CASE_P(Emitter, ResourceFailTest, ::testing::ValuesIn(invalid_emitter_resources));
+
+const char* valid_emitter_gos[] = {"emitter/valid_emitter.goc"};
+INSTANTIATE_TEST_CASE_P(Emitter, ComponentTest, ::testing::ValuesIn(valid_emitter_gos));
+
+const char* invalid_emitter_gos[] =
+{
+    "emitter/invalid_material.goc",
+    "emitter/invalid_texture.goc"
+};
+INSTANTIATE_TEST_CASE_P(Emitter, ComponentFailTest, ::testing::ValuesIn(invalid_emitter_gos));
+
 /* Fragment Program */
 
 const char* valid_fp_resources[] = {"fragment_program/valid.fpc"};

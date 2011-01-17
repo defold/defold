@@ -7,13 +7,20 @@
 
 namespace dmGameSystem
 {
-    static dmResource::FactoryResult LoadPrototypeResources(dmResource::HFactory factory, dmParticle::Prototype* prototype, const char* filename)
+    bool AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, dmParticle::Prototype* prototype, const char* filename)
     {
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmParticleDDF_Emitter_DESCRIPTOR, (void**) &prototype->m_DDF);
+        if (e != dmDDF::RESULT_OK)
+        {
+            dmLogWarning("Emitter could not be loaded: %s.", filename);
+            return false;
+        }
         dmResource::FactoryResult result;
         result = dmResource::Get(factory, prototype->m_DDF->m_Texture.m_Name, (void**) &prototype->m_Texture);
         if (result != dmResource::FACTORY_RESULT_OK)
         {
             dmLogError("Could not load texture \"%s\" for emitter \"%s\".", prototype->m_DDF->m_Texture.m_Name, filename);
+            return false;
         }
         if (result == dmResource::FACTORY_RESULT_OK)
         {
@@ -21,13 +28,16 @@ namespace dmGameSystem
             if (result != dmResource::FACTORY_RESULT_OK)
             {
                 dmLogError("Could not load material \"%s\" for emitter \"%s\".", prototype->m_DDF->m_Material, filename);
+                return false;
             }
         }
-        return result;
+        return true;
     }
 
     static void ReleasePrototypeResources(dmResource::HFactory factory, dmParticle::Prototype* prototype)
     {
+        if (prototype->m_DDF != 0x0)
+            dmDDF::FreeMessage((void*) prototype->m_DDF);
         if (prototype->m_Material != 0)
             dmResource::Release(factory, prototype->m_Material);
         if (prototype->m_Texture != 0)
@@ -40,32 +50,19 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        dmParticleDDF::Emitter* prototype_ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmParticleDDF_Emitter_DESCRIPTOR, (void**) &prototype_ddf);
-        if (e != dmDDF::RESULT_OK)
-        {
-            dmLogWarning("Emitter could not be loaded: %s.", filename);
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-
         dmParticle::Prototype* prototype = new dmParticle::Prototype();
-        prototype->m_DDF = prototype_ddf;
-        dmResource::FactoryResult result = LoadPrototypeResources(factory, prototype, filename);
-        if (result != dmResource::FACTORY_RESULT_OK)
+        if (AcquireResources(factory, buffer, buffer_size, prototype, filename))
         {
-            if (prototype != 0x0)
-            {
-                ReleasePrototypeResources(factory, prototype);
-                if (prototype->m_DDF != 0x0)
-                    dmDDF::FreeMessage((void*) prototype->m_DDF);
-                delete prototype;
-            }
+            resource->m_Resource = (void*) prototype;
+            return dmResource::CREATE_RESULT_OK;
+        }
+        else
+        {
+            ReleasePrototypeResources(factory, prototype);
+            delete prototype;
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
-        resource->m_Resource = (void*) prototype;
-
-        return dmResource::CREATE_RESULT_OK;
     }
 
     dmResource::CreateResult ResEmitterDestroy(dmResource::HFactory factory,
@@ -76,8 +73,6 @@ namespace dmGameSystem
         if (prototype != 0x0)
         {
             ReleasePrototypeResources(factory, prototype);
-            if (prototype->m_DDF != 0x0)
-                dmDDF::FreeMessage((void*) prototype->m_DDF);
             delete prototype;
             return dmResource::CREATE_RESULT_OK;
         }
@@ -94,23 +89,17 @@ namespace dmGameSystem
             const char* filename)
     {
         dmParticle::Prototype* prototype = (dmParticle::Prototype*)resource->m_Resource;
-
-        ReleasePrototypeResources(factory, prototype);
-        if (prototype->m_DDF != 0x0)
-            dmDDF::FreeMessage((void*) prototype->m_DDF);
-
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmParticleDDF_Emitter_DESCRIPTOR, (void**) &prototype->m_DDF);
-        if (e != dmDDF::RESULT_OK)
-        {
-            dmLogWarning("Emitter could not be loaded: %s.", filename);
-            return dmResource::CREATE_RESULT_UNKNOWN;
-        }
-
-        if (LoadPrototypeResources(factory, prototype, filename) != dmResource::FACTORY_RESULT_OK)
+        dmParticle::Prototype tmp_prototype;
+        if (AcquireResources(factory, buffer, buffer_size, &tmp_prototype, filename))
         {
             ReleasePrototypeResources(factory, prototype);
+            *prototype = tmp_prototype;
+            return dmResource::CREATE_RESULT_OK;
+        }
+        else
+        {
+            ReleasePrototypeResources(factory, &tmp_prototype);
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
-        return dmResource::CREATE_RESULT_OK;
     }
 }
