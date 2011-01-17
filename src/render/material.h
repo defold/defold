@@ -40,6 +40,7 @@ namespace dmRender
 
     uint32_t                        GetMaterialTagMask(HMaterial material);
     void                            AddMaterialTag(HMaterial material, uint32_t tag);
+    void                            ClearMaterialTags(HMaterial material);
     uint32_t                        ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count);
 }
 

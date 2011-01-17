@@ -162,6 +162,11 @@ namespace dmRender
         material->m_TagMask |= ConvertTagToBitfield(tag);
     }
 
+    void ClearMaterialTags(HMaterial material)
+    {
+        material->m_TagMask = 0;
+    }
+
     uint32_t ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count)
     {
         uint32_t mask = 0;
