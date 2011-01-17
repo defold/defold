@@ -71,7 +71,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTextureCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramCreate, ResVertexProgramDestroy, ResVertexProgramRecreate);
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramCreate, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
-        REGISTER_RESOURCE_TYPE("imagefontc", 0, ResImageFontCreate, ResImageFontDestroy, 0);
+        REGISTER_RESOURCE_TYPE("imagefontc", 0, ResImageFontCreate, ResImageFontDestroy, ResImageFontRecreate);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontCreate, ResFontDestroy, 0);
         REGISTER_RESOURCE_TYPE("modelc", 0, ResCreateModel, ResDestroyModel, ResRecreateModel);
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResCreateMesh, ResDestroyMesh, ResRecreateMesh);

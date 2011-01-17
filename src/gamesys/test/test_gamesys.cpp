@@ -233,6 +233,17 @@ ResourceFailParams invalid_fp_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, ::testing::ValuesIn(invalid_fp_resources));
 
+/* Image Font */
+
+const char* valid_if_resources[] = {"font/valid.imagefontc"};
+INSTANTIATE_TEST_CASE_P(ImageFont, ResourceTest, ::testing::ValuesIn(valid_if_resources));
+
+ResourceFailParams invalid_if_resources[] =
+{
+    {"font/valid.imagefontc", "font/missing.imagefontc"},
+};
+INSTANTIATE_TEST_CASE_P(ImageFont, ResourceFailTest, ::testing::ValuesIn(invalid_if_resources));
+
 /* Material */
 
 const char* valid_material_resources[] = {"material/valid.materialc"};
