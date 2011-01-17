@@ -211,6 +211,18 @@ ResourceFailParams invalid_fp_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, ::testing::ValuesIn(invalid_fp_resources));
 
+/* Material */
+
+const char* valid_material_resources[] = {"material/valid.materialc"};
+INSTANTIATE_TEST_CASE_P(Material, ResourceTest, ::testing::ValuesIn(valid_material_resources));
+
+ResourceFailParams invalid_material_resources[] =
+{
+    {"material/valid.materialc", "material/missing.materialc"},
+    {"material/valid.materialc", "material/missing_name.materialc"},
+};
+INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, ::testing::ValuesIn(invalid_material_resources));
+
 /* Texture */
 
 const char* valid_texture_resources[] = {"texture/valid.texturec"};

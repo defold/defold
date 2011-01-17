@@ -11,12 +11,14 @@ def build(bld):
             'collision_object',
             'convex_shape',
             'fragment_program',
+            'material',
             'texture',
             'vertex_program']
     exts = ['camera',
             'collisionobject',
             'convexshape',
             'fp',
+            'material',
             'png',
             'vp']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
