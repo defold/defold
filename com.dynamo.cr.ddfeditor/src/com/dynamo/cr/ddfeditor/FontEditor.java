@@ -9,4 +9,9 @@ public class FontEditor extends DdfEditor {
         super(FontDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Font";
+    }
+
 }

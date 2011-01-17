@@ -8,4 +8,9 @@ public class LightEditor extends DdfEditor {
         super(LightDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Light";
+    }
+
 }

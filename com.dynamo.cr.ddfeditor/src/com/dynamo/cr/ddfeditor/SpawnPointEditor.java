@@ -8,4 +8,9 @@ public class SpawnPointEditor extends DdfEditor {
         super(SpawnPointDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Spawn Point";
+    }
+
 }

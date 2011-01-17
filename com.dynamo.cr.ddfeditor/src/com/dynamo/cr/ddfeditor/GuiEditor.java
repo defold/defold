@@ -8,4 +8,9 @@ public class GuiEditor extends DdfEditor {
         super(Gui.SceneDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Gui";
+    }
+
 }

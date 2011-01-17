@@ -7,5 +7,10 @@ public class CameraEditor extends DdfEditor {
     public CameraEditor() {
         super(CameraDesc.newBuilder().buildPartial());
     }
+
+    @Override
+    public String getTitle() {
+        return "Camera";
+    }
 }
 

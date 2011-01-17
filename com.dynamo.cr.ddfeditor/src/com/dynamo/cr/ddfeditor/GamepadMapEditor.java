@@ -33,5 +33,10 @@ public class GamepadMapEditor extends DdfEditor {
         return "";
     }
 
+    @Override
+    public String getTitle() {
+        return "Gamepad Map";
+    }
+
 }
 

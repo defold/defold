@@ -56,4 +56,9 @@ public class ModelEditor extends DdfEditor {
         }
         return null;
     }
+
+    @Override
+    public String getTitle() {
+        return "Model";
+    }
 }

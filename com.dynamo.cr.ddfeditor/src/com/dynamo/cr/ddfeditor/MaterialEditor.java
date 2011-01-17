@@ -8,4 +8,9 @@ public class MaterialEditor extends DdfEditor {
         super(MaterialDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Material";
+    }
+
 }

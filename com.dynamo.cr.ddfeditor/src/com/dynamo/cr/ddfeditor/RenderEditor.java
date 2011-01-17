@@ -8,4 +8,9 @@ public class RenderEditor extends DdfEditor {
         super(RenderPrototypeDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Render";
+    }
+
 }

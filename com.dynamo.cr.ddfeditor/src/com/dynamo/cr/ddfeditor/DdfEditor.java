@@ -38,6 +38,7 @@ import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.TreeViewerColumn;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
@@ -55,6 +56,8 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
+import org.eclipse.ui.forms.widgets.Form;
+import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
@@ -402,7 +405,17 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     @Override
     public void createPartControl(Composite parent) {
-        viewer = new TreeViewer(parent, SWT.BORDER | SWT.FULL_SELECTION);
+        FormToolkit toolkit = new FormToolkit(parent.getDisplay());
+        Form form = toolkit.createForm(parent);
+
+        IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        Image image = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(input.getName()).createImage();
+        form.setImage(image);
+        form.setText(getTitle());
+        toolkit.decorateFormHeading(form);
+        form.getBody().setLayout(new FillLayout());
+
+        viewer = new TreeViewer(form.getBody(), SWT.BORDER | SWT.FULL_SELECTION);
 
         ProtoLabelProvider labelProvider = new ProtoLabelProvider();
         viewer.setContentProvider(new ProtoContentProvider());
@@ -551,4 +564,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             }
         }
     }
+
+    public abstract String getTitle();
+
 }

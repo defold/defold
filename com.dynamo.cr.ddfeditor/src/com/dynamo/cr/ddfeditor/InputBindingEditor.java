@@ -31,4 +31,9 @@ public class InputBindingEditor extends DdfEditor {
         }
         return "";
     }
+
+    @Override
+    public String getTitle() {
+        return "Input Binding";
+    }
 }

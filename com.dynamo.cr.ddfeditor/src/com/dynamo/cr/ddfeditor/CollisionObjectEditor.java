@@ -8,4 +8,9 @@ public class CollisionObjectEditor extends DdfEditor {
         super(CollisionObjectDesc.newBuilder().buildPartial());
     }
 
+    @Override
+    public String getTitle() {
+        return "Collision Object";
+    }
+
 }
