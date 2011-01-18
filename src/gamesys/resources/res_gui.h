@@ -13,7 +13,7 @@ namespace dmGameSystem
     {
         dmGuiDDF::SceneDesc*          m_SceneDesc;
         const char*                   m_Script;
-        dmArray<dmRender::HFont>      m_Fonts;
+        dmArray<dmRender::HFontMap>   m_FontMaps;
         dmArray<dmGraphics::HTexture> m_Textures;
         const char*                   m_Path;
     };

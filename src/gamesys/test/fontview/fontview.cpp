@@ -7,8 +7,7 @@
 
 #include "../../gamesys.h"
 
-#include "../../resources/res_font.h"
-#include "../../resources/res_image_font.h"
+#include "../../resources/res_font_map.h"
 #include "../../resources/res_fragment_program.h"
 #include "../../resources/res_vertex_program.h"
 #include "../../resources/res_material.h"
@@ -73,14 +72,14 @@ int32_t Run(Context* context)
         params.m_X = x;
         params.m_Y = y;
         params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-        dmRender::DrawText(context->m_RenderContext, context->m_Font, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, params);
 
         y += 60;
 
         params.m_Text = buffer;
         params.m_Y = y;
 
-        dmRender::DrawText(context->m_RenderContext, context->m_Font, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, params);
 
         dmGraphics::SetBlendFunc(context->m_GraphicsContext, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_BLEND);
@@ -148,16 +147,15 @@ bool Init(Context* context, int argc, char* argv[])
             return false;\
         }\
 
-        REGISTER_RESOURCE_TYPE("fontc", dmGameSystem::ResFontCreate, dmGameSystem::ResFontDestroy, 0);
+        REGISTER_RESOURCE_TYPE("fontc", dmGameSystem::ResFontMapCreate, dmGameSystem::ResFontMapDestroy, dmGameSystem::ResFontMapRecreate);
         REGISTER_RESOURCE_TYPE("vpc", dmGameSystem::ResVertexProgramCreate, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate);
         REGISTER_RESOURCE_TYPE("fpc", dmGameSystem::ResFragmentProgramCreate, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate);
-        REGISTER_RESOURCE_TYPE("imagefontc", dmGameSystem::ResImageFontCreate, dmGameSystem::ResImageFontDestroy, 0);
         REGISTER_RESOURCE_TYPE("materialc", dmGameSystem::ResMaterialCreate, dmGameSystem::ResMaterialDestroy, 0);
 
 #undef REGISTER_RESOURCE_TYPE
 
-        dmResource::Get(context->m_Factory, font_path, (void**) &context->m_Font);
-        if (!context->m_Font)
+        dmResource::Get(context->m_Factory, font_path, (void**) &context->m_FontMap);
+        if (!context->m_FontMap)
         {
             dmLogFatal("Font '%s' could not be loaded.", font_path);
             return false;
@@ -178,7 +176,7 @@ void Finalize(Context* context)
 
     if (context->m_Factory)
     {
-        if (context->m_Font) dmResource::Release(context->m_Factory, context->m_Font);
+        if (context->m_FontMap) dmResource::Release(context->m_Factory, context->m_FontMap);
         dmResource::DeleteFactory(context->m_Factory);
     }
     if (context->m_RenderContext)

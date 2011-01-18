@@ -174,9 +174,9 @@ namespace dmGameSystem
         gui_component->m_Scene = scene;
         gui_component->m_Enabled = 1;
 
-        for (uint32_t i = 0; i < scene_prototype->m_Fonts.Size(); ++i)
+        for (uint32_t i = 0; i < scene_prototype->m_FontMaps.Size(); ++i)
         {
-            dmGui::AddFont(scene, scene_prototype->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_prototype->m_Fonts[i]);
+            dmGui::AddFont(scene, scene_prototype->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_prototype->m_FontMaps[i]);
         }
 
         for (uint32_t i = 0; i < scene_prototype->m_Textures.Size(); ++i)
@@ -330,7 +330,7 @@ namespace dmGameSystem
                 params.m_Text = n->m_Text;
                 params.m_X = position.getX();
                 params.m_Y = position.getY();
-                dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFont) n->m_Font, params);
+                dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) n->m_Font, params);
             }
         }
     }

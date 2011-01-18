@@ -17,7 +17,7 @@ struct Context
     const char* m_TestString;
     dmGraphics::HContext m_GraphicsContext;
     dmResource::HFactory m_Factory;
-    dmRender::HFont m_Font;
+    dmRender::HFontMap m_FontMap;
     dmRender::HRenderContext m_RenderContext;
     uint32_t m_ScreenWidth;
     uint32_t m_ScreenHeight;

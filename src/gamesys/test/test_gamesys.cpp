@@ -222,6 +222,18 @@ const char* invalid_emitter_gos[] =
 };
 INSTANTIATE_TEST_CASE_P(Emitter, ComponentFailTest, ::testing::ValuesIn(invalid_emitter_gos));
 
+/* Font map */
+
+const char* valid_font_resources[] = {"font/valid_font.fontc"};
+INSTANTIATE_TEST_CASE_P(FontMap, ResourceTest, ::testing::ValuesIn(valid_font_resources));
+
+ResourceFailParams invalid_font_resources[] =
+{
+    {"font/valid_font.fontc", "font/missing.fontc"},
+    {"font/valid_font.fontc", "font/invalid_material.fontc"},
+};
+INSTANTIATE_TEST_CASE_P(FontMap, ResourceFailTest, ::testing::ValuesIn(invalid_font_resources));
+
 /* Fragment Program */
 
 const char* valid_fp_resources[] = {"fragment_program/valid.fpc"};
@@ -232,17 +244,6 @@ ResourceFailParams invalid_fp_resources[] =
     {"fragment_program/valid.fpc", "fragment_program/missing.fpc"},
 };
 INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, ::testing::ValuesIn(invalid_fp_resources));
-
-/* Image Font */
-
-const char* valid_if_resources[] = {"font/valid.imagefontc"};
-INSTANTIATE_TEST_CASE_P(ImageFont, ResourceTest, ::testing::ValuesIn(valid_if_resources));
-
-ResourceFailParams invalid_if_resources[] =
-{
-    {"font/valid.imagefontc", "font/missing.imagefontc"},
-};
-INSTANTIATE_TEST_CASE_P(ImageFont, ResourceFailTest, ::testing::ValuesIn(invalid_if_resources));
 
 /* Material */
 

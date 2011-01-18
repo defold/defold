@@ -48,16 +48,16 @@ namespace dmGameSystem
         GuiScenePrototype* scene_prototype = new GuiScenePrototype();
         scene_prototype->m_SceneDesc = scene_desc;
         scene_prototype->m_Script = script;
-        scene_prototype->m_Fonts.SetCapacity(scene_desc->m_Fonts.m_Count);
+        scene_prototype->m_FontMaps.SetCapacity(scene_desc->m_Fonts.m_Count);
         for (uint32_t i = 0; i < scene_desc->m_Fonts.m_Count; ++i)
         {
-            dmRender::HFont font;
-            dmResource::FactoryResult r = dmResource::Get(factory, scene_desc->m_Fonts[i].m_Font, (void**) &font);
+            dmRender::HFontMap font_map;
+            dmResource::FactoryResult r = dmResource::Get(factory, scene_desc->m_Fonts[i].m_Font, (void**) &font_map);
             if (r != dmResource::FACTORY_RESULT_OK)
             {
                 goto bail;
             }
-            scene_prototype->m_Fonts.Push(font);
+            scene_prototype->m_FontMaps.Push(font_map);
         }
 
         scene_prototype->m_Textures.SetCapacity(scene_desc->m_Textures.m_Count);
@@ -77,9 +77,9 @@ namespace dmGameSystem
 
         return dmResource::CREATE_RESULT_OK;
 bail:
-        for (uint32_t j = 0; j < scene_prototype->m_Fonts.Size(); ++j)
+        for (uint32_t j = 0; j < scene_prototype->m_FontMaps.Size(); ++j)
         {
-            dmResource::Release(factory, scene_prototype->m_Fonts[j]);
+            dmResource::Release(factory, scene_prototype->m_FontMaps[j]);
         }
         for (uint32_t j = 0; j < scene_prototype->m_Textures.Size(); ++j)
         {
@@ -97,9 +97,9 @@ bail:
     {
         GuiScenePrototype* scene_prototype = (GuiScenePrototype*) resource->m_Resource;
 
-        for (uint32_t i = 0; i < scene_prototype->m_Fonts.Size(); ++i)
+        for (uint32_t i = 0; i < scene_prototype->m_FontMaps.Size(); ++i)
         {
-            dmResource::Release(factory, (void*) scene_prototype->m_Fonts[i]);
+            dmResource::Release(factory, (void*) scene_prototype->m_FontMaps[i]);
         }
 
         for (uint32_t i = 0; i < scene_prototype->m_Textures.Size(); ++i)

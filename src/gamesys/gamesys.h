@@ -8,6 +8,7 @@
 #include <gameobject/gameobject.h>
 
 #include <render/render.h>
+#include <render/font_renderer.h>
 #include <physics/physics.h>
 
 namespace dmGameSystem
