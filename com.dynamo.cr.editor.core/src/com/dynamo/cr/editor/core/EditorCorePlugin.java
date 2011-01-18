@@ -63,13 +63,18 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
             String templateData = e.getAttribute("template-data");
             String protoMessageClassName = e.getAttribute("proto-message-class");
             String embeddable = e.getAttribute("embeddable");
+            String editSupportClassName = e.getAttribute("edit-support-class");
 
+            IResourceTypeEditSupport editSupport = null;
+            if (editSupportClassName != null) {
+                editSupport = (IResourceTypeEditSupport) e.createExecutableExtension("edit-support-class");
+            }
 
             Class<GeneratedMessage> messageClass = null;
             if (protoMessageClassName != null) {
                 messageClass = bundle.loadClass(protoMessageClassName);
             }
-            IResourceType resourceType = new ResourceType(id, name, fileExtension, templateData, messageClass, embeddable != null && embeddable.equals("true"));
+            IResourceType resourceType = new ResourceType(id, name, fileExtension, templateData, messageClass, embeddable != null && embeddable.equals("true"), editSupport);
             resourceTypes.add(resourceType);
             extensionToResourceType.put(fileExtension, resourceType);
         }

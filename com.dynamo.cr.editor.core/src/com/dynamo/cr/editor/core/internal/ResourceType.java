@@ -4,6 +4,7 @@ import java.io.StringReader;
 import java.lang.reflect.Method;
 
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeEditSupport;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.GeneratedMessage.Builder;
 import com.google.protobuf.GeneratedMessage;
@@ -18,9 +19,10 @@ public class ResourceType implements IResourceType {
     private byte[] templateData;
     private Class<GeneratedMessage> messageClass;
     private boolean embeddable;
+    private IResourceTypeEditSupport editSupport;
 
     public ResourceType(String id, String name, String fileExtension,
-            String templateData, Class<GeneratedMessage> messageClass, boolean embeddable) {
+            String templateData, Class<GeneratedMessage> messageClass, boolean embeddable, IResourceTypeEditSupport editSupport) {
         this.id = id;
         this.name = name;
         this.fileExtension = fileExtension;
@@ -28,6 +30,7 @@ public class ResourceType implements IResourceType {
             this.templateData = templateData.getBytes();
         this.messageClass = messageClass;
         this.embeddable = embeddable;
+        this.editSupport = editSupport;
     }
 
     @Override
@@ -92,6 +95,11 @@ public class ResourceType implements IResourceType {
     @Override
     public boolean isEmbeddable() {
         return this.embeddable;
+    }
+
+    @Override
+    public IResourceTypeEditSupport getEditSupport() {
+        return editSupport;
     }
 
     @Override

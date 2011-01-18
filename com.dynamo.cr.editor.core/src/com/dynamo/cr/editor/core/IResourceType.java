@@ -58,4 +58,10 @@ public interface IResourceType {
      * @return true if embeddable
      */
     boolean isEmbeddable();
+
+    /**
+     * Get edit support
+     * @return edit support instance. null if not supported.
+     */
+    IResourceTypeEditSupport getEditSupport();
 }

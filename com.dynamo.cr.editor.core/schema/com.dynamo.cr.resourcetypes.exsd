@@ -94,6 +94,16 @@
                </documentation>
             </annotation>
          </attribute>
+         <attribute name="edit-support-class" type="string">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
+               <appinfo>
+                  <meta.attribute kind="java" basedOn=":com.dynamo.cr.editor.core.IResourceTypeEditSupport"/>
+               </appinfo>
+            </annotation>
+         </attribute>
       </complexType>
    </element>
 
