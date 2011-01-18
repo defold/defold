@@ -300,11 +300,12 @@
             template-data="CollisionShape: &apos;&apos; Type: COLLISION_OBJECT_TYPE_DYNAMIC Mass: 1 Friction: 0.1 Restitution: 0.5 Group: 1 ">
       </resource-type>
       <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.ModelEditSupport"
             file-extension="gui"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Gui"
             name="Gui"
             proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
-            template-data="Script: ''">
+            template-data="Script: &apos;&apos;">
       </resource-type>
       <resource-type
             file-extension="font"

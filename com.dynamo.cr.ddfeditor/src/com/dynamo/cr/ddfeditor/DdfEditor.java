@@ -68,6 +68,7 @@ import com.dynamo.cr.ddfeditor.operations.RemoveRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.SetFieldOperation;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeEditSupport;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
@@ -77,6 +78,7 @@ import com.dynamo.cr.protobind.RepeatedNode;
 import com.google.protobuf.Descriptors.EnumDescriptor;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
 import com.google.protobuf.Descriptors.FieldDescriptor.Type;
 import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.GeneratedMessage.Builder;
@@ -478,14 +480,6 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         firePropertyChange(PROP_DIRTY);
     }
 
-    public boolean hasNewValueForPath(String path) {
-        return false;
-    }
-
-    public Object getNewValueForPath(String path) {
-        return null;
-    }
-
     // TODO: MOVE?
     // Similar function in LoaderFactory!
     public IContainer findContentRoot(IFile file) {
@@ -526,7 +520,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                         RepeatedNode repeatedNode = (RepeatedNode) value;
                         FieldDescriptor fieldDescriptor = repeatedNode.getFieldDescriptor();
 
-                        if (hasNewValueForPath(path.toString())) {
+                        if (createDefaultValue(fieldDescriptor) != null) {
                             MenuItem menuItem = new MenuItem (this.menu, SWT.PUSH);
                             menuItem.addListener(SWT.Selection, this);
                             String name = fieldDescriptor.getName();
@@ -555,11 +549,12 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             IPath path = (IPath) event.widget.getData("path");
 
             if (operation.equals("add")) {
-                Object newValue = getNewValueForPath(path.toString());
+                RepeatedNode oldRepeated = (RepeatedNode) message.getField(path);
+                Object newValue = createDefaultValue(oldRepeated.getFieldDescriptor());
+/*                Object newValue = getNewValueForPath(path.toString());*/
                 if (newValue == null)
                     return;
 
-                RepeatedNode oldRepeated = (RepeatedNode) message.getField(path);
                 List<Object> oldList = oldRepeated.getValueList();
                 AddRepeatedOperation op = new AddRepeatedOperation(viewer, message, path, oldList, newValue);
                 executeOperation(op);
@@ -571,6 +566,32 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 executeOperation(op);
             }
         }
+    }
+
+    private Object createDefaultValue(FieldDescriptor fieldDescriptor) {
+        JavaType javaType = fieldDescriptor.getJavaType();
+
+        if (javaType == JavaType.MESSAGE) {
+            IResourceTypeEditSupport editSupport = this.resourceType.getEditSupport();
+            if (editSupport != null) {
+                return editSupport.getTemplateMessageFor(fieldDescriptor.getMessageType());
+            }
+        }
+
+        switch (javaType) {
+            case BOOLEAN:
+                return false;
+            case DOUBLE:
+                return 0.0;
+            case FLOAT:
+                return 0.0f;
+            case INT:
+            case LONG:
+                return 0;
+            case STRING:
+                return "";
+        }
+        return null;
     }
 
 }
