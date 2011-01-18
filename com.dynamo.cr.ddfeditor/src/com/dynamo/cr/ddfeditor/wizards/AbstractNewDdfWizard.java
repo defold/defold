@@ -28,7 +28,9 @@ import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
 
-import com.dynamo.cr.ddfeditor.ProtoFactory;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -98,7 +100,9 @@ public abstract class AbstractNewDdfWizard extends Wizard implements INewWizard 
         IContainer container = (IContainer) resource;
         final IFile file = container.getFile(new Path(fileName));
         try {
-            Message templateMessage = ProtoFactory.getTemplateMessageForExtension(getExtension());
+            IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+            IResourceType resourceType = registry.getResourceTypeFromExtension(getExtension());
+            Message templateMessage = resourceType.createTemplateMessage();
             InputStream stream = new ByteArrayInputStream(TextFormat.printToString(templateMessage).getBytes());
             if (file.exists()) {
                 file.setContents(stream, true, true, monitor);

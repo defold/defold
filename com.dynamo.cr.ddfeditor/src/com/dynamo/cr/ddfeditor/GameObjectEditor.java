@@ -65,7 +65,9 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 
-import com.dynamo.cr.ddfeditor.ProtoFactory.ComponentType;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
@@ -203,7 +205,12 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         public EmbeddedComponent(EmbeddedComponentDesc desc) {
             this.descriptor = desc;
 
-            Descriptor protoDescriptor = ProtoFactory.getDescriptorForExtension(descriptor.getType());
+
+            IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+            IResourceType resourceType = registry.getResourceTypeFromExtension(descriptor.getType());
+            Descriptor protoDescriptor = resourceType.getMessageDescriptor();
+
+            //Descriptor protoDescriptor = ProtoFactory.getDescriptorForExtension(descriptor.getType());
             if (protoDescriptor == null) {
                 throw new RuntimeException(String.format("Unknown type: %s", descriptor.getType()));
             }
@@ -412,27 +419,36 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             @Override
             public void widgetSelected(SelectionEvent e) {
 
+                IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+                IResourceType[] resourceTypes = registry.getResourceTypes();
+                List<IResourceType> embedabbleTypes = new ArrayList<IResourceType>();
+                for (IResourceType t : resourceTypes) {
+                    if (t.isEmbeddable()) {
+                        embedabbleTypes.add(t);
+                    }
+                }
+
                 ListDialog dialog = new ListDialog(getSite().getShell());
                 dialog.setTitle("Add Embeded Resource");
                 dialog.setMessage("Select resource type from list to embed:");
                 dialog.setContentProvider(new ArrayContentProvider());
-                dialog.setInput(ProtoFactory.getEmbeddedComponentTypes());
+                dialog.setInput(embedabbleTypes.toArray());
                 dialog.setLabelProvider(new LabelProvider() {
                     @Override
                     public Image getImage(Object element) {
-                        ProtoFactory.ComponentType componentType = (ComponentType) element;
-                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("dummy." + componentType.extension).createImage();
+                        IResourceType resourceType = (IResourceType) element;
+                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("dummy." + resourceType.getFileExtension()).createImage();
                     }
                 });
 
                 int ret = dialog.open();
                 if (ret == Dialog.OK) {
                     Object[] result = dialog.getResult();
-                    ComponentType componentType = (ComponentType) result[0];
-                    Message templateMessage = ProtoFactory.getTemplateMessageForExtension(componentType.extension);
-                    EmbeddedComponentDesc embeddedComponentDesc = EmbeddedComponentDesc.newBuilder().setData(TextFormat.printToString(templateMessage)).setType(componentType.extension).build();
+                    IResourceType resourceType = (IResourceType) result[0];
+                    Message templateMessage = resourceType.createTemplateMessage();
+                    EmbeddedComponentDesc embeddedComponentDesc = EmbeddedComponentDesc.newBuilder().setData(TextFormat.printToString(templateMessage)).setType(resourceType.getFileExtension()).build();
                     EmbeddedComponent embeddedComponent = new EmbeddedComponent(embeddedComponentDesc);
-                    AddComponentOperation op = new AddComponentOperation("Add " + componentType.name, embeddedComponent);
+                    AddComponentOperation op = new AddComponentOperation("Add " + resourceType.getName(), embeddedComponent);
                     executeOperation(op);
                 }
             }

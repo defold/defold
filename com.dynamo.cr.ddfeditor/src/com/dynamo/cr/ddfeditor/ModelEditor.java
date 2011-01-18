@@ -9,12 +9,10 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
-import com.dynamo.model.proto.Model.ModelDesc;
-
 public class ModelEditor extends DdfEditor {
 
     public ModelEditor() {
-        super(ModelDesc.newBuilder().buildPartial());
+        super("model");
     }
 
     @Override
@@ -57,8 +55,4 @@ public class ModelEditor extends DdfEditor {
         return null;
     }
 
-    @Override
-    public String getTitle() {
-        return "Model";
-    }
 }

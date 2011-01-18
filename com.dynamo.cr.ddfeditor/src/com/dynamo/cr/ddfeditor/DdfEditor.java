@@ -1,9 +1,9 @@
 package com.dynamo.cr.ddfeditor;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +66,9 @@ import org.eclipse.ui.part.EditorPart;
 import com.dynamo.cr.ddfeditor.operations.AddRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.RemoveRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.SetFieldOperation;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.Node;
@@ -75,7 +78,8 @@ import com.google.protobuf.Descriptors.EnumDescriptor;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor.Type;
-import com.google.protobuf.Message;
+import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.GeneratedMessage.Builder;
 import com.google.protobuf.TextFormat;
 
 public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener, Listener {
@@ -302,15 +306,16 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     private TreeViewer viewer;
     private MessageNode message;
-    private Message messageType;
     private UndoContext undoContext;
     private UndoActionHandler undoAction;
     private RedoActionHandler redoAction;
     private int cleanUndoStackDepth = 0;
     private Menu menu;
+    private IResourceType resourceType;
 
-    public DdfEditor(Message messageType) {
-        this.messageType = messageType;
+    public DdfEditor(String extension) {
+        IResourceTypeRegistry regist = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+        this.resourceType = regist.getResourceTypeFromExtension(extension);
     }
 
     public void executeOperation(IUndoableOperation operation) {
@@ -362,8 +367,11 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         try {
             Reader reader = new InputStreamReader(file.getContents());
 
-            Message.Builder builder = messageType.newBuilderForType();
             try {
+                Method m = this.resourceType.getMessageClass().getDeclaredMethod("newBuilder");
+                @SuppressWarnings("rawtypes")
+                GeneratedMessage.Builder builder = (Builder) m.invoke(null);
+
                 try {
                     TextFormat.merge(reader, builder);
 
@@ -372,7 +380,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 } finally {
                     reader.close();
                 }
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 throw new PartInitException(e.getMessage(), e);
             }
 
@@ -411,7 +419,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
         Image image = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(input.getName()).createImage();
         form.setImage(image);
-        form.setText(getTitle());
+        form.setText(this.resourceType.getName());
         toolkit.decorateFormHeading(form);
         form.getBody().setLayout(new FillLayout());
 
@@ -564,7 +572,5 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             }
         }
     }
-
-    public abstract String getTitle();
 
 }

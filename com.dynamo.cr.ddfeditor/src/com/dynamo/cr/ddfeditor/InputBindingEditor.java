@@ -2,7 +2,6 @@ package com.dynamo.cr.ddfeditor;
 
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.input.proto.Input.GamepadTrigger;
-import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.input.proto.Input.KeyTrigger;
 import com.dynamo.input.proto.Input.MouseTrigger;
 import com.google.protobuf.Descriptors.Descriptor;
@@ -10,7 +9,7 @@ import com.google.protobuf.Descriptors.Descriptor;
 public class InputBindingEditor extends DdfEditor {
 
     public InputBindingEditor() {
-        super(InputBinding.newBuilder().buildPartial());
+        super("input_binding");
     }
 
     @Override
@@ -32,8 +31,4 @@ public class InputBindingEditor extends DdfEditor {
         return "";
     }
 
-    @Override
-    public String getTitle() {
-        return "Input Binding";
-    }
 }

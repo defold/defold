@@ -1,16 +1,10 @@
 package com.dynamo.cr.ddfeditor;
 
-import com.dynamo.render.proto.Material.MaterialDesc;
 
 public class MaterialEditor extends DdfEditor {
 
     public MaterialEditor() {
-        super(MaterialDesc.newBuilder().buildPartial());
-    }
-
-    @Override
-    public String getTitle() {
-        return "Material";
+        super("material");
     }
 
 }

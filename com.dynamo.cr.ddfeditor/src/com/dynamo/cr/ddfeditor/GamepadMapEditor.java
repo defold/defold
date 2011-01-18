@@ -3,14 +3,13 @@ package com.dynamo.cr.ddfeditor;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.input.proto.Input.GamepadMap;
 import com.dynamo.input.proto.Input.GamepadMapEntry;
-import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.GamepadModifier_t;
 import com.google.protobuf.Descriptors.Descriptor;
 
 public class GamepadMapEditor extends DdfEditor {
 
     public GamepadMapEditor() {
-        super(GamepadMaps.newBuilder().buildPartial());
+        super("gamepads");
     }
 
     @Override
@@ -31,11 +30,6 @@ public class GamepadMapEditor extends DdfEditor {
         }
 
         return "";
-    }
-
-    @Override
-    public String getTitle() {
-        return "Gamepad Map";
     }
 
 }

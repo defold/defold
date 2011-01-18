@@ -254,5 +254,100 @@
          <enablement></enablement>
       </commonWizard>
    </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="model"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
+            name="Model"
+            proto-message-class="com.dynamo.model.proto.Model$ModelDesc"
+            template-data="Name: 'unnamed' Mesh: '' Material: ''">
+      </resource-type>
+      <resource-type
+            file-extension="go"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.GameObject"
+            name="Game Object"
+            proto-message-class="com.dynamo.gameobject.proto.GameObject$PrototypeDesc"
+            template-data=" ">
+      </resource-type>
+      <resource-type
+            file-extension="camera"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Camera"
+            name="Camera"
+            proto-message-class="com.dynamo.camera.proto.Camera$CameraDesc"
+            template-data="AspectRatio: 1 FOV: 45 NearZ: 0.1 FarZ: 1000 ">
+      </resource-type>
+      <resource-type
+            file-extension="light"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Light"
+            name="Light"
+            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$LightDesc"
+            template-data="Id: 'unnamed' Type: POINT Intensity: 10 Color { X: 1 Y: 1 Z: 1 } Range: 50 Decay: 0.9 ">
+      </resource-type>
+      <resource-type
+            file-extension="spawnpoint"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint"
+            name="Spawn Point"
+            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$SpawnPointDesc"
+            template-data="Prototype: '' ">
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="collisionobject"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject"
+            name="Collision Object"
+            proto-message-class="com.dynamo.physics.proto.Physics$CollisionObjectDesc"
+            template-data="CollisionShape: &apos;&apos; Type: COLLISION_OBJECT_TYPE_DYNAMIC Mass: 1 Friction: 0.1 Restitution: 0.5 Group: 1 ">
+      </resource-type>
+      <resource-type
+            file-extension="gui"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Gui"
+            name="Gui"
+            proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
+            template-data="Script: ''">
+      </resource-type>
+      <resource-type
+            file-extension="font"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Font"
+            name="Font"
+            proto-message-class="com.dynamo.render.proto.Font$FontDesc"
+            template-data="Font: '' Material: '' Size: 15">
+      </resource-type>
+      <resource-type
+            file-extension="material"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Material"
+            name="Material"
+            proto-message-class="com.dynamo.render.proto.Material$MaterialDesc"
+            template-data="Name: 'unnamed' VertexProgram: '' FragmentProgram: ''">
+      </resource-type>
+      <resource-type
+            file-extension="render"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Render"
+            name="Render"
+            proto-message-class="com.dynamo.render.proto.Render$RenderPrototypeDesc"
+            template-data="Script: ''">
+      </resource-type>
+      <resource-type
+            file-extension="input_binding"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.InputBinding"
+            name="Input Binding"
+            proto-message-class="com.dynamo.input.proto.Input$InputBinding"
+            template-data=" ">
+      </resource-type>
+      <resource-type
+            file-extension="gamepads"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Gamepads"
+            name="Gamepads"
+            proto-message-class="com.dynamo.input.proto.Input$GamepadMaps"
+            template-data="  ">
+      </resource-type>
+      <resource-type
+            file-extension="collection"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Collection"
+            name="Collection"
+            proto-message-class="com.dynamo.gameobject.proto.GameObject$CollectionDesc"
+            template-data="Name: 'unnamed'">
+      </resource-type>
+   </extension>
 
 </plugin>
