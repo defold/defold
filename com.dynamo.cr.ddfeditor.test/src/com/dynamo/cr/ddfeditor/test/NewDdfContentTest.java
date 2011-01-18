@@ -27,7 +27,6 @@ public class NewDdfContentTest {
         assertTrue(resourceTypes.length > 1);
 
         for (IResourceType t : resourceTypes) {
-            System.out.println(t.getName());
             Class<GeneratedMessage> messageClass = t.getMessageClass();
             byte[] templateData = t.getTemplateData();
             if (messageClass != null) {
