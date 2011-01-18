@@ -97,7 +97,7 @@
          <attribute name="edit-support-class" type="string">
             <annotation>
                <documentation>
-                  
+                  the fully qualified name of a class that implements com.dynamo.cr.editor.core.IResourceTypeEditSupport.
                </documentation>
                <appinfo>
                   <meta.attribute kind="java" basedOn=":com.dynamo.cr.editor.core.IResourceTypeEditSupport"/>

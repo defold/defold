@@ -331,6 +331,7 @@
             template-data="Script: &apos;&apos;">
       </resource-type>
       <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.InputBindingEditSupport"
             file-extension="input_binding"
             id="com.dynamo.cr.ddfeditor.resourcetypes.InputBinding"
             name="Input Binding"
