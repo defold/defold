@@ -6,21 +6,15 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-def transform_font(msg):
-    msg.Font = msg.Font.replace('.ttf', '.imagefontc')
-    msg.Material = msg.Material.replace('.material', '.materialc')
-    return msg
-
 def transform_material(msg):
     msg.VertexProgram = msg.VertexProgram.replace('.vp', '.vpc')
     msg.FragmentProgram = msg.FragmentProgram.replace('.fp', '.fpc')
     return msg
 
-proto_compile_task('font', 'render.font_ddf_pb2', 'font_ddf_pb2.FontDesc', '.font', '.fontc', transform_font)
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
 #Task.simple_task_type('ttf', 'python ${FONTC} -s ${size} -o ${TGT} ${SRC}',
-Task.simple_task_type('imagefont', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.Fontc ${SRC} ${TGT}',
+Task.simple_task_type('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.render.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
@@ -32,14 +26,10 @@ def font_file(self, node):
                  self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/render.jar',
                  self.env['DYNAMO_HOME'] + '/share/java/fontc.jar']
-    imagefont = self.create_task('imagefont')
-    imagefont.env['CLASSPATH'] = os.pathsep.join(classpath)
-    imagefont.set_inputs(node)
-    obj_ext = '.imagefontc'
-    out = node.change_ext(obj_ext)
-    imagefont.set_outputs(out)
-    font = self.create_task('font')
-    font.set_inputs(node)
+    fontmap = self.create_task('fontmap')
+    fontmap.env['CLASSPATH'] = os.pathsep.join(classpath)
+    fontmap.env['CONTENT_ROOT'] = fontmap.generator.content_root
+    fontmap.set_inputs(node)
     obj_ext = '.fontc'
     out = node.change_ext(obj_ext)
-    font.set_outputs(out)
+    fontmap.set_outputs(out)

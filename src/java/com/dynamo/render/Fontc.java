@@ -33,7 +33,7 @@ import java.util.Comparator;
 import javax.imageio.ImageIO;
 
 import com.dynamo.ddf.DDF;
-import com.dynamo.render.ddf.Font.ImageFont;
+import com.dynamo.render.ddf.Font.FontMap;
 
 class Glyph {
     int index;
@@ -91,7 +91,8 @@ class BlendComposite implements Composite {
 
 public class Fontc {
     String fontFile = null;
-    String imageFontFile = null;
+    String fontMapFile = null;
+    String materialFile = null;
     int imageWidth;
     int imageHeight;
     int size = -1;
@@ -226,21 +227,22 @@ public class Fontc {
         newHeight = (int) Math.pow(2, newHeight + 1);
         image = image.getSubimage(0, 0, this.imageWidth, newHeight);
 
-        ImageFont imageFont = new ImageFont();
-        imageFont.m_ImageWidth = this.imageWidth;
-        imageFont.m_ImageHeight = newHeight;
-        imageFont.m_ShadowX = this.shadowX;
-        imageFont.m_ShadowY = this.shadowY;
+        FontMap fontMap = new FontMap();
+        fontMap.m_Material = this.materialFile;
+        fontMap.m_ImageWidth = this.imageWidth;
+        fontMap.m_ImageHeight = newHeight;
+        fontMap.m_ShadowX = this.shadowX;
+        fontMap.m_ShadowY = this.shadowY;
 
         // Add 32 dummy characters
         for (int j = 0; j < 32; ++j) {
-            com.dynamo.render.ddf.Font.ImageFont.Glyph image_glyph = new com.dynamo.render.ddf.Font.ImageFont.Glyph();
-            imageFont.m_Glyphs.add(image_glyph);
+            com.dynamo.render.ddf.Font.FontMap.Glyph image_glyph = new com.dynamo.render.ddf.Font.FontMap.Glyph();
+            fontMap.m_Glyphs.add(image_glyph);
         }
 
         i = 0;
         for (Glyph glyph : glyphs) {
-            com.dynamo.render.ddf.Font.ImageFont.Glyph imageGlyph = new com.dynamo.render.ddf.Font.ImageFont.Glyph();
+            com.dynamo.render.ddf.Font.FontMap.Glyph imageGlyph = new com.dynamo.render.ddf.Font.FontMap.Glyph();
             imageGlyph.m_Width = glyph.width;
             if (glyph.width > 0)
                 imageGlyph.m_Width += padding * 2;
@@ -250,20 +252,20 @@ public class Fontc {
             imageGlyph.m_Descent = glyph.descent + padding;
             imageGlyph.m_X = glyph.x;
             imageGlyph.m_Y = glyph.y;
-            imageFont.m_Glyphs.add(imageGlyph);
+            fontMap.m_Glyphs.add(imageGlyph);
         }
 
         int imageSize = this.imageWidth * newHeight * Fontc.imageComponentCount;
-        imageFont.m_ImageData = new byte[imageSize];
+        fontMap.m_ImageData = new byte[imageSize];
         int[] image_data = new int[imageSize];
         image.getRaster().getPixels(0, 0, this.imageWidth, newHeight, image_data);
 
         for (int j = 0; j < this.imageWidth * newHeight * Fontc.imageComponentCount; ++j) {
-            imageFont.m_ImageData[j] = (byte) (image_data[j] & 0xff);
+            fontMap.m_ImageData[j] = (byte) (image_data[j] & 0xff);
         }
 
-        ImageIO.write(image, "png", new File(this.imageFontFile + ".png"));
-        DDF.save(imageFont, new FileOutputStream(this.imageFontFile));
+        ImageIO.write(image, "png", new File(this.fontMapFile + ".png"));
+        DDF.save(fontMap, new FileOutputStream(this.fontMapFile));
     }
 
     private BufferedImage drawGlyph(Glyph glyph, int padding, Font font, Composite blendComposite, Color faceColor, Color outlineColor, ConvolveOp shadowConvolve) {
@@ -355,17 +357,35 @@ public class Fontc {
 
     public static void main(String[] args) throws FontFormatException, IOException {
         System.setProperty("java.awt.headless", "true");
-        if (args.length != 2)    {
-            System.err.println("Usage: fontc fontfile size outfile");
+        if (args.length != 2 && args.length != 3)    {
+            System.err.println("Usage: fontc fontfile [basedir] outfile");
             System.exit(1);
+        }
+        String infile = args[0];
+        String basedir = ".";
+        String outfile = args[1];
+        if (args.length == 3) {
+            basedir = args[1];
+            outfile = args[2];
         }
         File fontInput = new File(args[0]);
         FileInputStream stream = new FileInputStream(fontInput);
         InputStreamReader reader = new InputStreamReader(stream);
         com.dynamo.render.ddf.Font.FontDesc desc = DDF.loadTextFormat(reader, com.dynamo.render.ddf.Font.FontDesc.class);
+        if (desc.m_Font.length() == 0) {
+            System.err.println("No ttf font specified in " + args[0] + ".");
+            System.exit(1);
+        }
+        String ttfFileName = basedir + File.separator + desc.m_Font;
+        File ttfFile = new File(ttfFileName);
+        if (!ttfFile.exists()) {
+            System.err.println("The ttf file " + ttfFileName + " specified in " + args[0] + " does not exist.");
+            System.exit(1);
+        }
         Fontc fontc = new Fontc(desc.m_Antialias != 0);
-        fontc.fontFile = fontInput.getParent() + File.separator + desc.m_Font;
-        fontc.imageFontFile = args[1];
+        fontc.fontFile = ttfFileName;
+        fontc.materialFile = desc.m_Material + "c";
+        fontc.fontMapFile = outfile;
         fontc.imageWidth = 512;
         fontc.imageHeight = 2048; // Enough. Will be cropped later
         fontc.size = desc.m_Size;

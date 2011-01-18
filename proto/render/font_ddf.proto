@@ -9,8 +9,7 @@ option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message FontDesc
 {
-    // NOTE: no [(resource)=true for Font. Doesn't follow the standard path convention
-    required string Font = 1;
+    required string Font = 1 [(resource)=true];
     required string Material = 2 [(resource)=true];
     required uint32 Size = 3;
     optional uint32 Antialias = 4 [default = 1];
@@ -23,7 +22,7 @@ message FontDesc
     optional float ShadowY = 11 [default = 0.0];
 }
 
-message ImageFont
+message FontMap
 {
     message Glyph
     {
@@ -37,9 +36,10 @@ message ImageFont
     }
 
     repeated Glyph Glyphs = 1;
+    required string Material = 2;
     required uint32 ImageWidth = 3;
     required uint32 ImageHeight = 4;
-    required bytes ImageData = 2;
-    optional float ShadowX = 5;
-    optional float ShadowY = 6;
+    required bytes ImageData = 5;
+    optional float ShadowX = 6;
+    optional float ShadowY = 7;
 }

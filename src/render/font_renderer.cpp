@@ -1,3 +1,4 @@
+
 #include "font_renderer.h"
 
 #include <string.h>
@@ -15,73 +16,101 @@ using namespace Vectormath::Aos;
 
 namespace dmRender
 {
-    struct Font
+    FontMapParams::FontMapParams()
+    : m_Glyphs()
+    , m_TextureWidth(0)
+    , m_TextureHeight(0)
+    , m_TextureData(0x0)
+    , m_TextureDataSize(0)
+    , m_ShadowX(0.0f)
+    , m_ShadowY(0.0f)
     {
-        ~Font()
+
+    }
+
+    struct FontMap
+    {
+        FontMap()
+        : m_Texture(0)
+        , m_Material(0)
+        , m_Glyphs()
+        , m_TextureWidth(0)
+        , m_TextureHeight(0)
+        , m_ShadowX(0.0f)
+        , m_ShadowY(0.0f)
+        {
+
+        }
+
+        ~FontMap()
         {
             dmGraphics::DeleteTexture(m_Texture);
         }
 
-        dmRenderDDF::ImageFont* m_ImageFont;
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
+        dmArray<Glyph>          m_Glyphs;
+        uint32_t                m_TextureWidth;
+        uint32_t                m_TextureHeight;
+        float                   m_ShadowX;
+        float                   m_ShadowY;
     };
 
-    HImageFont NewImageFont(const void* font, uint32_t font_size)
+    HFontMap NewFontMap(HRenderContext render_context, FontMapParams& params)
     {
-        dmRenderDDF::ImageFont* f;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ImageFont>(font, font_size, &f);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return 0;
-        }
-        return f;
+        FontMap* font_map = new FontMap();
+        font_map->m_Material = 0;
+
+        font_map->m_Glyphs.Swap(params.m_Glyphs);
+        font_map->m_TextureWidth = params.m_TextureWidth;
+        font_map->m_TextureHeight = params.m_TextureHeight;
+        font_map->m_ShadowX = params.m_ShadowX;
+        font_map->m_ShadowY = params.m_ShadowY;
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
+        tex_params.m_Data = params.m_TextureData;
+        tex_params.m_DataSize = params.m_TextureDataSize;
+        tex_params.m_Width = params.m_TextureWidth;
+        tex_params.m_Height = params.m_TextureHeight;
+        font_map->m_Texture = dmGraphics::NewTexture(render_context->m_GraphicsContext, tex_params);
+
+        return font_map;
     }
 
-    void DeleteImageFont(HImageFont font)
+    void DeleteFontMap(HFontMap font_map)
     {
-        dmDDF::FreeMessage(font);
+        delete font_map;
     }
 
-    HFont NewFont(HRenderContext render_context, HImageFont image_font)
+    void SetFontMap(HFontMap font_map, FontMapParams& params)
     {
-        Font* ret = new Font();
-        ret->m_Material = 0;
-        ret->m_ImageFont = (dmRenderDDF::ImageFont*) image_font;
-        dmGraphics::TextureParams params;
-        params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
-        params.m_Data = &ret->m_ImageFont->m_ImageData[0];
-        params.m_DataSize = ret->m_ImageFont->m_ImageData.m_Count;
-        params.m_Width = ret->m_ImageFont->m_ImageWidth;
-        params.m_Height = ret->m_ImageFont->m_ImageHeight;
-        ret->m_Texture = dmGraphics::NewTexture(render_context->m_GraphicsContext, params);
-
-        return ret;
+        font_map->m_Glyphs.Swap(params.m_Glyphs);
+        font_map->m_TextureWidth = params.m_TextureWidth;
+        font_map->m_TextureHeight = params.m_TextureHeight;
+        font_map->m_ShadowX = params.m_ShadowX;
+        font_map->m_ShadowY = params.m_ShadowY;
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
+        tex_params.m_Data = params.m_TextureData;
+        tex_params.m_DataSize = params.m_TextureDataSize;
+        tex_params.m_Width = params.m_TextureWidth;
+        tex_params.m_Height = params.m_TextureHeight;
+        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
     }
 
-    HImageFont GetImageFont(HFont font)
+    dmGraphics::HTexture GetFontMapTexture(HFontMap font_map)
     {
-        return font->m_ImageFont;
+        return font_map->m_Texture;
     }
 
-    dmGraphics::HTexture GetTexture(HFont font)
+    void SetFontMapMaterial(HFontMap font_map, HMaterial material)
     {
-        return font->m_Texture;
+        font_map->m_Material = material;
     }
 
-    void SetMaterial(HFont font, HMaterial material)
+    HMaterial GetFontMapMaterial(HFontMap font_map)
     {
-        font->m_Material = material;
-    }
-
-    HMaterial GetMaterial(HFont font)
-    {
-        return font->m_Material;
-    }
-
-    void DeleteFont(HFont font)
-    {
-        delete font;
+        return font_map->m_Material;
     }
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
@@ -126,7 +155,7 @@ namespace dmRender
     , m_Y(0)
     {}
 
-    void DrawText(HRenderContext render_context, HFont font, const DrawTextParams& params)
+    void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params)
     {
         TextContext& text_context = render_context->m_TextContext;
         if (text_context.m_VertexIndex + 4 >= text_context.m_MaxVertexCount || text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size())
@@ -140,8 +169,8 @@ namespace dmRender
         Vectormath::Aos::Vector4 colors[3] = {params.m_FaceColor, params.m_OutlineColor, params.m_ShadowColor};
         Vectormath::Aos::Vector4 clear_color(0.0f, 0.0f, 0.0f, 0.0f);
 
-        float x_offsets[3] = {0.0f, 0.0f, font->m_ImageFont->m_ShadowX};
-        float y_offsets[3] = {0.0f, 0.0f, font->m_ImageFont->m_ShadowY};
+        float x_offsets[3] = {0.0f, 0.0f, font_map->m_ShadowX};
+        float y_offsets[3] = {0.0f, 0.0f, font_map->m_ShadowY};
 
         struct TextVertex
         {
@@ -155,8 +184,8 @@ namespace dmRender
             uint16_t x = params.m_X;
             uint16_t y = params.m_Y;
             RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
-            ro->m_Material = font->m_Material;
-            ro->m_Textures[0] = font->m_Texture;
+            ro->m_Material = font_map->m_Material;
+            ro->m_Textures[0] = font_map->m_Texture;
             ro->m_VertexStart = text_context.m_VertexIndex;
             for (int j = 0; j < 3; ++j)
             {
@@ -169,7 +198,7 @@ namespace dmRender
             {
                 char c = params.m_Text[j];
 
-                const dmRenderDDF::ImageFont::Glyph& g = font->m_ImageFont->m_Glyphs[c];
+                const Glyph& g = font_map->m_Glyphs[c];
 
                 if (g.m_Width > 0)
                 {
@@ -191,8 +220,8 @@ namespace dmRender
                     v4.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
                     v4.m_Position[1] = y + g.m_Ascent + y_offsets[i];
 
-                    float im_recip = 1.0f / font->m_ImageFont->m_ImageWidth;
-                    float ih_recip = 1.0f / font->m_ImageFont->m_ImageHeight;
+                    float im_recip = 1.0f / font_map->m_TextureWidth;
+                    float ih_recip = 1.0f / font_map->m_TextureHeight;
 
                     v1.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
                     v1.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;

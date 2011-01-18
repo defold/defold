@@ -17,65 +17,96 @@
 namespace dmRender
 {
     /**
-     * Image font handle
+     * Font map handle
      */
-    typedef void* HImageFont;
+    typedef struct FontMap* HFontMap;
 
     /**
-     * Create a new image font
-     * @param font Font buffer (ddf format)
-     * @param font_size Font buffer size
-     * @return HFont on success. NULL on failure
+     * Glyph struct
      */
-    HImageFont NewImageFont(const void* font, uint32_t font_size);
+    struct Glyph
+    {
+        /// Width of the glyph
+        uint32_t    m_Width;
+        /// Total advancement of the glyph, measured from left to the next glyph
+        float       m_Advance;
+        /// Where the glyph starts, measured from the left
+        float       m_LeftBearing;
+        /// How far up the glyph starts, measured from the bottom line
+        uint32_t    m_Ascent;
+        /// How far up the glyph reaches, measured from the top line
+        uint32_t    m_Descent;
+        /// X coordinate of the glyph in the map
+        int32_t     m_X;
+        /// Y coordinate of the glyph in the map
+        int32_t     m_Y;
+    };
 
     /**
-     * Delete a image font
-     * @param font Image font handle
+     * Font map parameters supplied to NewFontMap
      */
-    void DeleteImageFont(HImageFont font);
+    struct FontMapParams
+    {
+        /// Default constructor
+        FontMapParams();
 
+        /// All glyphs represented in the map
+        dmArray<Glyph> m_Glyphs;
+        /// Width of the map texture
+        uint32_t m_TextureWidth;
+        /// Height of the map texture
+        uint32_t m_TextureHeight;
+        /// Texture data
+        const void* m_TextureData;
+        /// Texture data size
+        uint32_t m_TextureDataSize;
+        /// Offset of the shadow along the x-axis
+        float m_ShadowX;
+        /// Offset of the shadow along the y-axis
+        float m_ShadowY;
+    };
 
     /**
-     * Font handle
+     * Create a new font map. The parameters struct is consumed and should not be read after this call.
+     * @param render_context Render context handle
+     * @param params Params used to initialize the font map
+     * @return HFontMap on success. NULL on failure
      */
-    typedef struct Font* HFont;
+    HFontMap NewFontMap(HRenderContext render_context, FontMapParams& params);
 
     /**
-     * Create a new font
-     * @param image_font Image font
-     * @return Font handle on success. NULL on failure.
+     * Delete a font map
+     * @param font_map Font map handle
      */
-    HFont NewFont(HRenderContext render_context, HImageFont image_font);
+    void DeleteFontMap(HFontMap font_map);
 
     /**
-     * Get image font for font
-     * @param font Font handle
-     * @return HImageFont handle
+     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
+     * @param font_map Font map handle
+     * @param params Parameters to update
      */
-    HImageFont GetImageFont(HFont font);
-
-    dmGraphics::HTexture GetTexture(HFont font);
+    void SetFontMap(HFontMap font_map, FontMapParams& params);
 
     /**
-     * Set font material
-     * @param font Font handle
+     * Get texture from a font map
+     * @param font_map Font map handle
+     * @return dmGraphics::HTexture Texture handle
+     */
+    dmGraphics::HTexture GetFontMapTexture(HFontMap font_map);
+
+    /**
+     * Set font map material
+     * @param font_map Font map handle
      * @param material Material handle
      */
-    void SetMaterial(HFont font, HMaterial material);
+    void SetFontMapMaterial(HFontMap font_map, HMaterial material);
 
     /**
-     * Get font material
-     * @param font Font handle
-     * @return Material handle
+     * Get font map material
+     * @param font_map Font map handle
+     * @return HMaterial handle
      */
-    HMaterial GetMaterial(HFont font);
-
-    /**
-     * Delete a font
-     * @param font Font handle
-     */
-    void DeleteFont(HFont font);
+    HMaterial GetFontMapMaterial(HFontMap font_map);
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
     void FinalizeTextContext(HRenderContext render_context);
@@ -104,9 +135,10 @@ namespace dmRender
     /**
      * Draw text
      * @param render_context Context to use when rendering
+     * @param font_map Font map handle
      * @param params Parameters to use when rendering
      */
-    void DrawText(HRenderContext render_context, HFont font, const DrawTextParams& params);
+    void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params);
 }
 
 #endif // FONTRENDERER_H
