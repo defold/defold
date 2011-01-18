@@ -94,4 +94,9 @@ public class ResourceType implements IResourceType {
         return this.embeddable;
     }
 
+    @Override
+    public String toString() {
+        return this.name;
+    }
+
 }
