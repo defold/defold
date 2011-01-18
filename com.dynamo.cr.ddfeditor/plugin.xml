@@ -285,11 +285,12 @@
             template-data="Id: 'unnamed' Type: POINT Intensity: 10 Color { X: 1 Y: 1 Z: 1 } Range: 50 Decay: 0.9 ">
       </resource-type>
       <resource-type
+            embeddable="true"
             file-extension="spawnpoint"
             id="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint"
             name="Spawn Point"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$SpawnPointDesc"
-            template-data="Prototype: '' ">
+            template-data="Prototype: &apos;&apos; ">
       </resource-type>
       <resource-type
             embeddable="true"
@@ -322,11 +323,12 @@
             template-data="Name: 'unnamed' VertexProgram: '' FragmentProgram: ''">
       </resource-type>
       <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.RenderEditSupport"
             file-extension="render"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Render"
             name="Render"
             proto-message-class="com.dynamo.render.proto.Render$RenderPrototypeDesc"
-            template-data="Script: ''">
+            template-data="Script: &apos;&apos;">
       </resource-type>
       <resource-type
             file-extension="input_binding"
