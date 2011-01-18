@@ -5,9 +5,9 @@ import com.dynamo.gui.proto.Gui;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Message;
 
-public class ModelEditSupport implements IResourceTypeEditSupport {
+public class GuiEditSupport implements IResourceTypeEditSupport {
 
-    public ModelEditSupport() {
+    public GuiEditSupport() {
     }
 
     @Override

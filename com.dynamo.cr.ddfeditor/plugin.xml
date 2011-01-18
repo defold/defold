@@ -300,7 +300,7 @@
             template-data="CollisionShape: &apos;&apos; Type: COLLISION_OBJECT_TYPE_DYNAMIC Mass: 1 Friction: 0.1 Restitution: 0.5 Group: 1 ">
       </resource-type>
       <resource-type
-            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.ModelEditSupport"
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.GuiEditSupport"
             file-extension="gui"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Gui"
             name="Gui"
