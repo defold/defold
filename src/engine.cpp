@@ -103,8 +103,8 @@ namespace dmEngine
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_Factory(0x0)
-    , m_Font(0x0)
-    , m_SmallFont(0x0)
+    , m_FontMap(0x0)
+    , m_SmallFontMap(0x0)
     , m_DebugMaterial(0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
@@ -423,7 +423,7 @@ bail:
             dmProfile::Pause(true);
             if (engine->m_ShowProfile)
             {
-                dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SmallFont);
+                dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SmallFontMap);
                 dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
                 dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 0.0f, 1.0f, -1.0f));
                 dmRender::Draw(engine->m_RenderContext, 0x0);
@@ -556,7 +556,7 @@ bail:
             params.m_X = dt->m_Position.getX();
             params.m_Y = dt->m_Position.getY();
             params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-            dmRender::DrawText(self->m_RenderContext, self->m_Font, params);
+            dmRender::DrawText(self->m_RenderContext, self->m_FontMap, params);
         }
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
         {
@@ -673,13 +673,13 @@ bail:
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
-        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.font", "fonts/VeraMoBd.fontc"), (void**) &engine->m_Font);
+        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.font", "fonts/VeraMoBd.fontc"), (void**) &engine->m_FontMap);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
             return false;
         }
 
-        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.small_font", "fonts/VeraMoBd2.fontc"), (void**) &engine->m_SmallFont);
+        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.small_font", "fonts/VeraMoBd2.fontc"), (void**) &engine->m_SmallFontMap);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
             return false;
@@ -721,10 +721,10 @@ bail:
     {
         if (engine->m_RenderScriptPrototype)
             dmResource::Release(engine->m_Factory, engine->m_RenderScriptPrototype);
-        if (engine->m_Font)
-            dmResource::Release(engine->m_Factory, engine->m_Font);
-        if (engine->m_SmallFont)
-            dmResource::Release(engine->m_Factory, engine->m_SmallFont);
+        if (engine->m_FontMap)
+            dmResource::Release(engine->m_Factory, engine->m_FontMap);
+        if (engine->m_SmallFontMap)
+            dmResource::Release(engine->m_Factory, engine->m_SmallFontMap);
 
         if (engine->m_DebugMaterial)
         {

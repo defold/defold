@@ -58,8 +58,8 @@ namespace dmEngine
         dmGameSystem::EmitterContext                m_EmitterContext;
         dmResource::HFactory                        m_Factory;
 
-        dmRender::HFont                             m_Font;
-        dmRender::HFont                             m_SmallFont;
+        dmRender::HFontMap                          m_FontMap;
+        dmRender::HFontMap                          m_SmallFontMap;
         dmRender::HMaterial                         m_DebugMaterial;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
