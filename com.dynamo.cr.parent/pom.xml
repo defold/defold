@@ -73,6 +73,7 @@
         <module>../com.dynamo.cr.server</module>
         <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.editor</module>
+        <module>../com.dynamo.cr.editor.core</module>
         <module>../com.dynamo.cr.contenteditor</module>
         <module>../com.dynamo.cr.luaeditor</module>
         <module>../com.dynamo.cr.ddfeditor</module>
