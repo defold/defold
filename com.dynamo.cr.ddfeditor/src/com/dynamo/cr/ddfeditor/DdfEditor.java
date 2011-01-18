@@ -551,7 +551,6 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
             if (operation.equals("add")) {
                 RepeatedNode oldRepeated = (RepeatedNode) message.getField(path);
                 Object newValue = createDefaultValue(oldRepeated.getFieldDescriptor());
-/*                Object newValue = getNewValueForPath(path.toString());*/
                 if (newValue == null)
                     return;
 

@@ -429,7 +429,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                 }
 
                 ListDialog dialog = new ListDialog(getSite().getShell());
-                dialog.setTitle("Add Embeded Resource");
+                dialog.setTitle("Add Embedded Resource");
                 dialog.setMessage("Select resource type from list to embed:");
                 dialog.setContentProvider(new ArrayContentProvider());
                 dialog.setInput(embedabbleTypes.toArray());

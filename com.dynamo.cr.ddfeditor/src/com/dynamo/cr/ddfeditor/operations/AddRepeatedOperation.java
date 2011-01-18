@@ -34,6 +34,7 @@ public class AddRepeatedOperation extends AbstractOperation {
 
         message.addRepeated(this.path, newValue);
         viewer.refresh(this.path, true);
+        viewer.expandToLevel(this.path, 1);
         return Status.OK_STATUS;
     }
 
@@ -42,6 +43,7 @@ public class AddRepeatedOperation extends AbstractOperation {
             throws ExecutionException {
         message.addRepeated(this.path, newValue);
         viewer.refresh(this.path, true);
+        viewer.expandToLevel(this.path, 1);
         return Status.OK_STATUS;
     }
 
