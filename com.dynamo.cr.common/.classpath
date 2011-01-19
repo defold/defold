@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/particle.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/input.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gameobject.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gamesys.jar"/>
