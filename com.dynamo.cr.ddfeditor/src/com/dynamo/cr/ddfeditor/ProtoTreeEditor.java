@@ -15,6 +15,8 @@ import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ComboBoxCellEditor;
 import org.eclipse.jface.viewers.DialogCellEditor;
 import org.eclipse.jface.viewers.EditingSupport;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.TreeViewer;
@@ -24,27 +26,39 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Tree;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 
+import com.dynamo.cr.ddfeditor.operations.AddRepeatedOperation;
+import com.dynamo.cr.ddfeditor.operations.RemoveRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.SetFieldOperation;
+import com.dynamo.cr.editor.core.IResourceType;
+import com.dynamo.cr.editor.core.IResourceTypeEditSupport;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.cr.protobind.Node;
 import com.dynamo.cr.protobind.PathElement;
+import com.dynamo.cr.protobind.RepeatedNode;
 import com.google.protobuf.Descriptors.EnumDescriptor;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
 import com.google.protobuf.Descriptors.FieldDescriptor.Type;
 
-public class ProtoTreeEditor {
+public class ProtoTreeEditor implements Listener {
 
     private TreeViewer treeViewer;
     private IContainer contentRoot;
     private UndoContext undoContext;
+    private IResourceType resourceType;
+    private Menu menu;
 
     class ResourceDialogCellEditor extends DialogCellEditor {
 
@@ -226,7 +240,6 @@ public class ProtoTreeEditor {
         treeViewer.setContentProvider(new ProtoContentProvider());
         treeViewer.setLabelProvider(new LabelProvider());
 
-
         treeViewer.getTree().setHeaderVisible(true);
         treeViewer.getTree().setLinesVisible(true);
 
@@ -245,8 +258,6 @@ public class ProtoTreeEditor {
             }
         });
 
-
-        //ColumnLabelProvider propertyValueLabelProvider = new ProtoFieldValueLabelProvider();
         TreeViewerColumn valueColumn = new TreeViewerColumn(treeViewer, SWT.NONE);
         valueColumn.setEditingSupport(new ProtoFieldEditingSupport(treeViewer));
 
@@ -261,10 +272,10 @@ public class ProtoTreeEditor {
 
                     if (fieldValue instanceof Node) {
                         if (fieldValue instanceof MessageNode) {
-                            // TODO: Stuff from DdfEditor. If ProtoTreeEditor is to be used in DdfEditor fix this...
-                            //MessageNode messageNode = (MessageNode) fieldValue;
-                            return "";
-                         //   return getMessageNodeLabelValue(messageNode);
+                            MessageNode messageNode = (MessageNode) fieldValue;
+                            IResourceTypeEditSupport editSupport = resourceType.getEditSupport();
+                            if (editSupport != null)
+                                return editSupport.getLabelText(messageNode.build());
                         }
                         return "";
                     }
@@ -290,6 +301,12 @@ public class ProtoTreeEditor {
         gd.verticalSpan = 2;
         t.setLayoutData(gd);
         toolkit.paintBordersFor(parent);
+
+        this.menu = new Menu(parent.getShell(), SWT.POP_UP);
+        this.menu.addListener(SWT.Show, this);
+
+        this.treeViewer.getTree().setMenu(menu);
+
     }
 
     public void executeOperation(IUndoableOperation operation) {
@@ -304,8 +321,107 @@ public class ProtoTreeEditor {
         }
     }
 
-    public void setInput(MessageNode messageNode) {
+    public void setInput(MessageNode messageNode, IResourceType resourceType) {
+        this.resourceType = resourceType;
         this.treeViewer.setInput(messageNode);
+    }
+
+    @Override
+    public void handleEvent(Event event) {
+        if (event.type == SWT.Show) {
+            MenuItem [] menuItems = this.menu.getItems ();
+            for (int i=0; i<menuItems.length; i++) {
+                menuItems[i].removeListener(SWT.Selection, this);
+                menuItems[i].dispose();
+            }
+
+            ISelection selection = treeViewer.getSelection();
+
+            if (!selection.isEmpty()) {
+                IStructuredSelection structSelection = (IStructuredSelection) selection;
+                Object selected = structSelection.getFirstElement();
+
+                if (selected instanceof IPath) {
+                    IPath path = (IPath) selected;
+                    MessageNode message = (MessageNode) treeViewer.getInput();
+                    Object value = message.getField(path);
+
+                    if (value instanceof RepeatedNode) {
+                        RepeatedNode repeatedNode = (RepeatedNode) value;
+                        FieldDescriptor fieldDescriptor = repeatedNode.getFieldDescriptor();
+
+                        if (createDefaultValue(fieldDescriptor) != null) {
+                            MenuItem menuItem = new MenuItem (this.menu, SWT.PUSH);
+                            menuItem.addListener(SWT.Selection, this);
+                            String name = fieldDescriptor.getName();
+                            if (name.endsWith("s")) {
+                                name = name.substring(0, name.length()-1);
+                            }
+                            menuItem.setText("Add " + name + "...");
+                            menuItem.setData("operation", "add");
+                            menuItem.setData("path", path);
+                        }
+                    }
+
+                    if (path.elementCount() > 0 && path.lastElement().isIndex()) {
+                        MenuItem menuItem = new MenuItem (this.menu, SWT.PUSH);
+                        menuItem.addListener(SWT.Selection, this);
+                        menuItem.setText("Remove");
+                        menuItem.setData("operation", "remove");
+                        menuItem.setData("path", path);
+                    }
+
+                }
+            }
+        }
+        else if (event.type == SWT.Selection) {
+            String operation = (String) event.widget.getData("operation");
+            IPath path = (IPath) event.widget.getData("path");
+            MessageNode message = (MessageNode) treeViewer.getInput();
+
+            if (operation.equals("add")) {
+                RepeatedNode oldRepeated = (RepeatedNode) message.getField(path);
+                Object newValue = createDefaultValue(oldRepeated.getFieldDescriptor());
+                if (newValue == null)
+                    return;
+
+                List<Object> oldList = oldRepeated.getValueList();
+                AddRepeatedOperation op = new AddRepeatedOperation(treeViewer, message, path, oldList, newValue);
+                executeOperation(op);
+            }
+            else if (operation.equals("remove")) {
+                RepeatedNode oldRepeated = (RepeatedNode) message.getField(path.getParent());
+                List<Object> oldList = oldRepeated.getValueList();
+                RemoveRepeatedOperation op = new RemoveRepeatedOperation(treeViewer, message, path, oldList);
+                executeOperation(op);
+            }
+        }
+    }
+
+    private Object createDefaultValue(FieldDescriptor fieldDescriptor) {
+        JavaType javaType = fieldDescriptor.getJavaType();
+
+        if (javaType == JavaType.MESSAGE) {
+            IResourceTypeEditSupport editSupport = this.resourceType.getEditSupport();
+            if (editSupport != null) {
+                return editSupport.getTemplateMessageFor(fieldDescriptor.getMessageType());
+            }
+        }
+
+        switch (javaType) {
+            case BOOLEAN:
+                return false;
+            case DOUBLE:
+                return 0.0;
+            case FLOAT:
+                return 0.0f;
+            case INT:
+            case LONG:
+                return 0;
+            case STRING:
+                return "";
+        }
+        return null;
     }
 
 }

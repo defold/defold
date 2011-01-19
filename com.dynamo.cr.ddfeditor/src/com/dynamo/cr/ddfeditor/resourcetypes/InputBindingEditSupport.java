@@ -29,4 +29,21 @@ public class InputBindingEditSupport implements IResourceTypeEditSupport {
         return null;
     }
 
+    @Override
+    public String getLabelText(Message message) {
+        if (message instanceof GamepadTrigger) {
+            GamepadTrigger gamepadTrigger =  (GamepadTrigger) message;
+            return gamepadTrigger.getAction();
+        }
+        else if (message instanceof KeyTrigger) {
+            KeyTrigger keyTrigger =  (KeyTrigger) message;
+            return keyTrigger.getAction();
+        }
+        else if (message instanceof MouseTrigger) {
+            MouseTrigger mouseTrigger =  (MouseTrigger) message;
+            return mouseTrigger.getAction();
+        }
+
+        return "";
+    }
 }

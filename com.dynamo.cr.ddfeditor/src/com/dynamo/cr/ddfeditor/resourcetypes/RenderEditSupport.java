@@ -19,4 +19,9 @@ public class RenderEditSupport implements IResourceTypeEditSupport {
         return null;
     }
 
+    @Override
+    public String getLabelText(Message message) {
+        return "";
+    }
+
 }

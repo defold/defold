@@ -16,4 +16,11 @@ public interface IResourceTypeEditSupport {
      * @return message instance. null if not supported
      */
     Message getTemplateMessageFor(Descriptor descriptor);
+
+    /**
+     * Get label abbreviation text for a message
+     * @param message message to get abbreviation for
+     * @return message abbreviation text
+     */
+    String getLabelText(Message message);
 }

@@ -4,9 +4,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationApprover;
@@ -18,44 +15,22 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
-import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.ErrorDialog;
-import org.eclipse.jface.viewers.CellEditor;
-import org.eclipse.jface.viewers.ColumnLabelProvider;
-import org.eclipse.jface.viewers.ComboBoxCellEditor;
-import org.eclipse.jface.viewers.DialogCellEditor;
-import org.eclipse.jface.viewers.EditingSupport;
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.ITableLabelProvider;
-import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.TextCellEditor;
-import org.eclipse.jface.viewers.TreeViewer;
-import org.eclipse.jface.viewers.TreeViewerColumn;
-import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Event;
-import org.eclipse.swt.widgets.Listener;
-import org.eclipse.swt.widgets.Menu;
-import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
-import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
-import org.eclipse.ui.dialogs.ListDialog;
-import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.forms.widgets.Form;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
@@ -63,257 +38,25 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 
-import com.dynamo.cr.ddfeditor.operations.AddRepeatedOperation;
-import com.dynamo.cr.ddfeditor.operations.RemoveRepeatedOperation;
-import com.dynamo.cr.ddfeditor.operations.SetFieldOperation;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceType;
-import com.dynamo.cr.editor.core.IResourceTypeEditSupport;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
-import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
-import com.dynamo.cr.protobind.Node;
-import com.dynamo.cr.protobind.PathElement;
-import com.dynamo.cr.protobind.RepeatedNode;
-import com.google.protobuf.Descriptors.EnumDescriptor;
-import com.google.protobuf.Descriptors.EnumValueDescriptor;
-import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
-import com.google.protobuf.Descriptors.FieldDescriptor.Type;
 import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.GeneratedMessage.Builder;
 import com.google.protobuf.TextFormat;
 
-public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener, Listener {
+public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener {
 
-    class ProtoLabelProvider extends LabelProvider implements ITableLabelProvider {
-        public String getColumnText(Object obj, int index) {
-            return getText(obj);
-        }
-
-        public Image getColumnImage(Object obj, int index) {
-            return getImage(obj);
-        }
-
-        public Image getImage(Object obj) {
-            return PlatformUI.getWorkbench().getSharedImages()
-                    .getImage(ISharedImages.IMG_OBJ_ELEMENT);
-        }
-    }
-
-    /**
-     * Label for root node of a message. Subclasses can override this present custom
-     * appropriate message label
-     * @param messageNode message label node
-     * @return label
-     */
-    public String getMessageNodeLabelValue(MessageNode messageNode) {
-        return "";
-    }
-
-    class ProtoFieldValueLabelProvider extends ColumnLabelProvider {
-        public String getText(Object element) {
-
-            if (element instanceof IPath) {
-                IPath fieldPath = (IPath) element;
-
-                Object fieldValue = message.getField(fieldPath);
-
-                if (fieldValue instanceof Node) {
-                    if (fieldValue instanceof MessageNode) {
-                        MessageNode messageNode = (MessageNode) fieldValue;
-                        return getMessageNodeLabelValue(messageNode);
-                    }
-                    return "";
-                }
-                else if (fieldValue instanceof EnumValueDescriptor) {
-                    EnumValueDescriptor enumValueDescriptor = (EnumValueDescriptor) fieldValue;
-                    return enumValueDescriptor.getName();
-                }
-                else {
-                    return fieldValue.toString();
-                }
-            }
-            return element.toString();
-        }
-    }
-
-    class ResourceDialogCellEditor extends DialogCellEditor {
-
-        public ResourceDialogCellEditor(Composite parent) {
-            super(parent, SWT.NONE);
-        }
-
-        @Override
-        protected Object openDialogBox(Control cellEditorWindow) {
-
-            IFileEditorInput fi = (IFileEditorInput) getEditorInput();
-            IContainer contentRoot = findContentRoot(fi.getFile());
-            if (contentRoot == null) {
-                return null;
-            }
-
-            ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(getSite().getShell(), contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
-
-            int ret = dialog.open();
-
-            if (ret == ListDialog.OK)
-            {
-                IResource r = (IResource) dialog.getResult()[0];
-                org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
-                return fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
-            }
-            return null;
-        }
-    }
-
-    class EnumCellEditor extends ComboBoxCellEditor {
-        public EnumCellEditor(Composite parent) {
-            super(parent, new String[] {});
-        }
-
-        public void setEnumDescriptor(EnumDescriptor enumDescriptor) {
-            List<EnumValueDescriptor> values = enumDescriptor.getValues();
-            List<String> itemList = new ArrayList<String>(values.size());
-            for (EnumValueDescriptor enumValue : values) {
-                itemList.add(enumValue.getName());
-            }
-            String[] items = new String[itemList.size()];
-            setItems(itemList.toArray(items));
-        }
-    }
-
-    class ProtoFieldEditingSupport extends EditingSupport {
-
-        private TextCellEditor textEditor;
-        private ResourceDialogCellEditor resourceEditor;
-        private EnumCellEditor enumEditor;
-
-        public ProtoFieldEditingSupport(TreeViewer viewer) {
-            super(viewer);
-            textEditor = new TextCellEditor(viewer.getTree());
-            resourceEditor = new ResourceDialogCellEditor(viewer.getTree());
-            enumEditor = new EnumCellEditor(viewer.getTree());
-        }
-
-        @Override
-        protected CellEditor getCellEditor(Object element) {
-            IPath fieldPath = (IPath) element;
-            PathElement lastElement = fieldPath.lastElement();
-
-            FieldDescriptor fieldDescriptor = lastElement.fieldDescriptor;
-            if (fieldDescriptor.getType() == Type.ENUM) {
-                enumEditor.setEnumDescriptor(fieldDescriptor.getEnumType());
-                return enumEditor;
-            }
-            else if (isResource(fieldDescriptor)) {
-                return resourceEditor;
-            }
-            else {
-                return textEditor;
-            }
-        }
-
-        @Override
-        protected boolean canEdit(Object element) {
-            if (element instanceof IPath) {
-                IPath fieldPath = (IPath) element;
-                Object value = message.getField(fieldPath);
-                // Currently only support for string and number editing
-                if (value instanceof String) {
-                    return true;
-                }
-                else if (value instanceof EnumValueDescriptor) {
-                    return true;
-                }
-                else if (value instanceof Number) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        boolean isResource(FieldDescriptor fieldDescriptor) {
-            Map<FieldDescriptor, Object> allFields = fieldDescriptor.getOptions().getAllFields();
-            for (FieldDescriptor fd : allFields.keySet()) {
-                if (fd.getName().equals("resource")) {
-                    Boolean b = (Boolean) allFields.get(fd);
-                    return b.booleanValue();
-                }
-            }
-            return false;
-        }
-
-        @Override
-        protected Object getValue(Object element) {
-            IPath fieldPath = (IPath) element;
-
-            Object value = message.getField(fieldPath);
-            PathElement lastElement = fieldPath.lastElement();
-            if (lastElement.fieldDescriptor.getType() == Type.ENUM) {
-                if (value instanceof EnumValueDescriptor) {
-                    EnumValueDescriptor enumValueDesc = (EnumValueDescriptor) value;
-                    return enumValueDesc.getNumber();
-                }
-                else {
-                    return value;
-                }
-            }
-            else {
-                return value.toString();
-            }
-        }
-
-        Object coerceNumber(Object template, Object value) {
-            if (template instanceof Integer) {
-                return new Integer(value.toString());
-            }
-            else if (template instanceof Float) {
-                return new Float(value.toString());
-            }
-            else if (template instanceof Double) {
-                return new Double(value.toString());
-            }
-
-            throw new RuntimeException("Unknown number type: " + template);
-        }
-
-        @Override
-        protected void setValue(Object element, Object value) {
-            IPath fieldPath = (IPath) element;
-            Object oldValue = message.getField(fieldPath);
-
-            if (value instanceof Number && fieldPath.lastElement().fieldDescriptor.getType() == Type.ENUM) {
-                EnumDescriptor enumDesc = fieldPath.lastElement().fieldDescriptor.getEnumType();
-                value = enumDesc.findValueByNumber((Integer) value);
-            }
-            else if (oldValue instanceof Number) {
-                try {
-                    value = coerceNumber(oldValue, value);
-                }
-                catch (NumberFormatException e) {
-                    // Ignore format errors.
-                    return;
-                }
-            }
-
-            if (oldValue.equals(value))
-                return;
-
-            SetFieldOperation op = new SetFieldOperation(viewer, message, fieldPath, oldValue, value);
-            executeOperation(op);
-            getViewer().update(element, null);
-        }
-    }
-
-    private TreeViewer viewer;
     private MessageNode message;
     private UndoContext undoContext;
     private UndoActionHandler undoAction;
     private RedoActionHandler redoAction;
     private int cleanUndoStackDepth = 0;
-    private Menu menu;
     private IResourceType resourceType;
+    private ProtoTreeEditor protoTreeEditor;
+    private IContainer contentRoot;
+    private Form form;
 
     public DdfEditor(String extension) {
         IResourceTypeRegistry regist = EditorCorePlugin.getDefault().getResourceTypeRegistry();
@@ -366,6 +109,8 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         IFileEditorInput i = (IFileEditorInput) input;
         IFile file = i.getFile();
 
+        this.contentRoot = findContentRoot(file);
+
         try {
             Reader reader = new InputStreamReader(file.getContents());
 
@@ -416,7 +161,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     @Override
     public void createPartControl(Composite parent) {
         FormToolkit toolkit = new FormToolkit(parent.getDisplay());
-        Form form = toolkit.createForm(parent);
+        this.form = toolkit.createForm(parent);
 
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
         Image image = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(input.getName()).createImage();
@@ -425,48 +170,14 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         toolkit.decorateFormHeading(form);
         form.getBody().setLayout(new FillLayout());
 
-        viewer = new TreeViewer(form.getBody(), SWT.BORDER | SWT.FULL_SELECTION);
+        protoTreeEditor = new ProtoTreeEditor(form.getBody(), toolkit, this.contentRoot, this.undoContext);
 
-        ProtoLabelProvider labelProvider = new ProtoLabelProvider();
-        viewer.setContentProvider(new ProtoContentProvider());
-        viewer.setLabelProvider(labelProvider);
-        viewer.getTree().setHeaderVisible(true);
-        viewer.getTree().setLinesVisible(true);
-
-        TreeViewerColumn nameColumn = new TreeViewerColumn(viewer, SWT.NONE);
-        nameColumn.getColumn().setWidth(140);
-        nameColumn.getColumn().setMoveable(true);
-        nameColumn.getColumn().setText("Property");
-        nameColumn.setLabelProvider(new ColumnLabelProvider() {
-            @Override
-            public String getText(Object element) {
-                if (element instanceof IPath) {
-                    IPath fieldPath = (IPath) element;
-                    return fieldPath.getName();
-                }
-                return super.getText(element);
-            }
-        });
-
-        ColumnLabelProvider propertyValueLabelProvider = new ProtoFieldValueLabelProvider();
-        TreeViewerColumn valueColumn = new TreeViewerColumn(viewer, SWT.NONE);
-        valueColumn.getColumn().setWidth(240);
-        valueColumn.getColumn().setMoveable(true);
-        valueColumn.getColumn().setText("Value");
-        valueColumn.setLabelProvider(propertyValueLabelProvider);
-
-        valueColumn.setEditingSupport(new ProtoFieldEditingSupport(viewer));
-
-        viewer.setInput(message);
-
-        this.menu = new Menu(parent.getShell(), SWT.POP_UP);
-        this.menu.addListener(SWT.Show, this);
-        viewer.getTree().setMenu(menu);
+        protoTreeEditor.setInput(message, resourceType);
     }
 
     @Override
     public void setFocus() {
-        viewer.getTree().setFocus();
+        this.form.getBody().setFocus();
 
         IActionBars action_bars = getEditorSite().getActionBars();
         action_bars.updateActionBars();
@@ -493,102 +204,6 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 }
             }
             c = c.getParent();
-        }
-        return null;
-    }
-
-    @Override
-    public void handleEvent(Event event) {
-        if (event.type == SWT.Show) {
-            MenuItem [] menuItems = this.menu.getItems ();
-            for (int i=0; i<menuItems.length; i++) {
-                menuItems[i].removeListener(SWT.Selection, this);
-                menuItems[i].dispose();
-            }
-
-            ISelection selection = viewer.getSelection();
-
-            if (!selection.isEmpty()) {
-                IStructuredSelection structSelection = (IStructuredSelection) selection;
-                Object selected = structSelection.getFirstElement();
-
-                if (selected instanceof IPath) {
-                    IPath path = (IPath) selected;
-                    Object value = message.getField(path);
-
-                    if (value instanceof RepeatedNode) {
-                        RepeatedNode repeatedNode = (RepeatedNode) value;
-                        FieldDescriptor fieldDescriptor = repeatedNode.getFieldDescriptor();
-
-                        if (createDefaultValue(fieldDescriptor) != null) {
-                            MenuItem menuItem = new MenuItem (this.menu, SWT.PUSH);
-                            menuItem.addListener(SWT.Selection, this);
-                            String name = fieldDescriptor.getName();
-                            if (name.endsWith("s")) {
-                                name = name.substring(0, name.length()-1);
-                            }
-                            menuItem.setText("Add " + name + "...");
-                            menuItem.setData("operation", "add");
-                            menuItem.setData("path", path);
-                        }
-                    }
-
-                    if (path.elementCount() > 0 && path.lastElement().isIndex()) {
-                        MenuItem menuItem = new MenuItem (this.menu, SWT.PUSH);
-                        menuItem.addListener(SWT.Selection, this);
-                        menuItem.setText("Remove");
-                        menuItem.setData("operation", "remove");
-                        menuItem.setData("path", path);
-                    }
-
-                }
-            }
-        }
-        else if (event.type == SWT.Selection) {
-            String operation = (String) event.widget.getData("operation");
-            IPath path = (IPath) event.widget.getData("path");
-
-            if (operation.equals("add")) {
-                RepeatedNode oldRepeated = (RepeatedNode) message.getField(path);
-                Object newValue = createDefaultValue(oldRepeated.getFieldDescriptor());
-                if (newValue == null)
-                    return;
-
-                List<Object> oldList = oldRepeated.getValueList();
-                AddRepeatedOperation op = new AddRepeatedOperation(viewer, message, path, oldList, newValue);
-                executeOperation(op);
-            }
-            else if (operation.equals("remove")) {
-                RepeatedNode oldRepeated = (RepeatedNode) message.getField(path.getParent());
-                List<Object> oldList = oldRepeated.getValueList();
-                RemoveRepeatedOperation op = new RemoveRepeatedOperation(viewer, message, path, oldList);
-                executeOperation(op);
-            }
-        }
-    }
-
-    private Object createDefaultValue(FieldDescriptor fieldDescriptor) {
-        JavaType javaType = fieldDescriptor.getJavaType();
-
-        if (javaType == JavaType.MESSAGE) {
-            IResourceTypeEditSupport editSupport = this.resourceType.getEditSupport();
-            if (editSupport != null) {
-                return editSupport.getTemplateMessageFor(fieldDescriptor.getMessageType());
-            }
-        }
-
-        switch (javaType) {
-            case BOOLEAN:
-                return false;
-            case DOUBLE:
-                return 0.0;
-            case FLOAT:
-                return 0.0f;
-            case INT:
-            case LONG:
-                return 0;
-            case STRING:
-                return "";
         }
         return null;
     }

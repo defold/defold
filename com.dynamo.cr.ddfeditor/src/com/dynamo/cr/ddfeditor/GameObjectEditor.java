@@ -160,6 +160,8 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
     }
 
     static abstract class Component {
+        IResourceType resourceType;
+
         public abstract String getExtension();
         public abstract MessageNode getEditableMessageNode();
         public abstract Message getSavableMessage();
@@ -173,6 +175,9 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         public ResourceComponent(ComponentDesc desc) {
             this.desc = desc;
             this.messageNode = new MessageNode(desc);
+
+            IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+            this.resourceType = registry.getResourceTypeFromExtension(getExtension());
         }
 
         @Override
@@ -205,9 +210,8 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         public EmbeddedComponent(EmbeddedComponentDesc desc) {
             this.descriptor = desc;
 
-
             IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
-            IResourceType resourceType = registry.getResourceTypeFromExtension(descriptor.getType());
+            this.resourceType = registry.getResourceTypeFromExtension(descriptor.getType());
             Descriptor protoDescriptor = resourceType.getMessageDescriptor();
 
             //Descriptor protoDescriptor = ProtoFactory.getDescriptorForExtension(descriptor.getType());
@@ -614,11 +618,11 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             this.removeButton.setEnabled(true);
             IStructuredSelection structured = (IStructuredSelection) selection;
             Component component = (Component) structured.getFirstElement();
-            protoTreeEditor.setInput(component.getEditableMessageNode());
+            protoTreeEditor.setInput(component.getEditableMessageNode(), component.resourceType);
         }
         else {
             this.removeButton.setEnabled(false);
-            protoTreeEditor.setInput(null);
+            protoTreeEditor.setInput(null, null);
         }
     }
 }
