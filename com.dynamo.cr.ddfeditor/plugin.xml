@@ -99,6 +99,14 @@
             id="com.dynamo.cr.ddfeditor.gamepadmapeditor"
             name="Gamepad Map Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.EmitterEditor"
+            default="false"
+            extensions="emitter"
+            icon="icons/dynamite.png"
+            id="com.dynamo.cr.ddfeditor.emittereditor"
+            name="Emitter Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -189,6 +197,13 @@
             icon="icons/bricks.png"
             id="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
             name="Collection file">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.ddfeditor"
+            class="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
+            icon="icons/dynamite.png"
+            id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
+            name="Emitter file">
       </wizard>
    </extension>
    <extension
@@ -352,6 +367,13 @@
             proto-message-class="com.dynamo.gameobject.proto.GameObject$CollectionDesc"
             template-data="Name: 'unnamed'">
       </resource-type>
-   </extension>
+      <resource-type
+            file-extension="emitter"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
+            name="Emitter"
+            proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
+            template-data="Mode: PLAY_MODE_ONCE Duration: 0.2 Space: EMISSION_SPACE_WORLD Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 } Texture { Name: 'unnamed' TX: 1 TY: 1 } Material: 'unnamed' MaxParticleCount: 8 Type: EMITTER_TYPE_CONE">
+      </resource-type>
+    </extension>
 
 </plugin>

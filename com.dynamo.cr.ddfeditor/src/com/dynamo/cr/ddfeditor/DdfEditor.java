@@ -61,6 +61,8 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     public DdfEditor(String extension) {
         IResourceTypeRegistry regist = EditorCorePlugin.getDefault().getResourceTypeRegistry();
         this.resourceType = regist.getResourceTypeFromExtension(extension);
+        if (this.resourceType == null)
+            throw new RuntimeException("Missing resource type for: " + extension);
     }
 
     public void executeOperation(IUndoableOperation operation) {
