@@ -368,11 +368,12 @@
             template-data="Name: 'unnamed'">
       </resource-type>
       <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.EmitterEditSupport"
             file-extension="emitter"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
             name="Emitter"
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="Mode: PLAY_MODE_ONCE Duration: 0.2 Space: EMISSION_SPACE_WORLD Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 } Texture { Name: 'unnamed' TX: 1 TY: 1 } Material: 'unnamed' MaxParticleCount: 8 Type: EMITTER_TYPE_CONE">
+            template-data="Mode: PLAY_MODE_ONCE Duration: 0.2 Space: EMISSION_SPACE_WORLD Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 } Texture { Name: &apos;unnamed&apos; TX: 1 TY: 1 } Material: &apos;unnamed&apos; MaxParticleCount: 8 Type: EMITTER_TYPE_CONE">
       </resource-type>
     </extension>
 
