@@ -108,24 +108,38 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 BufferedReader r = new BufferedReader(new StringReader(logs.getStdErr()));
                 String line = r.readLine();
 
-                Pattern p = Pattern.compile("(.*?):(\\d+):(\\d+)[ ]?:[ ]*(.*)");
+                // Patterns for error parsing
+                // Group convention:
+                // 1: Filename
+                // 2: Line number
+                // 3: Message
+                Pattern[] pattens = new Pattern[] {
+                    // ../content/models/box.model:4:29 : Message type "dmModelDDF.ModelDesc" has no field named "Textures2".
+                    Pattern.compile("(.*?):(\\d+):\\d+[ ]?:[ ]*(.*)"),
+
+                    //../content/models/box.model:0: error: is missing dependent resource file materials/simple.material2
+                    Pattern.compile("(.*?):(\\d+):[ ]*(.*)")
+                };
                 while (line != null) {
                     line = line.trim();
                     stream.println(line);
 
-                    Matcher m = p.matcher(line);
-                    if (m.matches()) {
+                    for (Pattern p : pattens) {
+                        Matcher m = p.matcher(line);
+                        if (m.matches()) {
 
-                        IFile resource = getProject().getFile(new Path("content/build").append(m.group(1)));
-                        if (resource.exists())
-                        {
-                            IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                            marker.setAttribute(IMarker.MESSAGE, m.group(4));
-                            marker.setAttribute(IMarker.LINE_NUMBER, Integer.parseInt(m.group(2)));
-                            marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
-                        }
-                        else {
-                            Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
+                            IFile resource = getProject().getFile(new Path("content/build").append(m.group(1)));
+                            if (resource.exists())
+                            {
+                                IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                                marker.setAttribute(IMarker.MESSAGE, m.group(3));
+                                marker.setAttribute(IMarker.LINE_NUMBER, Integer.parseInt(m.group(2)));
+                                marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+                            }
+                            else {
+                                Activator.getDefault().logger.warning("Unable to locate: " + resource.getFullPath());
+                            }
+                            break; // for (Pattern...)
                         }
                     }
                     line = r.readLine();
