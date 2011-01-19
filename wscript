@@ -20,6 +20,7 @@ def set_options(opt):
 def configure(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
+    conf.check_tool('java')
     conf.check_tool('waf_dynamo')
     conf.check_tool('waf_ddf')
 
