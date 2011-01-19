@@ -37,6 +37,7 @@ public class NewDdfContentTest {
 
                 StringReader reader = new StringReader(new String(templateData));
                 TextFormat.merge(reader, builder);
+                builder.build();
             }
         }
     }
