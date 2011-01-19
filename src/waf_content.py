@@ -38,7 +38,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                     else:
                         path = os.path.join(task.generator.content_root, r)
                         if not os.path.exists(path):
-                            print >>sys.stderr, 'ERROR: %s is missing dependent resource file %s' % (task.inputs[0].nice_path(), r)
+                            print >>sys.stderr, '%s:0: error: is missing dependent resource file %s' % (task.inputs[0].srcpath(), r)
                             return False
         return True
 
