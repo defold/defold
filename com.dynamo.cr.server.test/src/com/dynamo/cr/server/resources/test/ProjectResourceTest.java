@@ -105,7 +105,7 @@ public class ProjectResourceTest {
         long start = System.currentTimeMillis();
         final int iterations = 1000;
         for (int i = 0; i < iterations; ++i) {
-            ProjectConfiguration c = project_client.getProjectConfiguration();
+            project_client.getProjectConfiguration();
         }
         long end = System.currentTimeMillis();
 
@@ -205,8 +205,7 @@ public class ProjectResourceTest {
             assertEquals(404, e.getStatusCode());
             e.printStackTrace();
         }
-
-}
+    }
 
     @Test
     public void getResource() throws Exception {
@@ -253,9 +252,18 @@ public class ProjectResourceTest {
             assertEquals("/content", info.getPath());
             assertEquals(0, info.getSize());
             assertEquals(expected_last_mod, info.getLastModified());
-            Set<String> expected_set = new HashSet<String>(Arrays.asList(new String[] { "file1.txt", "file2.txt" }));
+            Set<String> expected_set = new HashSet<String>(Arrays.asList(new String[] { "file1.txt", "file2.txt", "test space.txt" }));
             Set<String> actual_set = new HashSet<String>(info.getSubResourceNamesList());
             assertEquals(expected_set, actual_set);
+        }
+    }
+
+    @Test
+    public void getResourceWithSpace() throws Exception {
+        project_client.createBranch(user, "branch1");
+
+        {
+            branch_client.getResourceInfo("/content/test space.txt");
         }
     }
 
@@ -337,8 +345,8 @@ public class ProjectResourceTest {
         // Check that branch is dirty
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
-        // 3 files under /content
-        assertEquals(3, branch_client.getBranchStatus().getFileStatusList().size());
+        // 4 files under /content
+        assertEquals(4, branch_client.getBranchStatus().getFileStatusList().size());
 
         // Rename back
         branch_client.renameResource("/content2", "/content");

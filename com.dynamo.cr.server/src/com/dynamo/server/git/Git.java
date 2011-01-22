@@ -58,7 +58,7 @@ public class Git {
         }
     }
 
-    static Pattern statusPattern = Pattern.compile("([AMUDR ])([MUD ])[ ](\\S*)( -> )?(\\S*)?$");
+    static Pattern statusPattern = Pattern.compile("([AMUDR ])([MUD ])[ ](.*?)( -> )?(.*?)?$");
 
     static GitStatus.Entry parseStatusEntry(String line) throws GitException {
 
