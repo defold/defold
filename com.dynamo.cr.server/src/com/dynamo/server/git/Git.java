@@ -58,24 +58,27 @@ public class Git {
         }
     }
 
-    static Pattern statusPattern = Pattern.compile("([AMUDR ])([MUD ])[ ](.*?)( -> )?(.*?)?$");
+    // We have two regexps due to problem with parsing "->" and non-greedy parsing.
+    // It is perhaps possible to write in a single regexp but this seems to work.
+    static Pattern statusPattern1 = Pattern.compile("([AMUDR ])([MUD ])[ ](.*?)( -> )(.*?)?$");
+    static Pattern statusPattern2 = Pattern.compile("([AMUDR ])([MUD ])[ ](.*)$");
 
     static GitStatus.Entry parseStatusEntry(String line) throws GitException {
-
-        Matcher m = statusPattern.matcher(line);
-        if (!m.matches()) {
+        Matcher m1 = statusPattern1.matcher(line);
+        Matcher m2 = statusPattern2.matcher(line);
+        if (m1.matches()) {
+            GitStatus.Entry entry = new GitStatus.Entry(m1.group(1).charAt(0), m1.group(2).charAt(0), m1.group(5));
+            entry.original = m1.group(3);
+            return entry;
+        }
+        else if (m2.matches()) {
+            GitStatus.Entry entry = new GitStatus.Entry(m2.group(1).charAt(0), m2.group(2).charAt(0), m2.group(3));
+            entry.original = null;
+            return entry;
+        }
+        else {
             throw new GitException("Unable to parse status string: " + line);
         }
-
-        String resource = m.group(5);
-        String original = null;
-        if (resource.equals(""))
-            resource = m.group(3);
-        else
-            original = m.group(3);
-        GitStatus.Entry entry = new GitStatus.Entry(m.group(1).charAt(0), m.group(2).charAt(0), resource);
-        entry.original = original;
-        return entry;
     }
 
     static GitStatus parseStatus(String status) throws IOException {
