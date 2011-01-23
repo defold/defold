@@ -10,14 +10,10 @@ public class ProjectNature implements IProjectNature {
 
     @Override
     public void configure() throws CoreException {
-        System.out.println("CONFIGURE NATURE");
-        // TODO Auto-generated method stub
     }
 
     @Override
     public void deconfigure() throws CoreException {
-        System.out.println("DECONFIGURE NATURE");
-        // TODO Auto-generated method stub
     }
 
     @Override

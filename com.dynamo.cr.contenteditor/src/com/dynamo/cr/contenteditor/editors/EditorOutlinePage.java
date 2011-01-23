@@ -1,5 +1,8 @@
 package com.dynamo.cr.contenteditor.editors;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.Path;
@@ -51,6 +54,7 @@ import com.dynamo.cr.contenteditor.scene.ModelNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.Scene;
+import com.dynamo.cr.editor.core.IResourceType;
 
 class EditorOutlinePageContentProvider implements ITreeContentProvider
 {
@@ -95,6 +99,8 @@ class EditorOutlinePageContentProvider implements ITreeContentProvider
 
 class EditorOutlineLabelProvider extends LabelProvider
 {
+    Map<String, Image> extensionToImage = new HashMap<String, Image>();
+
     @Override
     public String getText(Object element)
     {
@@ -109,7 +115,6 @@ class EditorOutlineLabelProvider extends LabelProvider
     @Override
     public Image getImage(Object element)
     {
-
         ImageRegistry regist = Activator.getDefault().getImageRegistry();
         if (element instanceof PrototypeNode)
         {
@@ -127,17 +132,21 @@ class EditorOutlineLabelProvider extends LabelProvider
         {
             return regist.get(Activator.COLLECTION_IMAGE_ID);
         }
-        else if (element instanceof ModelNode)
-        {
-            return regist.get(Activator.MODEL_IMAGE_ID);
-        }
         else if (element instanceof MeshNode)
         {
             return regist.get(Activator.MESH_IMAGE_ID);
         }
         else if (element instanceof ComponentNode)
         {
-            return regist.get(Activator.GENERIC_COMPONENT_IMAGE_ID);
+            ComponentNode componentNode = (ComponentNode) element;
+            String resource = componentNode.getResource();
+            String ext = resource.substring(resource.lastIndexOf('.')+1);
+            if (!extensionToImage.containsKey(ext)) {
+                Image image = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("dummy." + ext).createImage();
+                extensionToImage.put(ext, image);
+            }
+
+            return extensionToImage.get(ext);
         }
 
         return super.getImage(element);

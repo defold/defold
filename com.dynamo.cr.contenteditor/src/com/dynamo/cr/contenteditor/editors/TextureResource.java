@@ -16,8 +16,6 @@ public class TextureResource {
 
     public Texture getTexture() {
         if (texture == null) {
-            System.out.println(image.getType());
-            System.out.println(image.getColorModel());
             texture = TextureIO.newTexture(this.image, true);
             image = null;
         }
