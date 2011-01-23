@@ -157,6 +157,8 @@ namespace dmGui
 
     void DeleteContext(HContext context);
 
+    dmMessage::HSocket GetSocket(HContext context);
+
     Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
     HScene NewScene(HContext context, const NewSceneParams* params);

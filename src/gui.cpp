@@ -65,6 +65,11 @@ namespace dmGui
         delete context;
     }
 
+    dmMessage::HSocket GetSocket(HContext context)
+    {
+        return context->m_Socket;
+    }
+
     Result RegisterDDFType(const dmDDF::Descriptor* descriptor)
     {
         if (m_DDFDescriptors.Empty())
