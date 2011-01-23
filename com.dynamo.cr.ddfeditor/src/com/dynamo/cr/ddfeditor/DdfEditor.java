@@ -14,7 +14,6 @@ import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -39,6 +38,7 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.protobind.MessageNode;
@@ -111,7 +111,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         IFileEditorInput i = (IFileEditorInput) input;
         IFile file = i.getFile();
 
-        this.contentRoot = findContentRoot(file);
+        this.contentRoot = EditorUtil.findContentRoot(file);
 
         try {
             Reader reader = new InputStreamReader(file.getContents());
@@ -191,23 +191,6 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     @Override
     public void historyNotification(OperationHistoryEvent event) {
         firePropertyChange(PROP_DIRTY);
-    }
-
-    // TODO: MOVE?
-    // Similar function in LoaderFactory!
-    public IContainer findContentRoot(IFile file) {
-        IContainer c = file.getParent();
-        while (c != null) {
-            if (c instanceof IFolder) {
-                IFolder folder = (IFolder) c;
-                IFile f = folder.getFile("game.project");
-                if (f.exists()) {
-                    return c;
-                }
-            }
-            c = c.getParent();
-        }
-        return null;
     }
 
 }

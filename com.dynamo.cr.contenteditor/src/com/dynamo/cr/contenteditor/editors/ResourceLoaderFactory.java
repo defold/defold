@@ -8,12 +8,12 @@ import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.contenteditor.scene.LoaderFactory;
+import com.dynamo.cr.editor.core.EditorUtil;
 
 public class ResourceLoaderFactory extends LoaderFactory {
 
@@ -52,19 +52,8 @@ public class ResourceLoaderFactory extends LoaderFactory {
     }
 
     public boolean findContentRoot(IFile file) {
-        IContainer c = file.getParent();
-        while (c != null) {
-            if (c instanceof IFolder) {
-                IFolder folder = (IFolder) c;
-                IFile f = folder.getFile("game.project");
-                if (f.exists()) {
-                    this.contentRoot = c;
-                    return true;
-                }
-            }
-            c = c.getParent();
-        }
-        return false;
+        this.contentRoot = EditorUtil.findContentRoot(file);
+        return this.contentRoot != null;
     }
 
 }

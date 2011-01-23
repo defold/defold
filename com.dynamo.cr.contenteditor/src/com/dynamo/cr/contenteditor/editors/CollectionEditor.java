@@ -992,7 +992,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void viewToWorld(int x, int y, Vector4d world_point, Vector4d world_vector) {
-        EditorUtil.viewToWorld(m_ActiveCamera, x, y, world_point, world_vector);
+        ContentEditorUtil.viewToWorld(m_ActiveCamera, x, y, world_point, world_vector);
     }
 
     @Override

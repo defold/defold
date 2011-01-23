@@ -42,6 +42,7 @@ import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.sun.jersey.api.client.Client;
@@ -263,7 +264,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                             p.open(monitor);
 
                             URI uri = UriBuilder.fromUri(branchClient.getURI()).scheme("crepo").build();
-                            p.getFolder("content").createLink(uri, IResource.REPLACE, monitor);
+                            EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
 
                             IProjectDescription pd = p.getDescription();
                             pd.setNatureIds(new String[] { "com.dynamo.cr.editor.crnature" });

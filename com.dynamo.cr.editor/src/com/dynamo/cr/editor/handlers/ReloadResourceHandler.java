@@ -8,6 +8,7 @@ import java.net.URLConnection;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -20,6 +21,7 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorUtil;
 
 public class ReloadResourceHandler extends AbstractHandler {
 
@@ -33,7 +35,10 @@ public class ReloadResourceHandler extends AbstractHandler {
             if (input instanceof IFileEditorInput) {
                 final IFileEditorInput file_input = (IFileEditorInput) input;
                 IPath path = file_input.getFile().getFullPath();
-                path = path.removeFirstSegments(3);
+
+                IContainer contentRoot = EditorUtil.findContentRoot(file_input.getFile());
+                path = path.makeRelativeTo(contentRoot.getFullPath());
+
                 final String string_path = path.toPortableString() + "c";
                 editor.getSite().getPage().saveEditor(editor, false);
 

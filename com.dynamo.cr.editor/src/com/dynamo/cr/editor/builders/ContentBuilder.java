@@ -15,7 +15,6 @@ import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.ui.console.ConsolePlugin;
 import org.eclipse.ui.console.IConsole;
@@ -26,6 +25,7 @@ import org.eclipse.ui.console.MessageConsoleStream;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
@@ -127,8 +127,9 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     for (Pattern p : pattens) {
                         Matcher m = p.matcher(line);
                         if (m.matches()) {
-
-                            IFile resource = getProject().getFile(new Path("content/build").append(m.group(1)));
+                            // NOTE: We assume that the built file is always relative to from the build folder,
+                            // ie ../content/... This is how waf works.
+                            IFile resource = EditorUtil.getContentRoot(getProject()).getFolder("build").getFile(m.group(1));
                             if (resource.exists())
                             {
                                 IMarker marker = resource.createMarker(IMarker.PROBLEM);

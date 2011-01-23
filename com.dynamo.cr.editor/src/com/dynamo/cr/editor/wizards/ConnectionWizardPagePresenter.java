@@ -6,7 +6,6 @@ import java.util.Collection;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
-import org.eclipse.ui.IWorkbenchPartSite;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.RepositoryException;

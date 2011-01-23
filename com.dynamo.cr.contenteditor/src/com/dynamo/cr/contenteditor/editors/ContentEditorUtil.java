@@ -9,7 +9,7 @@ import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.contenteditor.math.MathUtil;
 
-public class EditorUtil
+public class ContentEditorUtil
 {
     public static IContainer findProjectRoot(IFile file)
     {
