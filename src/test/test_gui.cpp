@@ -33,28 +33,32 @@
 class dmGuiTest : public ::testing::Test
 {
 protected:
-    dmGui::HGui gui;
+    dmGui::HContext context;
     dmGui::HScene scene;
     dmMessage::HSocket socket;
+    dmGui::HScript script;
 
     virtual void SetUp()
     {
         dmMessage::NewSocket("test_socket", &socket);
-        dmGui::NewGuiParams gui_params;
-        gui_params.m_Socket = socket;
+        dmGui::NewContextParams context_params;
+        context_params.m_Socket = socket;
 
-        gui = dmGui::New(&gui_params);
+        context = dmGui::NewContext(&context_params);
         dmGui::RegisterDDFType(dmTestGuiDDF::AMessage::m_DDFDescriptor);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
-        scene = dmGui::NewScene(gui, &params);
+        scene = dmGui::NewScene(context, &params);
+        script = dmGui::NewScript(context);
+        dmGui::SetSceneScript(scene, script);
     }
 
     virtual void TearDown()
     {
+        dmGui::DeleteScript(script);
         dmGui::DeleteScene(scene);
-        dmGui::Delete(gui);
+        dmGui::DeleteContext(context);
         dmMessage::DeleteSocket(socket);
     }
 };
@@ -337,7 +341,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -380,7 +384,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -417,7 +421,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -430,7 +434,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -445,7 +449,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
     const char* s = "function update(self) local n = gui.get_node(\"x\")\n print(n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -461,7 +465,7 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
     dmGui::DeleteNode(scene, node);
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -486,7 +490,7 @@ TEST_F(dmGuiTest, ScriptEqNode)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -505,7 +509,7 @@ TEST_F(dmGuiTest, ScriptNewNode)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -523,7 +527,7 @@ TEST_F(dmGuiTest, ScriptInput)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
@@ -548,7 +552,7 @@ TEST_F(dmGuiTest, PostMessage1)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -569,7 +573,7 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
@@ -597,7 +601,7 @@ TEST_F(dmGuiTest, PostMessage2)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -617,7 +621,7 @@ TEST_F(dmGuiTest, PostMessageMissingField)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -636,7 +640,7 @@ TEST_F(dmGuiTest, PostMessageToGui)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmTestGuiDDF::AMessage amessage;
@@ -655,7 +659,7 @@ TEST_F(dmGuiTest, SaveNode)
     const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -669,7 +673,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
     const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -698,7 +702,7 @@ TEST_F(dmGuiTest, NodeProperties)
                     "assert(gui.get_text(self.n) == \"flipper\")\n"
                     "end";
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -736,7 +740,7 @@ TEST_F(dmGuiTest, SyntaxError)
     const char* s = "function_ foo(self)";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_SYNTAX_ERROR, r);
 }
 
@@ -745,7 +749,7 @@ TEST_F(dmGuiTest, MissingUpdate)
     const char* s = "function init(self) end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -754,7 +758,7 @@ TEST_F(dmGuiTest, MissingInit)
     const char* s = "function update(self) end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -770,7 +774,7 @@ TEST_F(dmGuiTest, Self)
     const char* s = "function init(self) self.x = 1122 end\n function update(self) assert(self.x==1122) end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s, strlen(s));
+    r = dmGui::SetScript(script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -780,10 +784,10 @@ TEST_F(dmGuiTest, Self)
 TEST_F(dmGuiTest, Reload)
 {
     const char* s1 = "function init(self) self.x = 1122 end\n function update(self) assert(self.x==1122)\n self.x = self.x + 1 end";
-    const char* s2 = "function init(self) self.x = 2211 end\n function update(self) assert(self.x==2211) end";
+    const char* s2 = "function update(self) assert(self.x==1123) end";
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s1, strlen(s1));
+    r = dmGui::SetScript(script, s1, strlen(s1), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
@@ -794,7 +798,7 @@ TEST_F(dmGuiTest, Reload)
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 
     // Reload
-    r = dmGui::SetSceneScript(scene, s2, strlen(s2));
+    r = dmGui::SetScript(script, s2, strlen(s2), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -808,13 +812,13 @@ TEST_F(dmGuiTest, ScriptNamespace)
     const char* s2 = "local x = 456\n local function f() return x end\n function update(self) assert(f()==456)\n return x\n end\n";
 
     dmGui::NewSceneParams params;
-    dmGui::HScene scene2 = dmGui::NewScene(gui, &params);
+    dmGui::HScene scene2 = dmGui::NewScene(context, &params);
 
     dmGui::Result r;
-    r = dmGui::SetSceneScript(scene, s1, strlen(s1));
+    r = dmGui::SetScript(script, s1, strlen(s1), "file1");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::SetSceneScript(scene2, s2, strlen(s2));
+    r = dmGui::SetScript(script, s2, strlen(s2), "file2");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);

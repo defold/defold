@@ -18,7 +18,17 @@ namespace dmGui
 
     extern dmHashTable64<const dmDDF::Descriptor*> m_DDFDescriptors;
 
-    struct Gui
+    enum ScriptFunction
+    {
+        SCRIPT_FUNCTION_INIT,
+        SCRIPT_FUNCTION_UPDATE,
+        SCRIPT_FUNCTION_ONMESSAGE,
+        SCRIPT_FUNCTION_ONINPUT,
+        SCRIPT_FUNCTION_ONRELOAD,
+        MAX_SCRIPT_FUNCTION_COUNT
+    };
+
+    struct Context
     {
         lua_State*         m_LuaState;
         dmMessage::HSocket m_Socket;
@@ -55,23 +65,28 @@ namespace dmGui
         uint16_t m_AnimationCompleteCalled : 1;
     };
 
+    struct Script
+    {
+        Script();
+
+        int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
+        Context*    m_Context;
+    };
+
     struct Scene
     {
-        int                   m_InitFunctionReference;
-        int                   m_UpdateFunctionReference;
-        int                   m_OnInputFunctionReference;
-        int                   m_OnMessageFunctionReference;
-        int                   m_SelfReference;
-        uint16_t              m_RunInit : 1;
-        Gui*                  m_Gui;
-        dmIndexPool16         m_NodePool;
-        dmArray<InternalNode> m_Nodes;
-        dmArray<Animation>    m_Animations;
-        dmHashTable64<void*>  m_Textures;
-        dmHashTable64<void*>  m_Fonts;
-        void*                 m_DefaultFont;
-        void*                 m_UserData;
-        uint16_t              m_NextVersionNumber;
+        int                     m_SelfReference;
+        Context*                m_Context;
+        Script*                 m_Script;
+        dmIndexPool16           m_NodePool;
+        dmArray<InternalNode>   m_Nodes;
+        dmArray<Animation>      m_Animations;
+        dmHashTable64<void*>    m_Textures;
+        dmHashTable64<void*>    m_Fonts;
+        void*                   m_DefaultFont;
+        void*                   m_UserData;
+        uint16_t                m_NextVersionNumber;
+        uint16_t                m_RunInit : 1;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

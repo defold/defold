@@ -17,8 +17,9 @@ using namespace Vectormath::Aos;
 
 namespace dmGui
 {
-    typedef struct Gui* HGui;
+    typedef struct Context* HContext;
     typedef struct Scene* HScene;
+    typedef struct Script* HScript;
     typedef uint32_t HNode;
 
     struct NewSceneParams;
@@ -38,17 +39,17 @@ namespace dmGui
         }
     };
 
-    struct NewGuiParams;
-    void SetDefaultNewGuiParams(NewGuiParams* params);
+    struct NewContextParams;
+    void SetDefaultNewContextParams(NewContextParams* params);
 
-    struct NewGuiParams
+    struct NewContextParams
     {
         dmMessage::HSocket m_Socket;
         uint32_t           m_MaxMessageDataSize;
 
-        NewGuiParams()
+        NewContextParams()
         {
-            SetDefaultNewGuiParams(this);
+            SetDefaultNewContextParams(this);
         }
     };
 
@@ -152,13 +153,13 @@ namespace dmGui
                                       void* userdata1,
                                       void* userdata2);
 
-    HGui New(const NewGuiParams* params);
+    HContext NewContext(const NewContextParams* params);
 
-    void Delete(HGui gui);
+    void DeleteContext(HContext context);
 
     Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
-    HScene NewScene(HGui gui, const NewSceneParams* params);
+    HScene NewScene(HContext context, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
 
@@ -181,7 +182,7 @@ namespace dmGui
 
     Result UpdateScene(HScene scene, float dt);
 
-    Result SetSceneScript(HScene scene, const char* script, uint32_t script_length, const char* path = "script");
+    Result SetSceneScript(HScene scene, HScript script);
 
     HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type);
 
@@ -216,6 +217,10 @@ namespace dmGui
                      AnimationComplete animation_complete,
                      void* userdata1,
                      void* userdata2);
+
+    HScript NewScript(HContext context);
+    void DeleteScript(HScript script);
+    Result SetScript(HScript script, const char* source, uint32_t source_length, const char* filename);
 }
 
 #endif

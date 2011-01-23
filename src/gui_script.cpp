@@ -200,7 +200,7 @@ namespace dmGui
 
     void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
     {
-        lua_State* L = scene->m_Gui->m_LuaState;
+        lua_State* L = scene->m_Context->m_LuaState;
 
         int ref = (int) userdata1;
         int node_ref = (int) userdata2;
@@ -361,7 +361,7 @@ namespace dmGui
         }
 
         assert(top == lua_gettop(L));
-        dmMessage::Post(scene->m_Gui->m_Socket, message_data->m_MessageId, buf, MAX_MESSAGE_DATA_SIZE);
+        dmMessage::Post(scene->m_Context->m_Socket, message_data->m_MessageId, buf, MAX_MESSAGE_DATA_SIZE);
         return 0;
     }
 
@@ -465,7 +465,7 @@ namespace dmGui
 
 #undef LUAGETSET
 
-    void SetDefaultNewGuiParams(NewGuiParams* params)
+    void SetDefaultNewContextParams(NewContextParams* params)
     {
         memset(params, 0, sizeof(*params));
         params->m_MaxMessageDataSize = 128;

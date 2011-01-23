@@ -143,12 +143,14 @@ int main(void)
     glfwEnable(GLFW_STICKY_KEYS);
     glfwSwapInterval(1);
 
-    dmGui::NewGuiParams gui_params;
-    dmGui::HGui gui = dmGui::New(&gui_params);
+    dmGui::NewContextParams context_params;
+    dmGui::HContext context = dmGui::NewContext(&context_params);
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 256;
     params.m_MaxAnimations = 1024;
-    dmGui::HScene scene = dmGui::NewScene(gui, &params);
+    dmGui::HScene scene = dmGui::NewScene(context, &params);
+    dmGui::HScript script = dmGui::NewScript(context);
+    dmGui::SetSceneScript(scene, script);
     g_Scene = scene;
 
     glGenTextures(1, &checker_texture);
@@ -176,7 +178,7 @@ int main(void)
     fclose(f);
 
     dmGui::AddTexture(scene, "checker", (void*) checker_texture);
-    dmGui::SetSceneScript(scene, buf, file_size);
+    dmGui::SetScript(script, buf, file_size, script_file);
 
 #ifdef __MACH__
     ProcessSerialNumber psn;
