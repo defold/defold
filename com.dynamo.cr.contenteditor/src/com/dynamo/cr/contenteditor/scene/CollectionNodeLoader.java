@@ -8,20 +8,22 @@ import java.io.OutputStreamWriter;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.contenteditor.math.MathUtil;
+import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 import com.dynamo.ddf.DDF;
 import com.dynamo.gameobject.ddf.GameObject;
 import com.dynamo.gameobject.ddf.GameObject.CollectionDesc;
 import com.dynamo.gameobject.ddf.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.ddf.GameObject.InstanceDesc;
 
-public class CollectionLoader implements ILoader {
+public class CollectionNodeLoader implements INodeLoader {
 
     @Override
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, LoaderFactory factory) throws IOException,
-            LoaderException {
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory) throws IOException,
+            LoaderException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
 
@@ -69,7 +71,7 @@ public class CollectionLoader implements ILoader {
 
     @Override
     public void save(IProgressMonitor monitor, String name, Node node, OutputStream stream,
-            LoaderFactory loaderFactory) throws IOException, LoaderException {
+            INodeLoaderFactory loaderFactory) throws IOException, LoaderException {
         CollectionNode coll_node = (CollectionNode) node;
         CollectionDesc desc = coll_node.getDescriptor();
 

@@ -31,7 +31,7 @@ public interface IEditor {
 
     Node getRoot();
 
-    ResourceLoaderFactory getLoaderFactory();
+    NodeLoaderFactory getLoaderFactory();
 
     Node getPasteTarget();
     void setPasteTarget(Node node);

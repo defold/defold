@@ -14,7 +14,7 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.ResourceLoaderFactory;
+import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 
@@ -29,7 +29,7 @@ public class Copy extends AbstractHandler {
 
                 ((IEditor) editor).setPasteTarget(selected_nodes[0].getParent());
 
-                ResourceLoaderFactory factory = ((IEditor) editor).getLoaderFactory();
+                NodeLoaderFactory factory = ((IEditor) editor).getLoaderFactory();
                 Shell shell = editor.getSite().getShell();
                 Clipboard cb = new Clipboard(shell.getDisplay());
 

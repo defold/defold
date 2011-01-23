@@ -11,7 +11,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.ResourceLoaderFactory;
+import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
@@ -36,7 +36,7 @@ public class AddGameObjectOperation extends AbstractOperation {
         Node root = editor.getRoot();
         Scene scene = editor.getScene();
 
-        ResourceLoaderFactory factory = editor.getLoaderFactory();
+        NodeLoaderFactory factory = editor.getLoaderFactory();
         try {
             IContainer content_root = factory.getContentRoot();
             PrototypeNode proto = (PrototypeNode) factory.load(new NullProgressMonitor(), scene, file.getFullPath().toPortableString());

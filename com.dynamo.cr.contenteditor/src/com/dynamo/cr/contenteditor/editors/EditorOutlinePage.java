@@ -298,7 +298,7 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
                 }
 
                 if (resource_name != null) {
-                    ResourceLoaderFactory factory = m_Editor.getLoaderFactory();
+                    NodeLoaderFactory factory = m_Editor.getLoaderFactory();
                     IContainer content_root = factory.getContentRoot();
                     IFile file = content_root.getFile(new Path(resource_name));
                     IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();

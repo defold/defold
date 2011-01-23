@@ -6,16 +6,16 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.contenteditor.scene.CollectionLoader;
+import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
-import com.dynamo.cr.contenteditor.scene.LoaderFactory;
-import com.dynamo.cr.contenteditor.scene.MeshLoader;
+import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
+import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
-import com.dynamo.cr.contenteditor.scene.ModelLoader;
-import com.dynamo.cr.contenteditor.scene.PrototypeLoader;
+import com.dynamo.cr.contenteditor.scene.ModelNodeLoader;
+import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.Scene;
 
@@ -23,16 +23,16 @@ import static org.hamcrest.CoreMatchers.*;
 
 public class CollectionTest {
 
-    private LoaderFactory factory;
+    private AbstractNodeLoaderFactory factory;
     private Scene scene;
 
     @Before
     public void setup() {
-        factory = new TestLoaderFactory("test");
-        factory.addLoader(new CollectionLoader(), "collection");
-        factory.addLoader(new PrototypeLoader(), "go");
-        factory.addLoader(new ModelLoader(), "model");
-        factory.addLoader(new MeshLoader(), "dae");
+        factory = new TestNodeLoaderFactory("test");
+        factory.addLoader(new CollectionNodeLoader(), "collection");
+        factory.addLoader(new PrototypeNodeLoader(), "go");
+        factory.addLoader(new ModelNodeLoader(), "model");
+        factory.addLoader(new MeshNodeLoader(), "dae");
         scene = new Scene();
     }
 

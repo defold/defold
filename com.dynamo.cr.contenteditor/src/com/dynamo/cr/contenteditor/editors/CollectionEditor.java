@@ -33,6 +33,7 @@ import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -81,16 +82,19 @@ import org.openmali.vecmath2.Point3d;
 import com.dynamo.cr.contenteditor.Activator;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
-import com.dynamo.cr.contenteditor.scene.CollectionLoader;
+import com.dynamo.cr.contenteditor.resource.ResourceLoaderFactory;
+import com.dynamo.cr.contenteditor.resource.TextureLoader;
+import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ISceneListener;
-import com.dynamo.cr.contenteditor.scene.MeshLoader;
-import com.dynamo.cr.contenteditor.scene.ModelLoader;
+import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
+import com.dynamo.cr.contenteditor.scene.ModelNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.PrototypeLoader;
+import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Scene;
 import com.dynamo.cr.contenteditor.scene.SceneEvent;
 import com.dynamo.cr.contenteditor.scene.ScenePropertyChangedEvent;
 import com.dynamo.cr.contenteditor.util.GLUtil;
+import com.dynamo.cr.editor.core.EditorUtil;
 
 public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, KeyListener, ISceneListener, ISelectionProvider, IOperationHistoryListener {
 
@@ -101,7 +105,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private Camera m_OrthoCamera = new Camera(Camera.Type.ORTHOGRAPHIC);
     private Camera m_ActiveCamera = m_PerspCamera;
     private CameraController m_CameraController = new CameraController();
-    private ResourceLoaderFactory factory;
+    private NodeLoaderFactory factory;
     private Node m_Root;
     private EditorOutlinePage m_OutlinePage;
     private IntBuffer m_SelectBuffer;
@@ -121,14 +125,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private Node pasteTarget = null;
 
     private boolean isRendering;
+    private IContainer contentRoot;
+    private ResourceLoaderFactory resourceFactory;
 
     public CollectionEditor() {
-        factory = new ResourceLoaderFactory();
-        factory.addLoader(new CollectionLoader(), "collection");
-        factory.addLoader(new PrototypeLoader(), "go");
-        factory.addLoader(new ModelLoader(), "model");
-        factory.addLoader(new MeshLoader(), "dae");
-
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
     }
 
@@ -211,6 +211,19 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         setPartName(input.getName());
 
         IFileEditorInput i = (IFileEditorInput) input;
+
+        contentRoot = EditorUtil.findContentRoot(i.getFile());
+        if (contentRoot == null) {
+            throw new PartInitException("Unable to find content root. Missing game.project file?");
+        }
+
+        resourceFactory = new ResourceLoaderFactory(contentRoot);
+        resourceFactory.addLoader(new TextureLoader(), "png");
+        factory = new NodeLoaderFactory(resourceFactory);
+        factory.addLoader(new CollectionNodeLoader(), "collection");
+        factory.addLoader(new PrototypeNodeLoader(), "go");
+        factory.addLoader(new ModelNodeLoader(), "model");
+        factory.addLoader(new MeshNodeLoader(), "dae");
 
         try
         {
@@ -1216,7 +1229,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     @Override
-    public ResourceLoaderFactory getLoaderFactory() {
+    public NodeLoaderFactory getLoaderFactory() {
         return factory;
     }
 

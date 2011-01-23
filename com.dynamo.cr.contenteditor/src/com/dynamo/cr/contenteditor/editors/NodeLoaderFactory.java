@@ -12,10 +12,15 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 
-import com.dynamo.cr.contenteditor.scene.LoaderFactory;
+import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
+import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 import com.dynamo.cr.editor.core.EditorUtil;
 
-public class ResourceLoaderFactory extends LoaderFactory {
+public class NodeLoaderFactory extends AbstractNodeLoaderFactory {
+
+    public NodeLoaderFactory(IResourceLoaderFactory resourceFactory) {
+        super(resourceFactory);
+    }
 
     private IContainer contentRoot;
 

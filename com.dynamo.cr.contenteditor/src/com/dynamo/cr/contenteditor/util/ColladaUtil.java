@@ -28,8 +28,7 @@ public class ColladaUtil
             if (i.semantic.equals(semantic))
                 return i;
         }
-
-        throw new LoaderException(String.format("Input '%s' not found", semantic));
+        return null;
     }
 
     private static HashMap<String, XMLSource> getSourcesMap( XMLMesh mesh, List<XMLSource> sources )
@@ -69,6 +68,7 @@ public class ColladaUtil
         XMLInput vpos_input = findInput(mesh.vertices.inputs, "POSITION");
         XMLInput vertex_input = findInput(mesh.triangles.inputs, "VERTEX");
         XMLInput normal_input = findInput(mesh.triangles.inputs, "NORMAL");
+        XMLInput texcoord_input = findInput(mesh.triangles.inputs, "TEXCOORD");
 
         if (mesh.triangles.inputs.size() == 0)
             throw new LoaderException("No inputs in triangles");
@@ -82,9 +82,16 @@ public class ColladaUtil
 
         XMLSource positions = sourcesMap.get(vpos_input.source);
         XMLSource normals = sourcesMap.get(normal_input.source);
+        XMLSource texcoords = null;
 
         List<Float> position_list = new ArrayList<Float>();
         List<Float> normal_list = new ArrayList<Float>();
+        List<Float> texcoord_list = null;
+
+        if (texcoord_input != null) {
+            texcoord_list = new ArrayList<Float>();
+            texcoords = sourcesMap.get(texcoord_input.source);
+        }
 
         float meter = collada.asset.unit.meter;
         for (int i = 0; i < mesh.triangles.count; ++i)
@@ -117,9 +124,24 @@ public class ColladaUtil
                 normal_list.add(py);
                 normal_list.add(pz);
             }
+
+            if (texcoord_input != null) {
+                idx = i * stride * 2 + texcoord_input.offset;
+                for (int j = 0; j < 3; ++j)
+                {
+                    int tri_ind = mesh.triangles.p[idx + stride * j];
+
+                    float uvx = texcoords.floatArray.floats[2 * tri_ind + 0];
+                    float uvy = texcoords.floatArray.floats[2 * tri_ind + 1];
+
+                    texcoord_list.add(uvx);
+                    texcoord_list.add(uvy);
+                }
+            }
+
         }
 
-        return new Mesh(position_list, normal_list);
+        return new Mesh(position_list, normal_list, texcoord_list);
     }
 
 }

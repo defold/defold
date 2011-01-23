@@ -8,38 +8,54 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-public abstract class LoaderFactory {
+import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 
-    Map<String, ILoader> loaders = new HashMap<String, ILoader>();
+public abstract class AbstractNodeLoaderFactory implements INodeLoaderFactory {
 
-    public void addLoader(ILoader loader, String extension) {
+    Map<String, INodeLoader> loaders = new HashMap<String, INodeLoader>();
+    private IResourceLoaderFactory resourceFactory;
+
+    public void addLoader(INodeLoader loader, String extension) {
         loaders.put(extension, loader);
     }
 
-    ILoader getLoader(String name) {
+    INodeLoader getLoader(String name) {
         int i = name.lastIndexOf(".");
 
         if (i != -1) {
-            ILoader loader = loaders.get(name.substring(i+1));
+            INodeLoader loader = loaders.get(name.substring(i+1));
             return loader;
         }
         return null;
     }
 
+    public AbstractNodeLoaderFactory(IResourceLoaderFactory resourceFactory) {
+        this.resourceFactory = resourceFactory;
+    }
+
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.contenteditor.scene.INodeLoaderFactory#canLoad(java.lang.String)
+     */
+    @Override
     public boolean canLoad(String name) {
         return getLoader(name) != null;
     }
 
     protected abstract InputStream getInputStream(String name) throws IOException;
 
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream) throws IOException, LoaderException {
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.contenteditor.scene.INodeLoaderFactory#load(org.eclipse.core.runtime.IProgressMonitor, com.dynamo.cr.contenteditor.scene.Scene, java.lang.String, java.io.InputStream)
+     */
+    @Override
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream) throws IOException, LoaderException, CoreException {
 
-        ILoader loader = getLoader(name);
+        INodeLoader loader = getLoader(name);
         if (loader != null) {
             try {
-                Node node = loader.load(monitor, scene, name, stream, this);
+                Node node = loader.load(monitor, scene, name, stream, this, resourceFactory);
                 return node;
             }
             finally {
@@ -62,11 +78,13 @@ public abstract class LoaderFactory {
         }
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.contenteditor.scene.INodeLoaderFactory#load(org.eclipse.core.runtime.IProgressMonitor, com.dynamo.cr.contenteditor.scene.Scene, java.lang.String)
+     */
+    @Override
+    public Node load(IProgressMonitor monitor, Scene scene, String name) throws IOException, LoaderException, CoreException {
 
-
-    public Node load(IProgressMonitor monitor, Scene scene, String name) throws IOException, LoaderException {
-
-        ILoader loader = getLoader(name);
+        INodeLoader loader = getLoader(name);
         if (loader != null) {
 
             if (!cache.containsKey(name)) {
@@ -79,7 +97,7 @@ public abstract class LoaderFactory {
             ByteArrayInputStream stream = new ByteArrayInputStream(cache.get(name));
 
             try {
-                Node node = loader.load(monitor, scene, name, stream, this);
+                Node node = loader.load(monitor, scene, name, stream, this, resourceFactory);
                 return node;
             }
             finally {
@@ -91,8 +109,12 @@ public abstract class LoaderFactory {
         }
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.contenteditor.scene.INodeLoaderFactory#save(org.eclipse.core.runtime.IProgressMonitor, java.lang.String, com.dynamo.cr.contenteditor.scene.Node, java.io.ByteArrayOutputStream)
+     */
+    @Override
     public void save(IProgressMonitor monitor, String name, Node node, ByteArrayOutputStream stream) throws IOException, LoaderException {
-        ILoader loader = getLoader(name);
+        INodeLoader loader = getLoader(name);
         if (loader != null) {
             try {
                 loader.save(monitor, name, node, stream, this);

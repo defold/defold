@@ -13,7 +13,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.ResourceLoaderFactory;
+import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
@@ -52,7 +52,7 @@ public class PasteOperation extends AbstractOperation {
             throws ExecutionException {
 
         addedNodes = new ArrayList<Node>();
-        ResourceLoaderFactory factory = editor.getLoaderFactory();
+        NodeLoaderFactory factory = editor.getLoaderFactory();
 
         ByteArrayInputStream stream = new ByteArrayInputStream(data.getBytes());
         Scene scene = new Scene();

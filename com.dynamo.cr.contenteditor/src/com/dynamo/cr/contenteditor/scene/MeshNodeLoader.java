@@ -10,15 +10,16 @@ import javax.xml.stream.XMLStreamException;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 
+import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 import com.dynamo.cr.contenteditor.util.ColladaUtil;
 
-public class MeshLoader implements ILoader {
+public class MeshNodeLoader implements INodeLoader {
 
     Map<String, Mesh> meshCache = new HashMap<String, Mesh>();
 
     @Override
     public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream,
-            LoaderFactory factory) throws IOException, LoaderException {
+            INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory) throws IOException, LoaderException {
 
         try {
             Mesh mesh;
@@ -36,7 +37,7 @@ public class MeshLoader implements ILoader {
 
     @Override
     public void save(IProgressMonitor monitor, String name, Node node, OutputStream stream,
-            LoaderFactory loaderFactory) throws IOException, LoaderException {
+            INodeLoaderFactory loaderFactory) throws IOException, LoaderException {
         // TODO:
         throw new RuntimeException("TODO");
 
