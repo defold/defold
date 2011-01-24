@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
@@ -26,6 +27,7 @@ public class ModelTest {
 
     static final String CARL_CONTENT_EMAIL = "carl.content@gmail.com";
     static final String JOE_CODER_EMAIL = "joe.coder@gmail.com";
+    static final String LISA_USER_EMAIL = "lisa.user@gmail.com";
     private static final String PERSISTENCE_UNIT_NAME = "unit-test";
     private static EntityManagerFactory factory;
     private EntityManager em;
@@ -68,6 +70,12 @@ public class ModelTest {
         u2.setLastName("Coder");
         em.persist(u2);
 
+        User u3 = new User();
+        u3.setEmail(LISA_USER_EMAIL);
+        u3.setFirstName("Lisa");
+        u3.setLastName("User");
+        em.persist(u3);
+
         // Create new projects
         Project p1 = ModelUtil.newProject(em, u1, "Carl Contents Project");
         Project p2 = ModelUtil.newProject(em, u2, "Joe Coders' Project");
@@ -75,12 +83,17 @@ public class ModelTest {
         // Add users to project
         u2.getProjects().add(p1);
         u1.getProjects().add(p2);
+        u3.getProjects().add(p1);
+        u3.getProjects().add(p2);
 
         p1.getUsers().add(u2);
         p2.getUsers().add(u1);
+        p1.getUsers().add(u3);
+        p2.getUsers().add(u3);
 
         em.persist(u1);
         em.persist(u2);
+        em.persist(u3);
 
         em.getTransaction().commit();
     }
@@ -123,8 +136,8 @@ public class ModelTest {
     }
 
     @Test(expected=RollbackException.class)
-    public void testDeleteProjectConstraintViolation() throws Exception {
-        // Test that we can't delete a project that has owners.
+    public void testRemoveProjectConstraintViolation() throws Exception {
+        // Test that we can't remove a project that has owners.
         User u = em.find(User.class, CARL_CONTENT_EMAIL);
 
         TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
@@ -143,8 +156,56 @@ public class ModelTest {
         u = em.find(User.class, CARL_CONTENT_EMAIL);
     }
 
+    @Test(expected=RollbackException.class)
+    public void testRemoveUserConstraintViolation() throws Exception {
+        // Test that we can't remove a user that is part of projects
+        User u = em.find(User.class, LISA_USER_EMAIL);
+        em.getTransaction().begin();
+        em.remove(u);
+        em.getTransaction().commit();
+    }
+
+    @Test(expected=RollbackException.class)
+    public void testRemoveUserOwnerOfProjectsConstraintViolation() throws Exception {
+        // User owns projects
+        User u = em.find(User.class, CARL_CONTENT_EMAIL);
+        em.getTransaction().begin();
+        ModelUtil.removeUser(em, u);
+        em.getTransaction().commit();
+    }
+
+    public void testRemoveUserOwnerOfProjects() throws Exception {
+        List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
+        assertEquals(2, allProjects.size());
+
+        User u = em.find(User.class, CARL_CONTENT_EMAIL);
+        Set<Project> projects = u.getProjects();
+        em.getTransaction().begin();
+        // First remove all projects the user owns
+        for (Project p : projects) {
+            if (p.getOwner().equals(u)) {
+                ModelUtil.removeProject(em, p);
+            }
+        }
+        // Then remove user
+        ModelUtil.removeUser(em, u);
+        em.getTransaction().commit();
+
+        allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
+        assertEquals(1, allProjects.size());
+    }
+
     @Test
-    public void testDeleteProject() throws Exception {
+    public void testRemoveUserNotOwnerOfProjects() throws Exception {
+        // User doesn't owns any projects
+        User u = em.find(User.class, LISA_USER_EMAIL);
+        em.getTransaction().begin();
+        ModelUtil.removeUser(em, u);
+        em.getTransaction().commit();
+    }
+
+    @Test
+    public void testRemoveProject() throws Exception {
 
         List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(2, allProjects.size());
@@ -157,7 +218,7 @@ public class ModelTest {
 
         Project p = carlsProjects.get(0);
         em.getTransaction().begin();
-        ModelUtil.deleteProject(em, p);
+        ModelUtil.removeProject(em, p);
         em.getTransaction().commit();
 
         carl = em.find(User.class, CARL_CONTENT_EMAIL);
