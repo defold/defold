@@ -25,6 +25,7 @@
       <plugin id="com.dynamo.cr.luaeditor"/>
       <plugin id="com.dynamo.cr.protobind"/>
       <plugin id="com.ibm.icu"/>
+      <plugin id="javax.persistence"/>
       <plugin id="org.eclipse.compare"/>
       <plugin id="org.eclipse.compare.core"/>
       <plugin id="org.eclipse.core.commands"/>
@@ -97,6 +98,9 @@
       <plugin id="org.eclipse.ltk.ui.refactoring"/>
       <plugin id="org.eclipse.osgi"/>
       <plugin id="org.eclipse.osgi.services"/>
+      <plugin id="org.eclipse.persistence.antlr"/>
+      <plugin id="org.eclipse.persistence.asm"/>
+      <plugin id="org.eclipse.persistence.jpa"/>
       <plugin id="org.eclipse.swt"/>
       <plugin id="org.eclipse.swt.carbon.macosx" fragment="true"/>
       <plugin id="org.eclipse.swt.cocoa.macosx" fragment="true"/>
