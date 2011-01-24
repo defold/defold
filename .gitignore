@@ -10,4 +10,5 @@ DYNAMO_HOME
 target
 log
 generated
+derby.log
 
