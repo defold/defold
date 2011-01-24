@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.model;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import javax.persistence.CascadeType;
@@ -18,8 +19,8 @@ public class User {
     private String firstName;
     private String lastName;
 
-    @OneToMany(cascade={CascadeType.ALL}, orphanRemoval=true)
-    private Set<Project> projects;
+    @OneToMany(cascade={CascadeType.PERSIST})
+    private Set<Project> projects = new HashSet<Project>();
 
     public String getEmail() {
         return email;
@@ -49,14 +50,9 @@ public class User {
         return projects;
     }
 
-    public void addProject(Project p) {
-        getProjects().add(p);
-        p.setOwner(this);
-    }
-
     @Override
     public String toString() {
-        return String.format("%s: %s (%s)", email, firstName, projects);
+        return String.format("%s", email);
     }
 
 }

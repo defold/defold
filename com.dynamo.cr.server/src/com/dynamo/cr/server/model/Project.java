@@ -1,9 +1,12 @@
 package com.dynamo.cr.server.model;
 
-import javax.persistence.CascadeType;
+import java.util.HashSet;
+import java.util.Set;
+
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.ManyToOne;
+import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 @Entity
@@ -11,11 +14,14 @@ import javax.persistence.Table;
 public class Project {
 
     @Id
-    @ManyToOne(cascade=CascadeType.ALL)
+    @ManyToOne
     private User owner;
 
     @Id
     private String name;
+
+    @OneToMany
+    private Set<User> users = new HashSet<User>();
 
     public User getOwner() {
         return owner;
@@ -31,6 +37,10 @@ public class Project {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Set<User> getUsers() {
+        return users;
     }
 
     @Override
