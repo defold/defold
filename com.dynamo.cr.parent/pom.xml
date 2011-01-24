@@ -14,6 +14,13 @@
             <url>http://download.eclipse.org/eclipse/updates/3.6</url>
             <!-- <url>http://download.eclipse.org/releases/helios</url> -->
         </repository>
+
+        <repository>
+            <id>eclipselink</id>
+            <layout>p2</layout>
+            <url>http://download.eclipse.org/rt/eclipselink/updates/</url>
+        </repository>
+
     </repositories>
 
     <properties>

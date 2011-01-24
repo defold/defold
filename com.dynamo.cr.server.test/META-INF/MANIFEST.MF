@@ -4,12 +4,7 @@ Bundle-Name: CR Server Test
 Bundle-SymbolicName: com.dynamo.cr.server.test
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
+Fragment-Host: com.dynamo.cr.server;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Import-Package: org.osgi.framework;version="1.3.0"
-Bundle-ActivationPolicy: lazy
-Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
- com.dynamo.cr.server;bundle-version="1.0.0",
- org.junit4;bundle-version="4.8.1"
-Bundle-ClassPath: .
-Export-Package: com.dynamo.cr.server.git.test,
- com.dynamo.cr.server.resources.test
+Require-Bundle: org.junit4;bundle-version="4.8.1"
+JPA-PersistenceUnits: unit-test
