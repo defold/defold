@@ -38,9 +38,7 @@ public class MeshNodeLoader implements INodeLoader {
     @Override
     public void save(IProgressMonitor monitor, String name, Node node, OutputStream stream,
             INodeLoaderFactory loaderFactory) throws IOException, LoaderException {
-        // TODO:
-        throw new RuntimeException("TODO");
-
+        throw new UnsupportedOperationException();
     }
 
 }

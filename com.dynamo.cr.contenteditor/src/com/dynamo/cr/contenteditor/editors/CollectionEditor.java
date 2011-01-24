@@ -82,10 +82,14 @@ import org.openmali.vecmath2.Point3d;
 import com.dynamo.cr.contenteditor.Activator;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
+import com.dynamo.cr.contenteditor.resource.CameraLoader;
+import com.dynamo.cr.contenteditor.resource.LightLoader;
 import com.dynamo.cr.contenteditor.resource.ResourceLoaderFactory;
 import com.dynamo.cr.contenteditor.resource.TextureLoader;
+import com.dynamo.cr.contenteditor.scene.CameraNodeLoader;
 import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ISceneListener;
+import com.dynamo.cr.contenteditor.scene.LightNodeLoader;
 import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ModelNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Node;
@@ -219,11 +223,15 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         resourceFactory = new ResourceLoaderFactory(contentRoot);
         resourceFactory.addLoader(new TextureLoader(), "png");
+        resourceFactory.addLoader(new CameraLoader(), "camera");
+        resourceFactory.addLoader(new LightLoader(), "light");
         factory = new NodeLoaderFactory(resourceFactory);
         factory.addLoader(new CollectionNodeLoader(), "collection");
         factory.addLoader(new PrototypeNodeLoader(), "go");
         factory.addLoader(new ModelNodeLoader(), "model");
         factory.addLoader(new MeshNodeLoader(), "dae");
+        factory.addLoader(new CameraNodeLoader(), "camera");
+        factory.addLoader(new LightNodeLoader(), "light");
 
         try
         {

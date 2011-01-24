@@ -50,11 +50,9 @@ import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
-import com.dynamo.cr.contenteditor.scene.ModelNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.Scene;
-import com.dynamo.cr.editor.core.IResourceType;
 
 class EditorOutlinePageContentProvider implements ITreeContentProvider
 {
