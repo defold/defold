@@ -45,6 +45,7 @@ namespace dmScript
             return *lua_hash;
         }
 
+        luaL_typerror(L, index, SCRIPT_TYPE_NAME);
         return 0;
     }
 
