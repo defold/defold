@@ -266,7 +266,7 @@ namespace dmEngine
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext, engine->m_InputContext);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
@@ -712,17 +712,9 @@ bail:
         dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
 
         const char* game_input_binding = dmConfigFile::GetString(config, "bootstrap.game_binding", "input/game.input_bindingc");
-        dmInputDDF::InputBinding* ddf;
-        fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&ddf);
+        fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
             return false;
-        engine->m_GameInputBinding = dmInput::NewBinding(engine->m_InputContext, ddf);
-        dmResource::Release(engine->m_Factory, ddf);
-        if (!engine->m_GameInputBinding)
-        {
-            dmLogError("Unable to load game input context, did you forget to specify %s in the config file?", "bootstrap.game_config");
-            return false;
-        }
 
         const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", 0x0);
         if (render_path != 0x0)
@@ -756,7 +748,7 @@ bail:
         }
 
         if (engine->m_GameInputBinding)
-            dmInput::DeleteBinding(engine->m_GameInputBinding);
+            dmResource::Release(engine->m_Factory, engine->m_GameInputBinding);
     }
 
     uint32_t GetFrameCount(HEngine engine)
