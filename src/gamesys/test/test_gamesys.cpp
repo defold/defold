@@ -96,6 +96,14 @@ TEST_P(ComponentTest, Test)
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
 
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    dmGameObject::InputAction input_action;
+    input_action.m_ActionId = dmHashString64("test_action");
+    input_action.m_Value = 1.0f;
+    input_action.m_Pressed = 1;
+    dmGameObject::DispatchInput(&m_Collection, 1, &input_action, 1);
+
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -127,6 +135,14 @@ TEST_P(ComponentTest, TestReloadFail)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    dmGameObject::InputAction input_action;
+    input_action.m_ActionId = dmHashString64("test_action");
+    input_action.m_Value = 1.0f;
+    input_action.m_Pressed = 1;
+    dmGameObject::DispatchInput(&m_Collection, 1, &input_action, 1);
 
     ASSERT_TRUE(CopyResource(temp_name, component_name));
 
