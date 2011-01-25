@@ -8,7 +8,7 @@
 #include <gameobject/gameobject.h>
 
 #include <gui/gui.h>
-
+#include <input/input.h>
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <physics/physics.h>
@@ -44,7 +44,7 @@ namespace dmGameSystem
 
     void RegisterDDFTypes();
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context);
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,

@@ -31,6 +31,8 @@ protected:
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::EmitterContext m_EmitterContext;
     dmGameSystem::GuiRenderContext m_GuiRenderContext;
+    dmInput::HContext m_InputContext;
+    dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -90,7 +92,13 @@ void GamesysTest<T>::SetUp()
     assert(dmMessage::RESULT_OK == dmMessage::NewSocket("test", &gui_params.m_Socket));
     m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
-    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext));
+    m_InputContext = dmInput::NewContext(0.3f, 0.1f);
+
+    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext));
+
+    dmResource::Get(m_Factory, "input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
+    assert(m_GamepadMapsDDF);
+    dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
     memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
@@ -107,6 +115,7 @@ void GamesysTest<T>::TearDown()
 {
     dmGameObject::DeleteCollection(m_Collection);
     dmMessage::DeleteSocket(dmGui::GetSocket(m_GuiRenderContext.m_GuiContext));
+    dmResource::Release(m_Factory, m_GamepadMapsDDF);
     dmGui::DeleteContext(m_GuiRenderContext.m_GuiContext);
     dmRender::DeleteRenderContext(m_RenderContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
@@ -114,4 +123,5 @@ void GamesysTest<T>::TearDown()
     dmGameObject::DeleteRegister(m_Register);
     dmGameObject::Finalize();
     dmSound::Finalize();
+    dmInput::DeleteContext(m_InputContext);
 }

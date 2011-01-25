@@ -14,6 +14,7 @@ def build(bld):
             'font',
             'fragment_program',
             'gui',
+            'input',
             'material',
             'texture',
             'vertex_program']
@@ -25,12 +26,14 @@ def build(bld):
             'fp',
             'gui',
             'gui_script',
+            'gamepads',
+            'input_binding',
             'material',
             'png',
             'vp']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL DLIB PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL',
+                                     uselib = 'GTEST GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL DLIB PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET LUA SCRIPT INPUT HID_NULL PARTICLE GUI SOUND_NULL',
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      content_root='.',

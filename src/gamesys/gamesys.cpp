@@ -50,7 +50,7 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context)
     {
         dmResource::FactoryResult e;
 
@@ -78,7 +78,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResCreateGuiScript, ResDestroyGuiScript, ResRecreateGuiScript);
         REGISTER_RESOURCE_TYPE("wavc", 0, ResSoundDataCreate, ResSoundDataDestroy, 0);
         REGISTER_RESOURCE_TYPE("camerac", 0, ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
-        REGISTER_RESOURCE_TYPE("input_bindingc", 0, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
+        REGISTER_RESOURCE_TYPE("input_bindingc", input_context, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
         REGISTER_RESOURCE_TYPE("spawnpointc", 0, ResSpawnPointCreate, ResSpawnPointDestroy, 0);
         REGISTER_RESOURCE_TYPE("lightc", 0, ResLightCreate, ResLightDestroy, 0);

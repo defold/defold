@@ -293,6 +293,17 @@ const char* invalid_gui_gos[] =
 };
 INSTANTIATE_TEST_CASE_P(Gui, ComponentFailTest, ::testing::ValuesIn(invalid_gui_gos));
 
+/* Input Binding */
+
+const char* valid_input_resources[] = {"input/valid.input_bindingc"};
+INSTANTIATE_TEST_CASE_P(InputBinding, ResourceTest, ::testing::ValuesIn(valid_input_resources));
+
+ResourceFailParams invalid_input_resources[] =
+{
+    {"input/valid.input_bindingc", "input/missing.input_bindingc"},
+};
+INSTANTIATE_TEST_CASE_P(InputBinding, ResourceFailTest, ::testing::ValuesIn(invalid_input_resources));
+
 /* Material */
 
 const char* valid_material_resources[] = {"material/valid.materialc"};

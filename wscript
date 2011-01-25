@@ -61,6 +61,7 @@ def configure(conf):
     conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_HID'] = 'hid'
+    conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 

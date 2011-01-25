@@ -20,7 +20,10 @@ namespace dmGameSystem
         {
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
-        resource->m_Resource = (void*)ddf;
+        dmInput::HBinding binding = dmInput::NewBinding((dmInput::HContext)context);
+        dmInput::SetBinding(binding, ddf);
+        resource->m_Resource = (void*)binding;
+        dmDDF::FreeMessage((void*)ddf);
 
         return dmResource::CREATE_RESULT_OK;
     }
@@ -29,7 +32,7 @@ namespace dmGameSystem
                                       void* context,
                                       dmResource::SResourceDescriptor* resource)
     {
-        dmDDF::FreeMessage((void*)resource->m_Resource);
+        dmInput::DeleteBinding((dmInput::HBinding)resource->m_Resource);
         return dmResource::CREATE_RESULT_OK;
     }
 
@@ -39,7 +42,15 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        // TODO: Implement me!
-        return dmResource::CREATE_RESULT_UNKNOWN;
+        dmInputDDF::InputBinding* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmInputDDF_InputBinding_DESCRIPTOR, (void**) &ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+        dmInput::HBinding binding = (dmInput::HBinding)resource->m_Resource;
+        dmInput::SetBinding(binding, ddf);
+        dmDDF::FreeMessage((void*)ddf);
+        return dmResource::CREATE_RESULT_OK;
     }
 }
