@@ -16,6 +16,8 @@
 
 #include <gameobject/gameobject.h>
 
+#include <gui/gui.h>
+
 #include <gamesys/gamesys.h>
 
 #include "engine_ddf.h"
@@ -57,6 +59,8 @@ namespace dmEngine
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::EmitterContext                m_EmitterContext;
         dmResource::HFactory                        m_Factory;
+        dmGameSystem::GuiRenderContext              m_GuiRenderContext;
+        dmMessage::HSocket                          m_GuiSocket;
 
         dmRender::HFontMap                          m_FontMap;
         dmRender::HFontMap                          m_SmallFontMap;

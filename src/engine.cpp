@@ -18,8 +18,6 @@
 #undef DrawText
 #include <render/render_ddf.h>
 
-#include <gui/gui.h>
-
 #include <particle/particle.h>
 
 #include <gameobject/gameobject_ddf.h>
@@ -103,6 +101,7 @@ namespace dmEngine
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_Factory(0x0)
+    , m_GuiSocket(0x0)
     , m_FontMap(0x0)
     , m_SmallFontMap(0x0)
     , m_DebugMaterial(0)
@@ -117,6 +116,8 @@ namespace dmEngine
 
         m_PhysicsContext.m_Debug = false;
         m_EmitterContext.m_Debug = false;
+        m_GuiRenderContext.m_GuiContext = 0x0;
+        m_GuiRenderContext.m_RenderContext = 0x0;
     }
 
     HEngine New()
@@ -153,6 +154,11 @@ namespace dmEngine
 
         if (engine->m_GraphicsContext)
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+
+        if (engine->m_GuiRenderContext.m_GuiContext)
+            dmGui::DeleteContext(engine->m_GuiRenderContext.m_GuiContext);
+        if (engine->m_GuiSocket)
+            dmMessage::DeleteSocket(engine->m_GuiSocket);
 
         dmProfile::Finalize();
 
@@ -242,20 +248,32 @@ namespace dmEngine
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
 
+        dmGui::NewContextParams gui_params;
+        const char* gui_socket_name = "dmgui";
+        dmMessage::Result mr = dmMessage::NewSocket(gui_socket_name, &engine->m_GuiSocket);
+        if (mr != dmMessage::RESULT_OK)
+        {
+            dmLogFatal("Unable to create gui socket: %s (%d)", gui_socket_name, mr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        gui_params.m_Socket = engine->m_GuiSocket;
+        engine->m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
+        engine->m_GuiRenderContext.m_RenderContext = engine->m_RenderContext;
+
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiRenderContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 
