@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
@@ -14,14 +16,20 @@ import javax.persistence.Table;
 public class Project {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     @ManyToOne
     private User owner;
 
-    @Id
     private String name;
 
     @OneToMany
     private Set<User> users = new HashSet<User>();
+
+    public Long getId() {
+        return id;
+    }
 
     public User getOwner() {
         return owner;
@@ -45,7 +53,7 @@ public class Project {
 
     @Override
     public String toString() {
-        return String.format("%s (%s)", getName(), getOwner().getEmail());
+        return String.format("%s (%d) (%s)", getName(), getId(), getOwner().getEmail());
     }
 
 }
