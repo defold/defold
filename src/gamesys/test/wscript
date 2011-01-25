@@ -15,6 +15,7 @@ def build(bld):
             'fragment_program',
             'gui',
             'input',
+            'light',
             'material',
             'texture',
             'vertex_program']
@@ -28,6 +29,7 @@ def build(bld):
             'gui_script',
             'gamepads',
             'input_binding',
+            'light',
             'material',
             'png',
             'vp']

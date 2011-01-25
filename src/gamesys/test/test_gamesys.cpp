@@ -304,6 +304,23 @@ ResourceFailParams invalid_input_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(InputBinding, ResourceFailTest, ::testing::ValuesIn(invalid_input_resources));
 
+/* Light */
+
+const char* valid_light_resources[] = {"light/valid.lightc"};
+INSTANTIATE_TEST_CASE_P(Light, ResourceTest, ::testing::ValuesIn(valid_light_resources));
+
+ResourceFailParams invalid_light_resources[] =
+{
+    {"light/valid.lightc", "light/missing.lightc"},
+};
+INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, ::testing::ValuesIn(invalid_light_resources));
+
+const char* valid_light_gos[] = {"light/valid_light.goc"};
+INSTANTIATE_TEST_CASE_P(Light, ComponentTest, ::testing::ValuesIn(valid_light_gos));
+
+const char* invalid_light_gos[] = {"light/invalid_light.goc"};
+INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, ::testing::ValuesIn(invalid_light_gos));
+
 /* Material */
 
 const char* valid_material_resources[] = {"material/valid.materialc"};

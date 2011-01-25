@@ -10,11 +10,11 @@ namespace dmGameSystem
     struct Light
     {
         dmGameObject::HInstance      m_Instance;
-        dmGameSystemDDF::LightDesc* m_LightDesc;
-        Light(dmGameObject::HInstance instance, dmGameSystemDDF::LightDesc* light_desc)
+        dmGameSystemDDF::LightDesc** m_LightResource;
+        Light(dmGameObject::HInstance instance, dmGameSystemDDF::LightDesc** light_resource)
         {
             m_Instance = instance;
-            m_LightDesc = light_desc;
+            m_LightResource = light_resource;
         }
     };
 

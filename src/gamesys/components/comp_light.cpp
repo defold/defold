@@ -32,13 +32,13 @@ namespace dmGameSystem
                                                void* context,
                                                uintptr_t* user_data)
     {
-        dmGameSystemDDF::LightDesc* light_desc = (dmGameSystemDDF::LightDesc*) resource;
+        dmGameSystemDDF::LightDesc** light_resource = (dmGameSystemDDF::LightDesc**) resource;
         LightWorld* light_world = (LightWorld*) world;
         if (light_world->m_Lights.Full())
         {
             light_world->m_Lights.OffsetCapacity(16);
         }
-        Light* light = new Light(instance, light_desc);
+        Light* light = new Light(instance, light_resource);
         light_world->m_Lights.Push(light);
 
         *user_data = (uintptr_t) light;
@@ -84,16 +84,17 @@ namespace dmGameSystem
             Point3 position = dmGameObject::GetPosition(light->m_Instance);
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 
-            DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light->m_LightDesc->m_Id));
+            dmGameSystemDDF::LightDesc* light_desc = *light->m_LightResource;
+            DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light_desc->m_Id));
             set_light->m_Light.m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
-            set_light->m_Light.m_Type = light->m_LightDesc->m_Type;
-            set_light->m_Light.m_Intensity = light->m_LightDesc->m_Intensity;
-            set_light->m_Light.m_Color = light->m_LightDesc->m_Color;
-            set_light->m_Light.m_Range = light->m_LightDesc->m_Range;
-            set_light->m_Light.m_Decay = light->m_LightDesc->m_Decay;
-            set_light->m_Light.m_ConeAngle = light->m_LightDesc->m_ConeAngle;
-            set_light->m_Light.m_PenumbraAngle = light->m_LightDesc->m_PenumbraAngle;
-            set_light->m_Light.m_DropOff = light->m_LightDesc->m_DropOff;
+            set_light->m_Light.m_Type = light_desc->m_Type;
+            set_light->m_Light.m_Intensity = light_desc->m_Intensity;
+            set_light->m_Light.m_Color = light_desc->m_Color;
+            set_light->m_Light.m_Range = light_desc->m_Range;
+            set_light->m_Light.m_Decay = light_desc->m_Decay;
+            set_light->m_Light.m_ConeAngle = light_desc->m_ConeAngle;
+            set_light->m_Light.m_PenumbraAngle = light_desc->m_PenumbraAngle;
+            set_light->m_Light.m_DropOff = light_desc->m_DropOff;
             set_light->m_Position = position;
             set_light->m_Rotation = rotation;
 
