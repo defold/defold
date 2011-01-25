@@ -99,6 +99,7 @@ namespace dmGui
         Scene* scene = new Scene();
         scene->m_SelfReference = LUA_NOREF;
         scene->m_Context = context;
+        scene->m_Script = 0x0;
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
         scene->m_Nodes.SetSize(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
