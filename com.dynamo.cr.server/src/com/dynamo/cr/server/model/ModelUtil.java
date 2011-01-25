@@ -50,6 +50,23 @@ public class ModelUtil {
         entityManager.remove(user);
     }
 
+    /**
+     * Find user by email
+     * @param entityManager entity manager
+     * @param email user email
+     * @return user. null if user is not found
+     */
+    public static User findUserByEmail(EntityManager entityManager, String email) {
+        List<User> list = entityManager.createQuery("select u from User u where u.email = :email", User.class).setParameter("email", email).getResultList();
+        if (list.size() == 0) {
+            return null;
+        }
+        else {
+            assert list.size() == 1;
+            return list.get(0);
+        }
+    }
+
     public static void validateDatabase(EntityManager entityManager) {
         // Ensure that we don't have any orphaned projects
         List<Project> allProjects = entityManager.createQuery("select t from Project t", Project.class).getResultList();

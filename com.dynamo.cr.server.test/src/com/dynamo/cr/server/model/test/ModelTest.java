@@ -143,11 +143,11 @@ public class ModelTest {
 
     @Test
     public void getUser() {
-        User u1 = em.find(User.class, CARL_CONTENT_EMAIL);
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         assertNotNull(u1);
         assertEquals(CARL_CONTENT_EMAIL, u1.getEmail());
 
-        User u2 = em.find(User.class, JOE_CODER_EMAIL);
+        User u2 = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
         assertNotNull(u2);
         assertEquals(JOE_CODER_EMAIL, u2.getEmail());
     }
@@ -165,9 +165,23 @@ public class ModelTest {
         em.getTransaction().commit();
     }
 
+    @Test(expected=RollbackException.class)
+    public void createInvalidUser() {
+        // null is not a valid first name
+        em.getTransaction().begin();
+
+        User u1 = new User();
+        u1.setEmail("foo@bar.com");
+        u1.setFirstName(null);
+        u1.setLastName("Content");
+        em.persist(u1);
+
+        em.getTransaction().commit();
+    }
+
     @Test
     public void testProject() throws Exception {
-        User u = em.find(User.class, CARL_CONTENT_EMAIL);
+        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         List<Project> allProjects = new ArrayList<Project>(u.getProjects());
 
         TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
@@ -181,7 +195,7 @@ public class ModelTest {
     @Test(expected=RollbackException.class)
     public void testRemoveProjectConstraintViolation() throws Exception {
         // Test that we can't remove a project that has owners.
-        User u = em.find(User.class, CARL_CONTENT_EMAIL);
+        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
 
         TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
         q.setParameter("user", u);
@@ -196,13 +210,13 @@ public class ModelTest {
         em.remove(p);
         em.getTransaction().commit();
 
-        u = em.find(User.class, CARL_CONTENT_EMAIL);
+        u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
     }
 
     @Test(expected=RollbackException.class)
     public void testRemoveUserConstraintViolation() throws Exception {
         // Test that we can't remove a user that is part of projects
-        User u = em.find(User.class, LISA_USER_EMAIL);
+        User u = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
         em.getTransaction().begin();
         em.remove(u);
         em.getTransaction().commit();
@@ -211,7 +225,7 @@ public class ModelTest {
     @Test(expected=RollbackException.class)
     public void testRemoveUserOwnerOfProjectsConstraintViolation() throws Exception {
         // User owns projects
-        User u = em.find(User.class, CARL_CONTENT_EMAIL);
+        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         em.getTransaction().begin();
         ModelUtil.removeUser(em, u);
         em.getTransaction().commit();
@@ -221,7 +235,7 @@ public class ModelTest {
         List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(2, allProjects.size());
 
-        User u = em.find(User.class, CARL_CONTENT_EMAIL);
+        User u = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         Set<Project> projects = u.getProjects();
         em.getTransaction().begin();
         // First remove all projects the user owns
@@ -241,7 +255,7 @@ public class ModelTest {
     @Test
     public void testRemoveUserNotOwnerOfProjects() throws Exception {
         // User doesn't owns any projects
-        User u = em.find(User.class, LISA_USER_EMAIL);
+        User u = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
         em.getTransaction().begin();
         ModelUtil.removeUser(em, u);
         em.getTransaction().commit();
@@ -253,7 +267,7 @@ public class ModelTest {
         List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(2, allProjects.size());
 
-        User carl = em.find(User.class, CARL_CONTENT_EMAIL);
+        User carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
 
         TypedQuery<Project> q = em.createQuery("select t from Project t where t.owner = :user", Project.class);
         q.setParameter("user", carl);
@@ -264,11 +278,11 @@ public class ModelTest {
         ModelUtil.removeProject(em, p);
         em.getTransaction().commit();
 
-        carl = em.find(User.class, CARL_CONTENT_EMAIL);
+        carl = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
         carlsProjects = new ArrayList<Project>(carl.getProjects());
         assertEquals(1, carlsProjects.size());
 
-        User joe = em.find(User.class, JOE_CODER_EMAIL);
+        User joe = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
         ArrayList<Project> joesProjects = new ArrayList<Project>(joe.getProjects());
         assertEquals(1, joesProjects.size());
 
