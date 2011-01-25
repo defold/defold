@@ -3,6 +3,7 @@ package com.dynamo.cr.server.model.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -75,7 +76,9 @@ public class ModelTest {
 
         // "drop-and-create-tables" can't handle model changes correctly. We need to drop all tables first.
         // Eclipse-link only drops tables currently specified. When the model change the table set also change.
-        dropAllTables();
+        File tmp_testdb = new File("tmp/testdb");
+        if (tmp_testdb.exists())
+            dropAllTables();
 
         HashMap<String, Object> props = new HashMap<String, Object>();
         props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
