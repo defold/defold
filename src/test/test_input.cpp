@@ -46,14 +46,16 @@ protected:
 
 TEST_F(InputTest, CreateContext)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
     ASSERT_NE(dmInput::INVALID_BINDING, binding);
     dmInput::DeleteBinding(binding);
 }
 
 TEST_F(InputTest, Keyboard)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
 
     dmHID::SetKey(dmHID::KEY_0, true);
 
@@ -90,7 +92,8 @@ TEST_F(InputTest, Keyboard)
 
 TEST_F(InputTest, Mouse)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
 
     dmHID::SetMousePosition(0, 1);
 
@@ -125,7 +128,8 @@ TEST_F(InputTest, Mouse)
 
 TEST_F(InputTest, Gamepad)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
 
     dmhash_t action_id = dmHashString64("GAMEPAD_LSTICK_UP");
     dmInputDDF::Gamepad input = dmInputDDF::GAMEPAD_LSTICK_UP;
@@ -199,7 +203,8 @@ void ActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data
 
 TEST_F(InputTest, ForEachActive)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
 
     dmHID::Update();
     dmInput::UpdateBinding(binding, m_DT);
@@ -223,7 +228,8 @@ TEST_F(InputTest, ForEachActive)
 
 TEST_F(InputTest, Combinations)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_ComboDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_ComboDDF);
 
     dmhash_t action0 = dmHashString64("Action0");
     dmhash_t action1 = dmHashString64("Action1");
@@ -250,7 +256,8 @@ TEST_F(InputTest, Combinations)
 
 TEST_F(InputTest, DeadZone)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
 
     dmhash_t action_id = dmHashString64("GAMEPAD_LSTICK_UP");
     dmInputDDF::Gamepad input = dmInputDDF::GAMEPAD_LSTICK_UP;
@@ -286,7 +293,8 @@ TEST_F(InputTest, DeadZone)
 
 TEST_F(InputTest, TestRepeat)
 {
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context, m_TestDDF);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
 
     dmHID::SetKey(dmHID::KEY_0, true);
 

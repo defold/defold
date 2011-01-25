@@ -47,18 +47,31 @@ namespace dmInput
         context->m_RepeatInterval = interval;
     }
 
-    HBinding NewBinding(HContext context, dmInputDDF::InputBinding* ddf)
+    HBinding NewBinding(HContext context)
     {
         Binding* binding = new Binding();
         memset(binding, 0, sizeof(Binding));
         binding->m_Context = context;
         binding->m_Actions.SetCapacity(64, 256);
+        return binding;
+    }
+
+    void SetBinding(HBinding binding, dmInputDDF::InputBinding* ddf)
+    {
+        binding->m_Actions.Clear();
         Action action;
         memset(&action, 0, sizeof(Action));
         if (ddf->m_KeyTrigger.m_Count > 0)
         {
-            binding->m_KeyboardBinding = new KeyboardBinding();
-            memset(binding->m_KeyboardBinding, 0, sizeof(*binding->m_KeyboardBinding));
+            if (binding->m_KeyboardBinding == 0x0)
+            {
+                binding->m_KeyboardBinding = new KeyboardBinding();
+                memset(binding->m_KeyboardBinding, 0, sizeof(*binding->m_KeyboardBinding));
+            }
+            else
+            {
+                binding->m_KeyboardBinding->m_Triggers.SetSize(0);
+            }
             binding->m_KeyboardBinding->m_Triggers.SetCapacity(ddf->m_KeyTrigger.m_Count);
             for (uint32_t i = 0; i < ddf->m_KeyTrigger.m_Count; ++i)
             {
@@ -70,10 +83,22 @@ namespace dmInput
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
         }
+        else if (binding->m_KeyboardBinding != 0x0)
+        {
+            delete binding->m_KeyboardBinding;
+            binding->m_KeyboardBinding = 0x0;
+        }
         if (ddf->m_MouseTrigger.m_Count > 0)
         {
-            binding->m_MouseBinding = new MouseBinding();
-            memset(binding->m_MouseBinding, 0, sizeof(*binding->m_MouseBinding));
+            if (binding->m_MouseBinding == 0x0)
+            {
+                binding->m_MouseBinding = new MouseBinding();
+                memset(binding->m_MouseBinding, 0, sizeof(*binding->m_MouseBinding));
+            }
+            else
+            {
+                binding->m_MouseBinding->m_Triggers.SetSize(0);
+            }
             binding->m_MouseBinding->m_Triggers.SetCapacity(ddf->m_MouseTrigger.m_Count);
             for (uint32_t i = 0; i < ddf->m_MouseTrigger.m_Count; ++i)
             {
@@ -85,28 +110,40 @@ namespace dmInput
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
         }
+        else if (binding->m_MouseBinding != 0x0)
+        {
+            delete binding->m_MouseBinding;
+            binding->m_MouseBinding = 0x0;
+        }
         if (ddf->m_GamepadTrigger.m_Count > 0)
         {
-            uint8_t gamepad_index = context->m_GamepadIndices.Pop();
-            dmHID::HGamepad gamepad = dmHID::GetGamepad(gamepad_index);
-            const char* device_name = 0x0;
-            dmHID::GetGamepadDeviceName(gamepad, &device_name);
-            if (device_name == 0x0)
+            if (binding->m_GamepadBinding == 0x0)
             {
-                dmLogWarning("Gamepad %d is not connected.", gamepad_index);
+                uint8_t gamepad_index = binding->m_Context->m_GamepadIndices.Pop();
+                dmHID::HGamepad gamepad = dmHID::GetGamepad(gamepad_index);
+                const char* device_name = 0x0;
+                dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                if (device_name == 0x0)
+                {
+                    dmLogWarning("Gamepad %d is not connected.", gamepad_index);
+                }
+                else
+                {
+                    GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(dmHashString32(device_name));
+                    if (config == 0x0)
+                    {
+                        dmLogWarning("No gamepad map found for gamepad %d (%s), it will not be used.", gamepad_index, device_name);
+                    }
+                }
+                binding->m_GamepadBinding = new GamepadBinding();
+                memset(binding->m_GamepadBinding, 0, sizeof(*binding->m_GamepadBinding));
+                binding->m_GamepadBinding->m_Gamepad = gamepad;
+                binding->m_GamepadBinding->m_Index = gamepad_index;
             }
             else
             {
-                GamepadConfig* config = context->m_GamepadMaps.Get(dmHashString32(device_name));
-                if (config == 0x0)
-                {
-                    dmLogWarning("No gamepad map found for gamepad %d (%s), it will not be used.", gamepad_index, device_name);
-                }
+                binding->m_GamepadBinding->m_Triggers.SetSize(0);
             }
-            binding->m_GamepadBinding = new GamepadBinding();
-            memset(binding->m_GamepadBinding, 0, sizeof(*binding->m_GamepadBinding));
-            binding->m_GamepadBinding->m_Gamepad = gamepad;
-            binding->m_GamepadBinding->m_Index = gamepad_index;
             binding->m_GamepadBinding->m_Triggers.SetCapacity(ddf->m_GamepadTrigger.m_Count);
             for (uint32_t i = 0; i < ddf->m_GamepadTrigger.m_Count; ++i)
             {
@@ -118,7 +155,12 @@ namespace dmInput
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
         }
-        return binding;
+        else if (binding->m_GamepadBinding != 0x0)
+        {
+            binding->m_Context->m_GamepadIndices.Push(binding->m_GamepadBinding->m_Index);
+            delete binding->m_GamepadBinding;
+            binding->m_GamepadBinding = 0x0;
+        }
     }
 
     void DeleteBinding(HBinding binding)

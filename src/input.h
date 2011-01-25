@@ -35,7 +35,8 @@ namespace dmInput
     void DeleteContext(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 
-    HBinding NewBinding(HContext context, dmInputDDF::InputBinding* binding);
+    HBinding NewBinding(HContext context);
+    void SetBinding(HBinding binding, dmInputDDF::InputBinding* ddf);
     void DeleteBinding(HBinding binding);
 
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf);
