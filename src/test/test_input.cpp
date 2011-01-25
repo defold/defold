@@ -26,6 +26,7 @@ protected:
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
         dmDDF::LoadMessageFromFile("build/default/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
+        dmDDF::LoadMessageFromFile("build/default/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
         dmDDF::LoadMessageFromFile("build/default/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
         m_DT = 1.0f / 60.0f;
     }
@@ -33,6 +34,7 @@ protected:
     virtual void TearDown()
     {
         dmDDF::FreeMessage(m_TestDDF);
+        dmDDF::FreeMessage(m_Test2DDF);
         dmDDF::FreeMessage(m_ComboDDF);
         dmInput::DeleteContext(m_Context);
         dmHID::Finalize();
@@ -40,6 +42,7 @@ protected:
 
     dmInput::HContext m_Context;
     dmInputDDF::InputBinding* m_TestDDF;
+    dmInputDDF::InputBinding* m_Test2DDF;
     dmInputDDF::InputBinding* m_ComboDDF;
     float m_DT;
 };
@@ -87,6 +90,22 @@ TEST_F(InputTest, Keyboard)
     ASSERT_FALSE(dmInput::Pressed(binding, key_0_id));
     ASSERT_FALSE(dmInput::Released(binding, key_0_id));
 
+    dmInput::SetBinding(binding, m_Test2DDF);
+
+    dmHID::SetKey(dmHID::KEY_0, true);
+    dmHID::Update();
+
+    dmInput::UpdateBinding(binding, m_DT);
+    v = dmInput::GetValue(binding, key_0_id);
+    ASSERT_EQ(0.0f, v);
+
+    dmHID::SetKey(dmHID::KEY_1, true);
+    dmHID::Update();
+
+    dmInput::UpdateBinding(binding, m_DT);
+    v = dmInput::GetValue(binding, key_0_id);
+    ASSERT_EQ(1.0f, v);
+
     dmInput::DeleteBinding(binding);
 }
 
@@ -122,6 +141,22 @@ TEST_F(InputTest, Mouse)
 
     ASSERT_FALSE(dmInput::Pressed(binding, mouse_up_id));
     ASSERT_FALSE(dmInput::Released(binding, mouse_up_id));
+
+    dmInput::SetBinding(binding, m_Test2DDF);
+
+    dmHID::SetMousePosition(0, 1);
+    dmHID::Update();
+
+    dmInput::UpdateBinding(binding, m_DT);
+    v = dmInput::GetValue(binding, mouse_up_id);
+    ASSERT_EQ(0.0f, v);
+
+    dmHID::SetMousePosition(0, -1);
+    dmHID::Update();
+
+    dmInput::UpdateBinding(binding, m_DT);
+    v = dmInput::GetValue(binding, mouse_up_id);
+    ASSERT_EQ(1.0f, v);
 
     dmInput::DeleteBinding(binding);
 }
@@ -191,6 +226,22 @@ TEST_F(InputTest, Gamepad)
 
     ASSERT_EQ(1.0f, dmInput::GetValue(binding, up_id));
     ASSERT_EQ(0.0f, dmInput::GetValue(binding, down_id));
+
+    dmInput::SetBinding(binding, m_Test2DDF);
+
+    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, 1.0f);
+    dmHID::Update();
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, action_id));
+
+    input = dmInputDDF::GAMEPAD_LSTICK_DOWN;
+    index = map->m_Inputs[input].m_Index;
+    dmHID::SetGamepadAxis(binding->m_GamepadBinding->m_Gamepad, index, -1.0f);
+    dmHID::Update();
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, action_id));
 
     dmInput::DeleteBinding(binding);
 }
