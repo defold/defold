@@ -30,6 +30,7 @@ protected:
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::EmitterContext m_EmitterContext;
+    dmGameSystem::GuiRenderContext m_GuiRenderContext;
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -83,15 +84,20 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxInstances = 1000;
     render_params.m_MaxRenderTargets = 10;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
+    m_GuiRenderContext.m_RenderContext = m_RenderContext;
+    dmGui::NewContextParams gui_params;
+    gui_params.m_MaxMessageDataSize = 256;
+    assert(dmMessage::RESULT_OK == dmMessage::NewSocket("test", &gui_params.m_Socket));
+    m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
-    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext));
+    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext));
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
     memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
 
     m_EmitterContext.m_RenderContext = m_RenderContext;
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiRenderContext));
 
     m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
 }
@@ -99,9 +105,11 @@ void GamesysTest<T>::SetUp()
 template<typename T>
 void GamesysTest<T>::TearDown()
 {
+    dmGameObject::DeleteCollection(m_Collection);
+    dmMessage::DeleteSocket(dmGui::GetSocket(m_GuiRenderContext.m_GuiContext));
+    dmGui::DeleteContext(m_GuiRenderContext.m_GuiContext);
     dmRender::DeleteRenderContext(m_RenderContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
-    dmGameObject::DeleteCollection(m_Collection);
     dmResource::DeleteFactory(m_Factory);
     dmGameObject::DeleteRegister(m_Register);
     dmGameObject::Finalize();

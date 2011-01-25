@@ -5,17 +5,19 @@
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
 #include <render/font_renderer.h>
+#include <gui/gui.h>
 #include "../proto/gui_ddf.h"
 
 namespace dmGameSystem
 {
-    struct GuiScenePrototype
+    struct GuiSceneResource
     {
-        dmGuiDDF::SceneDesc*          m_SceneDesc;
-        const char*                   m_Script;
-        dmArray<dmRender::HFontMap>   m_FontMaps;
-        dmArray<dmGraphics::HTexture> m_Textures;
-        const char*                   m_Path;
+        dmGuiDDF::SceneDesc*            m_SceneDesc;
+        dmGui::HScript                  m_Script;
+        dmArray<dmRender::HFontMap>     m_FontMaps;
+        dmArray<dmGraphics::HTexture>   m_Textures;
+        const char*                     m_Path;
+        dmGui::HContext                 m_GuiContext;
     };
 
     dmResource::CreateResult ResCreateSceneDesc(dmResource::HFactory factory,
@@ -28,6 +30,12 @@ namespace dmGameSystem
                                            void* context,
                                            dmResource::SResourceDescriptor* resource);
 
+    dmResource::CreateResult ResRecreateSceneDesc(dmResource::HFactory factory,
+                                          void* context,
+                                          const void* buffer, uint32_t buffer_size,
+                                          dmResource::SResourceDescriptor* resource,
+                                          const char* filename);
+
     dmResource::CreateResult ResCreateGuiScript(dmResource::HFactory factory,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,
@@ -37,6 +45,12 @@ namespace dmGameSystem
     dmResource::CreateResult ResDestroyGuiScript(dmResource::HFactory factory,
                                            void* context,
                                            dmResource::SResourceDescriptor* resource);
+
+    dmResource::CreateResult ResRecreateGuiScript(dmResource::HFactory factory,
+                                          void* context,
+                                          const void* buffer, uint32_t buffer_size,
+                                          dmResource::SResourceDescriptor* resource,
+                                          const char* filename);
 
 }
 

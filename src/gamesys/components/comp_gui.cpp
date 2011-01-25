@@ -17,6 +17,7 @@
 #include <render/font_renderer.h>
 
 #include "../resources/res_gui.h"
+#include "../gamesys.h"
 
 extern char GUI_VPC[];
 extern uint32_t GUI_VPC_SIZE;
@@ -30,8 +31,8 @@ namespace dmGameSystem
 
     struct Component
     {
-        dmGui::HScene                    m_Scene;
-        uint16_t m_Enabled : 1;
+        dmGui::HScene   m_Scene;
+        uint16_t        m_Enabled : 1;
     };
 
     struct GuiWorld;
@@ -44,9 +45,7 @@ namespace dmGameSystem
 
     struct GuiWorld
     {
-        dmGui::HGui                      m_Gui;
         dmArray<Component*>              m_Components;
-        dmMessage::HSocket               m_Socket;
         dmRender::HMaterial              m_Material;
         dmGraphics::HVertexProgram       m_VertexProgram;
         dmGraphics::HFragmentProgram     m_FragmentProgram;
@@ -58,28 +57,15 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiNewWorld(void* context, void** world)
     {
-        char socket_name[32];
-
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
+        GuiRenderContext* gui_render_context = (GuiRenderContext*)context;
         GuiWorld* gui_world = new GuiWorld();
-        DM_SNPRINTF(socket_name, sizeof(socket_name), "dmgui_from_%X", (unsigned int) gui_world);
-        dmMessage::Result mr = dmMessage::NewSocket(socket_name, &gui_world->m_Socket);
-        if (mr != dmMessage::RESULT_OK)
-        {
-            dmLogFatal("Unable to create gui socket: %s (%d)", socket_name, mr);
-            delete gui_world;
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
 
-        dmGui::NewGuiParams gui_params;
-        gui_params.m_Socket = gui_world->m_Socket;
-        gui_world->m_Gui = dmGui::New(&gui_params);
         gui_world->m_Components.SetCapacity(16);
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
-        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), GUI_VPC, GUI_VPC_SIZE);
-        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), GUI_FPC, GUI_FPC_SIZE);
+        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), GUI_VPC, GUI_VPC_SIZE);
+        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), GUI_FPC, GUI_FPC_SIZE);
 
         gui_world->m_Material = dmRender::NewMaterial();
         SetMaterialVertexProgramConstantType(gui_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
@@ -96,7 +82,7 @@ namespace dmGameSystem
                 {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
         };
 
-        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         float ext = 0.5f;
         float quad[] = { -ext,-ext, 0, 0, 0,
@@ -107,7 +93,7 @@ namespace dmGameSystem
                           ext, -ext, 0, 1, 1,
                           ext, ext, 0, 1, 0 };
 
-        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), sizeof(float) * 5 * 6, (void*) quad, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), sizeof(float) * 5 * 6, (void*) quad, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -120,7 +106,7 @@ namespace dmGameSystem
         params.m_DataSize = sizeof(white_texture);
         params.m_Width = 2;
         params.m_Height = 2;
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(render_context), params);
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), params);
 
         *world = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -144,8 +130,6 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexBuffer(gui_world->m_QuadVertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
 
-        dmGui::Delete(gui_world->m_Gui);
-        dmMessage::DeleteSocket(gui_world->m_Socket);
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -159,29 +143,26 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)world;
 
-        GuiScenePrototype* scene_prototype = (GuiScenePrototype*) resource;
+        GuiSceneResource* scene_resource = (GuiSceneResource*) resource;
 
         dmGui::NewSceneParams params;
         params.m_MaxNodes = 256;
         params.m_MaxAnimations = 1024;
         params.m_UserData = instance;
-        dmGui::HScene scene = dmGui::NewScene(gui_world->m_Gui, &params);
-
-        // NOTE: We ignore errors here in order to be able to reload invalid scripts
-        dmGui::SetSceneScript(scene, scene_prototype->m_Script, strlen(scene_prototype->m_Script), scene_prototype->m_Path);
+        dmGui::HScene scene = dmGui::NewScene(scene_resource->m_GuiContext, &params);
 
         Component* gui_component = new Component();
         gui_component->m_Scene = scene;
         gui_component->m_Enabled = 1;
 
-        for (uint32_t i = 0; i < scene_prototype->m_FontMaps.Size(); ++i)
+        for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
-            dmGui::AddFont(scene, scene_prototype->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_prototype->m_FontMaps[i]);
+            dmGui::AddFont(scene, scene_resource->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
         }
 
-        for (uint32_t i = 0; i < scene_prototype->m_Textures.Size(); ++i)
+        for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
         {
-            dmGui::AddTexture(scene, scene_prototype->m_SceneDesc->m_Textures[i], (void*)scene_prototype->m_Textures[i]);
+            dmGui::AddTexture(scene, scene_resource->m_SceneDesc->m_Textures[i], (void*)scene_resource->m_Textures[i]);
         }
 
         *user_data = (uintptr_t)gui_component;
@@ -341,10 +322,10 @@ namespace dmGameSystem
                                              void* context)
     {
         GuiWorld* gui_world = (GuiWorld*)world;
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
+        GuiRenderContext* gui_render_context = (GuiRenderContext*)context;
 
         dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
-        dmMessage::Dispatch(gui_world->m_Socket, &DispatchGui, regist);
+        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, regist);
 
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
@@ -354,7 +335,7 @@ namespace dmGameSystem
         }
 
         RenderGuiContext render_gui_context;
-        render_gui_context.m_RenderContext = render_context;
+        render_gui_context.m_RenderContext = gui_render_context->m_RenderContext;
         render_gui_context.m_GuiWorld = gui_world;
 
         gui_world->m_GuiRenderObjects.SetSize(0);
@@ -362,7 +343,7 @@ namespace dmGameSystem
         {
             Component* c = gui_world->m_Components[i];
             if (c->m_Enabled)
-                dmGui::RenderScene(c->m_Scene, &RenderNode, &render_gui_context);
+                dmGui::RenderScene(c->m_Scene, &RenderNode, &gui_render_context->m_RenderContext);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

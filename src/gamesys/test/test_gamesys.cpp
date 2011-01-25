@@ -245,6 +245,38 @@ ResourceFailParams invalid_fp_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, ::testing::ValuesIn(invalid_fp_resources));
 
+/* Gui Script */
+
+const char* valid_gs_resources[] = {"gui/valid.gui_scriptc"};
+INSTANTIATE_TEST_CASE_P(GuiScript, ResourceTest, ::testing::ValuesIn(valid_gs_resources));
+
+ResourceFailParams invalid_gs_resources[] =
+{
+    {"gui/valid.gui_scriptc", "gui/missing.gui_scriptc"},
+};
+INSTANTIATE_TEST_CASE_P(GuiScript, ResourceFailTest, ::testing::ValuesIn(invalid_gs_resources));
+
+/* Gui */
+
+const char* valid_gui_resources[] = {"gui/valid.guic"};
+INSTANTIATE_TEST_CASE_P(Gui, ResourceTest, ::testing::ValuesIn(valid_gui_resources));
+
+ResourceFailParams invalid_gui_resources[] =
+{
+    {"gui/valid.guic", "gui/missing.guic"},
+    {"gui/valid.guic", "gui/invalid_font.guic"},
+};
+INSTANTIATE_TEST_CASE_P(Gui, ResourceFailTest, ::testing::ValuesIn(invalid_gui_resources));
+
+const char* valid_gui_gos[] = {"gui/valid_gui.goc"};
+INSTANTIATE_TEST_CASE_P(Gui, ComponentTest, ::testing::ValuesIn(valid_gui_gos));
+
+const char* invalid_gui_gos[] =
+{
+    "gui/invalid_font.goc"
+};
+INSTANTIATE_TEST_CASE_P(Gui, ComponentFailTest, ::testing::ValuesIn(invalid_gui_gos));
+
 /* Material */
 
 const char* valid_material_resources[] = {"material/valid.materialc"};

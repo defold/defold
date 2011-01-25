@@ -1,0 +1,7 @@
+Script: "gui/valid.gui_script"
+Fonts
+{
+    Name: "test_font"
+    Font: "font/valid_font.font"
+}
+Textures: "texture/valid.png"

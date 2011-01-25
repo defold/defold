@@ -7,6 +7,8 @@
 
 #include <gameobject/gameobject.h>
 
+#include <gui/gui.h>
+
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <physics/physics.h>
@@ -34,15 +36,22 @@ namespace dmGameSystem
         dmRender::HRenderScript         m_Script;
     };
 
+    struct GuiRenderContext
+    {
+        dmRender::HRenderContext    m_RenderContext;
+        dmGui::HContext             m_GuiContext;
+    };
+
     void RegisterDDFTypes();
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context);
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
-                                                  EmitterContext* emitter_context);
+                                                  EmitterContext* emitter_context,
+                                                  GuiRenderContext* gui_render_context);
 
     void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }

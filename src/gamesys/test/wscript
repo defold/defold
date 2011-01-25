@@ -13,6 +13,7 @@ def build(bld):
             'emitter',
             'font',
             'fragment_program',
+            'gui',
             'material',
             'texture',
             'vertex_program']
@@ -22,6 +23,8 @@ def build(bld):
             'emitter',
             'font',
             'fp',
+            'gui',
+            'gui_script',
             'material',
             'png',
             'vp']

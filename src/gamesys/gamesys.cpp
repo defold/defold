@@ -50,7 +50,7 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context)
     {
         dmResource::FactoryResult e;
 
@@ -74,8 +74,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("modelc", 0, ResCreateModel, ResDestroyModel, ResRecreateModel);
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResCreateMesh, ResDestroyMesh, ResRecreateMesh);
         REGISTER_RESOURCE_TYPE("materialc", 0, ResMaterialCreate, ResMaterialDestroy, ResMaterialRecreate);
-        REGISTER_RESOURCE_TYPE("guic", 0, ResCreateSceneDesc, ResDestroySceneDesc, 0);
-        REGISTER_RESOURCE_TYPE("gui_scriptc", 0, ResCreateGuiScript, ResDestroyGuiScript, 0);
+        REGISTER_RESOURCE_TYPE("guic", gui_context, ResCreateSceneDesc, ResDestroySceneDesc, ResRecreateSceneDesc);
+        REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResCreateGuiScript, ResDestroyGuiScript, ResRecreateGuiScript);
         REGISTER_RESOURCE_TYPE("wavc", 0, ResSoundDataCreate, ResSoundDataDestroy, 0);
         REGISTER_RESOURCE_TYPE("camerac", 0, ResCameraCreate, ResCameraDestroy, ResCameraRecreate);
         REGISTER_RESOURCE_TYPE("input_bindingc", 0, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
@@ -94,7 +94,8 @@ namespace dmGameSystem
                                                 dmGameObject::HRegister regist,
                                                 dmRender::RenderContext* render_context,
                                                 PhysicsContext* physics_context,
-                                                EmitterContext* emitter_context)
+                                                EmitterContext* emitter_context,
+                                                GuiRenderContext* gui_render_context)
     {
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
@@ -155,7 +156,7 @@ namespace dmGameSystem
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
                 &CompEmitterUpdate, &CompEmitterOnMessage, 0, 0);
 
-        REGISTER_COMPONENT_TYPE("guic", render_context,
+        REGISTER_COMPONENT_TYPE("guic", gui_render_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiInit, CompGuiDestroy,
                 CompGuiUpdate, CompGuiOnMessage, CompGuiOnInput, 0);
