@@ -150,6 +150,7 @@ namespace dmGameSystem
         params.m_MaxAnimations = 1024;
         params.m_UserData = instance;
         dmGui::HScene scene = dmGui::NewScene(scene_resource->m_GuiContext, &params);
+        dmGui::SetSceneScript(scene, scene_resource->m_Script);
 
         Component* gui_component = new Component();
         gui_component->m_Scene = scene;
