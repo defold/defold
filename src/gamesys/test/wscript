@@ -6,6 +6,11 @@ from TaskGen import extension, declare_extension
 sys.path.append("src")
 import waf_gamesys
 
+if sys.platform == "win32":
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto;../src"
+else:
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto:../src"
+
 def configure(conf):
     conf.find_file('meshc.py', [os.path.abspath('tools')], var = 'MESHC', mandatory = True)
 
