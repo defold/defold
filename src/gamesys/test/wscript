@@ -29,6 +29,7 @@ def build(bld):
             'mesh',
             'model',
             'sound',
+            'spawn_point',
             'texture',
             'vertex_program']
     exts = ['camera',
@@ -46,6 +47,7 @@ def build(bld):
             'mesh',
             'model',
             'png',
+            'spawnpoint',
             'vp',
             'wav']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
