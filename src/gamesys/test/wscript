@@ -3,6 +3,9 @@ import sys, os
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
+sys.path.append("src")
+import waf_gamesys
+
 def configure(conf):
     conf.find_file('meshc.py', [os.path.abspath('tools')], var = 'MESHC', mandatory = True)
 
