@@ -66,6 +66,7 @@ namespace dmSound
     Result Finalize();
 
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data);
+    Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
     Result DeleteSoundData(HSoundData sound_data);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);

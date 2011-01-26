@@ -59,10 +59,9 @@ def build(bld):
 
 def shutdown():
     run = False
-    if sys.platform == 'linux2' and os.path.exists('/dev/dsp'):
+    if sys.platform == 'linux2' and (os.path.exists('/dev/snd') or os.path.exists('/dev/dsp')):
         run = True
     elif sys.platform == 'darwin':
         run = True
-
     if run:
         waf_dynamo.run_gtests(valgrind = True)

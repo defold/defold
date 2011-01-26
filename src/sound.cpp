@@ -201,7 +201,7 @@ namespace dmSound
         return result;
     }
 
-    Result NewSoundDataWav(const void* sound_buffer, uint32_t sound_buffer_size, HSoundData* sound_data)
+    Result SetSoundDataWav(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
         ALenum format;
         ALsizei size;
@@ -214,28 +214,18 @@ namespace dmSound
             return RESULT_UNKNOWN_ERROR;
         }
 
-        SoundSystem* sound = g_SoundSystem;
+        if (sound_data->m_Data != 0x0)
+            free((void*)sound_data->m_Data);
 
-        if (sound->m_SoundDataPool.Remaining() == 0)
-        {
-            *sound_data = 0;
-            return RESULT_OUT_OF_INSTANCES;
-        }
-        uint16_t index = sound->m_SoundDataPool.Pop();
-
-        SoundData* sd = &sound->m_SoundData[index];
-        sd->m_Type = SOUND_DATA_TYPE_WAV;
-        sd->m_Index = index;
-        sd->m_Data = buffer;
-        sd->m_Format = format;
-        sd->m_Size = size;
-        sd->m_Frequency = frequency;
-        *sound_data = sd;
+        sound_data->m_Data = buffer;
+        sound_data->m_Format = format;
+        sound_data->m_Size = size;
+        sound_data->m_Frequency = frequency;
 
         return RESULT_OK;
     }
 
-    Result NewSoundDataOggVorbis(const void* sound_buffer, uint32_t sound_buffer_size, HSoundData* sound_data)
+    Result SetSoundDataOggVorbis(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
         void* sound_buffer_copy = malloc(sound_buffer_size);
         if (!sound_buffer_copy)
@@ -244,20 +234,11 @@ namespace dmSound
         }
         memcpy(sound_buffer_copy, sound_buffer, sound_buffer_size);
 
-        SoundSystem* sound = g_SoundSystem;
+        if (sound_data->m_Data != 0x0)
+            free((void*)sound_data->m_Data);
 
-        if (sound->m_SoundDataPool.Remaining() == 0)
-        {
-            *sound_data = 0;
-            return RESULT_OUT_OF_INSTANCES;
-        }
-        uint16_t index = sound->m_SoundDataPool.Pop();
-
-        SoundData* sd = &sound->m_SoundData[index];
-        sd->m_Type = SOUND_DATA_TYPE_OGG_VORBIS;
-        sd->m_Index = index;
-        sd->m_Data = sound_buffer_copy;
-        sd->m_Size = sound_buffer_size;
+        sound_data->m_Data = sound_buffer_copy;
+        sound_data->m_Size = sound_buffer_size;
 
         int error;
         stb_vorbis* vorbis = stb_vorbis_open_memory((unsigned char*) sound_buffer_copy, sound_buffer_size, &error, NULL);
@@ -267,18 +248,18 @@ namespace dmSound
             stb_vorbis_close(vorbis);
             if (info.channels == 1)
             {
-                sd->m_Format = AL_FORMAT_MONO16;
+                sound_data->m_Format = AL_FORMAT_MONO16;
             }
             else if (info.channels == 2)
             {
-                sd->m_Format = AL_FORMAT_STEREO16;
+                sound_data->m_Format = AL_FORMAT_STEREO16;
             }
             else
             {
                 dmLogError("Unsupported channel count in ogg-vorbis stream: %d", info.channels);
                 return RESULT_UNKNOWN_ERROR;
             }
-            sd->m_Frequency = info.sample_rate;
+            sound_data->m_Frequency = info.sample_rate;
         }
         else
         {
@@ -286,24 +267,52 @@ namespace dmSound
             return RESULT_INVALID_STREAM_DATA;
         }
 
-        *sound_data = sd;
-
         return RESULT_OK;
     }
 
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
     {
-        if (type == SOUND_DATA_TYPE_WAV)
-            return NewSoundDataWav(sound_buffer, sound_buffer_size, sound_data);
-        else if (type == SOUND_DATA_TYPE_OGG_VORBIS)
-            return NewSoundDataOggVorbis(sound_buffer, sound_buffer_size, sound_data);
+        SoundSystem* sound = g_SoundSystem;
+
+        if (sound->m_SoundDataPool.Remaining() == 0)
+        {
+            *sound_data = 0;
+            return RESULT_OUT_OF_INSTANCES;
+        }
+        uint16_t index = sound->m_SoundDataPool.Pop();
+
+        SoundData* sd = &sound->m_SoundData[index];
+        sd->m_Type = type;
+        sd->m_Index = index;
+        sd->m_Data = 0x0;
+        sd->m_Size = 0;
+
+        Result result = SetSoundData(sd, sound_buffer, sound_buffer_size);
+        if (result == RESULT_OK)
+            *sound_data = sd;
         else
-            return RESULT_UNKNOWN_SOUND_TYPE;
+            DeleteSoundData(sd);
+
+        return result;
+    }
+
+    Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
+    {
+        switch (sound_data->m_Type)
+        {
+            case SOUND_DATA_TYPE_WAV:
+                return SetSoundDataWav(sound_data, sound_buffer, sound_buffer_size);
+            case SOUND_DATA_TYPE_OGG_VORBIS:
+                return SetSoundDataOggVorbis(sound_data, sound_buffer, sound_buffer_size);
+            default:
+                return RESULT_UNKNOWN_SOUND_TYPE;
+        }
     }
 
     Result DeleteSoundData(HSoundData sound_data)
     {
-        free((void*) sound_data->m_Data);
+        if (sound_data->m_Data != 0x0)
+            free((void*) sound_data->m_Data);
 
         SoundSystem* sound = g_SoundSystem;
         sound->m_SoundDataPool.Push(sound_data->m_Index);

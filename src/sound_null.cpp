@@ -10,7 +10,7 @@ namespace dmSound
 
     struct SoundData
     {
-        char m_Byte;
+        char* m_Buffer;
     };
 
     struct SoundInstance
@@ -45,12 +45,29 @@ namespace dmSound
 
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
     {
-        *sound_data = new SoundData();
+        HSoundData sd = new SoundData();
+        sd->m_Buffer = 0x0;
+        Result result = SetSoundData(sd, sound_buffer, sound_buffer_size);
+        if (result == RESULT_OK)
+            *sound_data = sd;
+        else
+            DeleteSoundData(sd);
+        return result;
+    }
+
+    Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
+    {
+        if (sound_data->m_Buffer != 0x0)
+            delete [] sound_data->m_Buffer;
+        sound_data->m_Buffer = new char[sound_buffer_size];
+        memcpy(sound_data->m_Buffer, sound_buffer, sound_buffer_size);
         return RESULT_OK;
     }
 
     Result DeleteSoundData(HSoundData sound_data)
     {
+        if (sound_data->m_Buffer != 0x0)
+            delete [] sound_data->m_Buffer;
         delete sound_data;
         return RESULT_OK;
     }

@@ -87,6 +87,9 @@ TEST_F(dmSoundTest, SoundData)
         dmSound::Result r = dmSound::NewSoundData(m_DrumLoop, m_DrumLoopSize, dmSound::SOUND_DATA_TYPE_WAV, &sd);
         ASSERT_EQ(dmSound::RESULT_OK, r);
         ASSERT_NE((dmSound::HSoundData) 0, sd);
+        r = dmSound::SetSoundData(sd, m_OneFootStep, m_OneFootStepSize);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        ASSERT_NE((dmSound::HSoundData) 0, sd);
         sounds.push_back(sd);
     }
 
