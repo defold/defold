@@ -166,12 +166,26 @@ TEST_F(dmGraphicsTest, VertexBuffer)
     dmGraphics::SetVertexBufferSubData(vertex_buffer, 4, 4, &data[4]);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
+    // Invalid range
+    memset(&data[14], 4, 1);
+    dmGraphics::SetVertexBufferSubData(vertex_buffer, 14, 4, data);
+    ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
+
     memset(data, 4, 4);
     void* copy = dmGraphics::MapVertexBuffer(vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
     ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(vertex_buffer));
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
+
+    // Smaller size
+    dmGraphics::SetVertexBufferData(vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(1u, vb->m_Size);
+
+    // Bigger size
+    dmGraphics::SetVertexBufferData(vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(4u, vb->m_Size);
+    ASSERT_EQ(0, memcmp(data, vb->m_Buffer, 4));
 
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
 }
@@ -192,12 +206,26 @@ TEST_F(dmGraphicsTest, IndexBuffer)
     dmGraphics::SetIndexBufferSubData(index_buffer, 4, 4, &data[4]);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
+    // Invalid range
+    memset(&data[14], 4, 1);
+    dmGraphics::SetIndexBufferSubData(index_buffer, 14, 4, data);
+    ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
+
     memset(data, 4, 4);
     void* copy = dmGraphics::MapIndexBuffer(index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
     ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(index_buffer));
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
+
+    // Smaller size
+    dmGraphics::SetIndexBufferData(index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(1u, ib->m_Size);
+
+    // Bigger size
+    dmGraphics::SetIndexBufferData(index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(4u, ib->m_Size);
+    ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
     dmGraphics::DeleteIndexBuffer(index_buffer);
 }

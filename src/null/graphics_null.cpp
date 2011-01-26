@@ -202,13 +202,19 @@ namespace dmGraphics
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
-        memcpy(vb->m_Buffer, data, size);
+        assert(vb->m_Copy == 0x0);
+        delete [] vb->m_Buffer;
+        vb->m_Buffer = new char[size];
+        vb->m_Size = size;
+        if (data != 0x0)
+            memcpy(vb->m_Buffer, data, size);
     }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
-        memcpy(&(vb->m_Buffer)[offset], data, size);
+        if (offset + size <= vb->m_Size && data != 0x0)
+            memcpy(&(vb->m_Buffer)[offset], data, size);
     }
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
@@ -249,13 +255,19 @@ namespace dmGraphics
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
-        memcpy(ib->m_Buffer, data, size);
+        assert(ib->m_Copy == 0x0);
+        delete [] ib->m_Buffer;
+        ib->m_Buffer = new char[size];
+        ib->m_Size = size;
+        if (data != 0x0)
+            memcpy(ib->m_Buffer, data, size);
     }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
-        memcpy(&(ib->m_Buffer)[offset], data, size);
+        if (offset + size <= ib->m_Size && data != 0x0)
+            memcpy(&(ib->m_Buffer)[offset], data, size);
     }
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
