@@ -333,6 +333,35 @@ ResourceFailParams invalid_material_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, ::testing::ValuesIn(invalid_material_resources));
 
+/* Mesh */
+
+const char* valid_mesh_resources[] = {"mesh/valid.meshc"};
+INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, ::testing::ValuesIn(valid_mesh_resources));
+
+ResourceFailParams invalid_mesh_resources[] =
+{
+    {"mesh/valid.meshc", "mesh/missing.meshc"},
+};
+INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, ::testing::ValuesIn(invalid_mesh_resources));
+
+/* Model */
+
+const char* valid_model_resources[] = {"model/valid.modelc"};
+INSTANTIATE_TEST_CASE_P(Model, ResourceTest, ::testing::ValuesIn(valid_model_resources));
+
+ResourceFailParams invalid_model_resources[] =
+{
+    {"model/valid.modelc", "model/missing.modelc"},
+    {"model/valid.modelc", "model/invalid_material.modelc"},
+};
+INSTANTIATE_TEST_CASE_P(Model, ResourceFailTest, ::testing::ValuesIn(invalid_model_resources));
+
+const char* valid_model_gos[] = {"model/valid_model.goc"};
+INSTANTIATE_TEST_CASE_P(Model, ComponentTest, ::testing::ValuesIn(valid_model_gos));
+
+const char* invalid_model_gos[] = {"model/invalid_model.goc", "model/invalid_material.goc"};
+INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, ::testing::ValuesIn(invalid_model_gos));
+
 /* Texture */
 
 const char* valid_texture_resources[] = {"texture/valid.texturec"};

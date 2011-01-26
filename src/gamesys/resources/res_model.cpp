@@ -91,7 +91,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             dmResource::Get(factory, model_desc->m_Textures[i], (void**) &textures[i]);
 
-        dmDDF::FreeMessage((void*) model_desc);
         if (mesh == 0 || material == 0 || textures[0] == 0)
         {
             if (mesh) dmResource::Release(factory, (void*) mesh);
@@ -99,6 +98,7 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
 
+            dmDDF::FreeMessage((void*) model_desc);
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
 
@@ -113,6 +113,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             model->m_Textures[i] = textures[i];
 
+        dmDDF::FreeMessage((void*) model_desc);
         return dmResource::CREATE_RESULT_OK;
     }
 }

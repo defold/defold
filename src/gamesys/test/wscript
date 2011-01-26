@@ -5,6 +5,9 @@ from TaskGen import extension, declare_extension
 
 import waf_gamesys
 
+def configure(conf):
+    conf.find_file('meshc.py', [os.path.abspath('tools')], var = 'MESHC', mandatory = True)
+
 def build(bld):
     dirs = [
             'camera',
@@ -17,6 +20,8 @@ def build(bld):
             'input',
             'light',
             'material',
+            'mesh',
+            'model',
             'texture',
             'vertex_program']
     exts = ['camera',
@@ -31,6 +36,8 @@ def build(bld):
             'input_binding',
             'light',
             'material',
+            'mesh',
+            'model',
             'png',
             'vp']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram',
@@ -44,4 +51,3 @@ def build(bld):
     test_task_gen.install_path = None
 
     bld.add_subdirs('fontview')
-

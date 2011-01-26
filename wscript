@@ -77,6 +77,8 @@ def configure(conf):
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
 
+    conf.sub_config('src')
+
 def build(bld):
     sys.path.append(bld.path.find_dir('src').abspath())
     sys.path.append(os.path.abspath('build/default/proto'))
