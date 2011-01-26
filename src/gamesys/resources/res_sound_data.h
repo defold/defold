@@ -15,6 +15,12 @@ namespace dmGameSystem
     dmResource::CreateResult ResSoundDataDestroy(dmResource::HFactory factory,
                                                  void* context,
                                                  dmResource::SResourceDescriptor* resource);
+
+    dmResource::CreateResult ResSoundDataRecreate(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename);
 }
 
 #endif

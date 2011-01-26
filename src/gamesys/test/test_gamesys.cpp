@@ -362,6 +362,23 @@ INSTANTIATE_TEST_CASE_P(Model, ComponentTest, ::testing::ValuesIn(valid_model_go
 const char* invalid_model_gos[] = {"model/invalid_model.goc", "model/invalid_material.goc"};
 INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, ::testing::ValuesIn(invalid_model_gos));
 
+/* Sound */
+
+const char* valid_sound_resources[] = {"sound/valid.wavc"};
+INSTANTIATE_TEST_CASE_P(Sound, ResourceTest, ::testing::ValuesIn(valid_sound_resources));
+
+ResourceFailParams invalid_sound_resources[] =
+{
+    {"sound/valid.wavc", "sound/missing.wavc"},
+};
+INSTANTIATE_TEST_CASE_P(Sound, ResourceFailTest, ::testing::ValuesIn(invalid_sound_resources));
+
+const char* valid_sound_gos[] = {"sound/valid_sound.goc"};
+INSTANTIATE_TEST_CASE_P(Sound, ComponentTest, ::testing::ValuesIn(valid_sound_gos));
+
+const char* invalid_sound_gos[] = {"sound/invalid_sound.goc", "sound/invalid_sound.goc"};
+INSTANTIATE_TEST_CASE_P(Sound, ComponentFailTest, ::testing::ValuesIn(invalid_sound_gos));
+
 /* Texture */
 
 const char* valid_texture_resources[] = {"texture/valid.texturec"};

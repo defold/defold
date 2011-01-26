@@ -25,7 +25,26 @@ namespace dmGameSystem
                                                  dmResource::SResourceDescriptor* resource)
     {
         dmSound::HSoundData sound_data = (dmSound::HSoundData) resource->m_Resource;
-        dmSound::DeleteSoundData(sound_data);
+        dmSound::Result r = dmSound::DeleteSoundData(sound_data);
+        if (r != dmSound::RESULT_OK)
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
+        return dmResource::CREATE_RESULT_OK;
+    }
+
+    dmResource::CreateResult ResSoundDataRecreate(dmResource::HFactory factory,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            dmResource::SResourceDescriptor* resource,
+            const char* filename)
+    {
+        dmSound::HSoundData sound_data = (dmSound::HSoundData) resource->m_Resource;
+        dmSound::Result r = dmSound::SetSoundData(sound_data, buffer, buffer_size);
+        if (r != dmSound::RESULT_OK)
+        {
+            return dmResource::CREATE_RESULT_UNKNOWN;
+        }
         return dmResource::CREATE_RESULT_OK;
     }
 }
