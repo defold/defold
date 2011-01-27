@@ -274,7 +274,12 @@ namespace dmGameSystem
         dmPhysics::HCollisionObject collision_object = dmPhysics::NewCollisionObject(physics_world, data);
         if (collision_object != 0x0)
         {
+            dmPhysics::DeleteCollisionObject(physics_world, (dmPhysics::HCollisionObject)*user_data);
             *user_data = (uintptr_t) collision_object;
+        }
+        else
+        {
+            dmLogError("%s", "Could not recreate collision object component, not reloaded.");
         }
     }
 }
