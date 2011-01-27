@@ -1455,9 +1455,10 @@ namespace dmGameObject
                 for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)
                 {
                     Prototype::Component& component = instance->m_Prototype->m_Components[j];
+                    uint32_t component_type_index;
+                    ComponentType* type = FindComponentType(collection->m_Register, component.m_ResourceType, &component_type_index);
                     if (component.m_ResourceNameHash == descriptor->m_NameHash)
                     {
-                        ComponentType* type = FindComponentType(collection->m_Register, component.m_ResourceType, 0x0);
                         if (type->m_OnReloadFunction)
                         {
                             uintptr_t* user_data = 0;
@@ -1465,12 +1466,12 @@ namespace dmGameObject
                             {
                                 user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                             }
-                            type->m_OnReloadFunction(instance, descriptor->m_Resource, collection->m_ComponentWorlds[j], type->m_Context, user_data);
+                            type->m_OnReloadFunction(instance, descriptor->m_Resource, collection->m_ComponentWorlds[component_type_index], type->m_Context, user_data);
                         }
-                        if (type->m_InstanceHasUserData)
-                        {
-                            next_component_instance_data++;
-                        }
+                    }
+                    if (type->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
                     }
                 }
             }
