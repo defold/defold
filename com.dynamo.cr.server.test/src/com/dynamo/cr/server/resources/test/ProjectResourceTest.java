@@ -10,6 +10,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.UriBuilder;
 
 import org.junit.After;
@@ -29,6 +31,8 @@ import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.git.CommandUtil;
 import com.sun.jersey.api.client.Client;
@@ -59,7 +63,27 @@ public class ProjectResourceTest {
 
     @Before
     public void setUp() throws Exception {
+        // "drop-and-create-tables" can't handle model changes correctly. We need to drop all tables first.
+        // Eclipse-link only drops tables currently specified. When the model change the table set also change.
+        File tmp_testdb = new File("tmp/testdb");
+        if (tmp_testdb.exists()) {
+            getClass().getClassLoader().loadClass("org.apache.derby.jdbc.EmbeddedDriver");
+            Util.dropAllTables();
+        }
+
         server = new Server("test_data/crepo_test.config");
+
+        EntityManagerFactory emf = server.getEntityManagerFactory();
+        EntityManager em = emf.createEntityManager();
+
+        em.getTransaction().begin();
+        User u = new User();
+        u.setEmail(user);
+        u.setFirstName("undefined");
+        u.setLastName("undefined");
+        u.setPassword(passwd);
+        em.persist(u);
+        em.getTransaction().commit();
 
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);

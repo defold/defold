@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/postgresql-9.0-801.jdbc4.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/derby.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/asm-3.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/grizzly-servlet-webserver-1.9.18-k.jar"/>

@@ -1,5 +1,7 @@
 package com.dynamo.cr.server.model;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -24,6 +26,9 @@ public class User {
     private String email;
 
     @Column(nullable = false)
+    private String password;
+
+    @Column(nullable = false)
     private String firstName;
 
     @Column(nullable = false)
@@ -31,6 +36,22 @@ public class User {
 
     @OneToMany(cascade={CascadeType.PERSIST})
     private Set<Project> projects = new HashSet<Project>();
+
+    private static String digest(String password) {
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        md.update(password.getBytes());
+        byte[] digest = md.digest();
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(Integer.toHexString(0xff & b));
+        }
+        return sb.toString();
+    }
 
     public Long getId() {
         return id;
@@ -42,6 +63,14 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public void setPassword(String password) {
+        this.password = digest(password);
+    }
+
+    public boolean authenticate(String password) {
+        return digest(password).equals(this.password);
     }
 
     public String getFirstName() {

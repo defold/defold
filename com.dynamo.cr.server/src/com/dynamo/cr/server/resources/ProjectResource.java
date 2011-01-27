@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
+import javax.annotation.security.RolesAllowed;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -100,6 +101,7 @@ import com.sun.jersey.api.NotFoundException;
  */
 
 @Path("/")
+@RolesAllowed(value = { "user" })
 public class ProjectResource extends BaseResource {
 
     /*

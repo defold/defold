@@ -38,5 +38,6 @@ message Configuration
     repeated string Filters = 3;
     required int32 ServicePort = 4;
     required int32 BuildDataPort = 5;
+    required string PersistenceUnitName = 6;
 }
 

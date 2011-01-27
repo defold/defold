@@ -1,7 +1,9 @@
 package com.dynamo.cr.server.model.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.sql.Connection;
@@ -28,6 +30,7 @@ import org.junit.Test;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.test.Util;
 
 public class ModelTest {
 
@@ -38,47 +41,16 @@ public class ModelTest {
     private static EntityManagerFactory factory;
     private EntityManager em;
 
-    private void dropAllTables() throws ClassNotFoundException, SQLException {
-        getClass().getClassLoader().loadClass("org.apache.derby.jdbc.EmbeddedDriver");
-        Connection con = DriverManager.getConnection("jdbc:derby:tmp/testdb");
-        ResultSet rs = con.getMetaData().getTables(null, null, null, new String[] {"TABLE"});
-        ArrayList<String> queries = new ArrayList<String>();
-        while (rs.next()) {
-            String q = "DROP TABLE " + rs.getString("TABLE_SCHEM") + "." + rs.getString("TABLE_NAME");
-            queries.add(q);
-        }
-
-        // Brute force drop of all tables. We don't know the correct drop order due to constraints
-        // iterate until done
-        int iter = 0;
-        while (queries.size() > 0) {
-            String q = queries.remove(0);
-            Statement stmnt = con.createStatement();
-            try {
-                stmnt.execute(q);
-            }
-            catch (SQLException e) {
-                // Failed to drop. Add last in query list
-                queries.add(q);
-            }
-            finally {
-                stmnt.close();
-            }
-            if (iter > 100) {
-                throw new RuntimeException(String.format("Unable to drop all tables after %d iterations. Something went very wrong", iter));
-            }
-        }
-        con.close();
-    }
-
     @Before
     public void setUp() throws Exception {
 
         // "drop-and-create-tables" can't handle model changes correctly. We need to drop all tables first.
         // Eclipse-link only drops tables currently specified. When the model change the table set also change.
         File tmp_testdb = new File("tmp/testdb");
-        if (tmp_testdb.exists())
-            dropAllTables();
+        if (tmp_testdb.exists()) {
+            getClass().getClassLoader().loadClass("org.apache.derby.jdbc.EmbeddedDriver");
+            Util.dropAllTables();
+        }
 
         HashMap<String, Object> props = new HashMap<String, Object>();
         props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
@@ -108,18 +80,21 @@ public class ModelTest {
         u1.setEmail(CARL_CONTENT_EMAIL);
         u1.setFirstName("Carl");
         u1.setLastName("Content");
+        u1.setPassword("carl");
         em.persist(u1);
 
         User u2 = new User();
         u2.setEmail(JOE_CODER_EMAIL);
         u2.setFirstName("Joe");
         u2.setLastName("Coder");
+        u2.setPassword("joe");
         em.persist(u2);
 
         User u3 = new User();
         u3.setEmail(LISA_USER_EMAIL);
         u3.setFirstName("Lisa");
         u3.setLastName("User");
+        u3.setPassword("lisa");
         em.persist(u3);
 
         // Create new projects
@@ -155,6 +130,13 @@ public class ModelTest {
         assertEquals(JOE_CODER_EMAIL, u2.getEmail());
     }
 
+    @Test
+    public void authenticate() {
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        assertTrue(u1.authenticate("carl"));
+        assertFalse(u1.authenticate("xyz"));
+    }
+
     @Test(expected=RollbackException.class)
     public void createExistingUser() {
         em.getTransaction().begin();
@@ -163,6 +145,7 @@ public class ModelTest {
         u1.setEmail(CARL_CONTENT_EMAIL);
         u1.setFirstName("Carl");
         u1.setLastName("Content");
+        u1.setPassword("carl");
         em.persist(u1);
 
         em.getTransaction().commit();
@@ -177,6 +160,7 @@ public class ModelTest {
         u1.setEmail("foo@bar.com");
         u1.setFirstName(null);
         u1.setLastName("Content");
+        u1.setPassword("foo");
         em.persist(u1);
 
         em.getTransaction().commit();

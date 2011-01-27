@@ -14,19 +14,28 @@ import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.dynamo.cr.server.util.FileUtil;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+
+import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+
 import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.ProjectConfiguration;
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
+import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
 import com.dynamo.cr.server.auth.SecurityFilter;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.resources.EntityManagerFactoryProvider;
 import com.dynamo.cr.server.resources.ServerProvider;
+import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.git.CommandUtil;
 import com.dynamo.server.git.CommandUtil.IListener;
 import com.dynamo.server.git.CommandUtil.Result;
@@ -51,12 +60,25 @@ public class Server {
     private Pattern[] filterPatterns;
     private Configuration configuration;
     private GrizzlyWebServer dataServer;
-
+    private EntityManagerFactory emf;
     public Server(String configuration_file) throws IOException {
         loadConfig(configuration_file);
 
         assert ServerProvider.server == null;
         ServerProvider.server = this;
+
+        HashMap<String, Object> props = new HashMap<String, Object>();
+        props.put(PersistenceUnitProperties.CLASSLOADER, this.getClass().getClassLoader());
+        // NOTE: JPA-PersistenceUnits: in plug-in MANIFEST.MF has to be set. Otherwise the persistence unit is not found.
+        emf = new PersistenceProvider().createEntityManagerFactory(configuration.getPersistenceUnitName(), props);
+        if (emf == null) {
+            Activator.getLogger().log(Level.SEVERE, String.format("Persistant unit '%s' not found", configuration.getPersistenceUnitName()));
+        }
+        else {
+            bootStrapUsers();
+        }
+
+        EntityManagerFactoryProvider.emf = emf;
 
         baseUri = String.format("http://localhost:%d/", this.configuration.getServicePort());
         final Map<String, String> initParams = new HashMap<String, String>();
@@ -90,6 +112,29 @@ public class Server {
         dataServer.start();
     }
 
+    private void bootStrapUsers() {
+        // TODO: TEMPORARY SOLUTION!!!
+        EntityManager em = emf.createEntityManager();
+        em.getTransaction().begin();
+        String[][] users = new String[][] {
+                { "cgmurray@gmail.com", "chmu"},
+                { "ragnar.svensson@gmail.com", "rasv"},
+                { "egeberg.fredrik@gmail.com", "freg"},
+                { "gustafberg80@gmail.com", "gube" } };
+        for (String[] email_pass : users) {
+            if (ModelUtil.findUserByEmail(em, email_pass[0]) == null) {
+                User u = new User();
+                u.setEmail(email_pass[0]);
+                u.setFirstName("undefined");
+                u.setLastName("undefined");
+                u.setPassword(email_pass[1]);
+                Activator.getLogger().log(Level.INFO, "Creating user " + u);
+                em.persist(u);
+            }
+        }
+        em.getTransaction().commit();
+    }
+
     void loadConfig(String file_name) throws IOException {
 
         FileReader fr = new FileReader(file_name);
@@ -120,6 +165,7 @@ public class Server {
 
         threadSelector.stopEndpoint();
         dataServer.stop();
+        emf.close();
     }
 
     public Project getProject(String id) {
@@ -518,6 +564,7 @@ public class Server {
     }
 
     int nextBuildNumber = 0;
+    // TODO: We must remove old builds somehow...!
     Map<Integer, RuntimeBuildDesc> builds = new HashMap<Integer, RuntimeBuildDesc>();
 
     static class BuildRunnable implements Runnable, IListener {
@@ -668,5 +715,9 @@ public class Server {
             throw new NotFoundException(String.format("Project %s not found", project));
 
         return p.configuration;
+    }
+
+    public EntityManagerFactory getEntityManagerFactory() {
+        return emf;
     }
 }

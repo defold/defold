@@ -2,11 +2,15 @@ package com.dynamo.cr.server.auth;
 
 import java.security.Principal;
 
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriInfo;
 
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.User;
 import com.sun.jersey.api.container.MappableContainerException;
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerRequestFilter;
@@ -22,10 +26,8 @@ public class SecurityFilter implements ContainerRequestFilter {
     UriInfo uriInfo;
     private static final String REALM = "HTTPS Example authentication";
 
-    /*
-    public SecurityFilter() {
-        super();
-    }*/
+    @Context
+    private EntityManagerFactory emf;
 
     public ContainerRequest filter(ContainerRequest request) {
         User user = authenticate(request);
@@ -61,34 +63,21 @@ public class SecurityFilter implements ContainerRequestFilter {
         }
 
         // Validate the extracted credentials
-        User user = null;
-
-        if (username.equals("john") && password.equals("secret")) {
-            user = new User("john", "user");
-            //System.out.println("USER 'John Doe' AUTHENTICATED");
-        } else if (username.equals("jane") && password.equals("secret")) {
-            user = new User("jane", "user");
-            //System.out.println("USER 'Jane Doe' AUTHENTICATED");
-        } else if (username.equals("admin") && password.equals("adminadmin")) {
-            user = new User("admin", "admin");
-        } else if (username.equals("chmu") && password.equals("chmu")) {
-            user = new User("chmu", "user");
-        } else if (username.equals("gube") && password.equals("gube")) {
-            user = new User("gube", "user");
-        } else if (username.equals("rasv") && password.equals("rasv")) {
-            user = new User("rasv", "user");
-        } else if (username.equals("freg") && password.equals("freg")) {
-            user = new User("freg", "user");
-        } else {
+        EntityManager em = emf.createEntityManager();
+        User user = ModelUtil.findUserByEmail(em, username);
+        if (user != null && user.authenticate(password)) {
+            return user;
+        }
+        else {
             System.out.println("USER NOT AUTHENTICATED");
             throw new MappableContainerException(new AuthenticationException(
                     "Invalid username or password", REALM));
         }
-        return user;
     }
 
     public class Authorizer implements SecurityContext {
 
+        @SuppressWarnings("unused")
         private User user;
         private Principal principal;
 
@@ -97,7 +86,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             this.principal = new Principal() {
 
                 public String getName() {
-                    return user.username;
+                    return user.getEmail();
                 }
             };
         }
@@ -107,7 +96,8 @@ public class SecurityFilter implements ContainerRequestFilter {
         }
 
         public boolean isUserInRole(String role) {
-            return (role.equals(user.role));
+            // NOTE: Currently role "user" is hard-wired. Later, we will add "dynamic" roles based on the actual project
+            return (role.equals("user"));
         }
 
         public boolean isSecure() {
@@ -116,17 +106,6 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         public String getAuthenticationScheme() {
             return SecurityContext.BASIC_AUTH;
-        }
-    }
-
-    public class User {
-
-        public String username;
-        public String role;
-
-        public User(String username, String role) {
-            this.username = username;
-            this.role = role;
         }
     }
 }

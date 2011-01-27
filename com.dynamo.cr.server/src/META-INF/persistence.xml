@@ -3,15 +3,15 @@
     xsi:schemaLocation="http://java.sun.com/xml/ns/persistence http://java.sun.com/xml/ns/persistence/persistence_2_0.xsd"
     version="2.0" xmlns="http://java.sun.com/xml/ns/persistence">
 
-    <persistence-unit name="unit-test" transaction-type="RESOURCE_LOCAL">
+    <persistence-unit name="production" transaction-type="RESOURCE_LOCAL">
 
         <class>com.dynamo.cr.server.model.User</class>
         <class>com.dynamo.cr.server.model.Project</class>
         <properties>
-            <property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.EmbeddedDriver" />
-            <property name="javax.persistence.jdbc.url" value="jdbc:derby:tmp/testdb;create=true" />
-            <property name="javax.persistence.jdbc.user" value="test" />
-            <property name="javax.persistence.jdbc.password" value="test" />
+            <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
+            <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://localhost/cr_production" />
+            <property name="javax.persistence.jdbc.user" value="postgres" />
+            <property name="javax.persistence.jdbc.password" value="mobEpeyfUj9" />
 
             <!-- EclipseLink should create the database schema automatically -->
             <property name="eclipselink.ddl-generation" value="create-tables" />
