@@ -39,13 +39,13 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(void* context, void** world)
     {
-        *world = dmPhysics::NewWorld(Vectormath::Aos::Point3(-1000, -1000, -1000), Vectormath::Aos::Point3(1000, 1000, 1000), &GetWorldTransform, &SetWorldTransform);
+        *world = dmPhysics::NewWorld(((PhysicsContext*)context)->m_Context, Vectormath::Aos::Point3(-1000, -1000, -1000), Vectormath::Aos::Point3(1000, 1000, 1000), &GetWorldTransform, &SetWorldTransform);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollisionObjectDeleteWorld(void* context, void* world)
     {
-        dmPhysics::DeleteWorld((dmPhysics::HWorld)world);
+        dmPhysics::DeleteWorld(((PhysicsContext*)context)->m_Context, (dmPhysics::HWorld)world);
         return dmGameObject::CREATE_RESULT_OK;
     }
 

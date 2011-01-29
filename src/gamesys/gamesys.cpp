@@ -50,7 +50,7 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context, dmPhysics::HContext physics_context)
     {
         dmResource::FactoryResult e;
 
@@ -64,8 +64,8 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        REGISTER_RESOURCE_TYPE("collisionobjectc", 0, ResCollisionObjectCreate, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
-        REGISTER_RESOURCE_TYPE("convexshapec", 0, ResConvexShapeCreate, ResConvexShapeDestroy, ResConvexShapeRecreate);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, ResCollisionObjectCreate, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
+        REGISTER_RESOURCE_TYPE("convexshapec", physics_context, ResConvexShapeCreate, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("emitterc", 0, ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTextureCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramCreate, ResVertexProgramDestroy, ResVertexProgramRecreate);

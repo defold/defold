@@ -94,16 +94,17 @@ void GamesysTest<T>::SetUp()
 
     m_InputContext = dmInput::NewContext(0.3f, 0.1f);
 
-    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext));
+    memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
+    m_PhysicsContext.m_Context = dmPhysics::NewContext(dmPhysics::NewContextParams());
+
+    memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
+    m_EmitterContext.m_RenderContext = m_RenderContext;
+
+    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext, m_PhysicsContext.m_Context));
 
     dmResource::Get(m_Factory, "input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
-
-    memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-    memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
-
-    m_EmitterContext.m_RenderContext = m_RenderContext;
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiRenderContext));
 
@@ -124,4 +125,5 @@ void GamesysTest<T>::TearDown()
     dmGameObject::Finalize();
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);
+    dmPhysics::DeleteContext(m_PhysicsContext.m_Context);
 }

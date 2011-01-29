@@ -7,6 +7,7 @@
 namespace dmGameSystem
 {
     bool AcquireResources(dmResource::HFactory factory,
+                           dmPhysics::HContext context,
                            const void* buffer, uint32_t buffer_size,
                            ConvexShapeResource* resource,
                            const char* filename)
@@ -78,7 +79,7 @@ namespace dmGameSystem
                                                const char* filename)
     {
         ConvexShapeResource* convex_shape = new ConvexShapeResource();
-        if (AcquireResources(factory, buffer, buffer_size, convex_shape, filename))
+        if (AcquireResources(factory, (dmPhysics::HContext)context, buffer, buffer_size, convex_shape, filename))
         {
             resource->m_Resource = convex_shape;
             return dmResource::CREATE_RESULT_OK;
@@ -112,12 +113,13 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        ConvexShapeResource* convex_shape = (ConvexShapeResource*)resource->m_Resource;
+        ConvexShapeResource* cs_resource = (ConvexShapeResource*)resource->m_Resource;
         ConvexShapeResource tmp_convex_shape;
-        if (AcquireResources(factory, buffer, buffer_size, &tmp_convex_shape, filename))
+        if (AcquireResources(factory, (dmPhysics::HContext)context, buffer, buffer_size, &tmp_convex_shape, filename))
         {
-            ReleaseResources(convex_shape);
-            convex_shape->m_Shape = tmp_convex_shape.m_Shape;
+            dmPhysics::ReplaceShape((dmPhysics::HContext)context, cs_resource->m_Shape, tmp_convex_shape.m_Shape);
+            ReleaseResources(cs_resource);
+            cs_resource->m_Shape = tmp_convex_shape.m_Shape;
             return dmResource::CREATE_RESULT_OK;
         }
         else

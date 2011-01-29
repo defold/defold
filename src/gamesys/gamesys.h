@@ -17,6 +17,7 @@ namespace dmGameSystem
 {
     struct PhysicsContext
     {
+        dmPhysics::HContext m_Context;
         bool m_Debug;
     };
 
@@ -44,7 +45,11 @@ namespace dmGameSystem
 
     void RegisterDDFTypes();
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context);
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
+        dmRender::HRenderContext render_context,
+        dmGui::HContext gui_context,
+        dmInput::HContext input_context,
+        dmPhysics::HContext physics_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
