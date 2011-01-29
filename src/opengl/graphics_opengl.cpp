@@ -749,6 +749,7 @@ namespace dmGraphics
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget;
+        memset(rt, 0, sizeof(RenderTarget));
 
         glGenFramebuffers(1, &rt->m_Id);
         CHECK_GL_ERROR
