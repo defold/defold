@@ -114,6 +114,7 @@ namespace dmEngine
         m_Collections.SetCapacity(16, 32);
         m_InputBuffer.SetCapacity(64);
 
+        m_PhysicsContext.m_Context = 0x0;
         m_PhysicsContext.m_Debug = false;
         m_EmitterContext.m_Debug = false;
         m_GuiRenderContext.m_GuiContext = 0x0;
@@ -159,6 +160,9 @@ namespace dmEngine
             dmGui::DeleteContext(engine->m_GuiRenderContext.m_GuiContext);
         if (engine->m_GuiSocket)
             dmMessage::DeleteSocket(engine->m_GuiSocket);
+
+        if (engine->m_PhysicsContext.m_Context)
+            dmPhysics::DeleteContext(engine->m_PhysicsContext.m_Context);
 
         dmProfile::Finalize();
 
@@ -260,13 +264,18 @@ namespace dmEngine
         engine->m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiRenderContext.m_RenderContext = engine->m_RenderContext;
 
+        dmPhysics::NewContextParams physics_params;
+        physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
+        engine->m_PhysicsContext.m_Context = dmPhysics::NewContext(physics_params);
+        engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(config, "physics.world_count", 0);
+
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext, engine->m_InputContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext, engine->m_InputContext, engine->m_PhysicsContext.m_Context);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
