@@ -326,7 +326,7 @@ namespace dmPhysics
 
     typedef void (*RenderLine)(void* context, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
     /**
-     * Registers a callback function used to render lines when .
+     * Registers a callback function used to render lines when debugging is turned on.
      * @param ctx Context that will be supplied to the RenderLine callback.
      * @param render_line Callback used to render lines.
      */
