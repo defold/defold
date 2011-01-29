@@ -19,7 +19,8 @@ namespace dmPhysics
         COLLISION_OBJECT_TYPE_COUNT
     };
 
-    typedef struct PhysicsWorld* HWorld;
+    typedef struct Context* HContext;
+    typedef struct World* HWorld;
     typedef class btCollisionShape* HCollisionShape;
     typedef class btCollisionObject* HCollisionObject;
 
@@ -50,6 +51,29 @@ namespace dmPhysics
     typedef bool (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
 
     /**
+     * Parameters to use when creating a context.
+     */
+    struct NewContextParams
+    {
+        NewContextParams();
+
+        /// Number of worlds the context supports
+        uint32_t m_WorldCount;
+    };
+
+    /**
+     * Create a new physics context.
+     * @return the new context
+     */
+    HContext NewContext(const NewContextParams& params);
+
+    /**
+     * Destroy a physics context.
+     * @param context Context to delete
+     */
+    void DeleteContext(HContext context);
+
+    /**
      * Create a new physics world
      * @param world_min World min (AABB)
      * @param world_max World max (AABB)
@@ -57,13 +81,13 @@ namespace dmPhysics
      * @param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
      * @return HPhysicsWorld
      */
-    HWorld NewWorld(const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
+    HWorld NewWorld(HContext context, const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
 
     /**
      * Delete a physics world
      * @param world Physics world
      */
-    void DeleteWorld(HWorld world);
+    void DeleteWorld(HContext context, HWorld world);
 
     /**
      * Simulate physics
@@ -166,6 +190,13 @@ namespace dmPhysics
      * @param collision_object Collision object to delete
      */
     void DeleteCollisionObject(HWorld world, HCollisionObject collision_object);
+
+    /**
+     * Retrieve the shape of a collision object.
+     * @param collision_object Collision object
+     * @return Collision shape
+     */
+    HCollisionShape GetCollisionShape(HCollisionObject collision_object);
 
     /**
      * Set collision object initial transform
@@ -300,6 +331,14 @@ namespace dmPhysics
      * @param render_line Callback used to render lines.
      */
     void SetDebugRenderer(void* context, RenderLine render_line);
+
+    /**
+     * Replace a shape with another shape for all collision objects connected to that shape.
+     * @param context Context in which to replace shapes
+     * @param old_shape The shape to disconnect
+     * @param new_shape The shape to connect
+     */
+    void ReplaceShape(HContext context, HCollisionShape old_shape, HCollisionShape new_shape);
 }
 
 #endif // PHYSICS_H

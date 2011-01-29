@@ -65,11 +65,12 @@ namespace dmPhysics
         SetWorldTransformCallback m_SetWorldTransform;
     };
 
-    struct PhysicsWorld
+    struct World
     {
-        PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
-        ~PhysicsWorld();
+        World(HContext context, const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
+        ~World();
 
+        HContext                                m_Context;
         btDefaultCollisionConfiguration*        m_CollisionConfiguration;
         btCollisionDispatcher*                  m_Dispatcher;
         btAxisSweep3*                           m_OverlappingPairCache;
@@ -80,7 +81,42 @@ namespace dmPhysics
         dmArray<RayCastRequest>                 m_RayCastRequests;
     };
 
-    PhysicsWorld::PhysicsWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+    struct Context
+    {
+        Context()
+        : m_Worlds()
+        {
+        }
+
+        dmArray<World*> m_Worlds;
+    };
+
+    NewContextParams::NewContextParams()
+    : m_WorldCount(4)
+    {
+
+    }
+
+    HContext NewContext(const NewContextParams& params)
+    {
+        Context* context = new Context();
+        context->m_Worlds.SetCapacity(params.m_WorldCount);
+        return context;
+    }
+
+    void DeleteContext(HContext context)
+    {
+        if (context->m_Worlds.Full())
+        {
+            dmLogWarning("Deleting %ud worlds since the context is deleted.", context->m_Worlds.Size());
+            for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
+                delete context->m_Worlds[i];
+        }
+        delete context;
+    }
+
+    World::World(HContext context, const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+    : m_Context(context)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -104,7 +140,7 @@ namespace dmPhysics
         m_RayCastRequests.SetCapacity(128);
     }
 
-    PhysicsWorld::~PhysicsWorld()
+    World::~World()
     {
         delete m_DynamicsWorld;
         delete m_Solver;
@@ -137,13 +173,23 @@ namespace dmPhysics
         void* m_IgnoredUserData;
     };
 
-    HWorld NewWorld(const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+    HWorld NewWorld(HContext context, const Point3& world_min, const Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
     {
-        return new PhysicsWorld(world_min, world_max, get_world_transform, set_world_transform);
+        if (context->m_Worlds.Full())
+        {
+            dmLogError("%s", "Physics world buffer full, world could not be created.");
+            return 0x0;
+        }
+        World* world = new World(context, world_min, world_max, get_world_transform, set_world_transform);
+        context->m_Worlds.Push(world);
+        return world;
     }
 
-    void DeleteWorld(HWorld world)
+    void DeleteWorld(HContext context, HWorld world)
     {
+        for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
+            if (context->m_Worlds[i] == world)
+                context->m_Worlds.EraseSwap(i);
         delete world;
     }
 
@@ -446,6 +492,11 @@ namespace dmPhysics
         delete collision_object;
     }
 
+    HCollisionShape GetCollisionShape(HCollisionObject collision_object)
+    {
+        return collision_object->getCollisionShape();
+    }
+
     void SetCollisionObjectInitialTransform(HCollisionObject collision_object, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation)
     {
         btVector3 bt_position(position.getX(), position.getY(), position.getZ());
@@ -561,5 +612,16 @@ namespace dmPhysics
     void SetDebugRenderer(void* context, RenderLine render_line)
     {
         m_DebugDraw.SetRenderLine(context, render_line);
+    }
+
+    void ReplaceShape(HContext context, HCollisionShape old_shape, HCollisionShape new_shape)
+    {
+        for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
+        {
+            btCollisionObjectArray& objects = context->m_Worlds[i]->m_DynamicsWorld->getCollisionObjectArray();
+            for (int j = 0; j < objects.size(); ++j)
+                if (objects[j]->getCollisionShape() == old_shape)
+                    objects[j]->setCollisionShape(new_shape);
+        }
     }
 }

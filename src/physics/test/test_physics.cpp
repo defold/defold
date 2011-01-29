@@ -40,14 +40,17 @@ class PhysicsTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_World = dmPhysics::NewWorld(Point3(-1000.0f, -1000.0f, -1000.0f), Point3(1000.0f, 1000.0f, 1000.0f), &GetWorldTransform, &SetWorldTransform);
+        m_Context = dmPhysics::NewContext(dmPhysics::NewContextParams());
+        m_World = dmPhysics::NewWorld(m_Context, Point3(-1000.0f, -1000.0f, -1000.0f), Point3(1000.0f, 1000.0f, 1000.0f), &GetWorldTransform, &SetWorldTransform);
     }
 
     virtual void TearDown()
     {
-        dmPhysics::DeleteWorld(m_World);
+        dmPhysics::DeleteWorld(m_Context, m_World);
+        dmPhysics::DeleteContext(m_Context);
     }
 
+    dmPhysics::HContext m_Context;
     dmPhysics::HWorld m_World;
 };
 
@@ -887,6 +890,22 @@ TEST_F(PhysicsTest, CollisionFiltering)
 
     dmPhysics::DeleteCollisionObject(m_World, box_co_c);
     dmPhysics::DeleteCollisionShape(data_c.m_Shape);
+}
+
+TEST_F(PhysicsTest, ReplaceShapes)
+{
+    float size = 0.5f;
+    dmPhysics::HCollisionShape shape1 = dmPhysics::NewBoxShape(Vector3(size, size, size));
+    dmPhysics::HCollisionShape shape2 = dmPhysics::NewSphereShape(size);
+    dmPhysics::CollisionObjectData data_a;
+    data_a.m_Shape = shape1;
+    dmPhysics::HCollisionObject box_co_a = dmPhysics::NewCollisionObject(m_World, data_a);
+    ASSERT_EQ(shape1, dmPhysics::GetCollisionShape(box_co_a));
+    dmPhysics::ReplaceShape(m_Context, shape1, shape2);
+    ASSERT_EQ(shape2, dmPhysics::GetCollisionShape(box_co_a));
+    dmPhysics::DeleteCollisionObject(m_World, box_co_a);
+    dmPhysics::DeleteCollisionShape(shape1);
+    dmPhysics::DeleteCollisionShape(shape2);
 }
 
 int main(int argc, char **argv)
