@@ -620,8 +620,13 @@ namespace dmPhysics
         {
             btCollisionObjectArray& objects = context->m_Worlds[i]->m_DynamicsWorld->getCollisionObjectArray();
             for (int j = 0; j < objects.size(); ++j)
+            {
                 if (objects[j]->getCollisionShape() == old_shape)
+                {
                     objects[j]->setCollisionShape(new_shape);
+                    objects[j]->activate(true);
+                }
+            }
         }
     }
 }
