@@ -11,4 +11,5 @@ target
 log
 generated
 derby.log
+log.lck
 
