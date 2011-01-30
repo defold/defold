@@ -80,8 +80,8 @@ def configure(conf):
     conf.sub_config('src')
 
 def build(bld):
-    sys.path.append(bld.path.find_dir('src').abspath())
-    sys.path.append(os.path.abspath('build/default/proto'))
+    sys.path.insert(0, bld.path.find_dir('src').abspath())
+    sys.path.insert(0, os.path.abspath('build/default/proto'))
 
     bld.add_subdirs('content')
     bld.add_group()
