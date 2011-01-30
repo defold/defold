@@ -34,7 +34,8 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                 for r in resource_list:
                     if isinstance(r, google.protobuf.message.Message):
                         # Validate recursively if of message type
-                        validate_resource_files(task, r)
+                        if not validate_resource_files(task, r):
+                            return False
                     else:
                         path = os.path.join(task.generator.content_root, r)
                         if not os.path.exists(path):
