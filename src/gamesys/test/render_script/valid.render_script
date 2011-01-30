@@ -1,0 +1,8 @@
+function init(self)
+    self.x = 1
+end
+
+function update(self, dt)
+    assert(self.x == 1)
+    self.x = self.x + 1
+end
