@@ -436,6 +436,18 @@ INSTANTIATE_TEST_CASE_P(SpawnPoint, ComponentTest, ::testing::ValuesIn(valid_sp_
 const char* invalid_sp_gos[] = {"spawn_point/invalid_spawn_point.goc"};
 INSTANTIATE_TEST_CASE_P(SpawnPoint, ComponentFailTest, ::testing::ValuesIn(invalid_sp_gos));
 
+/* Sprite */
+
+const char* valid_sprite_resources[] = {"sprite/valid.spritec"};
+INSTANTIATE_TEST_CASE_P(Sprite, ResourceTest, ::testing::ValuesIn(valid_sprite_resources));
+
+ResourceFailParams invalid_sprite_resources[] =
+{
+    {"sprite/valid.spritec", "sprite/invalid_row_count.spritec"},
+    {"sprite/valid.spritec", "sprite/invalid_column_count.spritec"},
+};
+INSTANTIATE_TEST_CASE_P(Sprite, ResourceFailTest, ::testing::ValuesIn(invalid_sprite_resources));
+
 /* Texture */
 
 const char* valid_texture_resources[] = {"texture/valid_jpg.texturec", "texture/valid_png.texturec"};

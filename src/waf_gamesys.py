@@ -64,6 +64,10 @@ def transform_render(msg):
         m.Material = m.Material.replace('.material', '.materialc')
     return msg
 
+def transform_sprite(msg):
+    msg.Texture = transform_texture_name(msg.Texture)
+    return msg
+
 def write_embedded(task):
     try:
         import google.protobuf.text_format
@@ -161,6 +165,7 @@ proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.ga
 proto_compile_task('spawnpoint', 'gamesys_ddf_pb2', 'SpawnPointDesc', '.spawnpoint', '.spawnpointc', transform_spawnpoint)
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
+proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 
 TaskGen.declare_chain('project', 'cat < ${SRC} > ${TGT}', ext_in='.project', ext_out='.projectc', reentrant = False)
 

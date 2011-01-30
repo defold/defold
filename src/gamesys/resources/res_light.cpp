@@ -1,5 +1,7 @@
 #include "res_light.h"
 
+#include "gamesys_ddf.h"
+
 namespace dmGameSystem
 {
     dmResource::CreateResult ResLightCreate(dmResource::HFactory factory,

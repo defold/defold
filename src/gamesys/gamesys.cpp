@@ -24,6 +24,7 @@
 #include "resources/res_light.h"
 #include "resources/res_render_script.h"
 #include "resources/res_render_prototype.h"
+#include "resources/res_sprite.h"
 
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -84,6 +85,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("lightc", 0, ResLightCreate, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
+        REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 
