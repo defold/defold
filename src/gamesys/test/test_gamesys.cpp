@@ -362,6 +362,18 @@ INSTANTIATE_TEST_CASE_P(Model, ComponentTest, ::testing::ValuesIn(valid_model_go
 const char* invalid_model_gos[] = {"model/invalid_model.goc", "model/invalid_material.goc"};
 INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, ::testing::ValuesIn(invalid_model_gos));
 
+/* Render */
+
+const char* valid_render_resources[] = {"render/valid.renderc"};
+INSTANTIATE_TEST_CASE_P(Render, ResourceTest, ::testing::ValuesIn(valid_render_resources));
+
+ResourceFailParams invalid_render_resources[] =
+{
+    {"render/valid.renderc", "render/missing.renderc"},
+    {"render/valid.renderc", "render/invalid_material.renderc"},
+};
+INSTANTIATE_TEST_CASE_P(Render, ResourceFailTest, ::testing::ValuesIn(invalid_render_resources));
+
 /* Render Script */
 
 const char* valid_rs_resources[] = {"render_script/valid.render_scriptc"};

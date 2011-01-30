@@ -40,7 +40,7 @@ namespace dmGameSystem
                 dmRender::ClearRenderScriptInstanceMaterials(prototype->m_Instance);
             }
             prototype->m_Materials.SetCapacity(prototype_desc->m_Materials.m_Count);
-            for (uint32_t i; i < prototype_desc->m_Materials.m_Count; ++i)
+            for (uint32_t i = 0; i < prototype_desc->m_Materials.m_Count; ++i)
             {
                 dmRender::HMaterial material;
                 if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material))
@@ -80,8 +80,7 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         RenderScriptPrototype* prototype = new RenderScriptPrototype();
-        prototype->m_Instance = 0x0;
-        prototype->m_NameHash = 0;
+        memset(prototype, 0, sizeof(RenderScriptPrototype));
         if (AcquireResources(factory, buffer, buffer_size, render_context, prototype, filename))
         {
             resource->m_Resource = (void*) prototype;
@@ -91,6 +90,8 @@ namespace dmGameSystem
         else
         {
             ReleaseResources(factory, prototype);
+            if (prototype->m_Instance)
+                dmRender::DeleteRenderScriptInstance(prototype->m_Instance);
             delete prototype;
             return dmResource::CREATE_RESULT_UNKNOWN;
         }
@@ -118,6 +119,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         RenderScriptPrototype* prototype = (RenderScriptPrototype*)resource->m_Resource;
         RenderScriptPrototype tmp_prototype;
+        memset(&tmp_prototype, 0, sizeof(RenderScriptPrototype));
         tmp_prototype.m_Instance = prototype->m_Instance;
         if (AcquireResources(factory, buffer, buffer_size, render_context, &tmp_prototype, filename))
         {
