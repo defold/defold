@@ -250,6 +250,11 @@ namespace dmGui
         scene->m_Textures.Erase(dmHashString64(texture_name));
     }
 
+    void ClearTextures(HScene scene)
+    {
+        scene->m_Textures.Clear();
+    }
+
     Result AddFont(HScene scene, const char* font_name, void* font)
     {
         if (scene->m_Fonts.Full())
@@ -265,6 +270,11 @@ namespace dmGui
     void RemoveFont(HScene scene, const char* font_name)
     {
         scene->m_Fonts.Erase(dmHashString64(font_name));
+    }
+
+    void ClearFonts(HScene scene)
+    {
+        scene->m_Fonts.Clear();
     }
 
     void RenderScene(HScene scene, RenderNode render_node, void* context)

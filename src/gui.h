@@ -178,9 +178,11 @@ namespace dmGui
 
     Result AddTexture(HScene scene, const char* texture_name, void* texture);
     void RemoveTexture(HScene scene, const char* texture_name);
+    void ClearTextures(HScene scene);
 
     Result AddFont(HScene scene, const char* font_name, void* font);
     void RemoveFont(HScene scene, const char* font_name);
+    void ClearFonts(HScene scene);
 
     void RenderScene(HScene scene, RenderNode render_node, void* context);
 
