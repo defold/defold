@@ -28,7 +28,7 @@ enum EmissionSpace
 
 message Texture_t
 {
-    required string Name =  1;
+    required string Name =  1 [(resource)=true];
     required uint32 TX =    2;
     required uint32 TY =    3;
 }
@@ -109,8 +109,8 @@ message Emitter
     required EmissionSpace  Space               = 3;
     required dmMath.Quat    Rotation            = 4;
 
-    required Texture_t      Texture             = 5;
-    required string         Material            = 6;
+    required Texture_t      Texture             = 5 [(resource)=true];
+    required string         Material            = 6 [(resource)=true];
 
     required uint32         MaxParticleCount    = 7;
 
