@@ -4,6 +4,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include "../gui.h"
+#include "../gui_private.h"
 #include "test_gui_ddf.h"
 
 /*
@@ -116,12 +117,17 @@ TEST_F(dmGuiTest, TextureFont)
     r = dmGui::SetNodeTexture(scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::RemoveTexture(scene, "t1");
-    r = dmGui::SetNodeTexture(scene, node, "t1");
+    dmGui::AddTexture(scene, "t2", &t1);
+    ASSERT_EQ(&t1, scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
+
+    dmGui::RemoveTexture(scene, "t2");
+    ASSERT_EQ((void*)0, scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
+
+    r = dmGui::SetNodeTexture(scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
 
     dmGui::ClearTextures(scene);
-    r = dmGui::SetNodeTexture(scene, node, "t2");
+    r = dmGui::SetNodeTexture(scene, node, "t1");
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
 
     // Font
@@ -137,12 +143,14 @@ TEST_F(dmGuiTest, TextureFont)
     r = dmGui::SetNodeFont(scene, node, "f2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::RemoveFont(scene, "f1");
-    r = dmGui::SetNodeFont(scene, node, "f1");
-    ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
+    dmGui::AddFont(scene, "f2", &f1);
+    ASSERT_EQ(&f1, scene->m_Nodes[node & 0xffff].m_Node.m_Font);
+
+    dmGui::RemoveFont(scene, "f2");
+    ASSERT_EQ((void*)0, scene->m_Nodes[node & 0xffff].m_Node.m_Font);
 
     dmGui::ClearFonts(scene);
-    r = dmGui::SetNodeTexture(scene, node, "f2");
+    r = dmGui::SetNodeFont(scene, node, "f1");
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
 
     dmGui::DeleteNode(scene, node);

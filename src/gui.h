@@ -122,7 +122,9 @@ namespace dmGui
         uint32_t    m_NodeType : 4;
         uint32_t    m_Reserved : 24;
         const char* m_Text;
+        uint64_t    m_TextureHash;
         void*       m_Texture;
+        uint64_t    m_FontHash;
         void*       m_Font;
     };
 
@@ -176,12 +178,50 @@ namespace dmGui
 
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
 
+    /**
+     * Adds a texture with the specified name to the scene.
+     * @note Any nodes connected to the same texture_name will also be connected to the new texture. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add texture to
+     * @param texture_name Name of the texture that will be used in the gui scripts
+     * @param texture The texture to add
+     * @return Outcome of the operation
+     */
     Result AddTexture(HScene scene, const char* texture_name, void* texture);
+    /**
+     * Removes a texture with the specified name from the scene.
+     * @note Any nodes connected to the same texture_name will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to remove texture from
+     * @param texture_name Name of the texture that will be used in the gui scripts
+     */
     void RemoveTexture(HScene scene, const char* texture_name);
+    /**
+     * Remove all textures from the scene.
+     * @note Every node will also be disconnected from the texture they are already connected to, if any. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to clear from textures
+     */
     void ClearTextures(HScene scene);
 
+    /**
+     * Adds a font with the specified name to the scene.
+     * @note Any nodes connected to the same font_name will also be connected to the new font. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add texture to
+     * @param font_name Name of the font that will be used in the gui scripts
+     * @param font The font to add
+     * @return Outcome of the operation
+     */
     Result AddFont(HScene scene, const char* font_name, void* font);
+    /**
+     * Removes a font with the specified name from the scene.
+     * @note Any nodes connected to the same font_name will also be disconnected from the font. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to remove font from
+     * @param font_name Name of the font that will be used in the gui scripts
+     */
     void RemoveFont(HScene scene, const char* font_name);
+    /**
+     * Remove all fonts from the scene.
+     * @note Every node will also be disconnected from the font they are already connected to, if any. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to clear from fonts
+     */
     void ClearFonts(HScene scene);
 
     void RenderScene(HScene scene, RenderNode render_node, void* context);

@@ -241,18 +241,34 @@ namespace dmGui
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        scene->m_Textures.Put(dmHashString64(texture_name), texture);
+        uint64_t texture_hash = dmHashString64(texture_name);
+        scene->m_Textures.Put(texture_hash, texture);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
+                scene->m_Nodes[i].m_Node.m_Texture = texture;
+        }
         return RESULT_OK;
     }
 
     void RemoveTexture(HScene scene, const char* texture_name)
     {
-        scene->m_Textures.Erase(dmHashString64(texture_name));
+        uint64_t texture_hash = dmHashString64(texture_name);
+        scene->m_Textures.Erase(texture_hash);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
+                scene->m_Nodes[i].m_Node.m_Texture = 0;
+        }
     }
 
     void ClearTextures(HScene scene)
     {
         scene->m_Textures.Clear();
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            scene->m_Nodes[i].m_Node.m_Texture = 0;
+        }
     }
 
     Result AddFont(HScene scene, const char* font_name, void* font)
@@ -263,18 +279,34 @@ namespace dmGui
         if (!scene->m_DefaultFont)
             scene->m_DefaultFont = font;
 
-        scene->m_Fonts.Put(dmHashString64(font_name), font);
+        uint64_t font_hash = dmHashString64(font_name);
+        scene->m_Fonts.Put(font_hash, font);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_FontHash == font_hash)
+                scene->m_Nodes[i].m_Node.m_Font = font;
+        }
         return RESULT_OK;
     }
 
     void RemoveFont(HScene scene, const char* font_name)
     {
-        scene->m_Fonts.Erase(dmHashString64(font_name));
+        uint64_t font_hash = dmHashString64(font_name);
+        scene->m_Fonts.Erase(font_hash);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_FontHash == font_hash)
+                scene->m_Nodes[i].m_Node.m_Font = 0;
+        }
     }
 
     void ClearFonts(HScene scene)
     {
         scene->m_Fonts.Clear();
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            scene->m_Nodes[i].m_Node.m_Font = 0;
+        }
     }
 
     void RenderScene(HScene scene, RenderNode render_node, void* context)
@@ -446,6 +478,10 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,1);
             node->m_Node.m_Properties[PROPERTY_EXTENTS] = Vector4(extents, 0);
             node->m_Node.m_NodeType = (uint32_t) node_type;
+            node->m_Node.m_TextureHash = 0;
+            node->m_Node.m_Texture = 0;
+            node->m_Node.m_FontHash = 0;
+            node->m_Node.m_Font = 0;
             node->m_Version = version;
             node->m_Index = index;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
@@ -545,6 +581,7 @@ namespace dmGui
         if (texture)
         {
             InternalNode* n = GetNode(scene, node);
+            n->m_Node.m_TextureHash = texture_hash;
             n->m_Node.m_Texture = *texture;
             return RESULT_OK;
         }
@@ -561,6 +598,7 @@ namespace dmGui
         if (font)
         {
             InternalNode* n = GetNode(scene, node);
+            n->m_Node.m_FontHash = font_hash;
             n->m_Node.m_Font = *font;
             return RESULT_OK;
         }
