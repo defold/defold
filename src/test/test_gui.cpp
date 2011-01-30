@@ -115,6 +115,10 @@ TEST_F(dmGuiTest, TextureFont)
     r = dmGui::SetNodeTexture(scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
+    dmGui::RemoveTexture(scene, "t1");
+    r = dmGui::SetNodeTexture(scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
+
     // Font
     r = dmGui::SetNodeFont(scene, node, "foo");
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
@@ -124,6 +128,10 @@ TEST_F(dmGuiTest, TextureFont)
 
     r = dmGui::SetNodeFont(scene, node, "f1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::RemoveFont(scene, "f1");
+    r = dmGui::SetNodeFont(scene, node, "f1");
+    ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
 
     dmGui::DeleteNode(scene, node);
 }

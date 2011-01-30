@@ -177,8 +177,10 @@ namespace dmGui
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
 
     Result AddTexture(HScene scene, const char* texture_name, void* texture);
+    void RemoveTexture(HScene scene, const char* texture_name);
 
     Result AddFont(HScene scene, const char* font_name, void* font);
+    void RemoveFont(HScene scene, const char* font_name);
 
     void RenderScene(HScene scene, RenderNode render_node, void* context);
 
