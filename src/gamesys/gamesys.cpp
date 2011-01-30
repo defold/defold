@@ -154,7 +154,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, 0, &CompEmitterDestroy,
-                &CompEmitterUpdate, &CompEmitterOnMessage, 0, 0);
+                &CompEmitterUpdate, &CompEmitterOnMessage, 0, &CompEmitterOnReload);
 
         REGISTER_COMPONENT_TYPE("guic", gui_render_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,

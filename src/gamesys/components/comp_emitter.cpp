@@ -193,6 +193,16 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    void CompEmitterOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* world,
+            void* context,
+            uintptr_t* user_data)
+    {
+        Emitter* emitter = (Emitter*)*user_data;
+        dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
+    }
+
     void RenderEmitterCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
         EmitterWorld* world = (EmitterWorld*)context;
