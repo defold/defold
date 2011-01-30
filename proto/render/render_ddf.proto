@@ -16,7 +16,7 @@ message RenderPrototypeDesc
     }
 
     required string Script = 1 [(resource) = true];
-    repeated MaterialDesc Materials = 2;
+    repeated MaterialDesc Materials = 2 [(resource) = true];
 }
 
 message DrawText
