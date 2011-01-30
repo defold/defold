@@ -385,6 +385,23 @@ ResourceFailParams invalid_rs_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(RenderScript, ResourceFailTest, ::testing::ValuesIn(invalid_rs_resources));
 
+/* Script */
+
+const char* valid_script_resources[] = {"script/valid.scriptc"};
+INSTANTIATE_TEST_CASE_P(Script, ResourceTest, ::testing::ValuesIn(valid_script_resources));
+
+ResourceFailParams invalid_script_resources[] =
+{
+    {"script/valid.scriptc", "script/missing.scriptc"},
+};
+INSTANTIATE_TEST_CASE_P(Script, ResourceFailTest, ::testing::ValuesIn(invalid_script_resources));
+
+const char* valid_script_gos[] = {"script/valid_script.goc"};
+INSTANTIATE_TEST_CASE_P(Script, ComponentTest, ::testing::ValuesIn(valid_script_gos));
+
+const char* invalid_script_gos[] = {"script/missing_script.goc", "script/invalid_script.goc"};
+INSTANTIATE_TEST_CASE_P(Script, ComponentFailTest, ::testing::ValuesIn(invalid_script_gos));
+
 /* Sound */
 
 const char* valid_sound_resources[] = {"sound/valid.wavc"};

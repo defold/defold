@@ -30,6 +30,7 @@ def build(bld):
             'model',
             'render',
             'render_script',
+            'script',
             'sound',
             'spawn_point',
             'texture',
@@ -51,6 +52,7 @@ def build(bld):
             'png',
             'render',
             'render_script',
+            'script',
             'spawnpoint',
             'vp',
             'wav']
