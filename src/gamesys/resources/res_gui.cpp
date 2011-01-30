@@ -60,6 +60,7 @@ namespace dmGameSystem
             return false;
 
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
+        resource->m_FontMaps.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Fonts.m_Count; ++i)
         {
             dmRender::HFontMap font_map;
@@ -70,6 +71,7 @@ namespace dmGameSystem
         }
 
         resource->m_Textures.SetCapacity(resource->m_SceneDesc->m_Textures.m_Count);
+        resource->m_Textures.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
         {
             dmGraphics::HTexture texture;

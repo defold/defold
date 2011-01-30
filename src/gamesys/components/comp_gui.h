@@ -45,6 +45,12 @@ namespace dmGameSystem
             const dmGameObject::InputAction* input_action,
             void* context,
             uintptr_t* user_data);
+
+    void CompGuiOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* world,
+            void* context,
+            uintptr_t* user_data);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H

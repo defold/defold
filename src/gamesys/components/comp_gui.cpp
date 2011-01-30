@@ -31,8 +31,8 @@ namespace dmGameSystem
 
     struct Component
     {
-        dmGui::HScene   m_Scene;
-        uint16_t        m_Enabled : 1;
+        dmGui::HScene       m_Scene;
+        uint16_t            m_Enabled : 1;
     };
 
     struct GuiWorld;
@@ -107,6 +107,9 @@ namespace dmGameSystem
         params.m_Width = 2;
         params.m_Height = 2;
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), params);
+
+        // TODO: Configurable
+        gui_world->m_GuiRenderObjects.SetCapacity(32);
 
         *world = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -387,5 +390,26 @@ namespace dmGameSystem
 
         dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
+    }
+
+    void CompGuiOnReload(dmGameObject::HInstance instance,
+            void* resource,
+            void* world,
+            void* context,
+            uintptr_t* user_data)
+    {
+        GuiSceneResource* scene_resource = (GuiSceneResource*) resource;
+        Component* gui_component = (Component*)*user_data;
+        dmGui::ClearTextures(gui_component->m_Scene);
+        dmGui::ClearFonts(gui_component->m_Scene);
+        dmGui::SetSceneScript(gui_component->m_Scene, scene_resource->m_Script);
+        for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
+        {
+            dmGui::AddFont(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
+        }
+        for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
+        {
+            dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i], (void*)scene_resource->m_Textures[i]);
+        }
     }
 }
