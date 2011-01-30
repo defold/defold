@@ -75,7 +75,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
         {
             dmGraphics::HTexture texture;
-            dmResource::FactoryResult r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i], (void**) &texture);
+            dmResource::FactoryResult r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture);
             if (r != dmResource::FACTORY_RESULT_OK)
             {
                 return false;

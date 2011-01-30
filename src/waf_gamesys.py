@@ -50,8 +50,8 @@ def transform_gui(msg):
     msg.Script = msg.Script.replace('.gui_script', '.gui_scriptc')
     for f in msg.Fonts:
         f.Font = f.Font.replace('.font', '.fontc')
-    for i,n in enumerate(msg.Textures):
-        msg.Textures[i] = transform_texture_name(n)
+    for t in msg.Textures:
+        t.Texture = transform_texture_name(t.Texture)
     return msg
 
 def transform_spawnpoint(msg):

@@ -166,7 +166,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
         {
-            dmGui::AddTexture(scene, scene_resource->m_SceneDesc->m_Textures[i], (void*)scene_resource->m_Textures[i]);
+            dmGui::AddTexture(scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
 
         *user_data = (uintptr_t)gui_component;
@@ -347,7 +347,7 @@ namespace dmGameSystem
         {
             Component* c = gui_world->m_Components[i];
             if (c->m_Enabled)
-                dmGui::RenderScene(c->m_Scene, &RenderNode, &gui_render_context->m_RenderContext);
+                dmGui::RenderScene(c->m_Scene, &RenderNode, &render_gui_context);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -409,7 +409,7 @@ namespace dmGameSystem
         }
         for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
         {
-            dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i], (void*)scene_resource->m_Textures[i]);
+            dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
     }
 }
