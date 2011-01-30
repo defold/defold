@@ -27,7 +27,6 @@ namespace dmGameSystem
         bool result = true;
         if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, prototype_desc->m_Script, (void**)&prototype->m_Script))
         {
-            uint32_t count = 0;
             if (prototype->m_Instance == 0x0)
             {
                 dmResource::SResourceDescriptor descriptor;
@@ -41,19 +40,21 @@ namespace dmGameSystem
                 dmRender::ClearRenderScriptInstanceMaterials(prototype->m_Instance);
             }
             prototype->m_Materials.SetCapacity(prototype_desc->m_Materials.m_Count);
-            prototype->m_Materials.SetSize(prototype_desc->m_Materials.m_Count);
-            for (; count < prototype_desc->m_Materials.m_Count; ++count)
+            for (uint32_t i; i < prototype_desc->m_Materials.m_Count; ++i)
             {
-                if (dmResource::FACTORY_RESULT_OK != dmResource::Get(factory, prototype_desc->m_Materials[count].m_Material, (void**)&prototype->m_Materials[count]))
+                dmRender::HMaterial material;
+                if (dmResource::FACTORY_RESULT_OK == dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material))
+                    prototype->m_Materials.Push(material);
+                else
                     break;
             }
-            if (count < prototype_desc->m_Materials.m_Count)
+            if (!prototype->m_Materials.Full())
             {
                 result = false;
             }
             else
             {
-                for (uint32_t i = 0; i < count; ++i)
+                for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
                 {
                     dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]);
                 }
