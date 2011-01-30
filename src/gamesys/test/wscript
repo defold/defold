@@ -3,7 +3,7 @@ import sys, os
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
-sys.path.append("src")
+sys.path.insert(0, "src")
 import waf_gamesys
 
 if sys.platform == "win32":
