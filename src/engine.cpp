@@ -104,7 +104,6 @@ namespace dmEngine
     , m_GuiSocket(0x0)
     , m_FontMap(0x0)
     , m_SmallFontMap(0x0)
-    , m_DebugMaterial(0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
     , m_RenderScriptPrototype(0x0)
@@ -744,17 +743,6 @@ bail:
             dmResource::Release(engine->m_Factory, engine->m_FontMap);
         if (engine->m_SmallFontMap)
             dmResource::Release(engine->m_Factory, engine->m_SmallFontMap);
-
-        if (engine->m_DebugMaterial)
-        {
-            dmGraphics::HVertexProgram debug_vp = dmRender::GetMaterialVertexProgram(engine->m_DebugMaterial);
-            if (debug_vp)
-                dmGraphics::DeleteVertexProgram(debug_vp);
-            dmGraphics::HFragmentProgram debug_fp = dmRender::GetMaterialFragmentProgram(engine->m_DebugMaterial);
-            if (debug_fp)
-                dmGraphics::DeleteFragmentProgram(debug_fp);
-            dmRender::DeleteMaterial(engine->m_DebugMaterial);
-        }
 
         if (engine->m_GameInputBinding)
             dmResource::Release(engine->m_Factory, engine->m_GameInputBinding);
