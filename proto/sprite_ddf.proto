@@ -10,8 +10,10 @@ option (ddf_java_package) = "com.dynamo.sprite.ddf";
 message SpriteDesc
 {
     required string Texture = 1 [(resource)=true];
-    required uint32 RowCount = 2;
-    required uint32 ColumnCount = 3;
+    optional uint32 TileWidth = 2 [default = 0];
+    optional uint32 TileHeight = 3 [default = 0];
+    optional uint32 RowCount = 4 [default = 1];
+    optional uint32 ColumnCount = 5 [default = 1];
 }
 
 message PlayAnimation
