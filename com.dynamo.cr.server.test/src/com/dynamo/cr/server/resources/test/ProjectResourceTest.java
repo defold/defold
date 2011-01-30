@@ -21,16 +21,19 @@ import org.junit.Test;
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
+import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
-import com.dynamo.cr.proto.Config.ProjectConfiguration;
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.server.Server;
+import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.FileUtil;
@@ -47,13 +50,24 @@ public class ProjectResourceTest {
     private IProjectClient project_client;
 
     int port = 6500;
-    String user = "john";
+    String userEmail = "mrtest@foo.com";
     String passwd = "secret";
-    private Client client;
     private ClientFactory factory;
+    private Project proj1;
+    private User user;
+    private UserInfo userInfo;
 
     void execCommand(String command) throws IOException {
         CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command});
+        if (r.exitValue != 0) {
+            System.err.println(r.stdOut);
+            System.err.println(r.stdErr);
+        }
+        assertEquals(0, r.exitValue);
+    }
+
+    void execCommand(String command, String arg) throws IOException {
+        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command, arg});
         if (r.exitValue != 0) {
             System.err.println(r.stdOut);
             System.err.println(r.stdErr);
@@ -77,31 +91,38 @@ public class ProjectResourceTest {
         EntityManager em = emf.createEntityManager();
 
         em.getTransaction().begin();
-        User u = new User();
-        u.setEmail(user);
-        u.setFirstName("undefined");
-        u.setLastName("undefined");
-        u.setPassword(passwd);
-        em.persist(u);
+        user = new User();
+        user.setEmail(userEmail);
+        user.setFirstName("undefined");
+        user.setLastName("undefined");
+        user.setPassword(passwd);
+        em.persist(user);
+
+        proj1 = ModelUtil.newProject(em, user, "proj1");
         em.getTransaction().commit();
 
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
-        client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(user, passwd));
+        Client client = Client.create(cc);
+        client.addFilter(new HTTPBasicAuthFilter(userEmail, passwd));
+        factory = new ClientFactory(client);
 
         URI uri;
-        uri = UriBuilder.fromUri("http://localhost/proj1").port(port).build();
-        factory = new ClientFactory(client);
+
+        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        IUsersClient usersClient = factory.getUsersClient(uri);
+        userInfo = usersClient.getUserInfo(userEmail);
+
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", userInfo.getId(), proj1.getId())).port(port).build();
         project_client = factory.getProjectClient(uri);
 
-        branch_client = project_client.getBranchClient(user, "branch1");
+        branch_client = project_client.getBranchClient("branch1");
 
         FileUtil.removeDir(new File(server.getBranchRoot()));
 
-        execCommand("scripts/setup_testdata.sh");
+        execCommand("scripts/setup_testdata.sh", Long.toString(proj1.getId()));
     }
 
     @After
@@ -114,22 +135,20 @@ public class ProjectResourceTest {
      */
 
     @Test
-    public void projectConfiguration() throws Exception {
-        ProjectConfiguration c = project_client.getProjectConfiguration();
-        assertEquals(c.getName(), "Project 1");
+    public void launchInfo() throws Exception {
+        project_client.getLaunchInfo();
     }
 
     @Test
     public void simpleBenchMark() throws Exception {
         // Warm up the jit
         for (int i = 0; i < 2000; ++i) {
-            ProjectConfiguration c = project_client.getProjectConfiguration();
-            assertEquals(c.getName(), "Project 1");
+            project_client.getLaunchInfo();
         }
         long start = System.currentTimeMillis();
         final int iterations = 1000;
         for (int i = 0; i < iterations; ++i) {
-            project_client.getProjectConfiguration();
+            project_client.getLaunchInfo();
         }
         long end = System.currentTimeMillis();
 
@@ -141,41 +160,41 @@ public class ProjectResourceTest {
     public void createBranchInvalidProject() throws Exception {
         URI uri = UriBuilder.fromUri("http://localhost/invalid_project").port(port).build();
         project_client = factory.getProjectClient(uri);
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
     }
 
     @Test
     public void createBranch() throws Exception {
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
         BranchStatus branch_status;
 
-        branch_status = project_client.getBranchStatus(user, "branch1");
+        branch_status = project_client.getBranchStatus("branch1");
         assertEquals("branch1", branch_status.getName());
         branch_status = branch_client.getBranchStatus();
         assertEquals("branch1", branch_status.getName());
 
-        BranchList list = project_client.getBranchList(user);
+        BranchList list = project_client.getBranchList();
         assertEquals("branch1", list.getBranchesList().get(0));
 
-        project_client.deleteBranch(user, "branch1");
-        list = project_client.getBranchList(user);
+        project_client.deleteBranch("branch1");
+        list = project_client.getBranchList();
         assertEquals(0, list.getBranchesCount());
     }
 
     @Test(expected = RepositoryException.class)
     public void createBranchTwice() throws Exception {
-        project_client.createBranch(user, "branch1");
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
+        project_client.createBranch("branch1");
     }
 
     @Test(expected = RepositoryException.class)
     public void deleteNonExistant() throws Exception {
-        project_client.deleteBranch(user, "branch1");
+        project_client.deleteBranch("branch1");
     }
 
     @Test
     public void makeDirAddCommitRemove() throws Exception {
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
         branch_client.mkdir("/content/foo");
         branch_client.mkdir("/content/foo");
 
@@ -205,7 +224,7 @@ public class ProjectResourceTest {
 
     @Test
     public void getResourceNotFound() throws RepositoryException {
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
         try {
             branch_client.getResourceInfo("/content/does_not_exists");
             assertTrue(false);
@@ -233,10 +252,10 @@ public class ProjectResourceTest {
 
     @Test
     public void getResource() throws Exception {
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         {
-            String local_path = "tmp/branch_root/proj1/john/branch1/content/file1.txt";
+            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), userInfo.getId());
             long expected_size = new File(local_path).length();
             long expected_last_mod = new File(local_path).lastModified();
 
@@ -249,7 +268,7 @@ public class ProjectResourceTest {
         }
 
         {
-            String local_path = "tmp/branch_root/proj1/john/branch1/content/file1.txt";
+            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), userInfo.getId());
             long expected_size = new File(local_path).length();
 
             byte[] data = branch_client.getResourceData("/content/file1.txt");
@@ -267,7 +286,7 @@ public class ProjectResourceTest {
         }
 
         {
-            String local_path = "tmp/branch_root/proj1/john/branch1/content";
+            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content", proj1.getId(), userInfo.getId());
             long expected_last_mod = new File(local_path).lastModified();
 
             ResourceInfo info = branch_client.getResourceInfo("/content");
@@ -284,7 +303,7 @@ public class ProjectResourceTest {
 
     @Test
     public void getResourceWithSpace() throws Exception {
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         {
             branch_client.getResourceInfo("/content/test space.txt");
@@ -297,7 +316,7 @@ public class ProjectResourceTest {
 
     @Test
     public void dirtyBranch() throws RepositoryException {
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         // Check that branch is clean
         BranchStatus branch = branch_client.getBranchStatus();
@@ -387,13 +406,13 @@ public class ProjectResourceTest {
     @Test
     public void updateBranch() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         byte[] old_data = branch_client.getResourceData("/content/file1.txt");
         assertTrue(new String(old_data).indexOf("testing") == -1);
 
         // Add commit
-        execCommand("scripts/add_testdata_proj1_commit.sh");
+        execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Update branch
         BranchStatus branch = branch_client.update();
@@ -410,13 +429,13 @@ public class ProjectResourceTest {
     @Test
     public void updateBranchMergeResolveYours() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         // Update resource
         branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Add commit in main branch
-        execCommand("scripts/add_testdata_proj1_commit.sh");
+        execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Commit in this branch
         branch_client.commit("test message");
@@ -446,22 +465,22 @@ public class ProjectResourceTest {
         branch_client.publish();
 
         // Make changes visible (in file system)
-        execCommand("scripts/reset_testdata_proj1.sh");
+        execCommand("scripts/reset_testdata_proj1.sh", Long.toString(proj1.getId()));
 
-        String file1 = FileUtil.readEntireFile(new File("tmp/test_data/proj1/content/file1.txt"));
+        String file1 = FileUtil.readEntireFile(new File(String.format("tmp/test_data/%d/content/file1.txt", proj1.getId())));
         assertTrue(file1.indexOf("new file1 data") != -1);
     }
 
     @Test
     public void updateBranchMergeResolveTheirs() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         // Update resource
         branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Add commit in main branch
-        execCommand("scripts/add_testdata_proj1_commit.sh");
+        execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Commit in this branch
         branch_client.commit("test message");
@@ -491,22 +510,22 @@ public class ProjectResourceTest {
         branch_client.publish();
 
         // Make changes visible (in file system)
-        execCommand("scripts/reset_testdata_proj1.sh");
+        execCommand("scripts/reset_testdata_proj1.sh", Long.toString(proj1.getId()));
 
-        String file1 = FileUtil.readEntireFile(new File("tmp/test_data/proj1/content/file1.txt"));
+        String file1 = FileUtil.readEntireFile(new File(String.format("tmp/test_data/%d/content/file1.txt", proj1.getId())));
         assertTrue(file1.indexOf("new file1 data") == -1);
     }
 
     @Test
     public void publishUnmerged() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch(user, "branch1");
+        project_client.createBranch("branch1");
 
         // Update resource
         branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Add commit in main branch
-        execCommand("scripts/add_testdata_proj1_commit.sh");
+        execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Commit in this branch
         branch_client.commit("my commit message");

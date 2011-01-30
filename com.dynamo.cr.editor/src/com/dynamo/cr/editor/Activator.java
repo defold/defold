@@ -41,10 +41,13 @@ import org.osgi.util.tracker.ServiceTracker;
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
+import com.dynamo.cr.client.IUsersClient;
+import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
@@ -100,6 +103,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     private ClientFactory factory;
 
     private ServiceTracker proxyTracker;
+
+    public UserInfo userInfo;
 
     public void addRepositoryListener(IRepositoryListener l) {
         assert listeners.indexOf(l) == -1;
@@ -197,16 +202,30 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         IPreferenceStore store = getPreferenceStore();
         String user = store.getString(PreferenceConstants.P_USERNAME);
         String passwd = store.getString(PreferenceConstants.P_PASSWORD);
-        String base_uri = store.getString(PreferenceConstants.P_SERVER_URI);
+        String baseUriString = store.getString(PreferenceConstants.P_SERVER_URI);
+        String project = store.getString(PreferenceConstants.P_PROJECT);
+        String usersUriString = String.format("%s/users", baseUriString);
 
         Client client = Client.create(cc);
+        factory = new ClientFactory(client);
         client.addFilter(new HTTPBasicAuthFilter(user, passwd));
 
-        URI uri;
-        uri = UriBuilder.fromUri(base_uri).build();
+        IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
+        UserInfo userInfo;
+        try {
+            userInfo = usersClient.getUserInfo(user);
+        } catch (RepositoryException e) {
+            e.printStackTrace();
+            return;
+        }
+        this.userInfo = userInfo;
+        String projectUriString = String.format("%s/projects/%d/%s", baseUriString, userInfo.getId(), project);
 
-        factory = new ClientFactory(client);
-        projectClient = factory.getProjectClient(uri);
+
+        URI projectUri;
+        projectUri = UriBuilder.fromUri(projectUriString).build();
+
+        projectClient = factory.getProjectClient(projectUri);
 	}
 
 	void setProjectExplorerInput(Object container) {
@@ -243,8 +262,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	    this.activeBranch = null;
 	}
 
-    public void connectToBranch(String user, String branch) {
-        branchClient = projectClient.getBranchClient(user, branch);
+    public void connectToBranch(String branch) {
+        branchClient = projectClient.getBranchClient(branch);
         activeBranch = branch;
 
             final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);

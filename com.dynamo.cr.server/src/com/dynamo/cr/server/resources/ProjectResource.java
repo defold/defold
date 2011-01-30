@@ -18,13 +18,14 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
 import com.dynamo.cr.proto.Config.Application;
-import com.dynamo.cr.proto.Config.ProjectConfiguration;
+import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.server.ServerException;
@@ -100,7 +101,7 @@ import com.sun.jersey.api.NotFoundException;
  *
  */
 
-@Path("/")
+@Path("/projects/{user}/{project}")
 @RolesAllowed(value = { "user" })
 public class ProjectResource extends BaseResource {
 
@@ -109,16 +110,16 @@ public class ProjectResource extends BaseResource {
      */
 
     @GET
-    @Path("/{project}")
-    public ProjectConfiguration getProjectConfiguration(@PathParam("project") String project) {
-        return server.getProjectConfiguration(project);
+    @Path("/launch_info")
+    public LaunchInfo getLaunchInfo(@PathParam("project") String project) throws ServerException {
+        return server.getLaunchInfo(project);
     }
 
     @GET
-    @Path("/{project}/application_data")
+    @Path("/application_data")
     public byte[] getApplicationData(@PathParam("project") String project,
                                      @QueryParam("platform") String platform) throws IOException {
-        ProjectConfiguration config = server.getProjectConfiguration(project);
+        Configuration config = server.getConfiguration();
 
         List<Application> applications = config.getApplicationsList();
         for (Application application : applications) {
@@ -135,10 +136,10 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/{project}/application_info")
+    @Path("/application_info")
     public ApplicationInfo getApplicationInfo(@PathParam("project") String project,
                                               @QueryParam("platform") String platform) throws IOException {
-        ProjectConfiguration config = server.getProjectConfiguration(project);
+        Configuration config = server.getConfiguration();
         List<Application> applications = config.getApplicationsList();
         for (Application application : applications) {
             if (application.getPlatform().equals(platform)) {
@@ -179,7 +180,7 @@ public class ProjectResource extends BaseResource {
      */
 
     @GET
-    @Path("/{project}/{user}")
+    @Path("/branches/")
     public BranchList getBranchList(@PathParam("project") String project,
                                 @PathParam("user") String user) {
         String[] branch_names = server.getBranchNames(project, user);
@@ -191,7 +192,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/{project}/{user}/{branch}")
+    @Path("/branches/{branch}")
     public BranchStatus getBranchStatus(@PathParam("project") String project,
                                           @PathParam("user") String user,
                                           @PathParam("branch") String branch) throws IOException, ServerException {
@@ -199,7 +200,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @PUT
-    @Path("/{project}/{user}/{branch}")
+    @Path("/branches/{branch}")
     public void createBranch(@PathParam("project") String project,
                              @PathParam("user") String user,
                              @PathParam("branch") String branch) throws IOException, ServerException {
@@ -207,7 +208,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @DELETE
-    @Path("/{project}/{user}/{branch}")
+    @Path("/branches/{branch}")
     public void deleteBranch(@PathParam("project") String project,
                              @PathParam("user") String user,
                              @PathParam("branch") String branch) throws ServerException {
@@ -215,7 +216,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @POST
-    @Path("/{project}/{user}/{branch}/update")
+    @Path("/branches/{branch}/update")
     public BranchStatus updateBranch(@PathParam("project") String project,
                                @PathParam("user") String user,
                                @PathParam("branch") String branch) throws IOException, ServerException {
@@ -225,7 +226,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @POST
-    @Path("/{project}/{user}/{branch}/commit")
+    @Path("/branches/{branch}/commit")
     public void commitBranch(@PathParam("project") String project,
                              @PathParam("user") String user,
                              @PathParam("branch") String branch,
@@ -239,7 +240,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @POST
-    @Path("/{project}/{user}/{branch}/publish")
+    @Path("/branches/{branch}/publish")
     public void publishBranch(@PathParam("project") String project,
                               @PathParam("user") String user,
                               @PathParam("branch") String branch) throws IOException, ServerException {
@@ -248,7 +249,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @POST
-    @Path("/{project}/{user}/{branch}/resolve")
+    @Path("/branches/{branch}/resolve")
     public void resolve(@PathParam("project") String project,
                         @PathParam("user") String user,
                         @PathParam("branch") String branch,
@@ -273,7 +274,7 @@ public class ProjectResource extends BaseResource {
      */
 
     @GET
-    @Path("/{project}/{user}/{branch}/resources/info")
+    @Path("/branches/{branch}/resources/info")
     public ResourceInfo getResourceInfo(@PathParam("project") String project,
                                           @PathParam("user") String user,
                                           @PathParam("branch") String branch,
@@ -283,7 +284,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @DELETE
-    @Path("/{project}/{user}/{branch}/resources/info")
+    @Path("/branches/{branch}/resources/info")
     public void deleteResource(@PathParam("project") String project,
                                @PathParam("user") String user,
                                @PathParam("branch") String branch,
@@ -293,7 +294,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @POST
-    @Path("/{project}/{user}/{branch}/resources/rename")
+    @Path("/branches/{branch}/resources/rename")
     public void renameResource(@PathParam("project") String project,
                                @PathParam("user") String user,
                                @PathParam("branch") String branch,
@@ -304,7 +305,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @PUT
-    @Path("/{project}/{user}/{branch}/resources/revert")
+    @Path("/branches/{branch}/resources/revert")
     public void revertResource(@PathParam("project") String project,
                                @PathParam("user") String user,
                                @PathParam("branch") String branch,
@@ -314,7 +315,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/{project}/{user}/{branch}/resources/data")
+    @Path("/branches/{branch}/resources/data")
     public byte[] getResourceData(@PathParam("project") String project,
                                   @PathParam("user") String user,
                                   @PathParam("branch") String branch,
@@ -324,7 +325,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @PUT
-    @Path("/{project}/{user}/{branch}/resources/data")
+    @Path("/branches/{branch}/resources/data")
     public void putResourceData(@PathParam("project") String project,
                                 @PathParam("user") String user,
                                 @PathParam("branch") String branch,
@@ -345,7 +346,7 @@ public class ProjectResource extends BaseResource {
      */
 
     @POST
-    @Path("/{project}/{user}/{branch}/builds")
+    @Path("/branches/{branch}/builds")
     public BuildDesc build(@PathParam("project") String project,
                            @PathParam("user") String user,
                            @PathParam("branch") String branch,
@@ -355,7 +356,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/{project}/{user}/{branch}/builds")
+    @Path("/branches/{branch}/builds")
     public BuildDesc buildsStatus(@PathParam("project") String project,
                                   @PathParam("user") String user,
                                   @PathParam("branch") String branch,
@@ -365,7 +366,7 @@ public class ProjectResource extends BaseResource {
     }
 
     @GET
-    @Path("/{project}/{user}/{branch}/builds/log")
+    @Path("/branches/{branch}/builds/log")
     public BuildLog buildLog(@PathParam("project") String project,
                               @PathParam("user") String user,
                               @PathParam("branch") String branch,

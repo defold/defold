@@ -45,16 +45,26 @@ enum Status
     FAILURE = -1;
 }
 
+message UserInfo {
+    required int64 id = 1;
+    required string email = 2;
+    required string first_name = 3;
+    required string last_name = 4;
+}
+
 message ProjectInfo {
-    required string id = 1;
+    required int64 id = 1;
     required string name = 2;
-    required string root = 3;
 }
 
 message ApplicationInfo {
     required string name = 1;
     required string version = 2;
     required int32 size = 3;
+}
+
+message LaunchInfo {
+    repeated string args = 1;
 }
 
 message ProjectList {

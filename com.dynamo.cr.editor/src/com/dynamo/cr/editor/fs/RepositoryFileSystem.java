@@ -10,7 +10,7 @@ import org.apache.http.client.utils.URLEncodedUtils;
 import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.filesystem.provider.FileSystem;
 
-import com.dynamo.cr.client.BranchClient;
+import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.Activator;
 import com.sun.jersey.api.client.config.ClientConfig;
@@ -37,7 +37,7 @@ public class RepositoryFileSystem extends FileSystem {
         }
 
         URI http_uri = UriBuilder.fromUri(uri).scheme("http").replaceQuery("").build();
-        BranchClient branch_client = Activator.getDefault().getClientFactory().getBranchClient(http_uri);
+        IBranchClient branch_client = Activator.getDefault().getClientFactory().getBranchClient(http_uri);
 
         return new RepositoryFileStore(branch_client, path);
     }

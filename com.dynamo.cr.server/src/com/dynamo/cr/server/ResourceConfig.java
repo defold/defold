@@ -15,6 +15,7 @@ public class ResourceConfig extends DefaultResourceConfig {
         ClassLoader cl = this.getClass().getClassLoader();
         try {
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ProjectResource"));
+            classes.add(cl.loadClass("com.dynamo.cr.server.resources.UsersResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ServerProvider"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.EntityManagerFactoryProvider"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.GitExceptionMapper"));

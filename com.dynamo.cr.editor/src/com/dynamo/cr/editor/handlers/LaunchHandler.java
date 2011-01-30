@@ -33,7 +33,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
-import com.dynamo.cr.proto.Config.ProjectConfiguration;
+import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 
 public class LaunchHandler extends AbstractHandler {
 
@@ -58,17 +58,17 @@ public class LaunchHandler extends AbstractHandler {
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' not found", exe_name));
         }
 
-        final ProjectConfiguration project_conf = Activator.getDefault().projectClient.getProjectConfiguration();
+        final LaunchInfo launchInfo = Activator.getDefault().projectClient.getLaunchInfo();
 
         Thread thread = new Thread(new Runnable() {
 
             @Override
             public void run() {
                 try {
-                    String[] args = new String[project_conf.getExeCommand().getArgsCount()];
+                    String[] args = new String[launchInfo.getArgsCount()];
 
                     int i = 0;
-                    for (String s : project_conf.getExeCommand().getArgsList()) {
+                    for (String s : launchInfo.getArgsList()) {
                         args[i++] = substituteVariables(s);
                     }
 
@@ -153,9 +153,10 @@ public class LaunchHandler extends AbstractHandler {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
 
         this.variables = new HashMap<String, String>();
-        this.variables.put("user", store.getString(PreferenceConstants.P_USERNAME));
+        this.variables.put("user", Long.toString(Activator.getDefault().userInfo.getId()));
         this.variables.put("branch", Activator.getDefault().activeBranch);
         this.variables.put("executable", store.getString(PreferenceConstants.P_APPLICATION));
+        this.variables.put("project", store.getString(PreferenceConstants.P_PROJECT));
 
         final IProject project = getActiveProject(event);
 

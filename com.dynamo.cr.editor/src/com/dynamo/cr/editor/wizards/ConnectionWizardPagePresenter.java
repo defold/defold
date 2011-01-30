@@ -37,7 +37,6 @@ public class ConnectionWizardPagePresenter {
     private IDisplay display;
     private IProjectClient client;
     private boolean connectionOk;
-    private String user;
     private IWorkbenchPage page;
 
     public ConnectionWizardPagePresenter(IDisplay display, IWorkbenchPage page) {
@@ -56,7 +55,7 @@ public class ConnectionWizardPagePresenter {
             return;
 
         try {
-            client.createBranch(user, name);
+            client.createBranch(name);
             updateBranchList();
             display.setSelected(name);
             display.setPageComplete(canFinish());
@@ -71,7 +70,7 @@ public class ConnectionWizardPagePresenter {
             throw new RuntimeException("null branch");
 
         try {
-            client.deleteBranch(user, branch);
+            client.deleteBranch(branch);
             Activator.getDefault().disconnectFromBranch();
             updateBranchList();
 
@@ -80,13 +79,12 @@ public class ConnectionWizardPagePresenter {
         }
     }
 
-    public void setProjectResourceClient(IProjectClient client, String user) {
+    public void setProjectResourceClient(IProjectClient client) {
         this.client = client;
-        this.user = user;
     }
 
     void updateBranchList() throws RepositoryException  {
-        BranchList branchList = client.getBranchList(user);
+        BranchList branchList = client.getBranchList();
         ArrayList<String> branchNames = new ArrayList<String>();
         for (String b : branchList.getBranchesList()) {
             branchNames.add(b);
@@ -120,7 +118,7 @@ public class ConnectionWizardPagePresenter {
                 return false;
             }
 
-            Activator.getDefault().connectToBranch(user, display.getSelectedBranch());
+            Activator.getDefault().connectToBranch(display.getSelectedBranch());
         }
         catch (Throwable e) {
             MessageDialog.openError(display.getShell(), "Connection error", e.getMessage());

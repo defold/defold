@@ -38,8 +38,12 @@ public class ClientFactory {
      * @param uri URI to get {@link IBranchClient} from
      * @return A new {@link IBranchClient}
      */
-    public BranchClient getBranchClient(URI uri) {
+    public IBranchClient getBranchClient(URI uri) {
         return new BranchClient(this, uri, client);
+    }
+
+    public IUsersClient getUsersClient(URI uri) {
+        return new UsersClient(uri, client);
     }
 
     synchronized ResourceInfo getCachedResourceInfo(URI uri) {
@@ -57,4 +61,5 @@ public class ClientFactory {
     synchronized void flushResourceInfoCache() {
         resourceInfoCache.clear();
     }
+
 }

@@ -22,16 +22,17 @@ import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 
 import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.proto.Config.ProjectConfiguration;
 import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.resources.EntityManagerFactoryProvider;
 import com.dynamo.cr.server.resources.ServerProvider;
@@ -55,7 +56,6 @@ public class Server {
 
     private SelectorThread threadSelector;
     private String baseUri;
-    private Project[] projects;
     private String branchRoot;
     private Pattern[] filterPatterns;
     private Configuration configuration;
@@ -76,6 +76,7 @@ public class Server {
         }
         else {
             bootStrapUsers();
+            bootStrapProjects();
         }
 
         EntityManagerFactoryProvider.emf = emf;
@@ -121,6 +122,7 @@ public class Server {
                 { "ragnar.svensson@gmail.com", "rasv"},
                 { "egeberg.fredrik@gmail.com", "freg"},
                 { "gustafberg80@gmail.com", "gube" } };
+        List<User> createdUsers = new ArrayList<User>();
         for (String[] email_pass : users) {
             if (ModelUtil.findUserByEmail(em, email_pass[0]) == null) {
                 User u = new User();
@@ -128,11 +130,31 @@ public class Server {
                 u.setFirstName("undefined");
                 u.setLastName("undefined");
                 u.setPassword(email_pass[1]);
-                Activator.getLogger().log(Level.INFO, "Creating user " + u);
                 em.persist(u);
+                createdUsers.add(u);
             }
         }
         em.getTransaction().commit();
+        em.close();
+
+        for (User user : createdUsers) {
+            Activator.getLogger().log(Level.INFO, "Creating user " + user);
+        }
+    }
+
+    private void bootStrapProjects() {
+        // TODO: TEMPORARY SOLUTION!!!
+        EntityManager em = emf.createEntityManager();
+        Project p = em.find(Project.class, 1L);
+        if (p != null)
+            return;
+
+        em.getTransaction().begin();
+        User u = ModelUtil.findUserByEmail(em, "cgmurray@gmail.com");
+        p = ModelUtil.newProject(em, u, "demos");
+        em.getTransaction().commit();
+        em.close();
+        Activator.getLogger().log(Level.INFO, "Creating project " + p);
     }
 
     void loadConfig(String file_name) throws IOException {
@@ -143,16 +165,10 @@ public class Server {
 
         configuration = conf_builder.build();
 
-        projects = new Project[configuration.getProjectsCount()];
-        int i = 0;
-        for (ProjectConfiguration pc : configuration.getProjectsList()) {
-            projects[i++] = new Project(pc);
-        }
-
         branchRoot = configuration.getBranchRoot();
 
         filterPatterns = new Pattern[configuration.getFiltersCount()];
-        i = 0;
+        int i = 0;
         for (String f : configuration.getFiltersList()) {
             filterPatterns[i++] = Pattern.compile(f);
         }
@@ -168,16 +184,24 @@ public class Server {
         emf.close();
     }
 
-    public Project getProject(String id) {
-        for (Project p : projects) {
-            if (id.equals(p.getId()))
-                return p;
-        }
-        return null;
+    public Project getProject(String id) throws ServerException {
+        EntityManager em = emf.createEntityManager();
+        Project project = em.find(Project.class, Long.parseLong(id));
+        em.close();
+        if (project == null)
+            throw new ServerException(String.format("No such project %s", project));
+
+        return project;
     }
 
-    public Project[] getProjects() {
-        return projects;
+    public User getUser(String userId) throws ServerException {
+        EntityManager em = emf.createEntityManager();
+        User user = em.find(User.class, Long.parseLong(userId));
+        if (user == null)
+            throw new ServerException(String.format("No such user %d", userId));
+
+        em.close();
+        return user;
     }
 
     public static void main(String[] args) throws IOException {
@@ -192,23 +216,22 @@ public class Server {
     }
 
     void ensureProjectBranch(String project, String user, String branch) throws ServerException {
-        Project proj = getProject(project);
-        if (proj == null)
-            throw new ServerException(String.format("No such project %s", project));
+        // We check that the project really exists here
+        getProject(project);
 
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+        User u = getUser(user);
+        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
         if (!new File(p).exists()) {
             throw new ServerException(String.format("No such branch %s/%s", user, branch));
         }
     }
 
     public void createBranch(String project, String user, String branch) throws ServerException, IOException {
+        // We check that the project really exists here
+        getProject(project);
+        User u = getUser(user);
 
-        Project proj = getProject(project);
-        if (proj == null)
-            throw new ServerException(String.format("No such project %s", project));
-
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
         File f = new File(p);
         if (f.exists()) {
             throw new ServerException(String.format("Branch %s already exists", p));
@@ -217,22 +240,25 @@ public class Server {
         f.getParentFile().mkdirs();
 
         Git git = new Git();
-        git.cloneRepo(proj.getRoot(), p);
+        String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
+        git.cloneRepo(sourcePath, p);
     }
 
     public String getBranchRoot() {
         return branchRoot;
     }
 
-    public boolean containsBranch(String project, String user, String branch) {
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+    public boolean containsBranch(String project, String user, String branch) throws ServerException {
+        User u = getUser(user);
+        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
         return new File(p).exists();
     }
 
     public void deleteBranch(String project, String user, String branch) throws ServerException  {
         ensureProjectBranch(project, user, branch);
+        User u = getUser(user);
 
-        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+        String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
         try {
             FileUtil.removeDir(new File(p));
         } catch (IOException e) {
@@ -246,7 +272,8 @@ public class Server {
         if (path == null)
             throw new ServerException("null path");
 
-        String p = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, path);
+        User u = getUser(user);
+        String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
         File f = new File(p);
 
         if (!f.exists())
@@ -294,7 +321,8 @@ public class Server {
         if (path == null)
             throw new ServerException("null path");
 
-        String p = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, path);
+        User u = getUser(user);
+        String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
         File f = new File(p);
 
         if (!f.exists())
@@ -315,8 +343,9 @@ public class Server {
         ensureProjectBranch(project, user, branch);
         if (path == null)
             throw new ServerException("null path");
+        User u = getUser(user);
 
-        String p = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, path);
+        String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
         File f = new File(p);
 
         if (!f.exists())
@@ -337,8 +366,9 @@ public class Server {
         ensureProjectBranch(project, user, branch);
         if (source == null)
             throw new ServerException("null source");
+        User u = getUser(user);
 
-        String source_path = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, source);
+        String source_path = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, source);
         File f = new File(source_path);
 
         if (!f.exists())
@@ -350,8 +380,9 @@ public class Server {
     }
 
     public void revertResource(String project, String user, String branch,
-            String path) throws IOException {
-        String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+            String path) throws IOException, ServerException {
+        User u = getUser(user);
+        String branch_path = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
         Git git = new Git();
         GitStatus status = git.getStatus(branch_path);
         String localPath = path.substring(1);
@@ -576,8 +607,8 @@ public class Server {
         private String user;
         private String branch;
         private Pattern workPattern;
-        private ProjectConfiguration projectConfiguration;
 		private boolean rebuild;
+        private Configuration configuration;
 
         public BuildRunnable(Server server, int id, String branch_root, String project, String user, String branch, boolean rebuild) {
             this.id = id;
@@ -587,9 +618,9 @@ public class Server {
             this.user = user;
             this.branch = branch;
             this.rebuild = rebuild;
+            this.configuration = server.configuration;
 
-            projectConfiguration = server.getProject(project).configuration;
-            workPattern = Pattern.compile(projectConfiguration.getProgressRe());
+            workPattern = Pattern.compile(server.configuration.getProgressRe());
         }
 
         @Override
@@ -597,9 +628,8 @@ public class Server {
             String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
             try {
                 Result r;
-
-                String[] args = new String[projectConfiguration.getConfigureCommand().getArgsCount()];
-                projectConfiguration.getConfigureCommand().getArgsList().toArray(args);
+                String[] args = new String[configuration.getConfigureCommand().getArgsCount()];
+                configuration.getConfigureCommand().getArgsList().toArray(args);
                 r = CommandUtil.execCommand(p, null, args);
                 if (r.exitValue != 0) {
                     this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, r.stdOut.toString(), r.stdErr.toString());
@@ -607,11 +637,11 @@ public class Server {
                 }
 
                 if (rebuild) {
-                    args = new String[projectConfiguration.getRebuildCommand().getArgsCount()];
-                    projectConfiguration.getRebuildCommand().getArgsList().toArray(args);
+                    args = new String[configuration.getRebuildCommand().getArgsCount()];
+                    configuration.getRebuildCommand().getArgsList().toArray(args);
                 } else {
-                    args = new String[projectConfiguration.getBuildCommand().getArgsCount()];
-                    projectConfiguration.getBuildCommand().getArgsList().toArray(args);
+                    args = new String[configuration.getBuildCommand().getArgsCount()];
+                    configuration.getBuildCommand().getArgsList().toArray(args);
                 }
                 r = CommandUtil.execCommand(p, this, args);
                 if (r.exitValue != 0) {
@@ -709,15 +739,25 @@ public class Server {
             .setStdErr(rtbd.stdErr).build();
     }
 
-    public ProjectConfiguration getProjectConfiguration(String project) {
-        Project p = getProject(project);
-        if (p == null)
-            throw new NotFoundException(String.format("Project %s not found", project));
 
-        return p.configuration;
+    public LaunchInfo getLaunchInfo(String project) throws ServerException {
+        // We check that the project really exists here
+        getProject(project);
+
+        LaunchInfo.Builder b = LaunchInfo.newBuilder();
+        for (String s : configuration.getExeCommand().getArgsList()) {
+            b.addArgs(s);
+        }
+
+        return b.build();
     }
 
     public EntityManagerFactory getEntityManagerFactory() {
         return emf;
     }
+
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
 }

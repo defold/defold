@@ -18,26 +18,21 @@ message Application
     required string Path = 3;
 }
 
-message ProjectConfiguration
-{
-    required string Id = 1;
-    required string Name = 2;
-    required string Root = 3;
-    required string ProgressRe = 4;
-    required Command ConfigureCommand = 5;
-    required Command BuildCommand = 6;
-    required Command RebuildCommand = 7;
-    required Command ExeCommand = 8;
-    repeated Application Applications = 9;
-}
-
 message Configuration
 {
-    repeated ProjectConfiguration projects = 1;
     required string BranchRoot = 2;
     repeated string Filters = 3;
     required int32 ServicePort = 4;
     required int32 BuildDataPort = 5;
     required string PersistenceUnitName = 6;
+
+    required string RepositoryRoot = 7;
+
+    required string ProgressRe = 8;
+    required Command ConfigureCommand = 9;
+    required Command BuildCommand = 10;
+    required Command RebuildCommand = 11;
+    required Command ExeCommand = 12;
+    repeated Application Applications = 13;
 }
 

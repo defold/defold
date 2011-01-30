@@ -95,7 +95,7 @@ public class User {
 
     @Override
     public String toString() {
-        return String.format("%s", email);
+        return String.format("%s (%d)", email, getId());
     }
 
 }
