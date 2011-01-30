@@ -7,7 +7,7 @@ def configure(conf):
 
 def transform_texture_name(name):
     name = name.replace('.png', '.texturec')
-    name = name.replace('.tga', '.texturec')
+    name = name.replace('.jpg', '.texturec')
     return name
 
 def transform_collection(msg):
