@@ -4,7 +4,7 @@ Space:              EMISSION_SPACE_WORLD
 Rotation:           { X: 0 Y: 0 Z: 0 W: 1 }
 
 Material:           "material/missing_name.material"
-Texture:            { Name: "texture/valid.png" TX: 1 TY: 1 }
+Texture:            { Name: "texture/valid_png.png" TX: 1 TY: 1 }
 
 MaxParticleCount:   8
 

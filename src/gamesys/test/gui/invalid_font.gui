@@ -7,5 +7,5 @@ Fonts
 Textures
 {
     Name: "test_texture"
-    Texture: "texture/valid.png"
+    Texture: "texture/valid_png.png"
 }

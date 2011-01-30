@@ -45,6 +45,7 @@ def build(bld):
             'gui_script',
             'gamepads',
             'input_binding',
+            'jpg',
             'light',
             'material',
             'mesh',

@@ -438,12 +438,12 @@ INSTANTIATE_TEST_CASE_P(SpawnPoint, ComponentFailTest, ::testing::ValuesIn(inval
 
 /* Texture */
 
-const char* valid_texture_resources[] = {"texture/valid.texturec"};
+const char* valid_texture_resources[] = {"texture/valid_jpg.texturec", "texture/valid_png.texturec"};
 INSTANTIATE_TEST_CASE_P(Texture, ResourceTest, ::testing::ValuesIn(valid_texture_resources));
 
 ResourceFailParams invalid_texture_resources[] =
 {
-    {"texture/valid.texturec", "texture/missing.texturec"},
+    {"texture/valid_png.texturec", "texture/missing.texturec"},
 };
 INSTANTIATE_TEST_CASE_P(Texture, ResourceFailTest, ::testing::ValuesIn(invalid_texture_resources));
 
