@@ -380,6 +380,8 @@ namespace dmGraphics
     HTexture NewTexture(HContext context, const TextureParams& params);
     void DeleteTexture(HTexture t);
     void SetTexture(HTexture texture, const TextureParams& params);
+    uint16_t GetTextureWidth(HTexture texture);
+    uint16_t GetTextureHeight(HTexture texture);
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit);
 

@@ -19,6 +19,8 @@ namespace dmGraphics
     struct Texture
     {
         GLuint      m_Texture;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
     };
 
     struct VertexDeclaration

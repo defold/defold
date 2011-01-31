@@ -647,6 +647,16 @@ namespace dmGraphics
         }
     }
 
+    uint16_t GetTextureWidth(HTexture texture)
+    {
+        return texture->m_Width;
+    }
+
+    uint16_t GetTextureHeight(HTexture texture)
+    {
+        return texture->m_Height;
+    }
+
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);

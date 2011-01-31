@@ -860,6 +860,9 @@ namespace dmGraphics
 
     void SetTexture(HTexture texture, const TextureParams& params)
     {
+        texture->m_Width = params.m_Width;
+        texture->m_Height = params.m_Height;
+
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
 
@@ -938,6 +941,16 @@ namespace dmGraphics
         default:
             assert(0);
         }
+    }
+
+    uint16_t GetTextureWidth(HTexture texture)
+    {
+        return texture->m_Width;
+    }
+
+    uint16_t GetTextureHeight(HTexture texture)
+    {
+        return texture->m_Height;
     }
 
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)
