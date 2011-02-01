@@ -118,6 +118,8 @@ namespace dmEngine
         m_EmitterContext.m_Debug = false;
         m_GuiRenderContext.m_GuiContext = 0x0;
         m_GuiRenderContext.m_RenderContext = 0x0;
+        m_SpriteContext.m_RenderContext = 0x0;
+        m_SpriteContext.m_MaxSpriteCount = 0;
     }
 
     HEngine New()
@@ -268,6 +270,9 @@ namespace dmEngine
         engine->m_PhysicsContext.m_Context = dmPhysics::NewContext(physics_params);
         engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(config, "physics.world_count", 0);
 
+        engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 64);
+
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;
 
@@ -281,7 +286,7 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiRenderContext);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiRenderContext, &engine->m_SpriteContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 
