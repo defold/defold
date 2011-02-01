@@ -1,2 +1,4 @@
 Texture: "texture/valid_png.png"
+Width: 1.0
+Height: 1.0
 FrameCount: 0

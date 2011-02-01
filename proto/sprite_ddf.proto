@@ -10,10 +10,12 @@ option (ddf_java_package) = "com.dynamo.sprite.ddf";
 message SpriteDesc
 {
     required string Texture = 1 [(resource)=true];
-    optional uint32 TileWidth = 2 [default = 0];
-    optional uint32 TileHeight = 3 [default = 0];
-    optional uint32 FramesPerRow = 4 [default = 1];
-    optional uint32 FrameCount = 5 [default = 1];
+    required float Width = 2;
+    required float Height = 3;
+    optional uint32 TileWidth = 4 [default = 0];
+    optional uint32 TileHeight = 5 [default = 0];
+    optional uint32 FramesPerRow = 6 [default = 1];
+    optional uint32 FrameCount = 7 [default = 1];
 }
 
 enum Playback

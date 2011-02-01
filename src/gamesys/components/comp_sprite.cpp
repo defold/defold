@@ -217,7 +217,7 @@ namespace dmGameSystem
                 dmRender::AddToRender(render_context, &sprite_world->m_RenderObjects[sprite_world->m_RenderObjects.Size() - 1]);
 
                 // Generate vertex data
-                Matrix4 world = Matrix4::scale(Vector3(ddf->m_TileWidth, ddf->m_TileHeight, 1.0f));
+                Matrix4 world = Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
                 world *= Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
                 world.setCol3(Vector4(dmGameObject::GetWorldPosition(component->m_Instance)));
                 float tile_uv_width = ddf->m_TileWidth / (float)dmGraphics::GetTextureWidth(texture);
