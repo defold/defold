@@ -12,16 +12,25 @@ message SpriteDesc
     required string Texture = 1 [(resource)=true];
     optional uint32 TileWidth = 2 [default = 0];
     optional uint32 TileHeight = 3 [default = 0];
-    optional uint32 RowCount = 4 [default = 1];
-    optional uint32 ColumnCount = 5 [default = 1];
+    optional uint32 FramesPerRow = 4 [default = 1];
+    optional uint32 FrameCount = 5 [default = 1];
+}
+
+enum Playback
+{
+    PLAYBACK_ONCE_FORWARD = 0;
+    PLAYBACK_ONCE_BACKWARD = 1;
+    PLAYBACK_LOOP_FORWARD = 2;
+    PLAYBACK_LOOP_BACKWARD = 3;
+    PLAYBACK_LOOP_PINGPONG = 4;
 }
 
 message PlayAnimation
 {
     required uint32 StartFrame = 1;
     required uint32 EndFrame = 2;
-    required uint32 Loop = 3;
-    required float FPS = 4;
+    required Playback Playback = 3;
+    optional float Speed = 4 [default = 1.0];
 }
 
 message AnimationDone

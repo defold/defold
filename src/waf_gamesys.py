@@ -37,6 +37,7 @@ def transform_gameobject(msg):
         c.Resource = c.Resource.replace('.wav', '.wavc')
         c.Resource = c.Resource.replace('.spawnpoint', '.spawnpointc')
         c.Resource = c.Resource.replace('.light', '.lightc')
+        c.Resource = c.Resource.replace('.sprite', '.spritec')
     return msg
 
 def transform_model(msg):

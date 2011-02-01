@@ -5,8 +5,18 @@
 
 #include <resource/resource.h>
 
+#include <graphics/graphics.h>
+
+#include "sprite_ddf.h"
+
 namespace dmGameSystem
 {
+    struct SpriteResource
+    {
+        dmGraphics::HTexture m_Texture;
+        dmGameSystemDDF::SpriteDesc* m_DDF;
+    };
+
     dmResource::CreateResult ResSpriteCreate(dmResource::HFactory factory,
                                             void* context,
                                             const void* buffer, uint32_t buffer_size,

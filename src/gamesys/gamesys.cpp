@@ -34,6 +34,7 @@
 #include "components/comp_camera.h"
 #include "components/comp_spawn_point.h"
 #include "components/comp_light.h"
+#include "components/comp_sprite.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -172,6 +173,11 @@ namespace dmGameSystem
                 CompLightNewWorld, CompLightDeleteWorld,
                 CompLightCreate, 0, CompLightDestroy,
                 CompLightUpdate, CompLightOnMessage, 0, 0);
+
+        REGISTER_COMPONENT_TYPE("spritec", render_context,
+                CompSpriteNewWorld, CompSpriteDeleteWorld,
+                CompSpriteCreate, 0, CompSpriteDestroy,
+                CompSpriteUpdate, CompSpriteOnMessage, 0, CompSpriteOnReload);
 
         #undef REGISTER_COMPONENT_TYPE
 

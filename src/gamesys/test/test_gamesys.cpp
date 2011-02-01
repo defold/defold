@@ -443,10 +443,16 @@ INSTANTIATE_TEST_CASE_P(Sprite, ResourceTest, ::testing::ValuesIn(valid_sprite_r
 
 ResourceFailParams invalid_sprite_resources[] =
 {
-    {"sprite/valid.spritec", "sprite/invalid_row_count.spritec"},
-    {"sprite/valid.spritec", "sprite/invalid_column_count.spritec"},
+    {"sprite/valid.spritec", "sprite/invalid_frame_count.spritec"},
+    {"sprite/valid.spritec", "sprite/invalid_frames_per_row.spritec"},
 };
 INSTANTIATE_TEST_CASE_P(Sprite, ResourceFailTest, ::testing::ValuesIn(invalid_sprite_resources));
+
+const char* valid_sprite_gos[] = {"sprite/valid_sprite.goc"};
+INSTANTIATE_TEST_CASE_P(Sprite, ComponentTest, ::testing::ValuesIn(valid_sprite_gos));
+
+const char* invalid_sprite_gos[] = {"sprite/invalid_sprite.goc"};
+INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, ::testing::ValuesIn(invalid_sprite_gos));
 
 /* Texture */
 
