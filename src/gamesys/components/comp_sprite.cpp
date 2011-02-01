@@ -8,6 +8,7 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
+#include <dlib/index_pool.h>
 
 #include <graphics/graphics.h>
 
@@ -43,21 +44,27 @@ namespace dmGameSystem
 
     struct SpriteWorld
     {
-        dmArray<Component*>             m_Components;
+        dmArray<Component>              m_Components;
+        dmIndexPool32                   m_ComponentIndices;
+        dmArray<dmRender::RenderObject> m_RenderObjects;
         dmRender::HMaterial             m_Material;
         dmGraphics::HVertexProgram      m_VertexProgram;
         dmGraphics::HFragmentProgram    m_FragmentProgram;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
     };
 
     dmGameObject::CreateResult CompSpriteNewWorld(void* context, void** world)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
+        SpriteContext* sprite_context = (SpriteContext*)context;
+        dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
 
-        sprite_world->m_Components.SetCapacity(16);
+        sprite_world->m_Components.SetCapacity(sprite_context->m_MaxSpriteCount);
+        sprite_world->m_Components.SetSize(sprite_context->m_MaxSpriteCount);
+        memset(&sprite_world->m_Components[0], 0, sizeof(Component) * sprite_context->m_MaxSpriteCount);
+        sprite_world->m_ComponentIndices.SetCapacity(sprite_context->m_MaxSpriteCount);
+        sprite_world->m_RenderObjects.SetCapacity(sprite_context->m_MaxSpriteCount);
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
@@ -82,9 +89,6 @@ namespace dmGameSystem
 
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), sizeof(float) * 5 * 4 * sprite_world->m_Components.Capacity(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-        // TODO: Configurable
-        sprite_world->m_RenderObjects.SetCapacity(sprite_world->m_Components.Capacity());
-
         *world = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -92,14 +96,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteDeleteWorld(void* context, void* world)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)world;
-        if (0 < sprite_world->m_Components.Size())
-        {
-            dmLogWarning("%d gui component(s) were not destroyed at sprite world destruction.", sprite_world->m_Components.Size());
-            for (uint32_t i = 0; i < sprite_world->m_Components.Size(); ++i)
-            {
-                delete sprite_world->m_Components[i];
-            }
-        }
         dmRender::DeleteMaterial(sprite_world->m_Material);
         dmGraphics::DeleteVertexProgram(sprite_world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(sprite_world->m_FragmentProgram);
@@ -119,19 +115,18 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)world;
 
-        if (sprite_world->m_Components.Full())
+        if (sprite_world->m_ComponentIndices.Remaining() == 0)
         {
             dmLogError("Sprite could not be created since the sprite buffer is full (%d).", sprite_world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        Component* component = new Component();
-        memset(component, 0, sizeof(Component));
+        uint32_t index = sprite_world->m_ComponentIndices.Pop();
+        Component* component = &sprite_world->m_Components[index];
         component->m_Instance = instance;
         component->m_Resource = (SpriteResource*)resource;
         component->m_Enabled = 1;
 
         *user_data = (uintptr_t)component;
-        sprite_world->m_Components.Push(component);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -143,15 +138,9 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)world;
         Component* component = (Component*)*user_data;
-        for (uint32_t i = 0; i < sprite_world->m_Components.Size(); ++i)
-        {
-            if (sprite_world->m_Components[i] == component)
-            {
-                delete component;
-                sprite_world->m_Components.EraseSwap(i);
-                break;
-            }
-        }
+        memset(component, 0, sizeof(Component));
+        uint32_t index = (component - &sprite_world->m_Components[0]) / sizeof(Component);
+        sprite_world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -160,7 +149,8 @@ namespace dmGameSystem
                                              void* world,
                                              void* context)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
+        SpriteContext* sprite_context = (SpriteContext*)context;
+        dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = (SpriteWorld*)world;
 
         Point3 positions[] =
@@ -196,7 +186,7 @@ namespace dmGameSystem
         sprite_world->m_RenderObjects.SetSize(0);
         for (uint32_t i = 0; i < sprite_world->m_Components.Size(); ++i)
         {
-            Component* component = sprite_world->m_Components[i];
+            Component* component = &sprite_world->m_Components[i];
             if (component->m_Enabled)
             {
                 dmGameSystemDDF::SpriteDesc* ddf = component->m_Resource->m_DDF;

@@ -43,6 +43,12 @@ namespace dmGameSystem
         dmGui::HContext             m_GuiContext;
     };
 
+    struct SpriteContext
+    {
+        dmRender::HRenderContext    m_RenderContext;
+        uint32_t                    m_MaxSpriteCount;
+    };
+
     void RegisterDDFTypes();
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
@@ -56,7 +62,8 @@ namespace dmGameSystem
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   EmitterContext* emitter_context,
-                                                  GuiRenderContext* gui_render_context);
+                                                  GuiRenderContext* gui_render_context,
+                                                  SpriteContext* sprite_context);
 
     void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }

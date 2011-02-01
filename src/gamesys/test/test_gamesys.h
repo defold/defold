@@ -33,6 +33,7 @@ protected:
     dmGameSystem::GuiRenderContext m_GuiRenderContext;
     dmInput::HContext m_InputContext;
     dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
+    dmGameSystem::SpriteContext m_SpriteContext;
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -100,13 +101,16 @@ void GamesysTest<T>::SetUp()
     memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
     m_EmitterContext.m_RenderContext = m_RenderContext;
 
+    m_SpriteContext.m_RenderContext = m_RenderContext;
+    m_SpriteContext.m_MaxSpriteCount = 32;
+
     assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext, m_PhysicsContext.m_Context));
 
     dmResource::Get(m_Factory, "input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiRenderContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiRenderContext, &m_SpriteContext));
 
     m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
 }

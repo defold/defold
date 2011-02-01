@@ -98,7 +98,8 @@ namespace dmGameSystem
                                                 dmRender::RenderContext* render_context,
                                                 PhysicsContext* physics_context,
                                                 EmitterContext* emitter_context,
-                                                GuiRenderContext* gui_render_context)
+                                                GuiRenderContext* gui_render_context,
+                                                SpriteContext* sprite_context)
     {
         dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
@@ -174,7 +175,7 @@ namespace dmGameSystem
                 CompLightCreate, 0, CompLightDestroy,
                 CompLightUpdate, CompLightOnMessage, 0, 0);
 
-        REGISTER_COMPONENT_TYPE("spritec", render_context,
+        REGISTER_COMPONENT_TYPE("spritec", sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, 0, CompSpriteDestroy,
                 CompSpriteUpdate, CompSpriteOnMessage, 0, CompSpriteOnReload);
