@@ -18,11 +18,12 @@ message SpriteDesc
 
 enum Playback
 {
-    PLAYBACK_ONCE_FORWARD = 0;
-    PLAYBACK_ONCE_BACKWARD = 1;
-    PLAYBACK_LOOP_FORWARD = 2;
-    PLAYBACK_LOOP_BACKWARD = 3;
-    PLAYBACK_LOOP_PINGPONG = 4;
+    PLAYBACK_NONE = 0;
+    PLAYBACK_ONCE_FORWARD = 1;
+    PLAYBACK_ONCE_BACKWARD = 2;
+    PLAYBACK_LOOP_FORWARD = 3;
+    PLAYBACK_LOOP_BACKWARD = 4;
+    PLAYBACK_LOOP_PINGPONG = 5;
 }
 
 message PlayAnimation
@@ -30,7 +31,7 @@ message PlayAnimation
     required uint32 StartFrame = 1;
     required uint32 EndFrame = 2;
     required Playback Playback = 3;
-    optional float Speed = 4 [default = 1.0];
+    optional float FPS = 4 [default = 30.0];
 }
 
 message AnimationDone

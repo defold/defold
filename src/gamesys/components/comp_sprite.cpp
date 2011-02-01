@@ -233,48 +233,65 @@ namespace dmGameSystem
                 }
                 vertex_index += 4;
 
-                // Animate
-                component->m_FrameTimer += update_context->m_DT;
-                if (component->m_FrameTimer >= component->m_FrameTime)
+                // Stop once-animation and broadcast animation_done
+                if (component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
+                    || component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD)
                 {
-                    component->m_FrameTimer -= component->m_FrameTime;
-                    int16_t current_frame = (int16_t)component->m_CurrentFrame;
-                    switch (component->m_Playback)
+                    if (component->m_CurrentFrame == component->m_EndFrame)
                     {
-                        case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                            if (current_frame != component->m_EndFrame)
-                                ++current_frame;
-                            break;
-                        case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                            if (current_frame != component->m_EndFrame)
-                                --current_frame;
-                            break;
-                        case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
-                            if (current_frame == component->m_EndFrame)
-                                current_frame = component->m_StartFrame;
-                            else
-                                ++current_frame;
-                            break;
-                        case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
-                            if (current_frame == component->m_EndFrame)
-                                current_frame = component->m_StartFrame;
-                            else
-                                --current_frame;
-                            break;
-                        case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
-                            if (current_frame == component->m_StartFrame || current_frame == component->m_EndFrame)
-                                component->m_PlayBackwards = ~component->m_PlayBackwards;
-                            if (component->m_PlayBackwards)
-                                --current_frame;
-                            else
-                                ++current_frame;
-                            break;
+                        component->m_Playback = dmGameSystemDDF::PLAYBACK_NONE;
+                        dmGameSystemDDF::AnimationDone message;
+                        message.m_CurrentFrame = component->m_CurrentFrame;
+                        dmGameObject::PostDDFMessageTo(component->m_Instance, 0x0, dmGameSystemDDF::AnimationDone::m_DDFDescriptor, (char*)&message);
                     }
-                    if (current_frame < 0)
-                        current_frame = ddf->m_FrameCount - 1;
-                    else if ((uint16_t)current_frame >= ddf->m_FrameCount)
-                        current_frame = 0;
-                    component->m_CurrentFrame = (uint16_t)current_frame;
+                }
+                // Animate
+                if (component->m_Playback != dmGameSystemDDF::PLAYBACK_NONE)
+                {
+                    component->m_FrameTimer += update_context->m_DT;
+                    if (component->m_FrameTimer >= component->m_FrameTime)
+                    {
+                        component->m_FrameTimer -= component->m_FrameTime;
+                        int16_t current_frame = (int16_t)component->m_CurrentFrame;
+                        switch (component->m_Playback)
+                        {
+                            case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
+                                if (current_frame != component->m_EndFrame)
+                                    ++current_frame;
+                                break;
+                            case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
+                                if (current_frame != component->m_EndFrame)
+                                    --current_frame;
+                                break;
+                            case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
+                                if (current_frame == component->m_EndFrame)
+                                    current_frame = component->m_StartFrame;
+                                else
+                                    ++current_frame;
+                                break;
+                            case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
+                                if (current_frame == component->m_EndFrame)
+                                    current_frame = component->m_StartFrame;
+                                else
+                                    --current_frame;
+                                break;
+                            case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
+                                if (current_frame == component->m_StartFrame || current_frame == component->m_EndFrame)
+                                    component->m_PlayBackwards = ~component->m_PlayBackwards;
+                                if (component->m_PlayBackwards)
+                                    --current_frame;
+                                else
+                                    ++current_frame;
+                                break;
+                            default:
+                                break;
+                        }
+                        if (current_frame < 0)
+                            current_frame = ddf->m_FrameCount - 1;
+                        else if ((uint16_t)current_frame >= ddf->m_FrameCount)
+                            current_frame = 0;
+                        component->m_CurrentFrame = (uint16_t)current_frame;
+                    }
                 }
             }
         }
@@ -301,6 +318,20 @@ namespace dmGameSystem
         else if (message_data->m_MessageId == dmHashString64("disable"))
         {
             component->m_Enabled = 0;
+        }
+        else if (message_data->m_DDFDescriptor != 0x0)
+        {
+            if (message_data->m_MessageId == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_ScriptName))
+            {
+                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)message_data->m_Buffer;
+                component->m_Playback = ddf->m_Playback;
+                component->m_StartFrame = ddf->m_StartFrame;
+                component->m_EndFrame = ddf->m_EndFrame;
+                component->m_CurrentFrame = ddf->m_StartFrame;
+                component->m_PlayBackwards = 0;
+                component->m_FrameTime = 1.0f / ddf->m_FPS;
+                component->m_FrameTimer = 0.0f;
+            }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
