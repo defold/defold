@@ -99,7 +99,7 @@ namespace dmRender
     void RenderTypeDebugBegin(HRenderContext rendercontext, void* user_context);
     void RenderTypeDebugDraw(HRenderContext rendercontext, void* user_context, RenderObject* ro, uint32_t count);
 
-    Result GenerateKeyDepth(HRenderContext render_context, const Matrix4& view_matrix);
+    Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
 }
 

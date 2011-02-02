@@ -144,7 +144,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmRender::GenerateKeyDepth(render_context, current_view_matrix);
+                    dmRender::GenerateKey(render_context, current_view_matrix);
                     dmRender::Draw(render_context, (dmRender::Predicate*)c->m_Operands[0]);
                     break;
                 }

@@ -166,21 +166,21 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result GenerateKeyDepth(HRenderContext render_context, const Matrix4& view_matrix)
+    Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix)
     {
-        DM_PROFILE(Render, "GenerateKeyDepth");
+        DM_PROFILE(Render, "GenerateKey");
 
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
 
+        // start by generating a distance from camera (depth) as part of the key
         Vector3 camera_position = view_matrix.getTranslation();
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
             Vector3 pos = ro->m_WorldTransform.getTranslation();
             float dist = length(camera_position - pos);
-
-            ro->m_RenderKey.m_Depth = (uint32_t)dist;
+            ro->m_RenderKey.m_Depth = (uint64_t)dist;
         }
 
         return RESULT_OK;
@@ -189,9 +189,13 @@ namespace dmRender
 
     static int sort_func ( const void *a, const void* b )
     {
-        RenderObject* _a = (RenderObject*)a;
-        RenderObject* _b = (RenderObject*)b;
-        return _a->m_RenderKey.m_Key - _b->m_RenderKey.m_Key;
+        uintptr_t __a = *(uintptr_t*)a;
+        uintptr_t __b = *(uintptr_t*)b;
+        RenderObject* _a = (RenderObject*)(__a);
+        RenderObject* _b = (RenderObject*)(__b);
+        int64_t diff = _a->m_RenderKey.m_Key - _b->m_RenderKey.m_Key;
+
+        return diff;
     }
 
     Result Draw(HRenderContext render_context, Predicate* predicate)
@@ -205,15 +209,13 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
-        /*
         if (render_context->m_RenderObjects.Size() > 0)
         {
-            qsort(&render_context->m_RenderObjects.Front(),
+            qsort( &render_context->m_RenderObjects.Front(),
                    render_context->m_RenderObjects.Size(),
-                   sizeof(RenderObject),
+                   sizeof(RenderObject*),
                    sort_func);
         }
-        */
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {

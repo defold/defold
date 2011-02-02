@@ -38,15 +38,23 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
+
     struct RenderKey
     {
+        RenderKey()
+        {
+            m_Key = 0;
+        }
+
         union
         {
-            uint64_t    m_Depth:32;
-            uint64_t    m_Translucency:1;
-            uint64_t    m_MaterialId:31;
-
-            uint64_t    m_Key;
+            struct
+            {
+                uint64_t    m_Depth:30;
+                uint64_t    m_Translucency:1;
+                uint64_t    m_MaterialId:31;
+            };
+            uint64_t        m_Key;
         };
     };
 
@@ -94,10 +102,10 @@ namespace dmRender
 
     struct Message
     {
-        dmhash_t m_Id;
-        const dmDDF::Descriptor* m_DDFDescriptor;
-        uint32_t m_BufferSize;
-        void* m_Buffer;
+        dmhash_t                        m_Id;
+        const dmDDF::Descriptor*        m_DDFDescriptor;
+        uint32_t                        m_BufferSize;
+        void*                           m_Buffer;
     };
 
     typedef struct RenderContext*           HRenderContext;
