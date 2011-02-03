@@ -321,9 +321,9 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)message_data->m_Buffer;
                 component->m_Playback = ddf->m_Playback;
-                component->m_StartFrame = ddf->m_StartFrame;
-                component->m_EndFrame = ddf->m_EndFrame;
-                component->m_CurrentFrame = ddf->m_StartFrame;
+                component->m_StartFrame = ddf->m_StartFrame - 1;
+                component->m_EndFrame = ddf->m_EndFrame - 1;
+                component->m_CurrentFrame = ddf->m_StartFrame - 1;
                 component->m_PlayBackwards = 0;
                 component->m_FrameTime = 1.0f / ddf->m_FPS;
                 component->m_FrameTimer = 0.0f;
