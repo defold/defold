@@ -155,10 +155,10 @@ namespace dmGameSystem
 
         Point3 positions[] =
         {
-            Point3(-0.5f, -0.5f, 0.0f),
-            Point3(0.5f, -0.5f, 0.0f),
+            Point3(-0.5f, 0.5f, 0.0f),
             Point3(0.5f, 0.5f, 0.0f),
-            Point3(-0.5f, 0.5f, 0.0f)
+            Point3(0.5f, -0.5f, 0.0f),
+            Point3(-0.5f, -0.5f, 0.0f),
         };
         float uvs[][2] =
         {
