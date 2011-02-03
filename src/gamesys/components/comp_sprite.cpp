@@ -271,8 +271,6 @@ namespace dmGameSystem
                                     --current_frame;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
-                                if (current_frame == component->m_StartFrame || current_frame == component->m_EndFrame)
-                                    component->m_PlayBackwards = ~component->m_PlayBackwards;
                                 if (component->m_PlayBackwards)
                                     --current_frame;
                                 else
@@ -286,6 +284,9 @@ namespace dmGameSystem
                         else if ((uint16_t)current_frame >= ddf->m_FrameCount)
                             current_frame = 0;
                         component->m_CurrentFrame = (uint16_t)current_frame;
+                        if (component->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+                            if (current_frame == component->m_StartFrame || current_frame == component->m_EndFrame)
+                                component->m_PlayBackwards = ~component->m_PlayBackwards;
                     }
                 }
             }
