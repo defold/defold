@@ -50,6 +50,8 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context, dmPhysics::HContext physics_context)
