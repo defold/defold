@@ -860,8 +860,11 @@ namespace dmGraphics
 
     void SetTexture(HTexture texture, const TextureParams& params)
     {
-        texture->m_Width = params.m_Width;
-        texture->m_Height = params.m_Height;
+        if (params.m_MipMap == 0)
+        {
+            texture->m_Width = params.m_Width;
+            texture->m_Height = params.m_Height;
+        }
 
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
