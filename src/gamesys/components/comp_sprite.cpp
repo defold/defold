@@ -155,10 +155,10 @@ namespace dmGameSystem
 
         Point3 positions[] =
         {
-            Point3(0.0f, 0.0f, 0.0f),
-            Point3(0.5f, 0.0f, 0.0f),
+            Point3(-0.5f, -0.5f, 0.0f),
+            Point3(0.5f, -0.5f, 0.0f),
             Point3(0.5f, 0.5f, 0.0f),
-            Point3(0.0f, 0.5f, 0.0f)
+            Point3(-0.5f, 0.5f, 0.0f)
         };
         float uvs[][2] =
         {
@@ -169,7 +169,9 @@ namespace dmGameSystem
         };
         struct Vertex
         {
-            Point3 position;
+            float x;
+            float y;
+            float z;
             float u;
             float v;
         };
@@ -217,7 +219,10 @@ namespace dmGameSystem
                 Vertex* v = (Vertex*)vertex_buffer + vertex_index;
                 for (uint32_t j = 0; j < 4; ++j)
                 {
-                    v[j].position = Point3((world * positions[j]).getXYZ());
+                    Vector4 position = world * positions[j];
+                    v[j].x = position.getX();
+                    v[j].y = position.getY();
+                    v[j].z = position.getZ();
                     v[j].u = (uvs[j][0] + tile_x) * tile_uv_width;
                     v[j].v = (uvs[j][1] + tile_y) * tile_uv_height;
                 }
