@@ -107,6 +107,14 @@
             id="com.dynamo.cr.ddfeditor.emittereditor"
             name="Emitter Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.SpriteEditor"
+            default="false"
+            extensions="sprite"
+            icon="icons/penguin.png"
+            id="com.dynamo.cr.ddfeditor.spriteeditor"
+            name="Sprite Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -205,6 +213,12 @@
             id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
             name="Emitter file">
       </wizard>
+      <wizard
+            class="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
+            icon="icons/penguin.png"
+            id="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
+            name="Sprite file">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -266,6 +280,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -374,6 +393,13 @@
             name="Emitter"
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
             template-data="Mode: PLAY_MODE_ONCE Duration: 0.2 Space: EMISSION_SPACE_WORLD Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 } Texture { Name: &apos;unnamed&apos; TX: 1 TY: 1 } Material: &apos;unnamed&apos; MaxParticleCount: 8 Type: EMITTER_TYPE_CONE">
+      </resource-type>
+      <resource-type
+            file-extension="sprite"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Sprite"
+            name="Sprite"
+            proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
+            template-data="Texture: &apos;&apos; Width: 1 Height: 1 Height: 1">
       </resource-type>
     </extension>
 
