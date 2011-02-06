@@ -27,7 +27,6 @@ public class PreferencePage
 
 	public void createFieldEditors() {
         addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
-        addField(new StringFieldEditor(PreferenceConstants.P_PROJECT, "Project:", getFieldEditorParent()));
         addField(new StringFieldEditor(PreferenceConstants.P_SOCKSPROXY, "Socks proxy:", getFieldEditorParent()));
         addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKSPROXYPORT, "Socks proxy port:", getFieldEditorParent()));
 

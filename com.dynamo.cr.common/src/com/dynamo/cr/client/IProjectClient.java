@@ -9,6 +9,8 @@ import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 
 public interface IProjectClient {
 
+    public long getProjectId();
+
     public IBranchClient getBranchClient(String branch);
 
     public void deleteBranch(String branch)

@@ -18,6 +18,12 @@ message Application
     required string Path = 3;
 }
 
+message ProjectTemplate {
+    required string id = 1;
+    required string path = 2;
+    required string description = 3;
+}
+
 message Configuration
 {
     required string BranchRoot = 2;
@@ -34,5 +40,6 @@ message Configuration
     required Command RebuildCommand = 11;
     required Command ExeCommand = 12;
     repeated Application Applications = 13;
+    repeated ProjectTemplate ProjectTemplates = 14;
 }
 

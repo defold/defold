@@ -12,7 +12,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 
-public class ConnectionWizardPagePresenter {
+public class ConnectionWizardBranchPagePresenter {
 
     public interface IDisplay {
         String getSelectedBranch();
@@ -39,7 +39,7 @@ public class ConnectionWizardPagePresenter {
     private boolean connectionOk;
     private IWorkbenchPage page;
 
-    public ConnectionWizardPagePresenter(IDisplay display, IWorkbenchPage page) {
+    public ConnectionWizardBranchPagePresenter(IDisplay display, IWorkbenchPage page) {
         this.display = display;
         this.page = page;
     }
@@ -81,6 +81,11 @@ public class ConnectionWizardPagePresenter {
 
     public void setProjectResourceClient(IProjectClient client) {
         this.client = client;
+        try {
+            updateBranchList();
+        } catch (RepositoryException e) {
+            e.printStackTrace();
+        }
     }
 
     void updateBranchList() throws RepositoryException  {
@@ -96,16 +101,7 @@ public class ConnectionWizardPagePresenter {
         display.setPageComplete(false);
         display.setDeleteBranchButtonEnabled(false);
         connectionOk = true;
-        try {
-            updateBranchList();
-        }
-        catch (Throwable e) {
-            connectionOk = false;
-            display.setErrorMessage(e.getMessage());
-        }
-        finally {
-            display.setNewBranchButtonEnabled(connectionOk);
-        }
+        display.setNewBranchButtonEnabled(connectionOk);
     }
 
     public boolean canFinish() {
@@ -118,7 +114,7 @@ public class ConnectionWizardPagePresenter {
                 return false;
             }
 
-            Activator.getDefault().connectToBranch(display.getSelectedBranch());
+            Activator.getDefault().connectToBranch(client, display.getSelectedBranch());
         }
         catch (Throwable e) {
             MessageDialog.openError(display.getShell(), "Connection error", e.getMessage());

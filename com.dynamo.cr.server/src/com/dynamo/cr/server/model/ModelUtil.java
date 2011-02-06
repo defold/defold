@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.model;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -12,13 +13,15 @@ public class ModelUtil {
      * @param entityManager entity manager
      * @param owner owner of the project
      * @param name name of the project
+     * @param description
      * @return new project
      */
-    public static Project newProject(EntityManager entityManager, User owner, String name) {
+    public static Project newProject(EntityManager entityManager, User owner, String name, String description) {
         Project p = new Project();
         p.setName(name);
+        p.setDescription(description);
         p.setOwner(owner);
-        p.getUsers().add(owner);
+        p.getMembers().add(owner);
         owner.getProjects().add(p);
         entityManager.persist(owner);
 
@@ -31,7 +34,7 @@ public class ModelUtil {
      * @param project project to remove
      */
     public static void removeProject(EntityManager entityManager, Project project) {
-        Set<User> users = project.getUsers();
+        Set<User> users = project.getMembers();
         for (User user : users) {
             user.getProjects().remove(project);
         }
@@ -44,9 +47,19 @@ public class ModelUtil {
      * @param user user to remove
      */
     public static void removeUser(EntityManager entityManager, User user) {
+        // Remove user from projects user is member of
         for (Project p : user.getProjects()) {
-            p.getUsers().remove(user);
+            p.getMembers().remove(user);
         }
+
+        // Remove connections to this user
+        // We iterate and make updates. Make a copy
+        HashSet<User> connections = new HashSet<User>(user.getConnections());
+        for (User connectedUser : connections) {
+            connectedUser.getConnections().remove(user);
+            entityManager.persist(connectedUser);
+        }
+
         entityManager.remove(user);
     }
 
@@ -71,10 +84,29 @@ public class ModelUtil {
         // Ensure that we don't have any orphaned projects
         List<Project> allProjects = entityManager.createQuery("select t from Project t", Project.class).getResultList();
         for (Project project : allProjects) {
-            if (project.getUsers().size() == 0) {
+            if (project.getMembers().size() == 0) {
                 throw new RuntimeException(String.format("Invalid database. Project %s has zero user count", project));
             }
         }
+    }
+
+    public static void deleteProject(EntityManager entityManager, Project project) {
+        Set<User> members = project.getMembers();
+        for (User user : members) {
+            user.getProjects().remove(project);
+            entityManager.persist(user);
+        }
+        entityManager.remove(project);
+    }
+
+    public static void addMember(Project project, User user) {
+        project.getMembers().add(user);
+        user.getProjects().add(project);
+    }
+
+    public static void connect(User u1, User u2) {
+        u1.getConnections().add(u2);
+        u2.getConnections().add(u1);
     }
 
 }

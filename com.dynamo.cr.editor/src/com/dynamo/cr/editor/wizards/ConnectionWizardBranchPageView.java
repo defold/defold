@@ -22,18 +22,18 @@ import com.dynamo.cr.editor.Activator;
  * Wizard page shown when the user has chosen car as means of
  * transport
  */
-public class ConnectionWizardPageView extends WizardPage implements Listener, ConnectionWizardPagePresenter.IDisplay
+public class ConnectionWizardBranchPageView extends WizardPage implements Listener, ConnectionWizardBranchPagePresenter.IDisplay
 {
     private List branchList;
     private Button newBranchButton;
     private Button deleteBranchButton;
-    private ConnectionWizardPagePresenter presenter;
+    private ConnectionWizardBranchPagePresenter presenter;
 
     /**
      * Constructor for HolidayDocumentPage.
      * @param pageName
      */
-    public ConnectionWizardPageView(String pageName) {
+    public ConnectionWizardBranchPageView(String pageName) {
         super(pageName);
         setTitle("Connect to resource server");
         setDescription("Select branch to connect to");
@@ -105,7 +105,7 @@ public class ConnectionWizardPageView extends WizardPage implements Listener, Co
             return selection[0];
     }
 
-    public void setPresenter(ConnectionWizardPagePresenter presenter) {
+    public void setPresenter(ConnectionWizardBranchPagePresenter presenter) {
         this.presenter = presenter;
 
     }

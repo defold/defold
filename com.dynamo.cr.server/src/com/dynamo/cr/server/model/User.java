@@ -8,6 +8,8 @@ import java.util.Set;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -17,6 +19,11 @@ import javax.persistence.Table;
 @Entity
 @Table(name="users")
 public class User {
+
+    public enum Role {
+        USER,
+        ADMIN,
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,8 +41,15 @@ public class User {
     @Column(nullable = false)
     private String lastName;
 
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Role role = Role.USER;
+
     @OneToMany(cascade={CascadeType.PERSIST})
     private Set<Project> projects = new HashSet<Project>();
+
+    @OneToMany
+    private Set<User> connections = new HashSet<User>();
 
     private static String digest(String password) {
         MessageDigest md;
@@ -89,8 +103,20 @@ public class User {
         this.lastName = lastName;
     }
 
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
     public Set<Project> getProjects() {
         return projects;
+    }
+
+    public Set<User> getConnections() {
+        return connections;
     }
 
     @Override

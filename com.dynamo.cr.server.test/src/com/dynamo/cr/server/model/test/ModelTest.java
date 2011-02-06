@@ -93,25 +93,37 @@ public class ModelTest {
         em.persist(u3);
 
         // Create new projects
-        Project p1 = ModelUtil.newProject(em, u1, "Carl Contents Project");
-        Project p2 = ModelUtil.newProject(em, u2, "Joe Coders' Project");
+        Project p1 = ModelUtil.newProject(em, u1, "Carl Contents Project", "Carl Contents Project Description");
+        Project p2 = ModelUtil.newProject(em, u2, "Joe Coders' Project", "Joe Coders' Project Description");
 
         // Add users to project
-        u2.getProjects().add(p1);
-        u1.getProjects().add(p2);
-        u3.getProjects().add(p1);
-        u3.getProjects().add(p2);
+        ModelUtil.addMember(p1, u2);
+        ModelUtil.addMember(p1, u3);
+        ModelUtil.addMember(p2, u1);
+        ModelUtil.addMember(p2, u3);
 
-        p1.getUsers().add(u2);
-        p2.getUsers().add(u1);
-        p1.getUsers().add(u3);
-        p2.getUsers().add(u3);
+        // Set up connections
+        ModelUtil.connect(u1, u2);
+        ModelUtil.connect(u1, u3);
 
         em.persist(u1);
         em.persist(u2);
         em.persist(u3);
 
         em.getTransaction().commit();
+    }
+
+    @Test
+    public void testConnections() throws Exception {
+        User u1 = ModelUtil.findUserByEmail(em, CARL_CONTENT_EMAIL);
+        User u2 = ModelUtil.findUserByEmail(em, JOE_CODER_EMAIL);
+        User u3 = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
+
+        assertTrue(u1.getConnections().contains(u2));
+        assertTrue(u2.getConnections().contains(u1));
+
+        assertTrue(u1.getConnections().contains(u3));
+        assertTrue(u3.getConnections().contains(u1));
     }
 
     @Test

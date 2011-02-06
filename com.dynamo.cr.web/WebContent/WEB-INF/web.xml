@@ -10,6 +10,11 @@
     <welcome-file>default.jsp</welcome-file>
   </welcome-file-list>
 
+  <context-param>
+    <param-name>service-port</param-name>
+    <param-value>9998</param-value>
+  </context-param>
+
   <filter>
     <filter-name>Application</filter-name>
     <filter-class>org.apache.wicket.protocol.http.WicketFilter</filter-class>

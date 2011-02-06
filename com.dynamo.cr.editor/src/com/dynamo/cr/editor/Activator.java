@@ -41,6 +41,7 @@ import org.osgi.util.tracker.ServiceTracker;
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
+import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
@@ -105,6 +106,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     private ServiceTracker proxyTracker;
 
     public UserInfo userInfo;
+
+    public IProjectsClient projectsClient;
 
     public void addRepositoryListener(IRepositoryListener l) {
         assert listeners.indexOf(l) == -1;
@@ -203,7 +206,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         String user = store.getString(PreferenceConstants.P_USERNAME);
         String passwd = store.getString(PreferenceConstants.P_PASSWORD);
         String baseUriString = store.getString(PreferenceConstants.P_SERVER_URI);
-        String project = store.getString(PreferenceConstants.P_PROJECT);
         String usersUriString = String.format("%s/users", baseUriString);
 
         Client client = Client.create(cc);
@@ -219,13 +221,12 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             return;
         }
         this.userInfo = userInfo;
-        String projectUriString = String.format("%s/projects/%d/%s", baseUriString, userInfo.getId(), project);
+        String projectsUriString = String.format("%s/projects/%d", baseUriString, userInfo.getId());
 
+        URI projectsUri;
+        projectsUri = UriBuilder.fromUri(projectsUriString).build();
 
-        URI projectUri;
-        projectUri = UriBuilder.fromUri(projectUriString).build();
-
-        projectClient = factory.getProjectClient(projectUri);
+        projectsClient = factory.getProjectsClient(projectsUri);
 	}
 
 	void setProjectExplorerInput(Object container) {
@@ -262,8 +263,9 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	    this.activeBranch = null;
 	}
 
-    public void connectToBranch(String branch) {
-        branchClient = projectClient.getBranchClient(branch);
+    public void connectToBranch(IProjectClient projectClient, String branch) {
+        this.projectClient = projectClient;
+        this.branchClient = projectClient.getBranchClient(branch);
         activeBranch = branch;
 
             final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);

@@ -7,13 +7,13 @@ import org.apache.wicket.util.lang.PackageName;
 
 import com.dynamo.cr.web.pages.HomePage;
 import com.dynamo.cr.web.pages.LoginPage;
-import com.dynamo.cr.web.pages.ProjectsPage;
+import com.dynamo.cr.web.pages.DashboardPage;
 
 public class Application extends AuthenticatedWebApplication
 {
     public Application()
     {
-        mount("pages", PackageName.forClass(ProjectsPage.class));
+        mount("pages", PackageName.forClass(DashboardPage.class));
     }
 
     public Class<HomePage> getHomePage()

@@ -34,6 +34,16 @@ public class ClientFactory {
     }
 
     /**
+     * Get {@link IProjectsClient} from uri
+     * @param uri URI to get {@link IProjectClient} from
+     * @return A new {@link IProjectsClient}
+     */
+    public IProjectsClient getProjectsClient(URI uri) {
+        ProjectsClient pc = new ProjectsClient(this, uri, client);
+        return pc;
+    }
+
+    /**
      * Get {@link IBranchClient} from #uri
      * @param uri URI to get {@link IBranchClient} from
      * @return A new {@link IBranchClient}

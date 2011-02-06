@@ -1,5 +1,6 @@
 package com.dynamo.cr.server.model;
 
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -11,6 +12,8 @@ import javax.persistence.Id;
 import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 
 @Entity
 @Table(name="projects")
@@ -26,8 +29,17 @@ public class Project {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
+    private String description;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date created = new Date();
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date lastUpdated = new Date();
+
     @OneToMany
-    private Set<User> users = new HashSet<User>();
+    private Set<User> members = new HashSet<User>();
 
     public Long getId() {
         return id;
@@ -49,8 +61,28 @@ public class Project {
         this.name = name;
     }
 
-    public Set<User> getUsers() {
-        return users;
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Date getCreated() {
+        return created;
+    }
+
+    public Date getLastUpdated() {
+        return lastUpdated;
+    }
+
+    public void setLastUpdated(Date lastUpdated) {
+        this.lastUpdated = lastUpdated;
+    }
+
+    public Set<User> getMembers() {
+        return members;
     }
 
     @Override

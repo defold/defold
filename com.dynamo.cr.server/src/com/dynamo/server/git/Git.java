@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.dynamo.server.git.CommandUtil.Result;
 import com.dynamo.server.git.GitStatus.Entry;
 
 public class Git {
@@ -103,6 +104,17 @@ public class Git {
      */
     public void cloneRepo(String repository, String directory) throws IOException {
         CommandUtil.Result r = execGitCommand(null, "git", "clone", repository, directory);
+        checkResult(r);
+    }
+
+    /**
+     * Clone Git repository bare (git clone repository directory)
+     * @param repository Repository to clone
+     * @param directory Directory to cloned
+     * @throws IOException
+     */
+    public void cloneRepoBare(String repository, String directory) throws IOException {
+        CommandUtil.Result r = execGitCommand(null, "git", "clone", "--bare", repository, directory);
         checkResult(r);
     }
 
@@ -413,6 +425,15 @@ public class Git {
     public void reset(String directory, String file) throws IOException {
         CommandUtil.Result r;
         r = execGitCommand(directory, "git", "reset", "-q", "HEAD", "--", file);
+        checkResult(r);
+    }
+
+    /**
+     * Create and initialize a new git repository
+     * @param path path to where the repository should be created
+     */
+    public void initBare(String path) throws IOException {
+        Result r = execGitCommand(path, "git", "init", "--bare");
         checkResult(r);
     }
 }

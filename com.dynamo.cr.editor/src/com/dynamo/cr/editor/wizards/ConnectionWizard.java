@@ -9,9 +9,11 @@ import com.dynamo.cr.editor.Activator;
 
 public class ConnectionWizard extends Wizard {
 
-    private ConnectionWizardPageView view;
-    private ConnectionWizardPagePresenter presenter;
+    private ConnectionWizardBranchPageView branchView;
+    private ConnectionWizardBranchPagePresenter branchPresenter;
     private IWorkbenchPage page;
+    private ConnectionWizardProjectsPageView projectView;
+    private ConnectionWizardProjectsPagePresenter projectPresenter;
 
     public ConnectionWizard(IWorkbenchPage page) {
         this.page = page;
@@ -20,21 +22,28 @@ public class ConnectionWizard extends Wizard {
 
     @Override
     public void addPages() {
-        view = new ConnectionWizardPageView("Connect");
-        presenter = new ConnectionWizardPagePresenter(view, page);
-        presenter.setProjectResourceClient(Activator.getDefault().projectClient);
-        view.setPresenter(presenter);
-        addPage(view);
+        branchView = new ConnectionWizardBranchPageView("Project");
+        branchPresenter = new ConnectionWizardBranchPagePresenter(branchView, page);
+        branchView.setPresenter(branchPresenter);
+
+        projectView = new ConnectionWizardProjectsPageView("Branch");
+        projectPresenter = new ConnectionWizardProjectsPagePresenter(projectView, page, branchPresenter);
+        projectPresenter.setProjectsResourceClient(Activator.getDefault().projectsClient);
+        projectView.setPresenter(projectPresenter);
+
+        addPage(projectView);
+        addPage(branchView);
     }
 
     @Override
     public void createPageControls(Composite pageContainer) {
         super.createPageControls(pageContainer);
-        presenter.init();
+        branchPresenter.init();
+        projectPresenter.init();
     }
 
     @Override
     public boolean performFinish() {
-        return presenter.finish();
+        return branchPresenter.finish();
     }
 }

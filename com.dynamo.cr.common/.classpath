@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/commons-io-2.0.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jackson-core-asl-1.7.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jackson-mapper-asl-1.7.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-lang3-3.0-beta.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/particle.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/input.jar"/>
 	<classpathentry exported="true" kind="lib" path="DYNAMO_HOME/share/java/gameobject.jar"/>

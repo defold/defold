@@ -14,7 +14,7 @@ public class BasePage extends WebPage {
 
         final Session session = (Session) getSession();
         User user = session.getUser();
-        add(new BookmarkablePageLink<ProjectsPage>("projects", ProjectsPage.class));
+        add(new BookmarkablePageLink<DashboardPage>("dashboard", DashboardPage.class));
 
         BookmarkablePageLink<LoginPage> login = new BookmarkablePageLink<LoginPage>("login", LoginPage.class);
         Link<HomePage> logout = new Link<HomePage>("logout") {

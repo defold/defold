@@ -1,10 +1,10 @@
 package com.dynamo.cr.web.pages;
 
-import org.apache.wicket.authentication.panel.SignInPanel;
+import com.dynamo.cr.web.panel.LoginPanel;
 
 public class LoginPage extends BasePage {
 
     public LoginPage() {
-        add(new SignInPanel("signInPanel"));
+        add(new LoginPanel("signInPanel"));
     }
 }

@@ -156,7 +156,7 @@ public class LaunchHandler extends AbstractHandler {
         this.variables.put("user", Long.toString(Activator.getDefault().userInfo.getId()));
         this.variables.put("branch", Activator.getDefault().activeBranch);
         this.variables.put("executable", store.getString(PreferenceConstants.P_APPLICATION));
-        this.variables.put("project", store.getString(PreferenceConstants.P_PROJECT));
+        this.variables.put("project", Long.toString(Activator.getDefault().projectClient.getProjectId()));
 
         final IProject project = getActiveProject(event);
 

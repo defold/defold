@@ -98,7 +98,7 @@ public class ProjectResourceTest {
         user.setPassword(passwd);
         em.persist(user);
 
-        proj1 = ModelUtil.newProject(em, user, "proj1");
+        proj1 = ModelUtil.newProject(em, user, "proj1", "proj1 description");
         em.getTransaction().commit();
 
         ClientConfig cc = new DefaultClientConfig();
@@ -158,7 +158,7 @@ public class ProjectResourceTest {
 
     @Test(expected = RepositoryException.class)
     public void createBranchInvalidProject() throws Exception {
-        URI uri = UriBuilder.fromUri("http://localhost/invalid_project").port(port).build();
+        URI uri = UriBuilder.fromUri("http://localhost/99999").port(port).build();
         project_client = factory.getProjectClient(uri);
         project_client.createBranch("branch1");
     }

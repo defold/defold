@@ -77,6 +77,7 @@
 
     <modules>
         <module>../com.dynamo.cr.common</module>
+        <module>../com.dynamo.cr.common.test</module>
         <module>../com.dynamo.cr.server</module>
         <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.editor</module>

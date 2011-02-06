@@ -11,6 +11,7 @@ import javax.ws.rs.core.UriInfo;
 
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.container.MappableContainerException;
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerRequestFilter;
@@ -77,7 +78,6 @@ public class SecurityFilter implements ContainerRequestFilter {
 
     public class Authorizer implements SecurityContext {
 
-        @SuppressWarnings("unused")
         private User user;
         private Principal principal;
 
@@ -96,8 +96,15 @@ public class SecurityFilter implements ContainerRequestFilter {
         }
 
         public boolean isUserInRole(String role) {
-            // NOTE: Currently role "user" is hard-wired. Later, we will add "dynamic" roles based on the actual project
-            return (role.equals("user"));
+            // NOTE: We will add "dynamic" roles based on the actual project, ie owner-role.
+            // The owner-role implicit if the user owns the project in question
+            if (role.equals("admin")) {
+                return user.getRole() == Role.ADMIN;
+            }
+            else if (role.equals("user")) {
+                return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
+            }
+            return false;
         }
 
         public boolean isSecure() {
