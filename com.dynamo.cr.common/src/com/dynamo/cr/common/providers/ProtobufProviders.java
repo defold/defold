@@ -24,6 +24,8 @@ import com.google.protobuf.Message;
 
 public class ProtobufProviders {
 
+    public static final String APPLICATION_XPROTOBUF = "application/x-protobuf";
+
     @Provider
     @Consumes("application/x-protobuf")
     public static class ProtobufMessageBodyReader implements MessageBodyReader<Message> {

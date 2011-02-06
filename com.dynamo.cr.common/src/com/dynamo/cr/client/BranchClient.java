@@ -2,6 +2,7 @@ package com.dynamo.cr.client;
 
 import java.net.URI;
 
+import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
@@ -35,7 +36,7 @@ public class BranchClient extends BaseClient implements IBranchClient {
             if (cached != null)
                 return cached;
 
-            ClientResponse resp = sub_resource.get(ClientResponse.class);
+            ClientResponse resp = sub_resource.accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
                 throwRespositoryException(resp);
             }
@@ -209,7 +210,9 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public BuildDesc build(boolean rebuild) throws RepositoryException {
         try {
-            ClientResponse resp = resource.path("builds").queryParam("rebuild", rebuild ? "true" : "false").post(ClientResponse.class);
+            ClientResponse resp = resource.path("builds").queryParam("rebuild", rebuild ? "true" : "false")
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
             }
@@ -224,7 +227,9 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public BuildDesc getBuildStatus(int id) throws RepositoryException {
         try {
-            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id)).get(ClientResponse.class);
+            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
             }
@@ -239,7 +244,9 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public BuildLog getBuildLogs(int id) throws RepositoryException {
         try {
-            ClientResponse resp = resource.path("builds/log").queryParam("id", Integer.toString(id)).get(ClientResponse.class);
+            ClientResponse resp = resource.path("builds/log").queryParam("id", Integer.toString(id))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
             }

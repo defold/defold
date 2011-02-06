@@ -29,13 +29,13 @@ public class ResourceConfig extends DefaultResourceConfig {
             classes.add(cl.loadClass("com.dynamo.cr.common.providers.ProtobufProviders$ProtobufMessageBodyWriter"));
             classes.add(cl.loadClass("com.dynamo.cr.common.providers.ProtobufProviders$ProtobufMessageBodyReader"));
 
-/*
-            Currently disabled. We probably need to add .accept(x-protobuf) to all client invocation in order to ensure
-            that we get x-protobuf and not json
+
+            //Currently disabled. We probably need to add .accept(x-protobuf) to all client invocation in order to ensure
+            //that we get x-protobuf and not json
 
             classes.add(cl.loadClass("com.dynamo.cr.common.providers.JsonProviders"));
             classes.add(cl.loadClass("com.dynamo.cr.common.providers.JsonProviders$ProtobufMessageBodyWriter"));
-            classes.add(cl.loadClass("com.dynamo.cr.common.providers.JsonProviders$ProtobufMessageBodyReader"));*/
+            classes.add(cl.loadClass("com.dynamo.cr.common.providers.JsonProviders$ProtobufMessageBodyReader"));
 
         } catch (ClassNotFoundException e) {
             Activator.getLogger().log(Level.SEVERE, e.getMessage(), e);

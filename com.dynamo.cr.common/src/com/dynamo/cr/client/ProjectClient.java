@@ -6,6 +6,7 @@ import java.net.URI;
 
 import javax.ws.rs.core.UriBuilder;
 
+import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
@@ -73,7 +74,9 @@ public class ProjectClient extends BaseClient implements IProjectClient {
             throws RepositoryException {
 
         try {
-            ClientResponse resp = resource.path("/application_info").queryParam("platform", platform).get(ClientResponse.class);
+            ClientResponse resp = resource.path("/application_info").queryParam("platform", platform)
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
             if (resp.getStatus() != 200) {
                 throwRespositoryException(resp);
             }
