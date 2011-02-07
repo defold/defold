@@ -36,27 +36,38 @@ public class UsersResource extends BaseResource {
     @Path("/{user}")
     public UserInfo getUserInfo(@PathParam("user") String user) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        User u = ModelUtil.findUserByEmail(em, user);
-        if (u == null) {
-            throw new WebApplicationException(404);
-        }
+        try {
+            User u = ModelUtil.findUserByEmail(em, user);
+            if (u == null) {
+                throw new WebApplicationException(404);
+            }
 
-        return createUserInfo(u);
+            return createUserInfo(u);
+        }
+        finally {
+            em.close();
+        }
     }
 
     @GET
     @Path("/{user}/connections")
     public UserInfoList getConnections(@PathParam("user") String user) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        User u = server.getUser(em, user);
+        try
+        {
+            User u = server.getUser(em, user);
 
-        Set<User> connections = u.getConnections();
-        UserInfoList.Builder b = UserInfoList.newBuilder();
-        for (User connection : connections) {
-            b.addUsers(createUserInfo(connection));
+            Set<User> connections = u.getConnections();
+            UserInfoList.Builder b = UserInfoList.newBuilder();
+            for (User connection : connections) {
+                b.addUsers(createUserInfo(connection));
+            }
+
+            return b.build();
         }
-
-        return b.build();
+        finally {
+            em.close();
+        }
     }
 
     @POST
@@ -65,17 +76,22 @@ public class UsersResource extends BaseResource {
     public UserInfo registerUser(RegisterUser registerUser) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
 
-        em.getTransaction().begin();
-        User user = new User();
-        user.setEmail(registerUser.getEmail());
-        user.setFirstName(registerUser.getFirstName());
-        user.setLastName(registerUser.getLastName());
-        user.setPassword(registerUser.getPassword());
-        em.persist(user);
-        em.getTransaction().commit();
+        try {
+            em.getTransaction().begin();
+            User user = new User();
+            user.setEmail(registerUser.getEmail());
+            user.setFirstName(registerUser.getFirstName());
+            user.setLastName(registerUser.getLastName());
+            user.setPassword(registerUser.getPassword());
+            em.persist(user);
+            em.getTransaction().commit();
 
-        UserInfo userInfo = createUserInfo(user);
-        return userInfo;
+            UserInfo userInfo = createUserInfo(user);
+            return userInfo;
+        }
+        finally {
+            em.close();
+        }
     }
 
 }
