@@ -108,14 +108,26 @@ public class Git {
     }
 
     /**
-     * Clone Git repository bare (git clone repository directory)
+     * Clone Git repository bare (git clone repository directory). core.sharedRepository is set to group. Permissions is set to "g+ws"
      * @param repository Repository to clone
      * @param directory Directory to cloned
+     * @param group Group to set for the repository, ie UNIX-group. Use null for default group.
      * @throws IOException
      */
-    public void cloneRepoBare(String repository, String directory) throws IOException {
+    public void cloneRepoBare(String repository, String directory, String group) throws IOException {
         CommandUtil.Result r = execGitCommand(null, "git", "clone", "--bare", repository, directory);
         checkResult(r);
+
+        r = execGitCommand(directory, "git", "repo-config", "core.sharedRepository", "group");
+        checkResult(r);
+
+        r = execGitCommand(null, "chmod", "-R", "g+ws", directory);
+        checkResult(r);
+
+        if (group != null) {
+            r = execGitCommand(null, "chgrp", "-R", group, directory);
+            checkResult(r);
+        }
     }
 
     /**
@@ -429,11 +441,23 @@ public class Git {
     }
 
     /**
-     * Create and initialize a new git repository
+     * Create and initialize a new git repository. core.sharedRepository is set to group. Permissions is set to "g+ws"
      * @param path path to where the repository should be created
+     * @param group Group to set for the repository, ie UNIX-group. Use null for default group.
      */
-    public void initBare(String path) throws IOException {
+    public void initBare(String path, String group) throws IOException {
         Result r = execGitCommand(path, "git", "init", "--bare");
         checkResult(r);
+
+        r = execGitCommand(path, "git", "repo-config", "core.sharedRepository", "group");
+        checkResult(r);
+
+        r = execGitCommand(null, "chmod", "-R", "g+ws", path);
+        checkResult(r);
+
+        if (group != null) {
+            r = execGitCommand(null, "chgrp", "-R", group, path);
+            checkResult(r);
+        }
     }
 }

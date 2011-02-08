@@ -11,6 +11,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.WebApplicationException;
 
+import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.ProjectTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
@@ -45,10 +46,14 @@ public class ProjectsResource extends BaseResource {
         em.getTransaction().commit();
 
         try {
-            String repositoryRoot = server.getConfiguration().getRepositoryRoot();
+            Configuration configuration = server.getConfiguration();
+            String repositoryRoot = configuration.getRepositoryRoot();
             File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
             projectPath.mkdir();
             Git git = new Git();
+            String group = null;
+            if (configuration.hasRepositoryRoot())
+                group = configuration.getRepositoryGroup();
 
             if (newProject.hasTemplateId()) {
                 ProjectTemplate projectTemplate = findProjectTemplate(newProject.getTemplateId());
@@ -57,10 +62,10 @@ public class ProjectsResource extends BaseResource {
                 if (!templatePath.exists()) {
                     throw new ServerException(String.format("Invalid project template path: %s", projectTemplate.getPath()));
                 }
-                git.cloneRepoBare(projectTemplate.getPath(), projectPath.getAbsolutePath());
+                git.cloneRepoBare(projectTemplate.getPath(), projectPath.getAbsolutePath(), group);
             }
             else {
-                git.initBare(projectPath.getAbsolutePath());
+                git.initBare(projectPath.getAbsolutePath(), group);
             }
         }
         catch (Throwable e) {

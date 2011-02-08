@@ -41,5 +41,7 @@ message Configuration
     required Command ExeCommand = 12;
     repeated Application Applications = 13;
     repeated ProjectTemplate ProjectTemplates = 14;
+
+    optional string RepositoryGroup = 15;
 }
 
