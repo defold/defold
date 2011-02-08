@@ -147,7 +147,6 @@ public class Server {
 
         em.getTransaction().begin();
         for (User user : createdUsers) {
-            Activator.getLogger().log(Level.INFO, "Creating user " + user);
             for (User connectTo : createdUsers) {
                 if (user != connectTo) {
                     ModelUtil.connect(user, connectTo);
@@ -172,7 +171,6 @@ public class Server {
         p = ModelUtil.newProject(em, u, "demos", "Cool demos");
         em.getTransaction().commit();
         em.close();
-        Activator.getLogger().log(Level.INFO, "Creating project " + p);
     }
 
     void loadConfig(String file_name) throws IOException {

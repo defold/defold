@@ -32,7 +32,7 @@ public class ProjectsResource extends BaseResource {
             if (projectTemplate.getId().equals(id))
                 return projectTemplate;
         }
-        throw new ServerException(String.format("Invalid project template %s", id));
+        throw new ServerException(String.format("Invalid project template '%s'", id));
     }
 
     @POST

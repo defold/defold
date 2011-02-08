@@ -38,13 +38,16 @@ public class UsersResourceTest {
     int port = 6500;
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
+    String bobEmail = "bob@foo.com";
+    String bobPasswd = "secret3";
     String adminEmail = "admin@foo.com";
     String adminPasswd = "secret";
-    private User user;
+    private User joeUser;
     private User adminUser;
+    private User bobUser;
     private WebResource adminUsersWebResource;
-
     private WebResource joeUsersWebResource;
+    private WebResource bobUsersWebResource;
 
     @Before
     public void setUp() throws Exception {
@@ -70,13 +73,21 @@ public class UsersResourceTest {
         adminUser.setRole(Role.ADMIN);
         em.persist(adminUser);
 
-        user = new User();
-        user.setEmail(joeEmail);
-        user.setFirstName("undefined");
-        user.setLastName("undefined");
-        user.setPassword(joePasswd);
-        user.setRole(Role.USER);
-        em.persist(user);
+        joeUser = new User();
+        joeUser.setEmail(joeEmail);
+        joeUser.setFirstName("undefined");
+        joeUser.setLastName("undefined");
+        joeUser.setPassword(joePasswd);
+        joeUser.setRole(Role.USER);
+        em.persist(joeUser);
+
+        bobUser = new User();
+        bobUser.setEmail(bobEmail);
+        bobUser.setFirstName("undefined");
+        bobUser.setLastName("undefined");
+        bobUser.setPassword(bobPasswd);
+        bobUser.setRole(Role.USER);
+        em.persist(bobUser);
 
         em.getTransaction().commit();
 
@@ -95,6 +106,11 @@ public class UsersResourceTest {
 
         uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         joeUsersWebResource = client.resource(uri);
+
+        client = Client.create(cc);
+        client.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
+        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        bobUsersWebResource = client.resource(uri);
     }
 
     @After
@@ -103,14 +119,52 @@ public class UsersResourceTest {
     }
 
     @Test
-    public void testGetUserInfo() throws Exception {
+    public void testGetUserInfoAsAdmin() throws Exception {
         UserInfo userInfo = adminUsersWebResource
             .path("joe@foo.com")
             .accept(MediaType.APPLICATION_JSON_TYPE)
             .type(MediaType.APPLICATION_JSON_TYPE)
             .get(UserInfo.class);
 
-        assertEquals("joe@foo.com", userInfo.getEmail());
+        assertEquals(joeEmail, userInfo.getEmail());
+    }
+
+    @Test
+    public void testGetMyUserInfo() throws Exception {
+        UserInfo userInfo = joeUsersWebResource
+            .path(joeEmail)
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .get(UserInfo.class);
+
+        assertEquals(joeEmail, userInfo.getEmail());
+    }
+
+    @Test
+    public void testGetUserInfoAsJoe() throws Exception {
+        // First connect joe and bob
+        adminUsersWebResource
+            .path(String.format("/connect/%d/%d", bobUser.getId(), joeUser.getId())).put();
+
+        UserInfo userInfo = joeUsersWebResource
+            .path(bobEmail)
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .get(UserInfo.class);
+
+        assertEquals(bobEmail, userInfo.getEmail());
+    }
+
+
+    @Test
+    public void testGetUserInfoForbidden() throws Exception {
+        ClientResponse response = bobUsersWebResource
+            .path(joeEmail)
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .get(ClientResponse.class);
+
+        assertEquals(403, response.getStatus());
     }
 
     @Test

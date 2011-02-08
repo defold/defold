@@ -10,6 +10,7 @@ import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriInfo;
 
 import com.dynamo.cr.server.model.ModelUtil;
+import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.sun.jersey.api.container.MappableContainerException;
@@ -103,6 +104,16 @@ public class SecurityFilter implements ContainerRequestFilter {
             }
             else if (role.equals("user")) {
                 return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
+            }
+            else if (role.equals("self")) {
+                return uriInfo.getPathParameters().get("user").get(0).equals(user.getId().toString());
+            }
+            else if (role.equals("member")) {
+                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                for (Project p : user.getProjects()) {
+                    if (p.getId().longValue() == projectId)
+                        return true;
+                }
             }
             return false;
         }

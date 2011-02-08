@@ -1,16 +1,20 @@
 package com.dynamo.cr.server.resources.test;
 
+import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.map.ObjectMapper;
@@ -20,8 +24,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.common.providers.JsonProviders;
+import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.protocol.proto.Protocol.NewProject;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
@@ -39,7 +46,7 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 public class ProjectsResourceTest {
     private Server server;
 
-    int port = 6500;
+    static int port = 6500;
     String joeEmail = "joe@foo.com";
     String joePasswd = "secret2";
     String bobEmail = "bob@foo.com";
@@ -48,11 +55,31 @@ public class ProjectsResourceTest {
     String adminPasswd = "secret";
     private User joeUser;
     private User adminUser;
+    private User bobUser;
 
     private WebResource adminProjectsWebResource;
     private WebResource joeProjectsWebResource;
 
-    private User bobUser;
+    private WebResource joeUsersWebResource;
+    private WebResource bobProjectsWebResource;
+    private WebResource bobUsersWebResource;
+
+    private Client adminClient;
+
+    private Client joeClient;
+
+    private Client bobClient;
+
+    static {
+        // TODO: Workaround for a problem with double POST
+        // testProjectInfo runs with success
+        // testProjectInfoForbidden runs but with failing POST (using the *same* socket as testProjectInfo)
+        // HttpURLconnection retries the POST on another socket => dead-lock occur.
+        // Might be related to this issue:
+        // Bug ID: 6427251 HttpURLConnection automatically retries non-idempotent method POST
+        // http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6427251
+        System.setProperty("http.keepAlive", "false");
+    }
 
     void execCommand(String command, String arg) throws IOException {
         CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command, arg});
@@ -111,23 +138,75 @@ public class ProjectsResourceTest {
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
+        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
-        Client client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
+        adminClient = Client.create(cc);
+        adminClient.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
 
         URI uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
-        adminProjectsWebResource = client.resource(uri);
+        adminProjectsWebResource = adminClient.resource(uri);
 
-        client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
+        joeClient = Client.create(cc);
+        joeClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
 
         uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
-        joeProjectsWebResource = client.resource(uri);
+        joeProjectsWebResource = joeClient.resource(uri);
+
+        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        joeUsersWebResource = joeClient.resource(uri);
+
+        bobClient = Client.create(cc);
+        bobClient.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
+
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects")).port(port).build();
+        bobProjectsWebResource = bobClient.resource(uri);
+
+        uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
+        bobUsersWebResource = bobClient.resource(uri);
     }
 
     @After
     public void tearDown() throws Exception {
+        adminClient.destroy();
+        joeClient.destroy();
+        bobClient.destroy();
         server.stop();
+    }
+
+    @Test
+    public void testProjectInfo() throws Exception {
+        NewProject newProject = NewProject.newBuilder()
+                .setName("test project")
+                .setDescription("New test project").build();
+
+        ProjectInfo projectInfo = joeProjectsWebResource
+            .path(joeUser.getId().toString())
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ProjectInfo.class, newProject);
+
+        ClientResponse response;
+        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", bobUser.getId(), projectInfo.getId())).get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+        response.getEntity(ProjectInfo.class);
+    }
+
+    @Test
+    public void testProjectInfoForbidden() throws Exception {
+        NewProject newProject = NewProject.newBuilder()
+                .setName("test project123456789")
+                .setDescription("New test project").build();
+
+        ProjectInfo projectInfo = joeProjectsWebResource
+            .path(joeUser.getId().toString())
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ProjectInfo.class, newProject);
+
+        ClientResponse response;
+        response = bobProjectsWebResource.path(String.format("/%d/%d/project_info", bobUser.getId(), projectInfo.getId())).get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
     }
 
     @Test
@@ -136,20 +215,37 @@ public class ProjectsResourceTest {
         TypedQuery<Project> query = em.createQuery("select p from Project p", Project.class);
         int nprojects = query.getResultList().size();
 
-        ObjectMapper m = new ObjectMapper();
-        ObjectNode project = m.createObjectNode();
-        project.put("name", "test project");
-        project.put("description", "New test project");
+        NewProject newProject = NewProject.newBuilder()
+                .setName("test project")
+                .setDescription("New test project").build();
 
         ProjectInfo projectInfo = joeProjectsWebResource
             .path(joeUser.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(ProjectInfo.class, project.toString());
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ProjectInfo.class, newProject);
 
         // Add bob as member
         joeProjectsWebResource.path(String.format("/%d/%d/members", joeUser.getId(), projectInfo.getId()))
             .post(bobEmail);
+
+        UserInfoList joesConnections = joeUsersWebResource
+                                        .path(String.format("/%d/connections", joeUser.getId()))
+                                        .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                                        .get(UserInfoList.class);
+
+        // Check that joe now is connected to bob
+        assertEquals(1, joesConnections.getUsersCount());
+        assertEquals(bobEmail, joesConnections.getUsers(0).getEmail());
+
+        UserInfoList bobsConnections = bobUsersWebResource
+                    .path(String.format("/%d/connections", bobUser.getId()))
+                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                    .get(UserInfoList.class);
+
+        // Check that bob now is connected to joe
+        assertEquals(1, bobsConnections.getUsersCount());
+        assertEquals(joeEmail, bobsConnections.getUsers(0).getEmail());
 
         assertEquals("test project", projectInfo.getName());
         assertEquals(joeUser.getId().longValue(), projectInfo.getOwner().getId());

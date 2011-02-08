@@ -6,9 +6,11 @@ import javax.annotation.security.RolesAllowed;
 import javax.persistence.EntityManager;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 
 import com.dynamo.cr.protocol.proto.Protocol.RegisterUser;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -16,10 +18,9 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.model.User.Role;
 
 @Path("/users")
-// TOOD: CHANGE ROLE TO SELF AND ADMIN?
-// We don't wan't anyone to info for arbitrary user..!
 @RolesAllowed(value = { "user" })
 public class UsersResource extends BaseResource {
 
@@ -37,9 +38,26 @@ public class UsersResource extends BaseResource {
     public UserInfo getUserInfo(@PathParam("user") String user) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         try {
+            User me = ModelUtil.findUserByEmail(em, securityContext.getUserPrincipal().getName());
+            if (me == null) {
+                throw new WebApplicationException(Response.Status.NOT_FOUND);
+            }
+
             User u = ModelUtil.findUserByEmail(em, user);
             if (u == null) {
-                throw new WebApplicationException(404);
+                throw new WebApplicationException(Response.Status.NOT_FOUND);
+            }
+
+            // Make sure the user is connected to me. Otherwise forbidden operation
+            // We don't have a role an explicit role for this authorization
+            // Admin is ok
+            if (me.getRole() != Role.ADMIN) {
+                // My user info is ok
+                if (!u.equals(me)) {
+                    if (!u.getConnections().contains(me)) {
+                        throw new WebApplicationException(Response.Status.FORBIDDEN);
+                    }
+                }
             }
 
             return createUserInfo(u);
@@ -49,8 +67,30 @@ public class UsersResource extends BaseResource {
         }
     }
 
+    @PUT
+    @Path("/connect/{user1}/{user2}")
+    @RolesAllowed(value = { "admin" })
+    public void connect(@PathParam("user1") String user1, @PathParam("user2") String user2) throws ServerException {
+        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+        try {
+            User u1 = server.getUser(em, user1);
+            User u2 = server.getUser(em, user2);
+
+            em.getTransaction().begin();
+            u1.getConnections().add(u2);
+            u2.getConnections().add(u1);
+            em.persist(u1);
+            em.persist(u2);
+            em.getTransaction().commit();
+        }
+        finally {
+            em.close();
+        }
+    }
+
     @GET
     @Path("/{user}/connections")
+    @RolesAllowed(value = { "self" })
     public UserInfoList getConnections(@PathParam("user") String user) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         try

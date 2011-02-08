@@ -108,7 +108,7 @@ import com.sun.jersey.api.NotFoundException;
  */
 
 @Path("/projects/{user}/{project}")
-@RolesAllowed(value = { "user" })
+@RolesAllowed(value = { "member" })
 public class ProjectResource extends BaseResource {
 
     /*
@@ -191,17 +191,22 @@ public class ProjectResource extends BaseResource {
                           String memberEmail) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
 
-        // Ensure user is valid
-        server.getUser(em, userId);
+        User user = server.getUser(em, userId);
         User member = ModelUtil.findUserByEmail(em, memberEmail);
         if (member == null) {
             throw new WebApplicationException(404);
         }
 
+        // Connection user sharing the same project
+        user.getConnections().add(member);
+        member.getConnections().add(user);
+
         Project project = server.getProject(em, projectId);
         em.getTransaction().begin();
         project.getMembers().add(member);
         em.persist(project);
+        em.persist(user);
+        em.persist(member);
         em.getTransaction().commit();
     }
 
