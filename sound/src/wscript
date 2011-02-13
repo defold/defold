@@ -1,0 +1,40 @@
+#! /usr/bin/env python
+import os, sys
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    alut = bld.new_task_gen(features = 'cc cstaticlib',
+                            includes = '. alut',
+                            target = 'alut',
+                            install_path='${PREFIX}/lib')
+
+    alut.find_sources_in_dirs('alut')
+
+    if sys.platform == 'win32':
+        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+        alut.defines = '_XBOX HAVE_STDINT_H HAVE__STAT ALUT_BUILD_LIBRARY HAVE_SLEEP HAVE_WINDOWS_H'
+    else:
+        alut.defines = 'HAVE_STDINT_H HAVE_STAT HAVE_UNISTD_H HAVE_USLEEP'
+
+    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                             includes = '. alut vorbis_tremor',
+                             target = 'sound',
+                             install_path='${PREFIX}/lib',
+                             source = 'sound.cpp stb_vorbis/stb_vorbis.c')
+
+    sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                             includes = '.',
+                             target = 'sound_null',
+                             install_path='${PREFIX}/lib',
+                             source = 'sound_null.cpp')
+
+    if sys.platform == 'win32':
+        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+        sound.defines = '_XBOX'
+        sound_null.defines = '_XBOX'
+
+    bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/sound', 'sound.h')

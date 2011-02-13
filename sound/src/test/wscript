@@ -1,0 +1,21 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def build(bld):
+    test_sound = bld.new_task_gen(features = 'cxx cprogram',
+                                  includes = '../../../src .',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib_local = 'sound alut',
+                                  target = 'test_sound',
+                                  source = 'test_sound.cpp')
+
+    test_sound.install_path = None
+
+    test_sound_null = bld.new_task_gen(features = 'cxx cprogram',
+                                  includes = '../../../src .',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib_local = 'sound_null',
+                                  target = 'test_sound_null',
+                                  source = 'test_sound.cpp')
+
+    test_sound_null.install_path = None
