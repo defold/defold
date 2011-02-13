@@ -1,0 +1,39 @@
+package dmRenderDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "Render";
+option (ddf_java_package) = "com.dynamo.render.ddf";
+
+message RenderPrototypeDesc
+{
+    message MaterialDesc
+    {
+        required string Name = 1;
+        required string Material = 2 [(resource) = true];
+    }
+
+    required string Script = 1 [(resource) = true];
+    repeated MaterialDesc Materials = 2 [(resource) = true];
+}
+
+message DrawText
+{
+    required dmMath.Point3 Position = 1;
+    required string Text = 2;
+}
+
+message DrawLine
+{
+    required dmMath.Point3 StartPoint = 1;
+    required dmMath.Point3 EndPoint = 2;
+    required dmMath.Vector4 Color = 3;
+}
+
+message WindowResized
+{
+    required uint32 Width = 1;
+    required uint32 Height = 2;
+}

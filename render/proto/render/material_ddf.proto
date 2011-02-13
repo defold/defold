@@ -1,0 +1,34 @@
+package dmRenderDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "Material";
+option (ddf_java_package) = "com.dynamo.render.ddf";
+
+message MaterialDesc
+{
+    enum ConstantType
+    {
+        CONSTANT_TYPE_USER = 0;
+        CONSTANT_TYPE_VIEWPROJ = 1;
+        CONSTANT_TYPE_WORLD = 2;
+        CONSTANT_TYPE_TEXTURE = 3;
+    }
+
+    message Constant
+    {
+        required uint32 Register = 1;
+        required ConstantType Type = 2;
+        optional dmMath.Vector4 Value = 3;
+    }
+
+    required string Name = 1;
+    repeated string Tags = 2;
+    required string VertexProgram = 3 [(resource)=true];
+    required string FragmentProgram = 4 [(resource)=true];
+    repeated Constant VertexConstants = 5;
+    repeated Constant FragmentConstants = 6;
+}
+
