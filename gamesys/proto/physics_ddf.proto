@@ -1,0 +1,109 @@
+package dmPhysicsDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.physics.proto";
+option java_outer_classname = "Physics";
+option (ddf_java_package) = "com.dynamo.physics.ddf";
+
+message ConvexShape
+{
+    enum Type
+    {
+        TYPE_SPHERE = 1;
+        TYPE_BOX = 2;
+        TYPE_CAPSULE = 3;
+        TYPE_HULL = 4;
+    }
+
+    required Type  ShapeType = 1;
+
+    /*
+     ShapeType == SPHERE
+     Data = [radius]
+
+     ShapeType == BOX
+     Data = [ext_x, ext_y, ext_z]
+
+     ShapeType == CAPSULE
+     Data = [radius, height]
+
+     ShapeType == HULL
+     Data = [x0, y0, z0, x1, ...]
+    */
+    repeated float Data = 2;
+}
+
+/* This should coincide with CollisionObjectType in physics-lib */
+enum CollisionObjectType
+{
+    COLLISION_OBJECT_TYPE_DYNAMIC = 0;
+    COLLISION_OBJECT_TYPE_KINEMATIC = 1;
+    COLLISION_OBJECT_TYPE_STATIC = 2;
+    COLLISION_OBJECT_TYPE_TRIGGER = 3;
+}
+
+message CollisionObjectDesc
+{
+    required string CollisionShape = 1 [(resource)=true];
+    required CollisionObjectType Type = 2;
+    required float Mass = 3;
+    required float Friction = 4;
+    required float Restitution = 5;
+    required uint32 Group = 6;
+    repeated uint32 Mask = 7;
+}
+
+message ApplyForceMessage
+{
+    required dmMath.Vector3 Force = 1;
+    required dmMath.Point3 Position = 2;
+}
+
+message CollisionMessage
+{
+    required uint64 OtherGameObjectId = 1;
+    required uint32 Group = 2;
+}
+
+message ContactPointMessage
+{
+    required dmMath.Point3 Position = 1;
+    required dmMath.Vector3 Normal = 2;
+    required dmMath.Vector3 RelativeVelocity = 3;
+    required float Distance = 4;
+    required float AppliedImpulse = 5;
+    required float LifeTime = 6;
+    required float Mass = 7;
+    required float OtherMass = 8;
+    required uint64 OtherGameObjectId = 9;
+    required uint32 Group = 10;
+}
+
+message RayCastRequest
+{
+    required dmMath.Point3 From = 1;
+    required dmMath.Point3 To = 2;
+    required uint32 Mask = 3;
+}
+
+message RayCastResponse
+{
+    required float Fraction = 1;
+    required dmMath.Point3 Position = 2;
+    required dmMath.Vector3 Normal = 3;
+    required uint64 GameObjectId = 4;
+    required uint32 Group = 5;
+}
+
+message VelocityRequest
+{
+    required uint64 ClientId = 1;
+}
+
+message VelocityResponse
+{
+    required dmMath.Vector3 LinearVelocity = 1;
+    required dmMath.Vector3 AngularVelocity = 2;
+}

@@ -1,0 +1,7 @@
+Font: "font/valid.ttf"
+Material: "material/missing_name.material"
+Size: 14
+Antialias: 1
+Alpha: 1
+ShadowAlpha: 1
+ShadowBlur: 2

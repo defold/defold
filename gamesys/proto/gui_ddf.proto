@@ -1,0 +1,24 @@
+package dmGuiDDF;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.gui.proto";
+option java_outer_classname = "Gui";
+option (ddf_java_package) = "com.dynamo.gui.ddf";
+
+message SceneDesc
+{
+    message FontDesc
+    {
+        required string Name = 1;
+        required string Font = 2 [(resource)=true];
+    }
+    message TextureDesc
+    {
+        required string Name = 1;
+        required string Texture = 2 [(resource)=true];
+    }
+    required string Script = 1 [(resource)=true];
+    repeated FontDesc Fonts = 2 [(resource)=true];
+    repeated TextureDesc Textures = 3 [(resource)=true];
+}

@@ -1,0 +1,78 @@
+Mode:               PLAY_MODE_ONCE
+Duration:           0.2
+Space:              EMISSION_SPACE_WORLD
+Rotation:           { X: 0 Y: 0 Z: 0 W: 1 }
+
+Material:           "material/missing_name.material"
+Texture:            { Name: "texture/valid_png.png" TX: 1 TY: 1 }
+
+MaxParticleCount:   8
+
+Type:               EMITTER_TYPE_CONE
+Properties:
+{
+    Key: EMITTER_KEY_CONE_RADIUS
+    Value: 0.2
+    Modifiers:
+    {
+        Type: MODIFIER_TYPE_LINEAR
+        Input: INPUT_TYPE_RAND
+    }
+}
+Properties:
+{
+    Key: EMITTER_KEY_CONE_HEIGHT
+    Value: 0.05
+    Modifiers:
+    {
+        Type: MODIFIER_TYPE_LINEAR
+        Input: INPUT_TYPE_RAND
+        Properties: { Key: MODIFIER_KEY_MIN Value: 0.1 }
+    }
+}
+Properties:
+{
+    Key: EMITTER_KEY_SPAWN_DELAY
+    Value: 0.016
+    Modifiers:
+    {
+        Type: MODIFIER_TYPE_LINEAR
+        Input: INPUT_TYPE_RAND
+        Properties: { Key: MODIFIER_KEY_MIN Value: 0.5 }
+    }
+}
+Properties: { Key: EMITTER_KEY_PARTICLE_LIFE_TIME Value: 0.4 }
+Properties:
+{
+    Key: EMITTER_KEY_PARTICLE_SPEED
+    Value: 6
+    Modifiers:
+    {
+        Type: MODIFIER_TYPE_LINEAR
+        Input: INPUT_TYPE_RAND
+        Properties: { Key: MODIFIER_KEY_MIN Value: 0.8 }
+    }
+}
+Properties: { Key: EMITTER_KEY_PARTICLE_SIZE Value: 0.04 }
+
+ParticleModifiers:
+{
+    Type: MODIFIER_TYPE_LINEAR
+    Modify: PARTICLE_KEY_VELOCITY
+    Properties: { Key: MODIFIER_KEY_MIN Value: 1 }
+    Properties: { Key: MODIFIER_KEY_MAX Value: 0 }
+}
+ParticleModifiers:
+{
+    Type: MODIFIER_TYPE_EASE_OUT
+    Modify: PARTICLE_KEY_SIZE
+    Properties: { Key: MODIFIER_KEY_MIN Value: 0.5 }
+    Properties: { Key: MODIFIER_KEY_MAX Value: 3 }
+}
+ParticleModifiers:
+{
+    Type: MODIFIER_TYPE_EASE_OUT
+    Modify: PARTICLE_KEY_ALPHA
+    Properties: { Key: MODIFIER_KEY_MIN Value: 1 }
+    Properties: { Key: MODIFIER_KEY_MAX Value: 0 }
+}

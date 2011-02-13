@@ -1,0 +1,53 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.gamesystem.proto";
+option java_outer_classname = "GameSystem";
+option (ddf_java_package) = "com.dynamo.gamesystem.ddf";
+
+message SpawnPointDesc
+{
+    required string Prototype = 1 [(resource)=true];
+}
+
+message SpawnObject
+{
+    required dmMath.Point3 Position = 1;
+    required dmMath.Quat   Rotation = 2;
+}
+
+enum LightType
+{
+    POINT = 0;
+    SPOT  = 1;
+}
+
+message LightDesc
+{
+    required string         Id              = 1;
+    required LightType      Type            = 2;
+    required float          Intensity       = 3;
+    required dmMath.Vector3 Color           = 4;
+    required float          Range           = 5;
+    required float          Decay           = 6;
+    // Only applicable for spot-lights
+    optional float          ConeAngle       = 7;
+    optional float          PenumbraAngle   = 8;
+    optional float          DropOff         = 9;
+}
+
+message SetLight
+{
+    required dmMath.Point3  Position    = 1;
+    required dmMath.Quat    Rotation    = 2;
+    required LightDesc      Light       = 3;
+}
+
+message SetViewProjection
+{
+    required uint64 Id = 1;
+    required dmMath.Matrix4 View = 2;
+    required dmMath.Matrix4 Projection = 3;
+}

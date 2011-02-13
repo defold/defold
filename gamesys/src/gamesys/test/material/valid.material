@@ -1,0 +1,3 @@
+Name: "valid_material"
+FragmentProgram: "fragment_program/valid.fp"
+VertexProgram: "vertex_program/valid.vp"

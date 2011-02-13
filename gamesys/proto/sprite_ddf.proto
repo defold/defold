@@ -1,0 +1,42 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.sprite.proto";
+option java_outer_classname = "Sprite";
+option (ddf_java_package) = "com.dynamo.sprite.ddf";
+
+message SpriteDesc
+{
+    required string Texture = 1 [(resource)=true];
+    required float Width = 2;
+    required float Height = 3;
+    optional uint32 TileWidth = 4 [default = 0];
+    optional uint32 TileHeight = 5 [default = 0];
+    optional uint32 FramesPerRow = 6 [default = 1];
+    optional uint32 FrameCount = 7 [default = 1];
+}
+
+enum Playback
+{
+    PLAYBACK_NONE = 0;
+    PLAYBACK_ONCE_FORWARD = 1;
+    PLAYBACK_ONCE_BACKWARD = 2;
+    PLAYBACK_LOOP_FORWARD = 3;
+    PLAYBACK_LOOP_BACKWARD = 4;
+    PLAYBACK_LOOP_PINGPONG = 5;
+}
+
+message PlayAnimation
+{
+    required uint32 StartFrame = 1;
+    required uint32 EndFrame = 2;
+    required Playback Playback = 3;
+    optional float FPS = 4 [default = 30.0];
+}
+
+message AnimationDone
+{
+    required uint32 CurrentFrame = 1;
+}

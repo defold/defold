@@ -1,0 +1,32 @@
+package dmGamesysDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.camera.proto";
+option java_outer_classname = "Camera";
+option (ddf_java_package) = "com.dynamo.camera.ddf";
+
+message CameraDesc
+{
+    required float  AspectRatio     = 1;
+    required float  FOV             = 2;
+    required float  NearZ           = 3;
+    required float  FarZ            = 4;
+    optional uint32 AutoAspectRatio = 5 [default = 0];
+}
+
+message SetCamera
+{
+    required float          AspectRatio = 3;
+    required float          FOV         = 4;
+    required float          NearZ       = 5;
+    required float          FarZ        = 6;
+}
+
+message AddCameraTarget
+{
+    required dmMath.Point3 AABBMin = 1;
+    required dmMath.Point3 AABBMax = 2;
+    required uint32 HighPrio = 3;
+}

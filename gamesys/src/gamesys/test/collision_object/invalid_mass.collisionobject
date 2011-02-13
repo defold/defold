@@ -1,0 +1,7 @@
+CollisionShape: "convex_shape/box.convexshape"
+Type: COLLISION_OBJECT_TYPE_KINEMATIC
+Mass: 1.0
+Friction: 0.0
+Restitution: 0.0
+Group: 1
+Mask: 1

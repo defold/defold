@@ -1,0 +1,20 @@
+struct Vertex
+{
+    float4 position : ATTR0;
+    float2 uv       : ATTR1;
+};
+
+struct Fragment
+{
+    float4 position : POSITION;
+    float2 uv       : TEXCOORD0;
+};
+
+uniform float4x4 VIEW_PROJ  : (c0);
+
+void main(in Vertex v_in,
+          out Fragment f_out)
+{
+    f_out.position = mul(float4(v_in.position.xyz, 1.0f), VIEW_PROJ);
+    f_out.uv = v_in.uv;
+}

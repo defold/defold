@@ -1,0 +1,4 @@
+Name: "font"
+VertexProgram: "font.vp"
+VertexConstants { Register: 0 Type: CONSTANT_TYPE_VIEWPROJ }
+FragmentProgram: "font.fp"

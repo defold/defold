@@ -1,0 +1,30 @@
+#! /usr/bin/env python
+import os
+
+def configure(conf):
+    conf.sub_config('test')
+
+def build(bld):
+    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+                                includes = '. ../../proto',
+                                proto_gen_py = True,
+                                proto_gen_java = True,
+                                protoc_includes = '../../proto',
+                                # NOTE: default/... is hardcoded. How to solve?
+                                classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                                target = 'gamesys',
+                                ddf_jar = 'gamesys.jar',
+                                embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc ../../content/materials/sprite.vpc ../../content/materials/sprite.fpc',
+                                install_path='${PREFIX}/lib')
+
+    resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])
+
+    bld.add_subdirs('test')
+
+    bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/physics_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/gui_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/gamesys_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/model_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/mesh_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/sprite_ddf.proto')
