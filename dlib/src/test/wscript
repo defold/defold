@@ -1,0 +1,231 @@
+#! /usr/bin/env python
+import os
+
+def build(bld):
+
+    bld.new_task_gen(features='javac seq',
+                     classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
+                     source_root='http_server')
+
+    bld.env["JAVACFLAGS"] = '-g'
+    bld.add_group()
+
+    test_math = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_math.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_math')
+
+    test_math.install_path = None
+
+    test_hashtable = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_hashtable.cpp',
+                                      uselib = 'GTEST',
+                                      includes = ['../../src'],
+                                      target = 'test_hashtable')
+
+    test_hashtable.install_path = None
+
+    test_array = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_array.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_array')
+
+    test_array.install_path = None
+
+    test_circular_array = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_circular_array.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_circular_array')
+
+    test_circular_array.install_path = None
+
+    test_indexpool = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_indexpool.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_indexpool')
+
+    test_indexpool.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_dlib.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_dlib')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_socket.cpp',
+                                      uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_socket')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                      source = 'test_time.cpp',
+                                      uselib = 'GTEST',
+                                      uselib_local = "dlib",
+                                      includes = ['../../src'],
+                                      target = 'test_time')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_thread.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_thread')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_mutex.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_mutex')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_profile.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_profile')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_memprofile.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_memprofile')
+
+    test_dlib.install_path = None
+
+    # In order to get accurate result from the memory profiler this is necessary
+    if 'darwin' in bld.env['PLATFORM']:
+        test_dlib.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
+
+    if 'linux' in bld.env['PLATFORM']:
+        test_dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_message.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_message')
+
+    test_dlib.install_path = None
+
+    test_dlib = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_configfile.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_configfile')
+
+    test_dlib.install_path = None
+
+    test_dstrings = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_dstrings.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_dstrings')
+
+    test_dstrings.install_path = None
+
+    test_http_client = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_httpclient.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_httpclient')
+
+    test_http_client.install_path = None
+
+    test_http_server = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_httpserver.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_httpserver')
+
+    test_http_server.install_path = None
+
+    test_uri = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_uri.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_uri')
+
+    test_uri.install_path = None
+
+    test_socks_proxy = bld.new_task_gen(features = 'cxx cprogram',
+                                        source = 'test_socks_proxy.cpp',
+                                        uselib = 'GTEST THREAD',
+                                        uselib_local = "dlib",
+                                        includes = ['../../src'],
+                                        target = 'test_socks_proxy')
+
+    test_socks_proxy.install_path = None
+
+    test_stringpool = bld.new_task_gen(features = 'cxx cprogram',
+                                       source = 'test_stringpool.cpp',
+                                       uselib = 'GTEST THREAD',
+                                       uselib_local = "dlib",
+                                       includes = ['../../src'],
+                                       target = 'test_stringpool')
+
+    test_stringpool.install_path = None
+
+    bld.new_task_gen(rule = 'echo generated data > ${TGT}',
+                     target = 'generated.embed')
+
+    bld.add_group()
+
+    test_embed = bld.new_task_gen(features = 'cxx cprogram embed',
+                                  source = 'test_embed.cpp',
+                                  embed_source = 'data/test.embed generated.embed',
+                                  uselib = 'GTEST THREAD',
+                                  uselib_local = "dlib",
+                                  includes = ['../../src'],
+                                  target = 'test_embed')
+
+    test_embed.install_path = None
+
+    test_atomic = bld.new_task_gen(features = 'cxx cprogram',
+                                   source = 'test_atomic.cpp',
+                                   uselib = 'GTEST THREAD',
+                                   uselib_local = "dlib",
+                                   includes = ['../../src'],
+                                   target = 'test_atomic')
+
+    test_atomic.install_path = None
+
+    test_spinlock = bld.new_task_gen(features = 'cxx cprogram',
+                                     source = 'test_spinlock.cpp',
+                                     uselib = 'GTEST THREAD',
+                                     uselib_local = "dlib",
+                                     includes = ['../../src'],
+                                     target = 'test_spinlock')
+
+    test_spinlock.install_path = None
+
