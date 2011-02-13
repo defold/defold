@@ -1,0 +1,101 @@
+package dmGameObjectDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.gameobject.proto";
+option java_outer_classname = "GameObject";
+option (ddf_java_package) = "com.dynamo.gameobject.ddf";
+
+message ComponentDesc
+{
+    required string Resource = 1 [(resource) = true];
+}
+
+message EmbeddedComponentDesc
+{
+    required string Type = 1;
+    required string Data = 2;
+}
+
+message PrototypeDesc
+{
+    repeated ComponentDesc Components = 2;
+    repeated EmbeddedComponentDesc EmbeddedComponents = 3;
+}
+
+message Property
+{
+    enum PropertyType
+    {
+        INTEGER = 1;
+        FLOAT = 2;
+        STRING = 3;
+    }
+
+    required PropertyType Type = 1;
+    required string Key = 2;
+    required string Value = 3;
+}
+
+message InstanceDesc
+{
+    required string  Id                 = 1;
+    required string  Prototype          = 2;
+    repeated string  Children           = 3;
+    required dmMath.Point3 Position     = 4;
+    required dmMath.Quat Rotation       = 5;
+    repeated Property ScriptProperties  = 6;
+}
+
+message CollectionInstanceDesc
+{
+    required string         Id          = 1;
+    required string         Collection  = 2;
+    required dmMath.Point3  Position    = 3;
+    required dmMath.Quat    Rotation    = 4;
+}
+
+message CollectionDesc
+{
+    required string                 Name = 1;
+    repeated InstanceDesc           Instances = 2;
+    repeated CollectionInstanceDesc CollectionInstances = 3;
+}
+
+message LoadCollection
+{
+    required string Collection = 1;
+}
+
+message UnloadCollection
+{
+    required string Collection = 1;
+}
+
+message ActivateCollection
+{
+    required string Collection = 1;
+}
+
+message AcquireInputFocus
+{
+    required uint64 GameObjectId = 1;
+}
+
+message ReleaseInputFocus
+{
+    required uint64 GameObjectId = 1;
+}
+
+message GameObjectTransformQuery
+{
+    required uint64 GameObjectId = 1;
+}
+
+message GameObjectTransformResult
+{
+    required uint64 GameObjectId = 1;
+    required dmMath.Point3 Position = 2;
+    required dmMath.Quat Rotation = 3;
+}

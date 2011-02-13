@@ -1,0 +1,8 @@
+Components
+{
+    Resource: "component_reload.scriptc"
+}
+Components
+{
+    Resource: "reload_target.rt"
+}

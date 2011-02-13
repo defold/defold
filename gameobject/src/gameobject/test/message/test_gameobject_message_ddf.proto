@@ -1,0 +1,11 @@
+package TestGameObjectDDF;
+
+message TestMessage
+{
+    required uint32 TestUint32 = 1;
+}
+
+message MessageTarget
+{
+    required uint32 Value = 1;
+}

@@ -1,0 +1,8 @@
+Components
+{
+    Resource: "test_tablereceiver.scriptc"
+}
+Components
+{
+    Resource: "test_tablesender.scriptc"
+}

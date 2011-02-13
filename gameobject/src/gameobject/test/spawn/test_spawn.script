@@ -1,0 +1,6 @@
+function update(self)
+    if not self.spawned then
+        go.spawn("test_spawnee.goc", vmath.vector3(0, 0, 0), vmath.quat(0, 0, 0, 1))
+        self.spawned = true
+    end
+end

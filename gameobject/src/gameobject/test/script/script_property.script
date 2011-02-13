@@ -1,0 +1,11 @@
+function init(self)
+    assert(self.my_int_prop == 1010)
+    assert(self.my_float_prop == 1.0)
+    assert(self.my_string_prop == "a string prop")
+end
+
+function update(self)
+    assert(self.my_int_prop == 1010)
+    assert(self.my_float_prop == 1.0)
+    assert(self.my_string_prop == "a string prop")
+end

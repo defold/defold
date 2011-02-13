@@ -1,0 +1,8 @@
+Components
+{
+    Resource: "component_input.scriptc"
+}
+Components
+{
+    Resource: "input_target.it"
+}

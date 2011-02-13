@@ -1,0 +1,17 @@
+Name: "sub"
+Instances
+{
+    Prototype: "child.goc"
+    Id: "child"
+    Position { X: 0 Y: 10 Z: 0 }
+    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }
+}
+
+Instances
+{
+    Prototype: "parent.goc"
+    Id: "parent"
+    Position { X: 0 Y: 20 Z: 0 }
+    Rotation { X: 0.0 Y: 0.7071 Z: 0.0 W: 0.7071 }
+    Children: "child"
+}

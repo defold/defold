@@ -1,0 +1,8 @@
+Components
+{
+    Resource: "component_message.scriptc"
+}
+Components
+{
+    Resource: "message_target.mt"
+}

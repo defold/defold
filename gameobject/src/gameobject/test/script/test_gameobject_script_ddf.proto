@@ -1,0 +1,22 @@
+package TestGameObjectDDF;
+
+import "ddf/ddf_math.proto";
+
+message GlobalData
+{
+    required uint32 UIntValue = 1;
+    required int32 IntValue = 2;
+    required string StringValue = 3;
+    required dmMath.Vector3 VecValue = 4;
+}
+
+message Spawn
+{
+    required string Prototype = 1;
+    required dmMath.Point3 Pos = 2;
+}
+
+message SpawnResult
+{
+    required int32 Status = 1;
+}

@@ -1,0 +1,3 @@
+function init(self)
+	assert(false)
+end
