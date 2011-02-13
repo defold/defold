@@ -1,0 +1,8 @@
+#! /usr/bin/env python
+import os
+
+def configure(conf):
+    pass
+
+def build(bld):
+    bld.add_subdirs('gdc')
