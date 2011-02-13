@@ -1,0 +1,72 @@
+package dmMath;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.proto";
+option java_outer_classname = "DdfMath";
+option (ddf_java_package) = "com.dynamo.ddf.math";
+
+option (ddf_includes) = "vectormath/cpp/vectormath_aos.h";
+
+message Point3
+{
+    option (alias) = "Vectormath::Aos::Point3";
+
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float d = 4 [default = 0.0];
+}
+
+message Vector3
+{
+    option (alias) = "Vectormath::Aos::Vector3";
+
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float d = 4 [default = 0.0];
+}
+
+
+message Vector4
+{
+    option (alias) = "Vectormath::Aos::Vector4";
+
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float W = 4 [default = 0.0];
+}
+
+message Quat
+{
+    option (alias) = "Vectormath::Aos::Quat";
+
+    optional float X = 1 [default = 0.0];
+    optional float Y = 2 [default = 0.0];
+    optional float Z = 3 [default = 0.0];
+    optional float W = 4 [default = 1.0];
+}
+
+message Matrix4
+{
+    option (alias) = "Vectormath::Aos::Matrix4";
+
+    optional float M00 = 1 [default = 1.0];
+    optional float M01 = 2 [default = 0.0];
+    optional float M02 = 3 [default = 0.0];
+    optional float M03 = 4 [default = 0.0];
+    optional float M10 = 5 [default = 0.0];
+    optional float M11 = 6 [default = 1.0];
+    optional float M12 = 7 [default = 0.0];
+    optional float M13 = 8 [default = 0.0];
+    optional float M20 = 9 [default = 0.0];
+    optional float M21 = 10 [default = 0.0];
+    optional float M22 = 11 [default = 1.0];
+    optional float M23 = 12 [default = 0.0];
+    optional float M30 = 13 [default = 0.0];
+    optional float M31 = 14 [default = 0.0];
+    optional float M32 = 15 [default = 0.0];
+    optional float M33 = 16 [default = 1.0];
+}
