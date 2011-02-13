@@ -1,0 +1,12 @@
+#! /usr/bin/env python
+
+def build(bld):
+    test_physics = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_physics.cpp',
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD',
+                                    uselib_local = 'physics BulletDynamics BulletCollision LinearMath',
+                                    includes = ['../../src'],
+                                    target = 'test_physics')
+
+    test_physics.install_path = None
+    

@@ -1,0 +1,17 @@
+def configure(conf):
+    pass
+
+def build(bld):
+    physics = bld.new_task_gen(features = 'cxx cstaticlib',
+                               use_lib = 'DLIB',
+                               includes = '. ../bullet',
+                               proto_gen_py = True,
+                               #uselib_local = 'BulletCollision BulletDynamics LinearMath',
+                               target = 'physics',
+                               install_path='${PREFIX}/lib')
+    physics.find_sources_in_dirs('.')
+
+    bld.install_files('${PREFIX}/include/physics', 'physics.h')
+    bld.install_files('${PREFIX}/lib/python', 'waf_physics.py')
+
+    bld.add_subdirs('test')
