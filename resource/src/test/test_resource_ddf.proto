@@ -1,0 +1,13 @@
+package TestResource;
+
+message ResourceContainerDesc
+{
+    required string Name = 1;
+    repeated string Resources = 2;
+}
+
+message ResourceFoo
+{
+    required uint32 x = 1;
+}
+
