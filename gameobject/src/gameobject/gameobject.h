@@ -175,6 +175,7 @@ namespace dmGameObject
      */
     typedef CreateResult (*ComponentInit)(HCollection collection,
                                             HInstance instance,
+                                            void* world,
                                             void* context,
                                             uintptr_t* user_data);
 

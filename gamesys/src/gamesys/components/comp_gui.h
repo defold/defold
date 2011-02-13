@@ -20,11 +20,6 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data);
 
-    dmGameObject::CreateResult CompGuiInit(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* context,
-            uintptr_t* user_data);
-
     dmGameObject::CreateResult CompGuiDestroy(dmGameObject::HCollection collection,
             dmGameObject::HInstance instance,
             void* world,

@@ -20,6 +20,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectInit(dmGameObject::HCollection collection,
                                             dmGameObject::HInstance instance,
+                                            void* world,
                                             void* context,
                                             uintptr_t* user_data);
 

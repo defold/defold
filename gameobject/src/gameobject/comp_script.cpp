@@ -133,6 +133,7 @@ namespace dmGameObject
 
     CreateResult CompScriptInit(HCollection collection,
             HInstance instance,
+            void* world,
             void* context,
             uintptr_t* user_data)
     {

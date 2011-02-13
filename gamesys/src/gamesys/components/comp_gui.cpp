@@ -171,14 +171,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiInit(dmGameObject::HCollection collection,
-                                           dmGameObject::HInstance instance,
-                                           void* context,
-                                           uintptr_t* user_data)
-    {
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
     dmGameObject::CreateResult CompGuiDestroy(dmGameObject::HCollection collection,
                                               dmGameObject::HInstance instance,
                                               void* world,

@@ -549,7 +549,8 @@ namespace dmGameObject
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
                 Prototype::Component* component = &prototype->m_Components[i];
-                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, 0x0);
+                uint32_t component_type_index;
+                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
@@ -561,7 +562,7 @@ namespace dmGameObject
 
                 if (component_type->m_InitFunction)
                 {
-                    CreateResult result = component_type->m_InitFunction(collection, instance, component_type->m_Context, component_instance_data);
+                    CreateResult result = component_type->m_InitFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
                     if (result != CREATE_RESULT_OK)
                     {
                         return false;
