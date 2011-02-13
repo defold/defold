@@ -1,0 +1,26 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../proto/particle/particle_ddf.proto'):
+    def create(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(compiled_ext)
+        task.set_outputs(out)
+
+    cmd = 'protoc --encode=%s -I ../proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
+    declare_extension([ext], create)
+
+create_simple_protoc_task('emitter', '.emitter', '.emitterc', 'dmParticleDDF.Emitter', before='cc cxx')
+
+def build(bld):
+    test_particle = bld.new_task_gen(features = 'cc cxx cprogram',
+                                     includes = '. .. ../../proto',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD',
+                                     uselib_local = 'particle',
+                                     proto_gen_py = True,
+                                     target = 'test_particle')
+    test_particle.find_sources_in_dirs(['.'])
+
+    test_particle.install_path = None
