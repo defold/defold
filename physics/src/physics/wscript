@@ -4,7 +4,7 @@ def configure(conf):
 def build(bld):
     physics = bld.new_task_gen(features = 'cxx cstaticlib',
                                use_lib = 'DLIB',
-                               includes = '. ../bullet',
+                               includes = '. ../bullet ../box2d',
                                proto_gen_py = True,
                                #uselib_local = 'BulletCollision BulletDynamics LinearMath',
                                target = 'physics',

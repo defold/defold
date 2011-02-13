@@ -17,8 +17,13 @@ namespace dmGameSystem
 {
     struct PhysicsContext
     {
-        dmPhysics::HContext m_Context;
+        union
+        {
+            dmPhysics::HContext3D m_Context3D;
+            dmPhysics::HContext2D m_Context2D;
+        };
         bool m_Debug;
+        bool m_3D;
     };
 
     struct EmitterContext
@@ -55,7 +60,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context,
         dmGui::HContext gui_context,
         dmInput::HContext input_context,
-        dmPhysics::HContext physics_context);
+        PhysicsContext* physics_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,
@@ -65,7 +70,8 @@ namespace dmGameSystem
                                                   GuiRenderContext* gui_render_context,
                                                   SpriteContext* sprite_context);
 
-    void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
+    void RequestRayCast3D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
+    void RequestRayCast2D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }
 
 #endif // DM_GAMESYS_H

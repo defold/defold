@@ -5,11 +5,9 @@
 #include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-class btCollisionShape;
-class btCollisionObject;
-
 namespace dmPhysics
 {
+    /// Collision object types defining how such an object will be moved.
     enum CollisionObjectType
     {
         COLLISION_OBJECT_TYPE_DYNAMIC,
@@ -19,35 +17,91 @@ namespace dmPhysics
         COLLISION_OBJECT_TYPE_COUNT
     };
 
-    typedef struct Context* HContext;
-    typedef struct World* HWorld;
-    typedef class btCollisionShape* HCollisionShape;
-    typedef class btCollisionObject* HCollisionObject;
+    /// 3D context handle.
+    typedef struct Context3D* HContext3D;
+    /// 3D world handle.
+    typedef struct World3D* HWorld3D;
+    /// 3D collision shape handle.
+    typedef void* HCollisionShape3D;
+    /// 3D collision object handle.
+    typedef void* HCollisionObject3D;
 
+    /// 2D context handle.
+    typedef struct Context2D* HContext2D;
+    /// 2D world handle.
+    typedef struct World2D* HWorld2D;
+    /// 2D collision shape handle.
+    typedef void* HCollisionShape2D;
+    /// 2D collision object handle.
+    typedef void* HCollisionObject2D;
+
+    /**
+     * Callback used to propagate the world transform of an external object into the physics simulation.
+     *
+     * @param user_data User data pointing to the external object
+     * @param position Position output parameter
+     * @param rotation Rotation output parameter
+     */
     typedef void (*GetWorldTransformCallback)(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
+    /**
+     * Callback used to propagate the world transform from the physics simulation to an external object.
+     *
+     * @param user_data User data poiting to the external object
+     * @param position Position that the external object will obtain
+     * @param rotation Rotation that the external object will obtain
+     */
     typedef void (*SetWorldTransformCallback)(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
 
+    /**
+     * Callback used to signal collisions.
+     *
+     * @param user_data_a User data pointing to the external object of the first colliding object
+     * @param group_a Collision group of the first colliding object
+     * @param user_data_b User data pointing to the external object of the second colliding object
+     * @param group_b Collision group of the second colliding object
+     * @param user_data User data supplied to the collision query
+     * @return If the collision signaling should be continued or not
+     */
     typedef bool (*CollisionCallback)(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 
+    /**
+     * Structure containing data about contact points
+     */
     struct ContactPoint
     {
+        /// Position of the first object
         Vectormath::Aos::Point3 m_PositionA;
+        /// Position of the second object
         Vectormath::Aos::Point3 m_PositionB;
-        /// Always A->B
+        /// Normal of the contact, pointing from A->B
         Vectormath::Aos::Vector3 m_Normal;
+        /// Relative velocity between the objects
         Vectormath::Aos::Vector3 m_RelativeVelocity;
+        /// User data of the first object
         void* m_UserDataA;
+        /// User data of the second object
         void* m_UserDataB;
+        /// Penetration of the objects at the contact
         float m_Distance;
+        /// The impulse that resulted from the contact
         float m_AppliedImpulse;
-        /// Lifetime in frames
-        int m_LifeTime;
+        /// Inverse mass of the first object
         float m_InvMassA;
+        /// Inverse mass of the second object
         float m_InvMassB;
+        /// Collision group of the first object
         uint16_t m_GroupA;
+        /// Collision group of the second object
         uint16_t m_GroupB;
     };
 
+    /**
+     * Callback used to signal contacts.
+     *
+     * @param contact_point Contact data
+     * @param user_data User data supplied to the collision query
+     * @return If the contact signaling should be continued or not
+     */
     typedef bool (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
 
     /**
@@ -57,99 +111,236 @@ namespace dmPhysics
     {
         NewContextParams();
 
-        /// Number of worlds the context supports
+        /// Number of 3D worlds the context supports
         uint32_t m_WorldCount;
     };
 
     /**
-     * Create a new physics context.
+     * Create a new physics 3D context.
+     *
+     * @param params Parameters describing the context
      * @return the new context
      */
-    HContext NewContext(const NewContextParams& params);
+    HContext3D NewContext3D(const NewContextParams& params);
 
     /**
-     * Destroy a physics context.
+     * Create a new physics 2D context.
+     *
+     * @param params Parameters describing the context
+     * @return the new context
+     */
+    HContext2D NewContext2D(const NewContextParams& params);
+
+    /**
+     * Destroy a 3D context.
+     *
      * @param context Context to delete
      */
-    void DeleteContext(HContext context);
+    void DeleteContext3D(HContext3D context);
 
     /**
-     * Create a new physics world
+     * Destroy a 2D context.
+     *
+     * @param context Context to delete
+     */
+    void DeleteContext2D(HContext2D context);
+
+    /**
+     * Parameters to use when creating a world.
+     */
+    struct NewWorldParams
+    {
+        NewWorldParams();
+
+        /// World gravity
+        Vectormath::Aos::Vector3 m_Gravity;
+        /// world_min World min (AABB)
+        Vectormath::Aos::Point3 m_WorldMin;
+        /// world_max World max (AABB)
+        Vectormath::Aos::Point3 m_WorldMax;
+        /// param get_world_transform Callback for copying the transform from the corresponding user data to the collision object
+        GetWorldTransformCallback m_GetWorldTransformCallback;
+        /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
+        SetWorldTransformCallback m_SetWorldTransformCallback;
+        /// callback to use when reporting collisions
+        CollisionCallback m_CollisionCallback;
+        /// user data to pass along to the collision callback function
+        void* m_CollisionCallbackUserData;
+        /// callback to use when reporting contact points
+        ContactPointCallback m_ContactPointCallback;
+        /// user data to pass along to the contact point callback function
+        void* m_ContactPointCallbackUserData;
+    };
+
+    /**
+     * Create a new 3D physics world
+     *
+     * @return 3D world
+     */
+    HWorld3D NewWorld3D(HContext3D context, const NewWorldParams& params);
+
+    /**
+     * Create a new 2D physics world
+     *
      * @param world_min World min (AABB)
      * @param world_max World max (AABB)
      * @param get_world_transform Callback for copying the transform from the corresponding user data to the collision object
      * @param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
-     * @return HPhysicsWorld
+     * @return 2D world
      */
-    HWorld NewWorld(HContext context, const Vectormath::Aos::Point3& world_min, const Vectormath::Aos::Point3& world_max, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform);
+    HWorld2D NewWorld2D(HContext2D context, const NewWorldParams& params);
 
     /**
-     * Delete a physics world
+     * Delete a 3D physics world
+     *
      * @param world Physics world
      */
-    void DeleteWorld(HContext context, HWorld world);
+    void DeleteWorld3D(HContext3D context, HWorld3D world);
 
     /**
-     * Simulate physics
+     * Delete a 2D physics world
+     *
      * @param world Physics world
-     * @param dt Time step
      */
-    void StepWorld(HWorld world, float dt);
+    void DeleteWorld2D(HContext2D context, HWorld2D world);
 
     /**
-     * Call callback functions for each collision and contact
+     * Simulate 3D physics
+     *
+     * @param world Physics world
+     * @param dt Time step in seconds
+     */
+    void StepWorld3D(HWorld3D world, float dt);
+
+    /**
+     * Simulate 2D physics
+     *
+     * @param world Physics world
+     * @param dt Time step in seconds
+     */
+    void StepWorld2D(HWorld2D world, float dt);
+
+    /**
+     * Call callback functions for each collision in a 3D physics world.
+     *
      * @param world Physics world
      * @param collision_callback Collision callback function, called once per collision pair
      * @param collision_callback_user_data User data passed to collision_callback
+     */
+    void SetCollisionCallback3D(HWorld3D world, CollisionCallback collision_callback, void* collision_callback_user_data);
+
+    /**
+     * Set callback functions for each collision in a 2D physics world.
+     *
+     * @param world Physics world
+     * @param collision_callback Collision callback function, called once per collision pair
+     * @param collision_callback_user_data User data passed to collision_callback
+     */
+    void SetCollisionCallback2D(HWorld2D world, CollisionCallback collision_callback, void* collision_callback_user_data);
+
+    /**
+     * Call callback functions for each contact in a 3D physics world.
+     *
+     * @param world Physics world
      * @param contact_point_callback Contact point callback function, called once per contact point
      * @param contact_point_callback_user_data User data passed to contact_point_callback
      */
-    void ForEachCollision(HWorld world,
-            CollisionCallback collision_callback,
-            void* collision_callback_user_data,
-            ContactPointCallback contact_point_callback,
-            void* contact_point_callback_user_data);
+    void SetContactPointCallback3D(HWorld3D world, ContactPointCallback contact_point_callback, void* contact_point_callback_user_data);
 
     /**
-     * Draws the world using the callback function registered through SetDebugRenderer.
+     * Set callback functions for each contact in a 2D physics world.
+     *
+     * @param world Physics world
+     * @param contact_point_callback Contact point callback function, called once per contact point
+     * @param contact_point_callback_user_data User data passed to contact_point_callback
      */
-    void DebugRender(HWorld world);
+    void SetContactPointCallback2D(HWorld2D world, ContactPointCallback contact_point_callback, void* contact_point_callback_user_data);
 
     /**
-     * Create a new sphere shape
+     * Draws the 3D world using the callback function registered through SetDebugCallbacks.
+     *
+     * @param world Physics world
+     */
+    void DrawDebug3D(HWorld3D world);
+
+    /**
+     * Draws the 2D world using the callback function registered through SetDebugCallbacks.
+     *
+     * @param world Physics world
+     */
+    void DrawDebug2D(HWorld2D world);
+
+    /**
+     * Create a new 3D sphere shape.
+     *
      * @param radius Sphere radius
      * @return Shape
      */
-    HCollisionShape NewSphereShape(float radius);
+    HCollisionShape3D NewSphereShape3D(float radius);
 
     /**
-     * Create a new box shape
+     * Create a new 2D circle shape
+     *
+     * @param radius Circle radius
+     * @return Shape
+     */
+    HCollisionShape2D NewCircleShape2D(float radius);
+
+    /**
+     * Create a new 3D box shape
+     *
      * @param half_extents Box half extents
      * @return Shape
      */
-    HCollisionShape NewBoxShape(const Vectormath::Aos::Vector3& half_extents);
+    HCollisionShape3D NewBoxShape3D(const Vectormath::Aos::Vector3& half_extents);
 
     /**
-     * Create a new capsule shape
+     * Create a new 2D box shape
+     *
+     * @param half_extents Box half extents
+     * @return Shape
+     */
+    HCollisionShape2D NewBoxShape2D(const Vectormath::Aos::Vector3& half_extents);
+
+    /**
+     * Create a new 3D capsule shape
      * @param radius Radius of top and bottom half-spheres of the capsule
      * @param height Height of the capsule; the distance between the two half-spheres
      * @return Shape
      */
-    HCollisionShape NewCapsuleShape(float radius, float height);
+    HCollisionShape3D NewCapsuleShape3D(float radius, float height);
 
     /**
-     * Create a new convex hull shape
+     * Create a new 3D convex hull shape
+     *
      * @param vertices Vertices. x0, y0, z0, x1, ...
      * @param vertex_count Vertex count
      * @return Shape
      */
-    HCollisionShape NewConvexHullShape(const float* vertices, uint32_t vertex_count);
+    HCollisionShape3D NewConvexHullShape3D(const float* vertices, uint32_t vertex_count);
 
     /**
-     * Delete a shape
+     * Create a new 2D polygon shape
+     *
+     * @param vertices Vertices. x0, y0, x1, ...
+     * @param vertex_count Vertex count
+     * @return Shape
+     */
+    HCollisionShape2D NewPolygonShape2D(const float* vertices, uint32_t vertex_count);
+
+    /**
+     * Delete a 3D shape
+     *
      * @param shape Shape
      */
-    void DeleteCollisionShape(HCollisionShape shape);
+    void DeleteCollisionShape3D(HCollisionShape3D shape);
+
+    /**
+     * Delete a 2D shape
+     *
+     * @param shape Shape
+     */
+    void DeleteCollisionShape2D(HCollisionShape2D shape);
 
     /**
      * Data for collision object construction.
@@ -158,8 +349,6 @@ namespace dmPhysics
     {
         CollisionObjectData();
 
-        /// Shape
-        HCollisionShape m_Shape;
         /// User data
         void* m_UserData;
         /// Type of collision object, default is COLLISION_OBJECT_TYPE_DYNAMIC
@@ -177,91 +366,188 @@ namespace dmPhysics
     };
 
     /**
-     * Create a new collision object
+     * Create a new 3D collision object
+     *
+     * @note If the world has a registered callback to retrieve the world transform, it will be called to initialize the collision object.
+     *
      * @param world Physics world
      * @param data @see CollisionObjectData
      * @return A new collision object
      */
-    HCollisionObject NewCollisionObject(HWorld world, const CollisionObjectData& data);
+    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D shape);
 
     /**
-     * Delete a collision object
+     * Create a new 2D collision object
+     *
+     * @note If the world has a registered callback to retrieve the world transform, it will be called to initialize the collision object.
+     *
+     * @param world Physics world
+     * @param data @see CollisionObjectData
+     * @return A new collision object
+     */
+    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D shape);
+
+    /**
+     * Delete a 3D collision object
+     *
      * @param world Physics world
      * @param collision_object Collision object to delete
      */
-    void DeleteCollisionObject(HWorld world, HCollisionObject collision_object);
+    void DeleteCollisionObject3D(HWorld3D world, HCollisionObject3D collision_object);
 
     /**
-     * Retrieve the shape of a collision object.
+     * Delete a 2D collision object
+     *
+     * @param world Physics world
+     * @param collision_object Collision object to delete
+     */
+    void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object);
+
+    /**
+     * Retrieve the shape of a 3D collision object.
+     *
      * @param collision_object Collision object
      * @return Collision shape
      */
-    HCollisionShape GetCollisionShape(HCollisionObject collision_object);
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object);
 
     /**
-     * Set collision object initial transform
+     * Retrieve the shape of a 2D collision object.
+     *
      * @param collision_object Collision object
-     * @param position Initial position
-     * @param orientation Initial orientation
+     * @return Collision shape
      */
-    void SetCollisionObjectInitialTransform(HCollisionObject collision_object, Vectormath::Aos::Point3 position, Vectormath::Aos::Quat orientation);
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object);
 
     /**
-     * Set collision object user data
+     * Set 3D collision object user data
+     *
      * @param collision_object Collision object
      * @param user_data User data
      */
-    void SetCollisionObjectUserData(HCollisionObject collision_object, void* user_data);
+    void SetCollisionObjectUserData3D(HCollisionObject3D collision_object, void* user_data);
 
     /**
-     * Set collision object user data
+     * Set 2D collision object user data
+     *
+     * @param collision_object Collision object
+     * @param user_data User data
+     */
+    void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data);
+
+    /**
+     * Set 3D collision object user data
+     *
      * @param collision_object Collision object
      * @return User data
      */
-    void* GetCollisionObjectUserData(HCollisionObject collision_object);
+    void* GetCollisionObjectUserData3D(HCollisionObject3D collision_object);
 
     /**
-     * Apply a force to the specified collision object at the specified position
+     * Set 2D collision object user data
+     *
+     * @param collision_object Collision object
+     * @return User data
+     */
+    void* GetCollisionObjectUserData2D(HCollisionObject2D collision_object);
+
+    /**
+     * Apply a force to the specified 3D collision object at the specified position
+     *
      * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
      * @param force Force to be applied (world space)
      * @param position Position of where the force will be applied (world space)
      */
-    void ApplyForce(HCollisionObject collision_object, Vectormath::Aos::Vector3 force, Vectormath::Aos::Point3 position);
+    void ApplyForce3D(HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
-     * Return the total force currently applied to the specified collision object.
+     * Apply a force to the specified 2D collision object at the specified position
+     *
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param force Force to be applied (world space)
+     * @param position Position of where the force will be applied (world space)
+     */
+    void ApplyForce2D(HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+
+    /**
+     * Return the total force currently applied to the specified 3D collision object.
+     *
      * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
      * @return The total force (world space).
      */
-    Vectormath::Aos::Vector3 GetTotalForce(HCollisionObject collision_object);
+    Vectormath::Aos::Vector3 GetTotalForce3D(HCollisionObject3D collision_object);
 
     /**
-     * Return the world position of the specified collision object.
+     * Return the total force currently applied to the specified 2D collision object.
+     *
+     * @param collision_object Which collision object to inspect. For objects with another type than COLLISION_OBJECT_TYPE_DYNAMIC, the force will always be of zero size.
+     * @return The total force (world space).
+     */
+    Vectormath::Aos::Vector3 GetTotalForce2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return the world position of the specified 3D collision object.
+     *
      * @param collision_object Collision object handle
      * @return The world space position
      */
-    Vectormath::Aos::Point3 GetWorldPosition(HCollisionObject collision_object);
+    Vectormath::Aos::Point3 GetWorldPosition3D(HCollisionObject3D collision_object);
 
     /**
-     * Return the world rotation of the specified collision object.
+     * Return the world position of the specified 2D collision object.
+     *
+     * @param collision_object Collision object handle
+     * @return The world space position
+     */
+    Vectormath::Aos::Point3 GetWorldPosition2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return the world rotation of the specified 3D collision object.
+     *
      * @param collision_object Collision object handle
      * @return The world space rotation
      */
-    Vectormath::Aos::Quat GetWorldRotation(HCollisionObject collision_object);
+    Vectormath::Aos::Quat GetWorldRotation3D(HCollisionObject3D collision_object);
 
     /**
-     * Return the linear velocity of the collision object.
+     * Return the world rotation of the specified 2D collision object.
+     *
+     * @param collision_object Collision object handle
+     * @return The world space rotation
+     */
+    Vectormath::Aos::Quat GetWorldRotation2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return the linear velocity of the 3D collision object.
+     *
      * @param collision_object
      * @return The linear velocity.
      */
-    Vectormath::Aos::Vector3 GetLinearVelocity(HCollisionObject collision_object);
+    Vectormath::Aos::Vector3 GetLinearVelocity3D(HCollisionObject3D collision_object);
 
     /**
-     * Return the linear velocity of the collision object.
+     * Return the linear velocity of the 2D collision object.
+     *
+     * @param collision_object
+     * @return The linear velocity.
+     */
+    Vectormath::Aos::Vector3 GetLinearVelocity2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return the linear velocity of the 3D collision object.
+     *
      * @param collision_object
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
-    Vectormath::Aos::Vector3 GetAngularVelocity(HCollisionObject collision_object);
+    Vectormath::Aos::Vector3 GetAngularVelocity3D(HCollisionObject3D collision_object);
+
+    /**
+     * Return the linear velocity of the 2D collision object.
+     *
+     * @param collision_object
+     * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
+     */
+    Vectormath::Aos::Vector3 GetAngularVelocity2D(HCollisionObject2D collision_object);
 
     struct RayCastRequest;
     struct RayCastResponse;
@@ -313,32 +599,88 @@ namespace dmPhysics
         void* m_CollisionObjectUserData;
         /// Group of the object the ray hit
         uint16_t m_CollisionObjectGroup;
-        /// If the ray hit something or not
+        /// If the ray hit something or not. If this is false, all other fields are invalid
         uint16_t m_Hit : 1;
     };
 
     /**
-     * Request a ray cast that will be performed the next time the world is updated
+     * Request a ray cast that will be performed the next time the 3D world is updated
+     *
      * @param world Physics world in which to perform the ray cast
      * @param request Struct containing data for the query
      */
-    void RequestRayCast(HWorld world, const RayCastRequest& request);
+    void RequestRayCast3D(HWorld3D world, const RayCastRequest& request);
 
-    typedef void (*RenderLine)(void* context, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
     /**
-     * Registers a callback function used to render lines when debugging is turned on.
-     * @param ctx Context that will be supplied to the RenderLine callback.
-     * @param render_line Callback used to render lines.
+     * Request a ray cast that will be performed the next time the 2D world is updated
+     *
+     * @param world Physics world in which to perform the ray cast
+     * @param request Struct containing data for the query
      */
-    void SetDebugRenderer(void* context, RenderLine render_line);
+    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request);
 
     /**
-     * Replace a shape with another shape for all collision objects connected to that shape.
+     * Callbacks used to draw the world for debugging purposes.
+     */
+    struct DebugCallbacks
+    {
+        DebugCallbacks();
+
+        /**
+         * Callback to draw multiple lines.
+         *
+         * @param points Array of points to draw. For n points, n/2 lines will be drawn between points <0,1>, <2,3>, etc.
+         * @param point_count Number of points to draw, minimum is 2
+         * @param color Color of the lines
+         * @param user_data User data as supplied when registering the drawing callbacks
+         */
+        void (*m_DrawLines)(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data);
+        /**
+         * Callback to draw multiple triangles.
+         *
+         * @param points Array of points to draw. For n points, n/3 triangles will be drawn between points <0,1,2>, <3,4,5>, etc.
+         * @param point_count Number of points to draw, minimum is 3
+         * @param color Color of the lines
+         * @param user_data User data as supplied when registering the drawing callbacks
+         */
+        void (*m_DrawTriangles)(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data);
+        /// User data to be supplied to the callbacks
+        void* m_UserData;
+    };
+
+    /**
+     * Set functions to use when drawing debug data.
+     *
+     * @param context Context for which to set callbacks
+     * @param callbacks New callback functions
+     */
+    void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks);
+
+    /**
+     * Set functions to use when drawing debug data.
+     *
+     * @param context Context for which to set callbacks
+     * @param callbacks New callback functions
+     */
+    void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks);
+
+    /**
+     * Replace a shape with another shape for all 3D collision objects connected to that shape.
+     *
      * @param context Context in which to replace shapes
      * @param old_shape The shape to disconnect
      * @param new_shape The shape to connect
      */
-    void ReplaceShape(HContext context, HCollisionShape old_shape, HCollisionShape new_shape);
+    void ReplaceShape3D(HContext3D context, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+
+    /**
+     * Replace a shape with another shape for all 2D collision objects connected to that shape.
+     *
+     * @param context Context in which to replace shapes
+     * @param old_shape The shape to disconnect
+     * @param new_shape The shape to connect
+     */
+    void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
 }
 
 #endif // PHYSICS_H

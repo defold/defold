@@ -5,8 +5,9 @@
 
 namespace PhysicsDebugRender
 {
-    void RenderLine(void* context, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color)
+    void DrawLines(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data)
     {
-        dmRender::Line3D((dmRender::HRenderContext)context, p0, p1, color, color);
+        for (uint32_t i = 0; i < point_count/2; ++i)
+            dmRender::Line3D((dmRender::HRenderContext)user_data, points[2*i], points[2*i+1], color, color);
     }
 }

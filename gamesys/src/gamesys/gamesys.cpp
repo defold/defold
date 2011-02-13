@@ -54,7 +54,7 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context, dmPhysics::HContext physics_context)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::FactoryResult e;
 
@@ -204,7 +204,7 @@ namespace dmGameSystem
         }
     }
 
-    void RequestRayCast(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
+    void RequestRayCast3D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
     {
         // Request ray cast
         dmPhysics::RayCastRequest request;
@@ -225,9 +225,34 @@ namespace dmGameSystem
         void* world = dmGameObject::FindWorld(collection, type);
         if (world != 0x0)
         {
-            dmPhysics::HWorld physics_world = (dmPhysics::HWorld) world;
-            dmPhysics::RequestRayCast(physics_world, request);
+            dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) world;
+            dmPhysics::RequestRayCast3D(physics_world, request);
         }
     }
 
+    void RequestRayCast2D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
+    {
+        // Request ray cast
+        dmPhysics::RayCastRequest request;
+        request.m_From = from;
+        request.m_To = to;
+        request.m_IgnoredUserData = instance;
+        request.m_Mask = mask;
+        request.m_UserId = dmGameObject::GetIdentifier(instance);
+        request.m_UserData = (void*)collection;
+        request.m_Callback = &RayCastCallback;
+
+        uint32_t type;
+        dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
+        if (fact_result != dmResource::FACTORY_RESULT_OK)
+        {
+            dmLogWarning("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
+        }
+        void* world = dmGameObject::FindWorld(collection, type);
+        if (world != 0x0)
+        {
+            dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) world;
+            dmPhysics::RequestRayCast2D(physics_world, request);
+        }
+    }
 }

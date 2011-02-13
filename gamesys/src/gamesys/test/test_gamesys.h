@@ -96,7 +96,8 @@ void GamesysTest<T>::SetUp()
     m_InputContext = dmInput::NewContext(0.3f, 0.1f);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
-    m_PhysicsContext.m_Context = dmPhysics::NewContext(dmPhysics::NewContextParams());
+    m_PhysicsContext.m_3D = true;
+    m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
 
     memset(&m_EmitterContext, 0, sizeof(m_EmitterContext));
     m_EmitterContext.m_RenderContext = m_RenderContext;
@@ -104,7 +105,7 @@ void GamesysTest<T>::SetUp()
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
 
-    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext, m_PhysicsContext.m_Context));
+    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext, &m_PhysicsContext));
 
     dmResource::Get(m_Factory, "input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);
@@ -129,5 +130,5 @@ void GamesysTest<T>::TearDown()
     dmGameObject::Finalize();
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);
-    dmPhysics::DeleteContext(m_PhysicsContext.m_Context);
+    dmPhysics::DeleteContext3D(m_PhysicsContext.m_Context3D);
 }

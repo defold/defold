@@ -9,7 +9,12 @@ namespace dmGameSystem
 {
     struct ConvexShapeResource
     {
-        dmPhysics::HCollisionShape m_Shape;
+        union
+        {
+            dmPhysics::HCollisionShape3D m_Shape3D;
+            dmPhysics::HCollisionShape2D m_Shape2D;
+        };
+        bool m_3D;
     };
 
     dmResource::CreateResult ResConvexShapeCreate(dmResource::HFactory factory,

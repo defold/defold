@@ -1,11 +1,12 @@
 #ifndef GAME_PHYSICS_DEBUG_RENDER_H
 #define GAME_PHYSICS_DEBUG_RENDER_H
 
+#include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 namespace PhysicsDebugRender
 {
-    void RenderLine(void* context, Vectormath::Aos::Point3 p0, Vectormath::Aos::Point3 p1, Vectormath::Aos::Vector4 color);
+    void DrawLines(Vectormath::Aos::Point3* points, uint32_t point_count, Vectormath::Aos::Vector4 color, void* user_data);
 }
 
 #endif

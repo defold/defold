@@ -113,8 +113,9 @@ namespace dmEngine
         m_Collections.SetCapacity(16, 32);
         m_InputBuffer.SetCapacity(64);
 
-        m_PhysicsContext.m_Context = 0x0;
+        m_PhysicsContext.m_Context3D = 0x0;
         m_PhysicsContext.m_Debug = false;
+        m_PhysicsContext.m_3D = true;
         m_EmitterContext.m_Debug = false;
         m_GuiRenderContext.m_GuiContext = 0x0;
         m_GuiRenderContext.m_RenderContext = 0x0;
@@ -162,8 +163,13 @@ namespace dmEngine
         if (engine->m_GuiSocket)
             dmMessage::DeleteSocket(engine->m_GuiSocket);
 
-        if (engine->m_PhysicsContext.m_Context)
-            dmPhysics::DeleteContext(engine->m_PhysicsContext.m_Context);
+        if (engine->m_PhysicsContext.m_Context3D)
+        {
+            if (engine->m_PhysicsContext.m_3D)
+                dmPhysics::DeleteContext3D(engine->m_PhysicsContext.m_Context3D);
+            else
+                dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
+        }
 
         dmProfile::Finalize();
 
@@ -247,8 +253,6 @@ namespace dmEngine
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 
-        dmPhysics::SetDebugRenderer(engine->m_RenderContext, PhysicsDebugRender::RenderLine);
-
         float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
@@ -267,8 +271,27 @@ namespace dmEngine
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
-        engine->m_PhysicsContext.m_Context = dmPhysics::NewContext(physics_params);
-        engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(config, "physics.world_count", 0);
+        const char* physics_type = dmConfigFile::GetString(config, "physics.type", "3D");
+        if (strncmp(physics_type, "3D", 2) == 0)
+        {
+            engine->m_PhysicsContext.m_3D = true;
+            engine->m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(physics_params);
+        }
+        else if (strncmp(physics_type, "2D", 2) == 0)
+        {
+            engine->m_PhysicsContext.m_3D = false;
+            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+        }
+        engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(config, "physics.debug", 0);
+
+        dmPhysics::DebugCallbacks debug_callbacks;
+        debug_callbacks.m_UserData = engine->m_RenderContext;
+        debug_callbacks.m_DrawLines = PhysicsDebugRender::DrawLines;
+        debug_callbacks.m_DrawTriangles = 0x0;
+        if (engine->m_PhysicsContext.m_3D)
+            dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
+        else
+            dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 64);
@@ -279,7 +302,7 @@ namespace dmEngine
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext, engine->m_InputContext, engine->m_PhysicsContext.m_Context);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
@@ -612,7 +635,10 @@ bail:
                 collection = self->m_ActiveCollection;
             }
             dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)instance_message_data->m_Buffer;
-            dmGameSystem::RequestRayCast(collection, instance_message_data->m_Instance, ddf->m_From, ddf->m_To, ddf->m_Mask);
+            if (self->m_PhysicsContext.m_3D)
+                dmGameSystem::RequestRayCast3D(collection, instance_message_data->m_Instance, ddf->m_From, ddf->m_To, ddf->m_Mask);
+            else
+                dmGameSystem::RequestRayCast2D(collection, instance_message_data->m_Instance, ddf->m_From, ddf->m_To, ddf->m_Mask);
         }
         else
         {
