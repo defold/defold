@@ -17,6 +17,8 @@
     </path>
     <target name="init">
         <mkdir dir="build/classes" />
+        <exec executable="./scripts/build_proto.sh">
+        </exec>
         <copy includeemptydirs="false" todir="build/classes">
             <fileset dir="src">
                 <exclude name="**/*.launch" />
@@ -36,12 +38,7 @@
     	<delete file="build/${warfile}.war"/>
     </target>
 
-    <target name="proto">
-    	<exec executable="./scripts/build_proto.sh">
-    	</exec>
-    </target>
-
-    <target depends="init,proto" name="build">
+    <target depends="init" name="build">
         <echo message="${ant.project.name}: ${ant.file}" />
         <javac debug="true" debuglevel="${debuglevel}" destdir="build/classes" source="${source}" target="${target}">
             <src path="generated" />
