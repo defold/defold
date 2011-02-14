@@ -32,9 +32,16 @@
     </target>
     <target name="clean">
         <delete dir="build/classes" />
+        <delete dir="generated/com" />
     	<delete file="build/${warfile}.war"/>
     </target>
-    <target depends="init" name="build">
+
+    <target name="proto">
+    	<exec executable="./scripts/build_proto.sh">
+    	</exec>
+    </target>
+
+    <target depends="init,proto" name="build">
         <echo message="${ant.project.name}: ${ant.file}" />
         <javac debug="true" debuglevel="${debuglevel}" destdir="build/classes" source="${source}" target="${target}">
             <src path="generated" />
