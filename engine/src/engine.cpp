@@ -178,18 +178,32 @@ namespace dmEngine
 
     bool Init(HEngine engine, int argc, char *argv[])
     {
-        const char* project_file;
-
+        const char* default_project_files[] =
+        {
+            "build/default/game.projectc",
+            "build/default/content/game.projectc"
+        };
+        const char** project_files = default_project_files;
+        uint32_t project_file_count = 2;
         if (argc > 1 && argv[argc-1][0] != '-')
-            project_file = argv[argc-1];
-        else
-            project_file = "build/default/content/game.projectc";
+        {
+            project_files = (const char**)&argv[argc-1];
+            project_file_count = 1;
+        }
 
         dmConfigFile::HConfig config;
-        dmConfigFile::Result config_result = dmConfigFile::Load(project_file, argc, (const char**) argv, &config);
+        dmConfigFile::Result config_result = dmConfigFile::RESULT_FILE_NOT_FOUND;
+        uint32_t current_project_file = 0;
+        while (config_result != dmConfigFile::RESULT_OK && current_project_file < project_file_count)
+        {
+            config_result = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &config);
+            ++current_project_file;
+        }
         if (config_result != dmConfigFile::RESULT_OK)
         {
-            dmLogFatal("Unable to load %s", project_file);
+            dmLogFatal("Unable to load project file from any of the locations:");
+            for (uint32_t i = 0; i < project_file_count; ++i)
+                dmLogFatal("%s", project_files[i]);
             return false;
         }
         const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
