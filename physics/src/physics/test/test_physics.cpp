@@ -1,5 +1,7 @@
 #include "test_physics.h"
 
+#include <dlib/math.h>
+
 using namespace Vectormath::Aos;
 
 VisualObject::VisualObject()
