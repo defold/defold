@@ -5,8 +5,8 @@ public class Constants
     public static double FOV = 35.0;
     public static float BACKGROUND_COLOR[] = new float[] { 166.0f/255, 166.0f/255, 166.0f/255 };
 
-    public static float OBJECT_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
-    public static float SELECTED_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
+    public static float OBJECT_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
+    public static float SELECTED_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
 
     public static float PHYSICS_OBJECT_COLOR[] = new float[] { 255.0f/255, 30.0f/255, 30.0f/255 };
 
