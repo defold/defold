@@ -85,6 +85,7 @@ import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
 import com.dynamo.cr.contenteditor.resource.CameraLoader;
 import com.dynamo.cr.contenteditor.resource.LightLoader;
 import com.dynamo.cr.contenteditor.resource.ResourceLoaderFactory;
+import com.dynamo.cr.contenteditor.resource.SpriteLoader;
 import com.dynamo.cr.contenteditor.resource.TextureLoader;
 import com.dynamo.cr.contenteditor.scene.CameraNodeLoader;
 import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
@@ -97,6 +98,7 @@ import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Scene;
 import com.dynamo.cr.contenteditor.scene.SceneEvent;
 import com.dynamo.cr.contenteditor.scene.ScenePropertyChangedEvent;
+import com.dynamo.cr.contenteditor.scene.SpriteNodeLoader;
 import com.dynamo.cr.contenteditor.util.GLUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 
@@ -225,6 +227,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         resourceFactory.addLoader(new TextureLoader(), "png");
         resourceFactory.addLoader(new CameraLoader(), "camera");
         resourceFactory.addLoader(new LightLoader(), "light");
+        resourceFactory.addLoader(new SpriteLoader(), "sprite");
         factory = new NodeLoaderFactory(resourceFactory);
         factory.addLoader(new CollectionNodeLoader(), "collection");
         factory.addLoader(new PrototypeNodeLoader(), "go");
@@ -232,6 +235,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         factory.addLoader(new MeshNodeLoader(), "dae");
         factory.addLoader(new CameraNodeLoader(), "camera");
         factory.addLoader(new LightNodeLoader(), "light");
+        factory.addLoader(new SpriteNodeLoader(), "sprite");
 
         try
         {
