@@ -14,6 +14,12 @@ import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -46,7 +52,7 @@ import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.GeneratedMessage.Builder;
 import com.google.protobuf.TextFormat;
 
-public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener {
+public abstract class DdfEditor extends EditorPart implements IOperationHistoryListener, IResourceChangeListener {
 
     private MessageNode message;
     private UndoContext undoContext;
@@ -63,6 +69,12 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         this.resourceType = regist.getResourceTypeFromExtension(extension);
         if (this.resourceType == null)
             throw new RuntimeException("Missing resource type for: " + extension);
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
     public void executeOperation(IUndoableOperation operation) {
@@ -104,6 +116,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
 
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
         setSite(site);
         setInput(input);
         setPartName(input.getName());
@@ -190,7 +203,41 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
-        firePropertyChange(PROP_DIRTY);
+        Display display = Display.getDefault();
+        display.asyncExec(new Runnable() {
+            @Override
+            public void run() {
+                firePropertyChange(PROP_DIRTY);
+            }
+        });
     }
 
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+
+        final IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        try {
+            event.getDelta().accept(new IResourceDeltaVisitor() {
+
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    if ((delta.getKind() & IResourceDelta.REMOVED) == IResourceDelta.REMOVED) {
+                        IResource resource = delta.getResource();
+                        if (resource.equals(input.getFile())) {
+                            getSite().getShell().getDisplay().asyncExec(new Runnable() {
+                                @Override
+                                public void run() {
+                                    getSite().getPage().closeEditor(DdfEditor.this, false);
+                                }
+                            });
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            });
+        } catch (CoreException e) {
+            e.printStackTrace();
+        }
+    }
 }
