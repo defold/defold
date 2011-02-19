@@ -9,6 +9,8 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.CellEditor;
+import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
 import org.eclipse.jface.viewers.ICellEditorListener;
 import org.eclipse.jface.viewers.ICellModifier;
 import org.eclipse.jface.viewers.ISelection;
@@ -17,6 +19,7 @@ import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.TreeViewer;
+import org.eclipse.jface.viewers.TreeViewerColumn;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.jface.viewers.ViewerSorter;
@@ -48,6 +51,7 @@ import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
+import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
 import com.dynamo.cr.contenteditor.scene.Node;
@@ -95,8 +99,8 @@ class EditorOutlinePageContentProvider implements ITreeContentProvider
     }
 }
 
-class EditorOutlineLabelProvider extends LabelProvider
-{
+
+class EditorOutlineLabelProvider extends ColumnLabelProvider {
     Map<String, Image> extensionToImage = new HashMap<String, Image>();
 
     @Override
@@ -134,6 +138,10 @@ class EditorOutlineLabelProvider extends LabelProvider
         {
             return regist.get(Activator.MESH_IMAGE_ID);
         }
+        else if (element instanceof BrokenNode)
+        {
+            return regist.get(Activator.BROKEN_IMAGE_ID);
+        }
         else if (element instanceof ComponentNode)
         {
             ComponentNode componentNode = (ComponentNode) element;
@@ -148,6 +156,15 @@ class EditorOutlineLabelProvider extends LabelProvider
         }
 
         return super.getImage(element);
+    }
+
+    @Override
+    public String getToolTipText(Object element) {
+        if (element instanceof BrokenNode) {
+            BrokenNode brokenNode = (BrokenNode) element;
+            return brokenNode.getErrorMessage();
+        }
+        return "X: " + element.toString();
     }
 }
 
@@ -225,8 +242,17 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
     {
         super.createControl(parent);
         final TreeViewer viewer= getTreeViewer();
+        ColumnViewerToolTipSupport.enableFor(viewer);
+
+        viewer.getTree().setHeaderVisible(true);
         viewer.setContentProvider(new EditorOutlinePageContentProvider());
-        viewer.setLabelProvider(new EditorOutlineLabelProvider());
+        viewer.setLabelProvider(new LabelProvider());
+        TreeViewerColumn column = new TreeViewerColumn(viewer, SWT.NONE);
+        column.getColumn().setText("Game Object");
+
+        column.setLabelProvider(new EditorOutlineLabelProvider());
+        column.getColumn().setWidth(240);
+
         viewer.setSorter(new ViewerSorter() {
             public int compare(Viewer viewer, Object e1, Object e2)
             {

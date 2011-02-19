@@ -3,6 +3,9 @@ package com.dynamo.cr.contenteditor.editors;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileStore;
@@ -59,6 +62,23 @@ public class NodeLoaderFactory extends AbstractNodeLoaderFactory {
     public boolean findContentRoot(IFile file) {
         this.contentRoot = EditorUtil.findContentRoot(file);
         return this.contentRoot != null;
+    }
+
+    ArrayList<String> errors = new ArrayList<String>();
+
+    @Override
+    public void reportError(String message) {
+        this.errors.add(message);
+    }
+
+    @Override
+    public void clearErrors() {
+        this.errors.clear();
+    }
+
+    @Override
+    public List<String> getErrors() {
+        return Collections.unmodifiableList(errors);
     }
 
 }

@@ -46,6 +46,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
@@ -67,9 +68,11 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.opengl.GLCanvas;
 import org.eclipse.swt.opengl.GLData;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -209,6 +212,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         public void run(IProgressMonitor monitor)
                 throws InvocationTargetException, InterruptedException {
             try {
+                factory.clearErrors();
                 node = factory.load(monitor, m_Scene, path);
             } catch (Throwable e) {
                 this.exception = e;
@@ -258,6 +262,47 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 service.runInUI(service, runnable, null);
                 if (runnable.exception != null)
                     throw runnable.exception;
+
+                List<String> errors = factory.getErrors();
+                if (errors.size() > 0) {
+                    final StringBuilder errorMessage = new StringBuilder();
+                    for (String e : errors) {
+                        errorMessage.append(e);
+                        errorMessage.append("\n");
+                    }
+                    MessageDialog dialog = new MessageDialog(getSite().getShell(),
+                                            "Open Collection",
+                                            null,
+                                            "The following errors occurred while opening the collection",
+                                            MessageDialog.WARNING,
+                                            new String[] { "Ok" },
+                                            0) {
+                        @Override
+                        protected Control createCustomArea(Composite parent) {
+
+                            setShellStyle(getShellStyle() | SWT.RESIZE);
+                            Composite comp = new Composite(parent, 0);
+                            GridLayout layout = new GridLayout();
+                            layout.marginHeight = 0;
+                            layout.marginWidth = 0;
+                            layout.marginLeft = 2;
+                            layout.numColumns = 1;
+                            layout.verticalSpacing = 9;
+                            comp.setLayout(layout);
+                            comp.setLayoutData(new GridData(GridData.FILL_BOTH));
+
+                            Text text = new Text(comp, SWT.BORDER | SWT.MULTI
+                                    | SWT.V_SCROLL);
+                            text.setText(errorMessage.toString());
+                            GridData data = new GridData(500, 300);
+                            text.setLayoutData(data);
+                            return comp;
+                        }
+                    };
+                    dialog.open();
+                }
+
+                factory.clearErrors();
 
                 m_Root = runnable.node;
                 m_Scene.addSceneListener(this);

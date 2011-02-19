@@ -33,7 +33,14 @@ public class CollectionNodeLoader implements INodeLoader {
         Map<String, Node> idToNode = new HashMap<String, Node>();
         CollectionNode node = new CollectionNode(scene, desc.m_Name, name);
         for (InstanceDesc id : desc.m_Instances) {
-            Node prototype = factory.load(monitor, scene, id.m_Prototype);
+            Node prototype;
+            try {
+                prototype = factory.load(monitor, scene, id.m_Prototype);
+            }
+            catch (IOException e) {
+                prototype = new BrokenNode(scene, id.m_Prototype, e.getMessage());
+                factory.reportError(e.getMessage());
+            }
             monitor.worked(1);
 
             InstanceNode in = new InstanceNode(scene, id.m_Id, id.m_Prototype, prototype);

@@ -18,6 +18,7 @@ public class Activator extends AbstractUIPlugin {
     public static final String MESH_IMAGE_ID = "MESH";
     public static final String MOVE_IMAGE_ID = "MOVE";
     public static final String ROTATE_IMAGE_ID = "ROTATE";
+    public static final String BROKEN_IMAGE_ID = "BROKEN";
 
     private static Activator plugin;
 
@@ -55,6 +56,7 @@ public class Activator extends AbstractUIPlugin {
         registry.put(MESH_IMAGE_ID, getImageDescriptor("icons/page_gear.png"));
         registry.put(MOVE_IMAGE_ID, getImageDescriptor("icons/move.png"));
         registry.put(ROTATE_IMAGE_ID, getImageDescriptor("icons/rotate_cw.png"));
+        registry.put(BROKEN_IMAGE_ID, getImageDescriptor("icons/link_break.png"));
     }
 
     public static ImageDescriptor getImageDescriptor(String path) {
