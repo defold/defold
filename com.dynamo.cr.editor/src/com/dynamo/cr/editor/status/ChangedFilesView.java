@@ -171,6 +171,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
         revertItem.setEnabled(false);
         revertItem.addListener(SWT.Selection, this);
         listViewer.getList().setMenu(menu);
+        this.updateThread.update();
     }
 
     @Override
