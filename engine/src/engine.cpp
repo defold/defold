@@ -286,6 +286,9 @@ namespace dmEngine
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(config, "physics.type", "3D");
+        physics_params.m_Gravity.setX(dmConfigFile::GetFloat(config, "physics.gravity_x", 0.0f));
+        physics_params.m_Gravity.setY(dmConfigFile::GetFloat(config, "physics.gravity_y", -10.0f));
+        physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(config, "physics.gravity_z", 0.0f));
         if (strncmp(physics_type, "3D", 2) == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
