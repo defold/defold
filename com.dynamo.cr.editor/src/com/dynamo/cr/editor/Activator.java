@@ -14,6 +14,8 @@ import org.eclipse.core.resources.ICommand;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceDescription;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -47,6 +49,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
+import com.dynamo.cr.editor.fs.RepositoryFileSystem;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
@@ -54,8 +57,7 @@ import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
-public class Activator extends AbstractUIPlugin implements IPropertyChangeListener {
-
+public class Activator extends AbstractUIPlugin implements IPropertyChangeListener, IResourceChangeListener {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
@@ -157,6 +159,9 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         } catch (CoreException e) {
             e.printStackTrace();
         }
+
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.PRE_REFRESH);
+        RepositoryFileSystem.activator = this;
 	}
 
 	private void updateSocksProxy() {
@@ -330,6 +335,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	 */
 	public void stop(BundleContext bundleContext) throws Exception {
         super.stop(bundleContext);
+        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
         plugin = null;
 		Activator.context = null;
         IPreferenceStore store = getPreferenceStore();
@@ -374,6 +380,17 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     public static void openError(Shell shell, String title, String message, Throwable e) {
         ErrorDialog.openError(shell, title, e.getMessage(),
                 new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+    }
+
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+
+        System.out.println(event.getType());
+        if (event.getType() == IResourceChangeEvent.PRE_REFRESH) {
+            if (branchClient != null) {
+                branchClient.flushCache();
+            }
+        }
     }
 
 }

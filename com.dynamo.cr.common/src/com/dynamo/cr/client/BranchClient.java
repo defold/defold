@@ -259,4 +259,9 @@ public class BranchClient extends BaseClient implements IBranchClient {
 
     }
 
+    @Override
+    public void flushCache() {
+        factory.flushResourceInfoCache();
+    }
+
 }

@@ -44,4 +44,6 @@ public interface IBranchClient {
     public BuildLog getBuildLogs(int id) throws RepositoryException;
 
     public URI getURI();
+
+    public void flushCache();
 }
