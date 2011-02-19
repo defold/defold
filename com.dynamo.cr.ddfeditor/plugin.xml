@@ -115,6 +115,14 @@
             id="com.dynamo.cr.ddfeditor.spriteeditor"
             name="Sprite Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.ConvexShapeEditor"
+            default="false"
+            extensions="convexshape"
+            icon="icons/contrast_high.png"
+            id="com.dynamo.cr.ddfeditor.convexshapeeditor"
+            name="Convext Shape Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -219,6 +227,12 @@
             id="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
             name="Sprite file">
       </wizard>
+      <wizard
+            class="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
+            icon="icons/contrast_high.png"
+            id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
+            name="Convex Shape file">
+      </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -285,6 +299,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.ConvextShapeNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
@@ -400,6 +419,13 @@
             name="Sprite"
             proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
             template-data="Texture: &apos;&apos; Width: 1 Height: 1 Height: 1">
+      </resource-type>
+      <resource-type
+            file-extension="convexshape"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape"
+            name="Convex Shape"
+            proto-message-class="com.dynamo.physics.proto.Physics$ConvexShape"
+            template-data="ShapeType: TYPE_BOX Data: 1 Data: 1 Data: 1">
       </resource-type>
     </extension>
 
