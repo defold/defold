@@ -85,7 +85,7 @@ def run_gtests(valgrind = False):
             filename = os.path.join(output.abspath(t.env), t.target)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
-                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, filename)
+                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, filename)
             proc = subprocess.Popen(filename, shell = True)
             ret = proc.wait()
             if ret != 0:

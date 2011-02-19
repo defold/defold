@@ -38,3 +38,36 @@
    fun:_dl_catch_error
 }
 
+{
+   dl-leaks-3
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_ZN12HALCADClient19AddPropertyListenerEmPK26AudioObjectPropertyAddressPFlmmS2_PvES3_
+   fun:_ZN16HALDefaultDevice22InstallServerListenersEv
+   fun:_ZN16HALDefaultDevice10InitializeEv
+   fun:_ZN9HALSystem15InitializeShellEv
+   fun:_ZN9HALSystem16CheckOutInstanceEv
+   fun:AudioHardwareGetProperty
+   fun:_ZN9OALDeviceC2EPKcmm
+   fun:alcOpenDevice
+   fun:alutInit
+   fun:_ZN7dmSound10InitializeEPN12dmConfigFile6ConfigEPKNS_16InitializeParamsE
+   fun:_ZN11dmSoundTest5SetUpEv
+}
+
+{
+   dl-leaks-3
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_ZN12HALCADClient19AddPropertyListenerEmPK26AudioObjectPropertyAddressPFlmmS2_PvES3_
+   fun:_ZN9HALSystem15InitializeShellEv
+   fun:_ZN9HALSystem16CheckOutInstanceEv
+   fun:AudioHardwareGetProperty
+   fun:_ZN9OALDeviceC2EPKcmm
+   fun:alcOpenDevice
+   fun:alutInit
+   fun:_ZN7dmSound10InitializeEPN12dmConfigFile6ConfigEPKNS_16InitializeParamsE
+   fun:_ZN11dmSoundTest5SetUpEv
+   fun:_ZN7testing4Test3RunEv
+   fun:_ZN7testing8internal12TestInfoImpl3RunEv
+}
