@@ -241,5 +241,14 @@
             sequence="M1+R">
       </key>
    </extension>
+   <extension
+         id="com.dynamo.cr.newwizards"
+         name="Content"
+         point="org.eclipse.ui.newWizards">
+      <category
+            id="com.dynamo.cr.editor.wizardCategory"
+            name="Content">
+      </category>
+   </extension>
 
 </plugin>
