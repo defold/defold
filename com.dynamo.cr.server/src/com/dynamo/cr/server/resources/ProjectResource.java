@@ -197,13 +197,14 @@ public class ProjectResource extends BaseResource {
             throw new WebApplicationException(404);
         }
 
-        // Connection user sharing the same project
+        // Connect users sharing the same project
         user.getConnections().add(member);
         member.getConnections().add(user);
 
         Project project = server.getProject(em, projectId);
         em.getTransaction().begin();
         project.getMembers().add(member);
+        member.getProjects().add(project);
         em.persist(project);
         em.persist(user);
         em.persist(member);

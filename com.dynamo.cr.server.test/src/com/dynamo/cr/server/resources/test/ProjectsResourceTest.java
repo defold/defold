@@ -1,20 +1,16 @@
 package com.dynamo.cr.server.resources.test;
 
-import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.URI;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import org.codehaus.jackson.map.ObjectMapper;
@@ -250,6 +246,14 @@ public class ProjectsResourceTest {
         assertEquals("test project", projectInfo.getName());
         assertEquals(joeUser.getId().longValue(), projectInfo.getOwner().getId());
         assertEquals(joeUser.getEmail(), projectInfo.getOwner().getEmail());
+
+        // Check that bob can retrieve project info
+        ProjectInfo bobsProjectInfo = bobProjectsWebResource
+            .path(String.format("%d/%d/project_info", bobUser.getId(), projectInfo.getId()))
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .get(ProjectInfo.class);
+        assertEquals(bobsProjectInfo.getId(), projectInfo.getId());
 
         ProjectInfoList list = joeProjectsWebResource
             .path(joeUser.getId().toString())
