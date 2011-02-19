@@ -93,12 +93,15 @@ import com.dynamo.cr.contenteditor.Activator;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
 import com.dynamo.cr.contenteditor.resource.CameraLoader;
+import com.dynamo.cr.contenteditor.resource.CollisionLoader;
+import com.dynamo.cr.contenteditor.resource.ConvexShapeLoader;
 import com.dynamo.cr.contenteditor.resource.LightLoader;
 import com.dynamo.cr.contenteditor.resource.ResourceLoaderFactory;
 import com.dynamo.cr.contenteditor.resource.SpriteLoader;
 import com.dynamo.cr.contenteditor.resource.TextureLoader;
 import com.dynamo.cr.contenteditor.scene.CameraNodeLoader;
 import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
+import com.dynamo.cr.contenteditor.scene.CollisionNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ISceneListener;
 import com.dynamo.cr.contenteditor.scene.LightNodeLoader;
 import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
@@ -242,6 +245,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         resourceFactory.addLoader(new CameraLoader(), "camera");
         resourceFactory.addLoader(new LightLoader(), "light");
         resourceFactory.addLoader(new SpriteLoader(), "sprite");
+        resourceFactory.addLoader(new CollisionLoader(), "collisionobject");
+        resourceFactory.addLoader(new ConvexShapeLoader(), "convexshape");
         factory = new NodeLoaderFactory(resourceFactory);
         factory.addLoader(new CollectionNodeLoader(), "collection");
         factory.addLoader(new PrototypeNodeLoader(), "go");
@@ -250,6 +255,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         factory.addLoader(new CameraNodeLoader(), "camera");
         factory.addLoader(new LightNodeLoader(), "light");
         factory.addLoader(new SpriteNodeLoader(), "sprite");
+        factory.addLoader(new CollisionNodeLoader(), "collisionobject");
 
         try
         {
