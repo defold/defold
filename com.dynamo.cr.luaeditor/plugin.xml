@@ -13,5 +13,15 @@
             id="com.dynamo.cr.luaeditor.LuaEditor">
       </editor>
    </extension>
+   <extension
+         point="org.eclipse.ui.newWizards">
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.luaeditor.wizards.ScriptNewWizard"
+            icon="icons/lua.gif"
+            id="com.dynamo.cr.luaeditor.newScriptWizard"
+            name="Script file">
+      </wizard>
+   </extension>
 
 </plugin>
