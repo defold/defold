@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 
@@ -359,6 +360,8 @@ public class Server {
 
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
         File f = new File(p);
+        // NOTE: We need to cache isFile() here.
+        boolean isFile = f.isFile();
 
         if (!f.exists())
             throw new NotFoundException(String.format("%s not found", p));
@@ -371,6 +374,20 @@ public class Server {
         Git git = new Git();
         boolean force = true;
         git.rm(branch_path, path.substring(1), recursive, force); // NOTE: Remove / from path
+
+        // The code is somewhat strange
+        // We always recreate to parent directory for a file
+        // in order to avoid implicit deletion of directories. This behavior confuses
+        // eclipse. We also need to remove the directory manually as git won't remove
+        // empty directories. (git doesn't track empty directories). This is direct
+        // consequence of the first behavior (recreating directories)
+        if (isFile) {
+            String localPath = FilenameUtils.getFullPath(p);
+            File localPathFile = new File(localPath);
+            localPathFile.mkdirs();
+        } else {
+            f.delete();
+        }
     }
 
     public void renameResource(EntityManager em, String project, String user, String branch,

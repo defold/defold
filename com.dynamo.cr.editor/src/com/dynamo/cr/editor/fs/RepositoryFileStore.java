@@ -175,6 +175,13 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
     @Override
     public void move(IFileStore destination, int options, IProgressMonitor monitor)
             throws CoreException {
+
+        // Let eclipse handle move to another file system (eg local files)
+        if (!(destination instanceof RepositoryFileStore)) {
+            super.move(destination, options, monitor);
+            return;
+        }
+
         try {
             // TODO: Better way of finding the destination path?
             String destination_path = destination.getName();
