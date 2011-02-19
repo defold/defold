@@ -590,7 +590,7 @@ namespace dmGameObject
      * Set parent instance to child
      * @note Instances must belong to the same collection
      * @param child Child instance
-     * @param parent Parent instance
+     * @param parent Parent instance. If 0, the child will be detached from its current parent, if any.
      * @return RESULT_OK on success. RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent at maximal level
      */
     Result SetParent(HInstance child, HInstance parent);
