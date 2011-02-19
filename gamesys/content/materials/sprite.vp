@@ -11,10 +11,12 @@ struct Fragment
 };
 
 uniform float4x4 VIEW_PROJ  : (c0);
+uniform float4x4 WORLD      : (c4);
 
 void main(in Vertex v_in,
           out Fragment f_out)
 {
-    f_out.position = mul(float4(v_in.position.xyz, 1.0f), VIEW_PROJ);
+    float4x4 mvp = mul(WORLD, VIEW_PROJ);
+    f_out.position = mul(float4(v_in.position.xyz, 1.0f), mvp);
     f_out.uv = v_in.uv;
 }
