@@ -13,12 +13,13 @@ namespace dmPhysics
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
+    , m_Gravity(0.0f, -10.0f, 0.0f)
     {
 
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-    : m_World(b2Vec2(params.m_Gravity.getX(), params.m_Gravity.getY()), true)
+    : m_World(b2Vec2(context->m_Gravity.getX(), context->m_Gravity.getY()), true)
     , m_RayCastRequests()
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_ContactListener(this)
@@ -109,6 +110,7 @@ namespace dmPhysics
     {
         Context2D* context = new Context2D();
         context->m_Worlds.SetCapacity(params.m_WorldCount);
+        context->m_Gravity = params.m_Gravity;
         return context;
     }
 

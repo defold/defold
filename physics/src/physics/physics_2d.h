@@ -40,8 +40,9 @@ namespace dmPhysics
     {
         Context2D();
 
-        dmArray<World2D*> m_Worlds;
-        DebugCallbacks m_DebugCallbacks;
+        dmArray<World2D*>           m_Worlds;
+        DebugCallbacks              m_DebugCallbacks;
+        Vectormath::Aos::Vector3    m_Gravity;
     };
 
     class ProcessRayCastResultCallback2D : public b2RayCastCallback

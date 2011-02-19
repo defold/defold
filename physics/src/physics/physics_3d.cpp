@@ -66,6 +66,7 @@ namespace dmPhysics
     Context3D::Context3D()
     : m_Worlds()
     , m_DebugCallbacks()
+    , m_Gravity(0.0f, -10.0f, 0.0f)
     {
 
     }
@@ -91,7 +92,7 @@ namespace dmPhysics
         m_Solver = new btSequentialImpulseConstraintSolver;
 
         m_DynamicsWorld = new btDiscreteDynamicsWorld(m_Dispatcher, m_OverlappingPairCache, m_Solver, m_CollisionConfiguration);
-        m_DynamicsWorld->setGravity(btVector3(params.m_Gravity.getX(), params.m_Gravity.getY(), params.m_Gravity.getZ()));
+        m_DynamicsWorld->setGravity(btVector3(context->m_Gravity.getX(), context->m_Gravity.getY(), context->m_Gravity.getZ()));
         m_DynamicsWorld->setDebugDrawer(&m_DebugDraw);
 
         m_GetWorldTransform = params.m_GetWorldTransformCallback;
@@ -136,6 +137,7 @@ namespace dmPhysics
     HContext3D NewContext3D(const NewContextParams& params)
     {
         Context3D* context = new Context3D();
+        context->m_Gravity = params.m_Gravity;
         context->m_Worlds.SetCapacity(params.m_WorldCount);
         return context;
     }

@@ -11,7 +11,8 @@ namespace dmPhysics
     using namespace Vectormath::Aos;
 
     NewContextParams::NewContextParams()
-    : m_WorldCount(4)
+    : m_Gravity(0.0f, -10.0f, 0.0f)
+    , m_WorldCount(4)
     {
 
     }
@@ -19,8 +20,7 @@ namespace dmPhysics
     static const float WORLD_EXTENT = 1000.0f;
 
     NewWorldParams::NewWorldParams()
-    : m_Gravity(0.0f, -10.0f, 0.0f)
-    , m_WorldMin(-WORLD_EXTENT, -WORLD_EXTENT, -WORLD_EXTENT)
+    : m_WorldMin(-WORLD_EXTENT, -WORLD_EXTENT, -WORLD_EXTENT)
     , m_WorldMax(WORLD_EXTENT, WORLD_EXTENT, WORLD_EXTENT)
     , m_GetWorldTransformCallback(0x0)
     , m_SetWorldTransformCallback(0x0)

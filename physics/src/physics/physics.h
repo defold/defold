@@ -111,6 +111,8 @@ namespace dmPhysics
     {
         NewContextParams();
 
+        /// Gravity of the worlds created in this context
+        Vectormath::Aos::Vector3 m_Gravity;
         /// Number of 3D worlds the context supports
         uint32_t m_WorldCount;
     };
@@ -152,8 +154,6 @@ namespace dmPhysics
     {
         NewWorldParams();
 
-        /// World gravity
-        Vectormath::Aos::Vector3 m_Gravity;
         /// world_min World min (AABB)
         Vectormath::Aos::Point3 m_WorldMin;
         /// world_max World max (AABB)

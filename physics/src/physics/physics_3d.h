@@ -33,8 +33,9 @@ namespace dmPhysics
     {
         Context3D();
 
-        dmArray<World3D*> m_Worlds;
-        DebugCallbacks m_DebugCallbacks;
+        dmArray<World3D*>           m_Worlds;
+        DebugCallbacks              m_DebugCallbacks;
+        Vectormath::Aos::Vector3    m_Gravity;
     };
 }
 
