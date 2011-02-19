@@ -765,6 +765,7 @@ bail:
         dmGameObject::RegisterDDFType(dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGameObjectDDF::SetParent::m_DDFDescriptor);
 
         dmGui::RegisterDDFType(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
         dmGui::RegisterDDFType(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor);
