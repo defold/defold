@@ -492,6 +492,36 @@ TEST_F(HierarchyTest, TestHierarchy8)
     }
 }
 
+TEST_F(HierarchyTest, TestHierarchy9)
+{
+    // Test unparent
+
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "go.goc");
+
+    dmGameObject::SetParent(child1, parent);
+    dmGameObject::SetParent(child2, child1);
+
+    ASSERT_EQ(parent, dmGameObject::GetParent(child1));
+    ASSERT_EQ(child1, dmGameObject::GetParent(child2));
+
+    ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
+    ASSERT_EQ(2U, dmGameObject::GetDepth(child2));
+
+    dmGameObject::SetParent(child1, 0);
+
+    ASSERT_EQ((void*)0, dmGameObject::GetParent(child1));
+    ASSERT_EQ(child1, dmGameObject::GetParent(child2));
+
+    ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
+    ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
+
+    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, child1);
+    dmGameObject::Delete(m_Collection, child2);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -1326,7 +1326,10 @@ namespace dmGameObject
 
     Result SetParent(HInstance child, HInstance parent)
     {
-        if (parent->m_Depth >= MAX_HIERARCHICAL_DEPTH-1)
+        if (parent == 0 && child->m_Parent == INVALID_INSTANCE_INDEX)
+            return RESULT_OK;
+
+        if (parent != 0 && parent->m_Depth >= MAX_HIERARCHICAL_DEPTH-1)
         {
             dmLogError("Unable to set parent to child. Parent at maximum depth %d", MAX_HIERARCHICAL_DEPTH-1);
             return RESULT_MAXIMUM_HIEARCHICAL_DEPTH;
@@ -1334,22 +1337,28 @@ namespace dmGameObject
 
         HCollection collection = child->m_Collection;
 
-        uint32_t index = parent->m_Index;
-        while (index != INVALID_INSTANCE_INDEX)
+        if (parent != 0)
         {
-            Instance* i = collection->m_Instances[index];
-
-            if (i == child)
+            uint32_t index = parent->m_Index;
+            while (index != INVALID_INSTANCE_INDEX)
             {
-                dmLogError("Unable to set parent to child. Child is present in tree above parent. Unsupported");
-                return RESULT_INVALID_OPERATION;
+                Instance* i = collection->m_Instances[index];
 
+                if (i == child)
+                {
+                    dmLogError("Unable to set parent to child. Child is present in tree above parent. Unsupported");
+                    return RESULT_INVALID_OPERATION;
+
+                }
+                index = i->m_Parent;
             }
-            index = i->m_Parent;
+            assert(child->m_Collection == parent->m_Collection);
+            assert(collection->m_LevelInstanceCount[child->m_Depth+1] < collection->m_MaxInstances);
         }
-
-        assert(child->m_Collection == parent->m_Collection);
-        assert(collection->m_LevelInstanceCount[child->m_Depth+1] < collection->m_MaxInstances);
+        else
+        {
+            assert(collection->m_LevelInstanceCount[0] < collection->m_MaxInstances);
+        }
 
         if (child->m_Parent != INVALID_INSTANCE_INDEX)
         {
@@ -1359,22 +1368,33 @@ namespace dmGameObject
         EraseSwapLevelIndex(collection, child);
 
         // Add child to parent
-        if (parent->m_FirstChildIndex == INVALID_INSTANCE_INDEX)
+        if (parent != 0)
         {
-            parent->m_FirstChildIndex = child->m_Index;
-        }
-        else
-        {
-            Instance* first_child = collection->m_Instances[parent->m_FirstChildIndex];
-            assert(parent->m_Depth == first_child->m_Depth - 1);
+            if (parent->m_FirstChildIndex == INVALID_INSTANCE_INDEX)
+            {
+                parent->m_FirstChildIndex = child->m_Index;
+            }
+            else
+            {
+                Instance* first_child = collection->m_Instances[parent->m_FirstChildIndex];
+                assert(parent->m_Depth == first_child->m_Depth - 1);
 
-            child->m_SiblingIndex = first_child->m_Index;
-            parent->m_FirstChildIndex = child->m_Index;
+                child->m_SiblingIndex = first_child->m_Index;
+                parent->m_FirstChildIndex = child->m_Index;
+            }
         }
 
         int original_child_depth = child->m_Depth;
-        child->m_Parent = parent->m_Index;
-        child->m_Depth = parent->m_Depth + 1;
+        if (parent != 0)
+        {
+            child->m_Parent = parent->m_Index;
+            child->m_Depth = parent->m_Depth + 1;
+        }
+        else
+        {
+            child->m_Parent = INVALID_INSTANCE_INDEX;
+            child->m_Depth = 0;
+        }
         InsertInstanceInLevelIndex(collection, child);
 
         int32_t n_steps =  (int32_t) original_child_depth - (int32_t) child->m_Depth;
