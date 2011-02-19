@@ -76,6 +76,7 @@ namespace dmSound
     {
         SoundInstance* si = new SoundInstance();
         si->m_Looping = 0;
+        si->m_Playing = 0;
         *sound_instance = si;
         g_Instances->Push(*sound_instance);
         return RESULT_OK;
