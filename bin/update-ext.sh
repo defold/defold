@@ -86,6 +86,8 @@ mkdir -p $DYNAMO_HOME/share
 cp share/valgrind-python.supp $DYNAMO_HOME/share
 echo "Copying share/valgrind-libasound.supp -> DYNAMO_HOME/share"
 cp share/valgrind-libasound.supp $DYNAMO_HOME/share
+echo "Copying share/valgrind-libdlib.supp -> DYNAMO_HOME/share"
+cp share/valgrind-libdlib.supp $DYNAMO_HOME/share
 
 mkdir -p $DYNAMO_HOME/bin
 cp -v bin/git* $DYNAMO_HOME/bin
