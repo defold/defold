@@ -99,3 +99,9 @@ message GameObjectTransformResult
     required dmMath.Point3 Position = 2;
     required dmMath.Quat Rotation = 3;
 }
+
+message SetParent
+{
+    required uint64 ChildId = 1;
+    required uint64 ParentId = 2;
+}
