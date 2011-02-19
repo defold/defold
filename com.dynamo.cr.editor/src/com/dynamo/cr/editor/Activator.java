@@ -384,8 +384,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-
-        System.out.println(event.getType());
         if (event.getType() == IResourceChangeEvent.PRE_REFRESH) {
             if (branchClient != null) {
                 branchClient.flushCache();
