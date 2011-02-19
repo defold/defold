@@ -76,11 +76,14 @@ def run_gtests(valgrind = False):
 # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
 # to find leaks and set error code
 
+    if not Build.bld.env['VALGRIND']:
+        valgrind = False
+
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             filename = os.path.join(output.abspath(t.env), t.target)
-            if valgrind and sys.platform == 'linux2':
+            if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, filename)
             proc = subprocess.Popen(filename, shell = True)
@@ -90,6 +93,8 @@ def run_gtests(valgrind = False):
                 sys.exit(ret)
 
 def detect(conf):
+    conf.find_program('valgrind', var='VALGRIND', mandatory = False)
+
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
         conf.fatal("DYNAMO_HOME not set")
