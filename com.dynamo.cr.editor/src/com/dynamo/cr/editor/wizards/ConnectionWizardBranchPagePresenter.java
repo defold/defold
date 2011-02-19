@@ -82,13 +82,18 @@ public class ConnectionWizardBranchPagePresenter {
     public void setProjectResourceClient(IProjectClient client) {
         this.client = client;
         try {
+            display.setErrorMessage(null);
             updateBranchList();
         } catch (RepositoryException e) {
+            display.setErrorMessage(e.getMessage());
             e.printStackTrace();
         }
     }
 
     void updateBranchList() throws RepositoryException  {
+        // Clear list first in case of any exceptions
+        display.setBranchNames(new ArrayList<String>());
+
         BranchList branchList = client.getBranchList();
         ArrayList<String> branchNames = new ArrayList<String>();
         for (String b : branchList.getBranchesList()) {
