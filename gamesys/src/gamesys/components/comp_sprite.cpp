@@ -213,7 +213,7 @@ namespace dmGameSystem
                 world *= Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
                 world.setCol3(Vector4(dmGameObject::GetWorldPosition(component->m_Instance)));
                 float tile_uv_width = ddf->m_TileWidth / (float)dmGraphics::GetTextureWidth(texture);
-                float tile_uv_height = ddf->m_TileWidth / (float)dmGraphics::GetTextureWidth(texture);
+                float tile_uv_height = ddf->m_TileHeight / (float)dmGraphics::GetTextureHeight(texture);
                 uint16_t tile_x = component->m_CurrentFrame % ddf->m_FramesPerRow;
                 uint16_t tile_y = component->m_CurrentFrame / ddf->m_FramesPerRow;
                 Vertex* v = (Vertex*)vertex_buffer + vertex_index;
