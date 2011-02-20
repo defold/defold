@@ -190,8 +190,8 @@ namespace dmGui
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        (void) n;
-        DeleteNode(scene, hnode);
+        // Set deferred delete flag
+        n->m_Deleted = 1;
 
         assert(top == lua_gettop(L));
 

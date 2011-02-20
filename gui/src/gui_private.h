@@ -40,6 +40,7 @@ namespace dmGui
         dmhash_t m_NameHash;
         uint16_t m_Version;
         uint16_t m_Index;
+        uint16_t m_Deleted : 1; // Set to true for deferred deletion
     };
 
     struct NodeProxy

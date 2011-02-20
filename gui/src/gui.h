@@ -246,6 +246,8 @@ namespace dmGui
 
     HNode GetNodeByName(HScene scene, const char* name);
 
+    uint32_t GetNodeCount(HScene scene);
+
     void DeleteNode(HScene scene, HNode node);
 
     Point3 GetNodePosition(HScene scene, HNode node);

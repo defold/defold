@@ -453,6 +453,21 @@ namespace dmGui
             }
         }
 
+        // Deferred deletion of nodes
+        uint32_t n = scene->m_Nodes.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            InternalNode* node = &scene->m_Nodes[i];
+            if (node->m_Deleted)
+            {
+                uint16_t index = node->m_Index;
+                uint16_t version = node->m_Version;
+                HNode hnode = ((uint32_t) version) << 16 | index;
+                DeleteNode(scene, hnode);
+                node->m_Deleted = 0; // Make sure to clear deferred delete flag
+            }
+        }
+
         assert(top == lua_gettop(L));
         return result;
     }
@@ -518,6 +533,11 @@ namespace dmGui
             }
         }
         return 0;
+    }
+
+    uint32_t GetNodeCount(HScene scene)
+    {
+        return scene->m_NodePool.Size();
     }
 
     void DeleteNode(HScene scene, HNode node)
