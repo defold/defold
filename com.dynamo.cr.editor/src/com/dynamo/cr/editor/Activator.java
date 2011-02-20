@@ -13,6 +13,7 @@ import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.IProjectNature;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
@@ -51,6 +52,7 @@ import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.fs.RepositoryFileSystem;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;
@@ -61,8 +63,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
-
-    public static final String CR_PROJECT_NAME = "__CR__";
 
     // The shared instance
     private static Activator plugin;
@@ -144,10 +144,13 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         store.addPropertyChangeListener(this);
         updateSocksProxy();
 
-        IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);
-        if (cr_project.exists())
-        {
-            cr_project.delete(true, new NullProgressMonitor());
+        //
+        IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
+        for (IProject p : projects) {
+            IProjectNature nature = p.getNature("com.dynamo.cr.editor.crnature");
+            if (nature != null) {
+                p.delete(true, new NullProgressMonitor());
+            }
         }
 
         // Disable auto-building of projects
@@ -252,8 +255,9 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 	}
 
-	public void disconnectFromBranch() {
-        IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);
+	public void disconnectFromBranch() throws RepositoryException {
+	    ProjectInfo projectInfo = projectClient.getProjectInfo();
+        IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
         if (cr_project.exists())
         {
             try {
@@ -268,12 +272,14 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	    this.activeBranch = null;
 	}
 
-    public void connectToBranch(IProjectClient projectClient, String branch) {
+    public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
         this.projectClient = projectClient;
         this.branchClient = projectClient.getBranchClient(branch);
         activeBranch = branch;
 
-        final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);
+        ProjectInfo projectInfo = projectClient.getProjectInfo();
+
+        final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
         try {
