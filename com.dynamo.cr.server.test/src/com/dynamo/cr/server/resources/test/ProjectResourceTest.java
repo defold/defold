@@ -28,6 +28,7 @@ import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -137,6 +138,12 @@ public class ProjectResourceTest {
     @Test
     public void launchInfo() throws Exception {
         project_client.getLaunchInfo();
+    }
+
+    @Test
+    public void projectInfo() throws Exception {
+        ProjectInfo projectInfo = project_client.getProjectInfo();
+        assertEquals("proj1", projectInfo.getName());
     }
 
     @Test

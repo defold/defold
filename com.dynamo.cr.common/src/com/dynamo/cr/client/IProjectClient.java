@@ -6,6 +6,7 @@ import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 
 public interface IProjectClient {
 
@@ -30,5 +31,7 @@ public interface IProjectClient {
     public ApplicationInfo getApplicationInfo(String platform) throws RepositoryException;
 
     public InputStream getApplicationData(String platform) throws RepositoryException;
+
+    public ProjectInfo getProjectInfo() throws RepositoryException;
 
 }
