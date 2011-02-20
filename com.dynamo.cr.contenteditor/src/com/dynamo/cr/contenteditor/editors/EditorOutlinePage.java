@@ -164,7 +164,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
             BrokenNode brokenNode = (BrokenNode) element;
             return brokenNode.getErrorMessage();
         }
-        return "X: " + element.toString();
+        return null;
     }
 }
 
@@ -247,11 +247,13 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         viewer.getTree().setHeaderVisible(true);
         viewer.setContentProvider(new EditorOutlinePageContentProvider());
         viewer.setLabelProvider(new LabelProvider());
+        viewer.setLabelProvider(new EditorOutlineLabelProvider());
+        /*
         TreeViewerColumn column = new TreeViewerColumn(viewer, SWT.NONE);
         column.getColumn().setText("Game Object");
 
         column.setLabelProvider(new EditorOutlineLabelProvider());
-        column.getColumn().setWidth(240);
+        column.getColumn().setWidth(240);*/
 
         viewer.setSorter(new ViewerSorter() {
             public int compare(Viewer viewer, Object e1, Object e2)
