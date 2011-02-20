@@ -26,6 +26,12 @@ function update(self, dt)
     p = go.get_position(self)
     assert(p.y == 123.0)
 
+    p = go.get_position(self, "my_object01")
+    assert(p.y == 123.0)
+
+    p = go.get_position(self, hash("my_object01"))
+    assert(p.y == 123.0)
+
     go.post("spawn", {prototype = "test", pos = vmath.vector3(1, 2, 3)} )
 end
 

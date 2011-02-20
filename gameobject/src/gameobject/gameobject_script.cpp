@@ -380,14 +380,34 @@ namespace dmGameObject
     int Script_GetPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(i->m_Instance)));
+        HInstance instance = i->m_Instance;
+        if (lua_gettop(L) > 1)
+        {
+            dmhash_t id = 0;
+            if (lua_isstring(L, 2))
+                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
+            else
+                id = dmScript::CheckHash(L, 2);
+            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
+        }
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(instance)));
         return 1;
     }
 
     int Script_GetRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        dmScript::PushQuat(L, dmGameObject::GetRotation(i->m_Instance));
+        HInstance instance = i->m_Instance;
+        if (lua_gettop(L) > 1)
+        {
+            dmhash_t id = 0;
+            if (lua_isstring(L, 2))
+                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
+            else
+                id = dmScript::CheckHash(L, 2);
+            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
+        }
+        dmScript::PushQuat(L, dmGameObject::GetRotation(instance));
         return 1;
     }
 
@@ -410,14 +430,34 @@ namespace dmGameObject
     int Script_GetWorldPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(i->m_Instance)));
+        HInstance instance = i->m_Instance;
+        if (lua_gettop(L) > 1)
+        {
+            dmhash_t id = 0;
+            if (lua_isstring(L, 2))
+                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
+            else
+                id = dmScript::CheckHash(L, 2);
+            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
+        }
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(instance)));
         return 1;
     }
 
     int Script_GetWorldRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(i->m_Instance));
+        HInstance instance = i->m_Instance;
+        if (lua_gettop(L) > 1)
+        {
+            dmhash_t id = 0;
+            if (lua_isstring(L, 2))
+                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
+            else
+                id = dmScript::CheckHash(L, 2);
+            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
+        }
+        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(instance));
         return 1;
     }
 
