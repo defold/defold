@@ -93,9 +93,8 @@ public class LaunchHandler extends AbstractHandler {
 
                     stream.println("DMSOCKS_PROXY=" + socks_proxy);
                     stream.println("DMSOCKS_PROXY_PORT=" + socks_proxy_port);
-                    stream.print(exe_name);
                     for (String s : args) {
-                        stream.print(" " + s);
+                        stream.print(s + " ");
                     }
                     stream.println("");
 
