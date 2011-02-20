@@ -273,41 +273,41 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         this.branchClient = projectClient.getBranchClient(branch);
         activeBranch = branch;
 
-            final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);
+        final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(CR_PROJECT_NAME);
 
-            IProgressService service = PlatformUI.getWorkbench().getProgressService();
-            try {
-                service.runInUI(service, new IRunnableWithProgress() {
+        IProgressService service = PlatformUI.getWorkbench().getProgressService();
+        try {
+            service.runInUI(service, new IRunnableWithProgress() {
 
-                    @Override
-                    public void run(IProgressMonitor monitor) throws InvocationTargetException,
-                            InterruptedException {
-                        try {
-                            if (p.exists())
-                                p.delete(true, monitor);
+                @Override
+                public void run(IProgressMonitor monitor) throws InvocationTargetException,
+                        InterruptedException {
+                    try {
+                        if (p.exists())
+                            p.delete(true, monitor);
 
-                            p.create(monitor);
-                            p.open(monitor);
+                        p.create(monitor);
+                        p.open(monitor);
 
-                            URI uri = UriBuilder.fromUri(branchClient.getURI()).scheme("crepo").build();
-                            EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
+                        URI uri = UriBuilder.fromUri(branchClient.getURI()).scheme("crepo").build();
+                        EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
 
-                            IProjectDescription pd = p.getDescription();
-                            pd.setNatureIds(new String[] { "com.dynamo.cr.editor.crnature" });
-                            ICommand build_command = pd.newCommand();
-                            build_command.setBuilderName("com.dynamo.cr.editor.builders.contentbuilder");
-                            pd.setBuildSpec(new ICommand[] {build_command});
-                            p.setDescription(pd, monitor);
-                        } catch (CoreException ex) {
-                            DialogUtil.openError("Error occured when creating project", ex.getMessage(), ex);
-                        }
+                        IProjectDescription pd = p.getDescription();
+                        pd.setNatureIds(new String[] { "com.dynamo.cr.editor.crnature" });
+                        ICommand build_command = pd.newCommand();
+                        build_command.setBuilderName("com.dynamo.cr.editor.builders.contentbuilder");
+                        pd.setBuildSpec(new ICommand[] {build_command});
+                        p.setDescription(pd, monitor);
+                    } catch (CoreException ex) {
+                        DialogUtil.openError("Error occured when creating project", ex.getMessage(), ex);
                     }
-                }, null);
-            } catch (Throwable e2) {
-                DialogUtil.openError("Error occured when creating project", e2.getMessage(), e2);
-            }
+                }
+            }, null);
+        } catch (Throwable e2) {
+            DialogUtil.openError("Error occured when creating project", e2.getMessage(), e2);
+        }
 
-            setProjectExplorerInput(p.getFolder("content"));
+        setProjectExplorerInput(p.getFolder("content"));
 
         RepositoryChangeEvent e = new RepositoryChangeEvent();
         for (IRepositoryListener l : listeners) {
