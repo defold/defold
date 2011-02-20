@@ -629,7 +629,7 @@ bail:
                 child = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, sp->m_ChildId);
             if (sp->m_ParentId != 0)
                 parent = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, sp->m_ParentId);
-                if (parent != 0)
+                if (parent != 0 && self->m_ActiveCollection != 0)
                     parent = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, sp->m_ParentId);
                     if (parent != 0)
                         dmLogWarning("Could not find instance with id %llu.", sp->m_ParentId);
