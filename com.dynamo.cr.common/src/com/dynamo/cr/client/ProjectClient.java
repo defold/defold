@@ -11,6 +11,7 @@ import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
+import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
@@ -102,6 +103,11 @@ public class ProjectClient extends BaseClient implements IProjectClient {
             throwRespositoryException(e);
             return null; // Never reached
         }
+    }
+
+    @Override
+    public ProjectInfo getProjectInfo() throws RepositoryException {
+        return wrapGet("/project_info", ProjectInfo.class);
     }
 
 }

@@ -15,6 +15,9 @@ public class GuiEditSupport implements IResourceTypeEditSupport {
         if (descriptor.getFullName().equals(Gui.SceneDesc.FontDesc.getDescriptor().getFullName())) {
             return Gui.SceneDesc.FontDesc.newBuilder().setFont("unnamed.font").setName("unnamed").build();
         }
+        else if (descriptor.getFullName().equals(Gui.SceneDesc.TextureDesc.getDescriptor().getFullName())) {
+            return Gui.SceneDesc.TextureDesc.newBuilder().setTexture("unnamed.png").setName("unnamed").build();
+        }
         return null;
     }
 
