@@ -628,11 +628,15 @@ bail:
             if (!child && self->m_ActiveCollection != 0)
                 child = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, sp->m_ChildId);
             if (sp->m_ParentId != 0)
+            {
                 parent = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, sp->m_ParentId);
-                if (parent != 0 && self->m_ActiveCollection != 0)
+                if (parent == 0 && self->m_ActiveCollection != 0)
+                {
                     parent = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, sp->m_ParentId);
-                    if (parent != 0)
-                        dmLogWarning("Could not find instance with id %llu.", sp->m_ParentId);
+                    if (parent == 0)
+                        dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
+                }
+            }
             if (child)
             {
                 dmGameObject::Result result = dmGameObject::SetParent(child, parent);
@@ -641,7 +645,7 @@ bail:
             }
             else
             {
-                dmLogWarning("Could not find instance with id %llu.", sp->m_ChildId);
+                dmLogWarning("Could not find child instance with id %llu.", sp->m_ChildId);
             }
         }
         else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
