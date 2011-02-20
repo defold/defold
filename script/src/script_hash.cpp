@@ -1,6 +1,7 @@
 #include "script.h"
 
 #include <assert.h>
+#include <string.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -66,6 +67,27 @@ namespace dmScript
         return 0;
     }
 
+    static int Script_tostring(lua_State* L)
+    {
+        dmhash_t hash = CheckHash(L, 1);
+        char buffer[64];
+        DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu]", SCRIPT_TYPE_NAME, hash);
+        lua_pushstring(L, buffer);
+        return 1;
+    }
+
+    static int Script_concat(lua_State *L)
+    {
+        const char* s = luaL_checkstring(L, 1);
+        dmhash_t hash = CheckHash(L, 2);
+        size_t size = 64 + strlen(s);
+        char* buffer = new char[size];
+        DM_SNPRINTF(buffer, size, "%s[%llu]", s, hash);
+        lua_pushstring(L, buffer);
+        delete [] buffer;
+        return 1;
+    }
+
     static const luaL_reg ScriptHash_methods[] =
     {
         {SCRIPT_TYPE_NAME, Script_Hash},
@@ -84,6 +106,14 @@ namespace dmScript
 
         lua_pushstring(L, "__eq");
         lua_pushcfunction(L, Script_eq);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "__tostring");
+        lua_pushcfunction(L, Script_tostring);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "__concat");
+        lua_pushcfunction(L, Script_concat);
         lua_settable(L, -3);
 
         lua_pushcfunction(L, Script_Hash);
