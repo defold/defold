@@ -139,8 +139,8 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)world;
         Component* component = (Component*)*user_data;
+        uint32_t index = component - &sprite_world->m_Components[0];
         memset(component, 0, sizeof(Component));
-        uint32_t index = (component - &sprite_world->m_Components[0]) / sizeof(Component);
         sprite_world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
     }
