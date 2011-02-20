@@ -73,6 +73,7 @@ namespace dmGameSystem
 
         sprite_world->m_Material = dmRender::NewMaterial();
         SetMaterialVertexProgramConstantType(sprite_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
+        SetMaterialVertexProgramConstantType(sprite_world->m_Material, 4, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
 
         dmRender::AddMaterialTag(sprite_world->m_Material, dmHashString32("sprite"));
 
@@ -194,6 +195,12 @@ namespace dmGameSystem
                 dmGameSystemDDF::SpriteDesc* ddf = component->m_Resource->m_DDF;
                 dmGraphics::HTexture texture = component->m_Resource->m_Texture;
 
+
+                // Generate vertex data
+                Matrix4 world = Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
+                world *= Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
+                world.setCol3(Vector4(dmGameObject::GetWorldPosition(component->m_Instance)));
+
                 // Render object
                 dmRender::RenderObject ro;
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
@@ -205,13 +212,10 @@ namespace dmGameSystem
                 ro.m_VertexCount = 4;
                 ro.m_Material = sprite_world->m_Material;
                 ro.m_Textures[0] = texture;
+                ro.m_WorldTransform = world;
                 sprite_world->m_RenderObjects.Push(ro);
                 dmRender::AddToRender(render_context, &sprite_world->m_RenderObjects[sprite_world->m_RenderObjects.Size() - 1]);
 
-                // Generate vertex data
-                Matrix4 world = Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
-                world *= Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
-                world.setCol3(Vector4(dmGameObject::GetWorldPosition(component->m_Instance)));
                 float tile_uv_width = ddf->m_TileWidth / (float)dmGraphics::GetTextureWidth(texture);
                 float tile_uv_height = ddf->m_TileHeight / (float)dmGraphics::GetTextureHeight(texture);
                 uint16_t tile_x = component->m_CurrentFrame % ddf->m_FramesPerRow;
@@ -219,7 +223,7 @@ namespace dmGameSystem
                 Vertex* v = (Vertex*)vertex_buffer + vertex_index;
                 for (uint32_t j = 0; j < 4; ++j)
                 {
-                    Vector4 position = world * positions[j];
+                    Point3 position = positions[j];
                     v[j].x = position.getX();
                     v[j].y = position.getY();
                     v[j].z = position.getZ();
