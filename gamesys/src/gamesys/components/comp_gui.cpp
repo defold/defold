@@ -356,7 +356,7 @@ namespace dmGameSystem
         {
             gui_component->m_Enabled = 0;
         }
-        else if (message_data->m_DDFDescriptor)
+        else
         {
             dmGui::DispatchMessage(gui_component->m_Scene, message_data->m_MessageId, (const void*) message_data->m_Buffer, message_data->m_DDFDescriptor);
         }
