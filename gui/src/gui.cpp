@@ -441,7 +441,8 @@ namespace dmGui
                 assert(lua_isfunction(L, -1));
 
                 lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
-                int ret = lua_pcall(L, 1, 0, 0);
+                lua_pushnumber(L, (lua_Number) dt);
+                int ret = lua_pcall(L, 2, 0, 0);
 
                 if (ret != 0)
                 {

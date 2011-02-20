@@ -898,6 +898,20 @@ TEST_F(dmGuiTest, ScriptNamespace)
     dmGui::DeleteScene(scene2);
 }
 
+TEST_F(dmGuiTest, DeltaTime)
+{
+    const char* s = "function update(self, dt)\n"
+                    "assert (dt == 1122)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1122);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
