@@ -222,7 +222,14 @@ namespace dmGui
 
             dmScript::PushHash(L, message_id);
 
-            dmScript::PushDDF(L, descriptor, (const char*) message);
+            if (descriptor)
+            {
+                dmScript::PushDDF(L, descriptor, (const char*) message);
+            }
+            else
+            {
+                dmScript::PushTable(L, (const char*) message);
+            }
             int ret = lua_pcall(L, 3, 0, 0);
 
             if (ret != 0)

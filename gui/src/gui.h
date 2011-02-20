@@ -167,6 +167,16 @@ namespace dmGui
 
     void DeleteScene(HScene scene);
 
+    /**
+     * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
+     * message should be a serialized lua-table, see dmScript::CheckTable()
+     * Otherwise message should point to a valid ddf-message buffer.
+     * @param scene scene
+     * @param message_id message-id
+     * @param message message payload
+     * @param descriptor DDF-descriptor. NULL for lua-table. See comment above.
+     * @return RESULT_OK on success
+     */
     Result DispatchMessage(HScene scene,
                            dmhash_t message_id,
                            const void* message,

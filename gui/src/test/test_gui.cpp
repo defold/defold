@@ -3,9 +3,16 @@
 #include <gtest/gtest.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <script/script.h>
 #include "../gui.h"
 #include "../gui_private.h"
 #include "test_gui_ddf.h"
+
+extern "C"
+{
+#include "lua/lua.h"
+#include "lua/lauxlib.h"
+}
 
 /*
  * Basic
@@ -656,7 +663,7 @@ TEST_F(dmGuiTest, PostMessageMissingField)
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 }
 
-TEST_F(dmGuiTest, PostMessageToGui)
+TEST_F(dmGuiTest, PostMessageToGuiDDF)
 {
     const char* s = "local a = 0\n"
                     "function update(self)\n"
@@ -678,6 +685,40 @@ TEST_F(dmGuiTest, PostMessageToGui)
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
+{
+    const char* s = "local a = 0\n"
+                    "function update(self)\n"
+                    "   assert(a == 456)\n"
+                    "end\n"
+                    "function on_message(self, message_id, message)\n"
+                    "   assert(message_id == hash(\"amessage\"))\n"
+                    "   a = message.a\n"
+                    "end\n";
+
+    char buffer[256];
+    dmGui::Result r;
+    r = dmGui::SetScript(script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    lua_State* L = lua_open();
+    lua_newtable(L);
+    lua_pushstring(L, "a");
+    lua_pushinteger(L, 456);
+    lua_settable(L, -3);
+    uint32_t nused = dmScript::CheckTable(L, buffer, sizeof(buffer), -1);
+    ASSERT_GT(nused, 0U);
+    ASSERT_LE(nused, sizeof(buffer));
+
+    r = dmGui::DispatchMessage(scene, dmHashString64("amessage"), buffer, 0);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    lua_close(L);
 }
 
 TEST_F(dmGuiTest, SaveNode)
