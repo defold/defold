@@ -23,7 +23,7 @@ public class CollectionNode extends Node {
 
     @Override
     public String getName() {
-        return name;
+        return resource;
     }
 
     @Override
