@@ -803,7 +803,10 @@ namespace dmGui
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (script->m_FunctionReferences[i] != LUA_NOREF)
+            {
                 luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+                script->m_FunctionReferences[i] = LUA_NOREF;
+            }
 
             lua_getglobal(L, SCRIPT_FUNCTION_NAMES[i]);
             if (lua_type(L, -1) != LUA_TFUNCTION)
@@ -812,8 +815,6 @@ namespace dmGui
             }
             else
             {
-                if (script->m_FunctionReferences[i] != LUA_NOREF)
-                    luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
                 script->m_FunctionReferences[i] = luaL_ref(L, LUA_REGISTRYINDEX);
             }
 
