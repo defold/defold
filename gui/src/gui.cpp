@@ -811,6 +811,7 @@ namespace dmGui
             lua_getglobal(L, SCRIPT_FUNCTION_NAMES[i]);
             if (lua_type(L, -1) != LUA_TFUNCTION)
             {
+                dmLogWarning("'%s' is not a function (%s)", SCRIPT_FUNCTION_NAMES[i], filename);
                 lua_pop(L, 1);
             }
             else
