@@ -26,6 +26,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.ErrorDialog;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.resource.ImageDescriptor;
@@ -125,6 +126,18 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         return (IProxyService) proxyTracker.getService();
     }
 
+    void deleteAllCrProjects() throws CoreException {
+        IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
+        for (IProject p : projects) {
+            if (p.isOpen()) {
+                IProjectNature nature = p.getNature("com.dynamo.cr.editor.crnature");
+                if (nature != null) {
+                    p.delete(true, new NullProgressMonitor());
+                }
+            }
+        }
+    }
+
 	/*
 	 * (non-Javadoc)
 	 * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
@@ -143,17 +156,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         IPreferenceStore store = getPreferenceStore();
         store.addPropertyChangeListener(this);
         updateSocksProxy();
-
-        //
-        IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
-        for (IProject p : projects) {
-            if (p.isOpen()) {
-                IProjectNature nature = p.getNature("com.dynamo.cr.editor.crnature");
-                if (nature != null) {
-                    p.delete(true, new NullProgressMonitor());
-                }
-            }
-        }
+        deleteAllCrProjects();
 
         // Disable auto-building of projects
         IWorkspace workspace = ResourcesPlugin.getWorkspace();
@@ -278,6 +281,12 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         this.projectClient = projectClient;
         this.branchClient = projectClient.getBranchClient(branch);
         activeBranch = branch;
+
+        try {
+            deleteAllCrProjects();
+        } catch (CoreException e) {
+            DialogUtil.openError("Connect To Branch", "Unable to delete projects", e);
+        }
 
         ProjectInfo projectInfo = projectClient.getProjectInfo();
 
