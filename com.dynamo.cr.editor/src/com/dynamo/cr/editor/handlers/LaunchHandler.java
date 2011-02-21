@@ -91,6 +91,13 @@ public class LaunchHandler extends AbstractHandler {
                     console.clearConsole();
                     MessageConsoleStream stream = console.newMessageStream();
 
+                    stream.println("DMSOCKS_PROXY=" + socks_proxy);
+                    stream.println("DMSOCKS_PROXY_PORT=" + socks_proxy_port);
+                    for (String s : args) {
+                        stream.print(s + " ");
+                    }
+                    stream.println("");
+
                     String line = std.readLine();
                     while (line != null) {
                         stream.println(line);
