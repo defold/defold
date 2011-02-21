@@ -367,6 +367,7 @@
             template-data="Font: '' Material: '' Size: 15">
       </resource-type>
       <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.MaterialEditSupport"
             file-extension="material"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Material"
             name="Material"
