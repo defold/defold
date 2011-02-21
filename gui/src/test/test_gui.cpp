@@ -991,6 +991,7 @@ TEST_F(dmGuiTest, Bug352)
 
     r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+    lua_close(L);
 }
 
 int main(int argc, char **argv)
