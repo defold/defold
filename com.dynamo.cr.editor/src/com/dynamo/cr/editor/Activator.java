@@ -147,9 +147,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         //
         IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
         for (IProject p : projects) {
-            IProjectNature nature = p.getNature("com.dynamo.cr.editor.crnature");
-            if (nature != null) {
-                p.delete(true, new NullProgressMonitor());
+            if (p.isOpen()) {
+                IProjectNature nature = p.getNature("com.dynamo.cr.editor.crnature");
+                if (nature != null) {
+                    p.delete(true, new NullProgressMonitor());
+                }
             }
         }
 
