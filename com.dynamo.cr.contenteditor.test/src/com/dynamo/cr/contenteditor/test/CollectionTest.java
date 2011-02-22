@@ -1,34 +1,51 @@
-package com.dynamo.cr.contenteditor.scene.test;
+package com.dynamo.cr.contenteditor.test;
 
-import static org.junit.Assert.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
-import com.dynamo.cr.contenteditor.scene.ComponentNode;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.InstanceNode;
+import com.dynamo.cr.contenteditor.resource.CameraLoader;
+import com.dynamo.cr.contenteditor.resource.CollisionLoader;
+import com.dynamo.cr.contenteditor.resource.ConvexShapeLoader;
+import com.dynamo.cr.contenteditor.resource.LightLoader;
+import com.dynamo.cr.contenteditor.resource.SpriteLoader;
+import com.dynamo.cr.contenteditor.resource.TextureLoader;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
-import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
+import com.dynamo.cr.contenteditor.scene.CollectionNode;
+import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
+import com.dynamo.cr.contenteditor.scene.ComponentNode;
+import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
+import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ModelNodeLoader;
-import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
+import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
+import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Scene;
-
-import static org.hamcrest.CoreMatchers.*;
 
 public class CollectionTest {
 
     private AbstractNodeLoaderFactory factory;
+    private FileResourceLoaderFactory resourceFactory;
     private Scene scene;
 
     @Before
     public void setup() {
-        factory = new TestNodeLoaderFactory("test");
+        String root = "test";
+        resourceFactory = new FileResourceLoaderFactory(root);
+        resourceFactory.addLoader(new TextureLoader(), "png");
+        resourceFactory.addLoader(new CameraLoader(), "camera");
+        resourceFactory.addLoader(new LightLoader(), "light");
+        resourceFactory.addLoader(new SpriteLoader(), "sprite");
+        resourceFactory.addLoader(new CollisionLoader(), "collisionobject");
+        resourceFactory.addLoader(new ConvexShapeLoader(), "convexshape");
+        factory = new FileNodeLoaderFactory(root, resourceFactory);
         factory.addLoader(new CollectionNodeLoader(), "collection");
         factory.addLoader(new PrototypeNodeLoader(), "go");
         factory.addLoader(new ModelNodeLoader(), "model");
