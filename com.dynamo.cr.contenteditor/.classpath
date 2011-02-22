@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry exported="true" kind="lib" path="lib/junit.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/openmali.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/gluegen-rt.jar"/>

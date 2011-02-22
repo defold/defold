@@ -1,18 +1,19 @@
-package com.dynamo.cr.contenteditor.scene.test;
+package com.dynamo.cr.contenteditor.test;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
+import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 
 public class TestNodeLoaderFactory extends AbstractNodeLoaderFactory {
 
     private String root;
 
-    public TestNodeLoaderFactory(String root) {
-        super(null);
+    public TestNodeLoaderFactory(String root, IResourceLoaderFactory resourceFactory) {
+        super(resourceFactory);
         this.root = root;
     }
 

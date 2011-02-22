@@ -1,4 +1,0 @@
-Name: "box"
-Mesh: "box.dae"
-Material: "materials/simple.material"
-Texture0: "textures/blue.png"

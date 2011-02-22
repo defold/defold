@@ -1,0 +1,4 @@
+Components
+{
+    Resource: "box.model"
+}
