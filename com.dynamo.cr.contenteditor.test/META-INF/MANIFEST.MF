@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Content Editor Test
+Bundle-SymbolicName: com.dynamo.cr.contenteditor.test
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: DYNAMO
+Fragment-Host: com.dynamo.cr.contenteditor;bundle-version="1.0.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Require-Bundle: org.junit4;bundle-version="4.8.1"
