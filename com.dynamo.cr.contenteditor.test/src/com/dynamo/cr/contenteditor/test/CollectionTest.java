@@ -32,20 +32,20 @@ import com.dynamo.cr.contenteditor.scene.Scene;
 public class CollectionTest {
 
     private AbstractNodeLoaderFactory factory;
-    private TestResourceLoaderFactory resourceFactory;
+    private FileResourceLoaderFactory resourceFactory;
     private Scene scene;
 
     @Before
     public void setup() {
         String root = "test";
-        resourceFactory = new TestResourceLoaderFactory(root);
+        resourceFactory = new FileResourceLoaderFactory(root);
         resourceFactory.addLoader(new TextureLoader(), "png");
         resourceFactory.addLoader(new CameraLoader(), "camera");
         resourceFactory.addLoader(new LightLoader(), "light");
         resourceFactory.addLoader(new SpriteLoader(), "sprite");
         resourceFactory.addLoader(new CollisionLoader(), "collisionobject");
         resourceFactory.addLoader(new ConvexShapeLoader(), "convexshape");
-        factory = new TestNodeLoaderFactory(root, resourceFactory);
+        factory = new FileNodeLoaderFactory(root, resourceFactory);
         factory.addLoader(new CollectionNodeLoader(), "collection");
         factory.addLoader(new PrototypeNodeLoader(), "go");
         factory.addLoader(new ModelNodeLoader(), "model");

@@ -8,11 +8,11 @@ import java.util.List;
 import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 
-public class TestNodeLoaderFactory extends AbstractNodeLoaderFactory {
+public class FileNodeLoaderFactory extends AbstractNodeLoaderFactory {
 
     private String root;
 
-    public TestNodeLoaderFactory(String root, IResourceLoaderFactory resourceFactory) {
+    public FileNodeLoaderFactory(String root, IResourceLoaderFactory resourceFactory) {
         super(resourceFactory);
         this.root = root;
     }

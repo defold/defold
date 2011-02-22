@@ -13,12 +13,12 @@ import com.dynamo.cr.contenteditor.resource.IResourceLoader;
 import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.LoaderException;
 
-public class TestResourceLoaderFactory implements IResourceLoaderFactory {
+public class FileResourceLoaderFactory implements IResourceLoaderFactory {
 
     private String root;
     Map<String, IResourceLoader> loaders = new HashMap<String, IResourceLoader>();
 
-    public TestResourceLoaderFactory(String root) {
+    public FileResourceLoaderFactory(String root) {
         this.root = root;
     }
 
