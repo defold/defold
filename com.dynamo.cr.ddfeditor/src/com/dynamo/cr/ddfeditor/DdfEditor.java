@@ -25,6 +25,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.ErrorDialog;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
@@ -63,6 +65,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     private ProtoTreeEditor protoTreeEditor;
     private IContainer contentRoot;
     private Form form;
+    private IOperationHistory history;
 
     public DdfEditor(String extension) {
         IResourceTypeRegistry regist = EditorCorePlugin.getDefault().getResourceTypeRegistry();
@@ -74,7 +77,16 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     @Override
     public void dispose() {
         super.dispose();
+        history.removeOperationHistoryListener(this);
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
+    }
+
+    public IContainer getContentRoot() {
+        return contentRoot;
+    }
+
+    public MessageNode getMessage() {
+        return message;
     }
 
     public void executeOperation(IUndoableOperation operation) {
@@ -151,7 +163,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         }
 
         this.undoContext = new UndoContext();
-        IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+        history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         history.setLimit(this.undoContext, 100);
         history.addOperationHistoryListener(this);
 
@@ -173,6 +185,13 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         return false;
     }
 
+    public void createPreviewControl(Composite parent) {
+
+    }
+
+    public void updatePreview() {
+    }
+
     @Override
     public void createPartControl(Composite parent) {
         FormToolkit toolkit = new FormToolkit(parent.getDisplay());
@@ -185,9 +204,13 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
         toolkit.decorateFormHeading(form);
         form.getBody().setLayout(new FillLayout());
 
-        protoTreeEditor = new ProtoTreeEditor(form.getBody(), toolkit, this.contentRoot, this.undoContext);
+        SashForm splitter = new SashForm(form.getBody(), SWT.BORDER | SWT.VERTICAL);
+
+        protoTreeEditor = new ProtoTreeEditor(splitter, toolkit, this.contentRoot, this.undoContext);
+        createPreviewControl(splitter);
 
         protoTreeEditor.setInput(message, resourceType);
+        updatePreview();
     }
 
     @Override
@@ -203,11 +226,15 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+        final int type = event.getEventType();
         Display display = Display.getDefault();
         display.asyncExec(new Runnable() {
             @Override
             public void run() {
                 firePropertyChange(PROP_DIRTY);
+                if (type == OperationHistoryEvent.DONE || type == OperationHistoryEvent.UNDONE || type == OperationHistoryEvent.REDONE) {
+                    updatePreview();
+                }
             }
         });
     }
