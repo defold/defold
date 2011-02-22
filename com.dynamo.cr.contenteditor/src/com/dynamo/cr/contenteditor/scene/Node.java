@@ -17,7 +17,7 @@ public abstract class Node
     public static final int FLAG_TRANSFORMABLE = (1 << 0);
     public static final int FLAG_SELECTABLE = (1 << 1);
     public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 2);
-    public static final int FLAG_LABEL_EDITABLE = (1 << 4);
+    public static final int FLAG_LABEL_EDITABLE = (1 << 3);
 
     protected Vector4d m_Translation = new Vector4d();
     protected Quat4d m_Rotation = new Quat4d();

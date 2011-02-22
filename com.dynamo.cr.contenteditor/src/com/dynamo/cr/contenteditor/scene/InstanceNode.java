@@ -26,6 +26,18 @@ public class InstanceNode extends Node {
         return getIdentifier();
     }
 
+    void andFlags(Node node, int flags) {
+        if (!(node instanceof InstanceNode))
+            node.setFlags(node.getFlags() & flags);
+        for (Node n : node.getChilden()) {
+            andFlags(n, flags);
+        }
+    }
+
+    public void postAddNode(Node node) {
+        andFlags(node, ~(Node.FLAG_SELECTABLE | Node.FLAG_TRANSFORMABLE | Node.FLAG_LABEL_EDITABLE));
+    }
+
     @Override
     public void draw(DrawContext context) {
         // TODO Auto-generated method stub

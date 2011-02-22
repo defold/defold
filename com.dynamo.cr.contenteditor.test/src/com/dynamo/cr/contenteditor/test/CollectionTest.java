@@ -3,6 +3,7 @@ package com.dynamo.cr.contenteditor.test;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -71,7 +72,7 @@ public class CollectionTest {
         String name = "test.collection";
         Node node = factory.load(new NullProgressMonitor(), scene, name);
         assertThat(node, instanceOf(CollectionNode.class));
-        assertThat(node.getChilden().length, is(2));
+        assertThat(node.getChilden().length, is(3));
 
         CollectionNode coll = (CollectionNode) node;
         Node[] children = coll.getChilden();
@@ -139,6 +140,40 @@ public class CollectionTest {
         assertThat(n3.getChilden().length, is(1));
         Node mn = n3.getChilden()[0];
         assertThat(mn, instanceOf(MeshNode.class));
+    }
+
+    private void testNodeFlags(Node[] nodes, int flags) throws Exception {
+        for (Node node : nodes) {
+            assertThat((node.getFlags() & flags), is(0));
+            testNodeFlags(node.getChilden(), flags);
+        }
+    }
+
+    private void testNodeFlagsExcludeInstance(Node[] nodes, int flags) throws Exception {
+        for (Node node : nodes) {
+            if (!(node instanceof InstanceNode))
+                assertThat((node.getFlags() & flags), is(0));
+            testNodeFlagsExcludeInstance(node.getChilden(), flags);
+        }
+    }
+
+    @Test
+    public void testNodeFlags() throws Exception {
+        String name = "test.collection";
+        Node node = factory.load(new NullProgressMonitor(), scene, name);
+        assertThat(node, instanceOf(CollectionNode.class));
+        assertThat(node.getChilden().length, is(3));
+        assertThat((node.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN), not(0));
+        int flags = Node.FLAG_LABEL_EDITABLE
+            & Node.FLAG_SELECTABLE
+            & Node.FLAG_TRANSFORMABLE;
+        for (Node child : node.getChilden()) {
+            assertThat((child.getFlags() & flags), is(flags));
+            if (child instanceof InstanceNode)
+                testNodeFlagsExcludeInstance(child.getChilden(), flags);
+            else
+                testNodeFlags(child.getChilden(), flags);
+        }
     }
 }
 
