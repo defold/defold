@@ -6,7 +6,8 @@ public class SceneEvent
     public static final int NODE_REMOVED = 2;
     public static final int PROPERTY_CHANGED = 3;
     public static final int NODE_REPARENTED = 4;
-    public static final int NODE_IDENTIFIER_CHANGED = 5;
+    public static final int INSTANCE_NODE_IDENTIFIER_CHANGED = 5;
+    public static final int COLLECTION_INSTANCE_NODE_IDENTIFIER_CHANGED = 5;
 
     public int m_Type;
 

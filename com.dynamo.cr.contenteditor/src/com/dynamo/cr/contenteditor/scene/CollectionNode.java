@@ -59,21 +59,7 @@ public class CollectionNode extends Node {
 
             if (n instanceof CollectionInstanceNode) {
                 CollectionInstanceNode cin = (CollectionInstanceNode) n;
-
-                Transform t = new Transform();
-                cin.getLocalTransform(t);
-
-                Vector4d translation = new Vector4d();
-                Quat4d rotation = new Quat4d();
-                t.getTranslation(translation);
-                t.getRotation(rotation);
-
-                CollectionInstanceDesc cid = new CollectionInstanceDesc();
-                cid.m_Collection = cin.getCollection();
-                cid.m_Id = cin.getIdentifier();
-                cid.m_Position = MathUtil.toPoint3(translation);
-                cid.m_Rotation = MathUtil.toQuat(rotation);
-
+                CollectionInstanceDesc cid = cin.getDesciptor();
                 desc.m_CollectionInstances.add(cid);
             }
             else if (n instanceof InstanceNode) {

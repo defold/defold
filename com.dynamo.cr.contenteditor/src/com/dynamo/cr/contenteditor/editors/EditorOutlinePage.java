@@ -19,7 +19,6 @@ import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.TreeViewer;
-import org.eclipse.jface.viewers.TreeViewerColumn;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.jface.viewers.ViewerSorter;
@@ -48,10 +47,10 @@ import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
 import com.dynamo.cr.contenteditor.Activator;
 import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
+import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
-import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
 import com.dynamo.cr.contenteditor.scene.Node;
@@ -191,12 +190,13 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
 
         @Override
         public boolean canModify(Object element, String property) {
-            return enabled && (element instanceof InstanceNode);
+            Node node = (Node)element;
+            return enabled && ((node.getFlags() & Node.FLAG_LABEL_EDITABLE) != 0);
         }
 
         @Override
         public Object getValue(Object element, String property) {
-            InstanceNode node = (InstanceNode) element;
+            Node node = (Node) element;
             return node.getIdentifier();
         }
 
@@ -204,9 +204,14 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         public void modify(Object element, String property, Object value) {
             TreeViewer viewer = getTreeViewer();
             TreeItem item = (TreeItem) element;
-            InstanceNode node = (InstanceNode) item.getData();
             Scene scene = m_Editor.getScene();
-            Node tmp = scene.getNodeFromIdentifer((String) value);
+            Node tmp = null;
+            Node node = (Node)item.getData();
+            if (item.getData() instanceof CollectionInstanceNode) {
+                tmp = scene.getCollectionInstanceNodeFromId((String) value);
+            } else if (item.getData() instanceof InstanceNode) {
+                tmp = scene.getInstanceNodeFromId((String) value);
+            }
             if (tmp != null && tmp != node) {
                 // Duplicate
                 MessageDialog.openWarning(viewer.getTree().getShell(),

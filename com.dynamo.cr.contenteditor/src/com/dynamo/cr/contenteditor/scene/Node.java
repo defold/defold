@@ -17,6 +17,7 @@ public abstract class Node
     public static final int FLAG_TRANSFORMABLE = (1 << 0);
     public static final int FLAG_SELECTABLE = (1 << 1);
     public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 2);
+    public static final int FLAG_LABEL_EDITABLE = (1 << 4);
 
     protected Vector4d m_Translation = new Vector4d();
     protected Quat4d m_Rotation = new Quat4d();
@@ -84,8 +85,14 @@ public abstract class Node
     public final void setIdentifier(String key)
     {
         this.identifier = key;
-        m_Scene.setIdentifier(this, key);
-        m_Scene.identifierChanged(this);
+        if (this instanceof CollectionInstanceNode) {
+            m_Scene.setCollectionInstanceId(this, key);
+            m_Scene.collectionInstanceIdChanged(this);
+        }
+        else if (this instanceof InstanceNode) {
+            m_Scene.setInstanceId(this, key);
+            m_Scene.instanceIdChanged(this);
+        }
     }
 
     public final int getFlags()

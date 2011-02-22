@@ -14,7 +14,7 @@ public class InstanceNode extends Node {
     private Node prototypeNode;
 
     public InstanceNode(Scene scene, String id, String prototype, Node prototype_node) {
-        super(scene, FLAG_TRANSFORMABLE | FLAG_SELECTABLE | FLAG_CAN_HAVE_CHILDREN);
+        super(scene, FLAG_TRANSFORMABLE | FLAG_SELECTABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_LABEL_EDITABLE);
         setIdentifier(id);
         this.prototype = prototype;
         this.prototypeNode = prototype_node;

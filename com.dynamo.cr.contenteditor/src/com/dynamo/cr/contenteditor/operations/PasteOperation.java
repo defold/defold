@@ -14,6 +14,7 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
 import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
+import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
@@ -27,14 +28,18 @@ public class PasteOperation extends AbstractOperation {
     private Node pasteTarget;
 
     public void setSceneAndUniqueIdentifier(Scene scene, Node node) {
-        if (node instanceof InstanceNode) {
-            InstanceNode in = (InstanceNode) node;
-            String id = scene.getUniqueId(in.getIdentifier());
-            // NOTE: We must scene to the node here in order to ensure unique identifiers
-            node.setScene(scene);
+        String id = null;
+        if (node instanceof CollectionInstanceNode) {
+            id = scene.getUniqueCollectionInstanceId(node.getIdentifier());
+        }
+        else if (node instanceof InstanceNode) {
+            id = scene.getUniqueInstanceId(node.getIdentifier());
+        }
+        // NOTE: We must scene to the node here in order to ensure unique identifiers
+        node.setScene(scene);
+        if (id != null) {
             node.setIdentifier(id);
         }
-        node.setScene(scene);
         for (Node n : node.getChilden()) {
             setSceneAndUniqueIdentifier(scene, n);
         }
