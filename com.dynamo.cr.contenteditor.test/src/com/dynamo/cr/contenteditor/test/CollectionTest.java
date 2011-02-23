@@ -73,14 +73,14 @@ public class CollectionTest {
         String name = "test.collection";
         Node node = factory.load(new NullProgressMonitor(), scene, name);
         assertThat(node, instanceOf(CollectionNode.class));
-        assertThat(node.getChilden().length, is(3));
+        assertThat(node.getChildren().length, is(3));
 
         CollectionNode coll = (CollectionNode) node;
-        Node[] children = coll.getChilden();
+        Node[] children = coll.getChildren();
 
         InstanceNode attacker = getInstanceNode(children, "attacker");
-        InstanceNode attacker_child1 = getInstanceNode(attacker.getChilden(), "attacker_child1");
-        InstanceNode attacker_child2 = getInstanceNode(attacker.getChilden(), "attacker_child2");
+        InstanceNode attacker_child1 = getInstanceNode(attacker.getChildren(), "attacker_child1");
+        InstanceNode attacker_child2 = getInstanceNode(attacker.getChildren(), "attacker_child2");
         InstanceNode target = getInstanceNode(children, "target");
 
         assertThat(attacker.getPrototype(), is("attacker.go"));
@@ -98,13 +98,13 @@ public class CollectionTest {
         assertThat(node.contains(attacker), is(true));
         assertThat(node.contains(target), is(true));
 
-        assertThat(attacker.getChilden().length, is(3));
-        PrototypeNode attacker_prototype = (PrototypeNode) attacker.getChilden()[0];
-        assertThat(attacker_prototype.getChilden().length, is(3));
+        assertThat(attacker.getChildren().length, is(3));
+        PrototypeNode attacker_prototype = (PrototypeNode) attacker.getChildren()[0];
+        assertThat(attacker_prototype.getChildren().length, is(3));
 
-        assertThat(target.getChilden().length, is(1));
-        PrototypeNode target_prototype = (PrototypeNode) target.getChilden()[0];
-        assertThat(target_prototype.getChilden().length, is(3));
+        assertThat(target.getChildren().length, is(1));
+        PrototypeNode target_prototype = (PrototypeNode) target.getChildren()[0];
+        assertThat(target_prototype.getChildren().length, is(3));
     }
 
     ComponentNode getComponentNode(Node[] nodes, String resource) {
@@ -123,9 +123,9 @@ public class CollectionTest {
         String name = "attacker.go";
         Node node = factory.load(new NullProgressMonitor(), scene, name);
         assertThat(node, instanceOf(PrototypeNode.class));
-        assertThat(node.getChilden().length, is(3));
+        assertThat(node.getChildren().length, is(3));
 
-        Node[] children = node.getChilden();
+        Node[] children = node.getChildren();
         ComponentNode n1 = getComponentNode(children, "attacker.script");
         ComponentNode n2 = getComponentNode(children, "attacker.collisionobject");
         ComponentNode n3 = getComponentNode(children, "box.model");
@@ -138,15 +138,15 @@ public class CollectionTest {
         assertThat(node.contains(n2), is(true));
         assertThat(node.contains(n3), is(true));
 
-        assertThat(n3.getChilden().length, is(1));
-        Node mn = n3.getChilden()[0];
+        assertThat(n3.getChildren().length, is(1));
+        Node mn = n3.getChildren()[0];
         assertThat(mn, instanceOf(MeshNode.class));
     }
 
     private void testNodeFlags(Node[] nodes, int flags) throws Exception {
         for (Node node : nodes) {
             assertThat((node.getFlags() & flags), is(0));
-            testNodeFlags(node.getChilden(), flags);
+            testNodeFlags(node.getChildren(), flags);
         }
     }
 
@@ -154,7 +154,7 @@ public class CollectionTest {
         for (Node node : nodes) {
             if (!(node instanceof InstanceNode))
                 assertThat((node.getFlags() & flags), is(0));
-            testNodeFlagsExcludeInstance(node.getChilden(), flags);
+            testNodeFlagsExcludeInstance(node.getChildren(), flags);
         }
     }
 
@@ -163,17 +163,17 @@ public class CollectionTest {
         String name = "test.collection";
         Node node = factory.load(new NullProgressMonitor(), scene, name);
         assertThat(node, instanceOf(CollectionNode.class));
-        assertThat(node.getChilden().length, is(3));
+        assertThat(node.getChildren().length, is(3));
         assertThat((node.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN), not(0));
         int flags = Node.FLAG_LABEL_EDITABLE
             & Node.FLAG_SELECTABLE
             & Node.FLAG_TRANSFORMABLE;
-        for (Node child : node.getChilden()) {
+        for (Node child : node.getChildren()) {
             assertThat((child.getFlags() & flags), is(flags));
             if (child instanceof InstanceNode)
-                testNodeFlagsExcludeInstance(child.getChilden(), flags);
+                testNodeFlagsExcludeInstance(child.getChildren(), flags);
             else
-                testNodeFlags(child.getChilden(), flags);
+                testNodeFlags(child.getChildren(), flags);
         }
     }
 
@@ -183,14 +183,14 @@ public class CollectionTest {
         String prototypeName = "empty.go";
         Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName);
         assertThat(parent, instanceOf(CollectionNode.class));
-        assertThat(parent.getChilden().length, is(0));
+        assertThat(parent.getChildren().length, is(0));
         Node[] collections = new Node[2];
         Node[] collectionInstances = new Node[2];
         String id = "test_id";
         for (int i = 0; i < 2; ++i) {
             collections[i] = this.factory.load(new NullProgressMonitor(), this.scene, collectionName);
             assertThat(collections[i], instanceOf(CollectionNode.class));
-            assertThat(collections[i].getChilden().length, is(0));
+            assertThat(collections[i].getChildren().length, is(0));
             collectionInstances[i] = new CollectionInstanceNode(this.scene, id, collectionName, collections[i]);
             assertThat(collectionInstances[i], instanceOf(CollectionInstanceNode.class));
             parent.addNode(collectionInstances[i]);
@@ -203,7 +203,7 @@ public class CollectionTest {
         for (int i = 0; i < 2; ++i) {
             prototypes[i] = this.factory.load(new NullProgressMonitor(), this.scene, prototypeName);
             assertThat(prototypes[i], instanceOf(PrototypeNode.class));
-            assertThat(prototypes[i].getChilden().length, is(0));
+            assertThat(prototypes[i].getChildren().length, is(0));
             instances[i] = new InstanceNode(this.scene, id, prototypeName, prototypes[i]);
             assertThat(instances[i], instanceOf(InstanceNode.class));
             parent.addNode(instances[i]);

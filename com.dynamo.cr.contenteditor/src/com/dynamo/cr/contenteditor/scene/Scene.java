@@ -22,7 +22,7 @@ public class Scene implements IDisposable
     {
         assert node.getScene() == this;
 
-        for (Node n : node.getChilden())
+        for (Node n : node.getChildren())
         {
             doValidate(n);
             assert n.getParent() == node;

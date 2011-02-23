@@ -50,7 +50,7 @@ public class CollectionNode extends Node {
 
     void doGetDescriptor(CollectionDesc desc, InstanceNode in) {
         InstanceDesc id = in.getDesciptor();
-        for (Node n2 : in.getChilden()) {
+        for (Node n2 : in.getChildren()) {
             if (n2 instanceof InstanceNode) {
                 InstanceNode in2 = (InstanceNode) n2;
                 id.m_Children.add(in2.getName());
@@ -64,7 +64,7 @@ public class CollectionNode extends Node {
         CollectionDesc desc = new CollectionDesc();
         desc.m_Name = this.name;
 
-        for (Node n : getChilden()) {
+        for (Node n : getChildren()) {
 
             if (n instanceof CollectionInstanceNode) {
                 CollectionInstanceNode cin = (CollectionInstanceNode) n;

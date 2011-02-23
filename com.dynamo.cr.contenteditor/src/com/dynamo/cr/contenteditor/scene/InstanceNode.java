@@ -29,7 +29,7 @@ public class InstanceNode extends Node {
     void andFlags(Node node, int flags) {
         if (!(node instanceof InstanceNode))
             node.setFlags(node.getFlags() & flags);
-        for (Node n : node.getChilden()) {
+        for (Node n : node.getChildren()) {
             andFlags(n, flags);
         }
     }

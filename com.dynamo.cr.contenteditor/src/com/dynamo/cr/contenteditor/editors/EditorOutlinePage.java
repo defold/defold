@@ -63,7 +63,7 @@ class EditorOutlinePageContentProvider implements ITreeContentProvider
     public Object[] getChildren(Object parentElement)
     {
         Node n = (Node) parentElement;
-        return n.getChilden();
+        return n.getChildren();
     }
 
     @Override
@@ -77,14 +77,14 @@ class EditorOutlinePageContentProvider implements ITreeContentProvider
     public boolean hasChildren(Object element)
     {
         Node n = (Node) element;
-        return n.getChilden().length > 0;
+        return n.getChildren().length > 0;
     }
 
     @Override
     public Object[] getElements(Object inputElement)
     {
         Node n = (Node) inputElement;
-        return n.getChilden();
+        return n.getChildren();
     }
 
     @Override

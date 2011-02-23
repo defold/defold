@@ -18,7 +18,7 @@ public class Paste extends AbstractHandler {
 
     public void setScene(Scene scene, Node node) {
         node.setScene(scene);
-        for (Node n : node.getChilden()) {
+        for (Node n : node.getChildren()) {
             setScene(scene, n);
         }
     }

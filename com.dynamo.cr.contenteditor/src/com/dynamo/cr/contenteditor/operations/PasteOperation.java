@@ -29,7 +29,7 @@ public class PasteOperation extends AbstractOperation {
 
     public void setScene(Scene scene, Node node) {
         node.setScene(scene);
-        for (Node n : node.getChilden()) {
+        for (Node n : node.getChildren()) {
             setScene(scene, n);
         }
     }
@@ -53,7 +53,7 @@ public class PasteOperation extends AbstractOperation {
         try {
             CollectionNode node = (CollectionNode) factory.load(new NullProgressMonitor(), scene, "clipboard.collection", stream);
             setScene(pasteTarget.getScene(), node);
-            for (Node n : node.getChilden()) {
+            for (Node n : node.getChildren()) {
                 pasteTarget.addNode(n);
                 addedNodes.add(n);
             }

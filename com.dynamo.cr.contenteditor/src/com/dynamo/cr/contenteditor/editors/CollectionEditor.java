@@ -503,7 +503,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             node.getLocalTransform(t);
             GLUtil.multMatrix(gl, t);
             node.draw(context);
-            drawNodesRecursively(context, node.getChilden());
+            drawNodesRecursively(context, node.getChildren());
             gl.glPopMatrix();
         }
     }
@@ -524,7 +524,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             node.draw(context);
             gl.glPopName();
 
-            next_name = drawSelectNodesRecursively(context, node.getChilden(), next_name, name_node_map);
+            next_name = drawSelectNodesRecursively(context, node.getChildren(), next_name, name_node_map);
 
             gl.glPopMatrix();
         }
@@ -747,7 +747,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
 
         DrawContext context = new DrawContext(gl, m_SelectedNodes);
-        drawNodesRecursively(context, m_Root.getChilden());
+        drawNodesRecursively(context, m_Root.getChildren());
 
         // Draw grid
         drawGrid(context, m_ActiveCamera);
@@ -959,7 +959,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         beginSelect(gl, m_ActiveCamera.getViewMatrixArray(), x, y, w, h);
         DrawContext context = new DrawContext(gl, m_SelectedNodes);
         Map<Integer, Node> name_node_map = new HashMap<Integer, Node>();
-        drawSelectNodesRecursively(context, m_Root.getChilden(), 0, name_node_map);
+        drawSelectNodesRecursively(context, m_Root.getChildren(), 0, name_node_map);
         SelectResult result = endSelct(gl);
 
         List<Node> to_select_list= new ArrayList<Node>();

@@ -145,7 +145,7 @@ public abstract class Node
         {
             m_Scene.propertyChanged(this, m_WorldTranslationProperty);
         }
-        for (Node n : getChilden()) {
+        for (Node n : getChildren()) {
             n.updateWorldTranslationProperty();
         }
     }
@@ -187,7 +187,7 @@ public abstract class Node
         m_Scene.nodeReparented(this, parent);
     }
 
-    public final Node[] getChilden() {
+    public final Node[] getChildren() {
         return children.toArray(new Node[children.size()]);
     }
 
@@ -237,7 +237,7 @@ public abstract class Node
         if (this == node)
             return true;
 
-        for (Node n : getChilden())
+        for (Node n : getChildren())
         {
             if (n.contains(node))
                 return true;
