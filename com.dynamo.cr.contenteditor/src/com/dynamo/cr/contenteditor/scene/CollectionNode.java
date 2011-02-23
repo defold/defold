@@ -28,7 +28,16 @@ public class CollectionNode extends Node {
 
     @Override
     public void preAddNode(Node node) {
-        assert (node instanceof InstanceNode);
+        if (node instanceof CollectionInstanceNode) {
+            if (getScene().getCollectionInstanceNodeFromId(node.getIdentifier()) != null) {
+                node.setIdentifier(getScene().getUniqueCollectionInstanceId(node.getIdentifier()));
+            }
+        }
+        else if (node instanceof InstanceNode) {
+            if (getScene().getInstanceNodeFromId(node.getIdentifier()) != null) {
+                node.setIdentifier(getScene().getUniqueInstanceId(node.getIdentifier()));
+            }
+        }
     }
 
     @Override

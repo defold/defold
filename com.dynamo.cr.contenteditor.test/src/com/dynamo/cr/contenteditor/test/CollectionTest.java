@@ -18,6 +18,7 @@ import com.dynamo.cr.contenteditor.resource.LightLoader;
 import com.dynamo.cr.contenteditor.resource.SpriteLoader;
 import com.dynamo.cr.contenteditor.resource.TextureLoader;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
+import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
@@ -174,6 +175,48 @@ public class CollectionTest {
             else
                 testNodeFlags(child.getChilden(), flags);
         }
+    }
+
+    @Test
+    public void testIds() throws Exception {
+        String collectionName = "empty.collection";
+        String prototypeName = "empty.go";
+        Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName);
+        assertThat(parent, instanceOf(CollectionNode.class));
+        assertThat(parent.getChilden().length, is(0));
+        Node[] collections = new Node[2];
+        Node[] collectionInstances = new Node[2];
+        String id = "test_id";
+        for (int i = 0; i < 2; ++i) {
+            collections[i] = this.factory.load(new NullProgressMonitor(), this.scene, collectionName);
+            assertThat(collections[i], instanceOf(CollectionNode.class));
+            assertThat(collections[i].getChilden().length, is(0));
+            collectionInstances[i] = new CollectionInstanceNode(this.scene, id, collectionName, collections[i]);
+            assertThat(collectionInstances[i], instanceOf(CollectionInstanceNode.class));
+            parent.addNode(collectionInstances[i]);
+        }
+        assertThat(collectionInstances[0].getIdentifier(), is(id));
+        assertThat(collectionInstances[1].getIdentifier(), not(id));
+        assertTrue(!collectionInstances[1].isIdentifierUsed(id));
+        Node[] prototypes = new Node[2];
+        Node[] instances = new Node[2];
+        for (int i = 0; i < 2; ++i) {
+            prototypes[i] = this.factory.load(new NullProgressMonitor(), this.scene, prototypeName);
+            assertThat(prototypes[i], instanceOf(PrototypeNode.class));
+            assertThat(prototypes[i].getChilden().length, is(0));
+            instances[i] = new InstanceNode(this.scene, id, prototypeName, prototypes[i]);
+            assertThat(instances[i], instanceOf(InstanceNode.class));
+            parent.addNode(instances[i]);
+        }
+        assertThat(instances[0].getIdentifier(), is(id));
+        assertThat(instances[1].getIdentifier(), not(id));
+        assertTrue(!instances[1].isIdentifierUsed(id));
+
+        parent.removeNode(collectionInstances[0]);
+        assertTrue(collectionInstances[1].isIdentifierUsed(id));
+
+        parent.removeNode(instances[0]);
+        assertTrue(instances[1].isIdentifierUsed(id));
     }
 }
 

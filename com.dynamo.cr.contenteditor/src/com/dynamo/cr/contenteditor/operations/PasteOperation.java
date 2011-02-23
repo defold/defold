@@ -27,21 +27,10 @@ public class PasteOperation extends AbstractOperation {
     private List<Node> addedNodes;
     private Node pasteTarget;
 
-    public void setSceneAndUniqueIdentifier(Scene scene, Node node) {
-        String id = null;
-        if (node instanceof CollectionInstanceNode) {
-            id = scene.getUniqueCollectionInstanceId(node.getIdentifier());
-        }
-        else if (node instanceof InstanceNode) {
-            id = scene.getUniqueInstanceId(node.getIdentifier());
-        }
-        // NOTE: We must scene to the node here in order to ensure unique identifiers
+    public void setScene(Scene scene, Node node) {
         node.setScene(scene);
-        if (id != null) {
-            node.setIdentifier(id);
-        }
         for (Node n : node.getChilden()) {
-            setSceneAndUniqueIdentifier(scene, n);
+            setScene(scene, n);
         }
     }
 
@@ -63,7 +52,7 @@ public class PasteOperation extends AbstractOperation {
         Scene scene = new Scene();
         try {
             CollectionNode node = (CollectionNode) factory.load(new NullProgressMonitor(), scene, "clipboard.collection", stream);
-            setSceneAndUniqueIdentifier(pasteTarget.getScene(), node);
+            setScene(pasteTarget.getScene(), node);
             for (Node n : node.getChilden()) {
                 pasteTarget.addNode(n);
                 addedNodes.add(n);

@@ -205,21 +205,17 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
             TreeViewer viewer = getTreeViewer();
             TreeItem item = (TreeItem) element;
             Scene scene = m_Editor.getScene();
-            Node tmp = null;
             Node node = (Node)item.getData();
-            if (item.getData() instanceof CollectionInstanceNode) {
-                tmp = scene.getCollectionInstanceNodeFromId((String) value);
-            } else if (item.getData() instanceof InstanceNode) {
-                tmp = scene.getInstanceNodeFromId((String) value);
+            String stringValue = (String) value;
+            String error = null;
+            if (stringValue.isEmpty()) {
+                error = "Identifier can not be empty.";
+            } else if (node.isIdentifierUsed(stringValue)) {
+                error = String.format("Identifier '%s' already used.", stringValue);
             }
-            if (tmp != null && tmp != node) {
-                // Duplicate
-                MessageDialog.openWarning(viewer.getTree().getShell(),
-                                          "Duplicate identifier",
-                                          String.format("Identifier %s already used.", value));
-            }
-            else {
-                String stringValue = (String) value;
+            if (error != null) {
+                MessageDialog.openWarning(viewer.getTree().getShell(), "Invalid identifier", error);
+            } else {
                 // Check if new value equals old
                 if (!node.getIdentifier().equals(stringValue)) {
                     SetIdentifierOperation op = new SetIdentifierOperation(node, (String) value);

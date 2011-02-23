@@ -67,4 +67,8 @@ public class InstanceNode extends Node {
         return desc;
     }
 
+    @Override
+    public boolean isIdentifierUsed(String id) {
+        return getScene().getInstanceNodeFromId(id) == null;
+    }
 }

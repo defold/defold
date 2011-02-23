@@ -85,14 +85,10 @@ public abstract class Node
     public final void setIdentifier(String key)
     {
         this.identifier = key;
-        if (this instanceof CollectionInstanceNode) {
-            m_Scene.setCollectionInstanceId(this, key);
-            m_Scene.collectionInstanceIdChanged(this);
-        }
-        else if (this instanceof InstanceNode) {
-            m_Scene.setInstanceId(this, key);
-            m_Scene.instanceIdChanged(this);
-        }
+    }
+
+    public boolean isIdentifierUsed(String id) {
+        return false;
     }
 
     public final int getFlags()
@@ -415,5 +411,4 @@ public abstract class Node
     }
 
     public abstract void draw(DrawContext context);
-
 }

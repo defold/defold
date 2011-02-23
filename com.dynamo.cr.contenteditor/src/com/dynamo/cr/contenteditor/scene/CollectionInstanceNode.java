@@ -63,4 +63,9 @@ public class CollectionInstanceNode extends Node {
         // TODO: REST HERE!
         return desc;
     }
+
+    @Override
+    public boolean isIdentifierUsed(String id) {
+        return getScene().getCollectionInstanceNodeFromId(id) == null;
+    }
 }

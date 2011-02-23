@@ -84,26 +84,8 @@ public class Scene implements IDisposable
         fireScenePropertyChangedEvent(e);
     }
 
-    public void collectionInstanceIdChanged(Node node) {
-        SceneEvent e = new SceneEvent(SceneEvent.COLLECTION_INSTANCE_NODE_IDENTIFIER_CHANGED);
-        fireSceneEvent(e);
-    }
-
-    public void instanceIdChanged(Node node) {
-        SceneEvent e = new SceneEvent(SceneEvent.INSTANCE_NODE_IDENTIFIER_CHANGED);
-        fireSceneEvent(e);
-    }
-
-    public void setCollectionInstanceId(Node node, String key) {
-        collectionInstanceIdToNode.put(node.getIdentifier(), node);
-    }
-
-    public void setInstanceId(Node node, String key) {
-        instanceIdToNode.put(node.getIdentifier(), node);
-    }
-
     public Node getCollectionInstanceNodeFromId(String ident) {
-        return instanceIdToNode.get(ident);
+        return collectionInstanceIdToNode.get(ident);
     }
 
     public Node getInstanceNodeFromId(String ident) {
