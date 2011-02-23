@@ -33,14 +33,14 @@ public class ScriptNewWizardPage extends WizardPage {
 
 	private ISelection selection;
 
-    private ScriptNewWizard wizard;
+    private AbstractScriptNewWizard wizard;
 
 	/**
 	 * Constructor for SampleNewWizardPage.
 	 *
 	 * @param pageName
 	 */
-	public ScriptNewWizardPage(ScriptNewWizard wizard, ISelection selection) {
+	public ScriptNewWizardPage(AbstractScriptNewWizard wizard, ISelection selection) {
 		super("wizardPage");
 		this.wizard = wizard;
 		setTitle(wizard.getTitle());
