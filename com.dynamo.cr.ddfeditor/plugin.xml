@@ -131,105 +131,105 @@
             class="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard"
             icon="icons/16-cube-green_16x16.png"
             id="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard"
-            name="Model file">
+            name="Model File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard"
             icon="icons/brick.png"
             id="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard"
-            name="Game object file">
+            name="Game Object File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard"
             icon="icons/camera.png"
             id="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard"
-            name="Camera file">
+            name="Camera File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.LightNewWizard"
             icon="icons/lightbulb.png"
             id="com.dynamo.cr.ddfeditor.wizards.LightNewWizard"
-            name="Light file">
+            name="Light File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard"
             icon="icons/table_multiple.png"
             id="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard"
-            name="Spawn point file">
+            name="Spawn Point File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard"
             icon="icons/weight.png"
             id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard"
-            name="Collision object file">
+            name="Collision Object File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.GuiNewWizard"
             icon="icons/text_allcaps.png"
             id="com.dynamo.cr.ddfeditor.wizards.GuiNewWizard"
-            name="Gui file">
+            name="Gui File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.FontNewWizard"
             icon="icons/font.png"
             id="com.dynamo.cr.ddfeditor.wizards.FontNewWizard"
-            name="Font file">
+            name="Font File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.MaterialNewWizard"
             icon="icons/large_tiles.png"
             id="com.dynamo.cr.ddfeditor.wizards.MaterialNewWizard"
-            name="Material file">
+            name="Material File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.RenderNewWizard"
             icon="icons/paintcan.png"
             id="com.dynamo.cr.ddfeditor.wizards.RenderNewWizard"
-            name="Render file">
+            name="Render File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
             icon="icons/keyboard.png"
             id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
-            name="Input binding file">
+            name="Input Binding File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
             icon="icons/bricks.png"
             id="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard"
-            name="Collection file">
+            name="Collection File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
             icon="icons/dynamite.png"
             id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard"
-            name="Emitter file">
+            name="Emitter File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
             icon="icons/penguin.png"
             id="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard"
-            name="Sprite file">
+            name="Sprite File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
             icon="icons/contrast_high.png"
             id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard"
-            name="Convex Shape file">
+            name="Convex Shape File">
       </wizard>
    </extension>
    <extension

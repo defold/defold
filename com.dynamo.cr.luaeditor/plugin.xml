@@ -17,17 +17,29 @@
          point="org.eclipse.ui.newWizards">
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
-            class="com.dynamo.cr.luaeditor.wizards.ScriptNewWizard"
+            class="com.dynamo.cr.luaeditor.wizards.GameObjectScriptNewWizard"
             icon="icons/lua.gif"
-            id="com.dynamo.cr.luaeditor.newScriptWizard"
-            name="Script file">
+            id="com.dynamo.cr.luaeditor.NewGameObjectScriptWizard"
+            name="Script File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.luaeditor.wizards.GuiScriptNewWizard"
+            icon="icons/lua.gif"
+            id="com.dynamo.cr.luaeditor.NewGuiObjectScriptWizard"
+            name="Gui Script File">
       </wizard>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
       <commonWizard
             type="new"
-            wizardId="com.dynamo.cr.luaeditor.newScriptWizard">
+            wizardId="com.dynamo.cr.luaeditor.NewGameObjectScriptWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.luaeditor.NewGameObjectScriptWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>

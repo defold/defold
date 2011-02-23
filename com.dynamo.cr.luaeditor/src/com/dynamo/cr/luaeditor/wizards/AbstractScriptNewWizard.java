@@ -27,27 +27,23 @@ import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.ide.IDE;
 
-public class ScriptNewWizard extends Wizard implements INewWizard {
+public abstract class AbstractScriptNewWizard extends Wizard implements INewWizard {
 
     private ScriptNewWizardPage page;
     private ISelection selection;
 
-    public ScriptNewWizard() {
+    public AbstractScriptNewWizard() {
         super();
         setNeedsProgressMonitor(true);
     }
 
-    public String getTitle() {
-        return "Script file";
-    }
+    public abstract String getTitle();
 
-    public String getDescription() {
-        return "This wizard creates a new script file.";
-    }
+    public abstract String getDescription();
 
-    public String getExtension() {
-        return "script";
-    }
+    public abstract String getExtension();
+
+    public abstract String getTemplateResourceName();
 
     public void addPages() {
         page = new ScriptNewWizardPage(this, selection);
@@ -101,7 +97,7 @@ public class ScriptNewWizard extends Wizard implements INewWizard {
         IContainer container = (IContainer) resource;
         final IFile file = container.getFile(new Path(fileName));
         try {
-            InputStream stream = getClass().getClassLoader().getResourceAsStream("com/dynamo/cr/luaeditor/wizards/template.script");
+            InputStream stream = getClass().getClassLoader().getResourceAsStream(getTemplateResourceName());
             if (file.exists()) {
                 file.setContents(stream, true, true, monitor);
             } else {

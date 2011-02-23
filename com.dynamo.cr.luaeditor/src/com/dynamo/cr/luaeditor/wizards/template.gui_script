@@ -1,0 +1,17 @@
+function init(self)
+    -- Add init code here
+end
+
+function update(self)
+    -- Add update code here
+end
+
+function on_message(self, message_id, message)
+    -- Add on-message code here
+    -- Remove this function if not needed
+end
+
+function on_input(self, action_id, action)
+    -- Add on-input code here
+    -- Remove this function if not needed
+end
