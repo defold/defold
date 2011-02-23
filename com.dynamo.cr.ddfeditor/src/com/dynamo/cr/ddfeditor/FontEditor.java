@@ -73,9 +73,11 @@ public class FontEditor extends DdfEditor {
 
                         @Override
                         public void run() {
-                            image = new Image(display, convertToSWT(awtImage));
-                            canvas.setSize(image.getBounds().width, image.getBounds().height);
-                            canvas.redraw();
+                            if (PreviewThread.this.run) {
+                                image = new Image(display, convertToSWT(awtImage));
+                                canvas.setSize(image.getBounds().width, image.getBounds().height);
+                                canvas.redraw();
+                            }
                         }
                     });
 
