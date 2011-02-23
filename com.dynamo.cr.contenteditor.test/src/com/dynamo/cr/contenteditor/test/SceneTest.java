@@ -31,7 +31,7 @@ import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Scene;
 
-public class CollectionTest {
+public class SceneTest {
 
     private AbstractNodeLoaderFactory factory;
     private FileResourceLoaderFactory resourceFactory;
