@@ -51,7 +51,7 @@ public class PasteOperation extends AbstractOperation {
         ByteArrayInputStream stream = new ByteArrayInputStream(data.getBytes());
         Scene scene = new Scene();
         try {
-            CollectionNode node = (CollectionNode) factory.load(new NullProgressMonitor(), scene, "clipboard.collection", stream);
+            CollectionNode node = (CollectionNode) factory.load(new NullProgressMonitor(), scene, "clipboard.collection", stream, pasteTarget);
             setScene(pasteTarget.getScene(), node);
             for (Node n : node.getChildren()) {
                 pasteTarget.addNode(n);

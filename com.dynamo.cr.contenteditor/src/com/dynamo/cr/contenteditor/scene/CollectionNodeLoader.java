@@ -22,7 +22,7 @@ import com.dynamo.gameobject.ddf.GameObject.InstanceDesc;
 public class CollectionNodeLoader implements INodeLoader {
 
     @Override
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory) throws IOException,
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory, Node parent) throws IOException,
             LoaderException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
@@ -35,7 +35,7 @@ public class CollectionNodeLoader implements INodeLoader {
         for (InstanceDesc id : desc.m_Instances) {
             Node prototype;
             try {
-                prototype = factory.load(monitor, scene, id.m_Prototype);
+                prototype = factory.load(monitor, scene, id.m_Prototype, null);
             }
             catch (IOException e) {
                 prototype = new BrokenNode(scene, id.m_Prototype, e.getMessage());
@@ -51,26 +51,43 @@ public class CollectionNodeLoader implements INodeLoader {
         }
 
         for (InstanceDesc id : desc.m_Instances) {
-            Node parent = idToNode.get(id.m_Id);
+            Node parentInstance = idToNode.get(id.m_Id);
             for (String child_id : id.m_Children) {
                 Node child = idToNode.get(child_id);
                 if (child == null)
                     throw new LoaderException(String.format("Child %s not found", child_id));
 
                 node.removeNode(child);
-                parent.addNode(child);
+                parentInstance.addNode(child);
             }
         }
 
         for (CollectionInstanceDesc cid : desc.m_CollectionInstances) {
-            Node sub_collection = factory.load(monitor, scene, cid.m_Collection);
-            monitor.worked(1);
+            // detect recursion
+            String ancestorCollection = name;
+            Node subNode;
+            if (!name.equals(cid.m_Collection) && parent != null) {
+                Node ancestor = parent;
+                ancestorCollection = ((CollectionNode)parent).getResource();
+                while (!ancestorCollection.equals(cid.m_Collection) && ancestor != null) {
+                    ancestor = ancestor.getParent();
+                    if (ancestor != null && ancestor instanceof CollectionNode) {
+                        ancestorCollection = ((CollectionNode)ancestor).getResource();
+                    }
+                }
+            }
+            if (ancestorCollection.equals(cid.m_Collection)) {
+                subNode = new BrokenNode(scene, cid.m_Id, "A collection can not have collection instances which point to the same resource.");
+            } else {
+                Node sub_collection = factory.load(monitor, scene, cid.m_Collection, node);
+                monitor.worked(1);
 
-            CollectionInstanceNode cin = new CollectionInstanceNode(scene, cid.m_Id, cid.m_Collection, sub_collection);
+                subNode = new CollectionInstanceNode(scene, cid.m_Id, cid.m_Collection, sub_collection);
 
-            cin.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
-            cin.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
-            node.addNode(cin);
+                subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
+                subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
+            }
+            node.addNode(subNode);
         }
 
         return node;

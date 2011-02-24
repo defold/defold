@@ -19,7 +19,7 @@ public class MeshNodeLoader implements INodeLoader {
 
     @Override
     public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream,
-            INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory) throws IOException, LoaderException {
+            INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory, Node parent) throws IOException, LoaderException {
 
         try {
             Mesh mesh;

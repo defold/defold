@@ -16,7 +16,7 @@ import com.dynamo.model.ddf.Model.ModelDesc;
 public class ModelNodeLoader implements INodeLoader {
 
     @Override
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory)
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory, Node parent)
             throws IOException, LoaderException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
@@ -27,7 +27,7 @@ public class ModelNodeLoader implements INodeLoader {
             texture = (TextureResource) resourceFactory.load(monitor, model_desc.m_Textures.get(0));
         }
 
-        MeshNode mesh_node = (MeshNode) factory.load(monitor, scene, model_desc.m_Mesh);
+        MeshNode mesh_node = (MeshNode) factory.load(monitor, scene, model_desc.m_Mesh, null);
         mesh_node.textureResource = texture;
         return new ModelNode(scene, name, mesh_node);
     }

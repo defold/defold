@@ -11,7 +11,7 @@ import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
 
 public interface INodeLoader {
 
-    Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory) throws IOException, LoaderException, CoreException;
+    Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory, Node parent) throws IOException, LoaderException, CoreException;
 
     void save(IProgressMonitor monitor, String name, Node node, OutputStream stream, INodeLoaderFactory loaderFactory) throws IOException, LoaderException;
 }

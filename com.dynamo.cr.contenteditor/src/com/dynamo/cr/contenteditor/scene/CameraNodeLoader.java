@@ -15,7 +15,7 @@ public class CameraNodeLoader implements INodeLoader {
     @Override
     public Node load(IProgressMonitor monitor, Scene scene, String name,
             InputStream stream, INodeLoaderFactory factory,
-            IResourceLoaderFactory resourceFactory) throws IOException,
+            IResourceLoaderFactory resourceFactory, Node parent) throws IOException,
             LoaderException, CoreException {
 
         CameraResource cameraResource = (CameraResource) resourceFactory.load(monitor, name);

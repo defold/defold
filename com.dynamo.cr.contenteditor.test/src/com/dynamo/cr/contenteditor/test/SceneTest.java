@@ -18,6 +18,7 @@ import com.dynamo.cr.contenteditor.resource.LightLoader;
 import com.dynamo.cr.contenteditor.resource.SpriteLoader;
 import com.dynamo.cr.contenteditor.resource.TextureLoader;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
+import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
@@ -71,7 +72,7 @@ public class SceneTest {
     @Test
     public void testCollectionLoader() throws Exception {
         String name = "test.collection";
-        Node node = factory.load(new NullProgressMonitor(), scene, name);
+        Node node = factory.load(new NullProgressMonitor(), scene, name, null);
         assertThat(node, instanceOf(CollectionNode.class));
         assertThat(node.getChildren().length, is(3));
 
@@ -121,7 +122,7 @@ public class SceneTest {
     @Test
     public void testPrototypeLoader() throws Exception {
         String name = "attacker.go";
-        Node node = factory.load(new NullProgressMonitor(), scene, name);
+        Node node = factory.load(new NullProgressMonitor(), scene, name, null);
         assertThat(node, instanceOf(PrototypeNode.class));
         assertThat(node.getChildren().length, is(3));
 
@@ -161,7 +162,7 @@ public class SceneTest {
     @Test
     public void testNodeFlags() throws Exception {
         String name = "test.collection";
-        Node node = factory.load(new NullProgressMonitor(), scene, name);
+        Node node = factory.load(new NullProgressMonitor(), scene, name, null);
         assertThat(node, instanceOf(CollectionNode.class));
         assertThat(node.getChildren().length, is(3));
         assertThat((node.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN), not(0));
@@ -181,14 +182,14 @@ public class SceneTest {
     public void testIds() throws Exception {
         String collectionName = "empty.collection";
         String prototypeName = "empty.go";
-        Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName);
+        Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
         assertThat(parent, instanceOf(CollectionNode.class));
         assertThat(parent.getChildren().length, is(0));
         Node[] collections = new Node[2];
         Node[] collectionInstances = new Node[2];
         String id = "test_id";
         for (int i = 0; i < 2; ++i) {
-            collections[i] = this.factory.load(new NullProgressMonitor(), this.scene, collectionName);
+            collections[i] = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
             assertThat(collections[i], instanceOf(CollectionNode.class));
             assertThat(collections[i].getChildren().length, is(0));
             collectionInstances[i] = new CollectionInstanceNode(this.scene, id, collectionName, collections[i]);
@@ -201,7 +202,7 @@ public class SceneTest {
         Node[] prototypes = new Node[2];
         Node[] instances = new Node[2];
         for (int i = 0; i < 2; ++i) {
-            prototypes[i] = this.factory.load(new NullProgressMonitor(), this.scene, prototypeName);
+            prototypes[i] = this.factory.load(new NullProgressMonitor(), this.scene, prototypeName, null);
             assertThat(prototypes[i], instanceOf(PrototypeNode.class));
             assertThat(prototypes[i].getChildren().length, is(0));
             instances[i] = new InstanceNode(this.scene, id, prototypeName, prototypes[i]);
@@ -217,6 +218,18 @@ public class SceneTest {
 
         parent.removeNode(instances[0]);
         assertTrue(instances[1].isIdentifierUsed(id));
+    }
+
+    @Test
+    public void testRecursion() throws Exception {
+        String collectionName = "recurse.collection";
+        Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
+        assertThat(parent, instanceOf(CollectionNode.class));
+        assertThat(parent.getChildren().length, is(2));
+        assertTrue(parent.getChildren()[0] instanceof BrokenNode);
+        assertTrue(parent.getChildren()[1] instanceof CollectionInstanceNode);
+        assertTrue(parent.getChildren()[1].getChildren()[0] instanceof CollectionNode);
+        assertTrue(parent.getChildren()[1].getChildren()[0].getChildren()[0] instanceof BrokenNode);
     }
 }
 

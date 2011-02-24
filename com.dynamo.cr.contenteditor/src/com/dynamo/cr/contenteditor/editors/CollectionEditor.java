@@ -216,7 +216,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 throws InvocationTargetException, InterruptedException {
             try {
                 factory.clearErrors();
-                node = factory.load(monitor, m_Scene, path);
+                node = factory.load(monitor, m_Scene, path, null);
             } catch (Throwable e) {
                 this.exception = e;
                 e.printStackTrace();

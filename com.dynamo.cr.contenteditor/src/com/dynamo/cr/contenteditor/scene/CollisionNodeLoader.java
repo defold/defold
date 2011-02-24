@@ -16,7 +16,7 @@ public class CollisionNodeLoader implements INodeLoader {
     @Override
     public Node load(IProgressMonitor monitor, Scene scene, String name,
             InputStream stream, INodeLoaderFactory factory,
-            IResourceLoaderFactory resourceFactory) throws IOException,
+            IResourceLoaderFactory resourceFactory, Node parent) throws IOException,
             LoaderException, CoreException {
 
         CollisionResource collisionResource = (CollisionResource) resourceFactory.load(monitor, name);

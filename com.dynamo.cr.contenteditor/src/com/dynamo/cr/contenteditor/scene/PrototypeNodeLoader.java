@@ -16,7 +16,7 @@ import com.dynamo.gameobject.ddf.GameObject.ComponentDesc;
 public class PrototypeNodeLoader implements INodeLoader {
 
     @Override
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory) throws IOException, LoaderException, CoreException {
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, INodeLoaderFactory factory, IResourceLoaderFactory resourceFactory, Node parent) throws IOException, LoaderException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
 
@@ -27,7 +27,7 @@ public class PrototypeNodeLoader implements INodeLoader {
 
             Node comp;
             if (factory.canLoad(comp_desc.m_Resource)) {
-                comp = factory.load(monitor, scene, comp_desc.m_Resource);
+                comp = factory.load(monitor, scene, comp_desc.m_Resource, node);
             }
             else {
                 comp = new ComponentNode(scene, comp_desc.m_Resource);

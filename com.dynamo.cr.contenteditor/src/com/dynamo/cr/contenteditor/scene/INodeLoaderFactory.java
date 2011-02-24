@@ -12,9 +12,9 @@ public interface INodeLoaderFactory {
 
     public boolean canLoad(String name);
 
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream) throws IOException, LoaderException, CoreException;
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, Node parent) throws IOException, LoaderException, CoreException;
 
-    public Node load(IProgressMonitor monitor, Scene scene, String name) throws IOException, LoaderException, CoreException;
+    public Node load(IProgressMonitor monitor, Scene scene, String name, Node parent) throws IOException, LoaderException, CoreException;
 
     public void save(IProgressMonitor monitor, String name, Node node, ByteArrayOutputStream stream) throws IOException, LoaderException;
 

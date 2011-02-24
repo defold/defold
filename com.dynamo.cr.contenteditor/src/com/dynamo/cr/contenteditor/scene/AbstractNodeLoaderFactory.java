@@ -50,12 +50,12 @@ public abstract class AbstractNodeLoaderFactory implements INodeLoaderFactory {
      * @see com.dynamo.cr.contenteditor.scene.INodeLoaderFactory#load(org.eclipse.core.runtime.IProgressMonitor, com.dynamo.cr.contenteditor.scene.Scene, java.lang.String, java.io.InputStream)
      */
     @Override
-    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream) throws IOException, LoaderException, CoreException {
+    public Node load(IProgressMonitor monitor, Scene scene, String name, InputStream stream, Node parent) throws IOException, LoaderException, CoreException {
 
         INodeLoader loader = getLoader(name);
         if (loader != null) {
             try {
-                Node node = loader.load(monitor, scene, name, stream, this, resourceFactory);
+                Node node = loader.load(monitor, scene, name, stream, this, resourceFactory, parent);
                 return node;
             }
             finally {
@@ -82,7 +82,7 @@ public abstract class AbstractNodeLoaderFactory implements INodeLoaderFactory {
      * @see com.dynamo.cr.contenteditor.scene.INodeLoaderFactory#load(org.eclipse.core.runtime.IProgressMonitor, com.dynamo.cr.contenteditor.scene.Scene, java.lang.String)
      */
     @Override
-    public Node load(IProgressMonitor monitor, Scene scene, String name) throws IOException, LoaderException, CoreException {
+    public Node load(IProgressMonitor monitor, Scene scene, String name, Node parent) throws IOException, LoaderException, CoreException {
 
         INodeLoader loader = getLoader(name);
         if (loader != null) {
@@ -97,7 +97,7 @@ public abstract class AbstractNodeLoaderFactory implements INodeLoaderFactory {
             ByteArrayInputStream stream = new ByteArrayInputStream(cache.get(name));
 
             try {
-                Node node = loader.load(monitor, scene, name, stream, this, resourceFactory);
+                Node node = loader.load(monitor, scene, name, stream, this, resourceFactory, parent);
                 return node;
             }
             finally {
