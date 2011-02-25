@@ -19,6 +19,8 @@ public abstract class Node
     public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 2);
     public static final int FLAG_LABEL_EDITABLE = (1 << 3);
 
+    public static final int ERROR_FLAG_DUPLICATE_ID = (1 << 0);
+
     protected Vector4d m_Translation = new Vector4d();
     protected Quat4d m_Rotation = new Quat4d();
     protected Vector4d m_Euler = new Vector4d();
@@ -30,6 +32,7 @@ public abstract class Node
     private Vector4Property m_EulerProperty;
     private int m_Flags = 0;
     protected AABB m_AABB = new AABB();
+    private int errorFlags;
 
     // Psuedo states
     private Vector4d m_WorldTranslation = new Vector4d();
@@ -43,6 +46,7 @@ public abstract class Node
         m_Parent = null;
         m_Scene = scene;
         m_Flags = flags;
+        errorFlags = 0;
 
         List<IProperty> properties = new ArrayList<IProperty>();
         addProperties(properties);
@@ -82,12 +86,23 @@ public abstract class Node
         return this.identifier;
     }
 
-    public final void setIdentifier(String key)
-    {
-        this.identifier = key;
+    protected void childIdentifierChanged(Node node, String oldId) {
+
     }
 
-    public boolean isIdentifierUsed(String id) {
+    public final void setIdentifier(String key)
+    {
+        if (this.identifier == null || !this.identifier.equals(key)) {
+            String oldId = this.identifier;
+            this.identifier = key;
+            if (m_Parent != null) {
+                m_Parent.childIdentifierChanged(this, oldId);
+            }
+            m_Scene.nodeChanged(this);
+        }
+    }
+
+    public boolean isChildIdentifierUsed(Node node, String id) {
         return false;
     }
 
@@ -101,6 +116,21 @@ public abstract class Node
         m_Flags = flags;
     }
 
+    public final boolean hasError(int errorFlag) {
+        return (errorFlag & this.errorFlags) != 0;
+    }
+
+    public final boolean isOk() {
+        return this.errorFlags == 0;
+    }
+
+    public final void setError(int errorFlag) {
+        this.errorFlags |= errorFlag;
+    }
+
+    public final void clearError(int errorFlag) {
+        this.errorFlags &= ~errorFlag;
+    }
 
     public IProperty[] getProperties()
     {
@@ -193,7 +223,7 @@ public abstract class Node
 
     private final List<Node> children = new ArrayList<Node>();
 
-    public void preAddNode(Node node) {
+    protected void nodeAdded(Node node) {
 
     }
 
@@ -201,22 +231,25 @@ public abstract class Node
      * Special hack-function for saving...
      */
     public void addNodeNoSetParent(Node node) {
-        preAddNode(node);
         assert (children.indexOf(node) == -1);
         children.add(node);
         m_Scene.nodeAdded(node);
+        nodeAdded(node);
     }
 
     public final void addNode(Node node)
     {
         if ((m_Flags & FLAG_CAN_HAVE_CHILDREN) == 0)
             throw new UnsupportedOperationException("addNode is not supported for this node: " + this);
-        preAddNode(node);
         assert (children.indexOf(node) == -1);
         children.add(node);
         node.m_Parent = this;
+        nodeAdded(node);
         m_Scene.nodeAdded(node);
-        postAddNode(node);
+    }
+
+    protected void nodeRemoved(Node node) {
+
     }
 
     public final void removeNode(Node node)
@@ -224,12 +257,9 @@ public abstract class Node
         if ((m_Flags & FLAG_CAN_HAVE_CHILDREN) == 0)
             throw new UnsupportedOperationException("removeNode is not supported for this node: " + this);
         children.remove(node);
-        m_Scene.nodeRemoved(node);
         node.m_Parent = null;
-    }
-
-    public void postAddNode(Node node) {
-
+        nodeRemoved(node);
+        m_Scene.nodeRemoved(node);
     }
 
     public boolean contains(Node node)
@@ -411,4 +441,12 @@ public abstract class Node
     }
 
     public abstract void draw(DrawContext context);
+
+    public String getToolTip() {
+        if ((errorFlags & ERROR_FLAG_DUPLICATE_ID) != 0) {
+            return "The id is already used in this collection.";
+        } else {
+            return null;
+        }
+    }
 }

@@ -34,7 +34,8 @@ public class InstanceNode extends Node {
         }
     }
 
-    public void postAddNode(Node node) {
+    @Override
+    public void nodeAdded(Node node) {
         andFlags(node, ~(Node.FLAG_SELECTABLE | Node.FLAG_TRANSFORMABLE | Node.FLAG_LABEL_EDITABLE));
     }
 
@@ -65,10 +66,5 @@ public class InstanceNode extends Node {
 
         // TODO: REST HERE!
         return desc;
-    }
-
-    @Override
-    public boolean isIdentifierUsed(String id) {
-        return getScene().getInstanceNodeFromId(id) == null;
     }
 }

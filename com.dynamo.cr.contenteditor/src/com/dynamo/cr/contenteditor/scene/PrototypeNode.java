@@ -12,7 +12,7 @@ public class PrototypeNode extends Node {
     }
 
     @Override
-    public void preAddNode(Node node) {
+    public void nodeAdded(Node node) {
         assert (node instanceof ComponentNode);
     }
 

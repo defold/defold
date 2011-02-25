@@ -22,8 +22,8 @@ public class BrokenNode extends LeafNode {
     public void draw(DrawContext context) {
     }
 
-    public String getErrorMessage() {
+    @Override
+    public String getToolTip() {
         return errorMessage;
     }
-
 }

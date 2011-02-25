@@ -40,7 +40,8 @@ public class AddSubCollectionOperation extends AbstractOperation {
         try {
             IContainer content_root = factory.getContentRoot();
             CollectionNode proto = (CollectionNode) factory.load(new NullProgressMonitor(), scene, file.getFullPath().toPortableString(), root);
-            node = new CollectionInstanceNode(scene, scene.getUniqueCollectionInstanceId(file.getName()), file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString(), proto);
+            CollectionNode collectionRoot = (CollectionNode)root;
+            node = new CollectionInstanceNode(scene, collectionRoot.getUniqueCollectionInstanceId(file.getName()), file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString(), proto);
 
             root.addNode(node);
         } catch (Throwable e) {

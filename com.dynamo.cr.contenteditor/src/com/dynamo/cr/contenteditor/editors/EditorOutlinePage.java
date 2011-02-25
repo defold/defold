@@ -55,7 +55,6 @@ import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
-import com.dynamo.cr.contenteditor.scene.Scene;
 
 class EditorOutlinePageContentProvider implements ITreeContentProvider
 {
@@ -98,7 +97,6 @@ class EditorOutlinePageContentProvider implements ITreeContentProvider
     }
 }
 
-
 class EditorOutlineLabelProvider extends ColumnLabelProvider {
     Map<String, Image> extensionToImage = new HashMap<String, Image>();
 
@@ -117,13 +115,18 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
     public Image getImage(Object element)
     {
         ImageRegistry regist = Activator.getDefault().getImageRegistry();
-        if (element instanceof PrototypeNode)
+        Node node = (Node)element;
+        if (node instanceof PrototypeNode)
         {
             return regist.get(Activator.PROTOTYPE_IMAGE_ID);
         }
-        else if (element instanceof InstanceNode)
+        else if (node instanceof InstanceNode)
         {
-            return regist.get(Activator.INSTANCE_IMAGE_ID);
+            if (node.isOk()) {
+                return regist.get(Activator.INSTANCE_IMAGE_ID);
+            } else {
+                return regist.get(Activator.BROKEN_INSTANCE_IMAGE_ID);
+            }
         }
         else if (element instanceof CollectionNode)
         {
@@ -131,7 +134,11 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         }
         else if (element instanceof CollectionInstanceNode)
         {
-            return regist.get(Activator.COLLECTION_IMAGE_ID);
+            if (node.isOk()) {
+                return regist.get(Activator.COLLECTION_IMAGE_ID);
+            } else {
+                return regist.get(Activator.BROKEN_COLLECTION_IMAGE_ID);
+            }
         }
         else if (element instanceof MeshNode)
         {
@@ -159,11 +166,17 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
 
     @Override
     public String getToolTipText(Object element) {
-        if (element instanceof BrokenNode) {
-            BrokenNode brokenNode = (BrokenNode) element;
-            return brokenNode.getErrorMessage();
+        Node node = (Node)element;
+        return node.getToolTip();
+    }
+
+    @Override
+    public boolean isLabelProperty(Object element, String property) {
+        if (property.equals("status")) {
+            return true;
+        } else {
+            return false;
         }
-        return null;
     }
 }
 
@@ -204,13 +217,12 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         public void modify(Object element, String property, Object value) {
             TreeViewer viewer = getTreeViewer();
             TreeItem item = (TreeItem) element;
-            Scene scene = m_Editor.getScene();
             Node node = (Node)item.getData();
             String stringValue = (String) value;
             String error = null;
             if (stringValue.isEmpty()) {
                 error = "Identifier can not be empty.";
-            } else if (node.isIdentifierUsed(stringValue)) {
+            } else if (node.getParent() != null && node.getParent().isChildIdentifierUsed(node, stringValue)) {
                 error = String.format("Identifier '%s' already used.", stringValue);
             }
             if (error != null) {
@@ -220,8 +232,6 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
                 if (!node.getIdentifier().equals(stringValue)) {
                     SetIdentifierOperation op = new SetIdentifierOperation(node, (String) value);
                     m_Editor.executeOperation(op);
-                    viewer.update(node, new String[] {});
-                    viewer.refresh(node);
                 }
             }
         }
@@ -385,6 +395,14 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
 
     public void refresh() {
         getTreeViewer().refresh();
+    }
+
+    public void update(Node node, String[] properties) {
+        getTreeViewer().update(node, properties);
+    }
+
+    public void refresh(Node node) {
+        getTreeViewer().refresh(node);
     }
 
     void activateContext() {

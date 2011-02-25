@@ -14,9 +14,7 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
 import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
-import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
-import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.Scene;
 

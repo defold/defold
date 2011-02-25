@@ -1244,6 +1244,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         if (event.m_Type == SceneEvent.NODE_REMOVED) {
             setSelectedNodes(new Node[] {});
+        } else if (event.m_Type == SceneEvent.NODE_CHANGED) {
+            m_OutlinePage.update(event.node, new String[] {"status"});
         }
     }
 
