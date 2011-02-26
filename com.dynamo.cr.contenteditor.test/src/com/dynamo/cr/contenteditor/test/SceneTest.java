@@ -153,9 +153,12 @@ public class SceneTest {
 
     private void testNodeFlagsExcludeInstance(Node[] nodes, int flags) throws Exception {
         for (Node node : nodes) {
-            if (!(node instanceof InstanceNode))
+            if (!(node instanceof InstanceNode)) {
                 assertThat((node.getFlags() & flags), is(0));
-            testNodeFlagsExcludeInstance(node.getChildren(), flags);
+                testNodeFlags(node.getChildren(), flags);
+            } else {
+                testNodeFlagsExcludeInstance(node.getChildren(), flags);
+            }
         }
     }
 
@@ -165,10 +168,10 @@ public class SceneTest {
         Node node = factory.load(new NullProgressMonitor(), scene, name, null);
         assertThat(node, instanceOf(CollectionNode.class));
         assertThat(node.getChildren().length, is(3));
-        assertThat((node.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN), not(0));
+        assertThat(node.getFlags(), is(Node.FLAG_CAN_HAVE_CHILDREN));
         int flags = Node.FLAG_LABEL_EDITABLE
-            & Node.FLAG_SELECTABLE
-            & Node.FLAG_TRANSFORMABLE;
+            | Node.FLAG_SELECTABLE
+            | Node.FLAG_TRANSFORMABLE;
         for (Node child : node.getChildren()) {
             assertThat((child.getFlags() & flags), is(flags));
             if (child instanceof InstanceNode)

@@ -28,7 +28,7 @@ public class CollectionInstanceNode extends Node {
         }
     }
 
-    public void postAddNode(Node node) {
+    public void nodeAdded(Node node) {
         andFlags(node, ~(Node.FLAG_SELECTABLE | Node.FLAG_TRANSFORMABLE | Node.FLAG_LABEL_EDITABLE));
     }
 
