@@ -184,10 +184,6 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         // Set deferred delete flag

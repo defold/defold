@@ -2,12 +2,13 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    test_gui = bld.new_task_gen(features = 'cxx cprogram',
+    test_gui = bld.new_task_gen(features = 'cxx cprogram embed',
                                 includes = '../../../src .',
                                 uselib = 'GTEST SCRIPT DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
-                                source = 'test_gui.cpp test_gui_ddf.proto')
+                                source = 'test_gui.cpp test_gui_ddf.proto',
+                                embed_source = 'bug352.lua')
 
     test_gui.install_path = None
 

@@ -22,10 +22,12 @@ import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,6 +35,7 @@ import java.util.Comparator;
 import javax.imageio.ImageIO;
 
 import com.dynamo.ddf.DDF;
+import com.dynamo.render.ddf.Font.FontDesc;
 import com.dynamo.render.ddf.Font.FontMap;
 
 class Glyph {
@@ -90,38 +93,32 @@ class BlendComposite implements Composite {
 }
 
 public class Fontc {
-    String fontFile = null;
-    String fontMapFile = null;
-    String materialFile = null;
-    int imageWidth;
-    int imageHeight;
-    int size = -1;
-    boolean antialias = false;
-    float alpha = 1.0f;
+    int imageWidth = 512;
+    int imageHeight = 2048; // Enough. Will be cropped later
     Stroke outlineStroke = null;
-    float outlineAlpha = 0.0f;
-    int shadowBlur = 0;
-    float shadowAlpha = 0.0f;
-    float shadowX = 0.0f;
-    float shadowY = 0.0f;
     private StringBuffer characters;
     private FontRenderContext fontRendererContext;
-    private float outlineWidth;
+    private BufferedImage image;
+    private FontDesc fontDesc;
     static final int imageType = BufferedImage.TYPE_3BYTE_BGR;
     static final int imageComponentCount = 3;
 
-    public Fontc(boolean antialias) {
-        this.antialias = antialias;
+    public Fontc() {
         this.characters = new StringBuffer();
         for (int i = 32; i < 255; ++i)
             this.characters.append((char) i);
-
-        this.fontRendererContext = new FontRenderContext(new AffineTransform(), antialias, antialias);
     }
 
-    public void run() throws FontFormatException, IOException {
-        Font font = Font.createFont(Font.TRUETYPE_FONT, new File(this.fontFile));
-        font = font.deriveFont(Font.PLAIN, size);
+    public void run(InputStream fontStream, FontDesc fontDesc, String fontMapFile) throws FontFormatException, IOException {
+        this.fontDesc = fontDesc;
+        this.fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.m_Antialias != 0, fontDesc.m_Antialias != 0);
+
+        if (fontDesc.m_OutlineWidth > 0.0f) {
+            outlineStroke = new BasicStroke(fontDesc.m_OutlineWidth);
+        }
+
+        Font font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
+        font = font.deriveFont(Font.PLAIN, fontDesc.m_Size);
         for (int i = 0; i < this.characters.length(); ++i) {
             char ch = this.characters.charAt(i);
             if (!font.canDisplay(ch)) {
@@ -130,7 +127,7 @@ public class Fontc {
             }
         }
 
-        BufferedImage image = new BufferedImage(this.imageWidth, this.imageHeight, Fontc.imageType);
+        image = new BufferedImage(this.imageWidth, this.imageHeight, Fontc.imageType);
         Graphics2D g = image.createGraphics();
         g.setBackground(new Color(0.0f, 0.0f, 0.0f));
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
@@ -166,13 +163,13 @@ public class Fontc {
         float totalY = 0.0f;
         int margin = 0;
         int padding = 0;
-        if (this.antialias)
-            padding = Math.min(4, this.shadowBlur) + (int)Math.ceil(this.outlineWidth * 0.5f);
-        Color faceColor = new Color(this.alpha, 0.0f, 0.0f);
-        Color outlineColor = new Color(0.0f, this.outlineAlpha, 0.0f);
+        if (this.fontDesc.m_Antialias != 0)
+            padding = Math.min(4, this.fontDesc.m_ShadowBlur) + (int)Math.ceil(this.fontDesc.m_OutlineWidth * 0.5f);
+        Color faceColor = new Color(this.fontDesc.m_Alpha, 0.0f, 0.0f);
+        Color outlineColor = new Color(0.0f, this.fontDesc.m_OutlineAlpha, 0.0f);
         ConvolveOp shadowConvolve = null;
         Composite blendComposite = new BlendComposite();
-        if (this.shadowAlpha > 0.0f) {
+        if (this.fontDesc.m_ShadowAlpha > 0.0f) {
             float[] kernelData = {
                     0.0625f, 0.1250f, 0.0625f,
                     0.1250f, 0.2500f, 0.1250f,
@@ -228,11 +225,11 @@ public class Fontc {
         image = image.getSubimage(0, 0, this.imageWidth, newHeight);
 
         FontMap fontMap = new FontMap();
-        fontMap.m_Material = this.materialFile;
+        fontMap.m_Material = fontDesc.m_Material + "c";
         fontMap.m_ImageWidth = this.imageWidth;
         fontMap.m_ImageHeight = newHeight;
-        fontMap.m_ShadowX = this.shadowX;
-        fontMap.m_ShadowY = this.shadowY;
+        fontMap.m_ShadowX = this.fontDesc.m_ShadowX;
+        fontMap.m_ShadowY = this.fontDesc.m_ShadowY;
 
         // Add 32 dummy characters
         for (int j = 0; j < 32; ++j) {
@@ -264,8 +261,10 @@ public class Fontc {
             fontMap.m_ImageData[j] = (byte) (image_data[j] & 0xff);
         }
 
-        ImageIO.write(image, "png", new File(this.fontMapFile + ".png"));
-        DDF.save(fontMap, new FileOutputStream(this.fontMapFile));
+        if (fontMapFile != null) {
+            ImageIO.write(image, "png", new File(fontMapFile + ".png"));
+            DDF.save(fontMap, new FileOutputStream(fontMapFile));
+        }
     }
 
     private BufferedImage drawGlyph(Glyph glyph, int padding, Font font, Composite blendComposite, Color faceColor, Color outlineColor, ConvolveOp shadowConvolve) {
@@ -285,32 +284,32 @@ public class Fontc {
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         g.translate(dx, dy);
 
-        if (this.antialias) {
+        if (this.fontDesc.m_Antialias != 0) {
             Shape outline = glyph.vector.getOutline(0, 0);
-            if (this.shadowAlpha > 0.0f) {
-                if (this.alpha > 0.0f) {
-                    g.setPaint(new Color(0.0f, 0.0f, this.shadowAlpha * this.alpha));
+            if (this.fontDesc.m_ShadowAlpha > 0.0f) {
+                if (this.fontDesc.m_Alpha > 0.0f) {
+                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.m_ShadowAlpha * this.fontDesc.m_Alpha));
                     g.fill(outline);
                 }
-                if (this.outlineStroke != null && this.outlineAlpha > 0.0f) {
-                    g.setPaint(new Color(0.0f, 0.0f, this.shadowAlpha * this.outlineAlpha));
+                if (this.outlineStroke != null && this.fontDesc.m_OutlineAlpha > 0.0f) {
+                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.m_ShadowAlpha * this.fontDesc.m_OutlineAlpha));
                     g.setStroke(this.outlineStroke);
                     g.draw(outline);
                 }
-                for (int pass = 0; pass < this.shadowBlur; ++pass) {
+                for (int pass = 0; pass < this.fontDesc.m_ShadowBlur; ++pass) {
                     BufferedImage tmp = image.getSubimage(0, 0, width, height);
                     shadowConvolve.filter(tmp, image);
                 }
             }
 
             g.setComposite(blendComposite);
-            if (this.outlineStroke != null && this.outlineAlpha > 0.0f) {
+            if (this.outlineStroke != null && this.fontDesc.m_OutlineAlpha > 0.0f) {
                 g.setPaint(outlineColor);
                 g.setStroke(this.outlineStroke);
                 g.draw(outline);
             }
 
-            if (this.alpha > 0.0f) {
+            if (this.fontDesc.m_Alpha > 0.0f) {
                 g.setPaint(faceColor);
                 g.fill(outline);
             }
@@ -334,7 +333,7 @@ public class Fontc {
             RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_RENDERING,
             RenderingHints.VALUE_RENDER_QUALITY);
-        if (this.antialias) {
+        if (this.fontDesc.m_Antialias != 0) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                 RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
@@ -355,51 +354,48 @@ public class Fontc {
        }
     }
 
-    public static void main(String[] args) throws FontFormatException, IOException {
-        System.setProperty("java.awt.headless", "true");
-        if (args.length != 2 && args.length != 3)    {
-            System.err.println("Usage: fontc fontfile [basedir] outfile");
-            System.exit(1);
-        }
-        String infile = args[0];
-        String basedir = ".";
-        String outfile = args[1];
-        if (args.length == 3) {
-            basedir = args[1];
-            outfile = args[2];
-        }
-        File fontInput = new File(args[0]);
-        FileInputStream stream = new FileInputStream(fontInput);
-        InputStreamReader reader = new InputStreamReader(stream);
-        com.dynamo.render.ddf.Font.FontDesc desc = DDF.loadTextFormat(reader, com.dynamo.render.ddf.Font.FontDesc.class);
-        if (desc.m_Font.length() == 0) {
-            System.err.println("No ttf font specified in " + args[0] + ".");
-            System.exit(1);
-        }
-        String ttfFileName = basedir + File.separator + desc.m_Font;
-        File ttfFile = new File(ttfFileName);
-        if (!ttfFile.exists()) {
-            System.err.println("The ttf file " + ttfFileName + " specified in " + args[0] + " does not exist.");
-            System.exit(1);
-        }
-        Fontc fontc = new Fontc(desc.m_Antialias != 0);
-        fontc.fontFile = ttfFileName;
-        fontc.materialFile = desc.m_Material + "c";
-        fontc.fontMapFile = outfile;
-        fontc.imageWidth = 512;
-        fontc.imageHeight = 2048; // Enough. Will be cropped later
-        fontc.size = desc.m_Size;
-        fontc.alpha = desc.m_Alpha;
-        if (desc.m_OutlineWidth > 0.0f) {
-            fontc.outlineWidth = desc.m_OutlineWidth;
-            fontc.outlineStroke = new BasicStroke(desc.m_OutlineWidth);
-        }
-        fontc.outlineAlpha = desc.m_OutlineAlpha;
-        fontc.shadowBlur = desc.m_ShadowBlur;
-        fontc.shadowAlpha = desc.m_ShadowAlpha;
-        fontc.shadowX = desc.m_ShadowX;
-        fontc.shadowY = desc.m_ShadowY;
+    public static BufferedImage compileToImage(InputStream fontStream, FontDesc fontDesc) throws FontFormatException, IOException {
+        Fontc fontc = new Fontc();
+        fontc.run(fontStream, fontDesc, null);
+        return fontc.image;
+    }
 
-        fontc.run();
+    public static void main(String[] args) throws FontFormatException {
+        try {
+            System.setProperty("java.awt.headless", "true");
+            if (args.length != 2 && args.length != 3)    {
+                System.err.println("Usage: fontc fontfile [basedir] outfile");
+                System.exit(1);
+            }
+            String basedir = ".";
+            String outfile = args[1];
+            if (args.length == 3) {
+                basedir = args[1];
+                outfile = args[2];
+            }
+            File fontInput = new File(args[0]);
+            FileInputStream stream = new FileInputStream(fontInput);
+            InputStreamReader reader = new InputStreamReader(stream);
+            com.dynamo.render.ddf.Font.FontDesc fontDesc = DDF.loadTextFormat(reader, com.dynamo.render.ddf.Font.FontDesc.class);
+            if (fontDesc.m_Font.length() == 0) {
+                System.err.println("No ttf font specified in " + args[0] + ".");
+                System.exit(1);
+            }
+            String ttfFileName = basedir + File.separator + fontDesc.m_Font;
+            File ttfFile = new File(ttfFileName);
+            if (!ttfFile.exists()) {
+                System.err.println("The ttf file " + ttfFileName + " specified in " + args[0] + " does not exist.");
+                System.exit(1);
+            }
+            Fontc fontc = new Fontc();
+            String fontFile = basedir + File.separator + fontDesc.m_Font;
+            BufferedInputStream fontStream = new BufferedInputStream(new FileInputStream(fontFile));
+            fontc.run(fontStream, fontDesc, outfile);
+            fontStream.close();
+        }
+        catch (IOException e) {
+            System.err.println(e.getMessage());
+            System.exit(1);
+        }
     }
 }

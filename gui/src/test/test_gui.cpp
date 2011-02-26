@@ -14,6 +14,10 @@ extern "C"
 #include "lua/lauxlib.h"
 }
 
+extern char BUG352_LUA[];
+extern uint32_t BUG352_LUA_SIZE;
+
+
 /*
  * Basic
  *  - Create scene
@@ -949,6 +953,45 @@ TEST_F(dmGuiTest, DeltaTime)
 
     r = dmGui::UpdateScene(scene, 1122);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, Bug352)
+{
+    dmGui::AddFont(scene, "big_score", 0);
+    dmGui::AddFont(scene, "score", 0);
+    dmGui::AddTexture(scene, "left_hud", 0);
+    dmGui::AddTexture(scene, "right_hud", 0);
+
+    dmGui::Result r;
+    r = dmGui::SetScript(script, BUG352_LUA, BUG352_LUA_SIZE, "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::SetScript(script, BUG352_LUA, BUG352_LUA_SIZE, "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    char buffer[256];
+    lua_State* L = lua_open();
+    lua_newtable(L);
+    lua_pushstring(L, "score");
+    lua_pushinteger(L, 123);
+    lua_settable(L, -3);
+
+    uint32_t nused = dmScript::CheckTable(L, buffer, sizeof(buffer), -1);
+    ASSERT_GT(nused, 0U);
+    ASSERT_LE(nused, sizeof(buffer));
+
+    for (int i = 0; i < 100; ++i)
+    {
+        dmGui::UpdateScene(scene, 1.0f / 60.0f);
+        dmGui::DispatchMessage(scene, dmHashString64("inc_score"), buffer, 0);
+    }
+
+    r = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    lua_close(L);
 }
 
 int main(int argc, char **argv)
