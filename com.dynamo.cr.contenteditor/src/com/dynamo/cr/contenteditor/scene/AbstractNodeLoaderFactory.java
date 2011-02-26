@@ -114,6 +114,9 @@ public abstract class AbstractNodeLoaderFactory implements INodeLoaderFactory {
      */
     @Override
     public void save(IProgressMonitor monitor, String name, Node node, ByteArrayOutputStream stream) throws IOException, LoaderException {
+        if (!node.isOk()) {
+            throw new LoaderException("The file contains errors and can not be saved. Fix the errors and try again.");
+        }
         INodeLoader loader = getLoader(name);
         if (loader != null) {
             try {

@@ -34,11 +34,11 @@ public abstract class Node
     private int m_Flags = 0;
     protected AABB m_AABB = new AABB();
     private int errorFlags;
+    private String identifier;
 
     // Psuedo states
     private Vector4d m_WorldTranslation = new Vector4d();
     private Vector4Property m_WorldTranslationProperty;
-    private String identifier;
 
     public Node(Scene scene, int flags)
     {

@@ -3,9 +3,16 @@ package com.dynamo.cr.contenteditor.test;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+
+import javax.vecmath.Matrix4d;
 
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
@@ -284,22 +291,6 @@ public class SceneTest {
     }
 
     @Test
-    public void testCollidingIdsAtLoading() throws Exception {
-        String collectionName = "colliding_ids.collection";
-        Node root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
-        assertThat(root, instanceOf(CollectionNode.class));
-        assertThat(root.getChildren().length, is(4));
-        assertTrue(root.getChildren()[0] instanceof CollectionInstanceNode);
-        assertTrue(!root.getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(root.getChildren()[1] instanceof CollectionInstanceNode);
-        assertTrue(root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(root.getChildren()[2] instanceof InstanceNode);
-        assertTrue(!root.getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(root.getChildren()[3] instanceof InstanceNode);
-        assertTrue(root.getChildren()[3].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-    }
-
-    @Test
     public void testRecursion() throws Exception {
         String collectionName = "recurse.collection";
         Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
@@ -309,6 +300,55 @@ public class SceneTest {
         assertTrue(parent.getChildren()[1] instanceof CollectionInstanceNode);
         assertTrue(parent.getChildren()[1].getChildren()[0] instanceof CollectionNode);
         assertTrue(parent.getChildren()[1].getChildren()[0].getChildren()[0] instanceof BrokenNode);
+    }
+
+    /**
+     * This compares the sub tree starting with this node as root, that is it does not compare the parent, scene or pseudo state.
+     */
+    public void deepCompare(Node a, Node b) throws Exception {
+        Matrix4d mA = new Matrix4d();
+        a.getLocalTransform(mA);
+        Matrix4d mB = new Matrix4d();
+        b.getLocalTransform(mB);
+        String idA = a.getIdentifier();
+        String idB = b.getIdentifier();
+        assertTrue(mA.equals(mB) && a.getFlags() == b.getFlags() && (idA == null ? idB == null : idB.equals(idB)));
+        assertTrue(a.getChildren().length == b.getChildren().length);
+        for (int i = 0; i < a.getChildren().length; ++i) {
+            deepCompare(a.getChildren()[i], b.getChildren()[i]);
+        }
+    }
+
+    @Test
+    public void testSaveAndLoad() throws Exception {
+        String collectionName = "test.collection";
+        String tmpName = "tmp.collection";
+        Node root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        this.factory.save(new NullProgressMonitor(), tmpName, root, out);
+        FileOutputStream fileOut = new FileOutputStream("test/" + tmpName);
+        fileOut.write(out.toByteArray());
+        fileOut.close();
+        Scene tmpScene = new Scene();
+        Node tmpRoot = this.factory.load(new NullProgressMonitor(), tmpScene, tmpName, null);
+        assertTrue(tmpRoot != null);
+        deepCompare(root, tmpRoot);
+        File tmpFile = new File("test/" + tmpName);
+        assertTrue(tmpFile.delete());
+
+        // Save not possible for collections containing errors
+        collectionName = "dup_id.collection";
+        root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
+        assertTrue(root != null);
+        assertTrue(!root.isOk());
+        out = new ByteArrayOutputStream();
+        boolean saved = true;
+        try {
+            this.factory.save(new NullProgressMonitor(), tmpName, root, out);
+        } catch (Exception e) {
+            saved = false;
+        }
+        assertTrue(!saved);
     }
 }
 
