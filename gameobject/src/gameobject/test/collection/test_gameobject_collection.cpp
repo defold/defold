@@ -6,6 +6,7 @@
 #include <dlib/log.h>
 
 #include "../gameobject.h"
+#include "../gameobject_private.h"
 
 using namespace Vectormath::Aos;
 
@@ -199,6 +200,29 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
         ASSERT_NE(dmResource::FACTORY_RESULT_OK, r);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+}
+
+TEST_F(CollectionTest, DefaultValues)
+{
+    dmGameObject::HCollection coll;
+    dmResource::FactoryResult r = dmResource::Get(m_Factory, "defaults.collectionc", (void**) &coll);
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+    ASSERT_EQ(2U, coll->m_LevelInstanceCount[0]);
+    for (uint32_t i = 0; i < coll->m_LevelInstanceCount[0]; ++i)
+    {
+        dmGameObject::HInstance instance = coll->m_Instances[coll->m_LevelIndices[i]];
+        ASSERT_NE((void*)0, instance);
+        Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
+        ASSERT_EQ(0.0f, p.getX());
+        ASSERT_EQ(0.0f, p.getY());
+        ASSERT_EQ(0.0f, p.getZ());
+        Vectormath::Aos::Quat r = dmGameObject::GetRotation(instance);
+        ASSERT_EQ(0.0f, r.getX());
+        ASSERT_EQ(0.0f, r.getY());
+        ASSERT_EQ(0.0f, r.getZ());
+        ASSERT_EQ(1.0f, r.getW());
+    }
+    dmResource::Release(m_Factory, (void*) coll);
 }
 
 int main(int argc, char **argv)

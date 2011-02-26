@@ -1,0 +1,11 @@
+Name: "defaults"
+CollectionInstances
+{
+    Id: "id"
+    Collection: "defaults_sub.collectionc"
+}
+Instances
+{
+    Id: "id"
+    Prototype: "child.goc"
+}

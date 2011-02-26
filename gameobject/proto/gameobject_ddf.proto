@@ -43,8 +43,8 @@ message InstanceDesc
     required string  Id                 = 1;
     required string  Prototype          = 2;
     repeated string  Children           = 3;
-    required dmMath.Point3 Position     = 4;
-    required dmMath.Quat Rotation       = 5;
+    optional dmMath.Point3 Position     = 4;
+    optional dmMath.Quat Rotation       = 5;
     repeated Property ScriptProperties  = 6;
 }
 
@@ -52,8 +52,8 @@ message CollectionInstanceDesc
 {
     required string         Id          = 1;
     required string         Collection  = 2;
-    required dmMath.Point3  Position    = 3;
-    required dmMath.Quat    Rotation    = 4;
+    optional dmMath.Point3  Position    = 3;
+    optional dmMath.Quat    Rotation    = 4;
 }
 
 message CollectionDesc

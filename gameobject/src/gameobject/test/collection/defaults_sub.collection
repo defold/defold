@@ -1,0 +1,6 @@
+Name: "defaults_sub"
+Instances
+{
+    Id: "id_sub"
+    Prototype: "child.goc"
+}
