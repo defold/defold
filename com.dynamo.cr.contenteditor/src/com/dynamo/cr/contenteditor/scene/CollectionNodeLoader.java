@@ -30,8 +30,38 @@ public class CollectionNodeLoader implements INodeLoader {
         GameObject.CollectionDesc desc = DDF.loadTextFormat(reader, GameObject.CollectionDesc.class);
         monitor.beginTask(name, desc.m_Instances.size() + desc.m_CollectionInstances.size());
 
-        Map<String, Node> idToNode = new HashMap<String, Node>();
         CollectionNode node = new CollectionNode(scene, desc.m_Name, name);
+
+        for (CollectionInstanceDesc cid : desc.m_CollectionInstances) {
+            // detect recursion
+            String ancestorCollection = name;
+            Node subNode;
+            if (!name.equals(cid.m_Collection) && parent != null) {
+                Node ancestor = parent;
+                ancestorCollection = ((CollectionNode)parent).getResource();
+                while (!ancestorCollection.equals(cid.m_Collection) && ancestor != null) {
+                    ancestor = ancestor.getParent();
+                    if (ancestor != null && ancestor instanceof CollectionNode) {
+                        ancestorCollection = ((CollectionNode)ancestor).getResource();
+                    }
+                }
+            }
+            if (ancestorCollection.equals(cid.m_Collection)) {
+                subNode = new BrokenNode(scene, cid.m_Id, "A collection can not have collection instances which point to the same resource.");
+            } else {
+                Node sub_collection = factory.load(monitor, scene, cid.m_Collection, node);
+                monitor.worked(1);
+
+                subNode = new CollectionInstanceNode(scene, cid.m_Id, cid.m_Collection, sub_collection);
+
+                subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
+                subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
+            }
+            node.addNode(subNode);
+        }
+
+        // Needs to be map of lists to handle duplicated ids
+        Map<String, Node> idToNode = new HashMap<String, Node>();
         for (InstanceDesc id : desc.m_Instances) {
             Node prototype;
             try {
@@ -60,34 +90,6 @@ public class CollectionNodeLoader implements INodeLoader {
                 node.removeNode(child);
                 parentInstance.addNode(child);
             }
-        }
-
-        for (CollectionInstanceDesc cid : desc.m_CollectionInstances) {
-            // detect recursion
-            String ancestorCollection = name;
-            Node subNode;
-            if (!name.equals(cid.m_Collection) && parent != null) {
-                Node ancestor = parent;
-                ancestorCollection = ((CollectionNode)parent).getResource();
-                while (!ancestorCollection.equals(cid.m_Collection) && ancestor != null) {
-                    ancestor = ancestor.getParent();
-                    if (ancestor != null && ancestor instanceof CollectionNode) {
-                        ancestorCollection = ((CollectionNode)ancestor).getResource();
-                    }
-                }
-            }
-            if (ancestorCollection.equals(cid.m_Collection)) {
-                subNode = new BrokenNode(scene, cid.m_Id, "A collection can not have collection instances which point to the same resource.");
-            } else {
-                Node sub_collection = factory.load(monitor, scene, cid.m_Collection, node);
-                monitor.worked(1);
-
-                subNode = new CollectionInstanceNode(scene, cid.m_Id, cid.m_Collection, sub_collection);
-
-                subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
-                subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
-            }
-            node.addNode(subNode);
         }
 
         return node;

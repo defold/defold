@@ -37,8 +37,27 @@ public class InstanceNode extends Node {
     @Override
     public void nodeAdded(Node node) {
         andFlags(node, ~(Node.FLAG_SELECTABLE | Node.FLAG_TRANSFORMABLE | Node.FLAG_LABEL_EDITABLE));
+        // tell collection node
+        Node parent = getParent();
+        while (parent != null && !(parent instanceof CollectionNode)) {
+            parent = parent.getParent();
+        }
+        if (parent != null) {
+            parent.nodeAdded(node);
+        }
     }
 
+    @Override
+    protected void nodeRemoved(Node node) {
+        // tell collection node
+        Node parent = getParent();
+        while (parent != null && !(parent instanceof CollectionNode)) {
+            parent = parent.getParent();
+        }
+        if (parent != null) {
+            parent.nodeRemoved(node);
+        }
+    }
     @Override
     public void draw(DrawContext context) {
         // TODO Auto-generated method stub
@@ -66,5 +85,15 @@ public class InstanceNode extends Node {
 
         // TODO: REST HERE!
         return desc;
+    }
+
+    @Override
+    protected void childIdentifierChanged(Node node, String oldId) {
+        m_Parent.childIdentifierChanged(node, oldId);
+    }
+
+    @Override
+    public boolean isChildIdentifierUsed(Node node, String id) {
+        return m_Parent.isChildIdentifierUsed(node, id);
     }
 }

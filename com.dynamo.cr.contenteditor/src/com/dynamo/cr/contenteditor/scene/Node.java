@@ -20,6 +20,7 @@ public abstract class Node
     public static final int FLAG_LABEL_EDITABLE = (1 << 3);
 
     public static final int ERROR_FLAG_DUPLICATE_ID = (1 << 0);
+    public static final int ERROR_FLAG_CHILD_ERROR = (1 << 1);
 
     protected Vector4d m_Translation = new Vector4d();
     protected Quat4d m_Rotation = new Quat4d();
@@ -124,12 +125,36 @@ public abstract class Node
         return this.errorFlags == 0;
     }
 
+    private void checkChildrenErrors() {
+        boolean childError = false;
+        for (Node node : this.children) {
+            if (!node.isOk()) {
+                childError = true;
+            }
+        }
+        if (childError) {
+            setError(Node.ERROR_FLAG_CHILD_ERROR);
+        } else {
+            clearError(Node.ERROR_FLAG_CHILD_ERROR);
+        }
+    }
+
     public final void setError(int errorFlag) {
-        this.errorFlags |= errorFlag;
+        if (errorFlag != 0) {
+            this.errorFlags |= errorFlag;
+            if (this.m_Parent != null) {
+                this.m_Parent.checkChildrenErrors();
+            }
+        }
     }
 
     public final void clearError(int errorFlag) {
-        this.errorFlags &= ~errorFlag;
+        if (errorFlag != 0) {
+            this.errorFlags &= ~errorFlag;
+            if (this.m_Parent != null) {
+                this.m_Parent.checkChildrenErrors();
+            }
+        }
     }
 
     public IProperty[] getProperties()
@@ -244,6 +269,7 @@ public abstract class Node
         assert (children.indexOf(node) == -1);
         children.add(node);
         node.m_Parent = this;
+        checkChildrenErrors();
         nodeAdded(node);
         m_Scene.nodeAdded(node);
     }
@@ -258,6 +284,7 @@ public abstract class Node
             throw new UnsupportedOperationException("removeNode is not supported for this node: " + this);
         children.remove(node);
         node.m_Parent = null;
+        checkChildrenErrors();
         nodeRemoved(node);
         m_Scene.nodeRemoved(node);
     }
@@ -445,6 +472,8 @@ public abstract class Node
     public String getToolTip() {
         if ((errorFlags & ERROR_FLAG_DUPLICATE_ID) != 0) {
             return "The id is already used in this collection.";
+        } else if ((errorFlags & ERROR_FLAG_CHILD_ERROR) != 0) {
+            return "An item below this item contains an error.";
         } else {
             return null;
         }

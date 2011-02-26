@@ -130,11 +130,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
                 return regist.get(Activator.BROKEN_INSTANCE_IMAGE_ID);
             }
         }
-        else if (element instanceof CollectionNode)
-        {
-            return regist.get(Activator.COLLECTION_IMAGE_ID);
-        }
-        else if (element instanceof CollectionInstanceNode)
+        else if (element instanceof CollectionNode || element instanceof CollectionInstanceNode)
         {
             if (node.isOk()) {
                 return regist.get(Activator.COLLECTION_IMAGE_ID);

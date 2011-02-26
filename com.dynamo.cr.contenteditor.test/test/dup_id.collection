@@ -1,0 +1,59 @@
+Name: "dup_id"
+CollectionInstances
+{
+    Id: "dup_id_sub"
+    Collection: "dup_id_sub.collection"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+CollectionInstances
+{
+    Id: "id"
+    Collection: "empty.collection"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+CollectionInstances
+{
+    Id: "id"
+    Collection: "empty.collection"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+Instances
+{
+    Id: "id"
+    Prototype: "empty.go"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+Instances
+{
+    Id: "id"
+    Prototype: "empty.go"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+Instances
+{
+    Id: "dup_id_parent"
+    Prototype: "empty.go"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+    Children: "child"
+    Children: "child2"
+}
+Instances
+{
+    Id: "child"
+    Prototype: "empty.go"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}
+Instances
+{
+    Id: "child2"
+    Prototype: "empty.go"
+    Position: { X: 0 Y: 0 Z: 0 }
+    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+}

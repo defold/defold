@@ -3,7 +3,7 @@ package com.dynamo.cr.contenteditor.test;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -183,48 +183,104 @@ public class SceneTest {
 
     @Test
     public void testIds() throws Exception {
-        String collectionName = "empty.collection";
-        String prototypeName = "empty.go";
-        Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
-        assertThat(parent, instanceOf(CollectionNode.class));
-        assertThat(parent.getChildren().length, is(0));
-        Node[] collections = new Node[2];
-        Node[] collectionInstances = new Node[2];
-        String id = "test_id";
-        for (int i = 0; i < 2; ++i) {
-            collections[i] = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
-            assertThat(collections[i], instanceOf(CollectionNode.class));
-            assertThat(collections[i].getChildren().length, is(0));
-            collectionInstances[i] = new CollectionInstanceNode(this.scene, id, collectionName, collections[i]);
-            assertThat(collectionInstances[i], instanceOf(CollectionInstanceNode.class));
-            parent.addNode(collectionInstances[i]);
-        }
-        assertThat(collectionInstances[0].getIdentifier(), is(id));
-        assertThat(collectionInstances[1].getIdentifier(), is(id));
-        assertTrue(collectionInstances[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(parent.isChildIdentifierUsed(collectionInstances[1], id));
-        Node[] prototypes = new Node[2];
-        Node[] instances = new Node[2];
-        for (int i = 0; i < 2; ++i) {
-            prototypes[i] = this.factory.load(new NullProgressMonitor(), this.scene, prototypeName, null);
-            assertThat(prototypes[i], instanceOf(PrototypeNode.class));
-            assertThat(prototypes[i].getChildren().length, is(0));
-            instances[i] = new InstanceNode(this.scene, id, prototypeName, prototypes[i]);
-            assertThat(instances[i], instanceOf(InstanceNode.class));
-            parent.addNode(instances[i]);
-        }
-        assertThat(instances[0].getIdentifier(), is(id));
-        assertThat(instances[1].getIdentifier(), is(id));
-        assertTrue(instances[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(parent.isChildIdentifierUsed(instances[1], id));
+        String collectionName = "dup_id.collection";
+        Node root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
+        assertThat(root, instanceOf(CollectionNode.class));
+        assertThat(root.getChildren().length, is(6));
 
-        parent.removeNode(collectionInstances[0]);
-        assertTrue(parent.isChildIdentifierUsed(collectionInstances[1], id));
-        assertTrue(collectionInstances[1].isOk());
+        // Duplicated ids in instances of collection instance
+        assertTrue(root.getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(root.getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertEquals("id", root.getChildren()[0].getChildren()[0].getChildren()[0].getIdentifier());
+        assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertEquals("id", root.getChildren()[0].getChildren()[0].getChildren()[1].getIdentifier());
+        assertTrue(root.getChildren()[0].getChildren()[0].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Set id to clear error status
+        root.getChildren()[0].getChildren()[0].getChildren()[0].setIdentifier("id2");
+        assertEquals("id2", root.getChildren()[0].getChildren()[0].getChildren()[0].getIdentifier());
+        assertTrue(!root.getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Reset id to set error status
+        root.getChildren()[0].getChildren()[0].getChildren()[0].setIdentifier("id");
+        assertEquals("id", root.getChildren()[0].getChildren()[0].getChildren()[0].getIdentifier());
+        assertTrue(root.getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(root.getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(root.getChildren()[0].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Remove node to clear error status
+        Node node = root.getChildren()[0].getChildren()[0].getChildren()[0];
+        root.getChildren()[0].getChildren()[0].removeNode(node);
+        assertTrue(!root.getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Add node to set error status
+        root.getChildren()[0].getChildren()[0].addNode(node);
+        assertTrue(root.getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(root.getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(root.getChildren()[0].getChildren()[0].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
 
-        parent.removeNode(instances[0]);
-        assertTrue(parent.isChildIdentifierUsed(instances[1], id));
-        assertTrue(instances[1].isOk());
+        // Duplicated ids in collection instances
+        assertTrue(!root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertEquals("id", root.getChildren()[1].getIdentifier());
+        assertTrue(root.getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertEquals("id", root.getChildren()[2].getIdentifier());
+        // Set id to clear error status
+        root.getChildren()[1].setIdentifier("id2");
+        assertEquals("id2", root.getChildren()[1].getIdentifier());
+        assertTrue(!root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(!root.getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Reset id to set error status
+        root.getChildren()[1].setIdentifier("id");
+        assertEquals("id", root.getChildren()[1].getIdentifier());
+        assertTrue(root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(!root.getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+
+        // Duplicated ids in instances
+        assertTrue(!root.getChildren()[3].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertEquals("id", root.getChildren()[3].getIdentifier());
+        assertTrue(root.getChildren()[4].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertEquals("id", root.getChildren()[4].getIdentifier());
+        // Clearing/setting error for InstanceNodes is already tested above
+
+        // Duplicated child ids in instance
+        assertTrue(!root.getChildren()[5].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertEquals("child", root.getChildren()[5].getChildren()[1].getIdentifier());
+        assertTrue(!root.getChildren()[5].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertEquals("child2", root.getChildren()[5].getChildren()[2].getIdentifier());
+        assertTrue(!root.getChildren()[5].getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Set id to set error status
+        root.getChildren()[5].getChildren()[1].setIdentifier("child2");
+        assertTrue(root.getChildren()[5].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(root.getChildren()[5].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(!root.getChildren()[5].getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Remove node to clear error status
+        node = root.getChildren()[5].getChildren()[1];
+        root.getChildren()[5].removeNode(node);
+        assertTrue(!root.getChildren()[5].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[5].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Add node to set error status
+        root.getChildren()[5].addNode(node);
+        assertTrue(root.getChildren()[5].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[5].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(root.getChildren()[5].getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Reset id to clear error status
+        root.getChildren()[5].getChildren()[2].setIdentifier("child");
+        assertTrue(!root.getChildren()[5].hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        assertTrue(!root.getChildren()[5].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(!root.getChildren()[5].getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+
+        // Remove collection instance to clear error status (put last since it messes up indices)
+        node = root.getChildren()[1];
+        root.removeNode(node);
+        assertTrue(!root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        // Add node to set error status
+        root.addNode(node);
+        assertTrue(!root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+        assertTrue(root.getChildren()[5] instanceof CollectionInstanceNode);
+        assertTrue(root.getChildren()[5].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
     }
 
     @Test
@@ -233,13 +289,13 @@ public class SceneTest {
         Node root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
         assertThat(root, instanceOf(CollectionNode.class));
         assertThat(root.getChildren().length, is(4));
-        assertTrue(root.getChildren()[0] instanceof InstanceNode);
+        assertTrue(root.getChildren()[0] instanceof CollectionInstanceNode);
         assertTrue(!root.getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(root.getChildren()[1] instanceof InstanceNode);
+        assertTrue(root.getChildren()[1] instanceof CollectionInstanceNode);
         assertTrue(root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(root.getChildren()[2] instanceof CollectionInstanceNode);
+        assertTrue(root.getChildren()[2] instanceof InstanceNode);
         assertTrue(!root.getChildren()[2].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
-        assertTrue(root.getChildren()[3] instanceof CollectionInstanceNode);
+        assertTrue(root.getChildren()[3] instanceof InstanceNode);
         assertTrue(root.getChildren()[3].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
     }
 
