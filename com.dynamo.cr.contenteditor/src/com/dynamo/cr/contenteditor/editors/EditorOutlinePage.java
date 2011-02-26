@@ -27,9 +27,11 @@ import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.TreeItem;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.ISelectionListener;
@@ -176,6 +178,16 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
             return true;
         } else {
             return false;
+        }
+    }
+
+    @Override
+    public Color getForeground(Object element) {
+        Node node = (Node)element;
+        if ((node.getFlags() & Node.FLAG_LABEL_EDITABLE) != 0) {
+            return Display.getCurrent().getSystemColor(SWT.COLOR_BLACK);
+        } else {
+            return Display.getCurrent().getSystemColor(SWT.COLOR_DARK_GRAY);
         }
     }
 }
