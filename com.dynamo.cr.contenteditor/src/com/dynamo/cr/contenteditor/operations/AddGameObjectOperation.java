@@ -40,9 +40,10 @@ public class AddGameObjectOperation extends AbstractOperation {
         NodeLoaderFactory factory = editor.getLoaderFactory();
         try {
             IContainer content_root = factory.getContentRoot();
-            PrototypeNode proto = (PrototypeNode) factory.load(new NullProgressMonitor(), scene, file.getFullPath().toPortableString(), root);
+            String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
+            PrototypeNode proto = (PrototypeNode) factory.load(new NullProgressMonitor(), scene, name, root);
             CollectionNode collectionRoot = (CollectionNode)root;
-            node = new InstanceNode(scene, collectionRoot.getUniqueInstanceId(file.getName()), file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString(), proto);
+            node = new InstanceNode(scene, collectionRoot.getUniqueInstanceId(file.getName()), name, proto);
             root.addNode(node);
         } catch (Throwable e) {
             throw new ExecutionException(e.getMessage(), e);
