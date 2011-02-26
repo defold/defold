@@ -147,9 +147,9 @@ namespace dmRender
     }
 
     DrawTextParams::DrawTextParams()
-    : m_FaceColor(0.0f, 0.0f, 0.0f, 0.0f)
-    , m_OutlineColor(0.0f, 0.0f, 0.0f, 0.0f)
-    , m_ShadowColor(0.0f, 0.0f, 0.0f, 0.0f)
+    : m_FaceColor(0.0f, 0.0f, 0.0f, -1.0f)
+    , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
+    , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
     , m_X(0)
     , m_Y(0)
@@ -190,7 +190,10 @@ namespace dmRender
             for (int j = 0; j < 3; ++j)
             {
                 if (i == j)
-                    EnableRenderObjectFragmentConstant(ro, j, colors[j]);
+                {
+                    if (colors[j].getW() >= 0.0f)
+                        EnableRenderObjectFragmentConstant(ro, j, colors[j]);
+                }
                 else
                     EnableRenderObjectFragmentConstant(ro, j, clear_color);
             }
