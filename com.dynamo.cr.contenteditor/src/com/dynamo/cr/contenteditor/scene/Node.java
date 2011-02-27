@@ -39,8 +39,9 @@ public abstract class Node
     private Vector4d m_WorldTranslation = new Vector4d();
     private Vector4Property m_WorldTranslationProperty;
 
-    public Node(Scene scene, int flags)
+    public Node(String identifier, Scene scene, int flags)
     {
+        this.identifier = identifier;
         m_Translation.set(0, 0, 0, 0);
         m_Rotation.set(0, 0, 0, 1);
         m_Parent = null;
@@ -326,7 +327,9 @@ public abstract class Node
         return false;
     }
 
-    public abstract String getName();
+    public String getLabel() {
+        return this.identifier;
+    }
 
     public void getLocalTranslation(Vector4d translation)
     {

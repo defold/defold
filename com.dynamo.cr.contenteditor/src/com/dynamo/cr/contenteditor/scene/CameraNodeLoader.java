@@ -19,7 +19,7 @@ public class CameraNodeLoader implements INodeLoader {
             LoaderException, CoreException {
 
         CameraResource cameraResource = (CameraResource) resourceFactory.load(monitor, name);
-        return new CameraNode(scene, name, cameraResource);
+        return new CameraNode(name, scene, cameraResource);
     }
 
     @Override

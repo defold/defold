@@ -21,7 +21,7 @@ public class SpriteNodeLoader implements INodeLoader {
 
         SpriteResource spriteResource = (SpriteResource) resourceFactory.load(monitor, name);
         TextureResource textureResource = (TextureResource) resourceFactory.load(monitor, spriteResource.getSpriteDesc().getTexture());
-        return new SpriteNode(scene, name, spriteResource, textureResource);
+        return new SpriteNode(name, scene, spriteResource, textureResource);
     }
 
     @Override

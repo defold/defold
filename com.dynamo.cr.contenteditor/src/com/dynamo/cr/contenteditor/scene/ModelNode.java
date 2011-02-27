@@ -5,8 +5,8 @@ public class ModelNode extends ComponentNode {
 
     private MeshNode meshNode;
 
-    public ModelNode(Scene scene, String resource, MeshNode mesh_node) {
-        super(scene, resource);
+    public ModelNode(String resource, Scene scene, MeshNode mesh_node) {
+        super(resource, scene);
         this.meshNode = mesh_node;
         this.meshNode.m_Parent = this;
         addNode(meshNode);

@@ -9,19 +9,12 @@ import com.sun.opengl.util.texture.Texture;
 
 public class MeshNode extends LeafNode {
 
-    private String name;
     private Mesh mesh;
     public TextureResource textureResource;
 
-    public MeshNode(Scene scene, String name, Mesh mesh) {
-        super(scene);
-        this.name = name;
+    public MeshNode(String identifier, Scene scene, Mesh mesh) {
+        super(identifier, scene);
         this.mesh = mesh;
-    }
-
-    @Override
-    public String getName() {
-        return name;
     }
 
     @Override

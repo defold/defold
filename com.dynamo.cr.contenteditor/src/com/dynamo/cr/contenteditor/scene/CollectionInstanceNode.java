@@ -13,9 +13,8 @@ public class CollectionInstanceNode extends Node {
     private String collection;
     private Node collectionNode;
 
-    public CollectionInstanceNode(Scene scene, String id, String collection, Node collection_node) {
-        super(scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
-        setIdentifier(id);
+    public CollectionInstanceNode(String identifier, Scene scene, String collection, Node collection_node) {
+        super(identifier, scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
         this.collection = collection;
         this.collectionNode = collection_node;
         this.collectionNode.setParent(this);
@@ -30,11 +29,6 @@ public class CollectionInstanceNode extends Node {
 
     public void nodeAdded(Node node) {
         andFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
-    }
-
-    @Override
-    public String getName() {
-        return getIdentifier();
     }
 
     @Override

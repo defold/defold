@@ -17,9 +17,9 @@ public class CollisionNode extends ComponentNode {
     private ConvexShapeResource convexShapeResource;
     private boolean invalid = false;
 
-    public CollisionNode(Scene scene, String resource,
+    public CollisionNode(String resource, Scene scene,
             CollisionResource collisionResource, ConvexShapeResource convexShapeResource) {
-        super(scene, resource);
+        super(resource, scene);
         this.collisionResource = collisionResource;
         this.convexShapeResource = convexShapeResource;
     }

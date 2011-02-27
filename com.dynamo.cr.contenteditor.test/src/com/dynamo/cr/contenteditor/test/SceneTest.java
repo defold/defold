@@ -80,7 +80,7 @@ public class SceneTest {
         for (Node n : nodes) {
             if (n instanceof InstanceNode) {
                 InstanceNode in = (InstanceNode) n;
-                if (in.getName().equals(resource)) {
+                if (in.getIdentifier().equals(resource)) {
                     return in;
                 }
             }
@@ -403,28 +403,28 @@ public class SceneTest {
 
         Node[][] nodes = new Node[TYPE_COUNT][2];
 
-        nodes[TYPE_BROKEN][0] = new BrokenNode(this.scene, "broken0", null);
-        nodes[TYPE_BROKEN][1] = new BrokenNode(this.scene, "broken1", null);
-        nodes[TYPE_CAMERA][0] = new CameraNode(this.scene, "camera0", null);
-        nodes[TYPE_CAMERA][1] = new CameraNode(this.scene, "camera1", null);
-        nodes[TYPE_COLLECTION_INSTANCE][0] = new CollectionInstanceNode(this.scene, "collection_instance0", null, new CollectionNode(this.scene, "collection2", null));
-        nodes[TYPE_COLLECTION_INSTANCE][1] = new CollectionInstanceNode(this.scene, "collection_instance1", null, new CollectionNode(this.scene, "collection3", null));
-        nodes[TYPE_COLLECTION][0] = new CollectionNode(this.scene, "collection0", null);
-        nodes[TYPE_COLLECTION][1] = new CollectionNode(this.scene, "collection1", null);
-        nodes[TYPE_COLLISION][0] = new CollisionNode(this.scene, "collision0", null, null);
-        nodes[TYPE_COLLISION][1] = new CollisionNode(this.scene, "collision1", null, null);
-        nodes[TYPE_INSTANCE][0] = new InstanceNode(this.scene, "instance0", null, new PrototypeNode(this.scene, "prototype2"));
-        nodes[TYPE_INSTANCE][1] = new InstanceNode(this.scene, "instance1", null, new PrototypeNode(this.scene, "prototype3"));
-        nodes[TYPE_LIGHT][0] = new LightNode(this.scene, null, null);
-        nodes[TYPE_LIGHT][1] = new LightNode(this.scene, null, null);
-        nodes[TYPE_MESH][0] = new MeshNode(this.scene, "mesh0", null);
-        nodes[TYPE_MESH][1] = new MeshNode(this.scene, "mesh1", null);
-        nodes[TYPE_MODEL][0] = new ModelNode(this.scene, "model0", new MeshNode(this.scene, "mesh2", null));
-        nodes[TYPE_MODEL][1] = new ModelNode(this.scene, "model1", new MeshNode(this.scene, "mesh3", null));
-        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode(this.scene, "prototype0");
-        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode(this.scene, "prototype1");
-        nodes[TYPE_SPRITE][0] = new SpriteNode(this.scene, "sprite0", null, null);
-        nodes[TYPE_SPRITE][1] = new SpriteNode(this.scene, "sprite1", null, null);
+        nodes[TYPE_BROKEN][0] = new BrokenNode("broken0", this.scene, null);
+        nodes[TYPE_BROKEN][1] = new BrokenNode("broken1", this.scene, null);
+        nodes[TYPE_CAMERA][0] = new CameraNode("camera0", this.scene, null);
+        nodes[TYPE_CAMERA][1] = new CameraNode("camera1", this.scene, null);
+        nodes[TYPE_COLLECTION_INSTANCE][0] = new CollectionInstanceNode("collection_instance0", this.scene, null, new CollectionNode("collection2", this.scene, null));
+        nodes[TYPE_COLLECTION_INSTANCE][1] = new CollectionInstanceNode("collection_instance1", this.scene, null, new CollectionNode("collection3", this.scene, null));
+        nodes[TYPE_COLLECTION][0] = new CollectionNode("collection0", this.scene, null);
+        nodes[TYPE_COLLECTION][1] = new CollectionNode("collection1", this.scene, null);
+        nodes[TYPE_COLLISION][0] = new CollisionNode("collision0", this.scene, null, null);
+        nodes[TYPE_COLLISION][1] = new CollisionNode("collision1", this.scene, null, null);
+        nodes[TYPE_INSTANCE][0] = new InstanceNode("instance0", this.scene, null, new PrototypeNode("prototype2", this.scene));
+        nodes[TYPE_INSTANCE][1] = new InstanceNode("instance1", this.scene, null, new PrototypeNode("prototype3", this.scene));
+        nodes[TYPE_LIGHT][0] = new LightNode("light0", this.scene, null);
+        nodes[TYPE_LIGHT][1] = new LightNode("light1", this.scene, null);
+        nodes[TYPE_MESH][0] = new MeshNode("mesh0", this.scene, null);
+        nodes[TYPE_MESH][1] = new MeshNode("mesh1", this.scene, null);
+        nodes[TYPE_MODEL][0] = new ModelNode("model0", this.scene, new MeshNode("mesh2", this.scene, null));
+        nodes[TYPE_MODEL][1] = new ModelNode("model1", this.scene, new MeshNode("mesh3", this.scene, null));
+        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", this.scene);
+        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", this.scene);
+        nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", this.scene, null, null);
+        nodes[TYPE_SPRITE][1] = new SpriteNode("sprite1", this.scene, null, null);
 
         for (int i = 0; i < TYPE_COUNT; ++i) {
             assertTrue(nodes[i][0] != null);

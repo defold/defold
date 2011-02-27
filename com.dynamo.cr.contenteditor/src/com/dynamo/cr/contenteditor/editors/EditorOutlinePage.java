@@ -108,7 +108,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         if (element instanceof Node)
         {
             Node n = (Node) element;
-            return n.getName();
+            return n.getLabel();
         }
         return super.getText(element);
     }
@@ -218,7 +218,11 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         @Override
         public Object getValue(Object element, String property) {
             Node node = (Node) element;
-            return node.getIdentifier();
+            if (this.enabled) {
+                return node.getIdentifier();
+            } else {
+                return node.getLabel();
+            }
         }
 
         @Override
@@ -340,7 +344,7 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
                 }
                 else if (element instanceof PrototypeNode) {
                     PrototypeNode proto_node = (PrototypeNode) element;
-                    resource_name = proto_node.getName();
+                    resource_name = proto_node.getIdentifier();
                 }
                 else if (element instanceof CollectionNode) {
                     CollectionNode cn = (CollectionNode) element;

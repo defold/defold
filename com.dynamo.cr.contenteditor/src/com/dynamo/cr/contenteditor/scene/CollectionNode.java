@@ -10,20 +10,18 @@ import com.dynamo.gameobject.ddf.GameObject.InstanceDesc;
 
 public class CollectionNode extends Node {
 
-    private String name;
     private String resource;
     private Map<String, Node> collectionInstanceIdToNode = new HashMap<String, Node>();
     private Map<String, Node> instanceIdToNode = new HashMap<String, Node>();
 
-    public CollectionNode(Scene scene, String name, String resource) {
-        super(scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN);
-        this.name = name;
+    public CollectionNode(String identifier, Scene scene, String resource) {
+        super(identifier, scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN);
         this.resource = resource;
     }
 
     @Override
-    public String getName() {
-        return resource;
+    public String getLabel() {
+        return String.format("%s (%s)", getIdentifier(), resource);
     }
 
     private void addId(Node node, Map<String, Node> registry) {
@@ -83,7 +81,7 @@ public class CollectionNode extends Node {
         for (Node n2 : in.getChildren()) {
             if (n2 instanceof InstanceNode) {
                 InstanceNode in2 = (InstanceNode) n2;
-                id.m_Children.add(in2.getName());
+                id.m_Children.add(in2.getIdentifier());
                 doGetDescriptor(desc, in2);
             }
         }
@@ -92,7 +90,7 @@ public class CollectionNode extends Node {
 
     public CollectionDesc getDescriptor() {
         CollectionDesc desc = new CollectionDesc();
-        desc.m_Name = this.name;
+        desc.m_Name = getIdentifier();
 
         for (Node n : getChildren()) {
 

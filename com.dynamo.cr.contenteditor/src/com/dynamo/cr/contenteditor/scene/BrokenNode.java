@@ -4,18 +4,11 @@ import com.dynamo.cr.contenteditor.editors.DrawContext;
 
 public class BrokenNode extends LeafNode {
 
-    private String name;
     private String errorMessage;
 
-    public BrokenNode(Scene scene, String name, String errorMessage) {
-        super(scene);
-        this.name = name;
+    public BrokenNode(String identifier, Scene scene, String errorMessage) {
+        super(identifier, scene);
         this.errorMessage = errorMessage;
-    }
-
-    @Override
-    public String getName() {
-        return name;
     }
 
     @Override

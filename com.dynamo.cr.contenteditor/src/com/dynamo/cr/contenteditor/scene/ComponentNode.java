@@ -3,17 +3,8 @@ package com.dynamo.cr.contenteditor.scene;
 import com.dynamo.cr.contenteditor.editors.DrawContext;
 
 public class ComponentNode extends Node {
-
-    private String resource;
-
-    public ComponentNode(Scene scene, String resource) {
-        super(scene, FLAG_CAN_HAVE_CHILDREN);
-        this.resource = resource;
-    }
-
-    @Override
-    public String getName() {
-        return resource;
+    public ComponentNode(String resource, Scene scene) {
+        super(resource, scene, FLAG_CAN_HAVE_CHILDREN);
     }
 
     @Override
@@ -23,7 +14,7 @@ public class ComponentNode extends Node {
     }
 
     public String getResource() {
-        return resource;
+        return getIdentifier();
     }
 
     @Override

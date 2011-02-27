@@ -30,7 +30,7 @@ public class CollectionNodeLoader implements INodeLoader {
         GameObject.CollectionDesc desc = DDF.loadTextFormat(reader, GameObject.CollectionDesc.class);
         monitor.beginTask(name, desc.m_Instances.size() + desc.m_CollectionInstances.size());
 
-        CollectionNode node = new CollectionNode(scene, desc.m_Name, name);
+        CollectionNode node = new CollectionNode(desc.m_Name, scene, name);
 
         for (CollectionInstanceDesc cid : desc.m_CollectionInstances) {
             // detect recursion
@@ -47,12 +47,12 @@ public class CollectionNodeLoader implements INodeLoader {
                 }
             }
             if (ancestorCollection.equals(cid.m_Collection)) {
-                subNode = new BrokenNode(scene, cid.m_Id, "A collection can not have collection instances which point to the same resource.");
+                subNode = new BrokenNode(cid.m_Id, scene, "A collection can not have collection instances which point to the same resource.");
             } else {
                 Node sub_collection = factory.load(monitor, scene, cid.m_Collection, node);
                 monitor.worked(1);
 
-                subNode = new CollectionInstanceNode(scene, cid.m_Id, cid.m_Collection, sub_collection);
+                subNode = new CollectionInstanceNode(cid.m_Id, scene, cid.m_Collection, sub_collection);
 
                 subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
                 subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
@@ -68,12 +68,12 @@ public class CollectionNodeLoader implements INodeLoader {
                 prototype = factory.load(monitor, scene, id.m_Prototype, null);
             }
             catch (IOException e) {
-                prototype = new BrokenNode(scene, id.m_Prototype, e.getMessage());
+                prototype = new BrokenNode(id.m_Prototype, scene, e.getMessage());
                 factory.reportError(e.getMessage());
             }
             monitor.worked(1);
 
-            InstanceNode in = new InstanceNode(scene, id.m_Id, id.m_Prototype, prototype);
+            InstanceNode in = new InstanceNode(id.m_Id, scene, id.m_Prototype, prototype);
             idToNode.put(id.m_Id, in);
             in.setLocalTranslation(MathUtil.toVector4(id.m_Position));
             in.setLocalRotation(MathUtil.toQuat4(id.m_Rotation));
@@ -91,7 +91,7 @@ public class CollectionNodeLoader implements INodeLoader {
                     node.removeNode(child);
                     parentInstance.addNode(child);
                 } else {
-                    parentInstance.addNode(new BrokenNode(scene, childId, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.m_Id, id.m_Id)));
+                    parentInstance.addNode(new BrokenNode(childId, scene, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.m_Id, id.m_Id)));
                 }
             }
         }

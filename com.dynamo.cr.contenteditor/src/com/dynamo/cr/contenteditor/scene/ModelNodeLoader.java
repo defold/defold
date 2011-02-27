@@ -29,7 +29,7 @@ public class ModelNodeLoader implements INodeLoader {
 
         MeshNode mesh_node = (MeshNode) factory.load(monitor, scene, model_desc.m_Mesh, null);
         mesh_node.textureResource = texture;
-        return new ModelNode(scene, name, mesh_node);
+        return new ModelNode(name, scene, mesh_node);
     }
 
     @Override

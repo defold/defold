@@ -20,7 +20,7 @@ public class PrototypeNodeLoader implements INodeLoader {
 
         InputStreamReader reader = new InputStreamReader(stream);
 
-        PrototypeNode node = new PrototypeNode(scene, name);
+        PrototypeNode node = new PrototypeNode(name, scene);
 
         GameObject.PrototypeDesc desc = DDF.loadTextFormat(reader, GameObject.PrototypeDesc.class);
         for (ComponentDesc comp_desc : desc.m_Components) {
@@ -29,7 +29,7 @@ public class PrototypeNodeLoader implements INodeLoader {
             if (factory.canLoad(comp_desc.m_Resource)) {
                 comp = factory.load(monitor, scene, comp_desc.m_Resource, node);
             } else {
-                comp = new ComponentNode(scene, comp_desc.m_Resource);
+                comp = new ComponentNode(comp_desc.m_Resource, scene);
             }
             comp.setParent(node);
             // Do not add node here. setParent take care of tht

@@ -14,8 +14,8 @@ public class SpriteNode extends ComponentNode {
     private SpriteResource spriteResource;
     private TextureResource textureResource;
 
-    public SpriteNode(Scene scene, String resource, SpriteResource spriteResource, TextureResource textureResource) {
-        super(scene, resource);
+    public SpriteNode(String resource, Scene scene, SpriteResource spriteResource, TextureResource textureResource) {
+        super(resource, scene);
         this.spriteResource = spriteResource;
         this.textureResource = textureResource;
     }

@@ -4,21 +4,13 @@ import com.dynamo.cr.contenteditor.editors.DrawContext;
 
 public class PrototypeNode extends Node {
 
-    private String name;
-
-    public PrototypeNode(Scene scene, String name) {
-        super(scene, FLAG_CAN_HAVE_CHILDREN);
-        this.name = name;
+    public PrototypeNode(String identifier, Scene scene) {
+        super(identifier, scene, FLAG_CAN_HAVE_CHILDREN);
     }
 
     @Override
     public void nodeAdded(Node node) {
         assert (node instanceof ComponentNode);
-    }
-
-    @Override
-    public String getName() {
-        return name;
     }
 
     @Override

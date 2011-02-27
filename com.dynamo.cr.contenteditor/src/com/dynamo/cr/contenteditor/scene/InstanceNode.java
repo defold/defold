@@ -13,17 +13,11 @@ public class InstanceNode extends Node {
     private String prototype;
     private Node prototypeNode;
 
-    public InstanceNode(Scene scene, String id, String prototype, Node prototype_node) {
-        super(scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
-        setIdentifier(id);
+    public InstanceNode(String identifier, Scene scene, String prototype, Node prototype_node) {
+        super(identifier, scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
         this.prototype = prototype;
         this.prototypeNode = prototype_node;
         this.prototypeNode.setParent(this);
-    }
-
-    @Override
-    public String getName() {
-        return getIdentifier();
     }
 
     void andFlags(Node node, int flags) {

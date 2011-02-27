@@ -21,7 +21,7 @@ public class CollisionNodeLoader implements INodeLoader {
 
         CollisionResource collisionResource = (CollisionResource) resourceFactory.load(monitor, name);
         ConvexShapeResource convexShapeResource = (ConvexShapeResource) resourceFactory.load(monitor, collisionResource.getCollisionDesc().getCollisionShape());
-        return new CollisionNode(scene, name, collisionResource, convexShapeResource);
+        return new CollisionNode(name, scene, collisionResource, convexShapeResource);
     }
 
     @Override

@@ -36,7 +36,7 @@ public class Copy extends AbstractHandler {
                 ByteArrayOutputStream stream = new ByteArrayOutputStream(1024);
                 try {
                     // Create a temporary collection of selected nodes
-                    CollectionNode coll = new CollectionNode(((IEditor) editor).getScene(), "clipboard_collection", "dummy");
+                    CollectionNode coll = new CollectionNode("clipboard_collection", ((IEditor) editor).getScene(), "dummy");
                     Node prevNode = null;
                     for (Node node : selectedNodes) {
                         boolean copy = true;

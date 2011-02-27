@@ -13,8 +13,8 @@ public class LightNode extends ComponentNode {
 
     private LightResource lightResource;
 
-    public LightNode(Scene scene, String resource, LightResource lightResource) {
-        super(scene, resource);
+    public LightNode(String resource, Scene scene, LightResource lightResource) {
+        super(resource, scene);
         this.lightResource = lightResource;
     }
 

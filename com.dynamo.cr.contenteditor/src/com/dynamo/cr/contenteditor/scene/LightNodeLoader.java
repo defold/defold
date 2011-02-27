@@ -19,7 +19,7 @@ public class LightNodeLoader implements INodeLoader {
             LoaderException, CoreException {
 
         LightResource lightResource = (LightResource) resourceFactory.load(monitor, name);
-        return new LightNode(scene, name, lightResource);
+        return new LightNode(name, scene, lightResource);
     }
 
     @Override

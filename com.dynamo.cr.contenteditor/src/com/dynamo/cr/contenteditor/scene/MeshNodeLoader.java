@@ -29,7 +29,7 @@ public class MeshNodeLoader implements INodeLoader {
             }
             mesh = meshCache.get(name);
 
-            return new MeshNode(scene, name, mesh);
+            return new MeshNode(name, scene, mesh);
         } catch (XMLStreamException e) {
             throw new LoaderException(e);
         }

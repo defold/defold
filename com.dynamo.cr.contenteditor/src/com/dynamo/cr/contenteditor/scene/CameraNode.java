@@ -10,8 +10,8 @@ public class CameraNode extends ComponentNode {
 
     private CameraResource cameraResource;
 
-    public CameraNode(Scene scene, String resource, CameraResource cameraResource) {
-        super(scene, resource);
+    public CameraNode(String resource, Scene scene, CameraResource cameraResource) {
+        super(resource, scene);
         this.cameraResource = cameraResource;
     }
 
