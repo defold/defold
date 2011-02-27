@@ -52,6 +52,7 @@ import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
 import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
+import com.dynamo.cr.contenteditor.scene.CollectionRootNode;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
@@ -198,7 +199,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
     public EditorOutlinePage(CollectionEditor editor)
     {
         m_Editor = editor;
-        m_Root = editor.getRoot();
+        m_Root = new CollectionRootNode(editor.getRoot().getScene());
+        editor.getRoot().setParent(m_Root);
         m_Mac = System.getProperty("os.name").toLowerCase().indexOf( "mac" ) >= 0;
     }
 

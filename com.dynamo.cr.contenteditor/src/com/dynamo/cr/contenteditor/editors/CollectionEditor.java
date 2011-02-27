@@ -264,7 +264,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             if (found) {
                 m_Scene = new Scene();
                 IProgressService service = PlatformUI.getWorkbench().getProgressService();
-                LoaderRunnable runnable = new LoaderRunnable(i.getFile().getFullPath().toPortableString());
+                IContainer content_root = this.factory.getContentRoot();
+                String name = i.getFile().getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
+                LoaderRunnable runnable = new LoaderRunnable(name);
                 service.runInUI(service, runnable, null);
                 if (runnable.exception != null)
                     throw runnable.exception;
