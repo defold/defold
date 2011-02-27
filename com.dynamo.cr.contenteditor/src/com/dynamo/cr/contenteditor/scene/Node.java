@@ -14,10 +14,9 @@ import com.dynamo.cr.contenteditor.math.Transform;
 
 public abstract class Node
 {
-    public static final int FLAG_TRANSFORMABLE = (1 << 0);
-    public static final int FLAG_SELECTABLE = (1 << 1);
-    public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 2);
-    public static final int FLAG_LABEL_EDITABLE = (1 << 3);
+    public static final int FLAG_EDITABLE = (1 << 0);
+    public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 1);
+    public static final int FLAG_TRANSFORMABLE = (1 << 2);
 
     public static final int ERROR_FLAG_DUPLICATE_ID = (1 << 0);
     public static final int ERROR_FLAG_CHILD_ERROR = (1 << 1);
@@ -105,6 +104,10 @@ public abstract class Node
 
     public boolean isChildIdentifierUsed(Node node, String id) {
         return false;
+    }
+
+    public String getUniqueChildIdentifier(Node child) {
+        return child.getIdentifier();
     }
 
     public final int getFlags()
@@ -256,16 +259,19 @@ public abstract class Node
      * Special hack-function for saving...
      */
     public void addNodeNoSetParent(Node node) {
+        if (((m_Flags & FLAG_CAN_HAVE_CHILDREN) == 0) || !acceptsChild(node)) {
+            throw new UnsupportedOperationException("addNode is not supported for this node: " + this);
+        }
         assert (children.indexOf(node) == -1);
         children.add(node);
         m_Scene.nodeAdded(node);
         nodeAdded(node);
     }
 
-    public final void addNode(Node node)
-    {
-        if ((m_Flags & FLAG_CAN_HAVE_CHILDREN) == 0)
+    public final void addNode(Node node) {
+        if (!acceptsChild(node)) {
             throw new UnsupportedOperationException("addNode is not supported for this node: " + this);
+        }
         assert (children.indexOf(node) == -1);
         children.add(node);
         node.m_Parent = this;
@@ -288,6 +294,24 @@ public abstract class Node
         nodeRemoved(node);
         m_Scene.nodeRemoved(node);
     }
+
+    protected abstract boolean verifyChild(Node child);
+
+    public final boolean acceptsChild(Node child) {
+        if ((m_Flags & FLAG_CAN_HAVE_CHILDREN) == 0) {
+            return false;
+        }
+        Node parent = this;
+        while (parent != null && parent != child) {
+            parent = parent.getParent();
+        }
+        if (parent == child) {
+            return false;
+        } else {
+            return verifyChild(child);
+        }
+    }
+
 
     public boolean contains(Node node)
     {

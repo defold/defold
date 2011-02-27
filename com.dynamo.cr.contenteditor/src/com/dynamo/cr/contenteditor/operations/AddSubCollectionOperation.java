@@ -42,7 +42,10 @@ public class AddSubCollectionOperation extends AbstractOperation {
             String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
             CollectionNode proto = (CollectionNode) factory.load(new NullProgressMonitor(), scene, name, root);
             CollectionNode collectionRoot = (CollectionNode)root;
-            node = new CollectionInstanceNode(scene, collectionRoot.getUniqueCollectionInstanceId(file.getName()), name, proto);
+            node = new CollectionInstanceNode(scene, file.getName(), name, proto);
+            if (collectionRoot.isChildIdentifierUsed(node, node.getIdentifier())) {
+                node.setIdentifier(collectionRoot.getUniqueChildIdentifier(node));
+            }
 
             root.addNode(node);
         } catch (Throwable e) {

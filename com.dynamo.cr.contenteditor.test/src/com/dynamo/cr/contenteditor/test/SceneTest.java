@@ -26,18 +26,27 @@ import com.dynamo.cr.contenteditor.resource.SpriteLoader;
 import com.dynamo.cr.contenteditor.resource.TextureLoader;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.BrokenNode;
+import com.dynamo.cr.contenteditor.scene.CameraNode;
+import com.dynamo.cr.contenteditor.scene.CameraNodeLoader;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNodeLoader;
+import com.dynamo.cr.contenteditor.scene.CollisionNode;
+import com.dynamo.cr.contenteditor.scene.CollisionNodeLoader;
 import com.dynamo.cr.contenteditor.scene.ComponentNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
+import com.dynamo.cr.contenteditor.scene.LightNode;
+import com.dynamo.cr.contenteditor.scene.LightNodeLoader;
 import com.dynamo.cr.contenteditor.scene.MeshNode;
 import com.dynamo.cr.contenteditor.scene.MeshNodeLoader;
+import com.dynamo.cr.contenteditor.scene.ModelNode;
 import com.dynamo.cr.contenteditor.scene.ModelNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.PrototypeNodeLoader;
 import com.dynamo.cr.contenteditor.scene.Scene;
+import com.dynamo.cr.contenteditor.scene.SpriteNode;
+import com.dynamo.cr.contenteditor.scene.SpriteNodeLoader;
 
 public class SceneTest {
 
@@ -60,6 +69,10 @@ public class SceneTest {
         factory.addLoader(new PrototypeNodeLoader(), "go");
         factory.addLoader(new ModelNodeLoader(), "model");
         factory.addLoader(new MeshNodeLoader(), "dae");
+        factory.addLoader(new CameraNodeLoader(), "camera");
+        factory.addLoader(new LightNodeLoader(), "light");
+        factory.addLoader(new SpriteNodeLoader(), "sprite");
+        factory.addLoader(new CollisionNodeLoader(), "collisionobject");
         scene = new Scene();
     }
 
@@ -134,8 +147,8 @@ public class SceneTest {
         assertThat(node.getChildren().length, is(3));
 
         Node[] children = node.getChildren();
-        ComponentNode n1 = getComponentNode(children, "attacker.script");
-        ComponentNode n2 = getComponentNode(children, "attacker.collisionobject");
+        ComponentNode n1 = getComponentNode(children, "empty.script");
+        ComponentNode n2 = getComponentNode(children, "test.collisionobject");
         ComponentNode n3 = getComponentNode(children, "box.model");
 
         assertThat(n1.getParent(), equalTo((Node) node));
@@ -164,6 +177,7 @@ public class SceneTest {
                 assertThat((node.getFlags() & flags), is(0));
                 testNodeFlags(node.getChildren(), flags);
             } else {
+                assertThat(node.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN, not(0));
                 testNodeFlagsExcludeInstance(node.getChildren(), flags);
             }
         }
@@ -175,16 +189,17 @@ public class SceneTest {
         Node node = factory.load(new NullProgressMonitor(), scene, name, null);
         assertThat(node, instanceOf(CollectionNode.class));
         assertThat(node.getChildren().length, is(3));
-        assertThat(node.getFlags(), is(Node.FLAG_CAN_HAVE_CHILDREN));
-        int flags = Node.FLAG_LABEL_EDITABLE
-            | Node.FLAG_SELECTABLE
-            | Node.FLAG_TRANSFORMABLE;
+        assertThat(node.getFlags(), is(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN));
+        int flags = Node.FLAG_EDITABLE | Node.FLAG_TRANSFORMABLE;
         for (Node child : node.getChildren()) {
             assertThat((child.getFlags() & flags), is(flags));
-            if (child instanceof InstanceNode)
+            if (child instanceof InstanceNode) {
+                assertThat(child.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN, not(0));
                 testNodeFlagsExcludeInstance(child.getChildren(), flags);
-            else
+            } else {
+                assertThat(child.getFlags() & Node.FLAG_CAN_HAVE_CHILDREN, is(0));
                 testNodeFlags(child.getChildren(), flags);
+            }
         }
     }
 
@@ -217,6 +232,7 @@ public class SceneTest {
         assertTrue(root.getChildren()[0].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
         assertTrue(!root.getChildren()[0].getChildren()[0].getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
         // Remove node to clear error status
+        root.getChildren()[0].getChildren()[0].setFlags(root.getChildren()[0].getChildren()[0].getFlags() | Node.FLAG_CAN_HAVE_CHILDREN);
         Node node = root.getChildren()[0].getChildren()[0].getChildren()[0];
         root.getChildren()[0].getChildren()[0].removeNode(node);
         assertTrue(!root.getChildren()[0].hasError(Node.ERROR_FLAG_CHILD_ERROR));
@@ -288,6 +304,16 @@ public class SceneTest {
         assertTrue(!root.getChildren()[1].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
         assertTrue(root.getChildren()[5] instanceof CollectionInstanceNode);
         assertTrue(root.getChildren()[5].hasError(Node.ERROR_FLAG_DUPLICATE_ID));
+
+        // Test id uniqueness of collection instances
+        assertTrue(root.isChildIdentifierUsed(root.getChildren()[0], root.getChildren()[0].getIdentifier()));
+        assertTrue(!root.isChildIdentifierUsed(root.getChildren()[0], root.getUniqueChildIdentifier(root.getChildren()[0])));
+        // Test id uniqueness of instances
+        assertTrue(root.isChildIdentifierUsed(root.getChildren()[4], root.getChildren()[4].getIdentifier()));
+        assertTrue(!root.isChildIdentifierUsed(root.getChildren()[4], root.getUniqueChildIdentifier(root.getChildren()[4])));
+        // Instances should also support unique ids given their ancestor CollectioNode
+        assertTrue(root.getChildren()[4].isChildIdentifierUsed(root.getChildren()[4], root.getChildren()[4].getIdentifier()));
+        assertTrue(!root.getChildren()[4].isChildIdentifierUsed(root.getChildren()[4], root.getChildren()[4].getUniqueChildIdentifier(root.getChildren()[4])));
     }
 
     @Test
@@ -295,11 +321,20 @@ public class SceneTest {
         String collectionName = "recurse.collection";
         Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
         assertThat(parent, instanceOf(CollectionNode.class));
-        assertThat(parent.getChildren().length, is(2));
+        assertThat(parent.getChildren().length, is(4));
+
+        // Collection instances
         assertTrue(parent.getChildren()[0] instanceof BrokenNode);
         assertTrue(parent.getChildren()[1] instanceof CollectionInstanceNode);
         assertTrue(parent.getChildren()[1].getChildren()[0] instanceof CollectionNode);
         assertTrue(parent.getChildren()[1].getChildren()[0].getChildren()[0] instanceof BrokenNode);
+
+        // Instances
+        assertTrue(parent.getChildren()[2] instanceof InstanceNode);
+        assertTrue(parent.getChildren()[2].getChildren()[1] instanceof BrokenNode);
+        assertTrue(parent.getChildren()[3] instanceof InstanceNode);
+        assertTrue(parent.getChildren()[3].getChildren()[1] instanceof InstanceNode);
+        assertTrue(parent.getChildren()[3].getChildren()[1].getChildren()[1] instanceof BrokenNode);
     }
 
     /**
@@ -349,6 +384,91 @@ public class SceneTest {
             saved = false;
         }
         assertTrue(!saved);
+    }
+
+    @Test
+    public void testHierarchy() throws Exception {
+        final int TYPE_BROKEN = 0;
+        final int TYPE_CAMERA = 1;
+        final int TYPE_COLLECTION_INSTANCE = 2;
+        final int TYPE_COLLECTION = 3;
+        final int TYPE_COLLISION = 4;
+        final int TYPE_INSTANCE = 5;
+        final int TYPE_LIGHT = 6;
+        final int TYPE_MESH = 7;
+        final int TYPE_MODEL = 8;
+        final int TYPE_PROTOTYPE = 9;
+        final int TYPE_SPRITE = 10;
+        final int TYPE_COUNT = 11;
+
+        Node[][] nodes = new Node[TYPE_COUNT][2];
+
+        nodes[TYPE_BROKEN][0] = new BrokenNode(this.scene, "broken0", null);
+        nodes[TYPE_BROKEN][1] = new BrokenNode(this.scene, "broken1", null);
+        nodes[TYPE_CAMERA][0] = new CameraNode(this.scene, "camera0", null);
+        nodes[TYPE_CAMERA][1] = new CameraNode(this.scene, "camera1", null);
+        nodes[TYPE_COLLECTION_INSTANCE][0] = new CollectionInstanceNode(this.scene, "collection_instance0", null, new CollectionNode(this.scene, "collection2", null));
+        nodes[TYPE_COLLECTION_INSTANCE][1] = new CollectionInstanceNode(this.scene, "collection_instance1", null, new CollectionNode(this.scene, "collection3", null));
+        nodes[TYPE_COLLECTION][0] = new CollectionNode(this.scene, "collection0", null);
+        nodes[TYPE_COLLECTION][1] = new CollectionNode(this.scene, "collection1", null);
+        nodes[TYPE_COLLISION][0] = new CollisionNode(this.scene, "collision0", null, null);
+        nodes[TYPE_COLLISION][1] = new CollisionNode(this.scene, "collision1", null, null);
+        nodes[TYPE_INSTANCE][0] = new InstanceNode(this.scene, "instance0", null, new PrototypeNode(this.scene, "prototype2"));
+        nodes[TYPE_INSTANCE][1] = new InstanceNode(this.scene, "instance1", null, new PrototypeNode(this.scene, "prototype3"));
+        nodes[TYPE_LIGHT][0] = new LightNode(this.scene, null, null);
+        nodes[TYPE_LIGHT][1] = new LightNode(this.scene, null, null);
+        nodes[TYPE_MESH][0] = new MeshNode(this.scene, "mesh0", null);
+        nodes[TYPE_MESH][1] = new MeshNode(this.scene, "mesh1", null);
+        nodes[TYPE_MODEL][0] = new ModelNode(this.scene, "model0", new MeshNode(this.scene, "mesh2", null));
+        nodes[TYPE_MODEL][1] = new ModelNode(this.scene, "model1", new MeshNode(this.scene, "mesh3", null));
+        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode(this.scene, "prototype0");
+        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode(this.scene, "prototype1");
+        nodes[TYPE_SPRITE][0] = new SpriteNode(this.scene, "sprite0", null, null);
+        nodes[TYPE_SPRITE][1] = new SpriteNode(this.scene, "sprite1", null, null);
+
+        for (int i = 0; i < TYPE_COUNT; ++i) {
+            assertTrue(nodes[i][0] != null);
+            assertTrue(nodes[i][1] != null);
+        }
+
+        boolean[][] accepts = new boolean[TYPE_COUNT][TYPE_COUNT];
+        for (int i = 0; i < TYPE_COUNT; ++i) {
+            for (int j = 0; j < TYPE_COUNT; ++j) {
+                accepts[i][j] = false;
+            }
+        }
+
+        accepts[TYPE_COLLECTION][TYPE_BROKEN] = true;
+        accepts[TYPE_COLLECTION][TYPE_COLLECTION_INSTANCE] = true;
+        accepts[TYPE_COLLECTION][TYPE_INSTANCE] = true;
+
+        accepts[TYPE_COLLECTION_INSTANCE][TYPE_COLLECTION] = true;
+
+        accepts[TYPE_PROTOTYPE][TYPE_BROKEN] = true;
+        accepts[TYPE_PROTOTYPE][TYPE_CAMERA] = true;
+        accepts[TYPE_PROTOTYPE][TYPE_COLLISION] = true;
+        accepts[TYPE_PROTOTYPE][TYPE_LIGHT] = true;
+        accepts[TYPE_PROTOTYPE][TYPE_MODEL] = true;
+        accepts[TYPE_PROTOTYPE][TYPE_SPRITE] = true;
+
+        accepts[TYPE_INSTANCE][TYPE_BROKEN] = true;
+        accepts[TYPE_INSTANCE][TYPE_INSTANCE] = true;
+        accepts[TYPE_INSTANCE][TYPE_PROTOTYPE] = true;
+
+        accepts[TYPE_MODEL][TYPE_MESH] = true;
+
+        for (int i = 0; i < TYPE_COUNT; ++i) {
+            for (int j = 0; j < TYPE_COUNT; ++j) {
+                assertThat(nodes[i][0].acceptsChild(nodes[j][1]), equalTo(accepts[i][j]));
+                try {
+                    nodes[i][0].addNode(nodes[j][1]);
+                    nodes[i][0].removeNode(nodes[j][1]);
+                    assertTrue(accepts[i][j]);
+                } catch (Exception e) {
+                    assertTrue(!accepts[i][j]);
+                }
+            }
+        }
     }
 }
 

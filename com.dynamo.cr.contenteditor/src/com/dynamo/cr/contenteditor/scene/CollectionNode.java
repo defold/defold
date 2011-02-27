@@ -16,7 +16,7 @@ public class CollectionNode extends Node {
     private Map<String, Node> instanceIdToNode = new HashMap<String, Node>();
 
     public CollectionNode(Scene scene, String name, String resource) {
-        super(scene, FLAG_CAN_HAVE_CHILDREN);
+        super(scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN);
         this.name = name;
         this.resource = resource;
     }
@@ -39,6 +39,7 @@ public class CollectionNode extends Node {
     public void nodeAdded(Node node) {
         if (node instanceof CollectionInstanceNode) {
             addId(node, collectionInstanceIdToNode);
+            node.setFlags(node.getFlags() & ~Node.FLAG_CAN_HAVE_CHILDREN);
         } else if (node instanceof InstanceNode) {
             addId(node, instanceIdToNode);
         }
@@ -133,6 +134,17 @@ public class CollectionNode extends Node {
         }
     }
 
+    @Override
+    public String getUniqueChildIdentifier(Node child) {
+        if (child instanceof CollectionInstanceNode) {
+            return getUniqueCollectionInstanceId(child.getIdentifier());
+        } else if (child instanceof InstanceNode) {
+            return getUniqueInstanceId(child.getIdentifier());
+        } else {
+            return super.getUniqueChildIdentifier(child);
+        }
+    }
+
     public Node getCollectionInstanceNodeFromId(String ident) {
         return collectionInstanceIdToNode.get(ident);
     }
@@ -141,7 +153,7 @@ public class CollectionNode extends Node {
         return instanceIdToNode.get(ident);
     }
 
-    public String getUniqueCollectionInstanceId(String base) {
+    private String getUniqueCollectionInstanceId(String base) {
         int id = 0;
 
         int i = base.length()-1;
@@ -171,7 +183,7 @@ public class CollectionNode extends Node {
         }
     }
 
-    public String getUniqueInstanceId(String base) {
+    private String getUniqueInstanceId(String base) {
         int id = 0;
 
         int i = base.length()-1;
@@ -199,6 +211,11 @@ public class CollectionNode extends Node {
                 return s;
             ++id;
         }
+    }
+
+    @Override
+    protected boolean verifyChild(Node child) {
+        return (child instanceof CollectionInstanceNode) || (child instanceof InstanceNode) || (child instanceof BrokenNode);
     }
 }
 

@@ -81,4 +81,8 @@ public class SpriteNode extends ComponentNode {
         gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
     }
 
+    @Override
+    protected boolean verifyChild(Node child) {
+        return false;
+    }
 }

@@ -1,5 +1,8 @@
 package com.dynamo.cr.contenteditor.operations;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -17,11 +20,31 @@ public class DeleteOperation extends AbstractOperation {
 
     public DeleteOperation(IEditor editor, Node[] nodes) {
         super("Delete GameObject");
-        this.nodes = new Node[nodes.length];
-        this.oldParents = new Node[nodes.length];
+        List<Node> nodeList = new ArrayList<Node>();
+        Node prevNode = null;
+        for (Node node : nodes) {
+            while ((node.getFlags() & Node.FLAG_EDITABLE) == 0) {
+                node = node.getParent();
+            }
+            boolean add = true;
+            if (prevNode != null) {
+                Node parent = node;
+                while (parent != null && parent != prevNode) {
+                    parent = parent.getParent();
+                }
+                if (parent == prevNode) {
+                    add = false;
+                }
+            }
+            if (add && node != null && (node.getFlags() & Node.FLAG_EDITABLE) != 0) {
+                nodeList.add(node);
+                prevNode = node;
+            }
+        }
+        this.nodes = nodeList.toArray(nodes);
+        this.oldParents = new Node[this.nodes.length];
         for (int i = 0; i < nodes.length; ++i) {
-            this.nodes[i] = nodes[i];
-            this.oldParents[i] = nodes[i].getParent();
+            this.oldParents[i] = this.nodes[i].getParent();
         }
     }
 

@@ -64,6 +64,5 @@ public class MeshNode extends LeafNode {
             texture.disable();
             gl.glDisable(GL.GL_BLEND);
         }
-
     }
 }

@@ -1,10 +1,10 @@
 Components
 {
-    Resource: "attacker.script"
+    Resource: "empty.script"
 }
 Components
 {
-    Resource: "attacker.collisionobject"
+    Resource: "test.collisionobject"
 }
 Components
 {

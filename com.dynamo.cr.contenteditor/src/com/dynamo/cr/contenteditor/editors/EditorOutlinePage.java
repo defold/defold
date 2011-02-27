@@ -180,7 +180,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
     @Override
     public Color getForeground(Object element) {
         Node node = (Node)element;
-        if ((node.getFlags() & Node.FLAG_LABEL_EDITABLE) != 0) {
+        if ((node.getFlags() & Node.FLAG_EDITABLE) != 0) {
             return Display.getCurrent().getSystemColor(SWT.COLOR_BLACK);
         } else {
             return Display.getCurrent().getSystemColor(SWT.COLOR_DARK_GRAY);
@@ -212,7 +212,7 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         @Override
         public boolean canModify(Object element, String property) {
             Node node = (Node)element;
-            return enabled && ((node.getFlags() & Node.FLAG_LABEL_EDITABLE) != 0);
+            return enabled && ((node.getFlags() & Node.FLAG_EDITABLE) != 0);
         }
 
         @Override

@@ -14,7 +14,7 @@ public class InstanceNode extends Node {
     private Node prototypeNode;
 
     public InstanceNode(Scene scene, String id, String prototype, Node prototype_node) {
-        super(scene, FLAG_TRANSFORMABLE | FLAG_SELECTABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_LABEL_EDITABLE);
+        super(scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
         setIdentifier(id);
         this.prototype = prototype;
         this.prototypeNode = prototype_node;
@@ -36,7 +36,7 @@ public class InstanceNode extends Node {
 
     @Override
     public void nodeAdded(Node node) {
-        andFlags(node, ~(Node.FLAG_SELECTABLE | Node.FLAG_TRANSFORMABLE | Node.FLAG_LABEL_EDITABLE));
+        andFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
         // tell collection node
         Node parent = getParent();
         while (parent != null && !(parent instanceof CollectionNode)) {
@@ -95,5 +95,15 @@ public class InstanceNode extends Node {
     @Override
     public boolean isChildIdentifierUsed(Node node, String id) {
         return m_Parent.isChildIdentifierUsed(node, id);
+    }
+
+    @Override
+    public String getUniqueChildIdentifier(Node child) {
+        return m_Parent.getUniqueChildIdentifier(child);
+    }
+
+    @Override
+    protected boolean verifyChild(Node child) {
+        return (child instanceof InstanceNode) || (child instanceof PrototypeNode) || (child instanceof BrokenNode);
     }
 }

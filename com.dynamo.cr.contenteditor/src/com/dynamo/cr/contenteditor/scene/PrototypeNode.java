@@ -25,4 +25,8 @@ public class PrototypeNode extends Node {
     public void draw(DrawContext context) {
     }
 
+    @Override
+    protected boolean verifyChild(Node child) {
+        return (child instanceof ComponentNode) || (child instanceof BrokenNode);
+    }
 }

@@ -26,4 +26,8 @@ public class ComponentNode extends Node {
         return resource;
     }
 
+    @Override
+    protected boolean verifyChild(Node child) {
+        return false;
+    }
 }

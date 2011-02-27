@@ -14,7 +14,7 @@ public class CollectionInstanceNode extends Node {
     private Node collectionNode;
 
     public CollectionInstanceNode(Scene scene, String id, String collection, Node collection_node) {
-        super(scene, FLAG_TRANSFORMABLE | FLAG_SELECTABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_LABEL_EDITABLE);
+        super(scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
         setIdentifier(id);
         this.collection = collection;
         this.collectionNode = collection_node;
@@ -29,7 +29,7 @@ public class CollectionInstanceNode extends Node {
     }
 
     public void nodeAdded(Node node) {
-        andFlags(node, ~(Node.FLAG_SELECTABLE | Node.FLAG_TRANSFORMABLE | Node.FLAG_LABEL_EDITABLE));
+        andFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
     }
 
     @Override
@@ -62,5 +62,10 @@ public class CollectionInstanceNode extends Node {
 
         // TODO: REST HERE!
         return desc;
+    }
+
+    @Override
+    protected boolean verifyChild(Node child) {
+        return child instanceof CollectionNode;
     }
 }

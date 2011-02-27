@@ -871,44 +871,27 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     public void setSelectedNodes(Node[] nodes)
     {
-        // Go upwards in hierarchy until a selectable node is found
-        for (int i = 0; i < nodes.length; ++i) {
-            Node n  = nodes[i];
-            while ((n.getFlags() & Node.FLAG_SELECTABLE) == 0)
-            {
-                n = n.getParent();
-            }
-            nodes[i] = n;
-        }
-
-        // Remove duplicates. Perhaps not optimal. Loop below does not handle duplicates
+        // Remove duplicates and children. Perhaps not optimal. Loop below does not handle duplicates
         List<Node> node_set = new ArrayList<Node>();
+        Node prevNode = null;
         for (Node n : nodes) {
-            if (!node_set.contains(n))
-                node_set.add(n);
-        }
-        nodes = node_set.toArray(new Node[node_set.size()]);
-
-        // Deselect any node child of any other node
-        ArrayList<Node> list = new ArrayList<Node>();
-        for (int i = 0; i < nodes.length; ++i) {
-            boolean select = true;
-            for (int j = 0; j < nodes.length; ++j) {
-                if (i != j) {
-                    if (nodes[i].isChildOf(nodes[j]) || nodes[i] == nodes[j]) {
-                        select = false;
-                        break;
-                    }
+            boolean child = false;
+            if (prevNode != null) {
+                Node parent = n.getParent();
+                while (parent != null && parent != prevNode) {
+                    parent = parent.getParent();
+                }
+                if (parent == prevNode) {
+                    child = true;
                 }
             }
-            if (select) {
-                list.add(nodes[i]);
+            if (!child && !node_set.contains(n)) {
+                prevNode = n;
+                node_set.add(n);
             }
         }
-        nodes = new Node[list.size()];
-        list.toArray(nodes);
 
-        m_SelectedNodes = nodes;
+        m_SelectedNodes = node_set.toArray(new Node[node_set.size()]);
         m_ManipulatorController.setSelected(m_SelectedNodes);
 
         SelectionChangedEvent e;
@@ -976,7 +959,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 Node n = name_node_map.get(pair.index);
 
                 // Get the object that actually can be selected. Required for test below
-                while ((n.getFlags() & Node.FLAG_SELECTABLE) == 0)
+                while ((n.getFlags() & Node.FLAG_TRANSFORMABLE) == 0)
                 {
                     n = n.getParent();
                 }

@@ -425,8 +425,8 @@ public class PropertiesView extends ViewPart implements ISelectionListener,
                 if (first instanceof Node) {
                     Node node = (Node) first;
 
-                    // Only "selectable" nodes have editable properties
-                    if ((node.getFlags() & Node.FLAG_SELECTABLE) != 0) {
+                    // Check if node is editable
+                    if ((node.getFlags() & Node.FLAG_EDITABLE) != 0) {
                         this.node = node;
                         if (viewer.getInput() != null) {
                             Object[] expanded = viewer.getExpandedElements();

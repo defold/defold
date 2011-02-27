@@ -28,8 +28,7 @@ public class PrototypeNodeLoader implements INodeLoader {
             Node comp;
             if (factory.canLoad(comp_desc.m_Resource)) {
                 comp = factory.load(monitor, scene, comp_desc.m_Resource, node);
-            }
-            else {
+            } else {
                 comp = new ComponentNode(scene, comp_desc.m_Resource);
             }
             comp.setParent(node);

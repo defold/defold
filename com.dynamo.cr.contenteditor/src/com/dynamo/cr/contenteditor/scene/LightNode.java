@@ -66,4 +66,8 @@ public class LightNode extends ComponentNode {
         gl.glPopAttrib();
     }
 
+    @Override
+    protected boolean verifyChild(Node child) {
+        return false;
+    }
 }

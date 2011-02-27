@@ -12,4 +12,8 @@ public class ModelNode extends ComponentNode {
         addNode(meshNode);
     }
 
+    @Override
+    protected boolean verifyChild(Node child) {
+        return child instanceof MeshNode;
+    }
 }

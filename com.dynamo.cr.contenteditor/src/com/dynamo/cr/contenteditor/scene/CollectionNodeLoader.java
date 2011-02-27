@@ -82,13 +82,17 @@ public class CollectionNodeLoader implements INodeLoader {
 
         for (InstanceDesc id : desc.m_Instances) {
             Node parentInstance = idToNode.get(id.m_Id);
-            for (String child_id : id.m_Children) {
-                Node child = idToNode.get(child_id);
+            for (String childId : id.m_Children) {
+                Node child = idToNode.get(childId);
                 if (child == null)
-                    throw new LoaderException(String.format("Child %s not found", child_id));
+                    throw new LoaderException(String.format("Child %s not found", childId));
 
-                node.removeNode(child);
-                parentInstance.addNode(child);
+                if (parentInstance.acceptsChild(child)) {
+                    node.removeNode(child);
+                    parentInstance.addNode(child);
+                } else {
+                    parentInstance.addNode(new BrokenNode(scene, childId, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.m_Id, id.m_Id)));
+                }
             }
         }
 

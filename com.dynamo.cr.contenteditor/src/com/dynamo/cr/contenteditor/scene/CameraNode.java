@@ -76,4 +76,8 @@ public class CameraNode extends ComponentNode {
 
     }
 
+    @Override
+    protected boolean verifyChild(Node child) {
+        return false;
+    }
 }

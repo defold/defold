@@ -43,7 +43,10 @@ public class AddGameObjectOperation extends AbstractOperation {
             String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
             PrototypeNode proto = (PrototypeNode) factory.load(new NullProgressMonitor(), scene, name, root);
             CollectionNode collectionRoot = (CollectionNode)root;
-            node = new InstanceNode(scene, collectionRoot.getUniqueInstanceId(file.getName()), name, proto);
+            node = new InstanceNode(scene, file.getName(), name, proto);
+            if (collectionRoot.isChildIdentifierUsed(node, node.getIdentifier())) {
+                node.setIdentifier(collectionRoot.getUniqueChildIdentifier(node));
+            }
             root.addNode(node);
         } catch (Throwable e) {
             throw new ExecutionException(e.getMessage(), e);
