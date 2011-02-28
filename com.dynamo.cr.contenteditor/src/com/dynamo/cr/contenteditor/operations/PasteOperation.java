@@ -1,6 +1,5 @@
 package com.dynamo.cr.contenteditor.operations;
 
-import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -11,34 +10,21 @@ import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 
-import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.Scene;
 
 public class PasteOperation extends AbstractOperation {
 
-    private String data;
-    private IEditor editor;
+    private Node[] nodes;
+    private Node target;
     private Map<ComparableNode, List<Node>> addedNodes;
-    private Node pasteTarget;
 
-    public void setScene(Scene scene, Node node) {
-        node.setScene(scene);
-        for (Node n : node.getChildren()) {
-            setScene(scene, n);
-        }
-    }
-
-    public PasteOperation(IEditor editor, String data, Node paste_target) {
+    public PasteOperation(Node[] nodes, Node target) {
         super("Paste");
-        this.editor = editor;
-        this.data = data;
-        this.pasteTarget = paste_target;
+        this.nodes = nodes;
+        this.target = target;
+        this.addedNodes = new TreeMap<ComparableNode, List<Node>>();
     }
 
     private class ComparableNode implements Comparable<ComparableNode> {
@@ -67,17 +53,12 @@ public class PasteOperation extends AbstractOperation {
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
 
-        addedNodes = new TreeMap<ComparableNode, List<Node>>();
-        NodeLoaderFactory factory = editor.getLoaderFactory();
+        this.addedNodes.clear();
 
-        ByteArrayInputStream stream = new ByteArrayInputStream(data.getBytes());
-        Scene scene = new Scene();
         try {
-            CollectionNode node = (CollectionNode) factory.load(new NullProgressMonitor(), scene, "clipboard.collection", stream, null);
-            setScene(pasteTarget.getScene(), node);
-            for (Node n : node.getChildren()) {
-                Node target = pasteTarget;
-                while (target != null && ((target.getIdentifier() != null && target.getIdentifier().equals(n.getIdentifier())) || !target.acceptsChild(n))) {
+            for (Node node : this.nodes) {
+                Node target = this.target;
+                while (target != null && ((target.getIdentifier() != null && target.getIdentifier().equals(node.getIdentifier())) || !target.acceptsChild(node))) {
                     target = target.getParent();
                 }
                 if (target != null) {
@@ -85,9 +66,9 @@ public class PasteOperation extends AbstractOperation {
                     if (!addedNodes.containsKey(compTarget)) {
                         addedNodes.put(compTarget, new ArrayList<Node>());
                     }
-                    addedNodes.get(compTarget).add(n);
-                    target.addNode(n);
-                    modifyIdentifiers(target, n);
+                    addedNodes.get(compTarget).add(node);
+                    target.addNode(node);
+                    modifyIdentifiers(target, node);
                 }
             }
             if (addedNodes.isEmpty()) {
