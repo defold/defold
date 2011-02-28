@@ -6,6 +6,7 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -15,7 +16,13 @@ import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
+import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
+import com.dynamo.cr.contenteditor.scene.CollectionNode;
+import com.dynamo.cr.contenteditor.scene.InstanceNode;
+import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.contenteditor.scene.PrototypeNode;
+import com.dynamo.cr.contenteditor.scene.Scene;
 
 public class AddGameObject extends AbstractHandler {
 
@@ -36,18 +43,32 @@ public class AddGameObject extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
-        IEditorPart editor = HandlerUtil.getActiveEditor(event);
-        if (editor instanceof IEditor) {
-            IFileEditorInput fi = (IFileEditorInput) editor.getEditorInput();
+        IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
+        if (editorPart instanceof IEditor) {
+            IEditor editor = (IEditor)editorPart;
+            IFileEditorInput fi = (IFileEditorInput) editorPart.getEditorInput();
             GameObjectSelectionDialog dialog = new GameObjectSelectionDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), fi.getFile().getProject());
             int ret = dialog.open();
 
             if (ret == ListDialog.OK)
             {
                 IResource r = (IResource) dialog.getResult()[0];
+                Node root = editor.getRoot();
+                Scene scene = editor.getScene();
 
-                AddGameObjectOperation op = new AddGameObjectOperation((IEditor) editor, (IFile) r);
-                ((IEditor) editor).executeOperation(op);
+                NodeLoaderFactory factory = editor.getLoaderFactory();
+                IContainer content_root = factory.getContentRoot();
+                IFile file = (IFile)r;
+                String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
+                try {
+                    PrototypeNode proto = (PrototypeNode) factory.load(new NullProgressMonitor(), scene, name, root);
+                    CollectionNode parent = (CollectionNode)root;
+                    InstanceNode node = new InstanceNode(file.getName(), scene, name, proto);
+                    AddGameObjectOperation op = new AddGameObjectOperation(node, parent);
+                    ((IEditor) editor).executeOperation(op);
+                } catch (Exception e) {
+                    throw new ExecutionException(e.getMessage(), e);
+                }
             }
         }
         return null;

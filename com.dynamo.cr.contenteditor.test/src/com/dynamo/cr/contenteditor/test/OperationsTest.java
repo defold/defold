@@ -15,11 +15,14 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
+import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.Scene;
 
 public class OperationsTest {
@@ -51,6 +54,51 @@ public class OperationsTest {
 
     private void redo() throws ExecutionException {
         this.history.redo(this.undoContext, this.monitor, null);
+    }
+
+    @Test
+    public void testAddGameObject() {
+        InstanceNode node = null;
+        CollectionNode parent = null;
+        PrototypeNode prototype = new PrototypeNode("prototype", this.scene);
+        // Empty operations, should fail
+        try {
+            node = new InstanceNode("instance", this.scene, null, prototype);
+            execute(new AddGameObjectOperation(node, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            node = null;
+            parent = new CollectionNode("parent", this.scene, null);
+            execute(new AddGameObjectOperation(node, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            String childId = "instance";
+            node = new InstanceNode(childId, this.scene, null, prototype);
+            parent = new CollectionNode("parent", this.scene, null);
+            Node child = new InstanceNode(childId, this.scene, null, prototype);
+            child.setParent(parent);
+            assertThat(parent.getChildren().length, is(1));
+            execute(new AddGameObjectOperation(node, parent));
+            assertThat(parent.getChildren().length, is(2));
+            assertTrue(!node.getIdentifier().equals(childId));
+            undo();
+            assertThat(parent.getChildren().length, is(1));
+            assertTrue(node.getIdentifier().equals(childId));
+            redo();
+            assertThat(parent.getChildren().length, is(2));
+            assertTrue(!node.getIdentifier().equals(childId));
+        } catch (ExecutionException e) {
+            assertTrue(false);
+        }
     }
 
     @Test
