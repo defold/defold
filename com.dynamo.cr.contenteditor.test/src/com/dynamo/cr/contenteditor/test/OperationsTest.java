@@ -16,9 +16,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
+import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.BrokenNode;
+import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
@@ -88,6 +90,51 @@ public class OperationsTest {
             child.setParent(parent);
             assertThat(parent.getChildren().length, is(1));
             execute(new AddGameObjectOperation(node, parent));
+            assertThat(parent.getChildren().length, is(2));
+            assertTrue(!node.getIdentifier().equals(childId));
+            undo();
+            assertThat(parent.getChildren().length, is(1));
+            assertTrue(node.getIdentifier().equals(childId));
+            redo();
+            assertThat(parent.getChildren().length, is(2));
+            assertTrue(!node.getIdentifier().equals(childId));
+        } catch (ExecutionException e) {
+            assertTrue(false);
+        }
+    }
+
+    @Test
+    public void testAddSubCollection() {
+        CollectionInstanceNode node = null;
+        CollectionNode parent = null;
+        CollectionNode collection = new CollectionNode("collection", this.scene, null);
+        // Empty operations, should fail
+        try {
+            node = new CollectionInstanceNode("instance", this.scene, null, collection);
+            execute(new AddSubCollectionOperation(node, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            node = null;
+            parent = new CollectionNode("parent", this.scene, null);
+            execute(new AddSubCollectionOperation(node, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            String childId = "instance";
+            node = new CollectionInstanceNode(childId, this.scene, null, collection);
+            parent = new CollectionNode("parent", this.scene, null);
+            Node child = new CollectionInstanceNode(childId, this.scene, null, collection);
+            child.setParent(parent);
+            assertThat(parent.getChildren().length, is(1));
+            execute(new AddSubCollectionOperation(node, parent));
             assertThat(parent.getChildren().length, is(2));
             assertTrue(!node.getIdentifier().equals(childId));
             undo();
