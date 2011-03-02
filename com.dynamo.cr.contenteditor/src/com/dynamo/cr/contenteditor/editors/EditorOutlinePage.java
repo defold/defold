@@ -1,13 +1,11 @@
 package com.dynamo.cr.contenteditor.editors;
 
 import java.util.HashMap;
-
 import java.util.Map;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.Path;
-import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -229,24 +227,12 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
 
         @Override
         public void modify(Object element, String property, Object value) {
-            TreeViewer viewer = getTreeViewer();
             TreeItem item = (TreeItem) element;
+            // Check if new value equals old
+            String id = (String)value;
             Node node = (Node)item.getData();
-            String stringValue = (String) value;
-            String error = null;
-            if (stringValue.isEmpty()) {
-                error = "Identifier can not be empty.";
-            } else if (node.getParent() != null && node.getParent().isChildIdentifierUsed(node, stringValue)) {
-                error = String.format("Identifier '%s' already used.", stringValue);
-            }
-            if (error != null) {
-                MessageDialog.openWarning(viewer.getTree().getShell(), "Invalid identifier", error);
-            } else {
-                // Check if new value equals old
-                if (!node.getIdentifier().equals(stringValue)) {
-                    SetIdentifierOperation op = new SetIdentifierOperation(node, (String) value);
-                    m_Editor.executeOperation(op);
-                }
+            if (!node.getIdentifier().equals(id)) {
+                m_Editor.executeOperation(new SetIdentifierOperation(node, id));
             }
         }
     }

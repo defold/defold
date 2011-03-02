@@ -1,6 +1,7 @@
 package com.dynamo.cr.contenteditor.test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -20,6 +21,7 @@ import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
 import com.dynamo.cr.contenteditor.operations.DeleteOperation;
 import com.dynamo.cr.contenteditor.operations.ParentOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
+import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
@@ -295,6 +297,66 @@ public class OperationsTest {
             nodes = new Node[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
             target = new InstanceNode("target", this.scene, null, null);
             execute(new PasteOperation(nodes, target));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+    }
+
+    @Test
+    public void testSetIdentifier() {
+        Node node = null;
+        String id = null;
+        // Empty operations, should fail
+        try {
+            execute(new SetIdentifierOperation(node, id));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            node = new InstanceNode("id", this.scene, null, null);
+            execute(new SetIdentifierOperation(node, id));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            node = new InstanceNode("id", this.scene, null, null);
+            id = "";
+            execute(new SetIdentifierOperation(node, id));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            String oldId = "id";
+            node = new InstanceNode(oldId, this.scene, null, null);
+            id = "id2";
+            assertEquals(node.getIdentifier(), oldId);
+            execute(new SetIdentifierOperation(node, id));
+            assertEquals(node.getIdentifier(), id);
+            undo();
+            assertEquals(node.getIdentifier(), oldId);
+            redo();
+            assertEquals(node.getIdentifier(), id);
+        } catch (ExecutionException e) {
+            assertTrue(false);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+        // Invalid operations, should fail
+        try {
+            CollectionNode root = new CollectionNode("root", this.scene, null);
+            InstanceNode child1 = new InstanceNode("id1", this.scene, null, null);
+            child1.setParent(root);
+            InstanceNode child2 = new InstanceNode("id2", this.scene, null, null);
+            child2.setParent(root);
+            execute(new SetIdentifierOperation(child2, child1.getIdentifier()));
             assertTrue(false);
         } catch (ExecutionException e) {
             assertTrue(true);
