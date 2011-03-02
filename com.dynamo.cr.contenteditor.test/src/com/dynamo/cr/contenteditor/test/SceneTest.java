@@ -19,7 +19,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
-import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CameraNode;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
@@ -294,17 +293,29 @@ public class SceneTest {
         assertThat(parent.getChildren().length, is(4));
 
         // Collection instances
-        assertTrue(parent.getChildren()[0] instanceof BrokenNode);
+        assertTrue(parent.getChildren()[0] instanceof CollectionInstanceNode);
+        assertTrue(parent.getChildren()[0].hasError(Node.ERROR_FLAG_RECURSION));
         assertTrue(parent.getChildren()[1] instanceof CollectionInstanceNode);
         assertTrue(parent.getChildren()[1].getChildren()[0] instanceof CollectionNode);
-        assertTrue(parent.getChildren()[1].getChildren()[0].getChildren()[0] instanceof BrokenNode);
+        assertTrue(parent.getChildren()[1].getChildren()[0].getChildren()[0] instanceof CollectionInstanceNode);
+        assertTrue(parent.getChildren()[1].getChildren()[0].getChildren()[0].hasError(Node.ERROR_FLAG_RECURSION));
 
         // Instances
         assertTrue(parent.getChildren()[2] instanceof InstanceNode);
-        assertTrue(parent.getChildren()[2].getChildren()[1] instanceof BrokenNode);
+        assertTrue(parent.getChildren()[2].getChildren()[1] instanceof InstanceNode);
+        assertTrue(parent.getChildren()[2].getChildren()[1].hasError(Node.ERROR_FLAG_RECURSION));
         assertTrue(parent.getChildren()[3] instanceof InstanceNode);
         assertTrue(parent.getChildren()[3].getChildren()[1] instanceof InstanceNode);
-        assertTrue(parent.getChildren()[3].getChildren()[1].getChildren()[1] instanceof BrokenNode);
+        assertTrue(parent.getChildren()[3].getChildren()[1].getChildren()[1] instanceof InstanceNode);
+        assertTrue(parent.getChildren()[3].getChildren()[1].getChildren()[1].hasError(Node.ERROR_FLAG_RECURSION));
+
+        // Check that removing the nodes fixes the problem
+        assertTrue(parent.hasError(Node.ERROR_FLAG_CHILD_ERROR));
+        parent.removeNode(parent.getChildren()[0]);
+        parent.removeNode(parent.getChildren()[0]);
+        parent.getChildren()[0].removeNode(parent.getChildren()[0].getChildren()[1]);
+        parent.getChildren()[1].getChildren()[1].removeNode(parent.getChildren()[1].getChildren()[1].getChildren()[1]);
+        assertTrue(!parent.hasError(Node.ERROR_FLAG_CHILD_ERROR));
     }
 
     /**
@@ -358,23 +369,20 @@ public class SceneTest {
 
     @Test
     public void testHierarchy() throws Exception {
-        final int TYPE_BROKEN = 0;
-        final int TYPE_CAMERA = 1;
-        final int TYPE_COLLECTION_INSTANCE = 2;
-        final int TYPE_COLLECTION = 3;
-        final int TYPE_COLLISION = 4;
-        final int TYPE_INSTANCE = 5;
-        final int TYPE_LIGHT = 6;
-        final int TYPE_MESH = 7;
-        final int TYPE_MODEL = 8;
-        final int TYPE_PROTOTYPE = 9;
-        final int TYPE_SPRITE = 10;
-        final int TYPE_COUNT = 11;
+        final int TYPE_CAMERA = 0;
+        final int TYPE_COLLECTION_INSTANCE = 1;
+        final int TYPE_COLLECTION = 2;
+        final int TYPE_COLLISION = 3;
+        final int TYPE_INSTANCE = 4;
+        final int TYPE_LIGHT = 5;
+        final int TYPE_MESH = 6;
+        final int TYPE_MODEL = 7;
+        final int TYPE_PROTOTYPE = 8;
+        final int TYPE_SPRITE = 9;
+        final int TYPE_COUNT = 10;
 
         Node[][] nodes = new Node[TYPE_COUNT][2];
 
-        nodes[TYPE_BROKEN][0] = new BrokenNode("broken0", this.scene, null);
-        nodes[TYPE_BROKEN][1] = new BrokenNode("broken1", this.scene, null);
         nodes[TYPE_CAMERA][0] = new CameraNode("camera0", this.scene, null);
         nodes[TYPE_CAMERA][1] = new CameraNode("camera1", this.scene, null);
         nodes[TYPE_COLLECTION_INSTANCE][0] = new CollectionInstanceNode("collection_instance0", this.scene, null, new CollectionNode("collection2", this.scene, null));
@@ -408,20 +416,17 @@ public class SceneTest {
             }
         }
 
-        accepts[TYPE_COLLECTION][TYPE_BROKEN] = true;
         accepts[TYPE_COLLECTION][TYPE_COLLECTION_INSTANCE] = true;
         accepts[TYPE_COLLECTION][TYPE_INSTANCE] = true;
 
         accepts[TYPE_COLLECTION_INSTANCE][TYPE_COLLECTION] = true;
 
-        accepts[TYPE_PROTOTYPE][TYPE_BROKEN] = true;
         accepts[TYPE_PROTOTYPE][TYPE_CAMERA] = true;
         accepts[TYPE_PROTOTYPE][TYPE_COLLISION] = true;
         accepts[TYPE_PROTOTYPE][TYPE_LIGHT] = true;
         accepts[TYPE_PROTOTYPE][TYPE_MODEL] = true;
         accepts[TYPE_PROTOTYPE][TYPE_SPRITE] = true;
 
-        accepts[TYPE_INSTANCE][TYPE_BROKEN] = true;
         accepts[TYPE_INSTANCE][TYPE_INSTANCE] = true;
         accepts[TYPE_INSTANCE][TYPE_PROTOTYPE] = true;
 

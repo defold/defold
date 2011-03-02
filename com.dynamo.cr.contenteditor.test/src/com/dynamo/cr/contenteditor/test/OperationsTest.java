@@ -17,9 +17,9 @@ import org.junit.Test;
 
 import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
 import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
+import com.dynamo.cr.contenteditor.operations.DeleteOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
-import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
@@ -149,6 +149,44 @@ public class OperationsTest {
     }
 
     @Test
+    public void testDelete() {
+        Node[] nodes = null;
+        // Empty operations, should fail
+        try {
+            execute(new DeleteOperation(nodes));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Empty operations, should fail
+        try {
+            nodes = new Node[1];
+            execute(new DeleteOperation(nodes));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            CollectionNode root = new CollectionNode("root", this.scene, null);
+            nodes = new Node[] {new InstanceNode("child", this.scene, null, null)};
+            nodes[0].setParent(root);
+            assertThat(root.getChildren().length, is(1));
+            execute(new DeleteOperation(nodes));
+            assertThat(root.getChildren().length, is(0));
+            undo();
+            assertThat(root.getChildren().length, is(1));
+            redo();
+            assertThat(root.getChildren().length, is(0));
+        } catch (ExecutionException e) {
+            assertTrue(false);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+    }
+
+    @Test
     public void testPaste() {
         Node[] nodes = null;
         Node target = null;
@@ -169,7 +207,7 @@ public class OperationsTest {
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
         try {
-            nodes = new Node[] {new BrokenNode("id1", this.scene, null), new BrokenNode("id2", this.scene, null)};
+            nodes = new Node[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
             execute(new PasteOperation(nodes, target));
             assertTrue(false);
         } catch (ExecutionException e) {
@@ -178,9 +216,9 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
         // Valid operations, should succeed
         try {
-            nodes = new Node[] {new BrokenNode("id1", this.scene, null), new BrokenNode("id2", this.scene, null)};
+            nodes = new Node[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
             Node root = new CollectionNode("collection", this.scene, null);
-            target = new BrokenNode("broken", this.scene, null);
+            target = new CollectionInstanceNode("id3", this.scene, null, null);
             target.setParent(root);
             assertThat(root.getChildren().length, is(1));
             execute(new PasteOperation(nodes, target));
@@ -195,8 +233,8 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
         // Invalid operations, should fail
         try {
-            nodes = new Node[] {new BrokenNode("id1", this.scene, null), new BrokenNode("id2", this.scene, null)};
-            target = new BrokenNode("target", this.scene, null);
+            nodes = new Node[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
+            target = new InstanceNode("target", this.scene, null, null);
             execute(new PasteOperation(nodes, target));
             assertTrue(false);
         } catch (ExecutionException e) {

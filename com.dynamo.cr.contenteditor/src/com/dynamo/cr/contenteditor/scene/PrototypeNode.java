@@ -19,6 +19,6 @@ public class PrototypeNode extends Node {
 
     @Override
     protected boolean verifyChild(Node child) {
-        return (child instanceof ComponentNode) || (child instanceof BrokenNode);
+        return child instanceof ComponentNode;
     }
 }

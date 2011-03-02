@@ -18,8 +18,12 @@ public abstract class Node
     public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 1);
     public static final int FLAG_TRANSFORMABLE = (1 << 2);
 
+    // In order of severity, most severe first
     public static final int ERROR_FLAG_DUPLICATE_ID = (1 << 0);
-    public static final int ERROR_FLAG_CHILD_ERROR = (1 << 1);
+    public static final int ERROR_FLAG_RECURSION = (1 << 1);
+    public static final int ERROR_FLAG_RESOURCE_ERROR = (1 << 2);
+    public static final int ERROR_FLAG_CHILD_ERROR = (1 << 3);
+    public static final int ERROR_FLAG_COUNT = 4;
 
     protected Vector4d m_Translation = new Vector4d();
     protected Quat4d m_Rotation = new Quat4d();
@@ -33,6 +37,7 @@ public abstract class Node
     private int m_Flags = 0;
     protected AABB m_AABB = new AABB();
     private int errorFlags;
+    private String[] errorMessages;
     private String identifier;
 
     // Psuedo states
@@ -48,6 +53,7 @@ public abstract class Node
         m_Scene = scene;
         m_Flags = flags;
         errorFlags = 0;
+        errorMessages = new String[ERROR_FLAG_COUNT];
 
         List<IProperty> properties = new ArrayList<IProperty>();
         addProperties(properties);
@@ -144,11 +150,21 @@ public abstract class Node
     }
 
     public final void setError(int errorFlag) {
+        setError(errorFlag, null);
+    }
+
+    public final void setError(int errorFlag, String errorMessage) {
         if (errorFlag != 0) {
             this.errorFlags |= errorFlag;
             if (this.m_Parent != null) {
                 this.m_Parent.checkChildrenErrors();
             }
+            int index = 0;
+            while (errorFlag > 1) {
+                errorFlag >>= 1;
+                ++index;
+            }
+            this.errorMessages[index] = errorMessage;
         }
     }
 
@@ -158,6 +174,12 @@ public abstract class Node
             if (this.m_Parent != null) {
                 this.m_Parent.checkChildrenErrors();
             }
+            int index = 0;
+            while (errorFlag > 1) {
+                errorFlag >>= 1;
+                ++index;
+            }
+            this.errorMessages[index] = null;
         }
     }
 
@@ -497,8 +519,15 @@ public abstract class Node
     public abstract void draw(DrawContext context);
 
     public String getToolTip() {
+        for (int i = 0; i < ERROR_FLAG_COUNT; ++i) {
+            if ((errorFlags & (1 << i)) != 0 && errorMessages[i] != null) {
+                return errorMessages[i];
+            }
+        }
         if ((errorFlags & ERROR_FLAG_DUPLICATE_ID) != 0) {
             return "The id is already used in this collection.";
+        } else if ((errorFlags & ERROR_FLAG_RESOURCE_ERROR) != 0) {
+                return "A resource could not be loaded.";
         } else if ((errorFlags & ERROR_FLAG_CHILD_ERROR) != 0) {
             return "An item below this item contains an error.";
         } else {

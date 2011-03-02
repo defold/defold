@@ -30,6 +30,7 @@ Instances
     Children: "circular2"
 }
 Instances
+
 {
     Id: "circular2"
     Prototype: "empty.go"

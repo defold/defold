@@ -1,6 +1,7 @@
 package com.dynamo.cr.contenteditor.editors;
 
 import java.util.HashMap;
+
 import java.util.Map;
 
 import org.eclipse.core.resources.IContainer;
@@ -49,7 +50,6 @@ import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
 import com.dynamo.cr.contenteditor.Activator;
 import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
-import com.dynamo.cr.contenteditor.scene.BrokenNode;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.CollectionRootNode;
@@ -121,7 +121,11 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         Node node = (Node)element;
         if (node instanceof PrototypeNode)
         {
-            return regist.get(Activator.PROTOTYPE_IMAGE_ID);
+            if (node.isOk()) {
+                return regist.get(Activator.PROTOTYPE_IMAGE_ID);
+            } else {
+                return regist.get(Activator.BROKEN_PROTOTYPE_IMAGE_ID);
+            }
         }
         else if (node instanceof InstanceNode)
         {
@@ -142,10 +146,6 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         else if (element instanceof MeshNode)
         {
             return regist.get(Activator.MESH_IMAGE_ID);
-        }
-        else if (element instanceof BrokenNode)
-        {
-            return regist.get(Activator.BROKEN_IMAGE_ID);
         }
         else if (element instanceof ComponentNode)
         {
