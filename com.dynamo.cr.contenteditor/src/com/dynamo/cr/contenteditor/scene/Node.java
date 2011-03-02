@@ -264,7 +264,9 @@ public abstract class Node
             m_Parent.removeNode(this);
         }
         m_Parent = parent;
-        m_Parent.addNode(this);
+        if (m_Parent != null) {
+            m_Parent.addNode(this);
+        }
         m_Scene.nodeReparented(this, parent);
     }
 

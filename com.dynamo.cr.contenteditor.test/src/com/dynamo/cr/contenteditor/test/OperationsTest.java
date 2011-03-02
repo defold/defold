@@ -18,6 +18,7 @@ import org.junit.Test;
 import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
 import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
 import com.dynamo.cr.contenteditor.operations.DeleteOperation;
+import com.dynamo.cr.contenteditor.operations.ParentOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
 import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
@@ -182,6 +183,64 @@ public class OperationsTest {
             assertThat(root.getChildren().length, is(0));
         } catch (ExecutionException e) {
             assertTrue(false);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+    }
+
+    @Test
+    public void testParent() {
+        InstanceNode[] nodes = null;
+        InstanceNode parent = null;
+        // Empty operations, should fail
+        try {
+            execute(new ParentOperation(nodes, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            nodes = new InstanceNode[2];
+            execute(new ParentOperation(nodes, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            nodes = new InstanceNode[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
+            execute(new ParentOperation(nodes, parent));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            nodes = new InstanceNode[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
+            parent = new InstanceNode("parent", this.scene, null, null);
+            assertThat(parent.getChildren().length, is(0));
+            execute(new ParentOperation(nodes, parent));
+            assertThat(parent.getChildren().length, is(2));
+            undo();
+            assertThat(parent.getChildren().length, is(0));
+            redo();
+            assertThat(parent.getChildren().length, is(2));
+            assertTrue(true);
+        } catch (ExecutionException e) {
+            assertTrue(false);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+        // Invalid operations, should fail
+        try {
+            parent = new InstanceNode("parent", this.scene, null, null);
+            InstanceNode child = new InstanceNode("child", this.scene, null, null);
+            child.setParent(parent);
+            nodes = new InstanceNode[] {parent};
+            execute(new ParentOperation(nodes, child));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
     }
