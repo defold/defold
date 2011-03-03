@@ -46,17 +46,26 @@ public class CollectionNodeLoader implements INodeLoader {
                     }
                 }
             }
-            if (ancestorCollection.equals(cid.m_Collection)) {
-                subNode = new BrokenNode(cid.m_Id, scene, "A collection can not have collection instances which point to the same resource.");
-            } else {
-                Node sub_collection = factory.load(monitor, scene, cid.m_Collection, node);
-                monitor.worked(1);
-
-                subNode = new CollectionInstanceNode(cid.m_Id, scene, cid.m_Collection, sub_collection);
-
-                subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
-                subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
+            Node subCollection = null;
+            if (!ancestorCollection.equals(cid.m_Collection)) {
+                try {
+                    subCollection = factory.load(monitor, scene, cid.m_Collection, node);
+                    monitor.worked(1);
+                } catch (IOException e) {
+                    subCollection = new CollectionNode(cid.m_Collection, scene, cid.m_Collection);
+                    subCollection.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
+                    factory.reportError(e.getMessage());
+                }
             }
+
+            subNode = new CollectionInstanceNode(cid.m_Id, scene, cid.m_Collection, subCollection);
+            if (subCollection == null) {
+                subNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The resource %s is already used in a collection above this item.", cid.m_Collection));
+            }
+
+            subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
+            subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
+
             node.addNode(subNode);
         }
 
@@ -68,7 +77,8 @@ public class CollectionNodeLoader implements INodeLoader {
                 prototype = factory.load(monitor, scene, id.m_Prototype, null);
             }
             catch (IOException e) {
-                prototype = new BrokenNode(id.m_Prototype, scene, e.getMessage());
+                prototype = new PrototypeNode(id.m_Prototype, scene);
+                prototype.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
                 factory.reportError(e.getMessage());
             }
             monitor.worked(1);
@@ -91,7 +101,9 @@ public class CollectionNodeLoader implements INodeLoader {
                     node.removeNode(child);
                     parentInstance.addNode(child);
                 } else {
-                    parentInstance.addNode(new BrokenNode(childId, scene, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.m_Id, id.m_Id)));
+                    Node instanceNode = new InstanceNode(childId, scene, null, null);
+                    parentInstance.addNode(instanceNode);
+                    instanceNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.m_Id, id.m_Id));
                 }
             }
         }

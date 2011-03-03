@@ -1051,7 +1051,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         } catch (ExecutionException e)
         {
-            MessageDialog.openWarning(getSite().getShell(), operation.getLabel(), e.getMessage());
+            MessageDialog.openError(getSite().getShell(), operation.getLabel(), e.getMessage());
             // if-clause below will trigger
         }
 

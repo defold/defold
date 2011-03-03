@@ -16,9 +16,9 @@ public class Delete extends AbstractHandler {
     public Object execute(ExecutionEvent event) throws ExecutionException {
         IEditorPart editor = HandlerUtil.getActiveEditor(event);
         if (editor instanceof IEditor) {
-            Node[] selected_nodes = ((IEditor) editor).getSelectedNodes();
-            if (selected_nodes.length >= 0) {
-                DeleteOperation op = new DeleteOperation((IEditor) editor, selected_nodes);
+            Node[] selectedNodes = ((IEditor) editor).getSelectedNodes();
+            if (selectedNodes.length >= 0) {
+                DeleteOperation op = new DeleteOperation(selectedNodes);
                 ((IEditor) editor).executeOperation(op);
             }
         }

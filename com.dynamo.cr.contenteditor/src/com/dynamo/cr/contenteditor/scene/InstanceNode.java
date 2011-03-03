@@ -17,7 +17,9 @@ public class InstanceNode extends Node {
         super(identifier, scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
         this.prototype = prototype;
         this.prototypeNode = prototype_node;
-        this.prototypeNode.setParent(this);
+        if (this.prototypeNode != null) {
+            this.prototypeNode.setParent(this);
+        }
     }
 
     void andFlags(Node node, int flags) {
@@ -98,6 +100,6 @@ public class InstanceNode extends Node {
 
     @Override
     protected boolean verifyChild(Node child) {
-        return (child instanceof InstanceNode) || (child instanceof PrototypeNode) || (child instanceof BrokenNode);
+        return (child instanceof InstanceNode) || (child instanceof PrototypeNode);
     }
 }

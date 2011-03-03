@@ -17,7 +17,9 @@ public class CollectionInstanceNode extends Node {
         super(identifier, scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN | FLAG_TRANSFORMABLE);
         this.collection = collection;
         this.collectionNode = collection_node;
-        this.collectionNode.setParent(this);
+        if (this.collectionNode != null) {
+            this.collectionNode.setParent(this);
+        }
     }
 
     void andFlags(Node node, int flags) {

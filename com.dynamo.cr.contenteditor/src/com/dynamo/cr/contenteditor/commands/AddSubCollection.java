@@ -6,6 +6,7 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -15,7 +16,12 @@ import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
+import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
+import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
+import com.dynamo.cr.contenteditor.scene.CollectionNode;
+import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.contenteditor.scene.Scene;
 
 public class AddSubCollection extends AbstractHandler {
 
@@ -36,18 +42,31 @@ public class AddSubCollection extends AbstractHandler {
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
-        IEditorPart editor = HandlerUtil.getActiveEditor(event);
-        if (editor instanceof IEditor) {
-            IFileEditorInput fi = (IFileEditorInput) editor.getEditorInput();
+        IEditorPart editorPart = HandlerUtil.getActiveEditor(event);
+        if (editorPart instanceof IEditor) {
+            IFileEditorInput fi = (IFileEditorInput) editorPart.getEditorInput();
+            IEditor editor = (IEditor)editorPart;
             CollectionSelectionDialog dialog = new CollectionSelectionDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), fi.getFile().getProject());
             int ret = dialog.open();
 
             if (ret == ListDialog.OK)
             {
                 IResource r = (IResource) dialog.getResult()[0];
+                Node root = editor.getRoot();
+                Scene scene = editor.getScene();
 
-                AddSubCollectionOperation op = new AddSubCollectionOperation((IEditor) editor, (IFile) r);
-                ((IEditor) editor).executeOperation(op);
+                NodeLoaderFactory factory = editor.getLoaderFactory();
+                IContainer content_root = factory.getContentRoot();
+                IFile file = (IFile)r;
+                String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
+                try {
+                    CollectionNode proto = (CollectionNode) factory.load(new NullProgressMonitor(), scene, name, root);
+                    CollectionNode parent = (CollectionNode)root;
+                    CollectionInstanceNode node = new CollectionInstanceNode(file.getName(), scene, name, proto);
+                    ((IEditor) editor).executeOperation(new AddSubCollectionOperation(node, parent));
+                } catch (Exception e) {
+                    throw new ExecutionException(e.getMessage(), e);
+                }
             }
         }
         return null;

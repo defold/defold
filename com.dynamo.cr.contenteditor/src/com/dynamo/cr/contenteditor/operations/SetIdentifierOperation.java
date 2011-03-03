@@ -19,12 +19,21 @@ public class SetIdentifierOperation extends AbstractOperation {
         super("Set identifier");
         this.node = node;
         this.identifier = identifier;
-        this.originalIdentifier = node.getIdentifier();
+        if (node != null) {
+            this.originalIdentifier = node.getIdentifier();
+        }
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
+        if (this.node == null) {
+            throw new ExecutionException("No item was selected when setting id.");
+        } else if (this.identifier == null || this.identifier.isEmpty()) {
+            throw new ExecutionException("Identifier can not be empty.");
+        } else if (this.node.getParent() != null && this.node.getParent().isChildIdentifierUsed(this.node, this.identifier)) {
+            throw new ExecutionException(String.format("Identifier '%s' already used.", this.identifier));
+        }
         node.setIdentifier(identifier);
         return Status.OK_STATUS;
     }

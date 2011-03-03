@@ -10,6 +10,7 @@ public class Activator extends AbstractUIPlugin {
     public static final String PLUGIN_ID = "com.dynamo.cr.contenteditor";
 
     public static final String PROTOTYPE_IMAGE_ID = "PROTOTYPE";
+    public static final String BROKEN_PROTOTYPE_IMAGE_ID = "BROKEN_PROTOTYPE";
     public static final String INSTANCE_IMAGE_ID = "INSTANCE";
     public static final String BROKEN_INSTANCE_IMAGE_ID = "BROKEN_INSTANCE";
     public static final String COLLECTION_IMAGE_ID = "COLLECTION";
@@ -50,6 +51,7 @@ public class Activator extends AbstractUIPlugin {
         super.initializeImageRegistry(registry);
 
         registry.put(PROTOTYPE_IMAGE_ID, getImageDescriptor("icons/brick_link.png"));
+        registry.put(BROKEN_PROTOTYPE_IMAGE_ID, getImageDescriptor("icons/link_break.png"));
         registry.put(INSTANCE_IMAGE_ID, getImageDescriptor("icons/brick.png"));
         registry.put(BROKEN_INSTANCE_IMAGE_ID, getImageDescriptor("icons/broken_brick.png"));
         registry.put(COLLECTION_IMAGE_ID, getImageDescriptor("icons/bricks.png"));

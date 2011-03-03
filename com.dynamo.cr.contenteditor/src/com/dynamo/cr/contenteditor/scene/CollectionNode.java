@@ -213,7 +213,7 @@ public class CollectionNode extends Node {
 
     @Override
     protected boolean verifyChild(Node child) {
-        return (child instanceof CollectionInstanceNode) || (child instanceof InstanceNode) || (child instanceof BrokenNode);
+        return (child instanceof CollectionInstanceNode) || (child instanceof InstanceNode);
     }
 }
 
