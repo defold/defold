@@ -5,6 +5,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import javax.vecmath.AxisAngle4d;
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -16,12 +20,14 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.contenteditor.math.Transform;
 import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
 import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
 import com.dynamo.cr.contenteditor.operations.DeleteOperation;
 import com.dynamo.cr.contenteditor.operations.ParentOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
 import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
+import com.dynamo.cr.contenteditor.operations.TransformNodeOperation;
 import com.dynamo.cr.contenteditor.operations.UnparentOperation;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
@@ -358,6 +364,73 @@ public class OperationsTest {
             assertTrue(false);
         } catch (ExecutionException e) {
             assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+    }
+
+    private void compareTransforms(Transform lhs, Transform rhs) {
+        Vector3d lhsV = new Vector3d();
+        lhs.getTranslation(lhsV);
+        Quat4d lhsQ = new Quat4d();
+        lhs.getRotation(lhsQ);
+        Vector3d rhsV = new Vector3d();
+        rhs.getTranslation(rhsV);
+        Quat4d rhsQ = new Quat4d();
+        rhs.getRotation(rhsQ);
+        assertEquals(lhsV, rhsV);
+        assertEquals(lhsQ, rhsQ);
+    }
+    @Test
+    public void testTransform() {
+        Node[] nodes = null;
+        Transform[] originalTransforms = null;
+        Transform[] newTransforms = null;
+        // Empty operations, should fail
+        try {
+            execute(new TransformNodeOperation("label", nodes, originalTransforms, newTransforms));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            nodes = new InstanceNode[1];
+            execute(new TransformNodeOperation("label", nodes, originalTransforms, newTransforms));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            nodes = new InstanceNode[] {new InstanceNode("id", this.scene, null, null)};
+            execute(new TransformNodeOperation("label", nodes, originalTransforms, newTransforms));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            nodes = new Node[] {new InstanceNode("child", this.scene, null, null)};
+            originalTransforms = new Transform[] {new Transform()};
+            nodes[0].getLocalTransform(originalTransforms[0]);
+            newTransforms = new Transform[] {new Transform()};
+            newTransforms[0].setRotation(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), 1.0));
+            newTransforms[0].setTranslation(1.0, 2.0, 3.0);
+            Transform transform = new Transform();
+            nodes[0].getLocalTransform(transform);
+            compareTransforms(originalTransforms[0], transform);
+            execute(new TransformNodeOperation("label", nodes, originalTransforms, newTransforms));
+            nodes[0].getLocalTransform(transform);
+            compareTransforms(newTransforms[0], transform);
+            undo();
+            nodes[0].getLocalTransform(transform);
+            compareTransforms(originalTransforms[0], transform);
+            redo();
+            nodes[0].getLocalTransform(transform);
+            compareTransforms(newTransforms[0], transform);
+        } catch (ExecutionException e) {
+            assertTrue(false);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
     }

@@ -12,30 +12,40 @@ import com.dynamo.cr.contenteditor.scene.Node;
 
 public class TransformNodeOperation extends AbstractOperation
 {
-    private final Transform[] m_OriginalLocalTransforms;
-    private final Transform[] m_NewLocalTransforms;
-    private final Node[] m_Nodes;
+    private Transform[] originalLocalTransforms = null;
+    private Transform[] newLocalTransforms = null;
+    private Node[] nodes = null;
 
-    public TransformNodeOperation(String label, Node[] nodes, Transform[] original_local_transforms, Transform[] new_local_transforms)
-    {
+    public TransformNodeOperation(String label, Node[] nodes, Transform[] originalLocalTransforms, Transform[] newLocalTransforms) {
         super(label);
 
-        m_Nodes = new Node[nodes.length];
-        m_OriginalLocalTransforms = new Transform[nodes.length];
-        m_NewLocalTransforms = new Transform[nodes.length];
+        if (nodes != null && nodes.length > 0 && originalLocalTransforms != null && originalLocalTransforms.length == nodes.length && newLocalTransforms != null && nodes.length == newLocalTransforms.length) {
+            this.nodes = new Node[nodes.length];
+            this.originalLocalTransforms = new Transform[nodes.length];
+            this.newLocalTransforms = new Transform[nodes.length];
 
-        for (int i = 0; i < nodes.length; i++) {
-            m_Nodes[i] = nodes[i];
-            m_OriginalLocalTransforms[i] = original_local_transforms[i];
-            m_NewLocalTransforms[i] = new_local_transforms[i];
+            for (int i = 0; i < nodes.length; i++) {
+                if (nodes[i] != null) {
+                    this.nodes[i] = nodes[i];
+                    this.originalLocalTransforms[i] = originalLocalTransforms[i];
+                    this.newLocalTransforms[i] = newLocalTransforms[i];
+                }
+            }
         }
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info) throws ExecutionException
     {
-        for (int i = 0; i < m_Nodes.length; i++) {
-            m_Nodes[i].setLocalTransform(m_NewLocalTransforms[i]);
+        boolean success = false;
+        for (int i = 0; i < this.nodes.length; i++) {
+            if (this.nodes[i] != null) {
+                this.nodes[i].setLocalTransform(this.newLocalTransforms[i]);
+                success = true;
+            }
+        }
+        if (!success) {
+            throw new ExecutionException("No items could be transformed.");
         }
         return Status.OK_STATUS;
     }
@@ -43,8 +53,8 @@ public class TransformNodeOperation extends AbstractOperation
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException
     {
-        for (int i = 0; i < m_Nodes.length; i++) {
-            m_Nodes[i].setLocalTransform(m_NewLocalTransforms[i]);
+        for (int i = 0; i < this.nodes.length; i++) {
+            this.nodes[i].setLocalTransform(this.newLocalTransforms[i]);
         }
         return Status.OK_STATUS;
     }
@@ -52,8 +62,8 @@ public class TransformNodeOperation extends AbstractOperation
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException
     {
-        for (int i = 0; i < m_Nodes.length; i++) {
-            m_Nodes[i].setLocalTransform(m_OriginalLocalTransforms[i]);
+        for (int i = 0; i < this.nodes.length; i++) {
+            this.nodes[i].setLocalTransform(this.originalLocalTransforms[i]);
         }
         return Status.OK_STATUS;
     }
