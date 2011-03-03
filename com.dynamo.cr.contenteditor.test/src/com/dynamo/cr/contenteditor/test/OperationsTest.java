@@ -36,6 +36,12 @@ import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.PrototypeNode;
 import com.dynamo.cr.contenteditor.scene.Scene;
 
+/**
+ * All operations should be tested for:
+ * * Empty and invalid inputs
+ * * Valid inputs including edge cases and custom functionality within the operator
+ * * Logically invalid inputs
+ */
 public class OperationsTest {
 
     private Scene scene;
