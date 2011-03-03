@@ -9,12 +9,12 @@ public class NodeUtil
     public static void setWorldTransform(Node node, Matrix4d transform)
     {
         // TODO: Verkar buggig. Funkade inte med MoveManipulator2 iallafall
-        // NŠr man Šndrade till setPosition funkade allt fint...
-        // Rotera ett object 120 runt y och flytta sedan. Objektet bšrjade rotera.
-        // Kan det ha nŒgot med euler att gšra?
+        // Nï¿½r man ï¿½ndrade till setPosition funkade allt fint...
+        // Rotera ett object 120 runt y och flytta sedan. Objektet bï¿½rjade rotera.
+        // Kan det ha nï¿½got med euler att gï¿½ra?
 
         Matrix4d world_inv = new Matrix4d();
-        node.getTransform(world_inv);
+        node.getWorldTransform(world_inv);
         world_inv.invert();
 
         transform.mul(world_inv, transform);
@@ -24,7 +24,7 @@ public class NodeUtil
     public static void setWorldTransform(Node node, Transform transform)
     {
         Transform world_inv = new Transform();
-        node.getTransform(world_inv);
+        node.getWorldTransform(world_inv);
         world_inv.invert();
 
         transform.mul(world_inv, transform);

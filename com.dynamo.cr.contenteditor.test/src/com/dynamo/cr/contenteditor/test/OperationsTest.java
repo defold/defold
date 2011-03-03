@@ -22,7 +22,7 @@ import com.dynamo.cr.contenteditor.operations.DeleteOperation;
 import com.dynamo.cr.contenteditor.operations.ParentOperation;
 import com.dynamo.cr.contenteditor.operations.PasteOperation;
 import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
-import com.dynamo.cr.contenteditor.scene.AbstractNodeLoaderFactory;
+import com.dynamo.cr.contenteditor.operations.UnparentOperation;
 import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
 import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
@@ -32,7 +32,6 @@ import com.dynamo.cr.contenteditor.scene.Scene;
 
 public class OperationsTest {
 
-    private AbstractNodeLoaderFactory factory;
     private Scene scene;
     private IOperationHistory history;
     private IProgressMonitor monitor;
@@ -41,7 +40,6 @@ public class OperationsTest {
     @Before
     public void setup() {
         SceneContext context = new SceneContext();
-        this.factory = context.factory;
         this.scene = context.scene;
         this.history = new DefaultOperationHistory();
         this.monitor = new NullProgressMonitor();
@@ -357,6 +355,69 @@ public class OperationsTest {
             InstanceNode child2 = new InstanceNode("id2", this.scene, null, null);
             child2.setParent(root);
             execute(new SetIdentifierOperation(child2, child1.getIdentifier()));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+    }
+
+    @Test
+    public void testUnparent() {
+        InstanceNode[] nodes = null;
+        // Empty operations, should fail
+        try {
+            execute(new UnparentOperation(nodes));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            nodes = new InstanceNode[1];
+            execute(new UnparentOperation(nodes));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        try {
+            nodes = new InstanceNode[] {new InstanceNode("id", this.scene, null, null)};
+            execute(new UnparentOperation(nodes));
+            assertTrue(false);
+        } catch (ExecutionException e) {
+            assertTrue(true);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
+        // Valid operations, should succeed
+        try {
+            CollectionNode root = new CollectionNode("root", this.scene, null);
+            InstanceNode child = new InstanceNode("child", this.scene, null, null);
+            child.setParent(root);
+            InstanceNode grandChild = new InstanceNode("grand_child", this.scene, null, null);
+            grandChild.setParent(child);
+            nodes = new InstanceNode[] {child, grandChild};
+            assertTrue(child.getParent() == root);
+            assertTrue(grandChild.getParent() == child);
+            execute(new UnparentOperation(nodes));
+            assertTrue(child.getParent() == null);
+            assertTrue(grandChild.getParent() == root);
+            undo();
+            assertTrue(child.getParent() == root);
+            assertTrue(grandChild.getParent() == child);
+            redo();
+            assertTrue(child.getParent() == null);
+            assertTrue(grandChild.getParent() == root);
+        } catch (ExecutionException e) {
+            assertTrue(false);
+        }
+        assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
+        // Invalid operations, should fail
+        try {
+            CollectionNode root = new CollectionNode("root", this.scene, null);
+            InstanceNode child1 = new InstanceNode("id1", this.scene, null, null);
+            child1.setParent(root);
+            execute(new UnparentOperation(new InstanceNode[] {child1}));
             assertTrue(false);
         } catch (ExecutionException e) {
             assertTrue(true);

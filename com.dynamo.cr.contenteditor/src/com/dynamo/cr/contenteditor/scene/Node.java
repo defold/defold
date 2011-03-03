@@ -81,7 +81,7 @@ public abstract class Node
             @Override
             public void update(IProperty property) {
                 Transform transform = new Transform();
-                getTransform(transform);
+                getWorldTransform(transform);
                 transform.getTranslation(m_WorldTranslation);
             }
         }, true);
@@ -207,7 +207,7 @@ public abstract class Node
         else if (PropertyUtil.isPropertyOf(property, m_WorldTranslationProperty))
         {
             Transform t = new Transform();
-            getTransform(t);
+            getWorldTransform(t);
             t.setTranslation(m_WorldTranslation);
             NodeUtil.setWorldTransform(this, t);
         }
@@ -220,7 +220,7 @@ public abstract class Node
     private void updateWorldTranslationProperty()
     {
         Transform t = new Transform();
-        getTransform(t);
+        getWorldTransform(t);
         t.getTranslation(m_WorldTranslation);
         if (m_Scene != null)
         {
@@ -405,7 +405,7 @@ public abstract class Node
         MathUtil.quatToEuler(m_Rotation, m_Euler);
 
         Transform t = new Transform();
-        getTransform(t);
+        getWorldTransform(t);
         t.getTranslation(m_WorldTranslation);
     }
 
@@ -466,7 +466,7 @@ public abstract class Node
         updateWorldTranslationProperty();
     }
 
-    public void getTransform(Matrix4d transform)
+    public void getWorldTransform(Matrix4d transform)
     {
         Matrix4d tmp = new Matrix4d();
         transform.setIdentity();
@@ -479,7 +479,7 @@ public abstract class Node
         }
     }
 
-    public void getTransform(Transform transform)
+    public void getWorldTransform(Transform transform)
     {
         Transform tmp = new Transform();
         transform.setIdentity();

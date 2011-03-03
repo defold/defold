@@ -72,7 +72,7 @@ public abstract class TransformManipulator implements IManipulator {
         Matrix4d nodeTransform = new Matrix4d();
         Vector4d nodePosition = new Vector4d();
         for (Node n : nodes) {
-            n.getTransform(nodeTransform);
+            n.getWorldTransform(nodeTransform);
             nodeTransform.getColumn(3, nodePosition);
             position.add(nodePosition);
         }
@@ -92,7 +92,7 @@ public abstract class TransformManipulator implements IManipulator {
                 this.manipulatorTransformWS.setIdentity();
                 this.manipulatorTransformWS.setColumn(3, translation);
             } else {
-                context.nodes[0].getTransform(this.manipulatorTransformWS);
+                context.nodes[0].getWorldTransform(this.manipulatorTransformWS);
             }
         }
     }
@@ -118,7 +118,7 @@ public abstract class TransformManipulator implements IManipulator {
             this.originalNodeTransformsLS[i] = new Transform();
             n.getLocalTransform(this.originalNodeTransformsLS[i]);
             this.nodeTransformsMS[i] = new Matrix4d(invManipWS);
-            n.getTransform(nodeTransformWS);
+            n.getWorldTransform(nodeTransformWS);
             this.nodeTransformsMS[i].mul(nodeTransformWS);
             ++i;
         }

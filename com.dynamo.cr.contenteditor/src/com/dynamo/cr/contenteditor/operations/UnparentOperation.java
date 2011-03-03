@@ -8,43 +8,61 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.contenteditor.math.Transform;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
 import com.dynamo.cr.contenteditor.scene.InstanceNode;
 import com.dynamo.cr.contenteditor.scene.Node;
 import com.dynamo.cr.contenteditor.scene.NodeUtil;
 
 public class UnparentOperation extends AbstractOperation {
 
-    private Node[] nodes;
+    private InstanceNode[] nodes;
     private Node[] oldParents;
 
-    public UnparentOperation(Node[] nodes) {
+    public UnparentOperation(InstanceNode[] nodes) {
         super("Unparent");
-        this.nodes = new Node[nodes.length];
-        this.oldParents = new Node[nodes.length];
-
-        for (int i = 0; i < nodes.length; ++i) {
-            this.nodes[i] = nodes[i];
-            this.oldParents[i] = nodes[i].getParent();
+        this.nodes = nodes;
+        if (nodes != null && nodes.length > 0) {
+            this.oldParents = new Node[nodes.length];
+            for (int i = 0; i < nodes.length; ++i) {
+                if (nodes[i] != null) {
+                    this.oldParents[i] = nodes[i].getParent();
+                }
+            }
         }
     }
 
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        Transform t = new Transform();
-        for (int i = 0; i < nodes.length; ++i) {
-            nodes[i].getTransform(t);
-            Node n = nodes[i];
-            while (n != null) {
-                if (n instanceof CollectionNode)
-                    break;
-                if (n instanceof InstanceNode && n != nodes[i] && nodes[i].getParent() != n)
-                    break;
-                n = n.getParent();
+        if (this.nodes == null || this.nodes.length == 0) {
+            throw new ExecutionException("No items could be unparented.");
+        }
+        Node[] newParents = new Node[this.nodes.length];
+        boolean foundParents = false;
+        for (int i = 0; i < this.nodes.length; ++i) {
+            Node node = this.nodes[i];
+            if (node != null) {
+                Node parent = node.getParent();
+                if (parent != null) {
+                    parent = parent.getParent();
+                    while (parent != null && !parent.acceptsChild(node)) {
+                        parent = parent.getParent();
+                    }
+                    newParents[i] = parent;
+                    if (parent != null) {
+                        foundParents = true;
+                    }
+                }
             }
-            nodes[i].setParent(n);
-            NodeUtil.setWorldTransform(nodes[i], t);
+        }
+        if (!foundParents) {
+            throw new ExecutionException("No items could be unparented.");
+        }
+        Transform t = new Transform();
+        for (int i = 0; i < this.nodes.length; ++i) {
+            Node node = this.nodes[i];
+            node.getWorldTransform(t);
+            node.setParent(newParents[i]);;
+            NodeUtil.setWorldTransform(node, t);
         }
 
         return Status.OK_STATUS;
@@ -60,10 +78,11 @@ public class UnparentOperation extends AbstractOperation {
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         Transform t = new Transform();
-        for (int i = 0; i < nodes.length; ++i) {
-            nodes[i].getTransform(t);
-            nodes[i].setParent(oldParents[i]);
-            NodeUtil.setWorldTransform(nodes[i], t);
+        for (int i = 0; i < this.nodes.length; ++i) {
+            Node node = this.nodes[i];
+            node.getWorldTransform(t);
+            node.setParent(this.oldParents[i]);
+            NodeUtil.setWorldTransform(node, t);
         }
         return Status.OK_STATUS;
     }

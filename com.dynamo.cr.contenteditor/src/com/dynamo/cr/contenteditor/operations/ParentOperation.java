@@ -55,7 +55,7 @@ public class ParentOperation extends AbstractOperation {
             }
         }
         for (Node node : this.nodes) {
-            node.getTransform(t);
+            node.getWorldTransform(t);
             node.setParent(this.parent);
             NodeUtil.setWorldTransform(node, t);
         }
@@ -74,7 +74,7 @@ public class ParentOperation extends AbstractOperation {
             throws ExecutionException {
         Transform t = new Transform();
         for (int i = 0; i < nodes.length; ++i) {
-            nodes[i].getTransform(t);
+            nodes[i].getWorldTransform(t);
             nodes[i].setParent(oldParents[i]);
             NodeUtil.setWorldTransform(nodes[i], t);
         }
