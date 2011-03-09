@@ -18,6 +18,11 @@ message SpawnObject
     required dmMath.Quat   Rotation = 2;
 }
 
+message CollectionSpawnPointDesc
+{
+    required string Collection = 1 [(resource)=true];
+}
+
 enum LightType
 {
     POINT = 0;

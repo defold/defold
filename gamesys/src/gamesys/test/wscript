@@ -17,6 +17,7 @@ def configure(conf):
 def build(bld):
     dirs = [
             'camera',
+            'collection_spawn_point',
             'collision_object',
             'convex_shape',
             'emitter',

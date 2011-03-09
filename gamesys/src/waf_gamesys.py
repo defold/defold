@@ -17,6 +17,10 @@ def transform_collection(msg):
         c.Collection = c.Collection.replace('.collection', '.collectionc')
     return msg
 
+def transform_collectionspawnpoint(msg):
+    msg.Collection = msg.Collection.replace('.collection', '.collectionc')
+    return msg
+
 def transform_collisionobject(msg):
     msg.CollisionShape = msg.CollisionShape.replace('.convexshape', '.convexshapec')
     return msg
@@ -29,6 +33,7 @@ def transform_emitter(msg):
 def transform_gameobject(msg):
     for c in msg.Components:
         c.Resource = c.Resource.replace('.camera', '.camerac')
+        c.Resource = c.Resource.replace('.collectionspawnpoint', '.collectionspawnpointc')
         c.Resource = c.Resource.replace('.collisionobject', '.collisionobjectc')
         c.Resource = c.Resource.replace('.emitter', '.emitterc')
         c.Resource = c.Resource.replace('.gui', '.guic')
@@ -155,6 +160,7 @@ def gofile(self, node):
     task.set_outputs([out] + embed_output_nodes)
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
+proto_compile_task('collectionspawnpoint', 'gamesys_ddf_pb2', 'CollectionSpawnPointDesc', '.collectionspawnpoint', '.collectionspawnpointc', transform_collectionspawnpoint)
 proto_compile_task('emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter', '.emitter', '.emitterc', transform_emitter)
 proto_compile_task('model', 'model_ddf_pb2', 'ModelDesc', '.model', '.modelc', transform_model)
 proto_compile_task('convexshape',  'physics_ddf_pb2', 'ConvexShape', '.convexshape', '.convexshapec')

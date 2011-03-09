@@ -5,6 +5,7 @@
 #include <dlib/log.h>
 #include <dlib/message.h>
 
+#include "resources/res_collection_spawn_point.h"
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
 #include "resources/res_emitter.h"
@@ -26,6 +27,7 @@
 #include "resources/res_render_prototype.h"
 #include "resources/res_sprite.h"
 
+#include "components/comp_collection_spawn_point.h"
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
 #include "components/comp_model.h"
@@ -68,6 +70,7 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
+        REGISTER_RESOURCE_TYPE("collectionspawnpointc", 0, ResCollectionSpawnPointCreate, ResCollectionSpawnPointDestroy, ResCollectionSpawnPointRecreate);
         REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, ResCollisionObjectCreate, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, ResConvexShapeCreate, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("emitterc", 0, ResEmitterCreate, ResEmitterDestroy, ResEmitterRecreate);
@@ -141,6 +144,11 @@ namespace dmGameSystem
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, 0, &CompCameraDestroy,
                 &CompCameraUpdate, &CompCameraOnMessage, 0, &CompCameraOnReload);
+
+        REGISTER_COMPONENT_TYPE("collectionspawnpointc", factory,
+                &CompCollectionSpawnPointNewWorld, &CompCollectionSpawnPointDeleteWorld,
+                &CompCollectionSpawnPointCreate, 0, &CompCollectionSpawnPointDestroy,
+                &CompCollectionSpawnPointUpdate, &CompCollectionSpawnPointOnMessage, &CompCollectionSpawnPointOnInput, 0);
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
