@@ -27,6 +27,10 @@ namespace dmGameSystem
                                                void* world,
                                                void* context);
 
+    dmGameObject::UpdateResult CompCollectionSpawnPointPostUpdate(dmGameObject::HCollection collection,
+                                               void* world,
+                                               void* context);
+
     dmGameObject::UpdateResult CompCollectionSpawnPointOnMessage(dmGameObject::HInstance instance,
                                                 const dmGameObject::InstanceMessageData* message_data,
                                                 void* context,

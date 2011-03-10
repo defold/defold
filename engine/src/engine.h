@@ -24,10 +24,6 @@ namespace dmEngine
     int32_t Run(HEngine engine);
     void Exit(HEngine engine, int32_t code);
 
-    void LoadCollection(HEngine engine, const char* collection_name);
-    void UnloadCollection(HEngine engine, const char* collection_name);
-    void ActivateCollection(HEngine engine, const char* collection_name);
-
     uint32_t GetFrameCount(HEngine engine);
 };
 

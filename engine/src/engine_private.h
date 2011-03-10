@@ -40,10 +40,7 @@ namespace dmEngine
 
         dmGameObject::HRegister                     m_Register;
         dmGameObject::HCollection                   m_MainCollection;
-        dmHashTable32<dmGameObject::HCollection>    m_Collections;
-        dmGameObject::HCollection                   m_ActiveCollection;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
-        uint32_t                                    m_SpawnCount;
 
         uint32_t                                    m_LastReloadMTime;
 

@@ -1133,6 +1133,46 @@ namespace dmGameObject
 
     bool PostUpdate(HCollection* collections, uint32_t collection_count)
     {
+        DM_PROFILE(GameObject, "PostUpdate");
+
+        if (collection_count == 0)
+            return true;
+
+        assert(collections != 0x0);
+        HRegister reg = 0;
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            if (collections[i])
+            {
+                if (reg)
+                    assert(reg == collections[i]->m_Register);
+                else
+                    reg = collections[i]->m_Register;
+            }
+        }
+        assert(reg);
+
+        bool ret = true;
+        uint32_t component_types = reg->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            uint16_t update_index = reg->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &reg->m_ComponentTypes[update_index];
+
+            if (component_type->m_PostUpdateFunction)
+            {
+                DM_PROFILE(GameObject, component_type->m_Name);
+                for (uint32_t j = 0; j < collection_count; ++j)
+                {
+                    if (collections[j] == 0)
+                        continue;
+                    UpdateResult res = component_type->m_PostUpdateFunction(collections[j], collections[j]->m_ComponentWorlds[update_index], component_type->m_Context);
+                    if (res != UPDATE_RESULT_OK)
+                        ret = false;
+                }
+            }
+        }
+
         for (uint32_t i = 0; i < collection_count; ++i)
         {
             if (collections[i])
@@ -1162,7 +1202,7 @@ namespace dmGameObject
             }
         }
 
-        return true;
+        return ret;
     }
 
     UpdateResult DispatchInput(HCollection* collections, uint32_t collection_count, InputAction* input_actions, uint32_t input_action_count)

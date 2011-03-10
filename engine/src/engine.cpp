@@ -89,9 +89,6 @@ namespace dmEngine
     Engine::Engine()
     : m_Alive(true)
     , m_MainCollection(0)
-    , m_Collections()
-    , m_ActiveCollection(0)
-    , m_SpawnCount(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
     , m_ShowProfile(false)
@@ -110,7 +107,6 @@ namespace dmEngine
     , m_Stats()
     {
         m_Register = dmGameObject::NewRegister(Dispatch, this);
-        m_Collections.SetCapacity(16, 32);
         m_InputBuffer.SetCapacity(64);
 
         m_PhysicsContext.m_Context3D = 0x0;
@@ -128,14 +124,8 @@ namespace dmEngine
         return new Engine();
     }
 
-    void DeleteCollection(Engine* context, const uint32_t* key, dmGameObject::HCollection* collection)
-    {
-        dmResource::Release(context->m_Factory, *collection);
-    }
-
     void Delete(HEngine engine)
     {
-        engine->m_Collections.Iterate<Engine>(DeleteCollection, engine);
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::DeleteRegister(engine->m_Register);
@@ -465,15 +455,13 @@ bail:
                 dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, &engine->m_InputBuffer);
                 if (engine->m_InputBuffer.Size() > 0)
                 {
-                    dmGameObject::HCollection collections[2] = {engine->m_MainCollection, engine->m_ActiveCollection};
-                    dmGameObject::DispatchInput(collections, 2, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
+                    dmGameObject::DispatchInput(&engine->m_MainCollection, 1, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
                 }
 
                 dmGameObject::UpdateContext update_contexts[2];
                 update_contexts[0].m_DT = dt;
                 update_contexts[1].m_DT = fixed_dt;
-                dmGameObject::HCollection collections[2] = {engine->m_ActiveCollection, engine->m_MainCollection};
-                dmGameObject::Update(collections, update_contexts, 2);
+                dmGameObject::Update(&engine->m_MainCollection, update_contexts, 1);
 
                 if (engine->m_RenderScriptPrototype)
                 {
@@ -486,7 +474,7 @@ bail:
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
 
-                dmGameObject::PostUpdate(collections, 2);
+                dmGameObject::PostUpdate(&engine->m_MainCollection, 1);
 
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
@@ -531,40 +519,18 @@ bail:
     {
         Engine* self = (Engine*) user_ptr;
         dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
+        dmGameObject::HInstance sender_instance = instance_message_data->m_Instance;
 
         if (instance_message_data->m_DDFDescriptor == dmEngineDDF::Exit::m_DDFDescriptor)
         {
             dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) instance_message_data->m_Buffer;
             dmEngine::Exit(self, ddf->m_Code);
         }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::LoadCollection::m_DDFDescriptor)
-        {
-            dmGameObjectDDF::LoadCollection* ll = (dmGameObjectDDF::LoadCollection*) instance_message_data->m_Buffer;
-            ll->m_Collection = (const char*)((uintptr_t)ll + (uintptr_t)ll->m_Collection);
-            dmEngine::LoadCollection(self, ll->m_Collection);
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::UnloadCollection::m_DDFDescriptor)
-        {
-            dmGameObjectDDF::UnloadCollection* ll = (dmGameObjectDDF::UnloadCollection*) instance_message_data->m_Buffer;
-            ll->m_Collection = (const char*)((uintptr_t)ll + (uintptr_t)ll->m_Collection);
-            dmEngine::UnloadCollection(self, ll->m_Collection);
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::ActivateCollection::m_DDFDescriptor)
-        {
-            dmGameObjectDDF::ActivateCollection* ddf = (dmGameObjectDDF::ActivateCollection*) instance_message_data->m_Buffer;
-            ddf->m_Collection = (const char*)((uintptr_t)ddf + (uintptr_t)ddf->m_Collection);
-            dmEngine::ActivateCollection(self, ddf->m_Collection);
-        }
         else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
         {
             dmGameObjectDDF::AcquireInputFocus* ddf = (dmGameObjectDDF::AcquireInputFocus*) instance_message_data->m_Buffer;
-            dmGameObject::HCollection collection = self->m_MainCollection;
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, ddf->m_GameObjectId);
-            if (!instance && self->m_ActiveCollection != 0)
-            {
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, ddf->m_GameObjectId);
-                collection = self->m_ActiveCollection;
-            }
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
             if (instance)
             {
                 dmGameObject::AcquireInputFocus(collection, instance);
@@ -577,13 +543,8 @@ bail:
         else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
         {
             dmGameObjectDDF::ReleaseInputFocus* ddf = (dmGameObjectDDF::ReleaseInputFocus*) instance_message_data->m_Buffer;
-            dmGameObject::HCollection collection = self->m_MainCollection;
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, ddf->m_GameObjectId);
-            if (!instance && self->m_ActiveCollection != 0)
-            {
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, ddf->m_GameObjectId);
-                collection = self->m_ActiveCollection;
-            }
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
             if (instance)
             {
                 dmGameObject::ReleaseInputFocus(collection, instance);
@@ -593,9 +554,8 @@ bail:
         {
             dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
             dmGameObjectDDF::GameObjectTransformQuery* pq = (dmGameObjectDDF::GameObjectTransformQuery*) instance_message_data->m_Buffer;
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, pq->m_GameObjectId);
-            if (!instance && self->m_ActiveCollection != 0)
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, pq->m_GameObjectId);
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, pq->m_GameObjectId);
             if (instance)
             {
                 const uint32_t offset = sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameObjectDDF::GameObjectTransformResult);
@@ -623,19 +583,14 @@ bail:
         {
             dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
             dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*) instance_message_data->m_Buffer;
-            dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, sp->m_ChildId);
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+            dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ChildId);
             dmGameObject::HInstance parent = 0;
-            if (!child && self->m_ActiveCollection != 0)
-                child = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, sp->m_ChildId);
             if (sp->m_ParentId != 0)
             {
-                parent = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, sp->m_ParentId);
-                if (parent == 0 && self->m_ActiveCollection != 0)
-                {
-                    parent = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, sp->m_ParentId);
-                    if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
-                }
+                parent = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ParentId);
+                if (parent == 0)
+                    dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
             }
             if (child)
             {
@@ -672,14 +627,7 @@ bail:
         }
         else if (instance_message_data->m_DDFDescriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
         {
-            uint32_t id = dmGameObject::GetIdentifier(instance_message_data->m_Instance);
-            dmGameObject::HCollection collection = self->m_MainCollection;
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(self->m_MainCollection, id);
-            if (!instance && self->m_ActiveCollection != 0)
-            {
-                instance = dmGameObject::GetInstanceFromIdentifier(self->m_ActiveCollection, id);
-                collection = self->m_ActiveCollection;
-            }
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
             dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)instance_message_data->m_Buffer;
             if (self->m_PhysicsContext.m_3D)
                 dmGameSystem::RequestRayCast3D(collection, instance_message_data->m_Instance, ddf->m_From, ddf->m_To, ddf->m_Mask);
@@ -715,40 +663,6 @@ bail:
         dmRender::OnMessageRenderScriptInstance(instance, &message);
     }
 
-    void LoadCollection(HEngine engine, const char* collection_name)
-    {
-        dmGameObject::HCollection collection;
-        dmResource::FactoryResult r = dmResource::Get(engine->m_Factory, collection_name, (void**) &collection);
-        if (r == dmResource::FACTORY_RESULT_OK)
-        {
-            engine->m_Collections.Put(dmHashString32(collection_name), collection);
-        }
-    }
-
-    void UnloadCollection(HEngine engine, const char* collection_name)
-    {
-        uint32_t collection_id = dmHashString32(collection_name);
-        dmGameObject::HCollection* collection = engine->m_Collections.Get(collection_id);
-        if (collection != 0x0)
-        {
-            dmResource::Release(engine->m_Factory, *collection);
-            engine->m_Collections.Erase(collection_id);
-            if (*collection == engine->m_ActiveCollection)
-                engine->m_ActiveCollection = 0;
-        }
-    }
-
-    void ActivateCollection(HEngine engine, const char* collection_name)
-    {
-        uint32_t collection_id = dmHashString32(collection_name);
-        dmGameObject::HCollection* collection = engine->m_Collections.Get(collection_id);
-        if (collection != 0x0)
-        {
-            dmGameObject::Init(*collection);
-            engine->m_ActiveCollection = *collection;
-        }
-    }
-
     void RegisterDDFTypes()
     {
         dmGameSystem::RegisterDDFTypes();
@@ -762,9 +676,6 @@ bail:
         dmGameObject::RegisterDDFType(dmModelDDF::ResetVertexConstant::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmModelDDF::SetFragmentConstant::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::LoadCollection::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::UnloadCollection::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::ActivateCollection::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);

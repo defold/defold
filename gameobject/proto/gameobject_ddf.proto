@@ -63,21 +63,6 @@ message CollectionDesc
     repeated CollectionInstanceDesc CollectionInstances = 3;
 }
 
-message LoadCollection
-{
-    required string Collection = 1;
-}
-
-message UnloadCollection
-{
-    required string Collection = 1;
-}
-
-message ActivateCollection
-{
-    required string Collection = 1;
-}
-
 message AcquireInputFocus
 {
     required uint64 GameObjectId = 1;

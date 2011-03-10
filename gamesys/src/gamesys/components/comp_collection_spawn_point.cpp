@@ -49,7 +49,7 @@ namespace dmGameSystem
             dmGameObject::HCollection collection = cspw->m_Components[i].m_Collection;
             if (collection != 0)
             {
-                dmGameObject::DeleteCollection(collection);
+                dmResource::Release((dmResource::HFactory)context, collection);
             }
         }
         delete cspw;
@@ -91,7 +91,7 @@ namespace dmGameSystem
         CollectionSpawnPointComponent* cspc = (CollectionSpawnPointComponent*)*user_data;
         if (cspc->m_Collection != 0)
         {
-            dmGameObject::DeleteCollection(cspc->m_Collection);
+            dmResource::Release((dmResource::HFactory)context, cspc->m_Collection);
         }
         CollectionSpawnPointWorld* cspw = (CollectionSpawnPointWorld*)world;
         uint32_t index = cspc - &cspw->m_Components[0];
@@ -108,15 +108,35 @@ namespace dmGameSystem
                                                void* context)
     {
         CollectionSpawnPointWorld* cspw = (CollectionSpawnPointWorld*)world;
+        dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < cspw->m_Components.Size(); ++i)
         {
             CollectionSpawnPointComponent* cspc = &cspw->m_Components[i];
             if (cspc->m_Collection != 0 && cspc->m_Active)
             {
-                dmGameObject::Update(&cspc->m_Collection, update_context, 1);
+                if (!dmGameObject::Update(&cspc->m_Collection, update_context, 1))
+                    result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
-        return dmGameObject::UPDATE_RESULT_OK;
+        return result;
+    }
+
+    dmGameObject::UpdateResult CompCollectionSpawnPointPostUpdate(dmGameObject::HCollection collection,
+                                               void* world,
+                                               void* context)
+    {
+        CollectionSpawnPointWorld* cspw = (CollectionSpawnPointWorld*)world;
+        dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
+        for (uint32_t i = 0; i < cspw->m_Components.Size(); ++i)
+        {
+            CollectionSpawnPointComponent* cspc = &cspw->m_Components[i];
+            if (cspc->m_Collection != 0 && cspc->m_Active)
+            {
+                if (!dmGameObject::PostUpdate(&cspc->m_Collection, 1))
+                    result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+        }
+        return result;
     }
 
     dmGameObject::UpdateResult CompCollectionSpawnPointOnMessage(dmGameObject::HInstance instance,
@@ -131,6 +151,7 @@ namespace dmGameSystem
             dmResource::FactoryResult result = dmResource::Get((dmResource::HFactory)context, cspc->m_Resource->m_DDF->m_Collection, (void**)&cspc->m_Collection);
             if (result == dmResource::FACTORY_RESULT_OK)
             {
+                dmGameObject::Init(cspc->m_Collection);
                 return dmGameObject::UPDATE_RESULT_OK;
             }
             else

@@ -205,6 +205,16 @@ namespace dmGameObject
                                      void* context);
 
     /**
+     * Component post update function. The component state should never be modified in this function.
+     * @param collection Collection handle
+     * @param update_context Update context
+     * @param context User context
+     */
+    typedef UpdateResult (*ComponentsPostUpdate)(HCollection collection,
+                                     void* world,
+                                     void* context);
+
+    /**
      * Component on-message function. Called when message is sent to this component
      * @param instance Instance handle
      * @param context User context
@@ -257,6 +267,7 @@ namespace dmGameObject
         ComponentInit           m_InitFunction;
         ComponentDestroy        m_DestroyFunction;
         ComponentsUpdate        m_UpdateFunction;
+        ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
         ComponentOnReload       m_OnReloadFunction;
