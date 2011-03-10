@@ -598,6 +598,62 @@ namespace dmGameObject
         return result;
     }
 
+    bool Final(HCollection collection, HInstance instance)
+    {
+        if (instance)
+        {
+            assert(collection->m_Instances[instance->m_Index] == instance);
+
+            uint32_t next_component_instance_data = 0;
+            Prototype* prototype = instance->m_Prototype;
+            for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+            {
+                Prototype::Component* component = &prototype->m_Components[i];
+                uint32_t component_type_index;
+                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
+                assert(component_type);
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_InstanceHasUserData)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                }
+                assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+                if (component_type->m_FinalFunction)
+                {
+                    CreateResult result = component_type->m_FinalFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
+                    if (result != CREATE_RESULT_OK)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool Final(HCollection collection)
+    {
+        DM_PROFILE(GameObject, "Final");
+
+        assert(collection->m_InUpdate == 0 && "Finalizing instances during Update(.) is not permitted");
+
+        bool result = true;
+        uint32_t n_objects = collection->m_Instances.Size();
+        for (uint32_t i = 0; i < n_objects; ++i)
+        {
+            Instance* instance = collection->m_Instances[i];
+            if ( ! Final(collection, instance) )
+            {
+                result = false;
+            }
+        }
+
+        return result;
+    }
+
     void Delete(HCollection collection, HInstance instance)
     {
         assert(collection->m_Instances[instance->m_Index] == instance);

@@ -18,14 +18,19 @@ namespace dmGameObject
             void* context,
             uintptr_t* user_data);
 
+    CreateResult CompScriptDestroy(HCollection collection,
+            HInstance instance,
+            void* world,
+            void* context,
+            uintptr_t* user_data);
+
     CreateResult CompScriptInit(HCollection collection,
             HInstance instance,
             void* context,
             uintptr_t* user_data);
 
-    CreateResult CompScriptDestroy(HCollection collection,
+    CreateResult CompScriptFinal(HCollection collection,
             HInstance instance,
-            void* world,
             void* context,
             uintptr_t* user_data);
 

@@ -131,6 +131,27 @@ namespace dmGameObject
         return result;
     }
 
+    CreateResult CompScriptDestroy(HCollection collection,
+            HInstance instance,
+            void* world,
+            void* context,
+            uintptr_t* user_data)
+    {
+        ScriptWorld* script_world = (ScriptWorld*)world;
+        HScriptInstance script_instance = (HScriptInstance)*user_data;
+        for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
+        {
+            if (script_instance == script_world->m_Instances[i])
+            {
+                script_world->m_Instances.EraseSwap(i);
+                break;
+            }
+        }
+        instance->m_ScriptInstancePOOOOP = 0x0;
+        DeleteScriptInstance(script_instance);
+        return CREATE_RESULT_OK;
+    }
+
     CreateResult CompScriptInit(HCollection collection,
             HInstance instance,
             void* world,
@@ -153,25 +174,26 @@ namespace dmGameObject
         }
     }
 
-    CreateResult CompScriptDestroy(HCollection collection,
+    CreateResult CompScriptFinal(HCollection collection,
             HInstance instance,
             void* world,
             void* context,
             uintptr_t* user_data)
     {
-        ScriptWorld* script_world = (ScriptWorld*)world;
         HScriptInstance script_instance = (HScriptInstance)*user_data;
-        for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
+
+        int top = lua_gettop(g_LuaState);
+        (void)top;
+        ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, 0x0);
+        assert(top == lua_gettop(g_LuaState));
+        if (ret == SCRIPT_RESULT_FAILED)
         {
-            if (script_instance == script_world->m_Instances[i])
-            {
-                script_world->m_Instances.EraseSwap(i);
-                break;
-            }
+            return CREATE_RESULT_UNKNOWN_ERROR;
         }
-        instance->m_ScriptInstancePOOOOP = 0x0;
-        DeleteScriptInstance(script_instance);
-        return CREATE_RESULT_OK;
+        else
+        {
+            return CREATE_RESULT_OK;
+        }
     }
 
     UpdateResult CompScriptUpdate(HCollection collection,
@@ -416,8 +438,9 @@ namespace dmGameObject
         script_component.m_NewWorldFunction = &CompScriptNewWorld;
         script_component.m_DeleteWorldFunction = &CompScriptDeleteWorld;
         script_component.m_CreateFunction = &CompScriptCreate;
-        script_component.m_InitFunction = &CompScriptInit;
         script_component.m_DestroyFunction = &CompScriptDestroy;
+        script_component.m_InitFunction = &CompScriptInit;
+        script_component.m_FinalFunction = &CompScriptFinal;
         script_component.m_UpdateFunction = &CompScriptUpdate;
         script_component.m_OnMessageFunction = &CompScriptOnMessage;
         script_component.m_OnInputFunction = &CompScriptOnInput;

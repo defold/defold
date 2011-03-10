@@ -149,7 +149,7 @@ namespace dmGameObject
     typedef CreateResult (*ComponentDeleteWorld)(void* context, void* world);
 
     /**
-     * Component create function
+     * Component create function. Should allocate all necessary resources for the component.
      * @param collection Collection handle
      * @param instance Game object instance
      * @param resource Component resource
@@ -165,7 +165,21 @@ namespace dmGameObject
                                             uintptr_t* user_data);
 
     /**
-     * Component init function
+     * Component destroy function. Should deallocate all necessary resources.
+     * @param collection Collection handle
+     * @param instance Game object instance
+     * @param context User context
+     * @param user_data User data storage pointer
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentDestroy)(HCollection collection,
+                                             HInstance instance,
+                                             void* world,
+                                             void* context,
+                                             uintptr_t* user_data);
+
+    /**
+     * Component init function. Should set the components initial state.
      * @param collection Collection handle
      * @param instance Game object instance
      * @param resource Component resource
@@ -180,18 +194,19 @@ namespace dmGameObject
                                             uintptr_t* user_data);
 
     /**
-     * Component destroy function
+     * Component finalize function. Should clean up as it is called when the component is deactivated.
      * @param collection Collection handle
      * @param instance Game object instance
+     * @param resource Component resource
      * @param context User context
      * @param user_data User data storage pointer
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentDestroy)(HCollection collection,
-                                             HInstance instance,
-                                             void* world,
-                                             void* context,
-                                             uintptr_t* user_data);
+    typedef CreateResult (*ComponentFinal)(HCollection collection,
+                                            HInstance instance,
+                                            void* world,
+                                            void* context,
+                                            uintptr_t* user_data);
 
     /**
      * Component update function. Updates all component of this type for all game objects
@@ -264,8 +279,9 @@ namespace dmGameObject
         ComponentNewWorld       m_NewWorldFunction;
         ComponentDeleteWorld    m_DeleteWorldFunction;
         ComponentCreate         m_CreateFunction;
-        ComponentInit           m_InitFunction;
         ComponentDestroy        m_DestroyFunction;
+        ComponentInit           m_InitFunction;
+        ComponentFinal          m_FinalFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
@@ -472,16 +488,16 @@ namespace dmGameObject
     void SetScriptStringProperty(HInstance instance, const char* key, const char* value);
 
     /**
-     * Initializes a game object instance in the supplied collection.
-     * @param collection Game object collection
-     */
-    bool Init(HCollection collection, HInstance instance);
-
-    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */
     bool Init(HCollection collection);
+
+    /**
+     * Finalizes all game object instances in the supplied collection.
+     * @param collection Game object collection
+     */
+    bool Final(HCollection collection);
 
     /**
      * Update all gameobjects and its components and dispatches all message to script.

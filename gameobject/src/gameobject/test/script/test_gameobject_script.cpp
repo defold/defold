@@ -64,6 +64,7 @@ TEST_F(ScriptTest, TestScriptProperty)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameObject::Delete(m_Collection, go);
 }
@@ -139,6 +140,7 @@ TEST_F(ScriptTest, TestScript01)
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go);
 }
 
@@ -151,7 +153,9 @@ TEST_F(ScriptTest, TestFailingScript02)
     dmGameObject::New(m_Collection, "go2.goc");
     bool result = dmGameObject::Init(m_Collection);
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
-    ASSERT_FALSE(result);
+    EXPECT_FALSE(result);
+    result = dmGameObject::Final(m_Collection);
+    EXPECT_FALSE(result);
 }
 
 TEST_F(ScriptTest, TestFailingScript03)
@@ -265,6 +269,7 @@ TEST_F(ScriptTest, Null)
 
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go);
 }
 

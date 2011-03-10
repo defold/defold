@@ -29,11 +29,12 @@ namespace dmGameObject
 
     const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT] =
     {
-            "init",
-            "update",
-            "on_message",
-            "on_input",
-            "on_reload"
+        "init",
+        "final",
+        "update",
+        "on_message",
+        "on_input",
+        "on_reload"
     };
 
     lua_State* g_LuaState = 0;

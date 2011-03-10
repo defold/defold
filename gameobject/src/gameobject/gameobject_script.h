@@ -26,6 +26,7 @@ namespace dmGameObject
     enum ScriptFunction
     {
         SCRIPT_FUNCTION_INIT,
+        SCRIPT_FUNCTION_FINAL,
         SCRIPT_FUNCTION_UPDATE,
         SCRIPT_FUNCTION_ONMESSAGE,
         SCRIPT_FUNCTION_ONINPUT,
