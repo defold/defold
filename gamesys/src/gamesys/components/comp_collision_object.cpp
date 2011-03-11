@@ -90,6 +90,16 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompCollisionObjectDestroy(dmGameObject::HCollection collection,
+                                                dmGameObject::HInstance instance,
+                                                void* world,
+                                                void* context,
+                                                uintptr_t* user_data)
+    {
+        delete (Component*)*user_data;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::CreateResult CompCollisionObjectInit(dmGameObject::HCollection collection,
                                             dmGameObject::HInstance instance,
                                             void* world,
@@ -131,11 +141,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data)
+    dmGameObject::CreateResult CompCollisionObjectFinal(dmGameObject::HCollection collection,
+                                            dmGameObject::HInstance instance,
+                                            void* world,
+                                            void* context,
+                                            uintptr_t* user_data)
     {
         PhysicsContext* physics_context = (PhysicsContext*)context;
         Component* component = (Component*)*user_data;
@@ -145,6 +155,7 @@ namespace dmGameSystem
             {
                 dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) world;
                 dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
+                component->m_Object3D = 0;
             }
         }
         else
@@ -153,9 +164,9 @@ namespace dmGameSystem
             {
                 dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) world;
                 dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
+                component->m_Object2D = 0;
             }
         }
-        delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 

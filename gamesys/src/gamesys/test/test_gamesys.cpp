@@ -106,9 +106,11 @@ TEST_P(ComponentTest, Test)
 
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
     ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmDDF::FreeMessage(go_ddf);
 }
@@ -145,6 +147,8 @@ TEST_P(ComponentTest, TestReloadFail)
     dmGameObject::DispatchInput(&m_Collection, 1, &input_action, 1);
 
     ASSERT_TRUE(CopyResource(temp_name, component_name));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmDDF::FreeMessage(go_ddf);
 }

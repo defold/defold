@@ -179,7 +179,7 @@ namespace dmGameObject
                                              uintptr_t* user_data);
 
     /**
-     * Component init function. Should set the components initial state.
+     * Component init function. Should set the components initial state as it is called when the component is enabled.
      * @param collection Collection handle
      * @param instance Game object instance
      * @param resource Component resource
@@ -194,7 +194,7 @@ namespace dmGameObject
                                             uintptr_t* user_data);
 
     /**
-     * Component finalize function. Should clean up as it is called when the component is deactivated.
+     * Component finalize function. Should clean up as it is called when the component is disabled.
      * @param collection Collection handle
      * @param instance Game object instance
      * @param resource Component resource
