@@ -1,6 +1,7 @@
 function init(self)
     self.collection_sp_ids = { "test_attacker_target.collectionspawnpointc" }
     go.post_to(go.get_id(self), self.collection_sp_ids[1], "load")
+    go.post_to(go.get_id(self), self.collection_sp_ids[1], "init")
     go.post_to(go.get_id(self), self.collection_sp_ids[1], "activate")
     self.timer = 4
 end

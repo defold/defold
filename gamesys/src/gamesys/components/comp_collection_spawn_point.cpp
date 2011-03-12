@@ -19,7 +19,9 @@ namespace dmGameSystem
     {
         CollectionSpawnPointResource*   m_Resource;
         dmGameObject::HCollection       m_Collection;
+        uint32_t                        m_Initialized : 1;
         uint32_t                        m_Active : 1;
+        uint32_t                        m_Unload : 1;
     };
 
     struct CollectionSpawnPointWorld
@@ -49,6 +51,8 @@ namespace dmGameSystem
             dmGameObject::HCollection collection = cspw->m_Components[i].m_Collection;
             if (collection != 0)
             {
+                if (cspw->m_Components[i].m_Initialized)
+                    dmGameObject::Final(collection);
                 dmResource::Release((dmResource::HFactory)context, collection);
             }
         }
@@ -91,6 +95,8 @@ namespace dmGameSystem
         CollectionSpawnPointComponent* cspc = (CollectionSpawnPointComponent*)*user_data;
         if (cspc->m_Collection != 0)
         {
+            if (cspc->m_Initialized)
+                dmGameObject::Final(cspc->m_Collection);
             dmResource::Release((dmResource::HFactory)context, cspc->m_Collection);
         }
         CollectionSpawnPointWorld* cspw = (CollectionSpawnPointWorld*)world;
@@ -130,10 +136,19 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < cspw->m_Components.Size(); ++i)
         {
             CollectionSpawnPointComponent* cspc = &cspw->m_Components[i];
-            if (cspc->m_Collection != 0 && cspc->m_Active)
+            if (cspc->m_Collection != 0)
             {
-                if (!dmGameObject::PostUpdate(&cspc->m_Collection, 1))
-                    result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                if (cspc->m_Active)
+                {
+                    if (!dmGameObject::PostUpdate(&cspc->m_Collection, 1))
+                        result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                }
+                if (cspc->m_Unload)
+                {
+                    dmResource::Release((dmResource::HFactory)context, cspc->m_Collection);
+                    cspc->m_Collection = 0;
+                    cspc->m_Unload = 0;
+                }
             }
         }
         return result;
@@ -147,29 +162,55 @@ namespace dmGameSystem
         CollectionSpawnPointComponent* cspc = (CollectionSpawnPointComponent*) *user_data;
         if (message_data->m_MessageId == dmHashString64("load"))
         {
-            // TODO: asynchronous loading
-            dmResource::FactoryResult result = dmResource::Get((dmResource::HFactory)context, cspc->m_Resource->m_DDF->m_Collection, (void**)&cspc->m_Collection);
-            if (result == dmResource::FACTORY_RESULT_OK)
+            if (cspc->m_Collection == 0)
             {
-                dmGameObject::Init(cspc->m_Collection);
-                return dmGameObject::UPDATE_RESULT_OK;
+                cspc->m_Unload = 0;
+                // TODO: asynchronous loading
+                dmResource::FactoryResult result = dmResource::Get((dmResource::HFactory)context, cspc->m_Resource->m_DDF->m_Collection, (void**)&cspc->m_Collection);
+                if (result != dmResource::FACTORY_RESULT_OK)
+                {
+                    dmLogError("The collection %s could not be loaded.", cspc->m_Resource->m_DDF->m_Collection);
+                    return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                }
             }
             else
             {
-                dmLogError("The collection %s could not be loaded.", cspc->m_Resource->m_DDF->m_Collection);
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                dmLogWarning("The collection %s could not loaded since it was already.", cspc->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (message_data->m_MessageId == dmHashString64("unload"))
         {
             if (cspc->m_Collection != 0)
             {
-                dmResource::Release((dmResource::HFactory)context, cspc->m_Collection);
-                cspc->m_Collection = 0;
+                cspc->m_Unload = 1;
             }
             else
             {
                 dmLogWarning("The collection %s could not be unloaded since it was never loaded.", cspc->m_Resource->m_DDF->m_Collection);
+            }
+        }
+        else if (message_data->m_MessageId == dmHashString64("init"))
+        {
+            if (cspc->m_Initialized == 0)
+            {
+                dmGameObject::Init(cspc->m_Collection);
+                cspc->m_Initialized = 1;
+            }
+            else
+            {
+                dmLogWarning("The collection %s could not be initialized since it has been already.", cspc->m_Resource->m_DDF->m_Collection);
+            }
+        }
+        else if (message_data->m_MessageId == dmHashString64("final"))
+        {
+            if (cspc->m_Initialized == 1)
+            {
+                dmGameObject::Final(cspc->m_Collection);
+                cspc->m_Initialized = 0;
+            }
+            else
+            {
+                dmLogWarning("The collection %s could not be finalized since it was never initialized.", cspc->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (message_data->m_MessageId == dmHashString64("activate"))
@@ -203,7 +244,8 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         CollectionSpawnPointComponent* cspc = (CollectionSpawnPointComponent*) *user_data;
-        dmGameObject::DispatchInput(&cspc->m_Collection, 1, (dmGameObject::InputAction*)input_action, 1);
+        if (cspc->m_Active && !cspc->m_Unload)
+            dmGameObject::DispatchInput(&cspc->m_Collection, 1, (dmGameObject::InputAction*)input_action, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 }
