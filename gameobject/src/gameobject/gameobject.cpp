@@ -527,6 +527,15 @@ namespace dmGameObject
     {
         if (instance)
         {
+            if (instance->m_Initialized)
+            {
+                dmLogWarning("%s", "Instance is initialized twice, this may lead to undefined behaviour.");
+            }
+            else
+            {
+                instance->m_Initialized = 1;
+            }
+
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             // Update world transforms since some components might need them in their init-callback
@@ -602,6 +611,11 @@ namespace dmGameObject
     {
         if (instance)
         {
+            if (instance->m_Initialized)
+                instance->m_Initialized = 0;
+            else
+                dmLogWarning("%s", "Instance is finalized without being initialized, this may lead to undefined behaviour.");
+
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             uint32_t next_component_instance_data = 0;
@@ -1237,6 +1251,28 @@ namespace dmGameObject
                 break;
             }
         }
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            HCollection collection = collections[i];
+            if (collection == 0x0)
+                continue;
+            if (collection->m_InstancesToDelete.Size() > 0)
+            {
+                uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
+                for (uint32_t j = 0; j < n_to_delete; ++j)
+                {
+                    uint16_t index = collection->m_InstancesToDelete[j];
+                    Instance* instance = collection->m_Instances[index];
+
+                    assert(collection->m_Instances[instance->m_Index] == instance);
+                    assert(instance->m_ToBeDeleted);
+                    if (instance->m_Initialized)
+                        Final(collection, instance);
+                }
+            }
+        }
+        if (!DispatchMessages(reg))
+            ret = false;
         for (uint32_t i = 0; i < collection_count; ++i)
         {
             HCollection collection = collections[i];

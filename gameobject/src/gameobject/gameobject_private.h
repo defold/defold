@@ -54,6 +54,7 @@ namespace dmGameObject
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState);
             m_Depth = 0;
+            m_Initialized = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
@@ -86,8 +87,10 @@ namespace dmGameObject
 
         // Hierarchical depth
         uint16_t        m_Depth : 4;
+        // If the instance was initialized or not (Init())
+        uint16_t        m_Initialized : 1;
         // Padding
-        uint16_t        m_Pad : 12;
+        uint16_t        m_Pad : 11;
 
         // Index to parent
         uint16_t        m_Parent : 16;
