@@ -1,8 +1,10 @@
 Components
 {
+    Id: "receiver_script"
     Resource: "test_tablereceiver.scriptc"
 }
 Components
 {
+    Id: "sender_script"
     Resource: "test_tablesender.scriptc"
 }

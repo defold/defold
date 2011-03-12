@@ -1,8 +1,11 @@
 Components
 {
+    Id: "script"
     Resource: "main.script"
 }
-Components
+EmbeddedComponents
 {
-    Resource: "test_attacker_target.collectionproxy"
+    Id: "test_attacker_target_proxy"
+    Type: "collectionproxy"
+    Data: "Collection: \"test_attacker_target.collection\""
 }

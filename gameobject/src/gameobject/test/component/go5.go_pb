@@ -1,28 +1,35 @@
 Components
 {
+    Id: "script"
     Resource: "null.scriptc"
 }
 Components
 {
+    Id: "a1"
     Resource: "a.a"
 }
 Components
 {
+    Id: "a2"
     Resource: "a.a"
 }
 Components
 {
+    Id: "b"
     Resource: "b.b"
 }
 Components
 {
+    Id: "c1"
     Resource: "c.c"
 }
 Components
 {
+    Id: "c2"
     Resource: "c.c"
 }
 Components
 {
+    Id: "c3"
     Resource: "c.c"
 }

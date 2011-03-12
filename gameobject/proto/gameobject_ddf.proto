@@ -9,19 +9,21 @@ option (ddf_java_package) = "com.dynamo.gameobject.ddf";
 
 message ComponentDesc
 {
-    required string Resource = 1 [(resource) = true];
+    required string Id = 1;
+    required string Resource = 2 [(resource) = true];
 }
 
 message EmbeddedComponentDesc
 {
-    required string Type = 1;
-    required string Data = 2;
+    required string Id = 1;
+    required string Type = 2;
+    required string Data = 3;
 }
 
 message PrototypeDesc
 {
-    repeated ComponentDesc Components = 2;
-    repeated EmbeddedComponentDesc EmbeddedComponents = 3;
+    repeated ComponentDesc Components = 1;
+    repeated EmbeddedComponentDesc EmbeddedComponents = 2;
 }
 
 message Property

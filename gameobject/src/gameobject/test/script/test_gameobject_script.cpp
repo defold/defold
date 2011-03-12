@@ -202,6 +202,7 @@ TEST_F(ScriptTest, TestReload)
     prototype.m_Components.m_Count = 1;
     dmGameObjectDDF::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
+    component_desc.m_Id = "script";
     component_desc.m_Resource = script_resource_name;
     prototype.m_Components.m_Data = &component_desc;
 

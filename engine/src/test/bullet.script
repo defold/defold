@@ -12,7 +12,7 @@ function update(self, dt)
     local expired = false
     if self.hit_response then
         expired = true
-        go.post_to(self.hit_response.game_object_id, "", "hit", { damage = self.impact_damage })
+        go.post_to(self.hit_response.game_object_id, "script", "hit", { damage = self.impact_damage })
     else
         local pos = go.get_world_position(self)
         -- prediction for CD

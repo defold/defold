@@ -1,5 +1,7 @@
 #include "res_prototype.h"
 
+#include <dlib/log.h>
+
 #include "gameobject_private.h"
 
 #include "../proto/gameobject_ddf.h"
@@ -29,9 +31,26 @@ namespace dmGameObject
             void* component;
             dmResource::FactoryResult fact_e = dmResource::Get(factory, component_resource, (void**) &component);
 
-            if (fact_e != dmResource::FACTORY_RESULT_OK)
+            bool id_used = false;
+            dmhash_t id = 0;
+            if (fact_e == dmResource::FACTORY_RESULT_OK)
+            {
+                id = dmHashString64(proto_desc->m_Components[i].m_Id);
+                for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
+                {
+                    if (proto->m_Components[j].m_NameHash == id)
+                    {
+                        dmLogError("The id '%s' has already been used in the prototype %s.", proto_desc->m_Components[i].m_Id, filename);
+                        id_used = true;
+                    }
+                }
+            }
+
+            if (id_used || fact_e != dmResource::FACTORY_RESULT_OK)
             {
                 // Error, release created
+                if (id_used)
+                    dmResource::Release(factory, component);
                 for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
                 {
                     dmResource::Release(factory, proto->m_Components[j].m_Resource);
@@ -48,7 +67,7 @@ namespace dmGameObject
                 dmResource::SResourceDescriptor descriptor;
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.Push(Prototype::Component(component, resource_type, dmHashString64(component_resource), descriptor.m_NameHash));
+                proto->m_Components.Push(Prototype::Component(component, resource_type, id, descriptor.m_NameHash));
             }
         }
 

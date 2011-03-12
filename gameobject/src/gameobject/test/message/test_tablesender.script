@@ -1,3 +1,3 @@
 function init(self)
-    go.post_to(go.get_id(self), "test_tablereceiver.scriptc", "test_table", { test_value = 1.0 })
+    go.post_to(go.get_id(self), "receiver_script", "test_table", { test_value = 1.0 })
 end

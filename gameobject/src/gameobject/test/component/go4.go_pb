@@ -1,12 +1,15 @@
 Components
 {
+    Id: "script"
     Resource: "null.scriptc"
 }
 Components
 {
+    Id: "a1"
     Resource: "a.a"
 }
 Components
 {
+    Id: "a2"
     Resource: "a.a"
 }

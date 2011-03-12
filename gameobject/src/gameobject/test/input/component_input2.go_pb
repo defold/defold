@@ -1,8 +1,10 @@
 Components
 {
+    Id: "script"
     Resource: "component_input2.scriptc"
 }
 Components
 {
+    Id: "it"
     Resource: "input_target.it"
 }

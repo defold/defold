@@ -365,6 +365,13 @@ TEST_F(ComponentTest, TestUpdateOrder)
     ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateOrderMap[TestGameObjectDDF::BResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_ComponentUpdateOrderMap[TestGameObjectDDF::CResource::m_DDFHash]);
+    dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(ComponentTest, TestDuplicatedIds)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go6.goc");
+    ASSERT_EQ((void*) 0, (void*) go);
 }
 
 int main(int argc, char **argv)

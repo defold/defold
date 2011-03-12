@@ -1,8 +1,10 @@
 Components
 {
+    Id: "mt1"
     Resource: "message_target.mt"
 }
 Components
 {
+    Id: "mt2"
     Resource: "message_target2.mt"
 }

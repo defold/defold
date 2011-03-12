@@ -1,4 +1,5 @@
 Components
 {
+    Id: "script"
     Resource: "go3.scriptc"
 }

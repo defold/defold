@@ -114,6 +114,7 @@ def compile_go(task):
             desc = msg.Components.add()
             rel_path_dir = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
             rel_path_dir = os.path.dirname(rel_path_dir)
+            desc.Id = c.Id
             desc.Resource = rel_path_dir + '/' + task.outputs[i+1].name
 
         msg = transform_gameobject(msg)

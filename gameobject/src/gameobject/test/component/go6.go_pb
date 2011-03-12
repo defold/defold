@@ -5,7 +5,6 @@ Components
 }
 Components
 {
-    Id: "a"
-    Resource: "aDOESNOTEXISTS.a"
+    Id: "script"
+    Resource: "null.scriptc"
 }
-

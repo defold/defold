@@ -238,13 +238,13 @@ TEST_F(MessageTest, TestComponentMessage)
     r = dmGameObject::PostNamedMessageTo(go, "does_not_exists", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, r);
 
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString64("inc"), 0x0, 0);
+    r = dmGameObject::PostNamedMessageTo(go, "mt", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
-    r = dmGameObject::PostNamedMessageTo(go, "message_target.mt", dmHashString64("inc"), 0x0, 0);
+    r = dmGameObject::PostNamedMessageTo(go, "mt", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
     ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
     ASSERT_EQ(2U, m_MessageTargetCounter);
