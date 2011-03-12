@@ -390,14 +390,17 @@ namespace dmGameSystem
     {
         Component* gui_component = (Component*)*user_data;
 
-        dmGui::InputAction gui_input_action;
-        gui_input_action.m_ActionId = input_action->m_ActionId;
-        gui_input_action.m_Value = input_action->m_Value;
-        gui_input_action.m_Pressed = input_action->m_Pressed;
-        gui_input_action.m_Released = input_action->m_Released;
-        gui_input_action.m_Repeated = input_action->m_Repeated;
+        if (gui_component->m_Enabled)
+        {
+            dmGui::InputAction gui_input_action;
+            gui_input_action.m_ActionId = input_action->m_ActionId;
+            gui_input_action.m_Value = input_action->m_Value;
+            gui_input_action.m_Pressed = input_action->m_Pressed;
+            gui_input_action.m_Released = input_action->m_Released;
+            gui_input_action.m_Repeated = input_action->m_Repeated;
 
-        dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1);
+            dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1);
+        }
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 
