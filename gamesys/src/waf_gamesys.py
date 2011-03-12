@@ -1,6 +1,9 @@
-import Task, TaskGen, Utils, re, os
+import Task, TaskGen, Utils, re, os, sys
 from TaskGen import extension
 from waf_content import proto_compile_task
+from threading import Lock
+
+stderr_lock = Lock()
 
 def configure(conf):
     conf.find_file('meshc.py', var='MESHC', mandatory = True)
@@ -89,8 +92,12 @@ def write_embedded(task):
                 out_f.write(msg.SerializeToString())
 
         return 0
-    except google.protobuf.text_format.ParseError,e:
-        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+        finally:
+            stderr_lock.release()
         return 1
 
 task = Task.task_type_from_func('write_embedded',
@@ -114,6 +121,8 @@ def compile_go(task):
             desc = msg.Components.add()
             rel_path_dir = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
             rel_path_dir = os.path.dirname(rel_path_dir)
+            if c.Id == '':
+                raise Exception('Message is missing required field: Id')
             desc.Id = c.Id
             desc.Resource = rel_path_dir + '/' + task.outputs[i+1].name
 
@@ -125,8 +134,12 @@ def compile_go(task):
             out_f.write(msg.SerializeToString())
 
         return 0
-    except google.protobuf.text_format.ParseError,e:
-        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+        finally:
+            stderr_lock.release()
         return 1
 
 task = Task.task_type_from_func('gameobject',
