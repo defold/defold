@@ -3,7 +3,7 @@ function update(self)
     if self.target_pos then
         local pos = go.get_position(self)
         local dir = vmath.normalize(self.target_pos - pos)
-        go.spawn("bullet.goc", pos, vmath.quat_from_to(vmath.vector3(1, 0, 0), dir))
+        go.post_to(go.get_id(self), "bullet_spawner", "spawn_object", {position = pos, rotation = vmath.quat_from_to(vmath.vector3(1, 0, 0), dir)})
     end
 end
 
