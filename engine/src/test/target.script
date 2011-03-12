@@ -11,7 +11,8 @@ function on_message(self, message_id, message)
     if message_id == hash("hit") then
         self.health = self.health - message.damage
         if self.health < 0 then
-            go.post("exit", { code = 0 })
+            go.post_to(go.get_id(self, "attacker"), "script", "target_dead")
+            go.delete(self)
         end
     end
 end

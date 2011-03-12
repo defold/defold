@@ -12,3 +12,9 @@ function update(self, dt)
         go.post("exit", { code = 1 })
     end
 end
+
+function on_message(self, message_id, message)
+    if message_id == hash("target_dead") then
+        go.post("exit", { code = 0 })
+    end
+end
