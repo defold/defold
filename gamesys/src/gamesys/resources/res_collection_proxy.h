@@ -1,5 +1,5 @@
-#ifndef DM_GAMESYS_RES_COLLECTION_SPAWN_POINT_H
-#define DM_GAMESYS_RES_COLLECTION_SPAWN_POINT_H
+#ifndef DM_GAMESYS_RES_COLLECTION_PROXY_H
+#define DM_GAMESYS_RES_COLLECTION_PROXY_H
 
 #include <stdint.h>
 
@@ -9,26 +9,26 @@
 
 namespace dmGameSystem
 {
-    struct CollectionSpawnPointResource
+    struct CollectionProxyResource
     {
-        dmGameSystemDDF::CollectionSpawnPointDesc*  m_DDF;
+        dmGameSystemDDF::CollectionProxyDesc*  m_DDF;
     };
 
-    dmResource::CreateResult ResCollectionSpawnPointCreate(dmResource::HFactory factory,
+    dmResource::CreateResult ResCollectionProxyCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::CreateResult ResCollectionSpawnPointDestroy(dmResource::HFactory factory,
+    dmResource::CreateResult ResCollectionProxyDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::CreateResult ResCollectionSpawnPointRecreate(dmResource::HFactory factory,
+    dmResource::CreateResult ResCollectionProxyRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 }
 
-#endif // DM_GAMESYS_RES_COLLECTION_SPAWN_POINT_H
+#endif // DM_GAMESYS_RES_COLLECTION_PROXY_H

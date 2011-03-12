@@ -18,7 +18,7 @@ message SpawnObject
     required dmMath.Quat   Rotation = 2;
 }
 
-message CollectionSpawnPointDesc
+message CollectionProxyDesc
 {
     required string Collection = 1 [(resource)=true];
 }

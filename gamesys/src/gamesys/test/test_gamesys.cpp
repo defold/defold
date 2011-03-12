@@ -178,13 +178,13 @@ INSTANTIATE_TEST_CASE_P(Camera, ComponentTest, ::testing::ValuesIn(valid_camera_
 const char* invalid_camera_gos[] = {"camera/invalid_camera.goc"};
 INSTANTIATE_TEST_CASE_P(Camera, ComponentFailTest, ::testing::ValuesIn(invalid_camera_gos));
 
-/* Collection Spawn Point */
+/* Collection Proxy */
 
-const char* valid_collection_spawn_point_resources[] = {"collection_spawn_point/valid.collectionspawnpointc"};
-INSTANTIATE_TEST_CASE_P(CollectionSpawnPoint, ResourceTest, ::testing::ValuesIn(valid_collection_spawn_point_resources));
+const char* valid_collection_proxy_resources[] = {"collection_proxy/valid.collectionproxyc"};
+INSTANTIATE_TEST_CASE_P(CollectionProxy, ResourceTest, ::testing::ValuesIn(valid_collection_proxy_resources));
 
-const char* valid_collection_spawn_point_gos[] = {"collection_spawn_point/valid_collection_spawn_point.goc"};
-INSTANTIATE_TEST_CASE_P(CollectionSpawnPoint, ComponentTest, ::testing::ValuesIn(valid_collection_spawn_point_gos));
+const char* valid_collection_proxy_gos[] = {"collection_proxy/valid_collection_proxy.goc"};
+INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, ::testing::ValuesIn(valid_collection_proxy_gos));
 
 /* Collision Object */
 
