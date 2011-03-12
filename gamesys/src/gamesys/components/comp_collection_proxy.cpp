@@ -20,7 +20,7 @@ namespace dmGameSystem
         CollectionProxyResource*    m_Resource;
         dmGameObject::HCollection   m_Collection;
         uint32_t                    m_Initialized : 1;
-        uint32_t                    m_Active : 1;
+        uint32_t                    m_Enabled : 1;
         uint32_t                    m_Unload : 1;
     };
 
@@ -118,7 +118,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
-            if (proxy->m_Collection != 0 && proxy->m_Active)
+            if (proxy->m_Collection != 0 && proxy->m_Enabled)
             {
                 if (!dmGameObject::Update(&proxy->m_Collection, update_context, 1))
                     result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -138,7 +138,7 @@ namespace dmGameSystem
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
             if (proxy->m_Collection != 0)
             {
-                if (proxy->m_Active)
+                if (proxy->m_Enabled)
                 {
                     if (!dmGameObject::PostUpdate(&proxy->m_Collection, 1))
                         result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -146,8 +146,7 @@ namespace dmGameSystem
                 if (proxy->m_Unload)
                 {
                     dmResource::Release((dmResource::HFactory)context, proxy->m_Collection);
-                    proxy->m_Collection = 0;
-                    proxy->m_Unload = 0;
+                    memset(proxy, 0, sizeof(CollectionProxyComponent));
                 }
             }
         }
@@ -213,26 +212,31 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("activate"))
+        else if (message_data->m_MessageId == dmHashString64("enable"))
         {
-            if (proxy->m_Active == 0)
+            if (proxy->m_Enabled == 0)
             {
-                proxy->m_Active = 1;
+                proxy->m_Enabled = 1;
+                if (proxy->m_Initialized == 0)
+                {
+                    dmGameObject::Init(proxy->m_Collection);
+                    proxy->m_Initialized = 1;
+                }
             }
             else
             {
-                dmLogWarning("The collection %s could not be activated since it is already active.", proxy->m_Resource->m_DDF->m_Collection);
+                dmLogWarning("The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("deactivate"))
+        else if (message_data->m_MessageId == dmHashString64("disable"))
         {
-            if (proxy->m_Active == 1)
+            if (proxy->m_Enabled == 1)
             {
-                proxy->m_Active = 0;
+                proxy->m_Enabled = 0;
             }
             else
             {
-                dmLogWarning("The collection %s could not be deactivated since it is not active.", proxy->m_Resource->m_DDF->m_Collection);
+                dmLogWarning("The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -244,7 +248,7 @@ namespace dmGameSystem
             uintptr_t* user_data)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *user_data;
-        if (proxy->m_Active && !proxy->m_Unload)
+        if (proxy->m_Enabled && !proxy->m_Unload)
             dmGameObject::DispatchInput(&proxy->m_Collection, 1, (dmGameObject::InputAction*)input_action, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
