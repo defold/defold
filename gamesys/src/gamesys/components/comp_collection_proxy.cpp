@@ -145,8 +145,15 @@ namespace dmGameSystem
                 }
                 if (proxy->m_Unload)
                 {
+                    if (proxy->m_Initialized)
+                    {
+                        dmGameObject::Final(proxy->m_Collection);
+                        proxy->m_Initialized = 0;
+                    }
                     dmResource::Release((dmResource::HFactory)context, proxy->m_Collection);
-                    memset(proxy, 0, sizeof(CollectionProxyComponent));
+                    proxy->m_Collection = 0;
+                    proxy->m_Enabled = 0;
+                    proxy->m_Unload = 0;
                 }
             }
         }
