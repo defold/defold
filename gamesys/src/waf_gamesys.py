@@ -150,28 +150,36 @@ task = Task.task_type_from_func('gameobject',
 
 @extension('.go')
 def gofile(self, node):
-    import google.protobuf.text_format
-    import gameobject_ddf_pb2
-    msg = gameobject_ddf_pb2.PrototypeDesc()
-    with open(node.abspath(self.env), 'rb') as in_f:
-        google.protobuf.text_format.Merge(in_f.read(), msg)
+    try:
+        import google.protobuf.text_format
+        import gameobject_ddf_pb2
+        msg = gameobject_ddf_pb2.PrototypeDesc()
+        with open(node.abspath(self.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
 
-    task = self.create_task('gameobject')
-    task.set_inputs(node)
+        task = self.create_task('gameobject')
+        task.set_inputs(node)
 
-    embed_output_nodes = []
-    for i, c in enumerate(msg.EmbeddedComponents):
-        name = '%s_generated_%d.%s' % (node.name.split('.')[0], i, c.Type)
-        embed_node = node.parent.exclusive_build_node(name)
-        embed_output_nodes.append(embed_node)
+        embed_output_nodes = []
+        for i, c in enumerate(msg.EmbeddedComponents):
+            name = '%s_generated_%d.%s' % (node.name.split('.')[0], i, c.Type)
+            embed_node = node.parent.exclusive_build_node(name)
+            embed_output_nodes.append(embed_node)
 
-        sub_task = self.create_task(c.Type)
-        sub_task.set_inputs(embed_node)
-        out = embed_node.change_ext('.' + c.Type + 'c')
-        sub_task.set_outputs(out)
-        sub_task.set_run_after(task)
-    out = node.change_ext('.goc')
-    task.set_outputs([out] + embed_output_nodes)
+            sub_task = self.create_task(c.Type)
+            sub_task.set_inputs(embed_node)
+            out = embed_node.change_ext('.' + c.Type + 'c')
+            sub_task.set_outputs(out)
+            sub_task.set_run_after(task)
+        out = node.change_ext('.goc')
+        task.set_outputs([out] + embed_output_nodes)
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (node.srcpath(self.env), str(e))
+        finally:
+            stderr_lock.release()
+        return 1
 
 proto_compile_task('collection', 'gameobject_ddf_pb2', 'CollectionDesc', '.collection', '.collectionc', transform_collection)
 proto_compile_task('collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc', '.collectionproxy', '.collectionproxyc', transform_collectionproxy)
