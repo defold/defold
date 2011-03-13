@@ -953,11 +953,6 @@ namespace dmGameObject
         assert(instance_message_data->m_Instance);
 
         Instance* instance = instance_message_data->m_Instance;
-        if (instance->m_ToBeDeleted)
-        {
-            dmLogWarning("Message sent to game object (%llX) that will be deleted, message ignored.", instance->m_Identifier);
-            return;
-        }
         Prototype* prototype = instance->m_Prototype;
         // Broadcast to all components
         if (instance_message_data->m_Component == 0xff)
