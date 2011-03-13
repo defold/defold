@@ -264,14 +264,14 @@ TEST_F(ComponentTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
-    bool ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
-    ret = dmGameObject::PostUpdate(&m_Collection, 1);
+    ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::Delete(m_Collection, go);
-    ret = dmGameObject::PostUpdate(&m_Collection, 1);
+    ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -295,10 +295,10 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
 
     dmGameObject::Delete(m_Collection, go);
 
-    bool ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
-    ASSERT_TRUE(dmGameObject::PostUpdate(&m_Collection, 1));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 }
 
 TEST_F(ComponentTest, TestNonexistingComponent)
@@ -346,7 +346,7 @@ TEST_F(ComponentTest, TestComponentUserdata)
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Delete(m_Collection, go);
-    bool ret = dmGameObject::PostUpdate(&m_Collection, 1);
+    bool ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     // Two a:s
     ASSERT_EQ(2, m_ComponentUserDataAcc[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -360,7 +360,7 @@ TEST_F(ComponentTest, TestUpdateOrder)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
-    bool ret = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateOrderMap[TestGameObjectDDF::BResource::m_DDFHash]);

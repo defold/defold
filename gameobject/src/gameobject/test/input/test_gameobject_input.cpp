@@ -164,7 +164,7 @@ TEST_F(InputTest, TestComponentInput)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    r = dmGameObject::DispatchInput(m_Collection, &action, 1);
 
     ASSERT_EQ(1U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
@@ -175,7 +175,7 @@ TEST_F(InputTest, TestComponentInput)
     action.m_Released = 1;
     action.m_Repeated = 0;
 
-    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    r = dmGameObject::DispatchInput(m_Collection, &action, 1);
 
     ASSERT_EQ(2U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
@@ -195,7 +195,7 @@ TEST_F(InputTest, TestComponentInput2)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
@@ -214,7 +214,7 @@ TEST_F(InputTest, TestComponentInput3)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, r);
 }
@@ -227,7 +227,7 @@ TEST_F(InputTest, TestDeleteFocusInstance)
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
     dmGameObject::Delete(m_Collection, go);
-    dmGameObject::PostUpdate(&m_Collection, 1);
+    dmGameObject::PostUpdate(m_Collection);
 
     dmGameObject::UpdateResult r;
 
@@ -238,7 +238,7 @@ TEST_F(InputTest, TestDeleteFocusInstance)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    r = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    r = dmGameObject::DispatchInput(m_Collection, &action, 1);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);

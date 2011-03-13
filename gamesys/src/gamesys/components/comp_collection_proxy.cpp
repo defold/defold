@@ -120,7 +120,7 @@ namespace dmGameSystem
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
             if (proxy->m_Collection != 0 && proxy->m_Enabled)
             {
-                if (!dmGameObject::Update(&proxy->m_Collection, update_context, 1))
+                if (!dmGameObject::Update(proxy->m_Collection, update_context))
                     result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
@@ -140,7 +140,7 @@ namespace dmGameSystem
             {
                 if (proxy->m_Enabled)
                 {
-                    if (!dmGameObject::PostUpdate(&proxy->m_Collection, 1))
+                    if (!dmGameObject::PostUpdate(proxy->m_Collection))
                         result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                 }
                 if (proxy->m_Unload)
@@ -256,7 +256,7 @@ namespace dmGameSystem
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *user_data;
         if (proxy->m_Enabled && !proxy->m_Unload)
-            dmGameObject::DispatchInput(&proxy->m_Collection, 1, (dmGameObject::InputAction*)input_action, 1);
+            dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)input_action, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 }

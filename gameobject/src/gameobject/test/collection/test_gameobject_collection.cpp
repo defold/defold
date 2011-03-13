@@ -63,7 +63,7 @@ TEST_F(CollectionTest, Collection)
         ASSERT_NE((void*) 0, go02);
 
         dmGameObject::Init(coll);
-        dmGameObject::Update(&coll, 0, 1);
+        dmGameObject::Update(coll, 0);
 
         ASSERT_NE(go01, go02);
 
@@ -90,8 +90,9 @@ TEST_F(CollectionTest, PostCollection)
         dmGameObject::Init(coll1);
         dmGameObject::Init(coll2);
 
-        dmGameObject::HCollection collections[2] = {coll1, coll2};
-        ret = dmGameObject::Update(collections, 0, 2);
+        ret = dmGameObject::Update(coll1, 0);
+        ASSERT_TRUE(ret);
+        ret = dmGameObject::Update(coll2, 0);
         ASSERT_TRUE(ret);
 
         dmResource::Release(m_Factory, (void*) coll1);
@@ -134,7 +135,7 @@ TEST_F(CollectionTest, CollectionInCollection)
 
         ASSERT_NE(go01, go02);
 
-        ASSERT_TRUE(dmGameObject::Update(&coll, 0x0, 1));
+        ASSERT_TRUE(dmGameObject::Update(coll, 0x0));
 
 #define ASSERT_P3_NEAR(expected, actual)\
     ASSERT_NEAR(expected.getX(), actual.getX(), 0.001f);\
@@ -182,7 +183,7 @@ TEST_F(CollectionTest, CollectionInCollection)
         ASSERT_EQ(dmHashString64("sub1.a"), dmGameObject::GetAbsoluteIdentifier(parent_sub1, "a"));
         ASSERT_EQ(dmHashString64("sub2.a"), dmGameObject::GetAbsoluteIdentifier(parent_sub2, "a"));
 
-        bool ret = dmGameObject::Update(&coll, 0, 1);
+        bool ret = dmGameObject::Update(coll, 0);
         ASSERT_TRUE(ret);
 
         dmResource::Release(m_Factory, (void*) coll);

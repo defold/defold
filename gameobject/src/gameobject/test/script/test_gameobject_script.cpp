@@ -63,7 +63,7 @@ TEST_F(ScriptTest, TestScriptProperty)
     dmGameObject::SetScriptStringProperty(go, "my_string_prop", "a string prop");
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameObject::Delete(m_Collection, go);
@@ -113,7 +113,7 @@ TEST_F(ScriptTest, TestScript01)
 
     dmGameObject::Init(m_Collection);
 
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     dmMessage::HSocket socket = dmGameObject::GetMessageSocket(m_Register);
     dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(m_Register);
@@ -124,7 +124,7 @@ TEST_F(ScriptTest, TestScript01)
 
     ASSERT_TRUE(context.m_Result);
 
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     // Final dispatch to deallocate message data
     dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
     dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &context);
@@ -138,7 +138,7 @@ TEST_F(ScriptTest, TestScript01)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go);
@@ -166,7 +166,7 @@ TEST_F(ScriptTest, TestFailingScript03)
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    ASSERT_FALSE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     dmGameObject::Delete(m_Collection, go);
 }
@@ -218,7 +218,7 @@ TEST_F(ScriptTest, TestReload)
     go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
 
-    dmGameObject::Update(&m_Collection, 0, 1);
+    dmGameObject::Update(m_Collection, 0);
     Point3 p1 = dmGameObject::GetPosition(go);
     ASSERT_EQ(1, p1.getX());
     ASSERT_EQ(2, p1.getY());
@@ -234,7 +234,7 @@ TEST_F(ScriptTest, TestReload)
     dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
 
-    dmGameObject::Update(&m_Collection, 0, 1);
+    dmGameObject::Update(m_Collection, 0);
     Point3 p2 = dmGameObject::GetPosition(go);
     ASSERT_EQ(10, p2.getX());
     ASSERT_EQ(20, p2.getY());
@@ -266,9 +266,9 @@ TEST_F(ScriptTest, Null)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(&m_Collection, 1, &action, 1));
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
 
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go);

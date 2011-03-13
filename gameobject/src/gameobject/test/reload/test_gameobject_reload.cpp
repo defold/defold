@@ -215,7 +215,7 @@ TEST_F(ReloadTest, TestComponentReload)
     ReloadTargetWorld* world = m_World;
     ReloadTargetComponent* component = m_World->m_Component;
 
-    bool r = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
+    bool r = dmGameObject::Update(m_Collection, &m_UpdateContext);
 
     ASSERT_FALSE(r);
 
@@ -234,7 +234,7 @@ TEST_F(ReloadTest, TestComponentReload)
     rr = dmResource::ReloadResource(m_Factory, "component_reload.scriptc", 0);
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
 
-    r = dmGameObject::Update(&m_Collection, &m_UpdateContext, 1);
+    r = dmGameObject::Update(m_Collection, &m_UpdateContext);
 
     ASSERT_TRUE(r);
 

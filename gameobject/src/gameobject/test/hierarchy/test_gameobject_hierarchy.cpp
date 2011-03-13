@@ -83,9 +83,9 @@ TEST_F(HierarchyTest, TestHierarchy1)
         ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
 
         bool ret;
-        ret = dmGameObject::Update(&m_Collection, 0, 1);
+        ret = dmGameObject::Update(m_Collection, 0);
         ASSERT_TRUE(ret);
-        ret = dmGameObject::PostUpdate(&m_Collection, 1);
+        ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);
 
         Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
@@ -96,23 +96,23 @@ TEST_F(HierarchyTest, TestHierarchy1)
         if (i % 2 == 0)
         {
             dmGameObject::Delete(m_Collection, parent);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
             ASSERT_EQ(0U, dmGameObject::GetDepth(child));
             ASSERT_EQ(0U, dmGameObject::GetChildCount(child));
             dmGameObject::Delete(m_Collection, child);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
         else
         {
             dmGameObject::Delete(m_Collection, child);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
             ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
             ASSERT_EQ(0U, dmGameObject::GetChildCount(parent));
             dmGameObject::Delete(m_Collection, parent);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
     }
@@ -158,7 +158,7 @@ TEST_F(HierarchyTest, TestHierarchy2)
     ASSERT_EQ(2U, dmGameObject::GetDepth(child_child));
 
     bool ret;
-    ret = dmGameObject::Update(&m_Collection, 0, 1);
+    ret = dmGameObject::Update(m_Collection, 0);
     ASSERT_TRUE(ret);
 
     Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
@@ -209,35 +209,35 @@ TEST_F(HierarchyTest, TestHierarchy3)
         ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
 
         bool ret;
-        ret = dmGameObject::Update(&m_Collection, 0, 1);
+        ret = dmGameObject::Update(m_Collection, 0);
         ASSERT_TRUE(ret);
-        ret = dmGameObject::PostUpdate(&m_Collection, 1);
+        ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);
 
         // Test all possible delete orders in this configuration
         if (i == 0)
         {
             dmGameObject::Delete(m_Collection, parent);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(m_Collection, child1);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(m_Collection, child2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
         else if (i == 1)
         {
             dmGameObject::Delete(m_Collection, child1);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
@@ -245,19 +245,19 @@ TEST_F(HierarchyTest, TestHierarchy3)
             ASSERT_EQ(1U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(m_Collection, parent);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child2));
 
             dmGameObject::Delete(m_Collection, child2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
         else if (i == 2)
         {
             dmGameObject::Delete(m_Collection, child2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetChildCount(parent));
@@ -265,13 +265,13 @@ TEST_F(HierarchyTest, TestHierarchy3)
             ASSERT_EQ(1U, dmGameObject::GetDepth(child1));
 
             dmGameObject::Delete(m_Collection, parent);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
 
             dmGameObject::Delete(m_Collection, child1);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
         else
@@ -375,7 +375,7 @@ TEST_F(HierarchyTest, TestHierarchy7)
     ASSERT_EQ(child1, dmGameObject::GetParent(child2));
 
     dmGameObject::Delete(m_Collection, child1);
-    bool ret = dmGameObject::PostUpdate(&m_Collection, 1);
+    bool ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     ASSERT_EQ(parent, dmGameObject::GetParent(child2));
     ASSERT_TRUE(dmGameObject::IsChildOf(child2, parent));
@@ -415,9 +415,9 @@ TEST_F(HierarchyTest, TestHierarchy8)
         ASSERT_EQ(b2, dmGameObject::GetParent(d3));
 
         bool ret;
-        ret = dmGameObject::Update(&m_Collection, 0, 1);
+        ret = dmGameObject::Update(m_Collection, 0);
         ASSERT_TRUE(ret);
-        ret = dmGameObject::PostUpdate(&m_Collection, 1);
+        ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);
 
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(b2, c2));
@@ -444,22 +444,22 @@ TEST_F(HierarchyTest, TestHierarchy8)
         {
             ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
             dmGameObject::Delete(m_Collection, a1);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
             dmGameObject::Delete(m_Collection, c2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(b2));
             dmGameObject::Delete(m_Collection, b2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(m_Collection, d3);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
         else
@@ -467,13 +467,13 @@ TEST_F(HierarchyTest, TestHierarchy8)
             ASSERT_EQ(0U, dmGameObject::GetDepth(a1));
             ASSERT_EQ(3U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(m_Collection, a1);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(1U, dmGameObject::GetDepth(b2));
             ASSERT_EQ(2U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(m_Collection, b2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
             ASSERT_EQ(c2, dmGameObject::GetParent(d3));
             ASSERT_TRUE(dmGameObject::IsChildOf(d3, c2));
@@ -481,12 +481,12 @@ TEST_F(HierarchyTest, TestHierarchy8)
             ASSERT_EQ(0U, dmGameObject::GetDepth(c2));
             ASSERT_EQ(1U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(m_Collection, c2);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
 
             ASSERT_EQ(0U, dmGameObject::GetDepth(d3));
             dmGameObject::Delete(m_Collection, d3);
-            ret = dmGameObject::PostUpdate(&m_Collection, 1);
+            ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
         }
     }

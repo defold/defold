@@ -100,7 +100,6 @@ public:
 const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
 const static dmhash_t POST_DDF_ID = dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
-const static dmhash_t POST_DDF_TO_INST_ID = dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_ScriptName);
 
 dmResource::CreateResult MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
 {
@@ -188,7 +187,7 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
 TEST_F(MessageTest, TestPostNamed)
 {
     dmGameObject::PostNamedMessage(m_Register, POST_NAMED_ID);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(1U, m_MessageMap[POST_NAMED_ID]);
 }
 
@@ -197,7 +196,7 @@ TEST_F(MessageTest, TestPostDDF)
     TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
     dmGameObject::PostDDFMessage(m_Register, TestGameObjectDDF::TestMessage::m_DDFDescriptor, (char*)&ddf);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageMap[POST_DDF_ID]);
 }
 
@@ -205,7 +204,7 @@ TEST_F(MessageTest, TestPostNamedTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
     dmGameObject::PostNamedMessageTo(instance, 0, POST_NAMED_TO_INST_ID, 0x0, 0);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 }
 
 TEST_F(MessageTest, TestPostDDFTo)
@@ -214,7 +213,7 @@ TEST_F(MessageTest, TestPostDDFTo)
     TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
     dmGameObject::PostDDFMessageTo(instance, 0, TestGameObjectDDF::TestMessage::m_DDFDescriptor, (char*)&ddf);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 }
 
 TEST_F(MessageTest, TestTable)
@@ -222,7 +221,7 @@ TEST_F(MessageTest, TestTable)
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_table.goc");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_table_instance"));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, &m_UpdateContext, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmGameObject::Delete(m_Collection, instance);
 }
 
@@ -241,15 +240,15 @@ TEST_F(MessageTest, TestComponentMessage)
     r = dmGameObject::PostNamedMessageTo(go, "mt", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
     r = dmGameObject::PostNamedMessageTo(go, "mt", dmHashString64("inc"), 0x0, 0);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
 
     dmGameObject::Delete(m_Collection, go);
 }
@@ -273,11 +272,11 @@ TEST_F(MessageTest, TestBroadcastMessage)
     action.m_Released = 0;
     action.m_Repeated = 1;
 
-    dmGameObject::UpdateResult update_result = dmGameObject::DispatchInput(&m_Collection, 1, &action, 1);
+    dmGameObject::UpdateResult update_result = dmGameObject::DispatchInput(m_Collection, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, update_result);
 
-    ASSERT_TRUE(dmGameObject::Update(&m_Collection, 0, 1));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
 
     dmGameObject::Delete(m_Collection, go);
 }

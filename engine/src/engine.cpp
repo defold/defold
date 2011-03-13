@@ -455,13 +455,12 @@ bail:
                 dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, &engine->m_InputBuffer);
                 if (engine->m_InputBuffer.Size() > 0)
                 {
-                    dmGameObject::DispatchInput(&engine->m_MainCollection, 1, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
+                    dmGameObject::DispatchInput(engine->m_MainCollection, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
                 }
 
-                dmGameObject::UpdateContext update_contexts[2];
-                update_contexts[0].m_DT = dt;
-                update_contexts[1].m_DT = fixed_dt;
-                dmGameObject::Update(&engine->m_MainCollection, update_contexts, 1);
+                dmGameObject::UpdateContext update_context;
+                update_context.m_DT = dt;
+                dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 if (engine->m_RenderScriptPrototype)
                 {
@@ -474,7 +473,7 @@ bail:
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
 
-                dmGameObject::PostUpdate(&engine->m_MainCollection, 1);
+                dmGameObject::PostUpdate(engine->m_MainCollection);
 
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }

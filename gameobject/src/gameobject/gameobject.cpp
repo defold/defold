@@ -1106,32 +1106,15 @@ namespace dmGameObject
         }
     }
 
-    bool Update(HCollection* collections, const UpdateContext* update_contexts, uint32_t collection_count)
+    bool Update(HCollection collection, const UpdateContext* update_context)
     {
         DM_PROFILE(GameObject, "Update");
 
-        if (collection_count == 0)
-            return true;
-
-        assert(collections != 0x0);
-        HRegister reg = 0;
-        for (uint32_t i = 0; i < collection_count; ++i)
-        {
-            if (collections[i])
-            {
-                DM_COUNTER("GameObjects", collections[i]->m_InstanceIndices.Size());
-
-                if (reg)
-                    assert(reg == collections[i]->m_Register);
-                else
-                    reg = collections[i]->m_Register;
-            }
-        }
+        assert(collection != 0x0);
+        HRegister reg = collection->m_Register;
         assert(reg);
 
-        for (uint32_t i = 0; i < collection_count; ++i)
-            if (collections[i])
-                collections[i]->m_InUpdate = 1;
+        collection->m_InUpdate = 1;
 
         bool ret = true;
 
@@ -1146,32 +1129,20 @@ namespace dmGameObject
             if (component_type->m_UpdateFunction)
             {
                 DM_PROFILE(GameObject, component_type->m_Name);
-                for (uint32_t j = 0; j < collection_count; ++j)
-                {
-                    if (collections[j] == 0)
-                        continue;
-                    const UpdateContext* update_context = 0x0;
-                    if (update_contexts != 0)
-                        update_context = &update_contexts[j];
-                    UpdateResult res = component_type->m_UpdateFunction(collections[j], update_context, collections[j]->m_ComponentWorlds[update_index], component_type->m_Context);
-                    if (res != UPDATE_RESULT_OK)
-                        ret = false;
-                }
+                UpdateResult res = component_type->m_UpdateFunction(collection, update_context, collection->m_ComponentWorlds[update_index], component_type->m_Context);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
             }
             // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
             // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
             // into UpdateTrasform, then Update or similar
-            for (uint32_t j = 0; j < collection_count; ++j)
-                if (collections[j])
-                    UpdateTransforms(collections[j]);
+            UpdateTransforms(collection);
 
             if (!DispatchMessages(reg))
                 ret = false;
         }
 
-        for (uint32_t i = 0; i < collection_count; ++i)
-            if (collections[i])
-                collections[i]->m_InUpdate = 0;
+        collection->m_InUpdate = 0;
 
         return ret;
     }
@@ -1201,28 +1172,49 @@ namespace dmGameObject
         }
     }
 
-    bool PostUpdate(HCollection* collections, uint32_t collection_count)
+    bool PostUpdate(HCollection collection)
     {
         DM_PROFILE(GameObject, "PostUpdate");
 
-        if (collection_count == 0)
-            return true;
-
-        assert(collections != 0x0);
-        HRegister reg = 0;
-        for (uint32_t i = 0; i < collection_count; ++i)
-        {
-            if (collections[i])
-            {
-                if (reg)
-                    assert(reg == collections[i]->m_Register);
-                else
-                    reg = collections[i]->m_Register;
-            }
-        }
+        assert(collection != 0x0);
+        HRegister reg = collection->m_Register;
         assert(reg);
 
         bool ret = true;
+
+        if (collection->m_InstancesToDelete.Size() > 0)
+        {
+            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
+            for (uint32_t j = 0; j < n_to_delete; ++j)
+            {
+                uint16_t index = collection->m_InstancesToDelete[j];
+                Instance* instance = collection->m_Instances[index];
+
+                assert(collection->m_Instances[instance->m_Index] == instance);
+                assert(instance->m_ToBeDeleted);
+                if (instance->m_Initialized)
+                    Final(collection, instance);
+            }
+        }
+
+        if (!DispatchMessages(reg))
+            ret = false;
+
+        if (collection->m_InstancesToDelete.Size() > 0)
+        {
+            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
+            for (uint32_t j = 0; j < n_to_delete; ++j)
+            {
+                uint16_t index = collection->m_InstancesToDelete[j];
+                Instance* instance = collection->m_Instances[index];
+
+                assert(collection->m_Instances[instance->m_Index] == instance);
+                assert(instance->m_ToBeDeleted);
+                DoDelete(collection, instance);
+            }
+            collection->m_InstancesToDelete.SetSize(0);
+        }
+
         uint32_t component_types = reg->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
@@ -1232,100 +1224,37 @@ namespace dmGameObject
             if (component_type->m_PostUpdateFunction)
             {
                 DM_PROFILE(GameObject, component_type->m_Name);
-                for (uint32_t j = 0; j < collection_count; ++j)
-                {
-                    if (collections[j] == 0)
-                        continue;
-                    UpdateResult res = component_type->m_PostUpdateFunction(collections[j], collections[j]->m_ComponentWorlds[update_index], component_type->m_Context);
-                    if (res != UPDATE_RESULT_OK)
-                        ret = false;
-                }
+                UpdateResult res = component_type->m_PostUpdateFunction(collection, collection->m_ComponentWorlds[update_index], component_type->m_Context);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
             }
         }
 
-        for (uint32_t i = 0; i < collection_count; ++i)
-        {
-            if (collections[i])
-            {
-                (void) dmMessage::Dispatch(collections[i]->m_Register->m_SpawnSocketId, DispatchCallback, collections[i]->m_Register);
-                break;
-            }
-        }
-        for (uint32_t i = 0; i < collection_count; ++i)
-        {
-            HCollection collection = collections[i];
-            if (collection == 0x0)
-                continue;
-            if (collection->m_InstancesToDelete.Size() > 0)
-            {
-                uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
-                for (uint32_t j = 0; j < n_to_delete; ++j)
-                {
-                    uint16_t index = collection->m_InstancesToDelete[j];
-                    Instance* instance = collection->m_Instances[index];
-
-                    assert(collection->m_Instances[instance->m_Index] == instance);
-                    assert(instance->m_ToBeDeleted);
-                    if (instance->m_Initialized)
-                        Final(collection, instance);
-                }
-            }
-        }
-        if (!DispatchMessages(reg))
-            ret = false;
-        for (uint32_t i = 0; i < collection_count; ++i)
-        {
-            HCollection collection = collections[i];
-            if (collection == 0x0)
-                continue;
-            if (collection->m_InstancesToDelete.Size() > 0)
-            {
-                uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
-                for (uint32_t j = 0; j < n_to_delete; ++j)
-                {
-                    uint16_t index = collection->m_InstancesToDelete[j];
-                    Instance* instance = collection->m_Instances[index];
-
-                    assert(collection->m_Instances[instance->m_Index] == instance);
-                    assert(instance->m_ToBeDeleted);
-                    DoDelete(collection, instance);
-                }
-                collection->m_InstancesToDelete.SetSize(0);
-            }
-        }
+        (void) dmMessage::Dispatch(reg->m_SpawnSocketId, DispatchCallback, reg);
 
         return ret;
     }
 
-    UpdateResult DispatchInput(HCollection* collections, uint32_t collection_count, InputAction* input_actions, uint32_t input_action_count)
+    UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count)
     {
         DM_PROFILE(GameObject, "DispatchInput");
-        // clean stacks
-        for (uint32_t i = 0; i < collection_count; ++i)
+        // clean stack
+        HInstance instance = 0x0;
+        while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
         {
-            HCollection collection = collections[i];
-            if (collection == 0x0)
-                continue;
-            HInstance instance = 0x0;
-            while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
+            instance = collection->m_FocusStack.Top();
+            if (instance == 0x0 || instance->m_ToBeDeleted)
             {
-                instance = collection->m_FocusStack.Top();
-                if (instance == 0x0 || instance->m_ToBeDeleted)
-                {
-                    collection->m_FocusStack.Pop();
-                    instance = 0x0;
-                }
+                collection->m_FocusStack.Pop();
+                instance = 0x0;
             }
         }
         // iterate stacks from top to bottom
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
             InputAction& input_action = input_actions[i];
-            for (uint32_t j = 0; j < collection_count && input_action.m_ActionId != 0; ++j)
+            if (input_action.m_ActionId != 0)
             {
-                HCollection collection = collections[j];
-                if (collection == 0x0)
-                    continue;
                 uint32_t stack_size = collection->m_FocusStack.Size();
                 for (uint32_t k = 0; k < stack_size && input_action.m_ActionId != 0; ++k)
                 {
