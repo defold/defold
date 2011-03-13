@@ -47,10 +47,6 @@ namespace dmEngine
         float                                       m_MouseSensitivity;
         bool                                        m_ShowProfile;
 
-        bool                                        m_WarpTimeStep;
-        float                                       m_TimeStepFactor;
-        dmEngineDDF::TimeStepMode                   m_TimeStepMode;
-
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;

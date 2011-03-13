@@ -11,17 +11,22 @@
 
 #include <gameobject/gameobject.h>
 
+#include "gamesys_ddf.h"
+
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
     struct CollectionProxyComponent
     {
-        CollectionProxyResource*    m_Resource;
-        dmGameObject::HCollection   m_Collection;
-        uint32_t                    m_Initialized : 1;
-        uint32_t                    m_Enabled : 1;
-        uint32_t                    m_Unload : 1;
+        CollectionProxyResource*        m_Resource;
+        dmGameObject::HCollection       m_Collection;
+        dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
+        float                           m_TimeStepFactor;
+        float                           m_AccumulatedTime;
+        uint32_t                        m_Initialized : 1;
+        uint32_t                        m_Enabled : 1;
+        uint32_t                        m_Unload : 1;
     };
 
     struct CollectionProxyWorld
@@ -73,6 +78,7 @@ namespace dmGameSystem
             uint32_t index = proxy_world->m_IndexPool.Pop();
             CollectionProxyComponent* proxy = &proxy_world->m_Components[index];
             memset(proxy, 0, sizeof(CollectionProxyComponent));
+            proxy->m_TimeStepFactor = 1.0f;
             proxy->m_Resource = (CollectionProxyResource*) resource;
             *user_data = (uintptr_t) proxy;
             // TODO: This is done to ensure the focus is acquired before any scripts etc to be the last to receive it.. not pretty.
@@ -118,10 +124,42 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
-            if (proxy->m_Collection != 0 && proxy->m_Enabled)
+            if (proxy->m_Collection != 0)
             {
-                if (!dmGameObject::Update(proxy->m_Collection, update_context))
-                    result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                if (proxy->m_Enabled)
+                {
+                    dmGameObject::UpdateContext uc;
+
+                    float warped_dt = update_context->m_DT * proxy->m_TimeStepFactor;
+                    switch (proxy->m_TimeStepMode)
+                    {
+                    case dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS:
+                        uc.m_DT = warped_dt;
+                        proxy->m_AccumulatedTime = 0.0f;
+                        break;
+                    case dmGameSystemDDF::TIME_STEP_MODE_DISCRETE:
+                        proxy->m_AccumulatedTime += warped_dt;
+                        if (proxy->m_AccumulatedTime >= update_context->m_DT)
+                        {
+                            uc.m_DT = update_context->m_DT;
+                            proxy->m_AccumulatedTime -= update_context->m_DT;
+                        }
+                        else
+                        {
+                            uc.m_DT = 0.0f;
+                        }
+                        break;
+                    default:
+                        break;
+                    }
+
+                    if (!dmGameObject::Update(proxy->m_Collection, &uc))
+                        result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                }
+                else
+                {
+                    proxy->m_AccumulatedTime = 0.0f;
+                }
             }
         }
         return result;
@@ -245,6 +283,17 @@ namespace dmGameSystem
             {
                 dmLogWarning("The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
             }
+        }
+        else if (message_data->m_DDFDescriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
+        {
+            dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)message_data->m_Buffer;
+            proxy->m_TimeStepFactor = ddf->m_Factor;
+            proxy->m_TimeStepMode = ddf->m_Mode;
+        }
+        else if (message_data->m_MessageId == dmHashString64("reset_time_step"))
+        {
+            proxy->m_TimeStepFactor = 1.0f;
+            proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

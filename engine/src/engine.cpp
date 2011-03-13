@@ -92,9 +92,6 @@ namespace dmEngine
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
     , m_ShowProfile(false)
-    , m_WarpTimeStep(false)
-    , m_TimeStepFactor(1.0f)
-    , m_TimeStepMode(dmEngineDDF::TIME_STEP_MODE_DISCRETE)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_Factory(0x0)
@@ -388,8 +385,7 @@ bail:
     {
         const float fps = 60.0f;
         float actual_fps = fps;
-
-        float accumulated_time = 0.0f;
+        float fixed_dt = 1.0f / fps;
 
         uint64_t time_stamp = dmTime::GetTime();
 
@@ -421,35 +417,7 @@ bail:
                     break;
                 }
 
-                float fixed_dt = 1.0f / fps;
-                float dt = fixed_dt;
-
                 dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
-
-                if (engine->m_WarpTimeStep)
-                {
-                    float warped_dt = dt * engine->m_TimeStepFactor;
-                    switch (engine->m_TimeStepMode)
-                    {
-                    case dmEngineDDF::TIME_STEP_MODE_CONTINUOUS:
-                        dt = warped_dt;
-                        break;
-                    case dmEngineDDF::TIME_STEP_MODE_DISCRETE:
-                        accumulated_time += warped_dt;
-                        if (accumulated_time >= fixed_dt)
-                        {
-                            dt = fixed_dt + accumulated_time - fixed_dt;
-                            accumulated_time = 0.0f;
-                        }
-                        else
-                        {
-                            dt = 0.0f;
-                        }
-                        break;
-                    default:
-                        break;
-                    }
-                }
 
                 engine->m_InputBuffer.SetSize(0);
                 dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, &engine->m_InputBuffer);
@@ -459,7 +427,7 @@ bail:
                 }
 
                 dmGameObject::UpdateContext update_context;
-                update_context.m_DT = dt;
+                update_context.m_DT = fixed_dt;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 if (engine->m_RenderScriptPrototype)
@@ -617,13 +585,6 @@ bail:
             dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*) instance_message_data->m_Buffer;
             dmRender::Line3D(self->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
         }
-        else if (instance_message_data->m_DDFDescriptor == dmEngineDDF::SetTimeStep::m_DDFDescriptor)
-        {
-            dmEngineDDF::SetTimeStep* ddf = (dmEngineDDF::SetTimeStep*)instance_message_data->m_Buffer;
-            self->m_TimeStepFactor = ddf->m_Factor;
-            self->m_TimeStepMode = ddf->m_Mode;
-            self->m_WarpTimeStep = true;
-        }
         else if (instance_message_data->m_DDFDescriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
         {
             dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -638,10 +599,6 @@ bail:
             if (instance_message_data->m_MessageId == dmHashString64("toggle_profile"))
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
-            }
-            else if (instance_message_data->m_MessageId == dmHashString64("reset_time_step"))
-            {
-                self->m_WarpTimeStep = false;
             }
             else
             {
@@ -667,7 +624,6 @@ bail:
         dmGameSystem::RegisterDDFTypes();
 
         dmGameObject::RegisterDDFType(dmEngineDDF::Exit::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmEngineDDF::SetTimeStep::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawText::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmRenderDDF::DrawLine::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmModelDDF::SetTexture::m_DDFDescriptor);

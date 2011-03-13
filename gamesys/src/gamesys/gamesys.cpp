@@ -52,6 +52,7 @@ namespace dmGameSystem
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
+        dmGameObject::RegisterDDFType(dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
         dmGameObject::RegisterDDFType(dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
     }

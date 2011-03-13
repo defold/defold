@@ -23,6 +23,18 @@ message CollectionProxyDesc
     required string Collection = 1 [(resource)=true];
 }
 
+enum TimeStepMode
+{
+    TIME_STEP_MODE_CONTINUOUS = 0;
+    TIME_STEP_MODE_DISCRETE = 1;
+}
+
+message SetTimeStep
+{
+    required float Factor = 1;
+    required TimeStepMode Mode = 2;
+}
+
 enum LightType
 {
     POINT = 0;
