@@ -59,6 +59,7 @@ public class ProtoTreeEditor implements Listener {
     private UndoContext undoContext;
     private IResourceType resourceType;
     private Menu menu;
+    private ArrayList<IProtoListener> listeners;
 
     class ResourceDialogCellEditor extends DialogCellEditor {
 
@@ -104,12 +105,14 @@ public class ProtoTreeEditor implements Listener {
         private TextCellEditor textEditor;
         private ResourceDialogCellEditor resourceEditor;
         private EnumCellEditor enumEditor;
+        private ProtoTreeEditor editor;
 
-        public ProtoFieldEditingSupport(TreeViewer viewer) {
+        public ProtoFieldEditingSupport(ProtoTreeEditor editor, TreeViewer viewer) {
             super(viewer);
             textEditor = new TextCellEditor(viewer.getTree());
             resourceEditor = new ResourceDialogCellEditor(treeViewer.getTree());
             enumEditor = new EnumCellEditor(viewer.getTree());
+            this.editor = editor;
         }
 
         @Override
@@ -220,7 +223,7 @@ public class ProtoTreeEditor implements Listener {
             if (oldValue.equals(value))
                 return;
 
-            SetFieldOperation op = new SetFieldOperation(treeViewer, message, fieldPath, oldValue, value);
+            SetFieldOperation op = new SetFieldOperation(this.editor, treeViewer, message, fieldPath, oldValue, value);
             executeOperation(op);
             getViewer().update(element, null);
         }
@@ -259,7 +262,7 @@ public class ProtoTreeEditor implements Listener {
         });
 
         TreeViewerColumn valueColumn = new TreeViewerColumn(treeViewer, SWT.NONE);
-        valueColumn.setEditingSupport(new ProtoFieldEditingSupport(treeViewer));
+        valueColumn.setEditingSupport(new ProtoFieldEditingSupport(this, treeViewer));
 
         valueColumn.setLabelProvider(new ColumnLabelProvider() {
             @Override
@@ -307,6 +310,11 @@ public class ProtoTreeEditor implements Listener {
 
         this.treeViewer.getTree().setMenu(menu);
 
+        this.listeners = new ArrayList<IProtoListener>();
+    }
+
+    public TreeViewer getTreeViewer() {
+        return treeViewer;
     }
 
     public void executeOperation(IUndoableOperation operation) {
@@ -395,6 +403,20 @@ public class ProtoTreeEditor implements Listener {
                 RemoveRepeatedOperation op = new RemoveRepeatedOperation(treeViewer, message, path, oldList);
                 executeOperation(op);
             }
+        }
+    }
+
+    public void addListener(IProtoListener listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(IProtoListener listener) {
+        listeners.remove(listener);
+    }
+
+    public void fireFieldChanged(MessageNode messageNode, IPath field) {
+        for (IProtoListener listener : listeners) {
+            listener.fieldChanged(messageNode, field);
         }
     }
 

@@ -8,6 +8,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.TreeViewer;
 
+import com.dynamo.cr.ddfeditor.ProtoTreeEditor;
 import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 
@@ -18,14 +19,16 @@ public class SetFieldOperation extends AbstractOperation {
     private Object newValue;
     private MessageNode message;
     private TreeViewer viewer;
+    private ProtoTreeEditor editor;
 
-    public SetFieldOperation(TreeViewer viewer, MessageNode message, IPath path, Object oldValue, Object newValue) {
+    public SetFieldOperation(ProtoTreeEditor editor, TreeViewer viewer, MessageNode message, IPath path, Object oldValue, Object newValue) {
         super("set " + path.getName());
         this.viewer = viewer;
         this.message = message;
         this.path = path;
         this.oldValue = oldValue;
         this.newValue = newValue;
+        this.editor = editor;
     }
 
     void update() {
@@ -33,6 +36,7 @@ public class SetFieldOperation extends AbstractOperation {
         // when editing messages
         viewer.refresh(path.getParent(), true);
         viewer.update(path, null);
+        this.editor.fireFieldChanged(this.message, this.path);
     }
 
     @Override

@@ -426,6 +426,21 @@
             proto-message-class="com.dynamo.physics.proto.Physics$ConvexShape"
             template-data="ShapeType: TYPE_BOX Data: 1 Data: 1 Data: 1">
       </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="collectionproxy"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy"
+            name="Collection Proxy"
+            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionProxyDesc"
+            template-data="Collection: &apos;&apos;">
+      </resource-type>
     </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.ddfeditor.contexts.gameobjecteditor"
+            name="Game Object Editor">
+      </context>
+   </extension>
 
 </plugin>

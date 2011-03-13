@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -26,17 +27,27 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.ErrorDialog;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ArrayContentProvider;
+import org.eclipse.jface.viewers.CellEditor;
+import org.eclipse.jface.viewers.ICellEditorListener;
+import org.eclipse.jface.viewers.ICellModifier;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerFilter;
+import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
 import org.eclipse.swt.graphics.Image;
@@ -47,6 +58,7 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -54,6 +66,8 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.contexts.IContextActivation;
+import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.forms.widgets.Form;
@@ -68,6 +82,7 @@ import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
+import com.dynamo.cr.protobind.IPath;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
@@ -76,8 +91,9 @@ import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
+import com.google.protobuf.UninitializedMessageException;
 
-public class GameObjectEditor extends EditorPart implements IOperationHistoryListener, ISelectionChangedListener {
+public class GameObjectEditor extends EditorPart implements IOperationHistoryListener, ISelectionChangedListener, ICellEditorListener, IProtoListener {
 
     private FormToolkit toolkit;
     private Form form;
@@ -90,23 +106,22 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
     private ProtoTreeEditor protoTreeEditor;
     private IContainer contentRoot;
     private Button removeButton;
+    private HashSet<String> idSet = new HashSet<String>();
+    private IContextActivation contextActivation;
+    private boolean mac;
 
     class AddComponentOperation extends AbstractOperation {
-        private ArrayList<Component> prevAllComponents;
-        private ArrayList<Component> newAllCompononents;
+        private Component component;
 
         public AddComponentOperation(String label, Component component) {
             super(label);
-            this.prevAllComponents = allComponents;
-            this.newAllCompononents = new ArrayList<Component>(allComponents);
-            this.newAllCompononents.add(component);
+            this.component = component;
         }
 
         @Override
         public IStatus execute(IProgressMonitor monitor, IAdaptable info)
                 throws ExecutionException {
-            allComponents = newAllCompononents;
-            componentsViewer.setInput(allComponents);
+            addComponent(this.component);
             return Status.OK_STATUS;
         }
 
@@ -119,28 +134,25 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         @Override
         public IStatus undo(IProgressMonitor monitor, IAdaptable info)
                 throws ExecutionException {
-            allComponents = this.prevAllComponents;
-            componentsViewer.setInput(allComponents);
+            removeComponent(this.component);
             return Status.OK_STATUS;
         }
     }
 
     class RemoveComponentOperation extends AbstractOperation {
-        private ArrayList<Component> prevAllComponents;
-        private ArrayList<Component> newAllCompononents;
+        private int index;
+        private Component component;
 
-        public RemoveComponentOperation(String label, int index) {
+        public RemoveComponentOperation(String label, int index, Component component) {
             super(label);
-            this.prevAllComponents = allComponents;
-            this.newAllCompononents = new ArrayList<Component>(allComponents);
-            this.newAllCompononents.remove(index);
+            this.index = index;
+            this.component = component;
         }
 
         @Override
         public IStatus execute(IProgressMonitor monitor, IAdaptable info)
                 throws ExecutionException {
-            allComponents = newAllCompononents;
-            componentsViewer.setInput(allComponents);
+            removeComponent(this.component);
             return Status.OK_STATUS;
         }
 
@@ -153,42 +165,158 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         @Override
         public IStatus undo(IProgressMonitor monitor, IAdaptable info)
                 throws ExecutionException {
-            allComponents = this.prevAllComponents;
-            componentsViewer.setInput(allComponents);
+            addComponent(this.index, this.component);
             return Status.OK_STATUS;
         }
     }
 
-    static abstract class Component {
-        IResourceType resourceType;
+    class SetIdOperation extends AbstractOperation {
+        private GameObjectEditor editor;
+        private Component component;
+        private String oldId;
+        private String newId;
 
-        public abstract String getExtension();
-        public abstract MessageNode getEditableMessageNode();
-        public abstract Message getSavableMessage();
+        public SetIdOperation(GameObjectEditor editor, Component component, String newId) {
+            super("Set Id");
+            this.editor = editor;
+            this.component = component;
+            this.oldId = component.getId();
+            this.newId = newId;
+        }
+
+        @Override
+        public IStatus execute(IProgressMonitor monitor, IAdaptable info)
+                throws ExecutionException {
+            if (this.component == null) {
+                throw new ExecutionException("No item was selected when setting id.");
+            } else if (this.newId == null || this.newId.isEmpty()) {
+                throw new ExecutionException("Identifier can not be empty.");
+            } else if (this.editor != null && this.editor.isIdUsed(this.newId)) {
+                throw new ExecutionException(String.format("Identifier '%s' is already used.", this.newId));
+            }
+            this.component.setId(this.newId);
+            return Status.OK_STATUS;
+        }
+
+        @Override
+        public IStatus redo(IProgressMonitor monitor, IAdaptable info)
+                throws ExecutionException {
+            return execute(monitor, info);
+        }
+
+        @Override
+        public IStatus undo(IProgressMonitor monitor, IAdaptable info)
+                throws ExecutionException {
+            this.component.setId(this.oldId);
+            return Status.OK_STATUS;
+        }
     }
 
-    static class ResourceComponent extends Component {
+    class CellModifier implements ICellModifier {
+        private GameObjectEditor editor;
+        private boolean enabled;
 
-        private ComponentDesc desc;
-        private MessageNode messageNode;
+        public CellModifier(GameObjectEditor editor) {
+            this.editor = editor;
+            this.enabled = false;
+        }
 
-        public ResourceComponent(ComponentDesc desc) {
-            this.desc = desc;
-            this.messageNode = new MessageNode(desc);
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
 
-            IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
-            this.resourceType = registry.getResourceTypeFromExtension(getExtension());
+        @Override
+        public boolean canModify(Object element, String property) {
+            return this.enabled;
+        }
+
+        @Override
+        public Object getValue(Object element, String property) {
+            Component component = (Component) element;
+            if (this.enabled) {
+                return component.getId();
+            } else {
+                return component.getLabel();
+            }
+        }
+
+        @Override
+        public void modify(Object element, String property, Object value) {
+            TableItem item = (TableItem) element;
+            // Check if new value equals old
+            String id = (String)value;
+            Component component = (Component)item.getData();
+            if (!component.getId().equals(id)) {
+                executeOperation(new SetIdOperation(this.editor, component, id));
+            }
+        }
+    }
+
+    static abstract class Component {
+        private GameObjectEditor editor;
+        private String id;
+        private IResourceType resourceType;
+        public static final String ID_PROPERTY = "Id";
+        public static final String RESOURCE_PROPERTY = "Resource";
+
+        public Component(GameObjectEditor editor, String id, IResourceType resourceType) {
+            this.editor = editor;
+            this.id = id;
+            this.resourceType = resourceType;
+        }
+
+        public String getId() {
+            return this.id;
+        }
+
+        public void setId(String id) {
+            editor.removeId(this.id);
+            editor.addId(id);
+            this.id = id;
+            MessageNode messageNode = getEditableMessageNode();
+            IPath idPath = messageNode.getPathTo(ID_PROPERTY);
+            if (idPath != null) {
+                messageNode.setField(idPath, id);
+            }
+            editor.componentChanged(this, new String[] {ID_PROPERTY});
+        }
+
+        public IResourceType getResourceType() {
+            return this.resourceType;
         }
 
         @Override
         public String toString() {
-            return desc.getResource();
+            return getLabel();
+        }
+
+        public abstract String getExtension();
+        public abstract MessageNode getEditableMessageNode();
+        public abstract Message getSavableMessage();
+        public abstract String getLabel();
+
+        protected static String getExtension(String resource) {
+            int index = resource.lastIndexOf(".");
+            return resource.substring(index);
+        }
+    }
+
+    static class ResourceComponent extends Component {
+        private MessageNode messageNode;
+
+        public ResourceComponent(GameObjectEditor editor, ComponentDesc desc) {
+            super(editor, desc.getId(), EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(getExtension(desc.getResource())));
+            this.messageNode = new MessageNode(desc);
+        }
+
+        @Override
+        public String getLabel() {
+            return getId() + " (" + getResource() + ")";
         }
 
         @Override
         public String getExtension() {
-            int index = desc.getResource().lastIndexOf(".");
-            return desc.getResource().substring(index);
+            return getExtension(getResource());
         }
 
         @Override
@@ -200,28 +328,30 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         public Message getSavableMessage() {
             return messageNode.build();
         }
+
+        private String getResource() {
+            return (String)this.messageNode.getField(Component.RESOURCE_PROPERTY);
+        }
     }
 
     static class EmbeddedComponent extends Component {
 
-        private EmbeddedComponentDesc descriptor;
+        private String type;
         private MessageNode messageNode;
 
-        public EmbeddedComponent(EmbeddedComponentDesc desc) {
-            this.descriptor = desc;
+        public EmbeddedComponent(GameObjectEditor editor, EmbeddedComponentDesc desc) {
+            super(editor, desc.getId(), EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(desc.getType()));
+            this.type = desc.getType();
 
-            IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
-            this.resourceType = registry.getResourceTypeFromExtension(descriptor.getType());
-            Descriptor protoDescriptor = resourceType.getMessageDescriptor();
+            Descriptor protoDescriptor = getResourceType().getMessageDescriptor();
 
-            //Descriptor protoDescriptor = ProtoFactory.getDescriptorForExtension(descriptor.getType());
             if (protoDescriptor == null) {
-                throw new RuntimeException(String.format("Unknown type: %s", descriptor.getType()));
+                throw new RuntimeException(String.format("Unknown type: %s", type));
             }
             DynamicMessage.Builder builder = DynamicMessage.newBuilder(protoDescriptor);
 
             try {
-                TextFormat.merge(new StringReader(descriptor.getData()), builder);
+                TextFormat.merge(new StringReader(desc.getData()), builder);
                 this.messageNode = new MessageNode(builder.build());
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -229,13 +359,13 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         }
 
         @Override
-        public String toString() {
-            return descriptor.getType() + " (embedded)";
+        public String getLabel() {
+            return getId() + " (embedded " + type + ")";
         }
 
         @Override
         public String getExtension() {
-            return "." + descriptor.getType();
+            return "." + type;
         }
 
         @Override
@@ -246,7 +376,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         @Override
         public Message getSavableMessage() {
             String data = TextFormat.printToString(this.messageNode.build());
-            return EmbeddedComponentDesc.newBuilder().setType(descriptor.getType()).setData(data).build();
+            return EmbeddedComponentDesc.newBuilder().setId(getId()).setType(type).setData(data).build();
         }
 
     }
@@ -254,16 +384,24 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
     public void executeOperation(IUndoableOperation operation) {
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         operation.addContext(undoContext);
+        IStatus status = null;
         try
         {
-            history.execute(operation, null, null);
+            status = history.execute(operation, null, null);
         } catch (ExecutionException e)
         {
-            e.printStackTrace();
+            MessageDialog.openError(getSite().getShell(), operation.getLabel(), e.getMessage());
+            // if-clause below will trigger
+        }
+
+        if (status != Status.OK_STATUS)
+        {
+            System.err.println("Failed to execute operation: " + operation);
         }
     }
 
     public GameObjectEditor() {
+        this.mac = System.getProperty("os.name").toLowerCase().indexOf( "mac" ) >= 0;
     }
 
     @Override
@@ -334,11 +472,13 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     this.allComponents = new ArrayList<Component>(components.size() + embeddedComponents.size());
 
                     for (ComponentDesc componentDesc : components) {
-                        this.allComponents.add(new ResourceComponent(componentDesc));
+                        this.allComponents.add(new ResourceComponent(this, componentDesc));
                     }
                     for (EmbeddedComponentDesc embeddedComponentDesc : embeddedComponents) {
-                        this.allComponents.add(new EmbeddedComponent(embeddedComponentDesc));
+                        this.allComponents.add(new EmbeddedComponent(this, embeddedComponentDesc));
                     }
+                } catch (UninitializedMessageException e) {
+                    throw new PartInitException(e.getMessage(), e);
                 } finally {
                     reader.close();
                 }
@@ -384,6 +524,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         Button addResource = toolkit.createButton(parent, null, SWT.PUSH);
         addResource.setToolTipText("Add Component From Resource...");
         addResource.setImage(imageRegistry.get("link_add"));
+        final GameObjectEditor editor = this;
         addResource.addSelectionListener(new SelectionListener() {
 
             @Override
@@ -399,8 +540,10 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
                     String relPath = fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
 
-                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setResource(relPath).build();
-                    ResourceComponent resourceComponent = new ResourceComponent(componentDesc);
+                    String id = fullPath.getFileExtension();
+                    id = getUniqueId(id);
+                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setResource(relPath).build();
+                    ResourceComponent resourceComponent = new ResourceComponent(editor, componentDesc);
                     AddComponentOperation op = new AddComponentOperation("Add " + r.getName(), resourceComponent);
                     executeOperation(op);
                 }
@@ -450,8 +593,10 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     Object[] result = dialog.getResult();
                     IResourceType resourceType = (IResourceType) result[0];
                     Message templateMessage = resourceType.createTemplateMessage();
-                    EmbeddedComponentDesc embeddedComponentDesc = EmbeddedComponentDesc.newBuilder().setData(TextFormat.printToString(templateMessage)).setType(resourceType.getFileExtension()).build();
-                    EmbeddedComponent embeddedComponent = new EmbeddedComponent(embeddedComponentDesc);
+                    String id = resourceType.getFileExtension();
+                    id = getUniqueId(id);
+                    EmbeddedComponentDesc embeddedComponentDesc = EmbeddedComponentDesc.newBuilder().setId(id).setData(TextFormat.printToString(templateMessage)).setType(resourceType.getFileExtension()).build();
+                    EmbeddedComponent embeddedComponent = new EmbeddedComponent(editor, embeddedComponentDesc);
                     AddComponentOperation op = new AddComponentOperation("Add " + resourceType.getName(), embeddedComponent);
                     executeOperation(op);
                 }
@@ -480,8 +625,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     Component component = (Component) ((IStructuredSelection) selection).getFirstElement();
                     int index = allComponents.indexOf(component);
                     assert index != -1;
-                    // TODO: Better description for undo/redo action? (ie Remove X)
-                    RemoveComponentOperation op = new RemoveComponentOperation("Remove Component", index);
+                    RemoveComponentOperation op = new RemoveComponentOperation("Remove " + component.getId(), index, component);
                     executeOperation(op);
                 }
             }
@@ -529,14 +673,74 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                 }
                 return super.getImage(element);
             }
+
+            @Override
+            public boolean isLabelProperty(Object element, String property) {
+                if (element instanceof Component) {
+                    return property.equals(Component.ID_PROPERTY) || property.equals(Component.RESOURCE_PROPERTY);
+                } else {
+                    return false;
+                }
+            }
         });
 
+        componentsViewer.setSorter(new ViewerSorter() {
+            @Override
+            public boolean isSorterProperty(Object element, String property) {
+                if (element instanceof Component) {
+                    return property.equals(Component.ID_PROPERTY);
+                } else {
+                    return false;
+                }
+            }
+        });
+        componentsViewer.setColumnProperties(new String[] {"column1"});
         componentsViewer.setInput(this.allComponents);
         componentsViewer.addSelectionChangedListener(this);
+
+        TextCellEditor cellEditor = new TextCellEditor(componentsViewer.getTable());
+        cellEditor.addListener(this);
+        componentsViewer.setCellEditors(new CellEditor[] {cellEditor});
+        final CellModifier cellModifier = new CellModifier(this);
+        componentsViewer.setCellModifier(cellModifier);
+
+        componentsViewer.getTable().addKeyListener(new KeyListener() {
+
+            @Override
+            public void keyReleased(KeyEvent e) { }
+
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.keyCode == SWT.F2 || (e.keyCode == SWT.CR && mac)) {
+                    deactivateContext();
+
+                    cellModifier.setEnabled(true);
+                    ISelection selection = componentsViewer.getSelection();
+                    if (!selection.isEmpty()) {
+                        Object first = ((IStructuredSelection) selection).getFirstElement();
+                        componentsViewer.editElement(first, 0);
+                    }
+                }
+                cellModifier.setEnabled(false);
+            }
+        });
     }
 
     void createDetailsComposite(Composite parent) {
         protoTreeEditor = new ProtoTreeEditor(parent, this.toolkit, this.contentRoot, this.undoContext);
+        protoTreeEditor.addListener(this);
+        protoTreeEditor.getTreeViewer().addFilter(new ViewerFilter() {
+            @Override
+            public boolean select(Viewer viewer, Object parentElement, Object element) {
+                if (parentElement != null && parentElement instanceof MessageNode && element instanceof IPath) {
+                    IPath path = (IPath)element;
+                    if (path.getName().equals(Component.ID_PROPERTY)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
     }
 
     @Override
@@ -577,6 +781,9 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
 
         section1.setClient(components);
         section2.setClient(details);
+
+        IContextService contextService = (IContextService) getSite().getService(IContextService.class);
+        this.contextActivation = contextService.activateContext("com.dynamo.cr.ddfeditor.contexts.gameobjecteditor");
     }
 
     @Override
@@ -608,5 +815,92 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             protoTreeEditor.setInput(null, null);
         }
     }
-}
 
+    public void addComponent(Component component) {
+        this.allComponents.add(component);
+        addId(component.getId());
+        this.componentsViewer.refresh();
+        this.componentsViewer.setSelection(new StructuredSelection(new Object[] {component}), true);
+    }
+
+    public void addComponent(int index, Component component) {
+        this.allComponents.add(index, component);
+        addId(component.getId());
+        this.componentsViewer.refresh();
+        this.componentsViewer.setSelection(new StructuredSelection(new Object[] {component}), true);
+    }
+
+    public void removeComponent(Component component) {
+        this.allComponents.remove(component);
+        removeId(component.getId());
+        this.componentsViewer.refresh();
+    }
+
+    public void addId(String id) {
+        this.idSet.add(id);
+    }
+
+    public void removeId(String id) {
+        this.idSet.remove(id);
+    }
+
+    public boolean isIdUsed(String id) {
+        return this.idSet.contains(id);
+    }
+
+    public String getUniqueId(String baseId) {
+        if (isIdUsed(baseId)) {
+            int i = 0;
+            String id = String.format("%s%d", baseId, i);
+            while (isIdUsed(id)) {
+                ++i;
+                id = String.format("%s%d", baseId, i);
+            }
+            return id;
+        } else {
+            return baseId;
+        }
+    }
+
+    void activateContext() {
+        IContextService contextService = (IContextService) getSite().getService(IContextService.class);
+        contextActivation = contextService.activateContext("com.dynamo.cr.ddfeditor.contexts.gameobjecteditor");
+    }
+
+    void deactivateContext() {
+        IContextService contextService = (IContextService) getSite().getService(IContextService.class);
+        contextService.deactivateContext(this.contextActivation);
+    }
+
+    @Override
+    public void applyEditorValue() {
+        activateContext();
+    }
+
+    @Override
+    public void cancelEditor() {
+        deactivateContext();
+    }
+
+    @Override
+    public void editorValueChanged(boolean oldValidState, boolean newValidState) {
+    }
+
+    public void componentChanged(Component component, String[] properties) {
+        this.componentsViewer.update(component, properties);
+        this.protoTreeEditor.getTreeViewer().refresh();
+    }
+
+    @Override
+    public void fieldChanged(MessageNode message, IPath field) {
+        for (Component component : this.allComponents) {
+            if (component.getEditableMessageNode() == message) {
+                if (field.getName().equals(Component.ID_PROPERTY)) {
+                    component.setId((String)message.getField(field));
+                } else {
+                    this.componentsViewer.update(component, new String[] {field.getName()});
+                }
+            }
+        }
+    }
+}
