@@ -143,15 +143,15 @@ namespace dmGameSystem
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 
-        REGISTER_COMPONENT_TYPE("camerac", render_context,
-                &CompCameraNewWorld, &CompCameraDeleteWorld,
-                &CompCameraCreate, &CompCameraDestroy, 0, 0,
-                &CompCameraUpdate, 0, &CompCameraOnMessage, 0, &CompCameraOnReload);
-
         REGISTER_COMPONENT_TYPE("collectionproxyc", factory,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
                 &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, 0,
                 &CompCollectionProxyUpdate, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0);
+
+        REGISTER_COMPONENT_TYPE("camerac", render_context,
+                &CompCameraNewWorld, &CompCameraDeleteWorld,
+                &CompCameraCreate, &CompCameraDestroy, 0, 0,
+                &CompCameraUpdate, 0, &CompCameraOnMessage, 0, &CompCameraOnReload);
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
