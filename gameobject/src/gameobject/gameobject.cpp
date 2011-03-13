@@ -53,12 +53,6 @@ namespace dmGameObject
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SOCKET_NAME, g_RegisterIndex);
         dmMessage::NewSocket(buffer, &m_SocketId);
 
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_MESSAGE_NAME, g_RegisterIndex);
-        m_SpawnMessageId = dmHashString64(buffer);
-
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SPAWN_SOCKET_NAME, g_RegisterIndex);
-        dmMessage::NewSocket(buffer, &m_SpawnSocketId);
-
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, g_RegisterIndex);
         dmMessage::NewSocket(buffer, &m_ReplySocketId);
 
@@ -73,8 +67,6 @@ namespace dmGameObject
         dmMutex::Delete(m_Mutex);
         dmMessage::Consume(m_SocketId);
         dmMessage::DeleteSocket(m_SocketId);
-        dmMessage::Consume(m_SpawnSocketId);
-        dmMessage::DeleteSocket(m_SpawnSocketId);
         dmMessage::Consume(m_ReplySocketId);
         dmMessage::DeleteSocket(m_ReplySocketId);
     }
@@ -419,14 +411,36 @@ namespace dmGameObject
         return instance;
     }
 
-    void Spawn(HCollection collection, const char* prototype_name, const Point3& position, const Quat& rotation)
+    bool Init(HCollection collection, HInstance instance);
+
+    void Spawn(HCollection collection, const char* prototype_name, const char* id, const Point3& position, const Quat& rotation)
     {
-        dmGameObject::SpawnMessage spawn_message;
-        spawn_message.m_Collection = collection;
-        dmStrlCpy(spawn_message.m_Prototype, prototype_name, sizeof(spawn_message.m_Prototype));
-        spawn_message.m_Position = position;
-        spawn_message.m_Rotation = rotation;
-        dmMessage::Post(collection->m_Register->m_SpawnSocketId, collection->m_Register->m_SpawnMessageId, &spawn_message, sizeof(dmGameObject::SpawnMessage));
+        if (collection->m_InUpdate)
+        {
+            dmLogError("Spawning during update is not allowed, %s was never spawned.", prototype_name);
+            return;
+        }
+        HInstance instance = New(collection, prototype_name);
+        if (instance != 0)
+        {
+            SetPosition(instance, position);
+            SetRotation(instance, rotation);
+            Result result = SetIdentifier(collection, instance, id);
+            if (result == RESULT_IDENTIFIER_IN_USE)
+            {
+                dmLogError("The identifier '%s' is already in use.", id);
+                Delete(collection, instance);
+                instance = 0;
+            }
+            else
+            {
+                Init(collection, instance);
+            }
+        }
+        if (instance == 0)
+        {
+            dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
+        }
     }
 
     static void Unlink(Collection* collection, Instance* instance)
@@ -1142,31 +1156,6 @@ namespace dmGameObject
         return ret;
     }
 
-    void DispatchCallback(dmMessage::Message *message, void* user_ptr)
-    {
-        HRegister reg = (HRegister)user_ptr;
-        if (message->m_ID == reg->m_SpawnMessageId)
-        {
-            SpawnMessage* spawn_message = (SpawnMessage*)message->m_Data;
-            dmGameObject::HInstance instance = dmGameObject::New(spawn_message->m_Collection, spawn_message->m_Prototype);
-            if (instance != 0)
-            {
-                dmGameObject::SetPosition(instance, spawn_message->m_Position);
-                dmGameObject::SetRotation(instance, spawn_message->m_Rotation);
-                char id[32];
-                static int spawn_count = 0;
-                DM_SNPRINTF(id, 32, "spawn%d", ++spawn_count);
-                dmGameObject::SetIdentifier(spawn_message->m_Collection, instance, id);
-                dmGameObject::SetScriptStringProperty(instance, "Id", id);
-                dmGameObject::Init(spawn_message->m_Collection, instance);
-            }
-            else
-            {
-                dmLogError("Could not instantiate game object from prototype %s.", spawn_message->m_Prototype);
-            }
-        }
-    }
-
     bool PostUpdate(HCollection collection)
     {
         DM_PROFILE(GameObject, "PostUpdate");
@@ -1175,7 +1164,7 @@ namespace dmGameObject
         HRegister reg = collection->m_Register;
         assert(reg);
 
-        bool ret = true;
+        bool result = true;
 
         if (collection->m_InstancesToDelete.Size() > 0)
         {
@@ -1188,12 +1177,31 @@ namespace dmGameObject
                 assert(collection->m_Instances[instance->m_Index] == instance);
                 assert(instance->m_ToBeDeleted);
                 if (instance->m_Initialized)
-                    Final(collection, instance);
+                    if (!Final(collection, instance) && result)
+                        result = false;
             }
         }
 
-        if (!DispatchMessages(reg))
-            ret = false;
+        if (!DispatchMessages(reg) && result)
+            result = false;
+
+        uint32_t component_types = reg->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            uint16_t update_index = reg->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &reg->m_ComponentTypes[update_index];
+
+            if (component_type->m_PostUpdateFunction)
+            {
+                DM_PROFILE(GameObject, component_type->m_Name);
+                UpdateResult res = component_type->m_PostUpdateFunction(collection, collection->m_ComponentWorlds[update_index], component_type->m_Context);
+                if (res != UPDATE_RESULT_OK && result)
+                    result = false;
+            }
+        }
+
+        if (!DispatchMessages(reg) && result)
+            result = false;
 
         if (collection->m_InstancesToDelete.Size() > 0)
         {
@@ -1210,24 +1218,7 @@ namespace dmGameObject
             collection->m_InstancesToDelete.SetSize(0);
         }
 
-        uint32_t component_types = reg->m_ComponentTypeCount;
-        for (uint32_t i = 0; i < component_types; ++i)
-        {
-            uint16_t update_index = reg->m_ComponentTypesOrder[i];
-            ComponentType* component_type = &reg->m_ComponentTypes[update_index];
-
-            if (component_type->m_PostUpdateFunction)
-            {
-                DM_PROFILE(GameObject, component_type->m_Name);
-                UpdateResult res = component_type->m_PostUpdateFunction(collection, collection->m_ComponentWorlds[update_index], component_type->m_Context);
-                if (res != UPDATE_RESULT_OK)
-                    ret = false;
-            }
-        }
-
-        (void) dmMessage::Dispatch(reg->m_SpawnSocketId, DispatchCallback, reg);
-
-        return ret;
+        return result;
     }
 
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count)

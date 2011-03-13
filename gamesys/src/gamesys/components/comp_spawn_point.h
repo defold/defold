@@ -22,8 +22,7 @@ namespace dmGameSystem
                                                 void* context,
                                                 uintptr_t* user_data);
 
-    dmGameObject::UpdateResult CompSpawnPointUpdate(dmGameObject::HCollection collection,
-                                               const dmGameObject::UpdateContext* update_context,
+    dmGameObject::UpdateResult CompSpawnPointPostUpdate(dmGameObject::HCollection collection,
                                                void* world,
                                                void* context);
 

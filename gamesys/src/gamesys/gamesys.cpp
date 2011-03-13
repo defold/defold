@@ -181,7 +181,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("spawnpointc", render_context,
                 CompSpawnPointNewWorld, CompSpawnPointDeleteWorld,
                 CompSpawnPointCreate, CompSpawnPointDestroy, 0, 0,
-                CompSpawnPointUpdate, 0, CompSpawnPointOnMessage, 0, 0);
+                0, CompSpawnPointPostUpdate, CompSpawnPointOnMessage, 0, 0);
 
         REGISTER_COMPONENT_TYPE("lightc", render_context,
                 CompLightNewWorld, CompLightDeleteWorld,

@@ -168,8 +168,6 @@ namespace dmGameObject
 
         dmhash_t                    m_MessageId;
         dmMessage::HSocket          m_SocketId;
-        dmhash_t                    m_SpawnMessageId;
-        dmMessage::HSocket          m_SpawnSocketId;
         dmMessage::HSocket          m_ReplySocketId;
 
         dmMessage::DispatchCallback m_DispatchCallback;

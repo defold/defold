@@ -378,7 +378,7 @@ namespace dmGameObject
      * @param position Position of the spawed object
      * @param rotation Rotation of the spawned object
      */
-    void Spawn(HCollection collection, const char* prototype_name, const Point3& position, const Quat& rotation);
+    void Spawn(HCollection collection, const char* prototype_name, const char* id, const Point3& position, const Quat& rotation);
 
     /**
      * Delete gameobject instance

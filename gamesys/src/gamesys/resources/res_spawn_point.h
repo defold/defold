@@ -9,7 +9,7 @@
 
 namespace dmGameSystem
 {
-    struct SpawnPoint
+    struct SpawnPointResource
     {
         dmGameSystemDDF::SpawnPointDesc* m_SpawnPointDesc;
         void*                            m_Prototype;

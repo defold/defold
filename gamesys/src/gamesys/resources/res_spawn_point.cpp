@@ -2,7 +2,7 @@
 
 namespace dmGameSystem
 {
-    bool AcquireResource(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, SpawnPoint* spawn_point)
+    bool AcquireResource(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, SpawnPointResource* spawn_point)
     {
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &spawn_point->m_SpawnPointDesc);
         if ( e != dmDDF::RESULT_OK )
@@ -15,7 +15,7 @@ namespace dmGameSystem
         return true;
     }
 
-    void ReleaseResources(dmResource::HFactory factory, SpawnPoint* spawn_point)
+    void ReleaseResources(dmResource::HFactory factory, SpawnPointResource* spawn_point)
     {
         if (spawn_point->m_SpawnPointDesc != 0x0)
             dmDDF::FreeMessage(spawn_point->m_SpawnPointDesc);
@@ -30,7 +30,7 @@ namespace dmGameSystem
             const char* filename)
     {
 
-        SpawnPoint* spawn_point = new SpawnPoint;
+        SpawnPointResource* spawn_point = new SpawnPointResource;
         if (AcquireResource(factory, buffer, buffer_size, spawn_point))
         {
             resource->m_Resource = (void*) spawn_point;
@@ -47,7 +47,7 @@ namespace dmGameSystem
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
-        SpawnPoint* spawn_point = (SpawnPoint*) resource->m_Resource;
+        SpawnPointResource* spawn_point = (SpawnPointResource*) resource->m_Resource;
         ReleaseResources(factory, spawn_point);
         delete spawn_point;
         return dmResource::CREATE_RESULT_OK;
@@ -59,10 +59,10 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
-        SpawnPoint tmp_spawn_point;
+        SpawnPointResource tmp_spawn_point;
         if (AcquireResource(factory, buffer, buffer_size, &tmp_spawn_point))
         {
-            SpawnPoint* spawn_point = (SpawnPoint*) resource->m_Resource;
+            SpawnPointResource* spawn_point = (SpawnPointResource*) resource->m_Resource;
             ReleaseResources(factory, spawn_point);
             *spawn_point = tmp_spawn_point;
             return dmResource::CREATE_RESULT_OK;
