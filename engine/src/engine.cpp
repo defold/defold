@@ -537,7 +537,7 @@ bail:
                 result->m_GameObjectId = pq->m_GameObjectId;
                 result->m_Position = dmGameObject::GetPosition(instance);
                 result->m_Rotation = dmGameObject::GetRotation(instance);
-                dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(self->m_Register);
+                dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(collection);
                 dmhash_t reply_message_id = dmGameObject::GetMessageId(self->m_Register);
                 dmMessage::Post(reply_socket, reply_message_id, buf, dmGameObject::INSTANCE_MESSAGE_MAX);
             }

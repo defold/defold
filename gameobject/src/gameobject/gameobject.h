@@ -429,20 +429,20 @@ namespace dmGameObject
 
     /**
      * Post named message
-     * @param reg Handle to the register which defines the socket of the message.
+     * @param collection Handle to the collection which defines the socket of the message.
      * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
      * @return RESULT_OK on success
      */
-    Result PostNamedMessage(HRegister reg, dmhash_t message_id);
+    Result PostNamedMessage(HCollection collection, dmhash_t message_id);
 
     /**
      * Post ddf message
-     * @param reg Handle to the register which defines the socket of the message.
+     * @param collection Handle to the collection which defines the socket of the message.
      * @param ddf_desc Descripor of the ddf message to send
      * @param ddf_data The actual ddf message to send
      * @return RESULT_OK on success
      */
-    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
+    Result PostDDFMessage(HCollection collection, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
 
     /**
      * Post named message to instance
@@ -524,18 +524,18 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
-     * Retrieve the message socket id for the specified register.
-     * @param reg Register handle
+     * Retrieve the message socket id for the specified collection.
+     * @param collection Collection handle
      * @return The message socket id of the specified collection
      */
-    dmMessage::HSocket GetMessageSocket(HRegister reg);
+    dmMessage::HSocket GetMessageSocket(HCollection collection);
 
     /**
-     * Retrieve the reply message socket id for the specified register.
-     * @param reg Register handle
+     * Retrieve the reply message socket id for the specified collection.
+     * @param collection Collection handle
      * @return The reply message socket id of the specified collection
      */
-    dmMessage::HSocket GetReplyMessageSocket(HRegister reg);
+    dmMessage::HSocket GetReplyMessageSocket(HCollection collection);
 
     /**
      * Retrieve the designated message id for game object messages for the specified register.

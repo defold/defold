@@ -319,7 +319,7 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
 
         dmGameObject::HRegister reg = dmGameObject::GetRegister(collection);
-        dmMessage::Post(dmGameObject::GetMessageSocket(reg), dmGameObject::GetMessageId(reg), buf, INSTANCE_MESSAGE_MAX);
+        dmMessage::Post(dmGameObject::GetMessageSocket(collection), dmGameObject::GetMessageId(reg), buf, INSTANCE_MESSAGE_MAX);
 
         return 0;
     }

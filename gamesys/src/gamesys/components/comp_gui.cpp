@@ -216,7 +216,7 @@ namespace dmGameSystem
     {
         DM_PROFILE(Game, "DispatchGui");
 
-        dmGameObject::HRegister regist = (dmGameObject::HRegister) user_ptr;
+        dmGameObject::HCollection collection = (dmGameObject::HCollection) user_ptr;
         dmGui::MessageData* gui_message = (dmGui::MessageData*) message_object->m_Data;
         dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData(gui_message->m_Scene);
         assert(instance);
@@ -226,8 +226,8 @@ namespace dmGameSystem
         data.m_DDFDescriptor = 0x0;
         data.m_MessageId = gui_message->m_MessageId;
         data.m_Instance = instance;
-        dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(regist);
-        dmhash_t message = dmGameObject::GetMessageId(regist);
+        dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(collection);
+        dmhash_t message = dmGameObject::GetMessageId(dmGameObject::GetRegister(collection));
         dmMessage::Post(socket, message, &data, sizeof(dmGameObject::InstanceMessageData));
     }
 
@@ -337,8 +337,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)world;
         GuiRenderContext* gui_render_context = (GuiRenderContext*)context;
 
-        dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
-        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, regist);
+        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, collection);
 
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)

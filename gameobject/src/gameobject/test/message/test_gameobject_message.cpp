@@ -186,7 +186,7 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
 
 TEST_F(MessageTest, TestPostNamed)
 {
-    dmGameObject::PostNamedMessage(m_Register, POST_NAMED_ID);
+    dmGameObject::PostNamedMessage(m_Collection, POST_NAMED_ID);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(1U, m_MessageMap[POST_NAMED_ID]);
 }
@@ -195,7 +195,7 @@ TEST_F(MessageTest, TestPostDDF)
 {
     TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
-    dmGameObject::PostDDFMessage(m_Register, TestGameObjectDDF::TestMessage::m_DDFDescriptor, (char*)&ddf);
+    dmGameObject::PostDDFMessage(m_Collection, TestGameObjectDDF::TestMessage::m_DDFDescriptor, (char*)&ddf);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageMap[POST_DDF_ID]);
 }

@@ -50,12 +50,6 @@ namespace dmGameObject
         DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_MESSAGE_NAME, g_RegisterIndex);
         m_MessageId = dmHashString64(buffer);
 
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_SOCKET_NAME, g_RegisterIndex);
-        dmMessage::NewSocket(buffer, &m_SocketId);
-
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, g_RegisterIndex);
-        dmMessage::NewSocket(buffer, &m_ReplySocketId);
-
         m_DispatchCallback = dispatch_callback;
         m_DispatchUserdata = dispatch_userdata;
 
@@ -65,10 +59,6 @@ namespace dmGameObject
     Register::~Register()
     {
         dmMutex::Delete(m_Mutex);
-        dmMessage::Consume(m_SocketId);
-        dmMessage::DeleteSocket(m_SocketId);
-        dmMessage::Consume(m_ReplySocketId);
-        dmMessage::DeleteSocket(m_ReplySocketId);
     }
 
     ComponentType::ComponentType()
@@ -127,19 +117,26 @@ namespace dmGameObject
             dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX);
             return 0;
         }
-        Collection* coll = new Collection(factory, regist, max_instances);
+        Collection* collection = new Collection(factory, regist, max_instances);
 
         dmMutex::Lock(regist->m_Mutex);
         if (regist->m_Collections.Full())
         {
             regist->m_Collections.OffsetCapacity(4);
         }
-        regist->m_Collections.Push(coll);
+        regist->m_Collections.Push(collection);
         dmMutex::Unlock(regist->m_Mutex);
 
-        dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, coll);
+        dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, collection);
 
-        return coll;
+        char buffer[32];
+        DM_SNPRINTF(buffer, 32, "%s%d%d", DM_GAMEOBJECT_SOCKET_NAME, regist->m_Collections.Size(), g_RegisterIndex);
+        dmMessage::NewSocket(buffer, &collection->m_SocketId);
+
+        DM_SNPRINTF(buffer, 32, "%s%d%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, regist->m_Collections.Size(), g_RegisterIndex);
+        dmMessage::NewSocket(buffer, &collection->m_ReplySocketId);
+
+        return collection;
     }
 
     void DoDeleteAll(HCollection collection);
@@ -169,6 +166,17 @@ namespace dmGameObject
         dmMutex::Unlock(regist->m_Mutex);
 
         dmResource::UnregisterResourceReloadedCallback(collection->m_Factory, ResourceReloadedCallback, collection);
+
+        if (collection->m_SocketId)
+        {
+            dmMessage::Consume(collection->m_SocketId);
+            dmMessage::DeleteSocket(collection->m_SocketId);
+        }
+        if (collection->m_ReplySocketId)
+        {
+            dmMessage::Consume(collection->m_ReplySocketId);
+            dmMessage::DeleteSocket(collection->m_ReplySocketId);
+        }
 
         delete collection;
     }
@@ -851,25 +859,25 @@ namespace dmGameObject
             return 0;
     }
 
-    Result PostMessage(HRegister reg, InstanceMessageData* instance_message_data)
+    Result PostMessage(HCollection collection, InstanceMessageData* instance_message_data)
     {
         instance_message_data->m_Instance = 0;
-        dmMessage::Post(reg->m_SocketId, reg->m_MessageId, (void*)instance_message_data, INSTANCE_MESSAGE_MAX);
+        dmMessage::Post(collection->m_SocketId, collection->m_Register->m_MessageId, (void*)instance_message_data, INSTANCE_MESSAGE_MAX);
 
         return RESULT_OK;
     }
 
-    Result PostNamedMessage(HRegister reg, dmhash_t message_id)
+    Result PostNamedMessage(HCollection collection, dmhash_t message_id)
     {
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
         e->m_MessageId = message_id;
         e->m_DDFDescriptor = 0x0;
 
-        return PostMessage(reg, e);
+        return PostMessage(collection, e);
     }
 
-    Result PostDDFMessage(HRegister reg, const dmDDF::Descriptor* ddf_desc, const void* ddf_data)
+    Result PostDDFMessage(HCollection collection, const dmDDF::Descriptor* ddf_desc, const void* ddf_data)
     {
         assert(ddf_desc != 0x0);
         assert(ddf_data != 0x0);
@@ -885,7 +893,7 @@ namespace dmGameObject
         // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
         memcpy(buf + sizeof(InstanceMessageData), ddf_data, max_data_size);
 
-        return PostMessage(reg, e);
+        return PostMessage(collection, e);
     }
 
     Result PostMessageTo(const char* component_name, InstanceMessageData* instance_message_data)
@@ -914,7 +922,7 @@ namespace dmGameObject
 
         instance_message_data->m_Component = component_index & 0xff;
 
-        dmMessage::Post(instance_message_data->m_Instance->m_Collection->m_Register->m_ReplySocketId, instance_message_data->m_Instance->m_Collection->m_Register->m_MessageId, (void*)instance_message_data, instance_message_data->m_BufferSize + sizeof(InstanceMessageData));
+        dmMessage::Post(instance_message_data->m_Instance->m_Collection->m_ReplySocketId, instance_message_data->m_Instance->m_Collection->m_Register->m_MessageId, (void*)instance_message_data, instance_message_data->m_BufferSize + sizeof(InstanceMessageData));
 
         return RESULT_OK;
     }
@@ -1038,17 +1046,17 @@ namespace dmGameObject
         }
     }
 
-    bool DispatchMessages(HRegister reg)
+    bool DispatchMessages(HCollection collection)
     {
         DM_PROFILE(GameObject, "DispatchMessages");
 
         DispatchMessagesContext ctx;
-        ctx.m_Register = reg;
+        ctx.m_Register = collection->m_Register;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(reg->m_ReplySocketId, &DispatchMessagesFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(collection->m_ReplySocketId, &DispatchMessagesFunction, (void*) &ctx);
 
-        if (reg->m_DispatchCallback)
-            (void) dmMessage::Dispatch(reg->m_SocketId, reg->m_DispatchCallback, reg->m_DispatchUserdata);
+        if (collection->m_Register->m_DispatchCallback)
+            (void) dmMessage::Dispatch(collection->m_SocketId, collection->m_Register->m_DispatchCallback, collection->m_Register->m_DispatchUserdata);
 
         return ctx.m_Success;
     }
@@ -1120,20 +1128,18 @@ namespace dmGameObject
         DM_PROFILE(GameObject, "Update");
 
         assert(collection != 0x0);
-        HRegister reg = collection->m_Register;
-        assert(reg);
 
         collection->m_InUpdate = 1;
 
         bool ret = true;
 
-        uint32_t component_types = reg->m_ComponentTypeCount;
+        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
-            uint16_t update_index = reg->m_ComponentTypesOrder[i];
-            ComponentType* component_type = &reg->m_ComponentTypes[update_index];
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER(component_type->m_Name, reg->m_ComponentInstanceCount[i]);
+            DM_COUNTER(component_type->m_Name, collection->m_Register->m_ComponentInstanceCount[i]);
 
             if (component_type->m_UpdateFunction)
             {
@@ -1147,7 +1153,7 @@ namespace dmGameObject
             // into UpdateTrasform, then Update or similar
             UpdateTransforms(collection);
 
-            if (!DispatchMessages(reg))
+            if (!DispatchMessages(collection))
                 ret = false;
         }
 
@@ -1182,7 +1188,7 @@ namespace dmGameObject
             }
         }
 
-        if (!DispatchMessages(reg) && result)
+        if (!DispatchMessages(collection) && result)
             result = false;
 
         uint32_t component_types = reg->m_ComponentTypeCount;
@@ -1200,7 +1206,7 @@ namespace dmGameObject
             }
         }
 
-        if (!DispatchMessages(reg) && result)
+        if (!DispatchMessages(collection) && result)
             result = false;
 
         if (collection->m_InstancesToDelete.Size() > 0)
@@ -1315,18 +1321,18 @@ namespace dmGameObject
             return 0x0;
     }
 
-    dmMessage::HSocket GetMessageSocket(HRegister reg)
+    dmMessage::HSocket GetMessageSocket(HCollection collection)
     {
-        if (reg)
-            return reg->m_SocketId;
+        if (collection)
+            return collection->m_SocketId;
         else
             return 0;
     }
 
-    dmMessage::HSocket GetReplyMessageSocket(HRegister reg)
+    dmMessage::HSocket GetReplyMessageSocket(HCollection collection)
     {
-        if (reg)
-            return reg->m_ReplySocketId;
+        if (collection)
+            return collection->m_ReplySocketId;
         else
             return 0;
     }

@@ -161,8 +161,6 @@ namespace dmGameObject
         Quat                        m_AccumulatedRotation;
 
         dmhash_t                    m_MessageId;
-        dmMessage::HSocket          m_SocketId;
-        dmMessage::HSocket          m_ReplySocketId;
 
         dmMessage::DispatchCallback m_DispatchCallback;
         void*                       m_DispatchUserdata;
@@ -194,6 +192,8 @@ namespace dmGameObject
             // TODO: Un-hard-code
             m_FocusStack.SetCapacity(8);
             m_NameHash = 0;
+            m_SocketId = 0;
+            m_ReplySocketId = 0;
             m_InUpdate = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
@@ -259,6 +259,11 @@ namespace dmGameObject
 
         // Name-hash of the collection.
         dmhash_t                   m_NameHash;
+
+        // Socket for sending to instances
+        dmMessage::HSocket          m_SocketId;
+        // Socket to receive replies from instances
+        dmMessage::HSocket          m_ReplySocketId;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
