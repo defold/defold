@@ -76,25 +76,6 @@ namespace dmGameObject
                 {
                     dmLogError("Unable to set identifier %s for %s. Name clash?", tmp_ident, instance_desc.m_Id);
                 }
-
-                for (uint32_t j = 0; j < instance_desc.m_ScriptProperties.m_Count; ++j)
-                {
-                    const dmGameObjectDDF::Property& p = instance_desc.m_ScriptProperties[j];
-                    switch (p.m_Type)
-                    {
-                        case dmGameObjectDDF::Property::STRING:
-                            dmGameObject::SetScriptStringProperty(instance, p.m_Key, p.m_Value);
-                        break;
-
-                        case dmGameObjectDDF::Property::INTEGER:
-                            dmGameObject::SetScriptIntProperty(instance, p.m_Key, atoi(p.m_Value));
-                        break;
-
-                        case dmGameObjectDDF::Property::FLOAT:
-                            dmGameObject::SetScriptFloatProperty(instance, p.m_Key, atof(p.m_Value));
-                        break;
-                    }
-                }
             }
             else
             {
@@ -130,10 +111,6 @@ namespace dmGameObject
                     if (r != dmGameObject::RESULT_OK)
                     {
                         dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
-                    }
-                    else
-                    {
-                        dmGameObject::SetScriptStringProperty(child, "Parent", tmp_ident);
                     }
                 }
                 else

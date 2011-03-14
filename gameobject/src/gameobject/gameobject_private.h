@@ -61,7 +61,6 @@ namespace dmGameObject
             m_SiblingIndex = INVALID_INSTANCE_INDEX;
             m_FirstChildIndex = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
-            m_ScriptInstancePOOOOP = 0x0;
         }
 
         ~Instance()
@@ -79,11 +78,6 @@ namespace dmGameObject
         // Collection path hash-state. Used for calculating global identifiers. Contains the hash-state for the collection-path to the instance.
         // We might, in the future, for memory reasons, move this hash-state to a data-structure shared among all instances from the same collection.
         HashState64     m_CollectionPathHashState;
-
-        // Hard pointer to the script instance, if any
-        // TODO: This should not be needed since scripts are proper components, but are needed right now to support the script properties at GO instantiation.
-        // In the long run, every component should be able to receive init-properties, which would demad a general solution.
-        HScriptInstance m_ScriptInstancePOOOOP;
 
         // Hierarchical depth
         uint16_t        m_Depth : 4;

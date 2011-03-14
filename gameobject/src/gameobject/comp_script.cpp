@@ -64,7 +64,6 @@ namespace dmGameObject
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        instance->m_ScriptInstancePOOOOP = script_instance;
         script_world->m_Instances.Push(script_instance);
         *user_data = (uintptr_t)script_instance;
         return CREATE_RESULT_OK;
@@ -147,7 +146,6 @@ namespace dmGameObject
                 break;
             }
         }
-        instance->m_ScriptInstancePOOOOP = 0x0;
         DeleteScriptInstance(script_instance);
         return CREATE_RESULT_OK;
     }

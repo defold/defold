@@ -26,20 +26,6 @@ message PrototypeDesc
     repeated EmbeddedComponentDesc EmbeddedComponents = 2;
 }
 
-message Property
-{
-    enum PropertyType
-    {
-        INTEGER = 1;
-        FLOAT = 2;
-        STRING = 3;
-    }
-
-    required PropertyType Type = 1;
-    required string Key = 2;
-    required string Value = 3;
-}
-
 message InstanceDesc
 {
     required string  Id                 = 1;
@@ -47,7 +33,6 @@ message InstanceDesc
     repeated string  Children           = 3;
     optional dmMath.Point3 Position     = 4;
     optional dmMath.Quat Rotation       = 5;
-    repeated Property ScriptProperties  = 6;
 }
 
 message CollectionInstanceDesc

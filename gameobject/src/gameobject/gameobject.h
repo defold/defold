@@ -464,30 +464,6 @@ namespace dmGameObject
     Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
 
     /**
-     * Set integer property in instance script
-     * @param instance Instnce
-     * @param key Key
-     * @param value Value
-     */
-    void SetScriptIntProperty(HInstance instance, const char* key, int32_t value);
-
-    /**
-     * Set float property in instance script
-     * @param instance Instnce
-     * @param key Key
-     * @param value Value
-     */
-    void SetScriptFloatProperty(HInstance instance, const char* key, float value);
-
-    /**
-     * Set string property in instance script
-     * @param instance Instnce
-     * @param key Key
-     * @param value Value
-     */
-    void SetScriptStringProperty(HInstance instance, const char* key, const char* value);
-
-    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */

@@ -102,60 +102,6 @@ namespace dmGameObject
         return 0;
     }
 
-    void SetScriptIntProperty(HInstance instance, const char* key, int32_t value)
-    {
-        if (!instance->m_ScriptInstancePOOOOP)
-            return;
-
-        lua_State*L = g_LuaState;
-
-        int top = lua_gettop(L);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstancePOOOOP->m_ScriptDataReference);
-        lua_pushstring(L, key);
-        lua_pushinteger(L, value);
-        lua_settable(L, -3);
-        lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
-    }
-
-    void SetScriptFloatProperty(HInstance instance, const char* key, float value)
-    {
-        if (!instance->m_ScriptInstancePOOOOP)
-            return;
-
-        lua_State*L = g_LuaState;
-
-        int top = lua_gettop(L);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstancePOOOOP->m_ScriptDataReference);
-        lua_pushstring(L, key);
-        lua_pushnumber(L, value);
-        lua_settable(L, -3);
-        lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
-    }
-
-    void SetScriptStringProperty(HInstance instance, const char* key, const char* value)
-    {
-        if (!instance->m_ScriptInstancePOOOOP)
-            return;
-
-        lua_State*L = g_LuaState;
-
-        int top = lua_gettop(L);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_ScriptInstancePOOOOP->m_ScriptDataReference);
-        lua_pushstring(L, key);
-        lua_pushstring(L, value);
-        lua_settable(L, -3);
-        lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
-    }
-
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}

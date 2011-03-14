@@ -53,22 +53,6 @@ public:
     const char* m_Path;
 };
 
-TEST_F(ScriptTest, TestScriptProperty)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "script_property.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-
-    dmGameObject::SetScriptIntProperty(go, "my_int_prop", 1010);
-    dmGameObject::SetScriptFloatProperty(go, "my_float_prop", 1.0);
-    dmGameObject::SetScriptStringProperty(go, "my_string_prop", "a string prop");
-
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    dmGameObject::Delete(m_Collection, go);
-}
-
 struct TestScript01Context
 {
     dmGameObject::HRegister m_Register;
