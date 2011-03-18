@@ -6,7 +6,7 @@ import javax.vecmath.Vector4d;
 import com.dynamo.cr.contenteditor.editors.DrawContext;
 import com.dynamo.cr.contenteditor.math.MathUtil;
 import com.dynamo.cr.contenteditor.math.Transform;
-import com.dynamo.gameobject.ddf.GameObject.CollectionInstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 
 public class CollectionInstanceNode extends Node {
 
@@ -41,7 +41,7 @@ public class CollectionInstanceNode extends Node {
         return collection;
     }
 
-    public CollectionInstanceDesc getDesciptor() {
+    public CollectionInstanceDesc buildDescriptor() {
         Transform t = new Transform();
         getLocalTransform(t);
 
@@ -50,14 +50,12 @@ public class CollectionInstanceNode extends Node {
         t.getTranslation(translation);
         t.getRotation(rotation);
 
-        CollectionInstanceDesc desc = new CollectionInstanceDesc();
-        desc.m_Id = getIdentifier();
-        desc.m_Position = MathUtil.toPoint3(translation);
-        desc.m_Rotation = MathUtil.toQuat(rotation);
-        desc.m_Collection = collection;
-
-        // TODO: REST HERE!
-        return desc;
+        return CollectionInstanceDesc.newBuilder()
+            .setId(getIdentifier())
+            .setPosition(MathUtil.toPoint3(translation))
+            .setRotation(MathUtil.toQuat(rotation))
+            .setCollection(this.collection)
+            .build();
     }
 
     @Override

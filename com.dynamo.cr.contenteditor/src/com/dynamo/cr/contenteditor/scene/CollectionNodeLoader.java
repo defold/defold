@@ -13,11 +13,10 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.contenteditor.math.MathUtil;
 import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
-import com.dynamo.ddf.DDF;
-import com.dynamo.gameobject.ddf.GameObject;
-import com.dynamo.gameobject.ddf.GameObject.CollectionDesc;
-import com.dynamo.gameobject.ddf.GameObject.CollectionInstanceDesc;
-import com.dynamo.gameobject.ddf.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.google.protobuf.TextFormat;
 
 public class CollectionNodeLoader implements INodeLoader {
 
@@ -27,19 +26,21 @@ public class CollectionNodeLoader implements INodeLoader {
 
         InputStreamReader reader = new InputStreamReader(stream);
 
-        GameObject.CollectionDesc desc = DDF.loadTextFormat(reader, GameObject.CollectionDesc.class);
-        monitor.beginTask(name, desc.m_Instances.size() + desc.m_CollectionInstances.size());
+        CollectionDesc.Builder b = CollectionDesc.newBuilder();
+        TextFormat.merge(reader, b);
+        CollectionDesc desc = b.build();
+        monitor.beginTask(name, desc.getInstancesCount() + desc.getCollectionInstancesCount());
 
-        CollectionNode node = new CollectionNode(desc.m_Name, scene, name);
+        CollectionNode node = new CollectionNode(desc.getName(), scene, name);
 
-        for (CollectionInstanceDesc cid : desc.m_CollectionInstances) {
+        for (CollectionInstanceDesc cid : desc.getCollectionInstancesList()) {
             // detect recursion
             String ancestorCollection = name;
             Node subNode;
-            if (!name.equals(cid.m_Collection) && parent != null) {
+            if (!name.equals(cid.getCollection()) && parent != null) {
                 Node ancestor = parent;
                 ancestorCollection = ((CollectionNode)parent).getResource();
-                while (!ancestorCollection.equals(cid.m_Collection) && ancestor != null) {
+                while (!ancestorCollection.equals(cid.getCollection()) && ancestor != null) {
                     ancestor = ancestor.getParent();
                     if (ancestor != null && ancestor instanceof CollectionNode) {
                         ancestorCollection = ((CollectionNode)ancestor).getResource();
@@ -47,52 +48,52 @@ public class CollectionNodeLoader implements INodeLoader {
                 }
             }
             Node subCollection = null;
-            if (!ancestorCollection.equals(cid.m_Collection)) {
+            if (!ancestorCollection.equals(cid.getCollection())) {
                 try {
-                    subCollection = factory.load(monitor, scene, cid.m_Collection, node);
+                    subCollection = factory.load(monitor, scene, cid.getCollection(), node);
                     monitor.worked(1);
                 } catch (IOException e) {
-                    subCollection = new CollectionNode(cid.m_Collection, scene, cid.m_Collection);
+                    subCollection = new CollectionNode(cid.getCollection(), scene, cid.getCollection());
                     subCollection.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
                     factory.reportError(e.getMessage());
                 }
             }
 
-            subNode = new CollectionInstanceNode(cid.m_Id, scene, cid.m_Collection, subCollection);
+            subNode = new CollectionInstanceNode(cid.getId(), scene, cid.getCollection(), subCollection);
             if (subCollection == null) {
-                subNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The resource %s is already used in a collection above this item.", cid.m_Collection));
+                subNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The resource %s is already used in a collection above this item.", cid.getCollection()));
             }
 
-            subNode.setLocalTranslation(MathUtil.toVector4(cid.m_Position));
-            subNode.setLocalRotation(MathUtil.toQuat4(cid.m_Rotation));
+            subNode.setLocalTranslation(MathUtil.toVector4(cid.getPosition()));
+            subNode.setLocalRotation(MathUtil.toQuat4(cid.getRotation()));
 
             node.addNode(subNode);
         }
 
         // Needs to be map of lists to handle duplicated ids
         Map<String, Node> idToNode = new HashMap<String, Node>();
-        for (InstanceDesc id : desc.m_Instances) {
+        for (InstanceDesc id : desc.getInstancesList()) {
             Node prototype;
             try {
-                prototype = factory.load(monitor, scene, id.m_Prototype, null);
+                prototype = factory.load(monitor, scene, id.getPrototype(), null);
             }
             catch (IOException e) {
-                prototype = new PrototypeNode(id.m_Prototype, scene);
+                prototype = new PrototypeNode(id.getPrototype(), scene);
                 prototype.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
                 factory.reportError(e.getMessage());
             }
             monitor.worked(1);
 
-            InstanceNode in = new InstanceNode(id.m_Id, scene, id.m_Prototype, prototype);
-            idToNode.put(id.m_Id, in);
-            in.setLocalTranslation(MathUtil.toVector4(id.m_Position));
-            in.setLocalRotation(MathUtil.toQuat4(id.m_Rotation));
+            InstanceNode in = new InstanceNode(id.getId(), scene, id.getPrototype(), prototype);
+            idToNode.put(id.getId(), in);
+            in.setLocalTranslation(MathUtil.toVector4(id.getPosition()));
+            in.setLocalRotation(MathUtil.toQuat4(id.getRotation()));
             node.addNode(in);
         }
 
-        for (InstanceDesc id : desc.m_Instances) {
-            Node parentInstance = idToNode.get(id.m_Id);
-            for (String childId : id.m_Children) {
+        for (InstanceDesc id : desc.getInstancesList()) {
+            Node parentInstance = idToNode.get(id.getId());
+            for (String childId : id.getChildrenList()) {
                 Node child = idToNode.get(childId);
                 if (child == null)
                     throw new LoaderException(String.format("Child %s not found", childId));
@@ -103,7 +104,7 @@ public class CollectionNodeLoader implements INodeLoader {
                 } else {
                     Node instanceNode = new InstanceNode(childId, scene, null, null);
                     parentInstance.addNode(instanceNode);
-                    instanceNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.m_Id, id.m_Id));
+                    instanceNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, id.getId(), id.getId()));
                 }
             }
         }
@@ -115,10 +116,10 @@ public class CollectionNodeLoader implements INodeLoader {
     public void save(IProgressMonitor monitor, String name, Node node, OutputStream stream,
             INodeLoaderFactory loaderFactory) throws IOException, LoaderException {
         CollectionNode coll_node = (CollectionNode) node;
-        CollectionDesc desc = coll_node.getDescriptor();
+        CollectionDesc desc = coll_node.buildDescriptor();
 
         OutputStreamWriter writer = new OutputStreamWriter(stream);
-        DDF.saveTextFormat(desc, writer);
+        TextFormat.print(desc, writer);
         writer.close();
     }
 }

@@ -6,7 +6,7 @@ import javax.vecmath.Vector4d;
 import com.dynamo.cr.contenteditor.editors.DrawContext;
 import com.dynamo.cr.contenteditor.math.MathUtil;
 import com.dynamo.cr.contenteditor.math.Transform;
-import com.dynamo.gameobject.ddf.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 
 public class InstanceNode extends Node {
 
@@ -64,7 +64,7 @@ public class InstanceNode extends Node {
         return prototype;
     }
 
-    public InstanceDesc getDesciptor() {
+    public InstanceDesc buildDesciptor() {
         Transform t = new Transform();
         getLocalTransform(t);
 
@@ -73,14 +73,17 @@ public class InstanceNode extends Node {
         t.getTranslation(translation);
         t.getRotation(rotation);
 
-        InstanceDesc desc = new InstanceDesc();
-        desc.m_Id = getIdentifier();
-        desc.m_Position = MathUtil.toPoint3(translation);
-        desc.m_Rotation = MathUtil.toQuat(rotation);
-        desc.m_Prototype = prototype;
-
-        // TODO: REST HERE!
-        return desc;
+        InstanceDesc.Builder b = InstanceDesc.newBuilder()
+            .setId(getIdentifier())
+            .setPosition(MathUtil.toPoint3(translation))
+            .setRotation(MathUtil.toQuat(rotation))
+            .setPrototype(this.prototype);
+        for (Node child : getChildren()) {
+            if (child instanceof InstanceNode) {
+                b.addChildren(child.getIdentifier());
+            }
+        }
+        return b.build();
     }
 
     @Override

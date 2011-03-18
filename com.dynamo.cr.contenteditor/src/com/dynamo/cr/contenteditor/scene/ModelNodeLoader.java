@@ -10,8 +10,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.contenteditor.editors.TextureResource;
 import com.dynamo.cr.contenteditor.resource.IResourceLoaderFactory;
-import com.dynamo.ddf.DDF;
-import com.dynamo.model.ddf.Model.ModelDesc;
+import com.dynamo.model.proto.Model.ModelDesc;
+import com.google.protobuf.TextFormat;
 
 public class ModelNodeLoader implements INodeLoader {
 
@@ -20,14 +20,16 @@ public class ModelNodeLoader implements INodeLoader {
             throws IOException, LoaderException, CoreException {
 
         InputStreamReader reader = new InputStreamReader(stream);
-        ModelDesc model_desc = DDF.loadTextFormat(reader, ModelDesc.class);
+        ModelDesc.Builder builder = ModelDesc.newBuilder();
+        TextFormat.merge(reader, builder);
+        ModelDesc modelDesc = builder.build();
 
         TextureResource texture = null;
-        if (model_desc.m_Textures.size() > 0) {
-            texture = (TextureResource) resourceFactory.load(monitor, model_desc.m_Textures.get(0));
+        if (modelDesc.getTexturesCount() > 0) {
+            texture = (TextureResource) resourceFactory.load(monitor, modelDesc.getTextures(0));
         }
 
-        MeshNode mesh_node = (MeshNode) factory.load(monitor, scene, model_desc.m_Mesh, null);
+        MeshNode mesh_node = (MeshNode) factory.load(monitor, scene, modelDesc.getMesh(), null);
         mesh_node.textureResource = texture;
         return new ModelNode(name, scene, mesh_node);
     }

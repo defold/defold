@@ -4,9 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.dynamo.cr.contenteditor.editors.DrawContext;
-import com.dynamo.gameobject.ddf.GameObject.CollectionDesc;
-import com.dynamo.gameobject.ddf.GameObject.CollectionInstanceDesc;
-import com.dynamo.gameobject.ddf.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 
 public class CollectionNode extends Node {
 
@@ -76,35 +74,29 @@ public class CollectionNode extends Node {
         return resource;
     }
 
-    void doGetDescriptor(CollectionDesc desc, InstanceNode in) {
-        InstanceDesc id = in.getDesciptor();
-        for (Node n2 : in.getChildren()) {
-            if (n2 instanceof InstanceNode) {
-                InstanceNode in2 = (InstanceNode) n2;
-                id.m_Children.add(in2.getIdentifier());
-                doGetDescriptor(desc, in2);
+    void buildInstance(CollectionDesc.Builder builder, InstanceNode in) {
+        builder.addInstances(in.buildDesciptor());
+
+        for (Node child : in.getChildren()) {
+            if (child instanceof InstanceNode) {
+                buildInstance(builder, (InstanceNode)child);
             }
         }
-        desc.m_Instances.add(id);
     }
 
-    public CollectionDesc getDescriptor() {
-        CollectionDesc desc = new CollectionDesc();
-        desc.m_Name = getIdentifier();
+    public CollectionDesc buildDescriptor() {
+        CollectionDesc.Builder builder = CollectionDesc.newBuilder();
+        builder.setName(getIdentifier());
 
-        for (Node n : getChildren()) {
-
-            if (n instanceof CollectionInstanceNode) {
-                CollectionInstanceNode cin = (CollectionInstanceNode) n;
-                CollectionInstanceDesc cid = cin.getDesciptor();
-                desc.m_CollectionInstances.add(cid);
-            }
-            else if (n instanceof InstanceNode) {
-                InstanceNode in = (InstanceNode) n;
-                doGetDescriptor(desc, in);
+        for (Node child : getChildren()) {
+            if (child instanceof CollectionInstanceNode) {
+                builder.addCollectionInstances(((CollectionInstanceNode)child).buildDescriptor());
+            } else if (child instanceof InstanceNode) {
+                buildInstance(builder, (InstanceNode)child);
             }
         }
-        return desc;
+
+        return builder.build();
     }
 
     @Override

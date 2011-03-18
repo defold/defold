@@ -6,8 +6,8 @@ import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
-import com.dynamo.ddf.math.DdfMath.Point3;
-import com.dynamo.ddf.math.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Point3;
+import com.dynamo.proto.DdfMath.Quat;
 
 public class MathUtil
 {
@@ -218,27 +218,27 @@ public class MathUtil
     }
 
     public static Vector4d toVector4(Point3 p) {
-        return new Vector4d(p.m_X, p.m_Y, p.m_Z, 1);
+        return new Vector4d(p.getX(), p.getY(), p.getZ(), 1);
     }
 
     public static Quat4d toQuat4(Quat q) {
-        return new Quat4d(q.m_X, q.m_Y, q.m_Z, q.m_W);
+        return new Quat4d(q.getX(), q.getY(), q.getZ(), q.getW());
     }
 
     public static Point3 toPoint3(Vector4d translation) {
-        Point3 ret = new Point3();
-        ret.m_X = (float) translation.x;
-        ret.m_Y = (float) translation.y;
-        ret.m_Z = (float) translation.z;
-        return ret;
+        return Point3.newBuilder()
+            .setX((float)translation.x)
+            .setY((float)translation.y)
+            .setZ((float)translation.z)
+            .build();
     }
 
     public static Quat toQuat(Quat4d rotation) {
-        Quat quat = new Quat();
-        quat.m_X = (float) rotation.x;
-        quat.m_Y = (float) rotation.y;
-        quat.m_Z = (float) rotation.z;
-        quat.m_W = (float) rotation.w;
-        return quat;
+        return Quat.newBuilder()
+        .setX((float)rotation.x)
+        .setY((float)rotation.y)
+        .setZ((float)rotation.z)
+        .setW((float)rotation.z)
+        .build();
     }
 }
