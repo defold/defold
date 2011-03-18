@@ -256,8 +256,8 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         private GameObjectEditor editor;
         private String id;
         private IResourceType resourceType;
-        public static final String ID_PROPERTY = "Id";
-        public static final String RESOURCE_PROPERTY = "Resource";
+        public static final String ID_PROPERTY = "id";
+        public static final String COMPONENT_PROPERTY = "component";
 
         public Component(GameObjectEditor editor, String id, IResourceType resourceType) {
             this.editor = editor;
@@ -305,7 +305,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         private MessageNode messageNode;
 
         public ResourceComponent(GameObjectEditor editor, ComponentDesc desc) {
-            super(editor, desc.getId(), EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(getExtension(desc.getResource())));
+            super(editor, desc.getId(), EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(getExtension(desc.getComponent())));
             this.messageNode = new MessageNode(desc);
         }
 
@@ -330,7 +330,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         }
 
         private String getResource() {
-            return (String)this.messageNode.getField(Component.RESOURCE_PROPERTY);
+            return (String)this.messageNode.getField(Component.COMPONENT_PROPERTY);
         }
     }
 
@@ -542,7 +542,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
 
                     String id = fullPath.getFileExtension();
                     id = getUniqueId(id);
-                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setResource(relPath).build();
+                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setComponent(relPath).build();
                     ResourceComponent resourceComponent = new ResourceComponent(editor, componentDesc);
                     AddComponentOperation op = new AddComponentOperation("Add " + r.getName(), resourceComponent);
                     executeOperation(op);
@@ -677,7 +677,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             @Override
             public boolean isLabelProperty(Object element, String property) {
                 if (element instanceof Component) {
-                    return property.equals(Component.ID_PROPERTY) || property.equals(Component.RESOURCE_PROPERTY);
+                    return property.equals(Component.ID_PROPERTY) || property.equals(Component.COMPONENT_PROPERTY);
                 } else {
                     return false;
                 }
