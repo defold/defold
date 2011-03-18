@@ -5,7 +5,6 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Material";
-option (ddf_java_package) = "com.dynamo.render.ddf";
 
 message MaterialDesc
 {
@@ -19,16 +18,15 @@ message MaterialDesc
 
     message Constant
     {
-        required uint32 Register = 1;
-        required ConstantType Type = 2;
-        optional dmMath.Vector4 Value = 3;
+        required uint32 register = 1;
+        required ConstantType type = 2;
+        optional dmMath.Vector4 value = 3;
     }
 
-    required string Name = 1;
-    repeated string Tags = 2;
-    required string VertexProgram = 3 [(resource)=true];
-    required string FragmentProgram = 4 [(resource)=true];
-    repeated Constant VertexConstants = 5;
-    repeated Constant FragmentConstants = 6;
+    required string name = 1;
+    repeated string tags = 2;
+    required string vertex_program = 3 [(resource)=true];
+    required string fragment_program = 4 [(resource)=true];
+    repeated Constant vertex_constants = 5;
+    repeated Constant fragment_constants = 6;
 }
-

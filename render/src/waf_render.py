@@ -7,8 +7,8 @@ def configure(conf):
     pass
 
 def transform_material(msg):
-    msg.VertexProgram = msg.VertexProgram.replace('.vp', '.vpc')
-    msg.FragmentProgram = msg.FragmentProgram.replace('.fp', '.fpc')
+    msg.vertex_program = msg.vertex_program.replace('.vp', '.vpc')
+    msg.fragment_program = msg.fragment_program.replace('.fp', '.fpc')
     return msg
 
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)

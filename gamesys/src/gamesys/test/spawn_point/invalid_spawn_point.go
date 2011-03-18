@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "spawnpoint"
-    Resource: "spawn_point/missing.spawnpoint"
+    id: "spawnpoint"
+    component: "spawn_point/missing.spawnpoint"
 }

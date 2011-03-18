@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "sound"
-    Resource: "sound/valid.wav"
+    id: "sound"
+    component: "sound/valid.wav"
 }

@@ -1,10 +1,10 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "target.script"
+    id: "script"
+    component: "target.script"
 }
-Components
+components
 {
-    Id: "co"
-    Resource: "target.collisionobject"
+    id: "co"
+    component: "target.collisionobject"
 }

@@ -1,10 +1,10 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "component_message.scriptc"
+    id: "script"
+    component: "component_message.scriptc"
 }
-Components
+components
 {
-    Id: "mt"
-    Resource: "message_target.mt"
+    id: "mt"
+    component: "message_target.mt"
 }

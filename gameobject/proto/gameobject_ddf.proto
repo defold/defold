@@ -5,75 +5,74 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
-option (ddf_java_package) = "com.dynamo.gameobject.ddf";
 
 message ComponentDesc
 {
-    required string Id = 1;
-    required string Resource = 2 [(resource) = true];
+    required string id = 1;
+    required string component = 2 [(resource) = true];
 }
 
 message EmbeddedComponentDesc
 {
-    required string Id = 1;
-    required string Type = 2;
-    required string Data = 3;
+    required string id = 1;
+    required string type = 2;
+    required string data = 3;
 }
 
 message PrototypeDesc
 {
-    repeated ComponentDesc Components = 1;
-    repeated EmbeddedComponentDesc EmbeddedComponents = 2;
+    repeated ComponentDesc components = 1;
+    repeated EmbeddedComponentDesc embedded_components = 2;
 }
 
 message InstanceDesc
 {
-    required string  Id                 = 1;
-    required string  Prototype          = 2;
-    repeated string  Children           = 3;
-    optional dmMath.Point3 Position     = 4;
-    optional dmMath.Quat Rotation       = 5;
+    required string         id          = 1;
+    required string         prototype   = 2;
+    repeated string         children    = 3;
+    optional dmMath.Point3  position    = 4;
+    optional dmMath.Quat    rotation    = 5;
 }
 
 message CollectionInstanceDesc
 {
-    required string         Id          = 1;
-    required string         Collection  = 2;
-    optional dmMath.Point3  Position    = 3;
-    optional dmMath.Quat    Rotation    = 4;
+    required string         id          = 1;
+    required string         collection  = 2;
+    optional dmMath.Point3  position    = 3;
+    optional dmMath.Quat    rotation    = 4;
 }
 
 message CollectionDesc
 {
-    required string                 Name = 1;
-    repeated InstanceDesc           Instances = 2;
-    repeated CollectionInstanceDesc CollectionInstances = 3;
+    required string                 name                    = 1;
+    repeated InstanceDesc           instances               = 2;
+    repeated CollectionInstanceDesc collection_instances    = 3;
 }
 
 message AcquireInputFocus
 {
-    required uint64 GameObjectId = 1;
+    required uint64 game_object_id = 1;
 }
 
 message ReleaseInputFocus
 {
-    required uint64 GameObjectId = 1;
+    required uint64 game_object_id = 1;
 }
 
 message GameObjectTransformQuery
 {
-    required uint64 GameObjectId = 1;
+    required uint64 game_object_id = 1;
 }
 
 message GameObjectTransformResult
 {
-    required uint64 GameObjectId = 1;
-    required dmMath.Point3 Position = 2;
-    required dmMath.Quat Rotation = 3;
+    required uint64         game_object_id  = 1;
+    required dmMath.Point3  position        = 2;
+    required dmMath.Quat    rotation        = 3;
 }
 
 message SetParent
 {
-    required uint64 ChildId = 1;
-    optional uint64 ParentId = 2 [default = 0];
+    required uint64 child_id    = 1;
+    optional uint64 parent_id   = 2 [default = 0];
 }

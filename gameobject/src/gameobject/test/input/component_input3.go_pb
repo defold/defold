@@ -1,10 +1,10 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "component_input3.scriptc"
+    id: "script"
+    component: "component_input3.scriptc"
 }
-Components
+components
 {
-    Id: "it"
-    Resource: "input_target.it"
+    id: "it"
+    component: "input_target.it"
 }

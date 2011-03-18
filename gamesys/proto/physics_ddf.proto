@@ -5,7 +5,6 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.physics.proto";
 option java_outer_classname = "Physics";
-option (ddf_java_package) = "com.dynamo.physics.ddf";
 
 message ConvexShape
 {
@@ -17,7 +16,7 @@ message ConvexShape
         TYPE_HULL = 4;
     }
 
-    required Type  ShapeType = 1;
+    required Type shape_type = 1;
 
     /*
      ShapeType == SPHERE
@@ -32,7 +31,7 @@ message ConvexShape
      ShapeType == HULL
      Data = [x0, y0, z0, x1, ...]
     */
-    repeated float Data = 2;
+    repeated float data = 2;
 }
 
 /* This should coincide with CollisionObjectType in physics-lib */
@@ -46,64 +45,64 @@ enum CollisionObjectType
 
 message CollisionObjectDesc
 {
-    required string CollisionShape = 1 [(resource)=true];
-    required CollisionObjectType Type = 2;
-    required float Mass = 3;
-    required float Friction = 4;
-    required float Restitution = 5;
-    required uint32 Group = 6;
-    repeated uint32 Mask = 7;
+    required string                 collision_shape = 1 [(resource)=true];
+    required CollisionObjectType    type            = 2;
+    required float                  mass            = 3;
+    required float                  friction        = 4;
+    required float                  restitution     = 5;
+    required uint32                 group           = 6;
+    repeated uint32                 mask            = 7;
 }
 
 message ApplyForceMessage
 {
-    required dmMath.Vector3 Force = 1;
-    required dmMath.Point3 Position = 2;
+    required dmMath.Vector3 force       = 1;
+    required dmMath.Point3  position    = 2;
 }
 
 message CollisionMessage
 {
-    required uint64 OtherGameObjectId = 1;
-    required uint32 Group = 2;
+    required uint64 other_game_object_id    = 1;
+    required uint32 group                   = 2;
 }
 
 message ContactPointMessage
 {
-    required dmMath.Point3 Position = 1;
-    required dmMath.Vector3 Normal = 2;
-    required dmMath.Vector3 RelativeVelocity = 3;
-    required float Distance = 4;
-    required float AppliedImpulse = 5;
-    required float LifeTime = 6;
-    required float Mass = 7;
-    required float OtherMass = 8;
-    required uint64 OtherGameObjectId = 9;
-    required uint32 Group = 10;
+    required dmMath.Point3  position                = 1;
+    required dmMath.Vector3 normal                  = 2;
+    required dmMath.Vector3 relative_velocity       = 3;
+    required float          distance                = 4;
+    required float          applied_impulse         = 5;
+    required float          life_time               = 6;
+    required float          mass                    = 7;
+    required float          other_mass              = 8;
+    required uint64         other_game_object_id    = 9;
+    required uint32         group                   = 10;
 }
 
 message RayCastRequest
 {
-    required dmMath.Point3 From = 1;
-    required dmMath.Point3 To = 2;
-    required uint32 Mask = 3;
+    required dmMath.Point3  from = 1;
+    required dmMath.Point3  to = 2;
+    required uint32         mask = 3;
 }
 
 message RayCastResponse
 {
-    required float Fraction = 1;
-    required dmMath.Point3 Position = 2;
-    required dmMath.Vector3 Normal = 3;
-    required uint64 GameObjectId = 4;
-    required uint32 Group = 5;
+    required float          fraction        = 1;
+    required dmMath.Point3  position        = 2;
+    required dmMath.Vector3 normal          = 3;
+    required uint64         game_object_id  = 4;
+    required uint32         group           = 5;
 }
 
 message VelocityRequest
 {
-    required uint64 ClientId = 1;
+    required uint64 client_id = 1;
 }
 
 message VelocityResponse
 {
-    required dmMath.Vector3 LinearVelocity = 1;
-    required dmMath.Vector3 AngularVelocity = 2;
+    required dmMath.Vector3 linear_velocity     = 1;
+    required dmMath.Vector3 angular_velocity    = 2;
 }

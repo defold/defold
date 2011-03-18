@@ -5,66 +5,65 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.gamesystem.proto";
 option java_outer_classname = "GameSystem";
-option (ddf_java_package) = "com.dynamo.gamesystem.ddf";
 
 message SpawnPointDesc
 {
-    required string Prototype = 1 [(resource)=true];
+    required string prototype = 1 [(resource)=true];
 }
 
 message SpawnObject
 {
-    required dmMath.Point3 Position = 1;
-    required dmMath.Quat   Rotation = 2;
+    required dmMath.Point3  position = 1;
+    required dmMath.Quat    rotation = 2;
 }
 
 message CollectionProxyDesc
 {
-    required string Collection = 1 [(resource)=true];
+    required string collection = 1 [(resource)=true];
 }
 
 enum TimeStepMode
 {
-    TIME_STEP_MODE_CONTINUOUS = 0;
-    TIME_STEP_MODE_DISCRETE = 1;
+    TIME_STEP_MODE_CONTINUOUS   = 0;
+    TIME_STEP_MODE_DISCRETE     = 1;
 }
 
 message SetTimeStep
 {
-    required float Factor = 1;
-    required TimeStepMode Mode = 2;
+    required float          factor  = 1;
+    required TimeStepMode   mode    = 2;
 }
 
 enum LightType
 {
-    POINT = 0;
-    SPOT  = 1;
+    POINT   = 0;
+    SPOT    = 1;
 }
 
 message LightDesc
 {
-    required string         Id              = 1;
-    required LightType      Type            = 2;
-    required float          Intensity       = 3;
-    required dmMath.Vector3 Color           = 4;
-    required float          Range           = 5;
-    required float          Decay           = 6;
+    required string         id              = 1;
+    required LightType      type            = 2;
+    required float          intensity       = 3;
+    required dmMath.Vector3 color           = 4;
+    required float          range           = 5;
+    required float          decay           = 6;
     // Only applicable for spot-lights
-    optional float          ConeAngle       = 7;
-    optional float          PenumbraAngle   = 8;
-    optional float          DropOff         = 9;
+    optional float          cone_angle      = 7;
+    optional float          penumbra_angle  = 8;
+    optional float          drop_off        = 9;
 }
 
 message SetLight
 {
-    required dmMath.Point3  Position    = 1;
-    required dmMath.Quat    Rotation    = 2;
-    required LightDesc      Light       = 3;
+    required dmMath.Point3  position    = 1;
+    required dmMath.Quat    rotation    = 2;
+    required LightDesc      light       = 3;
 }
 
 message SetViewProjection
 {
-    required uint64 Id = 1;
-    required dmMath.Matrix4 View = 2;
-    required dmMath.Matrix4 Projection = 3;
+    required uint64         id          = 1;
+    required dmMath.Matrix4 view        = 2;
+    required dmMath.Matrix4 projection  = 3;
 }

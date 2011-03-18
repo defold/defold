@@ -29,7 +29,6 @@ namespace dmDDF
     struct FieldDescriptor
     {
         const char* m_Name;
-        const char* m_ScriptName;
         uint32_t    m_Number : 22;
         uint32_t    m_Type : 6;
         uint32_t    m_Label : 4;
@@ -43,7 +42,6 @@ namespace dmDDF
         uint16_t         m_MajorVersion;
         uint16_t         m_MinorVersion;
         const char*      m_Name;
-        const char*      m_ScriptName;
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?

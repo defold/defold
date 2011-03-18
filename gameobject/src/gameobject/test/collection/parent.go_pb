@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "parent.scriptc"
+    id: "script"
+    component: "parent.scriptc"
 }

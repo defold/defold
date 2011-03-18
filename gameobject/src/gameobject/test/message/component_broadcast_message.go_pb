@@ -1,10 +1,10 @@
-Components
+components
 {
-    Id: "mt1"
-    Resource: "message_target.mt"
+    id: "mt1"
+    component: "message_target.mt"
 }
-Components
+components
 {
-    Id: "mt2"
-    Resource: "message_target2.mt"
+    id: "mt2"
+    component: "message_target2.mt"
 }

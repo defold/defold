@@ -1,11 +1,11 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "null.scriptc"
+    id: "script"
+    component: "null.scriptc"
 }
-Components
+components
 {
-    Id: "a"
-    Resource: "aDOESNOTEXISTS.a"
+    id: "a"
+    component: "aDOESNOTEXISTS.a"
 }
 

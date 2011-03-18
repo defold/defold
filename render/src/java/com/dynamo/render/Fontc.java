@@ -34,9 +34,10 @@ import java.util.Comparator;
 
 import javax.imageio.ImageIO;
 
-import com.dynamo.ddf.DDF;
-import com.dynamo.render.ddf.Font.FontDesc;
-import com.dynamo.render.ddf.Font.FontMap;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.TextFormat;
 
 class Glyph {
     int index;
@@ -111,14 +112,14 @@ public class Fontc {
 
     public void run(InputStream fontStream, FontDesc fontDesc, String fontMapFile) throws FontFormatException, IOException {
         this.fontDesc = fontDesc;
-        this.fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.m_Antialias != 0, fontDesc.m_Antialias != 0);
+        this.fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.getAntialias() != 0, fontDesc.getAntialias() != 0);
 
-        if (fontDesc.m_OutlineWidth > 0.0f) {
-            outlineStroke = new BasicStroke(fontDesc.m_OutlineWidth);
+        if (fontDesc.getOutlineWidth() > 0.0f) {
+            outlineStroke = new BasicStroke(fontDesc.getOutlineWidth());
         }
 
         Font font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
-        font = font.deriveFont(Font.PLAIN, fontDesc.m_Size);
+        font = font.deriveFont(Font.PLAIN, fontDesc.getSize());
         for (int i = 0; i < this.characters.length(); ++i) {
             char ch = this.characters.charAt(i);
             if (!font.canDisplay(ch)) {
@@ -163,13 +164,13 @@ public class Fontc {
         float totalY = 0.0f;
         int margin = 0;
         int padding = 0;
-        if (this.fontDesc.m_Antialias != 0)
-            padding = Math.min(4, this.fontDesc.m_ShadowBlur) + (int)Math.ceil(this.fontDesc.m_OutlineWidth * 0.5f);
-        Color faceColor = new Color(this.fontDesc.m_Alpha, 0.0f, 0.0f);
-        Color outlineColor = new Color(0.0f, this.fontDesc.m_OutlineAlpha, 0.0f);
+        if (this.fontDesc.getAntialias() != 0)
+            padding = Math.min(4, this.fontDesc.getShadowBlur()) + (int)Math.ceil(this.fontDesc.getOutlineWidth() * 0.5f);
+        Color faceColor = new Color(this.fontDesc.getAlpha(), 0.0f, 0.0f);
+        Color outlineColor = new Color(0.0f, this.fontDesc.getOutlineAlpha(), 0.0f);
         ConvolveOp shadowConvolve = null;
         Composite blendComposite = new BlendComposite();
-        if (this.fontDesc.m_ShadowAlpha > 0.0f) {
+        if (this.fontDesc.getShadowAlpha() > 0.0f) {
             float[] kernelData = {
                     0.0625f, 0.1250f, 0.0625f,
                     0.1250f, 0.2500f, 0.1250f,
@@ -224,46 +225,46 @@ public class Fontc {
         newHeight = (int) Math.pow(2, newHeight + 1);
         image = image.getSubimage(0, 0, this.imageWidth, newHeight);
 
-        FontMap fontMap = new FontMap();
-        fontMap.m_Material = fontDesc.m_Material + "c";
-        fontMap.m_ImageWidth = this.imageWidth;
-        fontMap.m_ImageHeight = newHeight;
-        fontMap.m_ShadowX = this.fontDesc.m_ShadowX;
-        fontMap.m_ShadowY = this.fontDesc.m_ShadowY;
+        FontMap.Builder builder = FontMap.newBuilder()
+            .setMaterial(fontDesc.getMaterial() + "c")
+            .setImageWidth(this.imageWidth)
+            .setImageHeight(newHeight)
+            .setShadowX(this.fontDesc.getShadowX())
+            .setShadowY(this.fontDesc.getShadowY());
 
         // Add 32 dummy characters
         for (int j = 0; j < 32; ++j) {
-            com.dynamo.render.ddf.Font.FontMap.Glyph image_glyph = new com.dynamo.render.ddf.Font.FontMap.Glyph();
-            fontMap.m_Glyphs.add(image_glyph);
+            builder.addGlyphs(FontMap.Glyph.newBuilder().build());
         }
 
         i = 0;
         for (Glyph glyph : glyphs) {
-            com.dynamo.render.ddf.Font.FontMap.Glyph imageGlyph = new com.dynamo.render.ddf.Font.FontMap.Glyph();
-            imageGlyph.m_Width = glyph.width;
-            if (glyph.width > 0)
-                imageGlyph.m_Width += padding * 2;
-            imageGlyph.m_Advance = glyph.advance;
-            imageGlyph.m_LeftBearing = glyph.leftBearing - padding;
-            imageGlyph.m_Ascent = glyph.ascent + padding;
-            imageGlyph.m_Descent = glyph.descent + padding;
-            imageGlyph.m_X = glyph.x;
-            imageGlyph.m_Y = glyph.y;
-            fontMap.m_Glyphs.add(imageGlyph);
+            FontMap.Glyph.Builder glyphBuilder = FontMap.Glyph.newBuilder()
+                .setWidth(glyph.width + (glyph.width > 0 ? padding * 2 : 0))
+                .setAdvance(glyph.advance)
+                .setLeftBearing(glyph.leftBearing - padding)
+                .setAscent(glyph.ascent + padding)
+                .setDescent(glyph.descent + padding)
+                .setX(glyph.x)
+                .setY(glyph.y);
+            builder.addGlyphs(glyphBuilder);
         }
 
         int imageSize = this.imageWidth * newHeight * Fontc.imageComponentCount;
-        fontMap.m_ImageData = new byte[imageSize];
-        int[] image_data = new int[imageSize];
-        image.getRaster().getPixels(0, 0, this.imageWidth, newHeight, image_data);
+        int[] imageData = new int[imageSize];
+        byte[] imageBytes = new byte[imageSize];
+        image.getRaster().getPixels(0, 0, this.imageWidth, newHeight, imageData);
 
-        for (int j = 0; j < this.imageWidth * newHeight * Fontc.imageComponentCount; ++j) {
-            fontMap.m_ImageData[j] = (byte) (image_data[j] & 0xff);
+        for (int j = 0; j < imageSize; ++j) {
+            imageBytes[j] = (byte)(imageData[j] & 0xff);
         }
+        builder.setImageData(ByteString.copyFrom(imageBytes));
 
         if (fontMapFile != null) {
             ImageIO.write(image, "png", new File(fontMapFile + ".png"));
-            DDF.save(fontMap, new FileOutputStream(fontMapFile));
+            FileOutputStream output = new FileOutputStream(fontMapFile);
+            builder.build().writeTo(output);
+            output.close();
         }
     }
 
@@ -284,32 +285,32 @@ public class Fontc {
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         g.translate(dx, dy);
 
-        if (this.fontDesc.m_Antialias != 0) {
+        if (this.fontDesc.getAntialias() != 0) {
             Shape outline = glyph.vector.getOutline(0, 0);
-            if (this.fontDesc.m_ShadowAlpha > 0.0f) {
-                if (this.fontDesc.m_Alpha > 0.0f) {
-                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.m_ShadowAlpha * this.fontDesc.m_Alpha));
+            if (this.fontDesc.getShadowAlpha() > 0.0f) {
+                if (this.fontDesc.getAlpha() > 0.0f) {
+                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getAlpha()));
                     g.fill(outline);
                 }
-                if (this.outlineStroke != null && this.fontDesc.m_OutlineAlpha > 0.0f) {
-                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.m_ShadowAlpha * this.fontDesc.m_OutlineAlpha));
+                if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
+                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getOutlineAlpha()));
                     g.setStroke(this.outlineStroke);
                     g.draw(outline);
                 }
-                for (int pass = 0; pass < this.fontDesc.m_ShadowBlur; ++pass) {
+                for (int pass = 0; pass < this.fontDesc.getShadowBlur(); ++pass) {
                     BufferedImage tmp = image.getSubimage(0, 0, width, height);
                     shadowConvolve.filter(tmp, image);
                 }
             }
 
             g.setComposite(blendComposite);
-            if (this.outlineStroke != null && this.fontDesc.m_OutlineAlpha > 0.0f) {
+            if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
                 g.setPaint(outlineColor);
                 g.setStroke(this.outlineStroke);
                 g.draw(outline);
             }
 
-            if (this.fontDesc.m_Alpha > 0.0f) {
+            if (this.fontDesc.getAlpha() > 0.0f) {
                 g.setPaint(faceColor);
                 g.fill(outline);
             }
@@ -333,7 +334,7 @@ public class Fontc {
             RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_RENDERING,
             RenderingHints.VALUE_RENDER_QUALITY);
-        if (this.fontDesc.m_Antialias != 0) {
+        if (this.fontDesc.getAntialias() != 0) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                 RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
@@ -376,19 +377,21 @@ public class Fontc {
             File fontInput = new File(args[0]);
             FileInputStream stream = new FileInputStream(fontInput);
             InputStreamReader reader = new InputStreamReader(stream);
-            com.dynamo.render.ddf.Font.FontDesc fontDesc = DDF.loadTextFormat(reader, com.dynamo.render.ddf.Font.FontDesc.class);
-            if (fontDesc.m_Font.length() == 0) {
+            FontDesc.Builder builder = FontDesc.newBuilder();
+            TextFormat.merge(reader, builder);
+            FontDesc fontDesc = builder.build();
+            if (fontDesc.getFont().length() == 0) {
                 System.err.println("No ttf font specified in " + args[0] + ".");
                 System.exit(1);
             }
-            String ttfFileName = basedir + File.separator + fontDesc.m_Font;
+            String ttfFileName = basedir + File.separator + fontDesc.getFont();
             File ttfFile = new File(ttfFileName);
             if (!ttfFile.exists()) {
                 System.err.println("The ttf file " + ttfFileName + " specified in " + args[0] + " does not exist.");
                 System.exit(1);
             }
             Fontc fontc = new Fontc();
-            String fontFile = basedir + File.separator + fontDesc.m_Font;
+            String fontFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontStream = new BufferedInputStream(new FileInputStream(fontFile));
             fontc.run(fontStream, fontDesc, outfile);
             fontStream.close();

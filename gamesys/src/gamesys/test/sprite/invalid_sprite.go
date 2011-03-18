@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "sprite"
-    Resource: "sprite/invalid_frame_count.sprite"
+    id: "sprite"
+    component: "sprite/invalid_frame_count.sprite"
 }

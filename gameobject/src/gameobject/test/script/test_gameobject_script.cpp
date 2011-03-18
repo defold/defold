@@ -88,7 +88,7 @@ TEST_F(ScriptTest, TestScript01)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "my_object01"));
 
     TestGameObjectDDF::GlobalData global_data;
-    global_data.m_UIntValue = 12345;
+    global_data.m_UintValue = 12345;
     global_data.m_IntValue = -123;
     global_data.m_StringValue = "string_value";
     global_data.m_VecValue.setX(1.0f);
@@ -187,7 +187,7 @@ TEST_F(ScriptTest, TestReload)
     dmGameObjectDDF::ComponentDesc component_desc;
     memset(&component_desc, 0, sizeof(component_desc));
     component_desc.m_Id = "script";
-    component_desc.m_Resource = script_resource_name;
+    component_desc.m_Component = script_resource_name;
     prototype.m_Components.m_Data = &component_desc;
 
     dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name);

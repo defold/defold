@@ -4,16 +4,15 @@ import "ddf/ddf_extensions.proto";
 
 option java_package = "com.dynamo.mesh.proto";
 option java_outer_classname = "Mesh";
-option (ddf_java_package) = "com.dynamo.mesh.ddf";
 
 message MeshComponent
 {
-    required string    Name = 1;
-    repeated float     Positions = 2;
-    repeated float     Normals = 3;
-    repeated float     Texcoord0 = 4;
-    repeated uint32    Indices = 5;
-    required uint32    PrimitiveCount = 6;
+    required string    name             = 1;
+    repeated float     positions        = 2;
+    repeated float     normals          = 3;
+    repeated float     texcoord0        = 4;
+    repeated uint32    indices          = 5;
+    required uint32    primitive_count  = 6;
 }
 
 message MeshDesc
@@ -24,6 +23,6 @@ message MeshDesc
         QUADS = 2;
     }
 
-    required Primitive PrimitiveType = 1;
-    repeated MeshComponent Components = 2;
+    required Primitive      primitive_type  = 1;
+    repeated MeshComponent  components      = 2;
 }

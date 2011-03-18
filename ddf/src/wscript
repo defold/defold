@@ -6,40 +6,14 @@ def set_options(opt):
     pass
 
 def build(bld):
-    bld.new_task_gen(features='javac seq',
-                     classpath=bld.env['PROTOBUF_JAR'],
-                     source_root='java',
-                     destfile='ddf.jar')
-    bld.env["JAVACFLAGS"] = '-g'
-
-    bld.add_group()
-
-    bld.new_task_gen(features='jar',
-                     basedir='java',
-                     destfile='ddf.jar')
-
-    bld.add_group()
-
     bld.add_subdirs('ddf')
     bld.add_subdirs('test')
-
-    bld.add_group()
-
-    cp = os.pathsep.join([bld.env.PROTOBUF_JAR,
-                          bld.env['DYNAMO_HOME'] + '/ext/share/java/junit-4.6.jar',
-                          'default/src/java',
-                          'default/src/test/generated'])
-
-    bld.new_task_gen(features='javac seq',
-                     classpath=cp,
-                     source_root='java_test')
 
     bld.add_group()
 
     # Add additional generated class-files to ddf.jar
     bld.new_task_gen(features='jar',
                      basedir='ddf/generated',
-                     jarcreate='uf',
                      destfile='ddf.jar')
 
     bld.install_files('${PREFIX}/share/java', 'ddf.jar')
@@ -47,9 +21,7 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
     bld.install_files('${PREFIX}/bin', 'ddfc.py', chmod=493)
     bld.install_files('${PREFIX}/bin', 'ddfc_cxx', chmod=493)
-    bld.install_files('${PREFIX}/bin', 'ddfc_java', chmod=493)
     bld.install_files('${PREFIX}/bin', 'ddfc_cxx.bat')
-    bld.install_files('${PREFIX}/bin', 'ddfc_java.bat')
     bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_extensions.proto')
     bld.install_files('${PREFIX}/share/proto/ddf', 'ddf/ddf_math.proto')
 

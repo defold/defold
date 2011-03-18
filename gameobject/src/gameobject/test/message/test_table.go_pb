@@ -1,10 +1,10 @@
-Components
+components
 {
-    Id: "receiver_script"
-    Resource: "test_tablereceiver.scriptc"
+    id: "receiver_script"
+    component: "test_tablereceiver.scriptc"
 }
-Components
+components
 {
-    Id: "sender_script"
-    Resource: "test_tablesender.scriptc"
+    id: "sender_script"
+    component: "test_tablesender.scriptc"
 }

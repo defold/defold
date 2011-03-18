@@ -1,10 +1,10 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "component_reload.scriptc"
+    id: "script"
+    component: "component_reload.scriptc"
 }
-Components
+components
 {
-    Id: "rt"
-    Resource: "reload_target.rt"
+    id: "rt"
+    component: "reload_target.rt"
 }

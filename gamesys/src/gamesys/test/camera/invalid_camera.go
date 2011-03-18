@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "camera"
-    Resource: "camera/missing.camera"
+    id: "camera"
+    component: "camera/missing.camera"
 }

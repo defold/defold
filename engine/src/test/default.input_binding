@@ -1,43 +1,43 @@
 # Generic
-KeyTrigger      { Input: KEY_ENTER              Action: "ok" }
-KeyTrigger      { Input: KEY_DOWN               Action: "move_down" }
-KeyTrigger      { Input: KEY_UP                 Action: "move_up" }
-KeyTrigger      { Input: KEY_LEFT               Action: "move_left" }
-KeyTrigger      { Input: KEY_RIGHT              Action: "move_right" }
+key_trigger      { input: KEY_ENTER              action: "ok" }
+key_trigger      { input: KEY_DOWN               action: "move_down" }
+key_trigger      { input: KEY_UP                 action: "move_up" }
+key_trigger      { input: KEY_LEFT               action: "move_left" }
+key_trigger      { input: KEY_RIGHT              action: "move_right" }
 
 # Pseudo-fire for jetbot
-KeyTrigger      { Input: KEY_LSHIFT             Action: "look_right" }
+key_trigger      { input: KEY_LSHIFT             action: "look_right" }
 
-GamepadTrigger  { Input: GAMEPAD_RPAD_DOWN      Action: "ok" }
-GamepadTrigger  { Input: GAMEPAD_RPAD_RIGHT     Action: "back" }
-GamepadTrigger  { Input: GAMEPAD_LSTICK_LEFT    Action: "move_left" }
-GamepadTrigger  { Input: GAMEPAD_LSTICK_RIGHT   Action: "move_right" }
-GamepadTrigger  { Input: GAMEPAD_LSTICK_UP      Action: "move_up" }
-GamepadTrigger  { Input: GAMEPAD_LSTICK_DOWN    Action: "move_down" }
-GamepadTrigger  { Input: GAMEPAD_RSTICK_LEFT    Action: "look_left" }
-GamepadTrigger  { Input: GAMEPAD_RSTICK_RIGHT   Action: "look_right" }
-GamepadTrigger  { Input: GAMEPAD_RSTICK_UP      Action: "look_up" }
-GamepadTrigger  { Input: GAMEPAD_RSTICK_DOWN    Action: "look_down" }
-GamepadTrigger  { Input: GAMEPAD_RTRIGGER       Action: "increase" }
-GamepadTrigger  { Input: GAMEPAD_LTRIGGER       Action: "decrease" }
-GamepadTrigger  { Input: GAMEPAD_RSHOULDER      Action: "boost" }
-GamepadTrigger  { Input: GAMEPAD_LSHOULDER      Action: "retard" }
-GamepadTrigger  { Input: GAMEPAD_RTRIGGER       Action: "ascend" }
-GamepadTrigger  { Input: GAMEPAD_LTRIGGER       Action: "descend" }
-GamepadTrigger  { Input: GAMEPAD_START          Action: "pause" }
+gamepad_trigger  { input: GAMEPAD_RPAD_DOWN      action: "ok" }
+gamepad_trigger  { input: GAMEPAD_RPAD_RIGHT     action: "back" }
+gamepad_trigger  { input: GAMEPAD_LSTICK_LEFT    action: "move_left" }
+gamepad_trigger  { input: GAMEPAD_LSTICK_RIGHT   action: "move_right" }
+gamepad_trigger  { input: GAMEPAD_LSTICK_UP      action: "move_up" }
+gamepad_trigger  { input: GAMEPAD_LSTICK_DOWN    action: "move_down" }
+gamepad_trigger  { input: GAMEPAD_RSTICK_LEFT    action: "look_left" }
+gamepad_trigger  { input: GAMEPAD_RSTICK_RIGHT   action: "look_right" }
+gamepad_trigger  { input: GAMEPAD_RSTICK_UP      action: "look_up" }
+gamepad_trigger  { input: GAMEPAD_RSTICK_DOWN    action: "look_down" }
+gamepad_trigger  { input: GAMEPAD_RTRIGGER       action: "increase" }
+gamepad_trigger  { input: GAMEPAD_LTRIGGER       action: "decrease" }
+gamepad_trigger  { input: GAMEPAD_RSHOULDER      action: "boost" }
+gamepad_trigger  { input: GAMEPAD_LSHOULDER      action: "retard" }
+gamepad_trigger  { input: GAMEPAD_RTRIGGER       action: "ascend" }
+gamepad_trigger  { input: GAMEPAD_LTRIGGER       action: "descend" }
+gamepad_trigger  { input: GAMEPAD_START          action: "pause" }
 
 # Debug specific
-GamepadTrigger  { Input: GAMEPAD_LSTICK_CLICK   Action: "warp_time_step_toggle1" }
-GamepadTrigger  { Input: GAMEPAD_RSTICK_CLICK   Action: "warp_time_step_toggle2" }
-GamepadTrigger  { Input: GAMEPAD_RSTICK_CLICK   Action: "debug_menu_toggle1" }
-GamepadTrigger  { Input: GAMEPAD_RSHOULDER      Action: "debug_menu_toggle2" }
-GamepadTrigger  { Input: GAMEPAD_LSTICK_CLICK   Action: "spectator_toggle1" }
-GamepadTrigger  { Input: GAMEPAD_LSHOULDER      Action: "spectator_toggle2" }
-KeyTrigger      { Input: KEY_SPACE              Action: "profiler_toggle" }
+gamepad_trigger  { input: GAMEPAD_LSTICK_CLICK   action: "warp_time_step_toggle1" }
+gamepad_trigger  { input: GAMEPAD_RSTICK_CLICK   action: "warp_time_step_toggle2" }
+gamepad_trigger  { input: GAMEPAD_RSTICK_CLICK   action: "debug_menu_toggle1" }
+gamepad_trigger  { input: GAMEPAD_RSHOULDER      action: "debug_menu_toggle2" }
+gamepad_trigger  { input: GAMEPAD_LSTICK_CLICK   action: "spectator_toggle1" }
+gamepad_trigger  { input: GAMEPAD_LSHOULDER      action: "spectator_toggle2" }
+key_trigger      { input: KEY_SPACE              action: "profiler_toggle" }
 
 # Jetbot specific
-GamepadTrigger  { Input: GAMEPAD_LTRIGGER       Action: "throttle" }
-GamepadTrigger  { Input: GAMEPAD_RPAD_DOWN      Action: "jump" }
-GamepadTrigger  { Input: GAMEPAD_RSHOULDER      Action: "shield" }
-GamepadTrigger  { Input: GAMEPAD_LPAD_UP        Action: "next_weapon" }
-GamepadTrigger  { Input: GAMEPAD_LPAD_DOWN      Action: "previous_weapon" }
+gamepad_trigger  { input: GAMEPAD_LTRIGGER       action: "throttle" }
+gamepad_trigger  { input: GAMEPAD_RPAD_DOWN      action: "jump" }
+gamepad_trigger  { input: GAMEPAD_RSHOULDER      action: "shield" }
+gamepad_trigger  { input: GAMEPAD_LPAD_UP        action: "next_weapon" }
+gamepad_trigger  { input: GAMEPAD_LPAD_DOWN      action: "previous_weapon" }

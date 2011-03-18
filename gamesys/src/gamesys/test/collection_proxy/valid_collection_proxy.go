@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "collectionproxy"
-    Resource: "collection_proxy/valid.collectionproxy"
+    id: "collectionproxy"
+    component: "collection_proxy/valid.collectionproxy"
 }

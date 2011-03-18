@@ -165,7 +165,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     window_resize->m_Width = 1;
     window_resize->m_Height = 1;
     dmRender::Message message;
-    message.m_Id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_ScriptName);
+    message.m_Id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
     message.m_DDFDescriptor = dmRenderDDF::WindowResized::m_DDFDescriptor;
     message.m_Buffer = buffer;
     message.m_BufferSize = sizeof(dmRenderDDF::WindowResized);

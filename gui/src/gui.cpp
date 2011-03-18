@@ -81,7 +81,7 @@ namespace dmGui
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-        m_DDFDescriptors.Put(dmHashString64(descriptor->m_ScriptName), descriptor);
+        m_DDFDescriptors.Put(dmHashString64(descriptor->m_Name), descriptor);
         return RESULT_OK;
     }
 

@@ -2,5 +2,5 @@ package TestGameObjectDDF;
 
 message InputTarget
 {
-    required float Value = 1;
+    required float value = 1;
 }

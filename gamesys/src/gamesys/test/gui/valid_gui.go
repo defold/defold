@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "gui"
-    Resource: "gui/valid.gui"
+    id: "gui"
+    component: "gui/valid.gui"
 }

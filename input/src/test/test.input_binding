@@ -1,5 +1,5 @@
-KeyTrigger { Input: KEY_0 Action: "KEY_0" }
-MouseTrigger { Input: MOUSE_UP Action: "MOUSE_UP" }
-GamepadTrigger { Input: GAMEPAD_LSTICK_UP Action: "GAMEPAD_LSTICK_UP" }
-GamepadTrigger { Input: GAMEPAD_RSTICK_UP Action: "GAMEPAD_RSTICK_UP" }
-GamepadTrigger { Input: GAMEPAD_RSTICK_DOWN Action: "GAMEPAD_RSTICK_DOWN" }
+key_trigger { input: KEY_0 action: "KEY_0" }
+mouse_trigger { input: MOUSE_UP action: "MOUSE_UP" }
+gamepad_trigger { input: GAMEPAD_LSTICK_UP action: "GAMEPAD_LSTICK_UP" }
+gamepad_trigger { input: GAMEPAD_RSTICK_UP action: "GAMEPAD_RSTICK_UP" }
+gamepad_trigger { input: GAMEPAD_RSTICK_DOWN action: "GAMEPAD_RSTICK_DOWN" }

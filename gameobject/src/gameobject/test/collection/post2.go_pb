@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "post2.scriptc"
+    id: "script"
+    component: "post2.scriptc"
 }

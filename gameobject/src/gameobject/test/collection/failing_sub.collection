@@ -1,17 +1,13 @@
-Name: "sub"
+name: "sub"
 
-Instances
+instances
 {
-    Prototype: "go1.goc"
-    Id: "go1"
-    Position { X: 0 Y: 10 Z: 170 }
-    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }
+    prototype: "go1.goc"
+    id: "go1"
 }
 
-Instances
+instances
 {
-    Prototype: "does_not_exists.goc"
-    Id: "go2"
-    Position { X: 0 Y: 20 Z: 170 }
-    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }
+    prototype: "does_not_exists.goc"
+    id: "go2"
 }

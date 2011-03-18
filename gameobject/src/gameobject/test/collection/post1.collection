@@ -1,8 +1,6 @@
-Name: "post1"
-Instances
+name: "post1"
+instances
 {
-    Prototype: "post1.goc"
-    Id: "go1"
-    Position { X: 123 Y: 0 Z: 0 }
-    Rotation { X: 0.0 Y: 1.0 Z: 0.0 W: 0.0 }
+    prototype: "post1.goc"
+    id: "go1"
 }

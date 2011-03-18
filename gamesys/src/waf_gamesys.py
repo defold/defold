@@ -14,67 +14,67 @@ def transform_texture_name(name):
     return name
 
 def transform_collection(msg):
-    for i in msg.Instances:
-        i.Prototype = i.Prototype.replace('.go', '.goc')
-    for c in msg.CollectionInstances:
-        c.Collection = c.Collection.replace('.collection', '.collectionc')
+    for i in msg.instances:
+        i.prototype = i.prototype.replace('.go', '.goc')
+    for c in msg.collection_instances:
+        c.collection = c.collection.replace('.collection', '.collectionc')
     return msg
 
 def transform_collectionproxy(msg):
-    msg.Collection = msg.Collection.replace('.collection', '.collectionc')
+    msg.collection = msg.collection.replace('.collection', '.collectionc')
     return msg
 
 def transform_collisionobject(msg):
-    msg.CollisionShape = msg.CollisionShape.replace('.convexshape', '.convexshapec')
+    msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     return msg
 
 def transform_emitter(msg):
-    msg.Material = msg.Material.replace('.material', '.materialc')
-    msg.Texture.Name = transform_texture_name(msg.Texture.Name)
+    msg.material = msg.material.replace('.material', '.materialc')
+    msg.texture.name = transform_texture_name(msg.texture.name)
     return msg
 
 def transform_gameobject(msg):
-    for c in msg.Components:
-        c.Resource = c.Resource.replace('.camera', '.camerac')
-        c.Resource = c.Resource.replace('.collectionproxy', '.collectionproxyc')
-        c.Resource = c.Resource.replace('.collisionobject', '.collisionobjectc')
-        c.Resource = c.Resource.replace('.emitter', '.emitterc')
-        c.Resource = c.Resource.replace('.gui', '.guic')
-        c.Resource = c.Resource.replace('.model', '.modelc')
-        c.Resource = c.Resource.replace('.script', '.scriptc')
-        c.Resource = c.Resource.replace('.wav', '.wavc')
-        c.Resource = c.Resource.replace('.spawnpoint', '.spawnpointc')
-        c.Resource = c.Resource.replace('.light', '.lightc')
-        c.Resource = c.Resource.replace('.sprite', '.spritec')
+    for c in msg.components:
+        c.component = c.component.replace('.camera', '.camerac')
+        c.component = c.component.replace('.collectionproxy', '.collectionproxyc')
+        c.component = c.component.replace('.collisionobject', '.collisionobjectc')
+        c.component = c.component.replace('.emitter', '.emitterc')
+        c.component = c.component.replace('.gui', '.guic')
+        c.component = c.component.replace('.model', '.modelc')
+        c.component = c.component.replace('.script', '.scriptc')
+        c.component = c.component.replace('.wav', '.wavc')
+        c.component = c.component.replace('.spawnpoint', '.spawnpointc')
+        c.component = c.component.replace('.light', '.lightc')
+        c.component = c.component.replace('.sprite', '.spritec')
     return msg
 
 def transform_model(msg):
-    msg.Mesh = msg.Mesh.replace('.dae', '.meshc')
-    msg.Material = msg.Material.replace('.material', '.materialc')
-    for i,n in enumerate(msg.Textures):
-        msg.Textures[i] = transform_texture_name(msg.Textures[i])
+    msg.mesh = msg.mesh.replace('.dae', '.meshc')
+    msg.material = msg.material.replace('.material', '.materialc')
+    for i,n in enumerate(msg.textures):
+        msg.textures[i] = transform_texture_name(msg.textures[i])
     return msg
 
 def transform_gui(msg):
-    msg.Script = msg.Script.replace('.gui_script', '.gui_scriptc')
-    for f in msg.Fonts:
-        f.Font = f.Font.replace('.font', '.fontc')
-    for t in msg.Textures:
-        t.Texture = transform_texture_name(t.Texture)
+    msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
+    for f in msg.fonts:
+        f.font = f.font.replace('.font', '.fontc')
+    for t in msg.textures:
+        t.texture = transform_texture_name(t.texture)
     return msg
 
 def transform_spawnpoint(msg):
-    msg.Prototype = msg.Prototype.replace('.go', '.goc')
+    msg.prototype = msg.prototype.replace('.go', '.goc')
     return msg
 
 def transform_render(msg):
-    msg.Script = msg.Script.replace('.render_script', '.render_scriptc')
-    for m in msg.Materials:
-        m.Material = m.Material.replace('.material', '.materialc')
+    msg.script = msg.script.replace('.render_script', '.render_scriptc')
+    for m in msg.materials:
+        m.material = m.material.replace('.material', '.materialc')
     return msg
 
 def transform_sprite(msg):
-    msg.Texture = transform_texture_name(msg.Texture)
+    msg.texture = transform_texture_name(msg.texture)
     return msg
 
 def write_embedded(task):
@@ -87,7 +87,7 @@ def write_embedded(task):
 
         msg = transform_gameobject(msg)
 
-        for i, c in enumerate(msg.EmbeddedComponents):
+        for i, c in enumerate(msg.embedded_components):
             with open(task.outputs[i].bldpath(task.env), 'wb') as out_f:
                 out_f.write(msg.SerializeToString())
 
@@ -114,21 +114,21 @@ def compile_go(task):
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
-        for i, c in enumerate(msg.EmbeddedComponents):
+        for i, c in enumerate(msg.embedded_components):
             with open(task.outputs[i+1].bldpath(task.env), 'wb') as out_f:
-                out_f.write(c.Data)
+                out_f.write(c.data)
 
-            desc = msg.Components.add()
+            desc = msg.components.add()
             rel_path_dir = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
             rel_path_dir = os.path.dirname(rel_path_dir)
-            if c.Id == '':
+            if c.id == '':
                 raise Exception('Message is missing required field: Id')
-            desc.Id = c.Id
-            desc.Resource = rel_path_dir + '/' + task.outputs[i+1].name
+            desc.id = c.id
+            desc.component = rel_path_dir + '/' + task.outputs[i+1].name
 
         msg = transform_gameobject(msg)
-        while len(msg.EmbeddedComponents) > 0:
-            del(msg.EmbeddedComponents[0])
+        while len(msg.embedded_components) > 0:
+            del(msg.embedded_components[0])
 
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
@@ -161,14 +161,14 @@ def gofile(self, node):
         task.set_inputs(node)
 
         embed_output_nodes = []
-        for i, c in enumerate(msg.EmbeddedComponents):
-            name = '%s_generated_%d.%s' % (node.name.split('.')[0], i, c.Type)
+        for i, c in enumerate(msg.embedded_components):
+            name = '%s_generated_%d.%s' % (node.name.split('.')[0], i, c.type)
             embed_node = node.parent.exclusive_build_node(name)
             embed_output_nodes.append(embed_node)
 
-            sub_task = self.create_task(c.Type)
+            sub_task = self.create_task(c.type)
             sub_task.set_inputs(embed_node)
-            out = embed_node.change_ext('.' + c.Type + 'c')
+            out = embed_node.change_ext('.' + c.type + 'c')
             sub_task.set_outputs(out)
             sub_task.set_run_after(task)
         out = node.change_ext('.goc')

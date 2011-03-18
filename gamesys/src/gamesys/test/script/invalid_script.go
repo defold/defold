@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "script/invalid_type.script"
+    id: "script"
+    component: "script/invalid_type.script"
 }

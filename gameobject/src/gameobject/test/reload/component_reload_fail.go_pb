@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "component_reload_fail.scriptc"
+    id: "script"
+    component: "component_reload_fail.scriptc"
 }

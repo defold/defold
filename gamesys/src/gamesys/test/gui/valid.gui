@@ -1,11 +1,11 @@
-Script: "gui/valid.gui_script"
-Fonts
+script: "gui/valid.gui_script"
+fonts
 {
-    Name: "test_font"
-    Font: "font/valid_font.font"
+    name: "test_font"
+    font: "font/valid_font.font"
 }
-Textures
+textures
 {
-    Name: "test_texture"
-    Texture: "texture/valid_png.png"
+    name: "test_texture"
+    texture: "texture/valid_png.png"
 }

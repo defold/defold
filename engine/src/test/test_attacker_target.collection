@@ -1,15 +1,15 @@
-Name: "test"
-Instances
+name: "test"
+instances
 {
-    Prototype: "attacker.go"
-    Id: "attacker"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 }
+    prototype: "attacker.go"
+    id: "attacker"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0.0 y: 0.0 z: 0.0 z: 1.0 }
 }
-Instances
+instances
 {
-    Prototype: "target.go"
-    Id: "target"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 }
+    prototype: "target.go"
+    id: "target"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
 }

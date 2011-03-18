@@ -5,7 +5,6 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.input.proto";
 option java_outer_classname = "Input";
-option (ddf_java_package) = "com.dynamo.input.ddf";
 
 enum Key
 {
@@ -197,51 +196,51 @@ enum GamepadModifier
 
 message GamepadModifier_t
 {
-    required GamepadModifier Mod = 1;
+    required GamepadModifier mod = 1;
 }
 
 message GamepadMapEntry
 {
-    required Gamepad Input = 1;
-    required GamepadType Type = 2;
-    required uint32 Index = 3;
-    repeated GamepadModifier_t Mod = 4;
+    required Gamepad input = 1;
+    required GamepadType type = 2;
+    required uint32 index = 3;
+    repeated GamepadModifier_t mod = 4;
 }
 
 message GamepadMap
 {
-    required string Device = 1;
-    required string Platform = 2;
-    required float DeadZone = 3;
-    repeated GamepadMapEntry Map = 4;
+    required string device = 1;
+    required string platform = 2;
+    required float dead_zone = 3;
+    repeated GamepadMapEntry map = 4;
 }
 
 message GamepadMaps
 {
-    repeated GamepadMap Driver = 1;
+    repeated GamepadMap driver = 1;
 }
 
 message KeyTrigger
 {
-    required Key Input = 1;
-    required string Action = 2;
+    required Key input = 1;
+    required string action = 2;
 }
 
 message MouseTrigger
 {
-    required Mouse Input = 1;
-    required string Action = 2;
+    required Mouse input = 1;
+    required string action = 2;
 }
 
 message GamepadTrigger
 {
-    required Gamepad Input = 1;
-    required string Action = 2;
+    required Gamepad input = 1;
+    required string action = 2;
 }
 
 message InputBinding
 {
-    repeated KeyTrigger KeyTrigger = 2;
-    repeated MouseTrigger MouseTrigger = 3;
-    repeated GamepadTrigger GamepadTrigger = 4;
+    repeated KeyTrigger key_trigger = 2;
+    repeated MouseTrigger mouse_trigger = 3;
+    repeated GamepadTrigger gamepad_trigger = 4;
 }

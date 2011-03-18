@@ -1,24 +1,24 @@
-Name: "root"
-Instances
+name: "root"
+instances
 {
-    Prototype: "go1.goc"
-    Id: "go1"
-    Position { X: 123 Y: 0 Z: 0 }
-    Rotation { X: 0.0 Y: 1.0 Z: 0.0 W: 0.0 }
+    prototype: "go1.goc"
+    id: "go1"
+    position { x: 123 y: 0 z: 0 }
+    rotation { x: 0.0 y: 1.0 z: 0.0 w: 0.0 }
 }
 
-Instances
+instances
 {
-    Prototype: "go2.goc"
-    Id: "go2"
-    Position { X: 456 Y: 0 Z: 0 }
-    Rotation { X: 0.0 Y: 2.0 Z: 0.0 W: 0.0 }
+    prototype: "go2.goc"
+    id: "go2"
+    position { x: 456 y: 0 z: 0 }
+    rotation { x: 0.0 y: 2.0 z: 0.0 w: 0.0 }
 }
 
-CollectionInstances:
+collection_instances:
 {
-    Id: "sub"
-    Collection: "failing_sub.collectionc"
-    Position: { X: 0 Y: 1000 Z: 0 }
-    Rotation: { X: 0 Y: 0 Z: 0 W: 1 }
+    id: "sub"
+    collection: "failing_sub.collectionc"
+    position: { x: 0 y: 1000 z: 0 }
+    rotation: { x: 0 y: 0 z: 0 w: 1 }
 }

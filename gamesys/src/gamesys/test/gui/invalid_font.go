@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "gui"
-    Resource: "gui/invalid_font.gui"
+    id: "gui"
+    component: "gui/invalid_font.gui"
 }

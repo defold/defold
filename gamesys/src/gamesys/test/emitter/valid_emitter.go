@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "emitter"
-    Resource: "emitter/valid.emitter"
+    id: "emitter"
+    component: "emitter/valid.emitter"
 }

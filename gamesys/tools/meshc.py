@@ -51,7 +51,7 @@ def Compile(file_name, output_file):
     doc.LoadDocumentFromFile(file_name)
 
     mesh = mesh_ddf_pb2.MeshDesc()
-    mesh.PrimitiveType = mesh_ddf_pb2.MeshDesc.TRIANGLES
+    mesh.primitive_type = mesh_ddf_pb2.MeshDesc.TRIANGLES
 
     if len(doc.visualScenesLibrary.items) != 1:
         print("ERROR: Only one scene is supported.")
@@ -66,8 +66,8 @@ def Compile(file_name, output_file):
             if not isinstance(dae_geom.data,collada.DaeMesh):
                 continue
 
-            comp = mesh.Components.add()
-            comp.Name = dae_geom.name
+            comp = mesh.components.add()
+            comp.name = dae_geom.name
 
             dae_mesh = dae_geom.data
             dae_vertices = dae_mesh.vertices
@@ -110,7 +110,7 @@ def Compile(file_name, output_file):
                 texcoords = sources[texcoord_input.source]
 
             # TODO: This is not optimal. Vertices are unique and never reused.
-            comp.PrimitiveCount = primitive.count
+            comp.primitive_count = primitive.count
             for i in range(primitive.count):
                 idx = i * stride * 3 + vertex_input.offset
                 i1 = triangles[idx + stride * 0]
@@ -131,16 +131,16 @@ def Compile(file_name, output_file):
                     texcoordi2 = triangles[texcoordidx + stride * 1]
                     texcoordi3 = triangles[texcoordidx + stride * 2]
 
-                comp.Indices.append(i*3 + 0)
-                comp.Indices.append(i*3 + 1)
-                comp.Indices.append(i*3 + 2)
+                comp.indices.append(i*3 + 0)
+                comp.indices.append(i*3 + 1)
+                comp.indices.append(i*3 + 2)
 
                 for j in [i1,i2,i3]:
                     position = [positions[j][0] * doc.asset.unit.meter, positions[j][1] * doc.asset.unit.meter, positions[j][2] * doc.asset.unit.meter]
                     position = Transform(node.transforms, position)
-                    comp.Positions.append(position[0])
-                    comp.Positions.append(position[1])
-                    comp.Positions.append(position[2])
+                    comp.positions.append(position[0])
+                    comp.positions.append(position[1])
+                    comp.positions.append(position[2])
 
                 for j in [ni1,ni2,ni3]:
                     normal = [normals[j][0], normals[j][1], normals[j][2]]
@@ -149,14 +149,14 @@ def Compile(file_name, output_file):
                     for transform in transforms:
                         if transform[0] == "rotate":
                             normal = Rotate(transform[1], normal)
-                    comp.Normals.append(normal[0])
-                    comp.Normals.append(normal[1])
-                    comp.Normals.append(normal[2])
+                    comp.normals.append(normal[0])
+                    comp.normals.append(normal[1])
+                    comp.normals.append(normal[2])
 
                 if texcoord_input:
                     for j in [texcoordi1,texcoordi2,texcoordi3]:
-                        comp.Texcoord0.append(texcoords[j][0])
-                        comp.Texcoord0.append(texcoords[j][1])
+                        comp.texcoord0.append(texcoords[j][0])
+                        comp.texcoord0.append(texcoords[j][1])
 
     f = open(output_file, "wb")
     f.write(mesh.SerializeToString())

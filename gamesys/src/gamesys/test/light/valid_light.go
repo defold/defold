@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "light"
-    Resource: "light/valid.light"
+    id: "light"
+    component: "light/valid.light"
 }

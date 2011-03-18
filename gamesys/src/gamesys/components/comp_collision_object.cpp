@@ -311,7 +311,7 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)context;
         Component* component = (Component*) *user_data;
-        if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_Name))
         {
             dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) message_data->m_Buffer;
             if (physics_context->m_3D)
@@ -323,7 +323,7 @@ namespace dmGameSystem
                 dmPhysics::ApplyForce2D(component->m_Object2D, af->m_Force, af->m_Position);
             }
         }
-        if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_Name))
         {
             dmPhysicsDDF::VelocityRequest* request = (dmPhysicsDDF::VelocityRequest*)message_data->m_Buffer;
             if (request->m_ClientId)

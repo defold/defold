@@ -52,7 +52,7 @@ public class MessageBuilder
 
         for (FieldDescriptor fd : fields)
         {
-            Field f = object.getClass().getField("m_" + fd.getName());
+            Field f = object.getClass().getField(fd.getName());
             f.setAccessible(true);
 
             if (fd.isRepeated())

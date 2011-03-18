@@ -9,25 +9,25 @@ namespace dmGameSystem
     {
         switch (image->m_Format)
         {
-        case dmGraphics::TextureImage::LUMINANCE:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
             break;
-        case dmGraphics::TextureImage::RGB:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
             return dmGraphics::TEXTURE_FORMAT_RGB;
             break;
-        case dmGraphics::TextureImage::RGBA:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
             return dmGraphics::TEXTURE_FORMAT_RGBA;
             break;
-        case dmGraphics::TextureImage::RGB_DXT1:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
             return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
             break;
-        case dmGraphics::TextureImage::RGBA_DXT1:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
             return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
             break;
-        case dmGraphics::TextureImage::RGBA_DXT3:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
             return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
             break;
-        case dmGraphics::TextureImage::RGBA_DXT5:
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
             return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
             break;
 

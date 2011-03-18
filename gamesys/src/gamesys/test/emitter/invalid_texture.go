@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "emitter"
-    Resource: "emitter/invalid_texture.emitter"
+    id: "emitter"
+    component: "emitter/invalid_texture.emitter"
 }

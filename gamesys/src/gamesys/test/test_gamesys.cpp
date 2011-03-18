@@ -87,7 +87,7 @@ TEST_P(ComponentTest, Test)
     DM_SNPRINTF(path, sizeof(path), "%s/%s", ROOT, go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
-    const char* component_name = go_ddf->m_Components[0].m_Resource;
+    const char* component_name = go_ddf->m_Components[0].m_Component;
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
     ASSERT_NE((void*)0, go);
@@ -123,7 +123,7 @@ TEST_P(ComponentTest, TestReloadFail)
     DM_SNPRINTF(path, sizeof(path), "%s/%s", ROOT, go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
-    const char* component_name = go_ddf->m_Components[0].m_Resource;
+    const char* component_name = go_ddf->m_Components[0].m_Component;
     const char* temp_name = "tmp";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);

@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "go2.scriptc"
+    id: "script"
+    component: "go2.scriptc"
 }

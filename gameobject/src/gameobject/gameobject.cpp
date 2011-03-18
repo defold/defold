@@ -93,7 +93,7 @@ namespace dmGameObject
         }
         else
         {
-            g_Descriptors->Put(dmHashBuffer64(descriptor->m_ScriptName, strlen(descriptor->m_ScriptName)), descriptor);
+            g_Descriptors->Put(dmHashString64(descriptor->m_Name), descriptor);
             return RESULT_OK;
         }
     }
@@ -884,7 +884,7 @@ namespace dmGameObject
 
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = dmHashString64(ddf_desc->m_ScriptName);
+        e->m_MessageId = dmHashString64(ddf_desc->m_Name);
         e->m_DDFDescriptor = ddf_desc;
 
         uint32_t max_data_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
@@ -948,7 +948,7 @@ namespace dmGameObject
 
         char buf[INSTANCE_MESSAGE_MAX];
         InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = dmHashString64(ddf_desc->m_ScriptName);
+        e->m_MessageId = dmHashString64(ddf_desc->m_Name);
         e->m_Instance = instance;
         e->m_DDFDescriptor = ddf_desc;
 
