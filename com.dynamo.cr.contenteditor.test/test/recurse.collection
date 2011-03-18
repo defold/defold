@@ -1,40 +1,40 @@
-Name: "recurse"
-CollectionInstances
+name: "recurse"
+collection_instances
 {
-    Id: "recurse"
-    Collection: "recurse.collection"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
+    id: "recurse"
+    collection: "recurse.collection"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
 }
-CollectionInstances
+collection_instances
 {
-    Id: "recurse2"
-    Collection: "recurse2.collection"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
+    id: "recurse2"
+    collection: "recurse2.collection"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
 }
-Instances
+instances
 {
-    Id: "recurse"
-    Prototype: "empty.go"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
-    Children: "recurse"
+    id: "recurse"
+    prototype: "empty.go"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
+    children: "recurse"
 }
-Instances
+instances
 {
-    Id: "circular1"
-    Prototype: "empty.go"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
-    Children: "circular2"
+    id: "circular1"
+    prototype: "empty.go"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
+    children: "circular2"
 }
-Instances
+instances
 
 {
-    Id: "circular2"
-    Prototype: "empty.go"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
-    Children: "circular1"
+    id: "circular2"
+    prototype: "empty.go"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
+    children: "circular1"
 }

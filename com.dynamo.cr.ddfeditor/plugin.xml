@@ -312,7 +312,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
             proto-message-class="com.dynamo.model.proto.Model$ModelDesc"
-            template-data="Name: 'unnamed' Mesh: '' Material: ''">
+            template-data="name: &apos;unnamed&apos; mesh: &apos;&apos; material: &apos;&apos;">
       </resource-type>
       <resource-type
             file-extension="go"
@@ -326,14 +326,14 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Camera"
             name="Camera"
             proto-message-class="com.dynamo.camera.proto.Camera$CameraDesc"
-            template-data="AspectRatio: 1 FOV: 45 NearZ: 0.1 FarZ: 1000 ">
+            template-data="aspect_ratio: 1 fov: 45 near_z: 0.1 far_z: 1000 ">
       </resource-type>
       <resource-type
             file-extension="light"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Light"
             name="Light"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$LightDesc"
-            template-data="Id: 'unnamed' Type: POINT Intensity: 10 Color { X: 1 Y: 1 Z: 1 } Range: 50 Decay: 0.9 ">
+            template-data="id: &apos;unnamed&apos; type: POINT intensity: 10 color { x: 1 y: 1 z: 1 } range: 50 decay: 0.9 ">
       </resource-type>
       <resource-type
             embeddable="true"
@@ -341,7 +341,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint"
             name="Spawn Point"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$SpawnPointDesc"
-            template-data="Prototype: &apos;&apos; ">
+            template-data="prototype: &apos;&apos;">
       </resource-type>
       <resource-type
             embeddable="true"
@@ -349,7 +349,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject"
             name="Collision Object"
             proto-message-class="com.dynamo.physics.proto.Physics$CollisionObjectDesc"
-            template-data="CollisionShape: &apos;&apos; Type: COLLISION_OBJECT_TYPE_DYNAMIC Mass: 1 Friction: 0.1 Restitution: 0.5 Group: 1 ">
+            template-data="collision_shape: &apos;&apos; type: COLLISION_OBJECT_TYPE_DYNAMIC mass: 1 friction: 0.1 restitution: 0.5 group: 1">
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.GuiEditSupport"
@@ -357,14 +357,14 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Gui"
             name="Gui"
             proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
-            template-data="Script: &apos;&apos;">
+            template-data="script: &apos;&apos;">
       </resource-type>
       <resource-type
             file-extension="font"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Font"
             name="Font"
             proto-message-class="com.dynamo.render.proto.Font$FontDesc"
-            template-data="Font: '' Material: '' Size: 15">
+            template-data="font: &apos;&apos; material: &apos;&apos; size: 15">
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.MaterialEditSupport"
@@ -372,7 +372,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Material"
             name="Material"
             proto-message-class="com.dynamo.render.proto.Material$MaterialDesc"
-            template-data="Name: 'unnamed' VertexProgram: '' FragmentProgram: ''">
+            template-data="name: &apos;unnamed&apos; vertex_program: &apos;&apos; fragment_program: &apos;&apos;">
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.RenderEditSupport"
@@ -380,7 +380,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Render"
             name="Render"
             proto-message-class="com.dynamo.render.proto.Render$RenderPrototypeDesc"
-            template-data="Script: &apos;&apos;">
+            template-data="script: &apos;&apos;">
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.InputBindingEditSupport"
@@ -402,7 +402,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Collection"
             name="Collection"
             proto-message-class="com.dynamo.gameobject.proto.GameObject$CollectionDesc"
-            template-data="Name: 'unnamed'">
+            template-data="name: &apos;unnamed&apos;">
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.EmitterEditSupport"
@@ -410,21 +410,21 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
             name="Emitter"
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="Mode: PLAY_MODE_ONCE Duration: 0.2 Space: EMISSION_SPACE_WORLD Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 1.0 } Texture { Name: &apos;unnamed&apos; TX: 1 TY: 1 } Material: &apos;unnamed&apos; MaxParticleCount: 8 Type: EMITTER_TYPE_CONE">
+            template-data="mode: PLAY_MODE_ONCE duration: 0.2 space: EMISSION_SPACE_WORLD rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } texture { name: &apos;unnamed&apos; t_x: 1 t_y: 1 } material: &apos;unnamed&apos; max_particle_count: 8 type: EMITTER_TYPE_CONE">
       </resource-type>
       <resource-type
             file-extension="sprite"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Sprite"
             name="Sprite"
             proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
-            template-data="Texture: &apos;&apos; Width: 1 Height: 1 Height: 1">
+            template-data="texture: &apos;&apos; width: 1 height: 1">
       </resource-type>
       <resource-type
             file-extension="convexshape"
             id="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape"
             name="Convex Shape"
             proto-message-class="com.dynamo.physics.proto.Physics$ConvexShape"
-            template-data="ShapeType: TYPE_BOX Data: 1 Data: 1 Data: 1">
+            template-data="shape_type: TYPE_BOX data: 1 data: 1 data: 1">
       </resource-type>
       <resource-type
             embeddable="true"
@@ -432,7 +432,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy"
             name="Collection Proxy"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionProxyDesc"
-            template-data="Collection: &apos;&apos;">
+            template-data="collection: &apos;&apos;">
       </resource-type>
     </extension>
    <extension

@@ -26,9 +26,8 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 
 import com.dynamo.cr.protobind.MessageNode;
-import com.dynamo.ddf.DDF;
 import com.dynamo.render.Fontc;
-import com.dynamo.render.ddf.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontDesc;
 
 public class FontEditor extends DdfEditor {
 
@@ -53,8 +52,8 @@ public class FontEditor extends DdfEditor {
                         fontDesc = queue.take();
                     }
 
-                    if (!cachedFontName.equals(fontDesc.m_Font)) {
-                        IFile fontFile = root.getFile(new Path(fontDesc.m_Font));
+                    if (!cachedFontName.equals(fontDesc.getFont())) {
+                        IFile fontFile = root.getFile(new Path(fontDesc.getFont()));
                         InputStream fontStream = fontFile.getContents();
                         try {
                             ByteArrayOutputStream fontOut = new ByteArrayOutputStream();
@@ -139,8 +138,8 @@ public class FontEditor extends DdfEditor {
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
         try {
             message.build().writeTo(out);
-            FontDesc fontDesc = DDF.load(new ByteArrayInputStream(out.toByteArray()), com.dynamo.render.ddf.Font.FontDesc.class);
-            if (fontDesc.m_Font == null)
+            FontDesc fontDesc = FontDesc.parseFrom(out.toByteArray());
+            if (fontDesc.getFont() == null)
                 return;
 
             previewThread.queue.offer(fontDesc);

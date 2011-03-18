@@ -1,15 +1,15 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "empty.script"
+    id: "script"
+    component: "empty.script"
 }
-Components
+components
 {
-    Id: "co"
-    Resource: "test.collisionobject"
+    id: "co"
+    component: "test.collisionobject"
 }
-Components
+components
 {
-    Id: "model"
-    Resource: "box.model"
+    id: "model"
+    component: "box.model"
 }

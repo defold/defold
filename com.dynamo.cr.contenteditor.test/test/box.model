@@ -1,4 +1,4 @@
-Name: "box"
-Mesh: "box.dae"
-Material: "test.material"
-Textures: "test.png"
+name: "box"
+mesh: "box.dae"
+material: "test.material"
+textures: "test.png"

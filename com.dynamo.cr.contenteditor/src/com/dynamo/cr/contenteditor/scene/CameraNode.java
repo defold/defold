@@ -25,12 +25,12 @@ public class CameraNode extends ComponentNode {
         CameraDesc cameraDesc = cameraResource.getCameraDesc();
         double fakeFar = 3;
 
-        minMax0[3] = cameraDesc.getNearZ() * Math.tan(cameraDesc.getFOV() * 1);
+        minMax0[3] = cameraDesc.getNearZ() * Math.tan(cameraDesc.getFov() * 1);
         minMax0[2] = -minMax0[3];
         minMax0[0] = minMax0[2] * cameraDesc.getAspectRatio();
         minMax0[1] = minMax0[3] * cameraDesc.getAspectRatio();
 
-        minMax1[3] = fakeFar * Math.tan(cameraDesc.getFOV() * 1);
+        minMax1[3] = fakeFar * Math.tan(cameraDesc.getFov() * 1);
         minMax1[2] = -minMax1[3];
         minMax1[0] = minMax1[2] * cameraDesc.getAspectRatio();
         minMax1[1] = minMax1[3] * cameraDesc.getAspectRatio();

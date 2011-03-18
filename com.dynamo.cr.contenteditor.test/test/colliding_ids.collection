@@ -1,29 +1,29 @@
-Name: "colliding_ids"
-CollectionInstances
+name: "colliding_ids"
+collection_instances
 {
-    Id: "test"
-    Collection: "empty.collection"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
+    id: "test"
+    collection: "empty.collection"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
 }
-CollectionInstances
+collection_instances
 {
-    Id: "test"
-    Collection: "empty.collection"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
-}
-Instances
-{
-    Id: "test"
-    Prototype: "empty.go"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
+    id: "test"
+    collection: "empty.collection"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
 }
 Instances
 {
-    Id: "test"
-    Prototype: "empty.go"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 1 }
+    id: "test"
+    prototype: "empty.go"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
+}
+Instances
+{
+    id: "test"
+    prototype: "empty.go"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 1 }
 }

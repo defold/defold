@@ -27,10 +27,10 @@ public class PrototypeNodeLoader implements INodeLoader {
         PrototypeDesc desc = builder.build();
         for (ComponentDesc comp_desc : desc.getComponentsList()) {
             Node comp;
-            if (factory.canLoad(comp_desc.getResource())) {
-                comp = factory.load(monitor, scene, comp_desc.getResource(), node);
+            if (factory.canLoad(comp_desc.getComponent())) {
+                comp = factory.load(monitor, scene, comp_desc.getComponent(), node);
             } else {
-                comp = new ComponentNode(comp_desc.getResource(), scene);
+                comp = new ComponentNode(comp_desc.getComponent(), scene);
             }
             comp.setParent(node);
             // Do not add node here. setParent take care of tht

@@ -1,8 +1,8 @@
-Name: "recurse2"
-CollectionInstances
+name: "recurse2"
+collection_instances
 {
-    Id: "recurse"
-    Collection: "recurse.collection"
-    Position { X: 0 Y: 0 Z: 0 }
-    Rotation { X: 0 Y: 0 Z: 0 W: 0 }
+    id: "recurse"
+    collection: "recurse.collection"
+    position { x: 0 y: 0 z: 0 }
+    rotation { x: 0 y: 0 z: 0 w: 0 }
 }

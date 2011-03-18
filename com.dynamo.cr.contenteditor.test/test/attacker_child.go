@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "model"
-    Resource: "box.model"
+    id: "model"
+    component: "box.model"
 }
