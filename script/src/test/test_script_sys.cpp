@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include "script.h"
-#include "script_pickle.h"
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
