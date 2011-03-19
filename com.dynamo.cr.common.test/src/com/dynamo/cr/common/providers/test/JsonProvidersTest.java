@@ -68,13 +68,13 @@ public class JsonProvidersTest {
 
         ObjectMapper m = new ObjectMapper();
         JsonNode node = m.readValue(stream.toString(), JsonNode.class);
-        assertEquals(message.getName(), node.get("Name").getValueAsText());
-        assertEquals(message.getBranchState().getValueDescriptor().getName(), node.get("BranchState").getValueAsText());
-        assertEquals(1, node.get("FileStatus").size());
-        JsonNode fileStatus = node.get("FileStatus").get(0);
-        assertEquals("foo.cpp", fileStatus.get("Name").getValueAsText());
-        assertEquals(message.getCommitsAhead(), node.get("CommitsAhead").getValueAsInt());
-        assertEquals(message.getCommitsBehind(), node.get("CommitsBehind").getValueAsInt());
+        assertEquals(message.getName(), node.get("name").getValueAsText());
+        assertEquals(message.getBranchState().getValueDescriptor().getName(), node.get("branch_state").getValueAsText());
+        assertEquals(1, node.get("file_status").size());
+        JsonNode fileStatus = node.get("file_status").get(0);
+        assertEquals("foo.cpp", fileStatus.get("name").getValueAsText());
+        assertEquals(message.getCommitsAhead(), node.get("commits_ahead").getValueAsInt());
+        assertEquals(message.getCommitsBehind(), node.get("commits_behind").getValueAsInt());
 
         ByteArrayInputStream inStream = new ByteArrayInputStream(node.toString().getBytes());
         MessageBodyReader reader = new ProtobufMessageBodyReader();
