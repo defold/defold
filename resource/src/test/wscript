@@ -16,7 +16,7 @@ create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource
 create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='cc cxx')
 
 # Test archive data. Only copy the source data.
-TaskGen.declare_chain(name='ad',rule='cat ${SRC} > ${TGT}',ext_in='.ad', ext_out='.adc', reentrant = False)
+TaskGen.declare_chain(name='ad',rule='cat < ${SRC} > ${TGT}',ext_in='.ad', ext_out='.adc', reentrant = False)
 
 def build(bld):
     resources = bld.new_task_gen(source = 'test.cont_pb')
