@@ -24,7 +24,7 @@ public class GitTest {
     private Git git;
 
     void execCommand(String command) throws IOException {
-        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command});
+        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"/bin/bash", command});
         if (r.exitValue != 0) {
             System.err.println(r.stdOut);
             System.err.println(r.stdErr);

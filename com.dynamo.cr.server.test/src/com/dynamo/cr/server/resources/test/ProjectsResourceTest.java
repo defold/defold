@@ -79,7 +79,7 @@ public class ProjectsResourceTest {
     }
 
     void execCommand(String command, String arg) throws IOException {
-        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command, arg});
+        CommandUtil.Result r = CommandUtil.execCommand(new String[] {"/bin/bash", command, arg});
         if (r.exitValue != 0) {
             System.err.println(r.stdOut);
             System.err.println(r.stdErr);
