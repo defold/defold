@@ -4,7 +4,6 @@ package dmContentRepoProtocol;
 
 option java_package = "com.dynamo.cr.protocol.proto";
 option java_outer_classname = "Protocol";
-//option (ddf_java_package) = "com.dynamo.cr.protocol.ddf";
 
 /*
   URI REST schemes:
@@ -119,25 +118,25 @@ message BranchStatus
     message Status
     {
         // Path relative to branch root
-        required string Name = 1;
+        required string name = 1;
 
         // "M" => for modified
         // "U" => for unmerged
         // "A" => for added
         // "D" => for deleteted
         // "R" => for renamed
-        required string Status = 2;
+        required string status = 2;
 
         // Original name, only set if file is renamed
-        optional string Original = 3;
+        optional string original = 3;
     }
 
     // TODO: Change to Path?
-    required string Name = 1;
-    required State BranchState = 2;
-    repeated Status FileStatus = 3;
-    optional uint32 CommitsAhead = 4 [default = 0];
-    optional uint32 CommitsBehind = 5 [default = 0];
+    required string name = 1;
+    required State branch_state = 2;
+    repeated Status file_status = 3;
+    optional uint32 commits_ahead = 4 [default = 0];
+    optional uint32 commits_behind = 5 [default = 0];
 }
 
 message BranchList
@@ -159,17 +158,17 @@ message BuildDesc
         ERROR = 1;
     }
 
-    required int32 Id = 1;
-    required Activity BuildActivity = 2;
-    required Result BuildResult = 3;
-    required int32 Progress = 4;
-    required int32 WorkAmount = 5;
+    required int32 id = 1;
+    required Activity build_activity = 2;
+    required Result build_result = 3;
+    required int32 progress = 4;
+    required int32 work_amount = 5;
 }
 
 message BuildLog
 {
-    required string StdOut = 1;
-    required string StdErr = 2;
+    required string std_out = 1;
+    required string std_err = 2;
 }
 
 enum ResolveStage
@@ -187,46 +186,46 @@ enum ResourceType
 
 message ResourceInfo
 {
-    required string Path = 1;
-    required string Name = 2;
-    required ResourceType Type = 3;
-    required int64 LastModified = 4;
-    optional int32 Size = 5;
+    required string path = 1;
+    required string name = 2;
+    required ResourceType type = 3;
+    required int64 last_modified = 4;
+    optional int32 size = 5;
 
     // Only valid if Type == ResourceType.DIRECTORY
-    repeated string SubResourceNames = 6;
+    repeated string sub_resource_names = 6;
 }
 
 message CommitDesc
 {
-    required string Id = 1;
-    required string Message = 2;
+    required string id = 1;
+    required string message = 2;
 }
 
 message ResourceDesc
 {
-    required string Path = 1;
+    required string path = 1;
 }
 
 message Response
 {
-    required Status Status = 1;
-    required string Message = 2;
+    required Status status = 1;
+    required string message = 2;
 }
 
 message CommandPayload
 {
-    required CommandType Type = 1;
-    required string LoginToken = 2;
-    required bytes Payload = 3;
+    required CommandType type = 1;
+    required string login_token = 2;
+    required bytes payload = 3;
 }
 
 message LoginCommand
 {
-    required string UserName = 1;
+    required string user_name = 1;
 }
 
 message NewBuild
 {
-    optional int32 DUMMY = 99;
+    optional int32 dummy = 99;
 }
