@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <gtest/gtest.h>
 #include "../resource_archive.h"
 
