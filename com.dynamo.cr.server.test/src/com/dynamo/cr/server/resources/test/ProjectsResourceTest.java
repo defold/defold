@@ -53,6 +53,7 @@ public class ProjectsResourceTest {
     private User adminUser;
     private User bobUser;
 
+    @SuppressWarnings("unused")
     private WebResource adminProjectsWebResource;
     private WebResource joeProjectsWebResource;
 

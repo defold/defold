@@ -1,16 +1,13 @@
 package com.dynamo.cr.editor.wizards;
 
-import java.util.ArrayList;
 import java.util.Collection;
 
-import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.RepositoryException;
-import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 
@@ -32,13 +29,10 @@ public class ConnectionWizardProjectsPagePresenter {
 
     private IDisplay display;
     private IProjectsClient client;
-    private boolean connectionOk;
-    private IWorkbenchPage page;
     private ConnectionWizardBranchPagePresenter branchPresenter;
 
     public ConnectionWizardProjectsPagePresenter(IDisplay display, IWorkbenchPage page, ConnectionWizardBranchPagePresenter branchPresenter) {
         this.display = display;
-        this.page = page;
         this.branchPresenter = branchPresenter;
     }
 
@@ -61,12 +55,10 @@ public class ConnectionWizardProjectsPagePresenter {
 
     public void init() {
         display.setPageComplete(false);
-        connectionOk = true;
         try {
             updateProjectList();
         }
         catch (Throwable e) {
-            connectionOk = false;
             display.setErrorMessage(e.getMessage());
         }
     }
