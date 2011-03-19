@@ -160,7 +160,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
            @Override
            public String getText(Object element) {
                Status s = (Status) element;
-               return String.format("[%s] %s", s.getStatus(), s.getName().substring(1));
+               return String.format("[%s] %s", s.getIndexStatus(), s.getName().substring(1));
            }
         });
         listViewer.setInput(new ArrayList<Status>());

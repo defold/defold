@@ -6,12 +6,12 @@ import java.util.List;
 public class GitStatus {
 
     public static class Entry {
-        public Entry(char index_status, char work_status, String file) {
-            this.indexStatus = index_status;
-            this.workStatus = work_status;
+        public Entry(char indexStatus, char workingTreeStatus, String file) {
+            this.indexStatus = indexStatus;
+            this.workingTreeStatus = workingTreeStatus;
             this.file = file;
         }
-        public char indexStatus, workStatus;
+        public char indexStatus, workingTreeStatus;
         public String file;
         public String original;
     }

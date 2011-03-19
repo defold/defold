@@ -61,8 +61,8 @@ public class Git {
 
     // We have two regexps due to problem with parsing "->" and non-greedy parsing.
     // It is perhaps possible to write in a single regexp but this seems to work.
-    static Pattern statusPattern1 = Pattern.compile("([AMUDR ])([MUD ])[ ](.*?)( -> )(.*?)?$");
-    static Pattern statusPattern2 = Pattern.compile("([AMUDR ])([MUD ])[ ](.*)$");
+    static Pattern statusPattern1 = Pattern.compile("([MADRCU ])([MADU ])[ ](.*?)( -> )(.*?)?$");
+    static Pattern statusPattern2 = Pattern.compile("([MADRCU ])([MADU ])[ ](.*)$");
 
     static GitStatus.Entry parseStatusEntry(String line) throws GitException {
         Matcher m1 = statusPattern1.matcher(line);
@@ -298,7 +298,7 @@ public class Git {
             throw new GitException("Internal error.");
 
 
-        if (entry.workStatus == 'D' && stage == GitStage.THEIRS) {
+        if (entry.workingTreeStatus == 'D' && stage == GitStage.THEIRS) {
             // Deleted by them
             r = execGitCommand(directory, "git", "rm", file);
             checkResult(r);

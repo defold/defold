@@ -88,7 +88,7 @@ public class CommitDialog extends TitleAreaDialog implements ITextListener, Comm
             public Image getImage(Object element) {
                 Status s = (Status) element;
                 ImageDescriptor desc = null;
-                switch (s.getStatus().charAt(0)) {
+                switch (s.getIndexStatus().charAt(0)) {
                     case 'A':
                         desc = Activator.getImageDescriptor("/icons/add_obj.gif");
                         break;

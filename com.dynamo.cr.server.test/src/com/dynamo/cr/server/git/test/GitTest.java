@@ -131,10 +131,10 @@ public class GitTest {
 
         assertEquals("main.cpp", status.files.get(0).file);
         assertEquals(' ', status.files.get(0).indexStatus);
-        assertEquals('M', status.files.get(0).workStatus);
+        assertEquals('M', status.files.get(0).workingTreeStatus);
         assertEquals("rename2.cpp", status.files.get(1).file);
         assertEquals('R', status.files.get(1).indexStatus);
-        assertEquals(' ', status.files.get(1).workStatus);
+        assertEquals(' ', status.files.get(1).workingTreeStatus);
     }
 
     @Test
@@ -255,12 +255,12 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         status = git.getStatus(repo.getPath());
         assertEquals('U', status.files.get(0).indexStatus);
-        assertEquals('U', status.files.get(0).workStatus);
+        assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
         status = git.getStatus(repo.getPath());
         assertEquals('M', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
 
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
@@ -302,12 +302,12 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         GitStatus status = git.getStatus(repo.getPath());
         assertEquals('U', status.files.get(0).indexStatus);
-        assertEquals('D', status.files.get(0).workStatus);
+        assertEquals('D', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
         status = git.getStatus(repo.getPath());
         assertEquals('M', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
@@ -346,12 +346,12 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         GitStatus status = git.getStatus(repo.getPath());
         assertEquals('D', status.files.get(0).indexStatus);
-        assertEquals('U', status.files.get(0).workStatus);
+        assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
         status = git.getStatus(repo.getPath());
         assertEquals('D', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
@@ -385,12 +385,12 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         GitStatus status = git.getStatus(repo.getPath());
         assertEquals('U', status.files.get(0).indexStatus);
-        assertEquals('U', status.files.get(0).workStatus);
+        assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
         status = git.getStatus(repo.getPath());
         assertEquals('M', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
 
         git.commit(repo.getPath(), "test commit 2");
         status = git.getStatus(repo.getPath());
@@ -434,12 +434,12 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         GitStatus status = git.getStatus(repo.getPath());
         assertEquals('U', status.files.get(0).indexStatus);
-        assertEquals('D', status.files.get(0).workStatus);
+        assertEquals('D', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
         status = git.getStatus(repo.getPath());
         assertEquals('D', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
@@ -478,12 +478,12 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         GitStatus status = git.getStatus(repo.getPath());
         assertEquals('D', status.files.get(0).indexStatus);
-        assertEquals('U', status.files.get(0).workStatus);
+        assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
         status = git.getStatus(repo.getPath());
         assertEquals('A', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
@@ -520,16 +520,16 @@ public class GitTest {
         assertEquals(GitState.MERGE, state);
         GitStatus status = git.getStatus(repo.getPath());
         assertEquals('U', status.files.get(0).indexStatus);
-        assertEquals('U', status.files.get(0).workStatus);
+        assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
         status = git.getStatus(repo.getPath());
         assertEquals('M', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
         status = git.getStatus(repo.getPath());
         assertEquals('M', status.files.get(0).indexStatus);
-        assertEquals(' ', status.files.get(0).workStatus);
+        assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 

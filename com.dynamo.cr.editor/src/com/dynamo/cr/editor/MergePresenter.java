@@ -59,7 +59,7 @@ public class MergePresenter {
             if (status.getBranchState() == State.MERGE) {
                 int n_unresolved = 0;
                 for (Status x : status.getFileStatusList()) {
-                    n_unresolved += x.getStatus().equals("U") ? 1 : 0;
+                    n_unresolved += x.getIndexStatus().equals("U") ? 1 : 0;
                 }
                 finished = n_unresolved == 0;
                 if (finished) {

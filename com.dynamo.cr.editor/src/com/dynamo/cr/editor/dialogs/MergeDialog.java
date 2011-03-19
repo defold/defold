@@ -70,7 +70,7 @@ public class MergeDialog extends TitleAreaDialog implements Listener, MergePrese
             public Image getImage(Object element) {
                 Status s = (Status) element;
                 ImageDescriptor desc;
-                if (s.getStatus().equals("U"))
+                if (s.getIndexStatus().equals("U"))
                     desc = Activator.getImageDescriptor("/icons/conflict_synch.gif");
                 else
                     desc = Activator.getImageDescriptor("/icons/synced.gif");

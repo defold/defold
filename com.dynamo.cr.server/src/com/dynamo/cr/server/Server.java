@@ -515,7 +515,7 @@ public class Server {
 
         for (GitStatus.Entry e : status.files) {
             String fn = String.format("/%s", e.file);
-            BranchStatus.Status.Builder status_builder = BranchStatus.Status.newBuilder().setName(fn).setStatus("" + (e.indexStatus == ' ' ? e.workStatus : e.indexStatus));
+            BranchStatus.Status.Builder status_builder = BranchStatus.Status.newBuilder().setName(fn).setIndexStatus("" + e.indexStatus).setWorkingTreeStatus("" + e.workingTreeStatus);
             if (e.original != null) {
                 status_builder.setOriginal(String.format("/%s", e.original));
             }

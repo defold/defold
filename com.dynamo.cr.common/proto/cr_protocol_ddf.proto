@@ -125,10 +125,12 @@ message BranchStatus
         // "A" => for added
         // "D" => for deleteted
         // "R" => for renamed
-        required string status = 2;
+        // "C" => for copied
+        required string index_status = 2;
+        required string working_tree_status = 3;
 
         // Original name, only set if file is renamed
-        optional string original = 3;
+        optional string original = 4;
     }
 
     // TODO: Change to Path?

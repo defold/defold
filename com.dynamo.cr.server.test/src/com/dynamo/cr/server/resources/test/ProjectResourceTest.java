@@ -405,7 +405,7 @@ public class ProjectResourceTest {
         // Assert clean state
         branch = branch_client.getBranchStatus();
         for (Status s : branch_client.getBranchStatus().getFileStatusList()) {
-            System.out.println(String.format("%s %s", s.getStatus(), s.getName()));
+            System.out.println(String.format("%s %s", s.getIndexStatus(), s.getName()));
         }
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
     }
@@ -451,7 +451,7 @@ public class ProjectResourceTest {
         BranchStatus branch = branch_client.update();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
         assertEquals("/content/file1.txt", branch.getFileStatus(0).getName());
-        assertEquals("U", branch.getFileStatus(0).getStatus());
+        assertEquals("U", branch.getFileStatus(0).getIndexStatus());
 
         // Check merge state
         branch = branch_client.getBranchStatus();
@@ -496,7 +496,7 @@ public class ProjectResourceTest {
         BranchStatus branch = branch_client.update();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
         assertEquals("/content/file1.txt", branch.getFileStatus(0).getName());
-        assertEquals("U", branch.getFileStatus(0).getStatus());
+        assertEquals("U", branch.getFileStatus(0).getIndexStatus());
 
         // Check merge state
         branch = branch_client.getBranchStatus();

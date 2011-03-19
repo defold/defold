@@ -55,7 +55,7 @@ public class JsonProvidersTest {
         BranchStatus.Builder b = BranchStatus.newBuilder();
         b.setName("a name");
         b.setBranchState(State.DIRTY);
-        b.addFileStatus(BranchStatus.Status.newBuilder().setName("foo.cpp").setOriginal("bar.cpp").setStatus("M").build());
+        b.addFileStatus(BranchStatus.Status.newBuilder().setName("foo.cpp").setOriginal("bar.cpp").setIndexStatus("M").setWorkingTreeStatus(" ").build());
         b.setCommitsAhead(4);
         b.setCommitsBehind(3);
 
