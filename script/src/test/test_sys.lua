@@ -1,8 +1,7 @@
 function test_sys()
-    local folder = sys.get_save_folder("my_game")
-    -- Get folder again, test mkdir
-    folder = sys.get_save_folder("my_game")
-    local file = folder .. "/" .. "save001.save"
+    local file = sys.get_save_file("my_game", "save001.save")
+    -- Get file again, test mkdir
+    file = sys.get_save_file("my_game", "save001.save")
 
     local data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
     local result = sys.save(file, data)

@@ -67,9 +67,10 @@ namespace dmScript
         }
     }
 
-    int Sys_GetSaveFolder(lua_State* L)
+    int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);
+        const char* filename = luaL_checkstring(L, 2);
         char* home = 0;
         char* dm_home = getenv("DM_SAVE_HOME");
 #if defined(__linux__) || defined(__MACH__)
@@ -106,6 +107,9 @@ namespace dmScript
                 luaL_error(L, "Unable to create save folder %s (%d)", buf, errno);
         }
 
+        dmStrlCat(buf, "/", sizeof(buf));
+        dmStrlCat(buf, filename, sizeof(buf));
+
         lua_pushstring(L, buf);
 
         return 1;
@@ -115,7 +119,7 @@ namespace dmScript
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
-        {"get_save_folder", Sys_GetSaveFolder},
+        {"get_save_file", Sys_GetSaveFile},
         {0, 0}
     };
 
