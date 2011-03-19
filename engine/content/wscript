@@ -8,6 +8,10 @@ def build(bld):
     obj = bld.new_task_gen(source = [])
     obj.find_sources_in_dirs('materials')
 
+    builtins = bld.new_task_gen(features='archive install_content',
+                                archive_target='builtins.arc')
+    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts')
+
 def configure(conf):
     pass
 

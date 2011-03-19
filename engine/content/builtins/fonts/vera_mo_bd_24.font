@@ -1,0 +1,9 @@
+Font: "builtins/fonts/vera_mo_bd.ttf"
+Material: "builtins/fonts/font.material"
+Size: 24
+Antialias: 1
+Alpha: 1
+OutlineAlpha: 0
+OutlineWidth : 1
+ShadowAlpha: 0
+ShadowBlur: 4
