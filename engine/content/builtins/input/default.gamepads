@@ -1,155 +1,155 @@
-Driver
+driver
 {
-    Device: "Microsoft X-Box 360 pad"
-    Platform: "linux"
-    DeadZone: 0.2
-    Map { Input: GAMEPAD_LSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 8 }
-    Map { Input: GAMEPAD_LTRIGGER Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_SCALE } }
-    Map { Input: GAMEPAD_LSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 4 }
-    Map { Input: GAMEPAD_LPAD_LEFT Type: GAMEPAD_TYPE_AXIS Index: 6 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LPAD_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 6 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LPAD_DOWN Type: GAMEPAD_TYPE_AXIS Index: 7 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LPAD_UP Type: GAMEPAD_TYPE_AXIS Index: 7 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 4 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 4 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_SCALE } }
-    Map { Input: GAMEPAD_RSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 9 }
-    Map { Input: GAMEPAD_RTRIGGER Type: GAMEPAD_TYPE_AXIS Index: 5 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_SCALE } }
-    Map { Input: GAMEPAD_RSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 5 }
-    Map { Input: GAMEPAD_RPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 2 }
-    Map { Input: GAMEPAD_RPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 1 }
-    Map { Input: GAMEPAD_RPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 0 }
-    Map { Input: GAMEPAD_RPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 3 }
-    Map { Input: GAMEPAD_START Type: GAMEPAD_TYPE_BUTTON Index: 6 }
-    Map { Input: GAMEPAD_BACK Type: GAMEPAD_TYPE_BUTTON Index: 10 }
-    Map { Input: GAMEPAD_GUIDE Type: GAMEPAD_TYPE_BUTTON Index: 7 }
+    device: "Microsoft X-Box 360 pad"
+    platform: "linux"
+    dead_zone: 0.2
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_SCALE } }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 4 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_AXIS index: 6 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_AXIS index: 6 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_AXIS index: 7 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_AXIS index: 7 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_UP type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_SCALE } }
+    map { input: GAMEPAD_RSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 9 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_AXIS index: 5 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_SCALE } }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 5 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 2 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 10 }
+    map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 7 }
 }
-Driver
+driver
 {
-    Device: "Sony PLAYSTATION(R)3 Controller"
-    Platform: "linux"
-    DeadZone: 0.2
-    Map { Input: GAMEPAD_LSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 1 }
-    Map { Input: GAMEPAD_LTRIGGER Type: GAMEPAD_TYPE_BUTTON Index: 8 }
-    Map { Input: GAMEPAD_LSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 10 }
-    Map { Input: GAMEPAD_LPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 7 }
-    Map { Input: GAMEPAD_LPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 5 }
-    Map { Input: GAMEPAD_LPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 6 }
-    Map { Input: GAMEPAD_LPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 4 }
-    Map { Input: GAMEPAD_RSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 2 }
-    Map { Input: GAMEPAD_RTRIGGER Type: GAMEPAD_TYPE_BUTTON Index: 9 }
-    Map { Input: GAMEPAD_RSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 11 }
-    Map { Input: GAMEPAD_RPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 15 }
-    Map { Input: GAMEPAD_RPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 13 }
-    Map { Input: GAMEPAD_RPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 14 }
-    Map { Input: GAMEPAD_RPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 12 }
-    Map { Input: GAMEPAD_START Type: GAMEPAD_TYPE_BUTTON Index: 3 }
-    Map { Input: GAMEPAD_BACK Type: GAMEPAD_TYPE_BUTTON Index: 0 }
-    Map { Input: GAMEPAD_GUIDE Type: GAMEPAD_TYPE_BUTTON Index: 16 }
+    device: "Sony PLAYSTATION(R)3 Controller"
+    platform: "linux"
+    dead_zone: 0.2
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 10 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 5 }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_BUTTON index: 4 }
+    map { input: GAMEPAD_RSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_UP type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 2 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_BUTTON index: 9 }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 11 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 15 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 13 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 14 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 12 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 16 }
 }
-Driver
+driver
 {
-    Device: "PLAYSTATION(R)3 Controller"
-    Platform: "osx"
-    DeadZone: 0.200
-    Map { Input: GAMEPAD_LSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 1 }
-    Map { Input: GAMEPAD_LTRIGGER Type: GAMEPAD_TYPE_BUTTON Index: 8 }
-    Map { Input: GAMEPAD_LSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 10 }
-    Map { Input: GAMEPAD_LPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 7 }
-    Map { Input: GAMEPAD_LPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 5 }
-    Map { Input: GAMEPAD_LPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 6 }
-    Map { Input: GAMEPAD_LPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 4 }
-    Map { Input: GAMEPAD_RSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 2 }
-    Map { Input: GAMEPAD_RTRIGGER Type: GAMEPAD_TYPE_BUTTON Index: 9 }
-    Map { Input: GAMEPAD_RSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 11 }
-    Map { Input: GAMEPAD_RPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 15 }
-    Map { Input: GAMEPAD_RPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 13 }
-    Map { Input: GAMEPAD_RPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 14 }
-    Map { Input: GAMEPAD_RPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 12 }
-    Map { Input: GAMEPAD_START Type: GAMEPAD_TYPE_BUTTON Index: 3 }
-    Map { Input: GAMEPAD_BACK Type: GAMEPAD_TYPE_BUTTON Index: 0 }
-    Map { Input: GAMEPAD_GUIDE Type: GAMEPAD_TYPE_BUTTON Index: 16 }
+    device: "PLAYSTATION(R)3 Controller"
+    platform: "osx"
+    dead_zone: 0.200
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 10 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 5 }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_BUTTON index: 4 }
+    map { input: GAMEPAD_RSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_UP type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 2 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_BUTTON index: 9 }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 11 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 15 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 13 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 14 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 12 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 16 }
 }
-Driver
+driver
 {
-    Device: "Controller"
-    Platform: "osx"
-    DeadZone: 0.200
-    Map { Input: GAMEPAD_LSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 6 }
-    Map { Input: GAMEPAD_LTRIGGER Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_SCALE } }
-    Map { Input: GAMEPAD_LSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 4 }
-    Map { Input: GAMEPAD_LPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 13 }
-    Map { Input: GAMEPAD_LPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 14 }
-    Map { Input: GAMEPAD_LPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 12 }
-    Map { Input: GAMEPAD_LPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 11 }
-    Map { Input: GAMEPAD_RSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 4 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 4 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 7 }
-    Map { Input: GAMEPAD_RTRIGGER Type: GAMEPAD_TYPE_AXIS Index: 5 Mod { Mod: GAMEPAD_MODIFIER_SCALE } }
-    Map { Input: GAMEPAD_RSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 5 }
-    Map { Input: GAMEPAD_RPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 2 }
-    Map { Input: GAMEPAD_RPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 1 }
-    Map { Input: GAMEPAD_RPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 0 }
-    Map { Input: GAMEPAD_RPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 3 }
-    Map { Input: GAMEPAD_START Type: GAMEPAD_TYPE_BUTTON Index: 8 }
-    Map { Input: GAMEPAD_BACK Type: GAMEPAD_TYPE_BUTTON Index: 9 }
-    Map { Input: GAMEPAD_GUIDE Type: GAMEPAD_TYPE_BUTTON Index: 10 }
+    device: "Controller"
+    platform: "osx"
+    dead_zone: 0.200
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_SCALE } }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 4 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 13 }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 14 }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 12 }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_BUTTON index: 11 }
+    map { input: GAMEPAD_RSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_UP type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_AXIS index: 5 mod { mod: GAMEPAD_MODIFIER_SCALE } }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 5 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 2 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 9 }
+    map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 10 }
 }
-Driver
+driver
 {
-    Device: "cp"
-    Platform: "windows"
-    DeadZone: 0.200
-    Map { Input: GAMEPAD_LSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 0 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 1 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 8 }
-    Map { Input: GAMEPAD_LTRIGGER Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_LSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 4 }
-    Map { Input: GAMEPAD_LPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 2 }
-    Map { Input: GAMEPAD_LPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 1 }
-    Map { Input: GAMEPAD_LPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 0 }
-    Map { Input: GAMEPAD_LPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 3 }
-    Map { Input: GAMEPAD_RSTICK_LEFT Type: GAMEPAD_TYPE_AXIS Index: 4 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_RIGHT Type: GAMEPAD_TYPE_AXIS Index: 4 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_DOWN Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_UP Type: GAMEPAD_TYPE_AXIS Index: 3 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSTICK_CLICK Type: GAMEPAD_TYPE_BUTTON Index: 9 }
-    Map { Input: GAMEPAD_RTRIGGER Type: GAMEPAD_TYPE_AXIS Index: 2 Mod { Mod: GAMEPAD_MODIFIER_NEGATE } Mod { Mod: GAMEPAD_MODIFIER_CLAMP } }
-    Map { Input: GAMEPAD_RSHOULDER Type: GAMEPAD_TYPE_BUTTON Index: 5 }
-    Map { Input: GAMEPAD_RPAD_LEFT Type: GAMEPAD_TYPE_BUTTON Index: 2 }
-    Map { Input: GAMEPAD_RPAD_RIGHT Type: GAMEPAD_TYPE_BUTTON Index: 1 }
-    Map { Input: GAMEPAD_RPAD_DOWN Type: GAMEPAD_TYPE_BUTTON Index: 0 }
-    Map { Input: GAMEPAD_RPAD_UP Type: GAMEPAD_TYPE_BUTTON Index: 3 }
-    Map { Input: GAMEPAD_START Type: GAMEPAD_TYPE_BUTTON Index: 7 }
-    Map { Input: GAMEPAD_BACK Type: GAMEPAD_TYPE_BUTTON Index: 6 }
-    Map { Input: GAMEPAD_GUIDE Type: GAMEPAD_TYPE_BUTTON Index: 3 }
+    device: "cp"
+    platform: "windows"
+    dead_zone: 0.200
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 4 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 2 }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_RSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_UP type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 9 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 5 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 2 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 3 }
 }

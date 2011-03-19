@@ -1,14 +1,14 @@
-Name: "font"
-Tags: "text"
-VertexProgram: "builtins/fonts/font.vp"
-FragmentProgram: "builtins/fonts/font.fp"
-VertexConstants {
-  Register: 0
-  Type: CONSTANT_TYPE_VIEWPROJ
-  Value {
-    X: 0.0
-    Y: 0.0
-    Z: 0.0
-    W: 0.0
+name: "font"
+tags: "text"
+vertex_program: "builtins/fonts/font.vp"
+fragment_program: "builtins/fonts/font.fp"
+vertex_constants {
+  register: 0
+  type: CONSTANT_TYPE_VIEWPROJ
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
   }
 }
