@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "test_onmessage.scriptc"
+    id: "script"
+    component: "test_onmessage.scriptc"
 }

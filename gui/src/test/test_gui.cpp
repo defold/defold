@@ -688,8 +688,8 @@ TEST_F(dmGuiTest, PostMessage2)
     dmTestGuiDDF::AMessage amessage;
     dmMessage::Dispatch(socket, &Dispatch2, &amessage);
 
-    ASSERT_EQ(123, amessage.m_a);
-    ASSERT_EQ(456, amessage.m_b);
+    ASSERT_EQ(123, amessage.m_A);
+    ASSERT_EQ(456, amessage.m_B);
 }
 
 TEST_F(dmGuiTest, PostMessageMissingField)
@@ -722,7 +722,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmTestGuiDDF::AMessage amessage;
-    amessage.m_a = 123;
+    amessage.m_A = 123;
     r = dmGui::DispatchMessage(scene, dmHashString64("amessage"), &amessage, dmTestGuiDDF::AMessage::m_DDFDescriptor);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 

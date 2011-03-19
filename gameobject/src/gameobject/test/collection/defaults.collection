@@ -1,11 +1,11 @@
-Name: "defaults"
-CollectionInstances
+name: "defaults"
+collection_instances
 {
-    Id: "id"
-    Collection: "defaults_sub.collectionc"
+    id: "id"
+    collection: "defaults_sub.collectionc"
 }
-Instances
+instances
 {
-    Id: "id"
-    Prototype: "child.goc"
+    id: "id"
+    prototype: "child.goc"
 }

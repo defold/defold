@@ -4,13 +4,13 @@ import "ddf/ddf_math.proto";
 
 message Transform
 {
-    required dmMath.Vector3 Position = 1;
-    required dmMath.Quat Rotation = 2;
+    required dmMath.Vector3 position = 1;
+    required dmMath.Quat rotation = 2;
 }
 
 message SubMsg
 {
-    required uint32 UintValue = 1;
+    required uint32 uint_value = 1;
 }
 
 enum Enum
@@ -21,19 +21,19 @@ enum Enum
 
 message Msg
 {
-    required uint32 UintValue = 1;
-    required int32 IntValue = 2;
-    required string StringValue = 3;
-    required dmMath.Vector3 Vec3Value = 4;
-    required dmMath.Vector4 Vec4Value = 5;
-    required dmMath.Quat QuatValue = 6;
-    required dmMath.Matrix4 Matrix4Value = 7;
-    required SubMsg SubMsgValue = 8;
-    required Enum EnumValue = 9;
+    required uint32 uint_value = 1;
+    required int32 int_value = 2;
+    required string string_value = 3;
+    required dmMath.Vector3 vec3_value = 4;
+    required dmMath.Vector4 vec4_value = 5;
+    required dmMath.Quat quat_value = 6;
+    required dmMath.Matrix4 matrix4_value = 7;
+    required SubMsg sub_msg_value = 8;
+    required Enum enum_value = 9;
 }
 
 message LuaDDFBufferOverflow
 {
-    required uint32 UintValue = 1;
-    required string StringValue = 3;
+    required uint32 uint_value = 1;
+    required string string_value = 3;
 }

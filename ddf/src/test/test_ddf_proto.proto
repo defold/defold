@@ -4,7 +4,6 @@ import "ddf/ddf_extensions.proto";
 
 
 option java_package = "com.dynamo.ddf.proto";
-option (ddf_java_package) = "com.dynamo.ddf.test";
 option (ddf_namespace) = "DUMMY";
 option java_outer_classname = "TestDDF";
 
@@ -19,26 +18,26 @@ message Simple
 
 message ScalarTypes
 {
-    required float  Float = 1;
-    required double Double = 2;
-    required int32  Int32 = 3;
-    required uint32 Uint32 = 4;
-    required int64  Int64 = 5;
-    required uint64 Uint64 = 6;
-    required string String = 7;
+    required float  float_val = 1;
+    required double double_val = 2;
+    required int32  int32_val = 3;
+    required uint32 uint32_val = 4;
+    required int64  int64_val = 5;
+    required uint64 uint64_val = 6;
+    required string string_val = 7;
 }
 
 enum TestEnum
 {
-    TestEnumVal1 = 10;
-    TestEnumVal2 = 20;
+    TEST_ENUM_VAL1 = 10;
+    TEST_ENUM_VAL2 = 20;
 }
 
 // Test for bug with duplicate enums. Introduced in previous commit
 enum TestEnumB
 {
-    TestEnumValB1 = 10;
-    TestEnumValB2 = 20;
+    test_enum_val_b1 = 10;
+    test_enum_val_b2 = 20;
 }
 
 // http://localhost:8080/redmine/issues/22
@@ -96,11 +95,11 @@ message Mesh
         QUADS = 2;
     }
 
-    required string    Name = 1;
-    repeated float     Vertices = 2;
-    repeated uint32    Indices = 3;
-    required uint32    PrimitiveCount = 4;
-    required Primitive PrimitiveType = 5;
+    required string    name = 1;
+    repeated float     vertices = 2;
+    repeated uint32    indices = 3;
+    required uint32    primitive_count = 4;
+    required Primitive primitive_type = 5;
 }
 
 message NestedArraySub2
@@ -154,18 +153,18 @@ message MaterialDesc
 
     message Parameter
     {
-        required string Name = 1;
-        required ParameterType Type = 2;
-        required ParameterSemantic Semantic = 3;
-        required uint32 Register = 4;
-        required Vector4 Value = 5;
+        required string name = 1;
+        required ParameterType type = 2;
+        required ParameterSemantic semantic = 3;
+        required uint32 register = 4;
+        required Vector4 value = 5;
     }
 
-    required string Name = 1;
-    required string VertexProgram = 2;
-    required string FragmentProgram = 3;
-    repeated Parameter VertexParameters = 4;
-    repeated Parameter FragmentParameters = 5;
+    required string name = 1;
+    required string vertex_program = 2;
+    required string fragment_program = 3;
+    repeated Parameter vertex_parameters = 4;
+    repeated Parameter fragment_parameters = 5;
 }
 
 message MissingRequiredTemplate
@@ -189,7 +188,7 @@ message Vector2Message
 
 message TestStructAlias
 {
-    required Vector2Message Vec2 = 1;
+    required Vector2Message vec2 = 1;
 }
 
 message TestImportMessage
@@ -212,17 +211,17 @@ message SubMessageWithOptionalQuat
 
 message TestDefault
 {
-    optional float  Float = 1 [ default = 10.0 ];
-    optional double Double = 2 [ default = 20.0 ];
-    optional int32  Int32 = 3 [ default = -1122 ];
-    optional uint32 Uint32 = 4 [ default = 1234 ];
-    optional int64  Int64 = 5 [ default = -5678 ];
-    optional uint64 Uint64 = 6 [ default = 5566 ];
-    optional string String = 7 [ default = "a default value" ];
+    optional float  float_val = 1 [ default = 10.0 ];
+    optional double double_val = 2 [ default = 20.0 ];
+    optional int32  int32_val = 3 [ default = -1122 ];
+    optional uint32 uint32_val = 4 [ default = 1234 ];
+    optional int64  int64_val = 5 [ default = -5678 ];
+    optional uint64 uint64_val = 6 [ default = 5566 ];
+    optional string string_val = 7 [ default = "a default value" ];
 
-    optional uint64 NonDefaultUint64 = 8;
-    optional string NonDefaultString = 9;
+    optional uint64 non_default_uint64 = 8;
+    optional string non_default_string = 9;
 
     optional QuatWithDefault quat = 10;
-    optional SubMessageWithOptionalQuat SubMessage = 11;
+    optional SubMessageWithOptionalQuat sub_message = 11;
 }

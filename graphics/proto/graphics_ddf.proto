@@ -4,19 +4,19 @@ message TextureImage
 {
     enum TextureFormat
     {
-        LUMINANCE  = 0;
-        RGB        = 1;
-        RGBA       = 2;
-        RGB_DXT1   = 3;
-        RGBA_DXT1  = 4;
-        RGBA_DXT3  = 5;
-        RGBA_DXT5  = 6;
+        TEXTURE_FORMAT_LUMINANCE    = 0;
+        TEXTURE_FORMAT_RGB          = 1;
+        TEXTURE_FORMAT_RGBA         = 2;
+        TEXTURE_FORMAT_RGB_DXT1     = 3;
+        TEXTURE_FORMAT_RGBA_DXT1    = 4;
+        TEXTURE_FORMAT_RGBA_DXT3    = 5;
+        TEXTURE_FORMAT_RGBA_DXT5    = 6;
     }
 
-    required uint32 Width  = 1;
-    required uint32 Height = 2;
-    required TextureFormat Format = 3;
-    repeated uint32 MipMapOffset = 4;
-    repeated uint32 MipMapSize = 5;
-    required bytes Data = 6;
+    required uint32 width  = 1;
+    required uint32 height = 2;
+    required TextureFormat format = 3;
+    repeated uint32 mip_map_offset = 4;
+    repeated uint32 mip_map_size = 5;
+    required bytes data = 6;
 }

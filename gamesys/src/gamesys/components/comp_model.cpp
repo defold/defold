@@ -137,27 +137,27 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)*user_data;
         dmRender::RenderObject* ro = &component->m_RenderObject;
-        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_Name))
         {
             dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)message_data->m_Buffer;
             dmRender::EnableRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_Name))
         {
             dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)message_data->m_Buffer;
             dmRender::DisableRenderObjectVertexConstant(ro, ddf->m_Register);
         }
-        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_Name))
         {
             dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)message_data->m_Buffer;
             dmRender::EnableRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_ScriptName))
+        if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_Name))
         {
             dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)message_data->m_Buffer;
             dmRender::DisableRenderObjectFragmentConstant(ro, ddf->m_Register);
         }
-        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_ScriptName))
+        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
         {
             dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)message_data->m_Buffer;
             uint32_t unit = ddf->m_TextureUnit;

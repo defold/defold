@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "bullet.script"
+    id: "script"
+    component: "bullet.script"
 }

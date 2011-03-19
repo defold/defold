@@ -1,17 +1,17 @@
-Name: "sub"
-Instances
+name: "sub"
+instances
 {
-    Prototype: "child.goc"
-    Id: "child"
-    Position { X: 0 Y: 10 Z: 0 }
-    Rotation { X: 0.0 Y: 0.0 Z: 0.0 W: 0.0 }
+    prototype: "child.goc"
+    id: "child"
+    position { x: 0 y: 10 z: 0 }
+    rotation { x: 0.0 y: 0.0 z: 0.0 w: 0.0 }
 }
 
-Instances
+instances
 {
-    Prototype: "parent.goc"
-    Id: "parent"
-    Position { X: 0 Y: 20 Z: 0 }
-    Rotation { X: 0.0 Y: 0.7071 Z: 0.0 W: 0.7071 }
-    Children: "child"
+    prototype: "parent.goc"
+    id: "parent"
+    position { x: 0 y: 20 z: 0 }
+    rotation { x: 0.0 y: 0.7071 z: 0.0 w: 0.7071 }
+    children: "child"
 }

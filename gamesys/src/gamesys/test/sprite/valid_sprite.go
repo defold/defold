@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "sprite"
-    Resource: "sprite/valid.sprite"
+    id: "sprite"
+    component: "sprite/valid.sprite"
 }

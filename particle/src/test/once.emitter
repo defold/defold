@@ -1,14 +1,14 @@
-Mode:               PLAY_MODE_ONCE
-Duration:           0.0333
-Space:              EMISSION_SPACE_WORLD
-Rotation:           { X: 0 Y: 0 Z: 0 W: 1 }
+mode:               PLAY_MODE_ONCE
+duration:           0.0333
+space:              EMISSION_SPACE_WORLD
+rotation:           { x: 0 y: 0 z: 0 w: 1 }
 
-Material:           "particle.material"
-Texture:            { Name: "tiny_explosion.texture" TX: 8 TY: 8 }
+material:           "particle.material"
+texture:            { name: "tiny_explosion.texture" t_x: 8 t_y: 8 }
 
-MaxParticleCount:   1
+max_particle_count:   1
 
-Type:               EMITTER_TYPE_CONE
+type:               EMITTER_TYPE_CONE
 
-Properties:         { Key: EMITTER_KEY_SPAWN_DELAY          Value: 0.0334 }
-Properties:         { Key: EMITTER_KEY_PARTICLE_LIFE_TIME   Value: 0.0167 }
+properties:         { key: EMITTER_KEY_SPAWN_DELAY          value: 0.0334 }
+properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME   value: 0.0167 }

@@ -4,19 +4,19 @@ import "ddf/ddf_math.proto";
 
 message GlobalData
 {
-    required uint32 UIntValue = 1;
-    required int32 IntValue = 2;
-    required string StringValue = 3;
-    required dmMath.Vector3 VecValue = 4;
+    required uint32 uint_value = 1;
+    required int32 int_value = 2;
+    required string string_value = 3;
+    required dmMath.Vector3 vec_value = 4;
 }
 
 message Spawn
 {
-    required string Prototype = 1;
-    required dmMath.Point3 Pos = 2;
+    required string prototype = 1;
+    required dmMath.Point3 pos = 2;
 }
 
 message SpawnResult
 {
-    required int32 Status = 1;
+    required int32 status = 1;
 }

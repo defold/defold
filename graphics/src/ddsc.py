@@ -14,27 +14,27 @@ if __name__ == "__main__":
     image = dds.decode(open(args[0], "rb"))
 
     texture = graphics_ddf_pb2.TextureImage()
-    texture.Width, texture.Height = image.Width, image.Height
+    texture.width, texture.height = image.Width, image.Height
 
     format_table = {
-        ('DXT1', False): graphics_ddf_pb2.TextureImage.RGB_DXT1,
-        ('DXT1', True):  graphics_ddf_pb2.TextureImage.RGBA_DXT1,
-        ('DXT3', False): graphics_ddf_pb2.TextureImage.RGBA_DXT3,
-        ('DXT3', True):  graphics_ddf_pb2.TextureImage.RGBA_DXT3,
-        ('DXT5', False): graphics_ddf_pb2.TextureImage.RGBA_DXT5,
-        ('DXT5', True):  graphics_ddf_pb2.TextureImage.RGBA_DXT5
+        ('DXT1', False): graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGB_DXT1,
+        ('DXT1', True):  graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGBA_DXT1,
+        ('DXT3', False): graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGBA_DXT3,
+        ('DXT3', True):  graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGBA_DXT3,
+        ('DXT5', False): graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGBA_DXT5,
+        ('DXT5', True):  graphics_ddf_pb2.TextureImage.TEXTURE_FORMAT_RGBA_DXT5
     }
 
-    texture.Format = format_table[(image.FourCC, image.Alpha)]
+    texture.format = format_table[(image.FourCC, image.Alpha)]
     d = ""
     offset = 0
     for m in image.MipMaps:
-        texture.MipMapOffset.append(offset)
-        texture.MipMapSize.append(len(m))
+        texture.mip_map_offset.append(offset)
+        texture.mip_map_size.append(len(m))
         d += m
         offset += len(m)
 
-    texture.Data = d
+    texture.data = d
 
     f = open(options.output_file, "wb")
     f.write(texture.SerializeToString())

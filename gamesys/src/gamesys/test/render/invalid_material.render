@@ -1,6 +1,6 @@
-Script: "render_script/valid.render_script"
-Materials
+script: "render_script/valid.render_script"
+materials
 {
-    Name: "test_material"
-    Material: "material/missing_name.material"
+    name: "test_material"
+    material: "material/missing_name.material"
 }

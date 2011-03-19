@@ -2,7 +2,6 @@ import "google/protobuf/descriptor.proto";
 
 option java_package = "com.dynamo.proto";
 option java_outer_classname = "DdfExtensions";
-option (ddf_java_package) = "com.dynamo.ddf.test";
 
 extend google.protobuf.MessageOptions
 {
@@ -16,7 +15,6 @@ extend google.protobuf.FieldOptions
 
 extend google.protobuf.FileOptions
 {
-    optional string ddf_java_package = 50000;
     optional string ddf_namespace = 50001;
     optional string ddf_includes = 50002;
 }

@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "co"
-    Resource: "collision_object/invalid_shape.collisionobject"
+    id: "co"
+    component: "collision_object/invalid_shape.collisionobject"
 }

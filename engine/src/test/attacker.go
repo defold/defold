@@ -1,16 +1,16 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "attacker.script"
+    id: "script"
+    component: "attacker.script"
 }
-Components
+components
 {
-    Id: "co"
-    Resource: "attacker.collisionobject"
+    id: "co"
+    component: "attacker.collisionobject"
 }
-EmbeddedComponents
+embedded_components
 {
-    Id: "bullet_spawner"
-    Type: "spawnpoint"
-    Data: "Prototype: \"bullet.go\""
+    id: "bullet_spawner"
+    type: "spawnpoint"
+    data: "prototype: \"bullet.go\""
 }

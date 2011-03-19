@@ -1,4 +1,4 @@
-KeyTrigger { Input: KEY_0 Action: "Action0" }
-KeyTrigger { Input: KEY_1 Action: "Action0" }
-KeyTrigger { Input: KEY_0 Action: "Action1" }
-KeyTrigger { Input: KEY_1 Action: "Action1" }
+key_trigger { input: KEY_0 action: "Action0" }
+key_trigger { input: KEY_1 action: "Action0" }
+key_trigger { input: KEY_0 action: "Action1" }
+key_trigger { input: KEY_1 action: "Action1" }

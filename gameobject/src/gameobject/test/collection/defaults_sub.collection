@@ -1,6 +1,6 @@
-Name: "defaults_sub"
-Instances
+name: "defaults_sub"
+instances
 {
-    Id: "id_sub"
-    Prototype: "child.goc"
+    id: "id_sub"
+    prototype: "child.goc"
 }

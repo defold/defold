@@ -2,8 +2,8 @@ package TestResource;
 
 message ResourceContainerDesc
 {
-    required string Name = 1;
-    repeated string Resources = 2;
+    required string name = 1;
+    repeated string resources = 2;
 }
 
 message ResourceFoo

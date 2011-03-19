@@ -1,35 +1,35 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "null.scriptc"
+    id: "script"
+    component: "null.scriptc"
 }
-Components
+components
 {
-    Id: "a1"
-    Resource: "a.a"
+    id: "a1"
+    component: "a.a"
 }
-Components
+components
 {
-    Id: "a2"
-    Resource: "a.a"
+    id: "a2"
+    component: "a.a"
 }
-Components
+components
 {
-    Id: "b"
-    Resource: "b.b"
+    id: "b"
+    component: "b.b"
 }
-Components
+components
 {
-    Id: "c1"
-    Resource: "c.c"
+    id: "c1"
+    component: "c.c"
 }
-Components
+components
 {
-    Id: "c2"
-    Resource: "c.c"
+    id: "c2"
+    component: "c.c"
 }
-Components
+components
 {
-    Id: "c3"
-    Resource: "c.c"
+    id: "c3"
+    component: "c.c"
 }

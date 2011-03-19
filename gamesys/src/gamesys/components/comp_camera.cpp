@@ -25,7 +25,7 @@ namespace dmGameSystem
         dmGameObject::HInstance m_Instance;
         CameraWorld* m_World;
         float m_AspectRatio;
-        float m_FOV;
+        float m_Fov;
         float m_NearZ;
         float m_FarZ;
         uint32_t m_AutoAspectRatio : 1;
@@ -67,7 +67,7 @@ namespace dmGameSystem
             camera.m_Instance = instance;
             camera.m_World = w;
             camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
-            camera.m_FOV = cam_resource->m_DDF->m_FOV;
+            camera.m_Fov = cam_resource->m_DDF->m_Fov;
             camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
             camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
             camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
@@ -139,7 +139,7 @@ namespace dmGameSystem
                 float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
                 aspect_ratio = width / height;
             }
-            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_FOV, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
+            Vectormath::Aos::Matrix4 projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
 
             Vectormath::Aos::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
             Vectormath::Aos::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
@@ -153,7 +153,7 @@ namespace dmGameSystem
 
 
             dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
-            dmhash_t message_id = dmHashString64(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_ScriptName);
+            dmhash_t message_id = dmHashString64(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_Name);
 
             set_view_projection->m_Id = dmHashString64("game");
             set_view_projection->m_View = view;
@@ -184,7 +184,7 @@ namespace dmGameSystem
         {
             dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)message_data->m_Buffer;
             camera->m_AspectRatio = ddf->m_AspectRatio;
-            camera->m_FOV = ddf->m_FOV;
+            camera->m_Fov = ddf->m_Fov;
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
         }
@@ -215,7 +215,7 @@ namespace dmGameSystem
         CameraResource* cam_resource = (CameraResource*)resource;
         CameraComponent* camera = (CameraComponent*)*user_data;
         camera->m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
-        camera->m_FOV = cam_resource->m_DDF->m_FOV;
+        camera->m_Fov = cam_resource->m_DDF->m_Fov;
         camera->m_NearZ = cam_resource->m_DDF->m_NearZ;
         camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
         camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;

@@ -75,25 +75,25 @@ public class DDFLoaderTest
     public final void testScalarTypes() throws Throwable
     {
         ScalarTypes.Builder b = ScalarTypes.newBuilder();
-        b.setFloat(Float.MAX_VALUE);
-        b.setDouble(Double.MAX_VALUE);
-        b.setInt32(Integer.MAX_VALUE);
-        b.setUint32(Integer.MAX_VALUE);
-        b.setInt64(Long.MAX_VALUE);
-        b.setUint64(Long.MAX_VALUE);
-        b.setString("foo");
+        b.setFloatVal(Float.MAX_VALUE);
+        b.setDoubleVal(Double.MAX_VALUE);
+        b.setInt32Val(Integer.MAX_VALUE);
+        b.setUint32Val(Integer.MAX_VALUE);
+        b.setInt64Val(Long.MAX_VALUE);
+        b.setUint64Val(Long.MAX_VALUE);
+        b.setStringVal("foo");
 
         ScalarTypes m1 = b.build();
 
         TestDDF.ScalarTypes m2 = saveLoad(m1, ScalarTypes.getDescriptor(), TestDDF.ScalarTypes.class);
 
-        assertEquals(m1.getFloat(), m2.m_Float, 0.0);
-        assertEquals(m1.getDouble(), m2.m_Double, 0.0);
-        assertEquals(m1.getInt32(), m2.m_Int32);
-        assertEquals(m1.getUint32(), m2.m_Uint32);
-        assertEquals(m1.getInt64(), m2.m_Int64);
-        assertEquals(m1.getUint64(), m2.m_Uint64);
-        assertEquals(m1.getString(), m2.m_String);
+        assertEquals(m1.getFloatVal(), m2.floatVal, 0.0);
+        assertEquals(m1.getDoubleVal(), m2.doubleVal, 0.0);
+        assertEquals(m1.getInt32Val(), m2.int32Val);
+        assertEquals(m1.getUint32Val(), m2.uint32Val);
+        assertEquals(m1.getInt64Val(), m2.int64Val);
+        assertEquals(m1.getUint64Val(), m2.uint64Val);
+        assertEquals(m1.getStringVal(), m2.stringVal);
 
         genericCompare(m1, m2, ScalarTypes.getDescriptor());
     }
@@ -110,11 +110,11 @@ public class DDFLoaderTest
         TestDDF.Simple01Repeated m2 = saveLoad(m1, Simple01Repeated
                 .getDescriptor(), TestDDF.Simple01Repeated.class);
 
-        assertEquals(2, m2.m_array.size());
-        assertEquals(10, m2.m_array.get(0).m_x);
-        assertEquals(20, m2.m_array.get(0).m_y);
-        assertEquals(100, m2.m_array.get(1).m_x);
-        assertEquals(200, m2.m_array.get(1).m_y);
+        assertEquals(2, m2.array.size());
+        assertEquals(10, m2.array.get(0).x);
+        assertEquals(20, m2.array.get(0).y);
+        assertEquals(100, m2.array.get(1).x);
+        assertEquals(200, m2.array.get(1).y);
 
         genericCompare(m1, m2, Simple01Repeated.getDescriptor());
     }
@@ -130,7 +130,7 @@ public class DDFLoaderTest
                 .getDescriptor(), TestDDF.Simple01Repeated.class);
 
         assertEquals(0, m1.getArrayCount());
-        assertEquals(0, m2.m_array.size());
+        assertEquals(0, m2.array.size());
 
         genericCompare(m1, m2, Simple01Repeated.getDescriptor());
     }
@@ -146,9 +146,9 @@ public class DDFLoaderTest
         Simple02Repeated m1 = b.build();
         TestDDF.Simple02Repeated m2 = saveLoad(m1, Simple02Repeated
                 .getDescriptor(), TestDDF.Simple02Repeated.class);
-        assertEquals(10, m2.m_array.get(0).intValue());
-        assertEquals(20, m2.m_array.get(1).intValue());
-        assertEquals(30, m2.m_array.get(2).intValue());
+        assertEquals(10, m2.array.get(0).intValue());
+        assertEquals(20, m2.array.get(1).intValue());
+        assertEquals(30, m2.array.get(2).intValue());
 
         genericCompare(m1, m2, Simple02Repeated.getDescriptor());
     }
@@ -162,8 +162,8 @@ public class DDFLoaderTest
         StringRepeated m1 = b.build();
         TestDDF.StringRepeated m2 = saveLoad(m1,
                 StringRepeated.getDescriptor(), TestDDF.StringRepeated.class);
-        assertEquals("foo", m2.m_array.get(0));
-        assertEquals("bar", m2.m_array.get(1));
+        assertEquals("foo", m2.array.get(0));
+        assertEquals("bar", m2.array.get(1));
 
         genericCompare(m1, m2, StringRepeated.getDescriptor());
     }
@@ -177,8 +177,8 @@ public class DDFLoaderTest
         NestedMessage m1 = b.build();
         TestDDF.NestedMessage m2 = saveLoad(m1, NestedMessage.getDescriptor(),
                 TestDDF.NestedMessage.class);
-        assertEquals(m2.m_n1.m_x, 10);
-        assertEquals(m2.m_n2.m_x, 20);
+        assertEquals(m2.n1.x, 10);
+        assertEquals(m2.n2.x, 20);
 
         genericCompare(m1, m2, NestedMessage.getDescriptor());
     }
@@ -202,14 +202,14 @@ public class DDFLoaderTest
 
         TestDDF.NestedArray m2 = saveLoad(m1, NestedArray.getDescriptor(), TestDDF.NestedArray.class);
 
-        assertEquals(300, m2.m_d);
-        assertEquals(400, m2.m_e);
-        assertEquals(100, m2.m_array1.get(0).m_b);
-        assertEquals(200, m2.m_array1.get(0).m_c);
-        assertEquals(1, m2.m_array1.size());
-        assertEquals(2, m2.m_array1.get(0).m_array2.size());
-        assertEquals(10, m2.m_array1.get(0).m_array2.get(0).m_a);
-        assertEquals(20, m2.m_array1.get(0).m_array2.get(1).m_a);
+        assertEquals(300, m2.d);
+        assertEquals(400, m2.e);
+        assertEquals(100, m2.array1.get(0).b);
+        assertEquals(200, m2.array1.get(0).c);
+        assertEquals(1, m2.array1.size());
+        assertEquals(2, m2.array1.get(0).array2.size());
+        assertEquals(10, m2.array1.get(0).array2.get(0).a);
+        assertEquals(20, m2.array1.get(0).array2.get(1).a);
 
         genericCompare(m1, m2, NestedArray.getDescriptor());
     }
@@ -222,7 +222,7 @@ public class DDFLoaderTest
         Bytes m1 = b.build();
 
         TestDDF.Bytes m2 = saveLoad(m1, Bytes.getDescriptor(), TestDDF.Bytes.class);
-        assertArrayEquals(m1.getData().toByteArray(), m2.m_data);
+        assertArrayEquals(m1.getData().toByteArray(), m2.data);
 
         genericCompare(m1, m2, Bytes.getDescriptor());
     }

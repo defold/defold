@@ -321,7 +321,7 @@ namespace dmGameSystem
         }
         else if (message_data->m_DDFDescriptor != 0x0)
         {
-            if (message_data->m_MessageId == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_ScriptName))
+            if (message_data->m_MessageId == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)message_data->m_Buffer;
                 component->m_Playback = ddf->m_Playback;
@@ -329,7 +329,7 @@ namespace dmGameSystem
                 component->m_EndFrame = ddf->m_EndFrame - 1;
                 component->m_CurrentFrame = ddf->m_StartFrame - 1;
                 component->m_PlayBackwards = 0;
-                component->m_FrameTime = 1.0f / ddf->m_FPS;
+                component->m_FrameTime = 1.0f / ddf->m_Fps;
                 component->m_FrameTimer = 0.0f;
             }
         }

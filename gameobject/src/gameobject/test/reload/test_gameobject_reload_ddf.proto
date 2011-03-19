@@ -2,5 +2,5 @@ package TestGameObjectDDF;
 
 message ReloadTarget
 {
-    required float Value = 1;
+    required float value = 1;
 }

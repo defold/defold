@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "camera"
-    Resource: "camera/valid.camera"
+    id: "camera"
+    component: "camera/valid.camera"
 }

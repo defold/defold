@@ -4,5 +4,5 @@ import "ddf/ddf_math.proto";
 
 message Exit
 {
-    required int32 Code = 1;
+    required int32 code = 1;
 }

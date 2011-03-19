@@ -255,8 +255,8 @@ TEST_P(GetResourceTest, GetTestResource)
     ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
     ASSERT_EQ(test_resource_cont->m_Resources.size(), m_FooResourceCreateCallCount);
     ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
-    ASSERT_EQ((uint32_t) 123, test_resource_cont->m_Resources[0]->m_x);
-    ASSERT_EQ((uint32_t) 456, test_resource_cont->m_Resources[1]->m_x);
+    ASSERT_EQ((uint32_t) 123, test_resource_cont->m_Resources[0]->m_X);
+    ASSERT_EQ((uint32_t) 456, test_resource_cont->m_Resources[1]->m_X);
 
     ASSERT_EQ(dmHashBuffer64("Testing", strlen("Testing")), test_resource_cont->m_NameHash);
     dmResource::Release(m_Factory, test_resource_cont);

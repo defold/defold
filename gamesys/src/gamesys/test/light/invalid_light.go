@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "light"
-    Resource: "light/missing.light"
+    id: "light"
+    component: "light/missing.light"
 }

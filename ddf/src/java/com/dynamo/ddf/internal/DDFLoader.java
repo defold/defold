@@ -24,7 +24,7 @@ public class DDFLoader
 
         for (FieldDescriptor message_f : message_fields)
         {
-            Field f = obj.getClass().getDeclaredField("m_" + message_f.getName());
+            Field f = obj.getClass().getDeclaredField(message_f.getName());
             f.setAccessible(true);
             Object field_value = from.getField(message_f);
             Object value;

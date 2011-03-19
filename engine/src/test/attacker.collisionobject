@@ -1,7 +1,7 @@
-CollisionShape: "box.convexshape"
-Type: COLLISION_OBJECT_TYPE_KINEMATIC
-Mass: 0.0
-Friction: 0.0
-Restitution: 0.0
-Group: 1
-Mask: 2
+collision_shape: "box.convexshape"
+type: COLLISION_OBJECT_TYPE_KINEMATIC
+mass: 0.0
+friction: 0.0
+restitution: 0.0
+group: 1
+mask: 2

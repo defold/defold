@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "delete.scriptc"
+    id: "script"
+    component: "delete.scriptc"
 }

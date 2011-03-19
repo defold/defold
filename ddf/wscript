@@ -40,7 +40,6 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
-    conf.find_program('ddfc_java', var='DDFC_JAVA', path_list = [os.path.abspath('src')], mandatory = True)
     conf.check_tool('waf_dynamo')
 
     conf.env['PROTOBUF_JAR'] = conf.env.DYNAMO_HOME + '/ext/share/java/protobuf-java-2.3.0.jar'
@@ -70,19 +69,3 @@ def shutdown():
     import Options, Build
 
     waf_dynamo.run_gtests(valgrind = True)
-
-    if Options.commands['build']:
-        dynamo_home = Build.bld.get_env()['DYNAMO_HOME']
-        cp = os.pathsep.join([dynamo_home + '/ext/share/java/protobuf-java-2.3.0.jar',
-                              dynamo_home + '/ext/share/java/junit-4.6.jar',
-                              'build/default/src/java_test',
-                              'build/default/src/test/generated',
-                              'build/default/src/java',
-                              'build/default/src/ddf/generated'])
-        cmd = """
-"%s" -cp %s org.junit.runner.JUnitCore com.dynamo.ddf.test.DDFLoaderTest
-""" % (Build.bld.get_env()['JAVA'][0], cp)
-        ret = os.system('%s' % cmd)
-        if ret != 0:
-            sys.exit(ret)
-

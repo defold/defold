@@ -1,78 +1,78 @@
-Mode:               PLAY_MODE_ONCE
-Duration:           0.2
-Space:              EMISSION_SPACE_WORLD
-Rotation:           { X: 0 Y: 0 Z: 0 W: 1 }
+mode:               PLAY_MODE_ONCE
+duration:           0.2
+space:              EMISSION_SPACE_WORLD
+rotation:           { x: 0 y: 0 z: 0 w: 1 }
 
-Material:           "material/valid.material"
-Texture:            { Name: "texture/valid_png.png" TX: 1 TY: 1 }
+material:           "material/valid.material"
+texture:            { name: "texture/valid_png.png" t_x: 1 t_y: 1 }
 
-MaxParticleCount:   8
+max_particle_count:   8
 
-Type:               EMITTER_TYPE_CONE
-Properties:
+type:               EMITTER_TYPE_CONE
+properties:
 {
-    Key: EMITTER_KEY_CONE_RADIUS
-    Value: 0.2
-    Modifiers:
+    key: EMITTER_KEY_CONE_RADIUS
+    value: 0.2
+    modifiers:
     {
-        Type: MODIFIER_TYPE_LINEAR
-        Input: INPUT_TYPE_RAND
+        type: MODIFIER_TYPE_LINEAR
+        input: INPUT_TYPE_RAND
     }
 }
-Properties:
+properties:
 {
-    Key: EMITTER_KEY_CONE_HEIGHT
-    Value: 0.05
-    Modifiers:
+    key: EMITTER_KEY_CONE_HEIGHT
+    value: 0.05
+    modifiers:
     {
-        Type: MODIFIER_TYPE_LINEAR
-        Input: INPUT_TYPE_RAND
-        Properties: { Key: MODIFIER_KEY_MIN Value: 0.1 }
+        type: MODIFIER_TYPE_LINEAR
+        input: INPUT_TYPE_RAND
+        properties: { key: MODIFIER_KEY_MIN value: 0.1 }
     }
 }
-Properties:
+properties:
 {
-    Key: EMITTER_KEY_SPAWN_DELAY
-    Value: 0.016
-    Modifiers:
+    key: EMITTER_KEY_SPAWN_DELAY
+    value: 0.016
+    modifiers:
     {
-        Type: MODIFIER_TYPE_LINEAR
-        Input: INPUT_TYPE_RAND
-        Properties: { Key: MODIFIER_KEY_MIN Value: 0.5 }
+        type: MODIFIER_TYPE_LINEAR
+        input: INPUT_TYPE_RAND
+        properties: { key: MODIFIER_KEY_MIN value: 0.5 }
     }
 }
-Properties: { Key: EMITTER_KEY_PARTICLE_LIFE_TIME Value: 0.4 }
-Properties:
+properties: { key: EMITTER_KEY_PARTICLE_LIFE_TIME value: 0.4 }
+properties:
 {
-    Key: EMITTER_KEY_PARTICLE_SPEED
-    Value: 6
-    Modifiers:
+    key: EMITTER_KEY_PARTICLE_SPEED
+    value: 6
+    modifiers:
     {
-        Type: MODIFIER_TYPE_LINEAR
-        Input: INPUT_TYPE_RAND
-        Properties: { Key: MODIFIER_KEY_MIN Value: 0.8 }
+        type: MODIFIER_TYPE_LINEAR
+        input: INPUT_TYPE_RAND
+        properties: { key: MODIFIER_KEY_MIN value: 0.8 }
     }
 }
-Properties: { Key: EMITTER_KEY_PARTICLE_SIZE Value: 0.04 }
+properties: { key: EMITTER_KEY_PARTICLE_SIZE value: 0.04 }
 
-ParticleModifiers:
+particle_modifiers:
 {
-    Type: MODIFIER_TYPE_LINEAR
-    Modify: PARTICLE_KEY_VELOCITY
-    Properties: { Key: MODIFIER_KEY_MIN Value: 1 }
-    Properties: { Key: MODIFIER_KEY_MAX Value: 0 }
+    type: MODIFIER_TYPE_LINEAR
+    modify: PARTICLE_KEY_VELOCITY
+    properties: { key: MODIFIER_KEY_MIN value: 1 }
+    properties: { key: MODIFIER_KEY_MAX value: 0 }
 }
-ParticleModifiers:
+particle_modifiers:
 {
-    Type: MODIFIER_TYPE_EASE_OUT
-    Modify: PARTICLE_KEY_SIZE
-    Properties: { Key: MODIFIER_KEY_MIN Value: 0.5 }
-    Properties: { Key: MODIFIER_KEY_MAX Value: 3 }
+    type: MODIFIER_TYPE_EASE_OUT
+    modify: PARTICLE_KEY_SIZE
+    properties: { key: MODIFIER_KEY_MIN value: 0.5 }
+    properties: { key: MODIFIER_KEY_MAX value: 3 }
 }
-ParticleModifiers:
+particle_modifiers:
 {
-    Type: MODIFIER_TYPE_EASE_OUT
-    Modify: PARTICLE_KEY_ALPHA
-    Properties: { Key: MODIFIER_KEY_MIN Value: 1 }
-    Properties: { Key: MODIFIER_KEY_MAX Value: 0 }
+    type: MODIFIER_TYPE_EASE_OUT
+    modify: PARTICLE_KEY_ALPHA
+    properties: { key: MODIFIER_KEY_MIN value: 1 }
+    properties: { key: MODIFIER_KEY_MAX value: 0 }
 }

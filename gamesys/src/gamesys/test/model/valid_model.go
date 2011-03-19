@@ -1,5 +1,5 @@
-Components
+components
 {
-    Id: "model"
-    Resource: "model/valid.model"
+    id: "model"
+    component: "model/valid.model"
 }

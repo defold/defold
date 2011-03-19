@@ -1,11 +1,11 @@
-Components
+components
 {
-    Id: "script"
-    Resource: "main.script"
+    id: "script"
+    component: "main.script"
 }
-EmbeddedComponents
+embedded_components
 {
-    Id: "test_attacker_target_proxy"
-    Type: "collectionproxy"
-    Data: "Collection: \"test_attacker_target.collection\""
+    id: "test_attacker_target_proxy"
+    type: "collectionproxy"
+    data: "collection: \"test_attacker_target.collection\""
 }

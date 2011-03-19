@@ -5,17 +5,16 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.sprite.proto";
 option java_outer_classname = "Sprite";
-option (ddf_java_package) = "com.dynamo.sprite.ddf";
 
 message SpriteDesc
 {
-    required string Texture = 1 [(resource)=true];
-    required float Width = 2;
-    required float Height = 3;
-    optional uint32 TileWidth = 4 [default = 0];
-    optional uint32 TileHeight = 5 [default = 0];
-    optional uint32 FramesPerRow = 6 [default = 1];
-    optional uint32 FrameCount = 7 [default = 1];
+    required string texture         = 1 [(resource)=true];
+    required float  width           = 2;
+    required float  height          = 3;
+    optional uint32 tile_width       = 4 [default = 0];
+    optional uint32 tile_height      = 5 [default = 0];
+    optional uint32 frames_per_row  = 6 [default = 1];
+    optional uint32 frame_count     = 7 [default = 1];
 }
 
 enum Playback
@@ -30,13 +29,13 @@ enum Playback
 
 message PlayAnimation
 {
-    required uint32 StartFrame = 1;
-    required uint32 EndFrame = 2;
-    required Playback Playback = 3;
-    optional float FPS = 4 [default = 30.0];
+    required uint32     start_frame = 1;
+    required uint32     end_frame   = 2;
+    required Playback   playback    = 3;
+    optional float      fps         = 4 [default = 30.0];
 }
 
 message AnimationDone
 {
-    required uint32 CurrentFrame = 1;
+    required uint32 current_frame = 1;
 }

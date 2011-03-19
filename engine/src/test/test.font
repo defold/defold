@@ -1,5 +1,5 @@
-Font: "test.ttf"
-Material: "font.material"
-Size: 14
-Antialias: 1
-Alpha: 1
+font: "test.ttf"
+material: "font.material"
+size: 14
+antialias: 1
+alpha: 1
