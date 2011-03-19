@@ -38,6 +38,9 @@ public class NodeLoaderFactory extends AbstractNodeLoaderFactory {
         else {
             f = contentRoot.getFile(new Path(name));
         }
+        if (!f.exists()) {
+            throw new IOException(String.format("File %s doesn't exists", name));
+        }
 
         try {
             // TODO: EFS REALLY NECCESSARY
