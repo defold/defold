@@ -189,7 +189,13 @@ namespace dmResource
         /// Default is 4MB (4 * 1024 * 1024)
         uint32_t m_StreamBufferSize;
 
-        uint32_t m_Reserved[7];
+        /// Pointer to a resource archive for builtin resources. Set to NULL for no archive (default value)
+        const void* m_BuiltinsArchive;
+
+        /// sizeof of m_BuiltinsArchive
+        uint32_t    m_BuiltinsArchiveSize;
+
+        uint32_t m_Reserved[5];
 
         NewFactoryParams()
         {
