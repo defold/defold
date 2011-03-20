@@ -324,8 +324,14 @@ public class Server {
 
             for (File subf : f.listFiles()) {
                 boolean match = false;
+                String pathToMatch = path;
+                if (pathToMatch.equals("/"))
+                    pathToMatch += subf.getName();
+                else
+                    pathToMatch += "/" + subf.getName();
+
                 for (Pattern pf : filterPatterns) {
-                    if (pf.matcher(subf.getPath()).matches()) {
+                    if (pf.matcher(pathToMatch).matches()) {
                         match = true;
                         break;
                     }
