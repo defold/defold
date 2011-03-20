@@ -7,8 +7,6 @@ class Entry(object):
     def __init__(self, root, filename):
         rel_name = os.path.relpath(filename, root)
         rel_name = rel_name.replace('\\', '/')
-        if rel_name[0] != '/':
-            rel_name = '/' + rel_name
 
         size = os.stat(filename)[stat.ST_SIZE]
         f = open(filename, 'rb')

@@ -251,6 +251,8 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
+        params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
+        params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
 

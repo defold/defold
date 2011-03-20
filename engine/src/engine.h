@@ -12,6 +12,8 @@ extern char DEBUG_VPC[];
 extern uint32_t DEBUG_VPC_SIZE;
 extern char DEBUG_FPC[];
 extern uint32_t DEBUG_FPC_SIZE;
+extern char BUILTINS_ARC[];
+extern uint32_t BUILTINS_ARC_SIZE;
 
 namespace dmEngine
 {
