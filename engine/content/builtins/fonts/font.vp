@@ -1,0 +1,9 @@
+uniform float4x4 ViewProj   : (c0);
+
+void main(float4 vertex : ATTR0,
+          out float4 oPosition : POSITION,
+          out float2 oTexcoord0 : TEXCOORD0)
+{
+    oPosition = mul(float4(vertex.x, vertex.y, 0, 1), ViewProj);
+    oTexcoord0 = vertex.zw;
+}

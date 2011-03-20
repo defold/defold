@@ -22,6 +22,7 @@
 #include <dlib/profile.h>
 
 #include "resource.h"
+#include "resource_archive.h"
 
 /*
  * TODO:
@@ -57,7 +58,7 @@ const uint32_t RESOURCE_PATH_MAX = 1024;
 const uint32_t MAX_RESOURCE_TYPES = 128;
 const uint32_t MAX_CALLBACKS = 16;
 
-static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* resource_size);
+static FactoryResult LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size);
 
 struct ResourceReloadedCallbackPair
 {
@@ -93,6 +94,9 @@ struct SResourceFactory
 
     // HTTP server
     dmHttpServer::HServer                        m_HttpServer;
+
+    // Resource archive
+    dmResourceArchive::HArchive                  m_BuiltinsArchive;
 };
 
 static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -133,6 +137,8 @@ void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
     params->m_MaxResources = 1024;
     params->m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     params->m_StreamBufferSize = 4 * 1024 * 1024;
+    params->m_BuiltinsArchive = 0;
+    params->m_BuiltinsArchiveSize = 0;
 }
 
 static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
@@ -342,6 +348,15 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         factory->m_ResourceReloadedCallbacks = 0;
     }
 
+    if (params->m_BuiltinsArchive)
+    {
+        dmResourceArchive::WrapArchiveBuffer(params->m_BuiltinsArchive, params->m_BuiltinsArchiveSize, &factory->m_BuiltinsArchive);
+    }
+    else
+    {
+        factory->m_BuiltinsArchive = 0;
+    }
+
     return factory;
 }
 
@@ -403,8 +418,31 @@ FactoryResult RegisterType(HFactory factory,
     return FACTORY_RESULT_OK;
 }
 
-static FactoryResult LoadResource(HFactory factory, const char* path, uint32_t* resource_size)
+static FactoryResult LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
 {
+    if (factory->m_BuiltinsArchive)
+    {
+        dmResourceArchive::EntryInfo entry_info;
+        dmResourceArchive::Result r = dmResourceArchive::FindEntry(factory->m_BuiltinsArchive, original_name, &entry_info);
+        if (r == dmResourceArchive::RESULT_OK)
+        {
+            uint32_t file_size = entry_info.m_Size;
+            // Extra byte for resources expecting null-terminated string...
+            if (file_size + 1 >= factory->m_StreamBufferSize)
+            {
+                dmLogError("Resource too large for streambuffer: %s", path);
+                return FACTORY_RESULT_STREAMBUFFER_TOO_SMALL;
+            }
+
+            memcpy(factory->m_StreamBuffer, entry_info.m_Resource, file_size);
+            factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+            *resource_size = file_size;
+
+            return FACTORY_RESULT_OK;
+        }
+    }
+
+    // NOTE: No else if here. Fall through
     if (factory->m_HttpClient)
     {
         // Load over HTTP
@@ -538,7 +576,7 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
         }
 
         uint32_t file_size;
-        FactoryResult result = LoadResource(factory, canonical_path, &file_size);
+        FactoryResult result = LoadResource(factory, canonical_path, name, &file_size);
         if (result != FACTORY_RESULT_OK)
             return result;
 
@@ -597,7 +635,7 @@ ReloadResult ReloadResource(HFactory factory, const char* name, SResourceDescrip
         return RELOAD_RESULT_NOT_SUPPORTED;
 
     uint32_t file_size;
-    FactoryResult result = LoadResource(factory, canonical_path, &file_size);
+    FactoryResult result = LoadResource(factory, canonical_path, name, &file_size);
     if (result != FACTORY_RESULT_OK)
         return RELOAD_RESULT_LOAD_ERROR;
 

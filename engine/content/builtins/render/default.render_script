@@ -1,0 +1,29 @@
+function init(self)
+    self.sprite_pred = render.predicate(self, {"sprite"})
+    self.gui_pred = render.predicate(self, {"gui"})
+    self.text_pred = render.predicate(self, {"text"})
+end
+
+function update(self)
+    render.clear(self, {[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0)})
+
+    render.set_viewport(self, 0, 0, render.get_window_width(self), render.get_window_height(self))
+    render.set_view(self, vmath.matrix4())
+    render.set_projection(self, vmath.matrix4_orthographic(0, render.get_window_width(self), 0, render.get_window_height(self), -1, 1))
+
+    render.set_depth_mask(self, false)
+    render.disable_state(self, render.STATE_DEPTH_TEST)
+    render.enable_state(self, render.STATE_BLEND)
+    render.set_blend_func(self, render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+    render.disable_state(self, render.STATE_CULL_FACE)
+
+    render.draw(self, self.sprite_pred)
+
+    render.set_projection(self, vmath.matrix4_orthographic(0, render.get_window_width(self), render.get_window_height(self), 0, -1, 1))
+
+    render.draw(self, self.gui_pred)
+    render.draw(self, self.text_pred)
+end
+
+function on_message(self, message_id, message)
+end

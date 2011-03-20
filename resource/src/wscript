@@ -13,3 +13,6 @@ def build(bld):
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
+    bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
+    bld.install_files('${PREFIX}/bin', 'arcc.py')
+

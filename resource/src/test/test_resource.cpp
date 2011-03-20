@@ -9,6 +9,9 @@
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
+extern char TEST_ARC[];
+extern uint32_t TEST_ARC_SIZE;
+
 class ResourceTest : public ::testing::Test
 {
 protected:
@@ -406,6 +409,48 @@ TEST(dmResource, InvalidUri)
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, "gopher://foo_host");
     ASSERT_EQ((void*) 0, factory);
+}
+
+dmResource::CreateResult AdResourceCreate(dmResource::HFactory factory,
+                                           void* context,
+                                           const void* buffer, uint32_t buffer_size,
+                                           dmResource::SResourceDescriptor* resource,
+                                           const char* filename)
+{
+    resource->m_Resource = strdup((const char*) buffer);
+    return dmResource::CREATE_RESULT_OK;
+}
+
+dmResource::CreateResult AdResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+{
+    free(resource->m_Resource);
+    return dmResource::CREATE_RESULT_OK;
+}
+
+TEST(dmResource, Builtins)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_BuiltinsArchive = (const void*) TEST_ARC;
+    params.m_BuiltinsArchiveSize = TEST_ARC_SIZE;
+
+    dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
+    ASSERT_NE((void*) 0, factory);
+
+    dmResource::RegisterType(factory, "adc", 0, AdResourceCreate, AdResourceDestroy, 0);
+
+    void* resource;
+    const char* names[] = { "archive_data/file4.adc", "archive_data/file1.adc", "archive_data/file3.adc", "archive_data/file2.adc" };
+    const char* data[] = { "file4_data", "file1_data", "file3_data", "file2_data" };
+    for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
+    {
+        dmResource::FactoryResult r = dmResource::Get(factory, names[i], &resource);
+        ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
+        ASSERT_TRUE(strncmp(data[i], (const char*) resource, strlen(data[i])) == 0);
+        dmResource::Release(factory, resource);
+    }
+
+    dmResource::DeleteFactory(factory);
 }
 
 TEST(RecreateTest, RecreateTest)
