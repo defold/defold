@@ -260,17 +260,19 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	}
 
 	public void disconnectFromBranch() throws RepositoryException {
-	    ProjectInfo projectInfo = projectClient.getProjectInfo();
-        IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
-        if (cr_project.exists())
-        {
-            try {
-                cr_project.delete(true, new NullProgressMonitor());
-                setProjectExplorerInput(ResourcesPlugin.getWorkspace().getRoot());
-            } catch (CoreException e) {
-                e.printStackTrace();
+	    if (projectClient != null) {
+    	    ProjectInfo projectInfo = projectClient.getProjectInfo();
+            IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
+            if (cr_project.exists())
+            {
+                try {
+                    cr_project.delete(true, new NullProgressMonitor());
+                    setProjectExplorerInput(ResourcesPlugin.getWorkspace().getRoot());
+                } catch (CoreException e) {
+                    e.printStackTrace();
+                }
             }
-        }
+	    }
 
 	    this.branchClient = null;
 	    this.activeBranch = null;
