@@ -75,7 +75,10 @@ public class ConnectionWizardBranchPagePresenter {
             updateBranchList();
 
         } catch (Throwable e) {
-            display.setErrorMessage(e.getMessage());
+            if (e.getMessage() == null)
+                display.setErrorMessage(e.toString());
+            else
+                display.setErrorMessage(e.getMessage());
         }
     }
 
