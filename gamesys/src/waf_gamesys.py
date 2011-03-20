@@ -122,7 +122,7 @@ def compile_go(task):
             rel_path_dir = os.path.relpath(task.inputs[0].abspath(), task.generator.content_root)
             rel_path_dir = os.path.dirname(rel_path_dir)
             if c.id == '':
-                raise Exception('Message is missing required field: Id')
+                raise Exception('Message is missing required field: id')
             desc.id = c.id
             desc.component = rel_path_dir + '/' + task.outputs[i+1].name
 
