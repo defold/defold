@@ -260,6 +260,7 @@ public class Server {
         if (configuration.hasBuiltinsDirectory()) {
             String builtins = configuration.getBuiltinsDirectory();
             String dest = String.format("%s/builtins", p);
+            // Create symbolic link to builtins. See deleteBranch()
             Result r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtins, dest});
             if (r.exitValue != 0) {
                 Activator.getLogger().log(Level.SEVERE, r.stdErr.toString());
@@ -285,6 +286,10 @@ public class Server {
 
         String p = String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch);
         try {
+            String dest = String.format("%s/builtins", p);
+            // Remove symbol link to builtins. See createBranch()
+            // We need to remove the symbolic link *before* removeDir is invoked. FileUtil.removeDir follow links...
+            CommandUtil.execCommand(null, null, new String[] {"rm", dest});
             FileUtil.removeDir(new File(p));
         } catch (IOException e) {
             throw new ServerException("", e);
