@@ -18,17 +18,19 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.ListViewer;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
@@ -50,7 +52,7 @@ import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 public class ChangedFilesView extends ViewPart implements SelectionListener, IRepositoryListener, IResourceChangeListener, ISelectionChangedListener, Listener {
 
     public final static String ID = "com.dynamo.crepo.changedfiles";
-    private ListViewer listViewer;
+    private TableViewer tableViewer;
 	private Menu menu;
 	private MenuItem revertItem;
     private UpdateThread updateThread;
@@ -62,22 +64,25 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 
         private synchronized void updateUI(java.util.List<Status> files) {
             @SuppressWarnings("unchecked")
-            java.util.List<Status> currentItems = (java.util.List<Status>) listViewer.getInput();
+            java.util.List<Status> currentItems = (java.util.List<Status>) tableViewer.getInput();
             boolean changed = false;
             if (files.size() == currentItems.size()) {
                 for (int i = 0; i < currentItems.size(); i++) {
-                    if (!currentItems.get(i).getName().equals(files.get(i).getName())) {
+                    Status currentStatus = currentItems.get(i);
+                    Status status = files.get(i);
+                    if (!currentStatus.getName().equals(status.getName())
+                            || !currentStatus.getIndexStatus().equals(status.getIndexStatus())
+                            || !currentStatus.getWorkingTreeStatus().equals(status.getWorkingTreeStatus())) {
                         changed = true;
                         break;
                     }
                 }
-            }
-            else {
+            } else {
                 changed = true;
             }
 
             if (changed) {
-                listViewer.setInput(files);
+                tableViewer.setInput(files);
             }
         }
 
@@ -136,9 +141,9 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 
     @Override
     public void createPartControl(Composite parent) {
-        listViewer = new ListViewer(parent);
-        listViewer.addSelectionChangedListener(this);
-        listViewer.setContentProvider(new IStructuredContentProvider() {
+        tableViewer = new TableViewer(parent);
+        tableViewer.addSelectionChangedListener(this);
+        tableViewer.setContentProvider(new IStructuredContentProvider() {
 
             @Override
             public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {
@@ -156,21 +161,46 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
             }
         });
 
-        listViewer.setLabelProvider(new LabelProvider() {
-           @Override
-           public String getText(Object element) {
-               Status s = (Status) element;
-               return String.format("[%s] %s", s.getIndexStatus(), s.getName().substring(1));
-           }
+        tableViewer.setLabelProvider(new ColumnLabelProvider() {
+            @Override
+            public String getText(Object element) {
+                Status s = (Status) element;
+                if (s.getWorkingTreeStatus().equals(" ")) {
+                    return String.format("[%s] %s", s.getIndexStatus(), s.getName().substring(1));
+                } else {
+                    return String.format("[%s%s] %s", s.getIndexStatus(), s.getWorkingTreeStatus(), s.getName().substring(1));
+                }
+            }
+
+            @Override
+            public Image getImage(Object element) {
+                if (element instanceof Status) {
+                    Status status = (Status) element;
+                    if (status.getName().lastIndexOf('.') != -1) {
+                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(status.getName().substring(status.getName().lastIndexOf('.'))).createImage();
+                    }
+                }
+                return super.getImage(element);
+            }
+
+            @Override
+            public Color getForeground(Object element) {
+                Status s = (Status) element;
+                if (s.getWorkingTreeStatus().equals(" ")) {
+                    return Display.getCurrent().getSystemColor(SWT.COLOR_BLACK);
+                } else {
+                    return Display.getCurrent().getSystemColor(SWT.COLOR_DARK_RED);
+                }
+            }
         });
-        listViewer.setInput(new ArrayList<Status>());
+        tableViewer.setInput(new ArrayList<Status>());
 
         menu = new Menu(parent.getShell(), SWT.POP_UP);
         revertItem = new MenuItem(menu, SWT.PUSH);
         revertItem.setText("Revert");
         revertItem.setEnabled(false);
         revertItem.addListener(SWT.Selection, this);
-        listViewer.getList().setMenu(menu);
+        tableViewer.getTable().setMenu(menu);
         this.updateThread.update();
     }
 
@@ -208,7 +238,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 	@Override
 	public void handleEvent(Event event) {
         final IBranchClient branch_client = Activator.getDefault().getBranchClient();
-        ISelection selection = listViewer.getSelection();
+        ISelection selection = tableViewer.getSelection();
         if (selection.isEmpty())
             return;
 
@@ -284,7 +314,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 
     @Override
     public void selectionChanged(SelectionChangedEvent event) {
-        boolean enable = !listViewer.getSelection().isEmpty();
+        boolean enable = !tableViewer.getSelection().isEmpty();
         if (revertItem.isEnabled() != enable)
             revertItem.setEnabled(enable);
     }
