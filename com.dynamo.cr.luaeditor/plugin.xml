@@ -26,7 +26,7 @@
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.luaeditor.wizards.GuiScriptNewWizard"
             icon="icons/lua.gif"
-            id="com.dynamo.cr.luaeditor.NewGuiObjectScriptWizard"
+            id="com.dynamo.cr.luaeditor.NewGuiScriptWizard"
             name="Gui Script File">
       </wizard>
    </extension>
@@ -39,7 +39,7 @@
       </commonWizard>
       <commonWizard
             type="new"
-            wizardId="com.dynamo.cr.luaeditor.NewGameObjectScriptWizard">
+            wizardId="com.dynamo.cr.luaeditor.NewGuiScriptWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>
