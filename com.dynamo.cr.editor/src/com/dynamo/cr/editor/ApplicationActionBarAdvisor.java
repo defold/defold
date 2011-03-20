@@ -83,6 +83,7 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
     protected void fillMenuBar(IMenuManager menuBar) {
         menuBar.add(createFileMenu());
         menuBar.add(createEditMenu());
+        menuBar.add(createNavigateMenu());
         menuBar.add(new GroupMarker(IWorkbenchActionConstants.MB_ADDITIONS));
         menuBar.add(createHelpMenu());
     }
@@ -226,6 +227,14 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
 
         menu.add(new GroupMarker(IWorkbenchActionConstants.EDIT_END));
         menu.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
+        return menu;
+    }
+
+    private MenuManager createNavigateMenu() {
+        MenuManager menu = new MenuManager("Navigate", IWorkbenchActionConstants.M_NAVIGATE);
+        menu.add(new GroupMarker(IWorkbenchActionConstants.NAV_START));
+        menu.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
+        menu.add(new GroupMarker(IWorkbenchActionConstants.NAV_END));
         return menu;
     }
 
