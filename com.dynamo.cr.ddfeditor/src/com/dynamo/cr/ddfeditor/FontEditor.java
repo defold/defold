@@ -52,33 +52,35 @@ public class FontEditor extends DdfEditor {
                         fontDesc = queue.take();
                     }
 
-                    if (!cachedFontName.equals(fontDesc.getFont())) {
-                        IFile fontFile = root.getFile(new Path(fontDesc.getFont()));
-                        InputStream fontStream = fontFile.getContents();
-                        try {
-                            ByteArrayOutputStream fontOut = new ByteArrayOutputStream();
-                            IOUtils.copy(fontStream, fontOut);
-                            cachedFont = fontOut.toByteArray();
-                        }
-                        finally {
-                            fontStream.close();
-                        }
-                    }
-
-                    final BufferedImage awtImage = Fontc.compileToImage(new ByteArrayInputStream(cachedFont), fontDesc);
-                    final Display display = Display.getDefault();
-
-                    Display.getDefault().asyncExec(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            if (PreviewThread.this.run) {
-                                image = new Image(display, convertToSWT(awtImage));
-                                canvas.setSize(image.getBounds().width, image.getBounds().height);
-                                canvas.redraw();
+                    if (!fontDesc.getFont().equals("")) {
+                        if (!cachedFontName.equals(fontDesc.getFont())) {
+                            IFile fontFile = root.getFile(new Path(fontDesc.getFont()));
+                            InputStream fontStream = fontFile.getContents();
+                            try {
+                                ByteArrayOutputStream fontOut = new ByteArrayOutputStream();
+                                IOUtils.copy(fontStream, fontOut);
+                                cachedFont = fontOut.toByteArray();
+                            }
+                            finally {
+                                fontStream.close();
                             }
                         }
-                    });
+
+                        final BufferedImage awtImage = Fontc.compileToImage(new ByteArrayInputStream(cachedFont), fontDesc);
+                        final Display display = Display.getDefault();
+
+                        Display.getDefault().asyncExec(new Runnable() {
+
+                            @Override
+                            public void run() {
+                                if (PreviewThread.this.run) {
+                                    image = new Image(display, convertToSWT(awtImage));
+                                    canvas.setSize(image.getBounds().width, image.getBounds().height);
+                                    canvas.redraw();
+                                }
+                            }
+                        });
+                    }
 
                 } catch (InterruptedException e) {
 
