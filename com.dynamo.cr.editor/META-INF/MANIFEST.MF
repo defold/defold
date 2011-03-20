@@ -17,6 +17,7 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.ui.console;bundle-version="3.5.0",
  org.eclipse.core.net;bundle-version="1.2.100",
  org.eclipse.ui.views;bundle-version="3.5.0",
- com.dynamo.cr.editor.core;bundle-version="1.0.0"
+ com.dynamo.cr.editor.core;bundle-version="1.0.0",
+ org.eclipse.search;bundle-version="3.6.0"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
