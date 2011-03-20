@@ -450,7 +450,6 @@ public class Server {
 
         String p = String.format("%s/%s/%s/%s%s", branchRoot, project, user, branch, path);
         File f = new File(p);
-        boolean new_file = !f.exists();
         File parent = f.getParentFile();
 
         if (!parent.exists())
@@ -460,17 +459,14 @@ public class Server {
         os.write(data);
         os.close();
 
-        if (new_file) {
-            String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-            Git git = new Git();
-            try {
-                git.add(branch_path, path.substring(1));  // NOTE: Remove / from path
-            }
-            catch (Throwable e) {
-                // Rollback if git error
-                f.delete();
-                throw new ServerException("Failed to add file", e);
-            }
+        String branch_path = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+        Git git = new Git();
+        try {
+            git.add(branch_path, path.substring(1));  // NOTE: Remove / from path
+        } catch (Throwable e) {
+            // Rollback if git error
+            f.delete();
+            throw new ServerException("Failed to add file", e);
         }
     }
 
