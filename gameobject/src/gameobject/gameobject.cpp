@@ -1053,10 +1053,10 @@ namespace dmGameObject
         DispatchMessagesContext ctx;
         ctx.m_Register = collection->m_Register;
         ctx.m_Success = true;
-        (void) dmMessage::Dispatch(collection->m_ReplySocketId, &DispatchMessagesFunction, (void*) &ctx);
-
         if (collection->m_Register->m_DispatchCallback)
             (void) dmMessage::Dispatch(collection->m_SocketId, collection->m_Register->m_DispatchCallback, collection->m_Register->m_DispatchUserdata);
+
+        (void) dmMessage::Dispatch(collection->m_ReplySocketId, &DispatchMessagesFunction, (void*) &ctx);
 
         return ctx.m_Success;
     }

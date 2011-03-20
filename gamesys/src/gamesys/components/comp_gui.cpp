@@ -337,14 +337,14 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)world;
         GuiRenderContext* gui_render_context = (GuiRenderContext*)context;
 
-        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, collection);
-
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             if (gui_world->m_Components[i]->m_Enabled)
                 dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, update_context->m_DT);
         }
+
+        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, collection);
 
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_render_context->m_RenderContext;
