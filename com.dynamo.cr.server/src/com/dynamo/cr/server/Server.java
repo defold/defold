@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
@@ -255,6 +256,17 @@ public class Server {
         Git git = new Git();
         String sourcePath = String.format("%s/%s", configuration.getRepositoryRoot(), project);
         git.cloneRepo(sourcePath, p);
+
+        if (configuration.hasBuiltinsDirectory()) {
+            String builtins = configuration.getBuiltinsDirectory();
+            String dest = String.format("%s/builtins", p);
+            Result r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtins, dest});
+            if (r.exitValue != 0) {
+                Activator.getLogger().log(Level.SEVERE, r.stdErr.toString());
+                FileUtils.deleteDirectory(new File(p));
+                throw new ServerException(String.format("Unable to create branch. Internal server error"));
+            }
+        }
     }
 
     public String getBranchRoot() {

@@ -30,9 +30,7 @@ message Configuration
     required int32 service_port = 4;
     required int32 build_data_port = 5;
     required string persistence_unit_name = 6;
-
     required string repository_root = 7;
-
     required string progress_re = 8;
     required Command configure_command = 9;
     required Command build_command = 10;
@@ -40,7 +38,7 @@ message Configuration
     required Command exe_command = 12;
     repeated Application applications = 13;
     repeated ProjectTemplate project_templates = 14;
-
     optional string repository_group = 15;
+    optional string builtins_directory = 16;
 }
 
