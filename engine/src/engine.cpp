@@ -170,6 +170,11 @@ namespace dmEngine
             "build/default/game.projectc",
             "build/default/content/game.projectc"
         };
+        const char* default_content_roots[] =
+        {
+            "build/default",
+            "build/default/content"
+        };
         const char** project_files = default_project_files;
         uint32_t project_file_count = 2;
         if (argc > 1 && argv[argc-1][0] != '-')
@@ -193,6 +198,7 @@ namespace dmEngine
                 dmLogFatal("%s", project_files[i]);
             return false;
         }
+        const char* content_root = default_content_roots[current_project_file - 1];
         const char* update_order = dmConfigFile::GetString(config, "gameobject.update_order", 0);
 
         dmProfile::Initialize(256, 1024 * 16, 128);
@@ -254,7 +260,7 @@ namespace dmEngine
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
-        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", "build/default/content"));
+        engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", content_root));
 
         float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
