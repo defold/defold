@@ -31,13 +31,5 @@ def apply_archive_file(self):
     arcc.outputs = [out]
     arcc.env['ARCCFLAGS'] = ['-r', self.path.bldpath(self.env)]
 
-@feature('install_content')
-@after('apply_core')
-def apply_install_content(self):
-    for t in self.tasks:
-        for o in t.outputs:
-            rel = os.path.relpath(o.abspath(), self.path.abspath())
-            self.bld.install_files('${PREFIX}/content/%s' % os.path.dirname(rel), o.abspath(self.env), self.env)
-
 def detect(conf):
     conf.find_file('arcc.py', var='ARCC', mandatory = True)
