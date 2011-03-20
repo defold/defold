@@ -17,7 +17,7 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram',
+        features = 'cc cxx cprogram embed',
         uselib = 'GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL DLIB PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DMGLFW PARTICLE GUI SOUND ALUT',
         uselib_local = 'engine',
         includes = '../build ../proto .',
@@ -26,17 +26,19 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine',
-        source='main.cpp')
+        source='main.cpp',
+        embed_source='../content/builtins.arc')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram',
+        features = 'cc cxx cprogram embed',
         uselib = 'GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL DLIB PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_headless',
-        source='main.cpp')
+        source='main.cpp',
+        embed_source='../content/builtins.arc')
 
     bld.add_subdirs('test')
 
