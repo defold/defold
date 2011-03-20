@@ -440,7 +440,7 @@ TEST(dmResource, Builtins)
     dmResource::RegisterType(factory, "adc", 0, AdResourceCreate, AdResourceDestroy, 0);
 
     void* resource;
-    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
+    const char* names[] = { "archive_data/file4.adc", "archive_data/file1.adc", "archive_data/file3.adc", "archive_data/file2.adc" };
     const char* data[] = { "file4_data", "file1_data", "file3_data", "file2_data" };
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {

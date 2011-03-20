@@ -12,7 +12,7 @@ TEST(dmResourceArchive, Wrap)
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
     ASSERT_EQ(4U, dmResourceArchive::GetEntryCount(archive));
 
-    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
+    const char* names[] = { "archive_data/file4.adc", "archive_data/file1.adc", "archive_data/file3.adc", "archive_data/file2.adc" };
     const char* data[] = { "file4_data", "file1_data", "file3_data", "file2_data" };
     dmResourceArchive::EntryInfo entry_info;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
