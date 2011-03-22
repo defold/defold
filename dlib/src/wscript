@@ -7,7 +7,6 @@ def build(bld):
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/circular_array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
