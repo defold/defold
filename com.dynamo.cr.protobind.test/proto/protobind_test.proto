@@ -28,3 +28,10 @@ message ListMessage
 {
     repeated SimpleMessage messages = 1;
 }
+
+message OptionalAndDefaultValueMessage
+{
+    optional int32 x = 1;
+    optional int32 y = 2 [default = 123];
+    optional SimpleMessage msg = 3;
+}
