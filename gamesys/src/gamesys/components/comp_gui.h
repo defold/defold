@@ -26,18 +26,6 @@ namespace dmGameSystem
             void* context,
             uintptr_t* user_data);
 
-    dmGameObject::CreateResult CompGuiInit(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
-
-    dmGameObject::CreateResult CompGuiFinal(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
-
     dmGameObject::UpdateResult CompGuiUpdate(dmGameObject::HCollection collection,
             const dmGameObject::UpdateContext* update_context,
             void* world,

@@ -175,7 +175,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("guic", gui_render_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
-                CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal,
+                CompGuiCreate, CompGuiDestroy, 0, 0,
                 CompGuiUpdate, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload);
 
         REGISTER_COMPONENT_TYPE("spawnpointc", render_context,

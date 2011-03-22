@@ -192,26 +192,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiInit(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
-    {
-        dmGameObject::AcquireInputFocus(collection, instance);
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    dmGameObject::CreateResult CompGuiFinal(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
-    {
-        dmGameObject::ReleaseInputFocus(collection, instance);
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
     void DispatchGui(dmMessage::Message *message_object, void* user_ptr)
     {
         DM_PROFILE(Game, "DispatchGui");

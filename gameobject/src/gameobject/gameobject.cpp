@@ -7,7 +7,6 @@
 #include <dlib/message.h>
 #include <dlib/hash.h>
 #include <dlib/array.h>
-#include <dlib/circular_array.h>
 #include <dlib/index_pool.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
@@ -777,13 +776,24 @@ namespace dmGameObject
         collection->m_Instances[instance->m_Index] = 0;
 
         // Erase from input stack
-        for (uint32_t i = 0; i < collection->m_FocusStack.Size(); ++i)
+        bool found_instance = false;
+        for (uint32_t i = 0; i < collection->m_InputFocusStack.Size(); ++i)
         {
-            if (collection->m_FocusStack[i] == instance)
+            if (collection->m_InputFocusStack[i] == instance)
             {
-                collection->m_FocusStack[i] = 0x0;
-                break;
+                found_instance = true;
             }
+            if (found_instance)
+            {
+                if (i < collection->m_InputFocusStack.Size() - 1)
+                {
+                    collection->m_InputFocusStack[i] = collection->m_InputFocusStack[i+1];
+                }
+            }
+        }
+        if (found_instance)
+        {
+            collection->m_InputFocusStack.Pop();
         }
 
         instance->~Instance();
@@ -1230,29 +1240,16 @@ namespace dmGameObject
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count)
     {
         DM_PROFILE(GameObject, "DispatchInput");
-        // clean stack
-        HInstance instance = 0x0;
-        while (collection->m_FocusStack.Size() > 0 && instance == 0x0)
-        {
-            instance = collection->m_FocusStack.Top();
-            if (instance == 0x0 || instance->m_ToBeDeleted)
-            {
-                collection->m_FocusStack.Pop();
-                instance = 0x0;
-            }
-        }
         // iterate stacks from top to bottom
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
             InputAction& input_action = input_actions[i];
             if (input_action.m_ActionId != 0)
             {
-                uint32_t stack_size = collection->m_FocusStack.Size();
+                uint32_t stack_size = collection->m_InputFocusStack.Size();
                 for (uint32_t k = 0; k < stack_size && input_action.m_ActionId != 0; ++k)
                 {
-                    HInstance instance = collection->m_FocusStack[stack_size - 1 - k];
-                    if (instance == 0x0 || instance->m_ToBeDeleted)
-                        continue;
+                    HInstance instance = collection->m_InputFocusStack[stack_size - 1 - k];
                     Prototype* prototype = instance->m_Prototype;
                     uint32_t components_size = prototype->m_Components.Size();
 
@@ -1292,12 +1289,50 @@ namespace dmGameObject
 
     void AcquireInputFocus(HCollection collection, HInstance instance)
     {
-        collection->m_FocusStack.Push(instance);
+        bool found = false;
+        for (uint32_t i = 0; i < collection->m_InputFocusStack.Size(); ++i)
+        {
+            if (collection->m_InputFocusStack[i] == instance)
+            {
+                found = true;
+            }
+            if (found && i < collection->m_InputFocusStack.Size() - 1)
+            {
+                collection->m_InputFocusStack[i] = collection->m_InputFocusStack[i + 1];
+            }
+        }
+        if (found)
+        {
+            collection->m_InputFocusStack.Pop();
+        }
+        if (!collection->m_InputFocusStack.Full())
+        {
+            collection->m_InputFocusStack.Push(instance);
+        }
+        else
+        {
+            dmLogWarning("Input focus could not be acquired since the buffer is full (%d).", collection->m_InputFocusStack.Size());
+        }
     }
 
     void ReleaseInputFocus(HCollection collection, HInstance instance)
     {
-        collection->m_FocusStack.Pop();
+        bool found = false;
+        for (uint32_t i = 0; i < collection->m_InputFocusStack.Size(); ++i)
+        {
+            if (collection->m_InputFocusStack[i] == instance)
+            {
+                found = true;
+            }
+            if (found && i < collection->m_InputFocusStack.Size() - 1)
+            {
+                collection->m_InputFocusStack[i] = collection->m_InputFocusStack[i + 1];
+            }
+        }
+        if (found)
+        {
+            collection->m_InputFocusStack.Pop();
+        }
     }
 
     HCollection GetCollection(HInstance instance)

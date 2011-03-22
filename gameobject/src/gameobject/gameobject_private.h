@@ -1,10 +1,10 @@
 #ifndef GAMEOBJECT_COMMON_H
 #define GAMEOBJECT_COMMON_H
 
-#include <dlib/circular_array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
+#include <dlib/math.h>
 #include <dlib/mutex.h>
 
 #include "gameobject.h"
@@ -190,7 +190,7 @@ namespace dmGameObject
             m_InstancesToDelete.SetCapacity(max_instances);
             m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
             // TODO: Un-hard-code
-            m_FocusStack.SetCapacity(8);
+            m_InputFocusStack.SetCapacity(16);
             m_NameHash = 0;
             m_SocketId = 0;
             m_ReplySocketId = 0;
@@ -255,15 +255,15 @@ namespace dmGameObject
         dmHashTable64<Instance*> m_IDToInstance;
 
         // Stack keeping track of which instance has the input focus
-        dmCircularArray<Instance*> m_FocusStack;
+        dmArray<Instance*>       m_InputFocusStack;
 
         // Name-hash of the collection.
-        dmhash_t                   m_NameHash;
+        dmhash_t                 m_NameHash;
 
         // Socket for sending to instances
-        dmMessage::HSocket          m_SocketId;
+        dmMessage::HSocket       m_SocketId;
         // Socket to receive replies from instances
-        dmMessage::HSocket          m_ReplySocketId;
+        dmMessage::HSocket       m_ReplySocketId;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

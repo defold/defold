@@ -81,8 +81,6 @@ namespace dmGameSystem
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_Resource = (CollectionProxyResource*) resource;
             *user_data = (uintptr_t) proxy;
-            // TODO: This is done to ensure the focus is acquired before any scripts etc to be the last to receive it.. not pretty.
-            dmGameObject::AcquireInputFocus(dmGameObject::GetCollection(instance), instance);
             return dmGameObject::CREATE_RESULT_OK;
         }
         else
@@ -109,8 +107,6 @@ namespace dmGameSystem
         uint32_t index = proxy - &proxy_world->m_Components[0];
         proxy_world->m_IndexPool.Push(index);
         memset(proxy, 0, sizeof(CollectionProxyComponent));
-        // TODO: See above
-        dmGameObject::ReleaseInputFocus(dmGameObject::GetCollection(instance), instance);
         return dmGameObject::CREATE_RESULT_OK;
     }
 

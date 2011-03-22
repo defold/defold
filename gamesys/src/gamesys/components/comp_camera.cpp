@@ -1,7 +1,6 @@
 #include "comp_camera.h"
 
 #include <dlib/array.h>
-#include <dlib/circular_array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -34,7 +33,7 @@ namespace dmGameSystem
     struct CameraWorld
     {
         dmArray<CameraComponent> m_Cameras;
-        dmCircularArray<CameraComponent*> m_FocusStack;
+        dmArray<CameraComponent*> m_FocusStack;
     };
 
     dmGameObject::CreateResult CompCameraNewWorld(void* context, void** world)
@@ -90,13 +89,21 @@ namespace dmGameSystem
     {
         CameraWorld* w = (CameraWorld*)world;
         CameraComponent* camera = (CameraComponent*)*user_data;
+        bool found = false;
         for (uint8_t i = 0; i < w->m_FocusStack.Size(); ++i)
         {
             if (w->m_FocusStack[i] == camera)
             {
-                w->m_FocusStack[i] = 0x0;
-                break;
+                found = true;
             }
+            if (found && i < w->m_FocusStack.Size() - 1)
+            {
+                w->m_FocusStack[i] = w->m_FocusStack[i + 1];
+            }
+        }
+        if (found)
+        {
+            w->m_FocusStack.Pop();
         }
         for (uint8_t i = 0; i < w->m_Cameras.Size(); ++i)
         {
@@ -117,16 +124,9 @@ namespace dmGameSystem
     {
         CameraWorld* w = (CameraWorld*)world;
         CameraComponent* camera = 0x0;
-        while (w->m_FocusStack.Size() > 0)
+        if (w->m_FocusStack.Size() > 0)
         {
-            CameraComponent* top = w->m_FocusStack.Top();
-            if (top != 0x0)
-            {
-                camera = top;
-                break;
-            }
-            else
-                w->m_FocusStack.Pop();
+            camera = w->m_FocusStack[w->m_FocusStack.Size() - 1];
         }
         if (camera != 0x0)
         {
@@ -190,17 +190,48 @@ namespace dmGameSystem
         }
         else if (message_data->m_MessageId == dmHashString64("acquire_camera_focus"))
         {
-            camera->m_World->m_FocusStack.Push(camera);
-        }
-        else if (message_data->m_MessageId == dmHashString64("release_camera_focus"))
-        {
+            bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
             {
                 if (camera->m_World->m_FocusStack[i] == camera)
                 {
-                    camera->m_World->m_FocusStack[i] = 0x0;
-                    break;
+                    found = true;
                 }
+                if (found && i < camera->m_World->m_FocusStack.Size() - 1)
+                {
+                    camera->m_World->m_FocusStack[i] = camera->m_World->m_FocusStack[i + 1];
+                }
+            }
+            if (found)
+            {
+                camera->m_World->m_FocusStack.Pop();
+            }
+            if (!camera->m_World->m_FocusStack.Full())
+            {
+                camera->m_World->m_FocusStack.Push(camera);
+            }
+            else
+            {
+                dmLogWarning("Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
+            }
+        }
+        else if (message_data->m_MessageId == dmHashString64("release_camera_focus"))
+        {
+            bool found = false;
+            for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
+            {
+                if (camera->m_World->m_FocusStack[i] == camera)
+                {
+                    found = true;
+                }
+                if (found && i < camera->m_World->m_FocusStack.Size() - 1)
+                {
+                    camera->m_World->m_FocusStack[i] = camera->m_World->m_FocusStack[i + 1];
+                }
+            }
+            if (found)
+            {
+                camera->m_World->m_FocusStack.Pop();
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
