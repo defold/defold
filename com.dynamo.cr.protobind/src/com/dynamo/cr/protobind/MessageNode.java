@@ -39,6 +39,10 @@ public class MessageNode extends Node {
         this.descriptor = message.getDescriptorForType();
         List<FieldDescriptor> fieldsList = message.getDescriptorForType().getFields();
         for (FieldDescriptor fd : fieldsList) {
+            // Is the field is optional and not set do not store the value
+            if (fd.isOptional() && !message.hasField(fd))
+                continue;
+
             Object value = message.getField(fd);
 
             if (value instanceof Message) {
@@ -138,7 +142,8 @@ public class MessageNode extends Node {
                 RepeatedNode repeatedNode = (RepeatedNode) value;
                 value = repeatedNode.build();
             }
-            builder.setField(fd, value);
+            if (value != null)
+                builder.setField(fd, value);
         }
 
         return builder.build();

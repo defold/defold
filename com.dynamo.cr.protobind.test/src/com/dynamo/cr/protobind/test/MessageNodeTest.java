@@ -1,8 +1,8 @@
 package com.dynamo.cr.protobind.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -17,6 +17,7 @@ import com.dynamo.cr.protobind.RepeatedNode;
 import com.dynamo.cr.protobind.proto.ProtoBind.ListMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedNestedMessage;
+import com.dynamo.cr.protobind.proto.ProtoBind.OptionalAndDefaultValueMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.SimpleMessage;
 
 public class MessageNodeTest {
@@ -315,4 +316,22 @@ public class MessageNodeTest {
         assertEquals(123.0f, listMessageNode.getField(two.getPathTo("b")));
         assertEquals("foo", listMessageNode.getField(two.getPathTo("s")));
     }
+
+    @Test
+    public void testOptionalDefault() throws Exception {
+
+        OptionalAndDefaultValueMessage msg1 = OptionalAndDefaultValueMessage.newBuilder().build();
+        MessageNode node = new MessageNode(msg1);
+        // Not set field are null
+        assertEquals(null, node.getField("x"));
+        assertEquals(null, node.getField("y"));
+        assertEquals(null, node.getField("msg"));
+
+        OptionalAndDefaultValueMessage msg2 = (OptionalAndDefaultValueMessage) node.build();
+        // Test that we don't "create" optional and not set fields
+        assertEquals(msg1.hasX(), msg2.hasX());
+        assertEquals(msg1.hasY(), msg2.hasY());
+        assertEquals(msg1.hasMsg(), msg2.hasMsg());
+    }
+
 }
