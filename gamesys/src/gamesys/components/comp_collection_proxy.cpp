@@ -215,7 +215,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("The collection %s could not loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
+                dmLogWarning("The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (message_data->m_MessageId == dmHashString64("unload"))
