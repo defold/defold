@@ -238,7 +238,7 @@ public class MathUtil
         .setX((float)rotation.x)
         .setY((float)rotation.y)
         .setZ((float)rotation.z)
-        .setW((float)rotation.z)
+        .setW((float)rotation.w)
         .build();
     }
 }
