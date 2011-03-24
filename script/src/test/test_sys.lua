@@ -1,7 +1,12 @@
 function test_sys()
-    local file = sys.get_save_file("my_game", "save001.save")
+    local filename = "save001.save"
+    local file = sys.get_save_file("my_game", filename)
     -- Get file again, test mkdir
-    file = sys.get_save_file("my_game", "save001.save")
+    file = sys.get_save_file("my_game", filename)
+    result, error = os.remove(file)
+
+    local data = sys.load(file)
+    assert(#data == 0)
 
     local data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
     local result = sys.save(file, data)

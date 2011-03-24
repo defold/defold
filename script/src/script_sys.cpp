@@ -53,6 +53,11 @@ namespace dmScript
         char buffer[MAX_BUFFER_SIZE];
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
+        if (file == 0x0)
+        {
+            lua_newtable(L);
+            return 1;
+        }
         fread(buffer, 1, sizeof(buffer), file);
         bool result = ferror(file) == 0 && feof(file) != 0;
         fclose(file);
