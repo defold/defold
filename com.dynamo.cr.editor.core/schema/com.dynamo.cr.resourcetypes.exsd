@@ -49,6 +49,9 @@
 
    <element name="resource-type">
       <complexType>
+         <sequence minOccurs="0" maxOccurs="1">
+            <element ref="references"/>
+         </sequence>
          <attribute name="id" type="string" use="required">
             <annotation>
                <documentation>
@@ -102,6 +105,59 @@
                <appinfo>
                   <meta.attribute kind="java" basedOn=":com.dynamo.cr.editor.core.IResourceTypeEditSupport"/>
                </appinfo>
+            </annotation>
+         </attribute>
+         <attribute name="type-class" type="string">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
+            </annotation>
+         </attribute>
+         <attribute name="resource-refactor-participant-class" type="string">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
+               <appinfo>
+                  <meta.attribute kind="java" basedOn=":com.dynamo.cr.editor.core.IResourceRefactorParticipant"/>
+               </appinfo>
+            </annotation>
+         </attribute>
+      </complexType>
+   </element>
+
+   <element name="references">
+      <complexType>
+         <sequence minOccurs="0" maxOccurs="unbounded">
+            <element ref="reference-type-class"/>
+            <element ref="reference-resource-type"/>
+         </sequence>
+      </complexType>
+   </element>
+
+   <element name="reference-resource-type">
+      <complexType>
+         <attribute name="resource-type" type="string" use="required">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
+               <appinfo>
+                  <meta.attribute kind="identifier" basedOn="com.dynamo.cr.resourcetypes/resource-type/@id"/>
+               </appinfo>
+            </annotation>
+         </attribute>
+      </complexType>
+   </element>
+
+   <element name="reference-type-class">
+      <complexType>
+         <attribute name="type-class" type="string" use="required">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
             </annotation>
          </attribute>
       </complexType>

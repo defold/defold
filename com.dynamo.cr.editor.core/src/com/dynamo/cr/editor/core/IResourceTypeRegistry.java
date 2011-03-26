@@ -20,4 +20,11 @@ public interface IResourceTypeRegistry {
      */
     IResourceType getResourceTypeFromExtension(String extension);
 
+    /**
+     * Get resource type from id
+     * @param id id
+     * @return resource type. null if no mapping exists
+     */
+    IResourceType getResourceTypeFromId(String id);
+
 }

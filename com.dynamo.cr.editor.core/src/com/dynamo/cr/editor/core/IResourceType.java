@@ -64,4 +64,29 @@ public interface IResourceType {
      * @return edit support instance. null if not supported.
      */
     IResourceTypeEditSupport getEditSupport();
+
+    /**
+     * Get resource type-class, eg component, image, etc
+     * @return resource type name
+     */
+    public String getTypeClass();
+
+    /**
+     * Get resource refactor participant.
+     * @return refactor participant. null if not set
+     */
+    public IResourceRefactorParticipant getResourceRefactorParticipant();
+
+    /**
+     * Get reference type-classes this resource type can refer to.
+     * @return array of reference resource type-classes
+     */
+    public String[] getReferenceTypeClasses();
+
+    /**
+     * Get reference types this resource can refer type
+     * @return array of resource-types
+     */
+    public IResourceType[] getReferenceResourceTypes();
+
 }
