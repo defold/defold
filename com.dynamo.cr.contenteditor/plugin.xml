@@ -235,5 +235,22 @@
          </view>
       </perspectiveExtension>
    </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            embeddable="false"
+            file-extension="go"
+            id="com.dynamo.cr.contenteditor.resourcetypes.GameObject"
+            name="Game Object"
+            proto-message-class="com.dynamo.gameobject.proto.GameObject$PrototypeDesc"
+            resource-refactor-participant-class="com.dynamo.cr.contenteditor.refactoring.GameObjectRefactorParticipant"
+            type-class="gameobject">
+         <references>
+            <reference-type-class
+                  type-class="component">
+            </reference-type-class>
+         </references>
+      </resource-type>
+   </extension>
 
 </plugin>
