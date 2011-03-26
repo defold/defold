@@ -250,5 +250,15 @@
             name="Content">
       </category>
    </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            embeddable="false"
+            file-extension="png"
+            id="com.dynamo.cr.editor.resourcetypes.png"
+            name="PNG"
+            type-class="image">
+      </resource-type>
+   </extension>
 
 </plugin>
