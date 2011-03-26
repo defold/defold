@@ -417,7 +417,14 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Sprite"
             name="Sprite"
             proto-message-class="com.dynamo.sprite.proto.Sprite$SpriteDesc"
-            template-data="texture: &apos;&apos; width: 1 height: 1">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SpriteRefactorParticipant"
+            template-data="texture: &apos;&apos; width: 1 height: 1"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             file-extension="convexshape"
