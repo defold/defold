@@ -4,6 +4,7 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.runtime.Path;
 
 public class EditorUtil {
 
@@ -15,9 +16,9 @@ public class EditorUtil {
     public static IContainer findContentRoot(IFile file) {
         IContainer c = file.getParent();
         while (c != null) {
-            if (c instanceof IFolder) {
-                IFolder folder = (IFolder) c;
-                IFile f = folder.getFile("game.project");
+            if (c instanceof IContainer) {
+                IContainer folder = (IContainer) c;
+                IFile f = folder.getFile(new Path("game.project"));
                 if (f.exists()) {
                     return c;
                 }
