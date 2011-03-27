@@ -41,6 +41,11 @@ public class ParticipantUtils {
         }
         IFile fromFile;
         IFile toFile;
+
+        @Override
+        public String toString() {
+            return String.format("%s -> %s", fromFile, toFile);
+        }
     }
 
     static public class RefactoredFile {
@@ -53,21 +58,21 @@ public class ParticipantUtils {
     }
 
     static void moveFile(Map<IFile, RefactoredFile> refactoredFiles, Element element) throws CoreException, IOException {
-    
+
         final IResourceTypeRegistry registry = EditorCorePlugin.getDefault();
         String extension = element.fromFile.getFileExtension();
         IResourceType subjectResourceType = registry.getResourceTypeFromExtension(extension);
         if (subjectResourceType == null)
             return;
-    
+
         final Set<IResourceType> candidateResourceTypes = findCandidateResourceTypes(subjectResourceType);
         IContainer root = EditorUtil.findContentRoot(element.fromFile);
         final List<IFile> candidateFiles = findCandidateFiles(root, candidateResourceTypes);
-    
+
         ResourceRefactorContext context = new ResourceRefactorContext(root);
         IPath newPath = element.toFile.getFullPath().makeRelativeTo(root.getFullPath());
         String newPathString = newPath.toPortableString();
-    
+
         for (IFile candidateFile : candidateFiles) {
             if (!refactoredFiles.containsKey(candidateFile)) {
                 InputStream inStream = candidateFile.getContents();
@@ -110,19 +115,19 @@ public class ParticipantUtils {
     }
 
     static void deleteFile(Map<IFile, RefactoredFile> refactoredFiles, IFile file) throws CoreException, IOException {
-    
+
         final IResourceTypeRegistry registry = EditorCorePlugin.getDefault();
         String extension = file.getFileExtension();
         IResourceType subjectResourceType = registry.getResourceTypeFromExtension(extension);
         if (subjectResourceType == null)
             return;
-    
+
         final Set<IResourceType> candidateResourceTypes = findCandidateResourceTypes(subjectResourceType);
         IContainer root = EditorUtil.findContentRoot(file);
         final List<IFile> candidateFiles = findCandidateFiles(root, candidateResourceTypes);
-    
+
         ResourceRefactorContext context = new ResourceRefactorContext(root);
-    
+
         for (IFile candidateFile : candidateFiles) {
             if (!refactoredFiles.containsKey(candidateFile)) {
                 InputStream inStream = candidateFile.getContents();
