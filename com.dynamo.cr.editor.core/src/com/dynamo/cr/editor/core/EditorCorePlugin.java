@@ -109,6 +109,11 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
                 messageClass = bundle.loadClass(protoMessageClassName);
             }
             IResourceType resourceType = new ResourceType(id, name, fileExtension, templateData, messageClass, embeddable != null && embeddable.equals("true"), editSupport, type, refacorParticipant, referenceTypeClasses, referenceResourceTypeIds);
+
+            if (extensionToResourceType.containsKey(fileExtension)) {
+                System.err.println(String.format("ERROR: Resoruce type for extension '%s' already registred (%s)", fileExtension, resourceType));
+            }
+
             resourceTypes.add(resourceType);
             extensionToResourceType.put(fileExtension, resourceType);
             idToResourceType.put(id, resourceType);
