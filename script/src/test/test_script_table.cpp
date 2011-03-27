@@ -271,16 +271,70 @@ TEST_F(LuaTableTest, Matrix4)
     lua_pop(L, 1);
 }
 
-static std::string RandomString(int max_len)
+TEST_F(LuaTableTest, MixedKeys)
+{
+    // Create table
+    lua_newtable(L);
+
+    lua_pushnumber(L, 1);
+    lua_pushnumber(L, 2);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key1");
+    lua_pushnumber(L, 3);
+    lua_settable(L, -3);
+
+    lua_pushnumber(L, 2);
+    lua_pushnumber(L, 4);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 5);
+    lua_settable(L, -3);
+
+    char buf[256];
+
+    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, buf);
+
+    lua_pushnumber(L, 1);
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(2, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "key1");
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(3, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 2);
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(4, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "key2");
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(5, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+}
+
+static void RandomString(char* s, int max_len)
 {
     int n = rand() % max_len + 1;
-    std::string s;
     for (int i = 0; i < n; ++i)
     {
-        char buf[] = { rand() % 256, 0 };
-        s += buf;
+        (*s++) = (char)(rand() % 256);
     }
-    return s;
+    *s = '\0';
 }
 
 TEST_F(LuaTableTest, Stress)
@@ -296,7 +350,17 @@ TEST_F(LuaTableTest, Stress)
             lua_newtable(L);
             for (int i = 0; i < n; ++i)
             {
-                std::string key = RandomString(11);
+                int key_type = rand() % 2;
+                if (key_type == 0)
+                {
+                    char key[12];
+                    RandomString(key, 11);
+                    lua_pushstring(L, key);
+                }
+                else if (key_type == 1)
+                {
+                    lua_pushnumber(L, rand() % (n + 1));
+                }
                 int value_type = rand() % 3;
                 if (value_type == 0)
                 {
@@ -308,10 +372,12 @@ TEST_F(LuaTableTest, Stress)
                 }
                 else if (value_type == 2)
                 {
-                    lua_pushstring(L, RandomString(15).c_str());
+                    char value[16];
+                    RandomString(value, 15);
+                    lua_pushstring(L, value);
                 }
 
-                lua_setfield(L, -2, key.c_str());
+                lua_settable(L, -3);
             }
             char* buf = new char[buf_size];
 

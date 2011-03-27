@@ -14,12 +14,14 @@ namespace dmScript
      * Table serialization format:
      * char   count
      *
+     * char   key_type (LUA_TSTRING or LUA_TNUMBER)
      * char   value_type (LUA_TXXX)
-     * char[] key (null terminated string)
+     * T      key (null terminated string or char)
      * T      value
      *
+     * char   key_type (LUA_TSTRING or LUA_TNUMBER)
      * char   value_type (LUA_TXXX)
-     * char[] key (null terminated string)
+     * T      key (null terminated string or char)
      * T      value
      * ...
      * if value is of type Point3, Vector3, Vector4 or Quat, ie LUA_TUSERDATA, the first byte in value is the SubType
@@ -35,6 +37,9 @@ namespace dmScript
 
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
     {
+        int top = lua_gettop(L);
+        (void)top;
+
         char* buffer_start = buffer;
         char* buffer_end = buffer + buffer_size;
         luaL_checktype(L, index, LUA_TTABLE);
@@ -60,21 +65,36 @@ namespace dmScript
 
             int key_type = lua_type(L, -2);
             int value_type = lua_type(L, -1);
-            if (key_type != LUA_TSTRING)
+            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER)
             {
-                luaL_error(L, "keys in table must be of type string");
+                luaL_error(L, "keys in table must be of type number or string");
             }
-            const char* key = lua_tostring(L, -2);
-            uint32_t key_len = strlen(key) + 1;
 
-            if (buffer_end - buffer < int32_t(1 + key_len))
-            {
+            if (buffer_end - buffer < 2)
                 luaL_error(L, "table too large");
-            }
 
+            (*buffer++) = (char) key_type;
             (*buffer++) = (char) value_type;
-            memcpy(buffer, key, key_len);
-            buffer += key_len;
+
+            if (key_type == LUA_TSTRING)
+            {
+                const char* key = lua_tostring(L, -2);
+                uint32_t key_len = strlen(key) + 1;
+
+                if (buffer_end - buffer < int32_t(1 + key_len))
+                {
+                    luaL_error(L, "table too large");
+                }
+                memcpy(buffer, key, key_len);
+                buffer += key_len;
+            }
+            else if (key_type == LUA_TNUMBER)
+            {
+                if (buffer_end - buffer < 1)
+                    luaL_error(L, "table too large");
+                char key = (char)lua_tonumber(L, -2);
+                (*buffer++) = key;
+            }
 
             switch (value_type)
             {
@@ -224,21 +244,33 @@ namespace dmScript
 
         *buffer_start = count;
 
+        assert(top == lua_gettop(L));
+
         return buffer - buffer_start;
     }
 
     int DoPushTable(lua_State*L, const char* buffer)
     {
+        int top = lua_gettop(L);
+        (void)top;
         const char* buffer_start = buffer;
         uint32_t count = (uint32_t) (*buffer++);
         lua_newtable(L);
 
         for (uint32_t i = 0; i < count; ++i)
         {
+            char key_type = (*buffer++);
             char value_type = (*buffer++);
-            uint32_t key_len = strlen(buffer) + 1;
-            const char* key = buffer;
-            buffer += key_len;
+
+            if (key_type == LUA_TSTRING)
+            {
+                lua_pushstring(L, buffer);
+                buffer += strlen(buffer) + 1;
+            }
+            else if (key_type == LUA_TNUMBER)
+            {
+                lua_pushnumber(L, (*buffer++));
+            }
 
             switch (value_type)
             {
@@ -324,8 +356,10 @@ namespace dmScript
                 default:
                     luaL_error(L, "Invalid table buffer");
             }
-            lua_setfield(L, -2, key);
+            lua_settable(L, -3);
         }
+
+        assert(top + 1 == lua_gettop(L));
 
         return buffer - buffer_start;
     }
