@@ -319,7 +319,14 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.GameObject"
             name="Game Object"
             proto-message-class="com.dynamo.gameobject.proto.GameObject$PrototypeDesc"
-            template-data=" ">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.GameObjectRefactorParticipant"
+            template-data=" "
+            type-class="gameobject">
+         <references>
+            <reference-type-class
+                  type-class="component">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             file-extension="camera"

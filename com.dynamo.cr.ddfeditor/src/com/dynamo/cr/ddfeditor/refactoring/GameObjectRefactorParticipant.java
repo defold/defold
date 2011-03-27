@@ -1,4 +1,4 @@
-package com.dynamo.cr.contenteditor.refactoring;
+package com.dynamo.cr.ddfeditor.refactoring;
 
 import java.util.List;
 
@@ -9,7 +9,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
-import com.dynamo.cr.contenteditor.Activator;
+import com.dynamo.cr.ddfeditor.Activator;
 import com.dynamo.cr.editor.core.IResourceRefactorParticipant;
 import com.dynamo.cr.editor.core.ResourceRefactorContext;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
