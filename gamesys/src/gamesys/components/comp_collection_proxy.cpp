@@ -35,7 +35,7 @@ namespace dmGameSystem
         dmIndexPool32                       m_IndexPool;
     };
 
-    dmGameObject::CreateResult CompCollectionProxyNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
         // TODO: tweak count from project-file
@@ -44,13 +44,13 @@ namespace dmGameSystem
         proxy_world->m_Components.SetSize(component_count);
         memset(&proxy_world->m_Components[0], 0, sizeof(CollectionProxyComponent) * component_count);
         proxy_world->m_IndexPool.SetCapacity(component_count);
-        *world = proxy_world;
+        *params.m_World = proxy_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollectionProxyDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompCollectionProxyDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)world;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             dmGameObject::HCollection collection = proxy_world->m_Components[i].m_Collection;
@@ -58,29 +58,24 @@ namespace dmGameSystem
             {
                 if (proxy_world->m_Components[i].m_Initialized)
                     dmGameObject::Final(collection);
-                dmResource::Release((dmResource::HFactory)context, collection);
+                dmResource::Release((dmResource::HFactory)params.m_Context, collection);
             }
         }
         delete proxy_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollectionProxyCreate(dmGameObject::HCollection collection,
-                                               dmGameObject::HInstance instance,
-                                               void* resource,
-                                               void* world,
-                                               void* context,
-                                               uintptr_t* user_data)
+    dmGameObject::CreateResult CompCollectionProxyCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)world;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         if (proxy_world->m_IndexPool.Remaining() > 0)
         {
             uint32_t index = proxy_world->m_IndexPool.Pop();
             CollectionProxyComponent* proxy = &proxy_world->m_Components[index];
             memset(proxy, 0, sizeof(CollectionProxyComponent));
             proxy->m_TimeStepFactor = 1.0f;
-            proxy->m_Resource = (CollectionProxyResource*) resource;
-            *user_data = (uintptr_t) proxy;
+            proxy->m_Resource = (CollectionProxyResource*) params.m_Resource;
+            *params.m_UserData = (uintptr_t) proxy;
             return dmGameObject::CREATE_RESULT_OK;
         }
         else
@@ -90,32 +85,25 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::CreateResult CompCollectionProxyDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data)
+    dmGameObject::CreateResult CompCollectionProxyDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        CollectionProxyComponent* proxy = (CollectionProxyComponent*)*user_data;
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*)*params.m_UserData;
         if (proxy->m_Collection != 0)
         {
             if (proxy->m_Initialized)
                 dmGameObject::Final(proxy->m_Collection);
-            dmResource::Release((dmResource::HFactory)context, proxy->m_Collection);
+            dmResource::Release((dmResource::HFactory)params.m_Context, proxy->m_Collection);
         }
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)world;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         uint32_t index = proxy - &proxy_world->m_Components[0];
         proxy_world->m_IndexPool.Push(index);
         memset(proxy, 0, sizeof(CollectionProxyComponent));
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompCollectionProxyUpdate(dmGameObject::HCollection collection,
-                                               const dmGameObject::UpdateContext* update_context,
-                                               void* world,
-                                               void* context)
+    dmGameObject::UpdateResult CompCollectionProxyUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)world;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
@@ -126,7 +114,7 @@ namespace dmGameSystem
                 {
                     dmGameObject::UpdateContext uc;
 
-                    float warped_dt = update_context->m_DT * proxy->m_TimeStepFactor;
+                    float warped_dt = params.m_UpdateContext->m_DT * proxy->m_TimeStepFactor;
                     switch (proxy->m_TimeStepMode)
                     {
                     case dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS:
@@ -135,10 +123,10 @@ namespace dmGameSystem
                         break;
                     case dmGameSystemDDF::TIME_STEP_MODE_DISCRETE:
                         proxy->m_AccumulatedTime += warped_dt;
-                        if (proxy->m_AccumulatedTime >= update_context->m_DT)
+                        if (proxy->m_AccumulatedTime >= params.m_UpdateContext->m_DT)
                         {
-                            uc.m_DT = update_context->m_DT;
-                            proxy->m_AccumulatedTime -= update_context->m_DT;
+                            uc.m_DT = params.m_UpdateContext->m_DT;
+                            proxy->m_AccumulatedTime -= params.m_UpdateContext->m_DT;
                         }
                         else
                         {
@@ -161,11 +149,9 @@ namespace dmGameSystem
         return result;
     }
 
-    dmGameObject::UpdateResult CompCollectionProxyPostUpdate(dmGameObject::HCollection collection,
-                                               void* world,
-                                               void* context)
+    dmGameObject::UpdateResult CompCollectionProxyPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
     {
-        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)world;
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
@@ -184,7 +170,7 @@ namespace dmGameSystem
                         dmGameObject::Final(proxy->m_Collection);
                         proxy->m_Initialized = 0;
                     }
-                    dmResource::Release((dmResource::HFactory)context, proxy->m_Collection);
+                    dmResource::Release((dmResource::HFactory)params.m_Context, proxy->m_Collection);
                     proxy->m_Collection = 0;
                     proxy->m_Enabled = 0;
                     proxy->m_Unload = 0;
@@ -194,19 +180,16 @@ namespace dmGameSystem
         return result;
     }
 
-    dmGameObject::UpdateResult CompCollectionProxyOnMessage(dmGameObject::HInstance instance,
-                                                const dmGameObject::InstanceMessageData* message_data,
-                                                void* context,
-                                                uintptr_t* user_data)
+    dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        CollectionProxyComponent* proxy = (CollectionProxyComponent*) *user_data;
-        if (message_data->m_MessageId == dmHashString64("load"))
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
+        if (params.m_MessageData->m_MessageId == dmHashString64("load"))
         {
             if (proxy->m_Collection == 0)
             {
                 proxy->m_Unload = 0;
                 // TODO: asynchronous loading
-                dmResource::FactoryResult result = dmResource::Get((dmResource::HFactory)context, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
+                dmResource::FactoryResult result = dmResource::Get((dmResource::HFactory)params.m_Context, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
                 if (result != dmResource::FACTORY_RESULT_OK)
                 {
                     dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
@@ -218,7 +201,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("unload"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("unload"))
         {
             if (proxy->m_Collection != 0)
             {
@@ -229,7 +212,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("init"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("init"))
         {
             if (proxy->m_Initialized == 0)
             {
@@ -241,7 +224,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("final"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("final"))
         {
             if (proxy->m_Initialized == 1)
             {
@@ -253,7 +236,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("enable"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("enable"))
         {
             if (proxy->m_Enabled == 0)
             {
@@ -269,7 +252,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("disable"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("disable"))
         {
             if (proxy->m_Enabled == 1)
             {
@@ -280,13 +263,13 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (message_data->m_DDFDescriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
+        else if (params.m_MessageData->m_DDFDescriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
         {
-            dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)message_data->m_Buffer;
+            dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)params.m_MessageData->m_Buffer;
             proxy->m_TimeStepFactor = ddf->m_Factor;
             proxy->m_TimeStepMode = ddf->m_Mode;
         }
-        else if (message_data->m_MessageId == dmHashString64("reset_time_step"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("reset_time_step"))
         {
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;
@@ -294,14 +277,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::InputResult CompCollectionProxyOnInput(dmGameObject::HInstance instance,
-            const dmGameObject::InputAction* input_action,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::InputResult CompCollectionProxyOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
-        CollectionProxyComponent* proxy = (CollectionProxyComponent*) *user_data;
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         if (proxy->m_Enabled && !proxy->m_Unload)
-            dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)input_action, 1);
+            dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)params.m_InputAction, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 }

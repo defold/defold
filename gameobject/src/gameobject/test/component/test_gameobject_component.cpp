@@ -171,18 +171,13 @@ dmResource::CreateResult GenericDDFDestory(dmResource::HFactory factory, void* c
 }
 
 template <typename T, int add_to_user_data>
-static dmGameObject::CreateResult GenericComponentCreate(dmGameObject::HCollection collection,
-                                                         dmGameObject::HInstance instance,
-                                                         void* resource,
-                                                         void* world,
-                                                         void* context,
-                                                         uintptr_t* user_data)
+static dmGameObject::CreateResult GenericComponentCreate(const dmGameObject::ComponentCreateParams& params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) context;
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
 
-    if (user_data && add_to_user_data != -1)
+    if (params.m_UserData && add_to_user_data != -1)
     {
-        *user_data += add_to_user_data;
+        *params.m_UserData += add_to_user_data;
     }
 
     if (game_object_test->m_MaxComponentCreateCountMap.find(T::m_DDFHash) != game_object_test->m_MaxComponentCreateCountMap.end())
@@ -198,24 +193,17 @@ static dmGameObject::CreateResult GenericComponentCreate(dmGameObject::HCollecti
 }
 
 template <typename T>
-static dmGameObject::CreateResult GenericComponentInit(dmGameObject::HCollection collection,
-                                                        dmGameObject::HInstance instance,
-                                                        void* world,
-                                                        void* context,
-                                                        uintptr_t* user_data)
+static dmGameObject::CreateResult GenericComponentInit(const dmGameObject::ComponentInitParams& params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) context;
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
     game_object_test->m_ComponentInitCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
 template <typename T>
-static dmGameObject::UpdateResult GenericComponentsUpdate(dmGameObject::HCollection collection,
-                                    const dmGameObject::UpdateContext* update_context,
-                                    void* world,
-                                    void* context)
+static dmGameObject::UpdateResult GenericComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) context;
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
     game_object_test->m_ComponentUpdateCountMap[T::m_DDFHash]++;
     game_object_test->m_ComponentUpdateOrderMap[T::m_DDFHash] = game_object_test->m_UpdateCount++;
     return dmGameObject::UPDATE_RESULT_OK;
@@ -223,16 +211,12 @@ static dmGameObject::UpdateResult GenericComponentsUpdate(dmGameObject::HCollect
 
 
 template <typename T>
-static dmGameObject::CreateResult GenericComponentDestroy(dmGameObject::HCollection collection,
-                                                          dmGameObject::HInstance instance,
-                                                          void* world,
-                                                          void* context,
-                                                          uintptr_t* user_data)
+static dmGameObject::CreateResult GenericComponentDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) context;
-    if (user_data)
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    if (params.m_UserData)
     {
-        game_object_test->m_ComponentUserDataAcc[T::m_DDFHash] += *user_data;
+        game_object_test->m_ComponentUserDataAcc[T::m_DDFHash] += *params.m_UserData;
     }
 
     game_object_test->m_ComponentDestroyCountMap[T::m_DDFHash]++;

@@ -15,11 +15,11 @@ extern "C"
 
 namespace dmGameObject
 {
-    CreateResult CompScriptNewWorld(void* context, void** world)
+    CreateResult CompScriptNewWorld(const ComponentNewWorldParams& params)
     {
-        if (world != 0x0)
+        if (params.m_World != 0x0)
         {
-            *world = new ScriptWorld();
+            *params.m_World = new ScriptWorld();
             return CREATE_RESULT_OK;
         }
         else
@@ -28,11 +28,11 @@ namespace dmGameObject
         }
     }
 
-    CreateResult CompScriptDeleteWorld(void* context, void* world)
+    CreateResult CompScriptDeleteWorld(const ComponentDeleteWorldParams& params)
     {
-        if (world != 0x0)
+        if (params.m_World != 0x0)
         {
-            delete (ScriptWorld*)world;
+            delete (ScriptWorld*)params.m_World;
             return CREATE_RESULT_OK;
         }
         else
@@ -41,23 +41,18 @@ namespace dmGameObject
         }
     }
 
-    CreateResult CompScriptCreate(HCollection collection,
-            HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    CreateResult CompScriptCreate(const ComponentCreateParams& params)
     {
-        HScript script = (HScript)resource;
+        HScript script = (HScript)params.m_Resource;
 
-        ScriptWorld* script_world = (ScriptWorld*)world;
+        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
             dmLogError("Could not create script component, out of resources.");
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        HScriptInstance script_instance = NewScriptInstance(script, instance, instance->m_CurrentComponentIndex);
+        HScriptInstance script_instance = NewScriptInstance(script, params.m_Instance, params.m_ComponentIndex);
         if (script_instance == 0x0)
         {
             dmLogError("Could not create script component, out of memory.");
@@ -65,7 +60,7 @@ namespace dmGameObject
         }
 
         script_world->m_Instances.Push(script_instance);
-        *user_data = (uintptr_t)script_instance;
+        *params.m_UserData = (uintptr_t)script_instance;
         return CREATE_RESULT_OK;
     }
 
@@ -130,14 +125,10 @@ namespace dmGameObject
         return result;
     }
 
-    CreateResult CompScriptDestroy(HCollection collection,
-            HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    CreateResult CompScriptDestroy(const ComponentDestroyParams& params)
     {
-        ScriptWorld* script_world = (ScriptWorld*)world;
-        HScriptInstance script_instance = (HScriptInstance)*user_data;
+        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
         {
             if (script_instance == script_world->m_Instances[i])
@@ -150,17 +141,13 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    CreateResult CompScriptInit(HCollection collection,
-            HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    CreateResult CompScriptInit(const ComponentInitParams& params)
     {
-        HScriptInstance script_instance = (HScriptInstance)*user_data;
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
         int top = lua_gettop(g_LuaState);
         (void)top;
-        ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, 0x0);
+        ScriptResult ret = RunScript(params.m_Collection, script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, 0x0);
         assert(top == lua_gettop(g_LuaState));
         if (ret == SCRIPT_RESULT_FAILED)
         {
@@ -172,17 +159,13 @@ namespace dmGameObject
         }
     }
 
-    CreateResult CompScriptFinal(HCollection collection,
-            HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    CreateResult CompScriptFinal(const ComponentFinalParams& params)
     {
-        HScriptInstance script_instance = (HScriptInstance)*user_data;
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
         int top = lua_gettop(g_LuaState);
         (void)top;
-        ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, 0x0);
+        ScriptResult ret = RunScript(params.m_Collection, script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, 0x0);
         assert(top == lua_gettop(g_LuaState));
         if (ret == SCRIPT_RESULT_FAILED)
         {
@@ -194,20 +177,17 @@ namespace dmGameObject
         }
     }
 
-    UpdateResult CompScriptUpdate(HCollection collection,
-            const UpdateContext* update_context,
-            void* world,
-            void* context)
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params)
     {
         int top = lua_gettop(g_LuaState);
         (void)top;
         UpdateResult result = UPDATE_RESULT_OK;
-        ScriptWorld* script_world = (ScriptWorld*)world;
+        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            ScriptResult ret = RunScript(collection, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, update_context);
+            ScriptResult ret = RunScript(params.m_Collection, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, params.m_UpdateContext);
             if (ret == SCRIPT_RESULT_FAILED)
             {
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -217,14 +197,11 @@ namespace dmGameObject
         return result;
     }
 
-    UpdateResult CompScriptOnMessage(HInstance instance,
-            const InstanceMessageData* instance_message_data,
-            void* context,
-            uintptr_t* user_data)
+    UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
         UpdateResult result = UPDATE_RESULT_OK;
 
-        ScriptInstance* script_instance = (ScriptInstance*)*user_data;
+        ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
 
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
         if (function_ref != LUA_NOREF)
@@ -235,7 +212,7 @@ namespace dmGameObject
             int ret;
 
             lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) instance->m_Collection);
+            lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_pushliteral(L, "__instance__");
@@ -245,15 +222,15 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            dmScript::PushHash(L, instance_message_data->m_MessageId);
+            dmScript::PushHash(L, params.m_MessageData->m_MessageId);
 
-            if (instance_message_data->m_DDFDescriptor)
+            if (params.m_MessageData->m_DDFDescriptor)
             {
                 // adjust char ptrs to global mem space
-                char* data = (char*)instance_message_data->m_Buffer;
-                for (uint8_t i = 0; i < instance_message_data->m_DDFDescriptor->m_FieldCount; ++i)
+                char* data = (char*)params.m_MessageData->m_Buffer;
+                for (uint8_t i = 0; i < params.m_MessageData->m_DDFDescriptor->m_FieldCount; ++i)
                 {
-                    dmDDF::FieldDescriptor* field = &instance_message_data->m_DDFDescriptor->m_Fields[i];
+                    dmDDF::FieldDescriptor* field = &params.m_MessageData->m_DDFDescriptor->m_Fields[i];
                     uint32_t field_type = field->m_Type;
                     if (field_type == dmDDF::TYPE_STRING)
                     {
@@ -262,12 +239,12 @@ namespace dmGameObject
                 }
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
-                dmScript::PushDDF(L, instance_message_data->m_DDFDescriptor, (const char*) instance_message_data->m_Buffer);
+                dmScript::PushDDF(L, params.m_MessageData->m_DDFDescriptor, (const char*) params.m_MessageData->m_Buffer);
             }
             else
             {
-                if (instance_message_data->m_BufferSize > 0)
-                    dmScript::PushTable(L, (const char*)instance_message_data->m_Buffer);
+                if (params.m_MessageData->m_BufferSize > 0)
+                    dmScript::PushTable(L, (const char*)params.m_MessageData->m_Buffer);
                 else
                     lua_newtable(L);
             }
@@ -293,14 +270,11 @@ namespace dmGameObject
         return result;
     }
 
-    InputResult CompScriptOnInput(HInstance instance,
-            const InputAction* input_action,
-            void* context,
-            uintptr_t* user_data)
+    InputResult CompScriptOnInput(const ComponentOnInputParams& params)
     {
         InputResult result = INPUT_RESULT_IGNORED;
 
-        ScriptInstance* script_instance = (ScriptInstance*)*user_data;
+        ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
 
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONINPUT];
         if (function_ref != LUA_NOREF)
@@ -310,7 +284,7 @@ namespace dmGameObject
             (void)top;
 
             lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) instance->m_Collection);
+            lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_pushliteral(L, "__instance__");
@@ -320,26 +294,26 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            dmScript::PushHash(L, input_action->m_ActionId);
+            dmScript::PushHash(L, params.m_InputAction->m_ActionId);
 
             lua_createtable(L, 0, 5);
 
             int action_table = lua_gettop(L);
 
             lua_pushliteral(L, "value");
-            lua_pushnumber(L, input_action->m_Value);
+            lua_pushnumber(L, params.m_InputAction->m_Value);
             lua_settable(L, action_table);
 
             lua_pushliteral(L, "pressed");
-            lua_pushboolean(L, input_action->m_Pressed);
+            lua_pushboolean(L, params.m_InputAction->m_Pressed);
             lua_settable(L, action_table);
 
             lua_pushliteral(L, "released");
-            lua_pushboolean(L, input_action->m_Released);
+            lua_pushboolean(L, params.m_InputAction->m_Released);
             lua_settable(L, action_table);
 
             lua_pushliteral(L, "repeated");
-            lua_pushboolean(L, input_action->m_Repeated);
+            lua_pushboolean(L, params.m_InputAction->m_Repeated);
             lua_settable(L, action_table);
 
             int arg_count = 3;
@@ -380,13 +354,9 @@ namespace dmGameObject
         return result;
     }
 
-    void CompScriptOnReload(HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    void CompScriptOnReload(const ComponentOnReloadParams& params)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)*user_data;
+        ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
 
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONRELOAD];
         if (function_ref != LUA_NOREF)
@@ -396,7 +366,7 @@ namespace dmGameObject
             (void)top;
 
             lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) instance->m_Collection);
+            lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_pushliteral(L, "__instance__");

@@ -55,9 +55,9 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject>  m_GuiRenderObjects;
     };
 
-    dmGameObject::CreateResult CompGuiNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        GuiRenderContext* gui_render_context = (GuiRenderContext*)context;
+        GuiRenderContext* gui_render_context = (GuiRenderContext*)params.m_Context;
         GuiWorld* gui_world = new GuiWorld();
 
         gui_world->m_Components.SetCapacity(16);
@@ -97,24 +97,24 @@ namespace dmGameSystem
                                     0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff };
 
-        dmGraphics::TextureParams params;
-        params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-        params.m_Data = white_texture;
-        params.m_DataSize = sizeof(white_texture);
-        params.m_Width = 2;
-        params.m_Height = 2;
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), params);
+        dmGraphics::TextureParams tex_params;
+        tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        tex_params.m_Data = white_texture;
+        tex_params.m_DataSize = sizeof(white_texture);
+        tex_params.m_Width = 2;
+        tex_params.m_Height = 2;
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), tex_params);
 
         // TODO: Configurable
         gui_world->m_GuiRenderObjects.SetCapacity(32);
 
-        *world = gui_world;
+        *params.m_World = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)world;
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
         if (0 < gui_world->m_Components.Size())
         {
             dmLogWarning("%d gui component(s) were not destroyed at gui context destruction.", gui_world->m_Components.Size());
@@ -134,22 +134,17 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiCreate(dmGameObject::HCollection collection,
-                                             dmGameObject::HInstance instance,
-                                             void* resource,
-                                             void* world,
-                                             void* context,
-                                             uintptr_t* user_data)
+    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)world;
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
-        GuiSceneResource* scene_resource = (GuiSceneResource*) resource;
+        GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
 
-        dmGui::NewSceneParams params;
-        params.m_MaxNodes = 256;
-        params.m_MaxAnimations = 1024;
-        params.m_UserData = instance;
-        dmGui::HScene scene = dmGui::NewScene(scene_resource->m_GuiContext, &params);
+        dmGui::NewSceneParams scene_params;
+        scene_params.m_MaxNodes = 256;
+        scene_params.m_MaxAnimations = 1024;
+        scene_params.m_UserData = params.m_Instance;
+        dmGui::HScene scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
 
         Component* gui_component = new Component();
@@ -166,19 +161,15 @@ namespace dmGameSystem
             dmGui::AddTexture(scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
 
-        *user_data = (uintptr_t)gui_component;
+        *params.m_UserData = (uintptr_t)gui_component;
         gui_world->m_Components.Push(gui_component);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiDestroy(dmGameObject::HCollection collection,
-                                              dmGameObject::HInstance instance,
-                                              void* world,
-                                              void* context,
-                                              uintptr_t* user_data)
+    dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)world;
-        Component* gui_component = (Component*)*user_data;
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        Component* gui_component = (Component*)*params.m_UserData;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             if (gui_world->m_Components[i] == gui_component)
@@ -323,22 +314,19 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::UpdateResult CompGuiUpdate(dmGameObject::HCollection collection,
-                                             const dmGameObject::UpdateContext* update_context,
-                                             void* world,
-                                             void* context)
+    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        GuiWorld* gui_world = (GuiWorld*)world;
-        GuiRenderContext* gui_render_context = (GuiRenderContext*)context;
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiRenderContext* gui_render_context = (GuiRenderContext*)params.m_Context;
 
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             if (gui_world->m_Components[i]->m_Enabled)
-                dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, update_context->m_DT);
+                dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, params.m_UpdateContext->m_DT);
         }
 
-        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, collection);
+        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, params.m_Collection);
 
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_render_context->m_RenderContext;
@@ -355,56 +343,46 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompGuiOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        Component* gui_component = (Component*)*user_data;
-        if (message_data->m_MessageId == dmHashString64("enable"))
+        Component* gui_component = (Component*)*params.m_UserData;
+        if (params.m_MessageData->m_MessageId == dmHashString64("enable"))
         {
             gui_component->m_Enabled = 1;
         }
-        else if (message_data->m_MessageId == dmHashString64("disable"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("disable"))
         {
             gui_component->m_Enabled = 0;
         }
         else
         {
-            dmGui::DispatchMessage(gui_component->m_Scene, message_data->m_MessageId, (const void*) message_data->m_Buffer, message_data->m_DDFDescriptor);
+            dmGui::DispatchMessage(gui_component->m_Scene, params.m_MessageData->m_MessageId, (const void*) params.m_MessageData->m_Buffer, params.m_MessageData->m_DDFDescriptor);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::InputResult CompGuiOnInput(dmGameObject::HInstance instance,
-            const dmGameObject::InputAction* input_action,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
-        Component* gui_component = (Component*)*user_data;
+        Component* gui_component = (Component*)*params.m_UserData;
 
         if (gui_component->m_Enabled)
         {
             dmGui::InputAction gui_input_action;
-            gui_input_action.m_ActionId = input_action->m_ActionId;
-            gui_input_action.m_Value = input_action->m_Value;
-            gui_input_action.m_Pressed = input_action->m_Pressed;
-            gui_input_action.m_Released = input_action->m_Released;
-            gui_input_action.m_Repeated = input_action->m_Repeated;
+            gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
+            gui_input_action.m_Value = params.m_InputAction->m_Value;
+            gui_input_action.m_Pressed = params.m_InputAction->m_Pressed;
+            gui_input_action.m_Released = params.m_InputAction->m_Released;
+            gui_input_action.m_Repeated = params.m_InputAction->m_Repeated;
 
             dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1);
         }
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 
-    void CompGuiOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        GuiSceneResource* scene_resource = (GuiSceneResource*) resource;
-        Component* gui_component = (Component*)*user_data;
+        GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
+        Component* gui_component = (Component*)*params.m_UserData;
         dmGui::ClearTextures(gui_component->m_Scene);
         dmGui::ClearFonts(gui_component->m_Scene);
         dmGui::SetSceneScript(gui_component->m_Scene, scene_resource->m_Script);

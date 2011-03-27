@@ -56,9 +56,9 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer       m_VertexBuffer;
     };
 
-    dmGameObject::CreateResult CompSpriteNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        SpriteContext* sprite_context = (SpriteContext*)context;
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
 
@@ -92,13 +92,13 @@ namespace dmGameSystem
 
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), sizeof(float) * 5 * 4 * sprite_world->m_Components.Capacity(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-        *world = sprite_world;
+        *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSpriteDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)world;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         dmRender::DeleteMaterial(sprite_world->m_Material);
         dmGraphics::DeleteVertexProgram(sprite_world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(sprite_world->m_FragmentProgram);
@@ -109,14 +109,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSpriteCreate(dmGameObject::HCollection collection,
-                                             dmGameObject::HInstance instance,
-                                             void* resource,
-                                             void* world,
-                                             void* context,
-                                             uintptr_t* user_data)
+    dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)world;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
         if (sprite_world->m_ComponentIndices.Remaining() == 0)
         {
@@ -125,38 +120,31 @@ namespace dmGameSystem
         }
         uint32_t index = sprite_world->m_ComponentIndices.Pop();
         Component* component = &sprite_world->m_Components[index];
-        component->m_Instance = instance;
-        component->m_Resource = (SpriteResource*)resource;
+        component->m_Instance = params.m_Instance;
+        component->m_Resource = (SpriteResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_Enabled = 1;
 
-        *user_data = (uintptr_t)component;
+        *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSpriteDestroy(dmGameObject::HCollection collection,
-                                              dmGameObject::HInstance instance,
-                                              void* world,
-                                              void* context,
-                                              uintptr_t* user_data)
+    dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        SpriteWorld* sprite_world = (SpriteWorld*)world;
-        Component* component = (Component*)*user_data;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        Component* component = (Component*)*params.m_UserData;
         uint32_t index = component - &sprite_world->m_Components[0];
         memset(component, 0, sizeof(Component));
         sprite_world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSpriteUpdate(dmGameObject::HCollection collection,
-                                             const dmGameObject::UpdateContext* update_context,
-                                             void* world,
-                                             void* context)
+    dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        SpriteContext* sprite_context = (SpriteContext*)context;
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
-        SpriteWorld* sprite_world = (SpriteWorld*)world;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
         Point3 positions[] =
         {
@@ -262,7 +250,7 @@ namespace dmGameSystem
                 // Animate
                 if (component->m_Playback != dmGameSystemDDF::PLAYBACK_NONE)
                 {
-                    component->m_FrameTimer += update_context->m_DT;
+                    component->m_FrameTimer += params.m_UpdateContext->m_DT;
                     if (component->m_FrameTimer >= component->m_FrameTime)
                     {
                         component->m_FrameTimer -= component->m_FrameTime;
@@ -320,25 +308,22 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSpriteOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        Component* component = (Component*)*user_data;
-        if (message_data->m_MessageId == dmHashString64("enable"))
+        Component* component = (Component*)*params.m_UserData;
+        if (params.m_MessageData->m_MessageId == dmHashString64("enable"))
         {
             component->m_Enabled = 1;
         }
-        else if (message_data->m_MessageId == dmHashString64("disable"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("disable"))
         {
             component->m_Enabled = 0;
         }
-        else if (message_data->m_DDFDescriptor != 0x0)
+        else if (params.m_MessageData->m_DDFDescriptor != 0x0)
         {
-            if (message_data->m_MessageId == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
+            if (params.m_MessageData->m_MessageId == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
             {
-                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)message_data->m_Buffer;
+                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_MessageData->m_Buffer;
                 component->m_Playback = ddf->m_Playback;
                 component->m_StartFrame = ddf->m_StartFrame - 1;
                 component->m_EndFrame = ddf->m_EndFrame - 1;
@@ -346,20 +331,16 @@ namespace dmGameSystem
                 component->m_PlayBackwards = 0;
                 component->m_FrameTime = 1.0f / ddf->m_Fps;
                 component->m_FrameTimer = 0.0f;
-                component->m_ListenerInstance = message_data->m_SenderInstance;
-                component->m_ListenerComponent = message_data->m_SenderComponent;
+                component->m_ListenerInstance = params.m_MessageData->m_SenderInstance;
+                component->m_ListenerComponent = params.m_MessageData->m_SenderComponent;
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void CompSpriteOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        Component* component = (Component*)*user_data;
+        Component* component = (Component*)*params.m_UserData;
         component->m_StartFrame = 0;
         component->m_EndFrame = 0;
         component->m_CurrentFrame = 0;

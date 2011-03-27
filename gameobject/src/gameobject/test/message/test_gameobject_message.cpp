@@ -71,21 +71,9 @@ protected:
     static dmResource::CreateResult ResMessageTargetDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource);
-    static dmGameObject::CreateResult CompMessageTargetCreate(dmGameObject::HCollection collection,
-                                                             dmGameObject::HInstance instance,
-                                                             void* resource,
-                                                             void* world,
-                                                             void* context,
-                                                             uintptr_t* user_data);
-    static dmGameObject::CreateResult CompMessageTargetDestroy(dmGameObject::HCollection collection,
-                                                              dmGameObject::HInstance instance,
-                                                              void* world,
-                                                              void* context,
-                                                              uintptr_t* user_data);
-    static dmGameObject::UpdateResult CompMessageTargetOnMessage(dmGameObject::HInstance instance,
-                                   const dmGameObject::InstanceMessageData* message_data,
-                                   void* context,
-                                   uintptr_t* user_data);
+    static dmGameObject::CreateResult CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params);
+    static dmGameObject::CreateResult CompMessageTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
+    static dmGameObject::UpdateResult CompMessageTargetOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
 public:
     dmGameObject::UpdateContext m_UpdateContext;
@@ -123,50 +111,38 @@ dmResource::CreateResult MessageTest::ResMessageTargetDestroy(dmResource::HFacto
     return dmResource::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult MessageTest::CompMessageTargetCreate(dmGameObject::HCollection collection,
-                                                         dmGameObject::HInstance instance,
-                                                         void* resource,
-                                                         void* world,
-                                                         void* context,
-                                                         uintptr_t* user_data)
+dmGameObject::CreateResult MessageTest::CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params)
 {
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult MessageTest::CompMessageTargetDestroy(dmGameObject::HCollection collection,
-                                                          dmGameObject::HInstance instance,
-                                                          void* world,
-                                                          void* context,
-                                                          uintptr_t* user_data)
+dmGameObject::CreateResult MessageTest::CompMessageTargetDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(dmGameObject::HInstance instance,
-                                        const dmGameObject::InstanceMessageData* message_data,
-                                        void* context,
-                                        uintptr_t* user_data)
+dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameObject::ComponentOnMessageParams& params)
 {
-    MessageTest* self = (MessageTest*) context;
+    MessageTest* self = (MessageTest*) params.m_Context;
 
-    if (message_data->m_MessageId == dmHashString64("inc"))
+    if (params.m_MessageData->m_MessageId == dmHashString64("inc"))
     {
         self->m_MessageTargetCounter++;
         if (self->m_MessageTargetCounter == 2)
         {
-            dmGameObject::InstanceMessageParams params;
-            params.m_MessageId = dmHashString64("test_message");
-            params.m_ReceiverInstance = message_data->m_SenderInstance;
-            params.m_ReceiverComponent = message_data->m_SenderComponent;
-            dmGameObject::Result result = dmGameObject::PostInstanceMessage(params);
+            dmGameObject::InstanceMessageParams message_params;
+            message_params.m_MessageId = dmHashString64("test_message");
+            message_params.m_ReceiverInstance = params.m_MessageData->m_SenderInstance;
+            message_params.m_ReceiverComponent = params.m_MessageData->m_SenderComponent;
+            dmGameObject::Result result = dmGameObject::PostInstanceMessage(message_params);
             assert(result == dmGameObject::RESULT_OK);
         }
     }
-    else if (message_data->m_MessageId == dmHashString64("dec"))
+    else if (params.m_MessageData->m_MessageId == dmHashString64("dec"))
     {
         self->m_MessageTargetCounter--;
     }
-    else if (message_data->m_MessageId == dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name))
+    else if (params.m_MessageData->m_MessageId == dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name))
     {
         self->m_MessageTargetCounter++;
     }

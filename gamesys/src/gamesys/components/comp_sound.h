@@ -5,32 +5,17 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompSoundNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompSoundDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompSoundDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompSoundCreate(dmGameObject::HCollection collection,
-                                               dmGameObject::HInstance instance,
-                                               void* resource,
-                                               void* world,
-                                               void* context,
-                                               uintptr_t* user_data);
+    dmGameObject::CreateResult CompSoundCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompSoundDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data);
+    dmGameObject::CreateResult CompSoundDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompSoundUpdate(dmGameObject::HCollection collection,
-                                               const dmGameObject::UpdateContext* update_context,
-                                               void* world,
-                                               void* context);
+    dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompSoundOnMessage(dmGameObject::HInstance instance,
-                                                const dmGameObject::InstanceMessageData* message_data,
-                                                void* context,
-                                                uintptr_t* user_data);
+    dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 }
 
 #endif

@@ -12,47 +12,38 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    dmGameObject::CreateResult CompLightNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        *world = new LightWorld;
+        *params.m_World = new LightWorld;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompLightDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompLightDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        LightWorld* light_world = (LightWorld*) world;
+        LightWorld* light_world = (LightWorld*) params.m_World;
         delete light_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompLightCreate(dmGameObject::HCollection collection,
-                                               dmGameObject::HInstance instance,
-                                               void* resource,
-                                               void* world,
-                                               void* context,
-                                               uintptr_t* user_data)
+    dmGameObject::CreateResult CompLightCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        dmGameSystemDDF::LightDesc** light_resource = (dmGameSystemDDF::LightDesc**) resource;
-        LightWorld* light_world = (LightWorld*) world;
+        dmGameSystemDDF::LightDesc** light_resource = (dmGameSystemDDF::LightDesc**) params.m_Resource;
+        LightWorld* light_world = (LightWorld*) params.m_World;
         if (light_world->m_Lights.Full())
         {
             light_world->m_Lights.OffsetCapacity(16);
         }
-        Light* light = new Light(instance, light_resource);
+        Light* light = new Light(params.m_Instance, light_resource);
         light_world->m_Lights.Push(light);
 
-        *user_data = (uintptr_t) light;
+        *params.m_UserData = (uintptr_t) light;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompLightDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data)
+    dmGameObject::CreateResult CompLightDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        Light* light = (Light*) *user_data;
-        LightWorld* light_world = (LightWorld*) world;
+        Light* light = (Light*) *params.m_UserData;
+        LightWorld* light_world = (LightWorld*) params.m_World;
         for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)
         {
             if (light_world->m_Lights[i] == light)
@@ -66,12 +57,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompLightUpdate(dmGameObject::HCollection collection,
-                                               const dmGameObject::UpdateContext* update_context,
-                                               void* world,
-                                               void* context)
+    dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        LightWorld* light_world = (LightWorld*) world;
+        LightWorld* light_world = (LightWorld*) params.m_World;
         char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight) + 9];
         dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*) (buf + sizeof(dmGameObject::InstanceMessageData));
 
@@ -108,10 +96,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompLightOnMessage(dmGameObject::HInstance instance,
-                                                  const dmGameObject::InstanceMessageData* message_data,
-                                                  void* context,
-                                                  uintptr_t* user_data)
+    dmGameObject::UpdateResult CompLightOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         return dmGameObject::UPDATE_RESULT_OK;
     }

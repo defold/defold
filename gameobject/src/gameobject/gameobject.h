@@ -136,140 +136,250 @@ namespace dmGameObject
     };
 
     /**
+     * Parameters to ComponentNewWorld callback.
+     */
+    struct ComponentNewWorldParams
+    {
+        /// Context for the component type
+        void* m_Context;
+        /// Out-parameter of the pointer in which to store the created world
+        void** m_World;
+    };
+
+    /**
      * Component world create function
-     * @param config Configuration of the world
-     * @param context Context for the component type
-     * @param world Out-parameter of the pointer in which to store the created world
+     * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentNewWorld)(void* context, void** world);
+    typedef CreateResult (*ComponentNewWorld)(const ComponentNewWorldParams& params);
+
+    /**
+     * Parameters to ComponentDeleteWorld callback.
+     */
+    struct ComponentDeleteWorldParams
+    {
+        /// Context for the component type
+        void* m_Context;
+        /// The pointer to the world to destroy
+        void* m_World;
+    };
 
     /**
      * Component world destroy function
-     * @param config Configuration of the world
-     * @param context Context for the component type
+     * @param params Input parameters
      * @param world The pointer to the world to destroy
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentDeleteWorld)(void* context, void* world);
+    typedef CreateResult (*ComponentDeleteWorld)(const ComponentDeleteWorldParams& params);
+
+    /**
+     * Parameters to ComponentCreate callback.
+     */
+    struct ComponentCreateParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component resource
+        void* m_Resource;
+        /// Component world, as created in the ComponentNewWorld callback
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+        /// Index of the component being created
+        uint8_t m_ComponentIndex;
+    };
 
     /**
      * Component create function. Should allocate all necessary resources for the component.
-     * @param collection Collection handle
-     * @param instance Game object instance
-     * @param resource Component resource
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentCreate)(HCollection collection,
-                                            HInstance instance,
-                                            void* resource,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    typedef CreateResult (*ComponentCreate)(const ComponentCreateParams& params);
+
+    /**
+     * Parameters to ComponentDestroy callback.
+     */
+    struct ComponentDestroyParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
 
     /**
      * Component destroy function. Should deallocate all necessary resources.
-     * @param collection Collection handle
-     * @param instance Game object instance
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentDestroy)(HCollection collection,
-                                             HInstance instance,
-                                             void* world,
-                                             void* context,
-                                             uintptr_t* user_data);
+    typedef CreateResult (*ComponentDestroy)(const ComponentDestroyParams& params);
+
+    /**
+     * Parameters to ComponentInit callback.
+     */
+    struct ComponentInitParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
 
     /**
      * Component init function. Should set the components initial state as it is called when the component is enabled.
-     * @param collection Collection handle
-     * @param instance Game object instance
-     * @param resource Component resource
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentInit)(HCollection collection,
-                                            HInstance instance,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    typedef CreateResult (*ComponentInit)(const ComponentInitParams& params);
+
+    /**
+     * Parameters to ComponentFinal callback.
+     */
+    struct ComponentFinalParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
 
     /**
      * Component finalize function. Should clean up as it is called when the component is disabled.
-     * @param collection Collection handle
-     * @param instance Game object instance
-     * @param resource Component resource
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */
-    typedef CreateResult (*ComponentFinal)(HCollection collection,
-                                            HInstance instance,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    typedef CreateResult (*ComponentFinal)(const ComponentFinalParams& params);
+
+    /**
+     * Parameters to ComponentsUpdate callback.
+     */
+    struct ComponentsUpdateParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Update context
+        const UpdateContext* m_UpdateContext;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+    };
 
     /**
      * Component update function. Updates all component of this type for all game objects
-     * @param collection Collection handle
-     * @param update_context Update context
-     * @param context User context
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
      */
-    typedef UpdateResult (*ComponentsUpdate)(HCollection collection,
-                                     const UpdateContext* update_context,
-                                     void* world,
-                                     void* context);
+    typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params);
+
+    /**
+     * Parameters for ComponentsPostUpdate callback.
+     */
+    struct ComponentsPostUpdateParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Update context
+        void* m_World;
+        /// User context
+        void* m_Context;
+    };
 
     /**
      * Component post update function. The component state should never be modified in this function.
-     * @param collection Collection handle
-     * @param update_context Update context
-     * @param context User context
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
      */
-    typedef UpdateResult (*ComponentsPostUpdate)(HCollection collection,
-                                     void* world,
-                                     void* context);
+    typedef UpdateResult (*ComponentsPostUpdate)(const ComponentsPostUpdateParams& params);
+
+    /**
+     * Parameters to ComponentOnMessage callback.
+     */
+    struct ComponentOnMessageParams
+    {
+        /// Instance handle
+        HInstance m_Instance;
+        /// Message data
+        const InstanceMessageData* m_MessageData;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
 
     /**
      * Component on-message function. Called when message is sent to this component
-     * @param instance Instance handle
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
      */
-    typedef UpdateResult (*ComponentOnMessage)(HInstance instance,
-                                     const InstanceMessageData* message_data,
-                                     void* context,
-                                     uintptr_t* user_data);
+    typedef UpdateResult (*ComponentOnMessage)(const ComponentOnMessageParams& params);
+
+    /**
+     * Parameters to ComponentOnInput callback.
+     */
+    struct ComponentOnInputParams
+    {
+        /// Instance handle
+        HInstance m_Instance;
+        /// Information about the input that occurred (note that input being released is also treated as input)
+        const InputAction* m_InputAction;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
 
     /**
      * Component on-input function. Called when input is sent to this component
-     * @param instance Instance handle
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
      * @return How the component handled the input
      */
-    typedef InputResult (*ComponentOnInput)(HInstance instance,
-                                     const InputAction* input_action,
-                                     void* context,
-                                     uintptr_t* user_data);
+    typedef InputResult (*ComponentOnInput)(const ComponentOnInputParams& params);
+
+    /**
+     * Parameters to ComponentOnReload callback.
+     */
+    struct ComponentOnReloadParams
+    {
+        /// Instance handle
+        HInstance m_Instance;
+        /// Resource that was reloaded
+        void* m_Resource;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
 
     /**
      * Called when the resource the component is based on has been reloaded.
-     * @param instance Instance handle
-     * @param descriptor Descriptor of the reloaded resource
-     * @param name Name of the reloaded resource
-     * @param context User context
-     * @param user_data User data storage pointer
+     * @param params Input parameters
      */
-    typedef void (*ComponentOnReload)(HInstance instance,
-                                     void* resource,
-                                     void* world,
-                                     void* context,
-                                     uintptr_t* user_data);
+    typedef void (*ComponentOnReload)(const ComponentOnReloadParams& params);
 
     /**
      * Collection of component registration data.

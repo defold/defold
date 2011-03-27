@@ -6,38 +6,19 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompCameraNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompCameraDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompCameraDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompCameraCreate(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompCameraCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompCameraDestroy(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompCameraUpdate(dmGameObject::HCollection collection,
-            const dmGameObject::UpdateContext* update_context,
-            void* world,
-            void* context);
+    dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompCameraOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::UpdateResult CompCameraOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    void CompCameraOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    void CompCameraOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_CAMERA_H

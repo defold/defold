@@ -40,7 +40,7 @@ namespace dmGameSystem
         dmIndexPool32 m_ComponentIndices;
     };
 
-    dmGameObject::CreateResult CompModelNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         ModelWorld* model_world = new ModelWorld();
         // TODO: How to configure?
@@ -51,34 +51,29 @@ namespace dmGameSystem
             model_world->m_Components.Push(ModelComponent());
         }
         model_world->m_ComponentIndices.SetCapacity(max_component_count);
-        *world = model_world;
+        *params.m_World = model_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompModelDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        delete (ModelWorld*)world;
+        delete (ModelWorld*)params.m_World;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompModelCreate(dmGameObject::HCollection collection,
-                                            dmGameObject::HInstance instance,
-                                            void* resource,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data)
+    dmGameObject::CreateResult CompModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        ModelWorld* model_world = (ModelWorld*)world;
+        ModelWorld* model_world = (ModelWorld*)params.m_World;
         if (model_world->m_ComponentIndices.Remaining() > 0)
         {
-            Model* model = (Model*)resource;
+            Model* model = (Model*)params.m_Resource;
             uint32_t index = model_world->m_ComponentIndices.Pop();
             ModelComponent& component = model_world->m_Components[index];
-            component.m_Instance = instance;
+            component.m_Instance = params.m_Instance;
             component.m_Model = model;
             component.m_ModelWorld = model_world;
             component.m_Index = index;
-            *user_data = (uintptr_t)&component;
+            *params.m_UserData = (uintptr_t)&component;
 
             return dmGameObject::CREATE_RESULT_OK;
         }
@@ -86,27 +81,20 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
-    dmGameObject::CreateResult CompModelDestroy(dmGameObject::HCollection collection,
-                                             dmGameObject::HInstance instance,
-                                             void* world,
-                                             void* context,
-                                             uintptr_t* user_data)
+    dmGameObject::CreateResult CompModelDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        ModelWorld* model_world = (ModelWorld*)world;
-        ModelComponent* component = (ModelComponent*)*user_data;
+        ModelWorld* model_world = (ModelWorld*)params.m_World;
+        ModelComponent* component = (ModelComponent*)*params.m_UserData;
         component->m_Model = 0;
         model_world->m_ComponentIndices.Push(component->m_Index);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompModelUpdate(dmGameObject::HCollection collection,
-                         const dmGameObject::UpdateContext* update_context,
-                         void* world,
-                         void* context)
+    dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
-        ModelWorld* model_world = (ModelWorld*)world;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
+        ModelWorld* model_world = (ModelWorld*)params.m_World;
         for (uint32_t i = 0; i < model_world->m_Components.Size(); ++i)
         {
             ModelComponent& component = model_world->m_Components[i];
@@ -130,38 +118,35 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompModelOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        ModelComponent* component = (ModelComponent*)*user_data;
+        ModelComponent* component = (ModelComponent*)*params.m_UserData;
         dmRender::RenderObject* ro = &component->m_RenderObject;
-        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_Name))
+        if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)message_data->m_Buffer;
+            dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)params.m_MessageData->m_Buffer;
             dmRender::EnableRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_Name))
+        else if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)message_data->m_Buffer;
+            dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)params.m_MessageData->m_Buffer;
             dmRender::DisableRenderObjectVertexConstant(ro, ddf->m_Register);
         }
-        if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_Name))
+        if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)message_data->m_Buffer;
+            dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)params.m_MessageData->m_Buffer;
             dmRender::EnableRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        if (message_data->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_Name))
+        if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)message_data->m_Buffer;
+            dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)params.m_MessageData->m_Buffer;
             dmRender::DisableRenderObjectFragmentConstant(ro, ddf->m_Register);
         }
-        else if (message_data->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
+        else if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)message_data->m_Buffer;
+            dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)params.m_MessageData->m_Buffer;
             uint32_t unit = ddf->m_TextureUnit;
-            dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)context;
+            dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)params.m_Context;
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, ddf->m_TextureHash);
             if (rendertarget)
             {

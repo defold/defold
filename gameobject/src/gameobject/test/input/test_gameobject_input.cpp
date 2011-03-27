@@ -61,21 +61,9 @@ protected:
     static dmResource::CreateResult ResInputTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
     static dmResource::CreateResult ResInputTargetDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
-    static dmGameObject::CreateResult CompInputTargetCreate(dmGameObject::HCollection collection,
-                                                             dmGameObject::HInstance instance,
-                                                             void* resource,
-                                                             void* world,
-                                                             void* context,
-                                                             uintptr_t* user_data);
-    static dmGameObject::CreateResult CompInputTargetDestroy(dmGameObject::HCollection collection,
-                                                              dmGameObject::HInstance instance,
-                                                              void* world,
-                                                              void* context,
-                                                              uintptr_t* user_data);
-    static dmGameObject::InputResult CompInputTargetOnInput(dmGameObject::HInstance instance,
-                                            const dmGameObject::InputAction* input_action,
-                                            void* context,
-                                            uintptr_t* user_data);
+    static dmGameObject::CreateResult CompInputTargetCreate(const dmGameObject::ComponentCreateParams& params);
+    static dmGameObject::CreateResult CompInputTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
+    static dmGameObject::InputResult CompInputTargetOnInput(const dmGameObject::ComponentOnInputParams& params);
 
 public:
 
@@ -108,33 +96,21 @@ dmResource::CreateResult InputTest::ResInputTargetDestroy(dmResource::HFactory f
     return dmResource::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult InputTest::CompInputTargetCreate(dmGameObject::HCollection collection,
-                                                         dmGameObject::HInstance instance,
-                                                         void* resource,
-                                                         void* world,
-                                                         void* context,
-                                                         uintptr_t* user_data)
+dmGameObject::CreateResult InputTest::CompInputTargetCreate(const dmGameObject::ComponentCreateParams& params)
 {
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult InputTest::CompInputTargetDestroy(dmGameObject::HCollection collection,
-                                                          dmGameObject::HInstance instance,
-                                                          void* world,
-                                                          void* context,
-                                                          uintptr_t* user_data)
+dmGameObject::CreateResult InputTest::CompInputTargetDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::InputResult InputTest::CompInputTargetOnInput(dmGameObject::HInstance instance,
-                                        const dmGameObject::InputAction* input_action,
-                                        void* context,
-                                        uintptr_t* user_data)
+dmGameObject::InputResult InputTest::CompInputTargetOnInput(const dmGameObject::ComponentOnInputParams& params)
 {
-    InputTest* self = (InputTest*) context;
+    InputTest* self = (InputTest*) params.m_Context;
 
-    if (input_action->m_ActionId == dmHashString64("test_action"))
+    if (params.m_InputAction->m_ActionId == dmHashString64("test_action"))
     {
         self->m_InputCounter++;
         return dmGameObject::INPUT_RESULT_CONSUMED;

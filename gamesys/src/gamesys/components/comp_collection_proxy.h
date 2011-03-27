@@ -5,41 +5,21 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompCollectionProxyNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompCollectionProxyDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompCollectionProxyDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompCollectionProxyCreate(dmGameObject::HCollection collection,
-                                               dmGameObject::HInstance instance,
-                                               void* resource,
-                                               void* world,
-                                               void* context,
-                                               uintptr_t* user_data);
+    dmGameObject::CreateResult CompCollectionProxyCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompCollectionProxyDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data);
+    dmGameObject::CreateResult CompCollectionProxyDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompCollectionProxyUpdate(dmGameObject::HCollection collection,
-                                               const dmGameObject::UpdateContext* update_context,
-                                               void* world,
-                                               void* context);
+    dmGameObject::UpdateResult CompCollectionProxyUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompCollectionProxyPostUpdate(dmGameObject::HCollection collection,
-                                               void* world,
-                                               void* context);
+    dmGameObject::UpdateResult CompCollectionProxyPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
 
-    dmGameObject::UpdateResult CompCollectionProxyOnMessage(dmGameObject::HInstance instance,
-                                                const dmGameObject::InstanceMessageData* message_data,
-                                                void* context,
-                                                uintptr_t* user_data);
+    dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    dmGameObject::InputResult CompCollectionProxyOnInput(dmGameObject::HInstance instance,
-                                                const dmGameObject::InputAction* input_action,
-                                                void* context,
-                                                uintptr_t* user_data);
+    dmGameObject::InputResult CompCollectionProxyOnInput(const dmGameObject::ComponentOnInputParams& params);
 }
 
 #endif // DM_GAMESYS_COLLECTION_PROXY_H

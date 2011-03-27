@@ -55,10 +55,7 @@ protected:
     static dmResource::CreateResult ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
     static dmResource::CreateResult ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
-    static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(dmGameObject::HCollection collection,
-                                           const dmGameObject::UpdateContext* update_context,
-                                           void* world,
-                                           void* context);
+    static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
 public:
 
@@ -104,12 +101,9 @@ dmResource::CreateResult DeleteTest::ResDeleteSelfDestroy(dmResource::HFactory f
     return dmResource::CREATE_RESULT_OK;
 }
 
-dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(dmGameObject::HCollection m_Collection,
-                                                const dmGameObject::UpdateContext* update_context,
-                                                void* world,
-                                                void* context)
+dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) context;
+    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
 
     for (uint32_t i = 0; i < game_object_test->m_SelfInstancesToDelete.size(); ++i)
     {

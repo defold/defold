@@ -81,24 +81,11 @@ protected:
                                               dmResource::SResourceDescriptor* resource,
                                               const char* filename);
 
-    static dmGameObject::CreateResult CompReloadTargetNewWorld(void* context, void** world);
-    static dmGameObject::CreateResult CompReloadTargetDeleteWorld(void* context, void* world);
-    static dmGameObject::CreateResult CompReloadTargetCreate(dmGameObject::HCollection collection,
-                                                             dmGameObject::HInstance instance,
-                                                             void* resource,
-                                                             void* world,
-                                                             void* context,
-                                                             uintptr_t* user_data);
-    static dmGameObject::CreateResult CompReloadTargetDestroy(dmGameObject::HCollection collection,
-                                                              dmGameObject::HInstance instance,
-                                                              void* world,
-                                                              void* context,
-                                                              uintptr_t* user_data);
-    static void CompReloadTargetOnReload(dmGameObject::HInstance instance,
-                                            void* resource,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    static dmGameObject::CreateResult CompReloadTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
+    static dmGameObject::CreateResult CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
+    static dmGameObject::CreateResult CompReloadTargetCreate(const dmGameObject::ComponentCreateParams& params);
+    static dmGameObject::CreateResult CompReloadTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
+    static void CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
 public:
 
@@ -152,59 +139,46 @@ dmResource::CreateResult ReloadTest::ResReloadTargetRecreate(dmResource::HFactor
     }
 }
 
-dmGameObject::CreateResult ReloadTest::CompReloadTargetNewWorld(void* context, void** world)
+dmGameObject::CreateResult ReloadTest::CompReloadTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params)
 {
-    ReloadTest* test = (ReloadTest*)context;
+    ReloadTest* test = (ReloadTest*)params.m_Context;
     test->m_World = new ReloadTargetWorld();
     test->m_World->m_Component = 0x0;
-    *world = test->m_World;
+    *params.m_World = test->m_World;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult ReloadTest::CompReloadTargetDeleteWorld(void* context, void* world)
+dmGameObject::CreateResult ReloadTest::CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
 {
-    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)world;
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     delete rt_world;
-    ReloadTest* test = (ReloadTest*)context;
+    ReloadTest* test = (ReloadTest*)params.m_Context;
     test->m_World = 0x0;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult ReloadTest::CompReloadTargetCreate(dmGameObject::HCollection collection,
-                                                         dmGameObject::HInstance instance,
-                                                         void* resource,
-                                                         void* world,
-                                                         void* context,
-                                                         uintptr_t* user_data)
+dmGameObject::CreateResult ReloadTest::CompReloadTargetCreate(const dmGameObject::ComponentCreateParams& params)
 {
-    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)world;
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     rt_world->m_Component = new ReloadTargetComponent();
-    *user_data = (uintptr_t)rt_world->m_Component;
+    *params.m_UserData = (uintptr_t)rt_world->m_Component;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::CreateResult ReloadTest::CompReloadTargetDestroy(dmGameObject::HCollection collection,
-                                                          dmGameObject::HInstance instance,
-                                                          void* world,
-                                                          void* context,
-                                                          uintptr_t* user_data)
+dmGameObject::CreateResult ReloadTest::CompReloadTargetDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
-    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)world;
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     delete rt_world->m_Component;
     rt_world->m_Component = 0x0;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-void ReloadTest::CompReloadTargetOnReload(dmGameObject::HInstance instance,
-                                        void* resource,
-                                        void* world,
-                                        void* context,
-                                        uintptr_t* user_data)
+void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadParams& params)
 {
-    ReloadTest* self = (ReloadTest*) context;
-    self->m_NewResource = resource;
-    self->m_World = (ReloadTargetWorld*)world;
-    self->m_World->m_Component = (ReloadTargetComponent*)*user_data;
+    ReloadTest* self = (ReloadTest*) params.m_Context;
+    self->m_NewResource = params.m_Resource;
+    self->m_World = (ReloadTargetWorld*)params.m_World;
+    self->m_World->m_Component = (ReloadTargetComponent*)*params.m_UserData;
 }
 
 TEST_F(ReloadTest, TestComponentReload)

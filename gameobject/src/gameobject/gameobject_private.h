@@ -83,10 +83,8 @@ namespace dmGameObject
         uint16_t        m_Depth : 4;
         // If the instance was initialized or not (Init())
         uint16_t        m_Initialized : 1;
-        // Hack! During loops this stores which component is currently being handled
-        uint16_t        m_CurrentComponentIndex : 8;
         // Padding
-        uint16_t        m_Pad : 3;
+        uint16_t        m_Pad : 11;
 
         // Index to parent
         uint16_t        m_Parent : 16;
@@ -210,7 +208,12 @@ namespace dmGameObject
             for (uint32_t i = 0; i < m_Register->m_ComponentTypeCount; ++i)
             {
                 if (m_Register->m_ComponentTypes[i].m_NewWorldFunction)
-                    m_Register->m_ComponentTypes[i].m_NewWorldFunction(m_Register->m_ComponentTypes[i].m_Context, &m_ComponentWorlds[i]);
+                {
+                    ComponentNewWorldParams params;
+                    params.m_Context = m_Register->m_ComponentTypes[i].m_Context;
+                    params.m_World = &m_ComponentWorlds[i];
+                    m_Register->m_ComponentTypes[i].m_NewWorldFunction(params);
+                }
             }
         }
         // Resource factory

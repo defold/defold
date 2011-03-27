@@ -6,25 +6,20 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompSoundNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        *world = 0;
+        *params.m_World = 0;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSoundDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompSoundDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSoundCreate(dmGameObject::HCollection collection,
-                                               dmGameObject::HInstance instance,
-                                               void* resource,
-                                               void* world,
-                                               void* context,
-                                               uintptr_t* user_data)
+    dmGameObject::CreateResult CompSoundCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) resource;
+        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource;
         dmSound::HSoundInstance sound_instance;
         dmSound::Result r = dmSound::NewSoundInstance(sound_data, &sound_instance);
         if (r != dmSound::RESULT_OK)
@@ -32,38 +27,28 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        *user_data = (uintptr_t) sound_instance;
+        *params.m_UserData = (uintptr_t) sound_instance;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSoundDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data)
+    dmGameObject::CreateResult CompSoundDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*user_data;
+        dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*params.m_UserData;
         dmSound::DeleteSoundInstance(sound_instance);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSoundUpdate(dmGameObject::HCollection collection,
-                                               const dmGameObject::UpdateContext* update_context,
-                                               void* world,
-                                               void* context)
+    dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         dmSound::Update();
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSoundOnMessage(dmGameObject::HInstance instance,
-                                                const dmGameObject::InstanceMessageData* message_data,
-                                                void* context,
-                                                uintptr_t* user_data)
+    dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        if (message_data->m_MessageId == dmHashString64("play_sound"))
+        if (params.m_MessageData->m_MessageId == dmHashString64("play_sound"))
         {
-            dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*user_data;
+            dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*params.m_UserData;
             dmSound::Result r = dmSound::Play(sound_instance);
             if (r != dmSound::RESULT_OK)
             {

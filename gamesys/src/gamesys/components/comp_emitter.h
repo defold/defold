@@ -9,38 +9,19 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompEmitterNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompEmitterNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompEmitterDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompEmitterDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompEmitterCreate(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompEmitterCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompEmitterDestroy(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompEmitterDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompEmitterUpdate(dmGameObject::HCollection collection,
-            const dmGameObject::UpdateContext* update_context,
-            void* world,
-            void* context);
+    dmGameObject::UpdateResult CompEmitterUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompEmitterOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::UpdateResult CompEmitterOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    void CompEmitterOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    void CompEmitterOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_EMITTER_H

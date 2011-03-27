@@ -7,50 +7,23 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompCollisionObjectNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompCollisionObjectDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompCollisionObjectDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompCollisionObjectCreate(dmGameObject::HCollection collection,
-                                               dmGameObject::HInstance instance,
-                                               void* resource,
-                                               void* world,
-                                               void* context,
-                                               uintptr_t* user_data);
+    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompCollisionObjectDestroy(dmGameObject::HCollection collection,
-                                                dmGameObject::HInstance instance,
-                                                void* world,
-                                                void* context,
-                                                uintptr_t* user_data);
+    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::CreateResult CompCollisionObjectInit(dmGameObject::HCollection collection,
-                                            dmGameObject::HInstance instance,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params);
 
-    dmGameObject::CreateResult CompCollisionObjectFinal(dmGameObject::HCollection collection,
-                                            dmGameObject::HInstance instance,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params);
 
-    dmGameObject::UpdateResult CompCollisionObjectUpdate(dmGameObject::HCollection collection,
-                         const dmGameObject::UpdateContext* update_context,
-                         void* world,
-                         void* context);
+    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompCollisionObjectOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    void CompCollisionObjectOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

@@ -9,43 +9,21 @@ namespace dmGameSystem
 {
     extern dmRender::HRenderType g_GuiRenderType;
 
-    dmGameObject::CreateResult CompGuiNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompGuiDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompGuiCreate(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompGuiDestroy(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompGuiUpdate(dmGameObject::HCollection collection,
-            const dmGameObject::UpdateContext* update_context,
-            void* world,
-            void* context);
+    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompGuiOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    dmGameObject::InputResult CompGuiOnInput(dmGameObject::HInstance instance,
-            const dmGameObject::InputAction* input_action,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params);
 
-    void CompGuiOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H

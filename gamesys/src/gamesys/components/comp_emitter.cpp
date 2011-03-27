@@ -42,10 +42,10 @@ namespace dmGameSystem
         Vector4 m_Position;
     };
 
-    dmGameObject::CreateResult CompEmitterNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompEmitterNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        assert(context);
-        EmitterContext* ctx = (EmitterContext*)context;
+        assert(params.m_Context);
+        EmitterContext* ctx = (EmitterContext*)params.m_Context;
         EmitterWorld* emitter_world = new EmitterWorld();
         emitter_world->m_EmitterContext = ctx;
         emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
@@ -59,13 +59,13 @@ namespace dmGameSystem
             {2, 1, dmGraphics::TYPE_FLOAT, 0, 0}
         };
         emitter_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
-        *world = emitter_world;
+        *params.m_World = emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompEmitterDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompEmitterDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        EmitterWorld* emitter_world = (EmitterWorld*)world;
+        EmitterWorld* emitter_world = (EmitterWorld*)params.m_World;
         dmParticle::DestroyContext(emitter_world->m_ParticleContext);
         dmGraphics::DeleteVertexBuffer(emitter_world->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(emitter_world->m_VertexDeclaration);
@@ -73,24 +73,19 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompEmitterCreate(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::CreateResult CompEmitterCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        dmParticle::Prototype* prototype = (dmParticle::Prototype*)resource;
+        dmParticle::Prototype* prototype = (dmParticle::Prototype*)params.m_Resource;
         assert(prototype);
-        EmitterWorld* w = (EmitterWorld*)world;
+        EmitterWorld* w = (EmitterWorld*)params.m_World;
         if (w->m_Emitters.Size() < MAX_COUNT)
         {
             Emitter emitter;
-            emitter.m_Instance = instance;
+            emitter.m_Instance = params.m_Instance;
             emitter.m_Emitter = dmParticle::CreateEmitter(w->m_ParticleContext, prototype);
             emitter.m_World = w;
             w->m_Emitters.Push(emitter);
-            *user_data = (uintptr_t)&w->m_Emitters[w->m_Emitters.Size() - 1];
+            *params.m_UserData = (uintptr_t)&w->m_Emitters[w->m_Emitters.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
         }
         else
@@ -100,16 +95,12 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::CreateResult CompEmitterDestroy(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::CreateResult CompEmitterDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        EmitterWorld* w = (EmitterWorld*)world;
+        EmitterWorld* w = (EmitterWorld*)params.m_World;
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
-            if (w->m_Emitters[i].m_Instance == instance)
+            if (w->m_Emitters[i].m_Instance == params.m_Instance)
             {
                 dmParticle::DestroyEmitter(w->m_ParticleContext, w->m_Emitters[i].m_Emitter);
                 w->m_Emitters.EraseSwap(i);
@@ -134,13 +125,10 @@ namespace dmGameSystem
     void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
-    dmGameObject::UpdateResult CompEmitterUpdate(dmGameObject::HCollection collection,
-            const dmGameObject::UpdateContext* update_context,
-            void* world,
-            void* context)
+    dmGameObject::UpdateResult CompEmitterUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
 
-        EmitterWorld* w = (EmitterWorld*)world;
+        EmitterWorld* w = (EmitterWorld*)params.m_World;
         if (w->m_Emitters.Size() == 0)
             return dmGameObject::UPDATE_RESULT_OK;
 
@@ -150,13 +138,13 @@ namespace dmGameSystem
             dmParticle::SetPosition(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldPosition(emitter.m_Instance));
             dmParticle::SetRotation(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
         }
-        EmitterContext* ctx = (EmitterContext*)context;
+        EmitterContext* ctx = (EmitterContext*)params.m_Context;
 
         w->m_RenderObjects.SetSize(0);
 
         float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(w->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
         uint32_t vertex_buffer_size = MAX_COUNT * ctx->m_MaxParticleCount * sizeof(ParticleVertex);
-        dmParticle::Update(w->m_ParticleContext, update_context->m_DT, vertex_buffer, vertex_buffer_size);
+        dmParticle::Update(w->m_ParticleContext, params.m_UpdateContext->m_DT, vertex_buffer, vertex_buffer_size);
         dmGraphics::UnmapVertexBuffer(w->m_VertexBuffer);
         dmParticle::Render(w->m_ParticleContext, w, RenderEmitterCallback);
         for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
@@ -166,40 +154,33 @@ namespace dmGameSystem
 
         if (ctx->m_Debug)
         {
-            EmitterContext* emitter_context = (EmitterContext*)context;
+            EmitterContext* emitter_context = (EmitterContext*)params.m_Context;
             dmParticle::DebugRender(w->m_ParticleContext, emitter_context->m_RenderContext, RenderLineCallback);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompEmitterOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::UpdateResult CompEmitterOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        Emitter* emitter = (Emitter*)*user_data;
-        if (message_data->m_MessageId == dmHashString64("start"))
+        Emitter* emitter = (Emitter*)*params.m_UserData;
+        if (params.m_MessageData->m_MessageId == dmHashString64("start"))
         {
             dmParticle::StartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else if (message_data->m_MessageId == dmHashString64("restart"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("restart"))
         {
             dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else if (message_data->m_MessageId == dmHashString64("stop"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("stop"))
         {
             dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void CompEmitterOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    void CompEmitterOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        Emitter* emitter = (Emitter*)*user_data;
+        Emitter* emitter = (Emitter*)*params.m_UserData;
         dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
     }
 

@@ -36,34 +36,29 @@ namespace dmGameSystem
         dmArray<CameraComponent*> m_FocusStack;
     };
 
-    dmGameObject::CreateResult CompCameraNewWorld(void* context, void** world)
+    dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CameraWorld* cam_world = new CameraWorld();
         cam_world->m_Cameras.SetCapacity(MAX_COUNT);
         cam_world->m_FocusStack.SetCapacity(MAX_STACK_COUNT);
-        *world = cam_world;
+        *params.m_World = cam_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCameraDeleteWorld(void* context, void* world)
+    dmGameObject::CreateResult CompCameraDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        delete (CameraWorld*)world;
+        delete (CameraWorld*)params.m_World;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCameraCreate(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::CreateResult CompCameraCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        CameraWorld* w = (CameraWorld*)world;
+        CameraWorld* w = (CameraWorld*)params.m_World;
         if (!w->m_Cameras.Full())
         {
-            dmGameSystem::CameraResource* cam_resource = (CameraResource*)resource;
+            dmGameSystem::CameraResource* cam_resource = (CameraResource*)params.m_Resource;
             CameraComponent camera;
-            camera.m_Instance = instance;
+            camera.m_Instance = params.m_Instance;
             camera.m_World = w;
             camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
             camera.m_Fov = cam_resource->m_DDF->m_Fov;
@@ -71,7 +66,7 @@ namespace dmGameSystem
             camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
             camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
             w->m_Cameras.Push(camera);
-            *user_data = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
+            *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
         }
         else
@@ -81,14 +76,10 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::CreateResult CompCameraDestroy(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        CameraWorld* w = (CameraWorld*)world;
-        CameraComponent* camera = (CameraComponent*)*user_data;
+        CameraWorld* w = (CameraWorld*)params.m_World;
+        CameraComponent* camera = (CameraComponent*)*params.m_UserData;
         bool found = false;
         for (uint8_t i = 0; i < w->m_FocusStack.Size(); ++i)
         {
@@ -107,7 +98,7 @@ namespace dmGameSystem
         }
         for (uint8_t i = 0; i < w->m_Cameras.Size(); ++i)
         {
-            if (w->m_Cameras[i].m_Instance == instance)
+            if (w->m_Cameras[i].m_Instance == params.m_Instance)
             {
                 w->m_Cameras.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
@@ -117,12 +108,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
-    dmGameObject::UpdateResult CompCameraUpdate(dmGameObject::HCollection collection,
-            const dmGameObject::UpdateContext* update_context,
-            void* world,
-            void* context)
+    dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        CameraWorld* w = (CameraWorld*)world;
+        CameraWorld* w = (CameraWorld*)params.m_World;
         CameraComponent* camera = 0x0;
         if (w->m_FocusStack.Size() > 0)
         {
@@ -130,7 +118,7 @@ namespace dmGameSystem
         }
         if (camera != 0x0)
         {
-            dmRender::RenderContext* render_context = (dmRender::RenderContext*)context;
+            dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
 
             float aspect_ratio = camera->m_AspectRatio;
             if (camera->m_AutoAspectRatio)
@@ -174,21 +162,18 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompCameraOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data)
+    dmGameObject::UpdateResult CompCameraOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        CameraComponent* camera = (CameraComponent*)*user_data;
-        if (message_data->m_DDFDescriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
+        CameraComponent* camera = (CameraComponent*)*params.m_UserData;
+        if (params.m_MessageData->m_DDFDescriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
         {
-            dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)message_data->m_Buffer;
+            dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)params.m_MessageData->m_Buffer;
             camera->m_AspectRatio = ddf->m_AspectRatio;
             camera->m_Fov = ddf->m_Fov;
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
         }
-        else if (message_data->m_MessageId == dmHashString64("acquire_camera_focus"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("acquire_camera_focus"))
         {
             bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
@@ -215,7 +200,7 @@ namespace dmGameSystem
                 dmLogWarning("Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
             }
         }
-        else if (message_data->m_MessageId == dmHashString64("release_camera_focus"))
+        else if (params.m_MessageData->m_MessageId == dmHashString64("release_camera_focus"))
         {
             bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
@@ -237,14 +222,10 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void CompCameraOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data)
+    void CompCameraOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        CameraResource* cam_resource = (CameraResource*)resource;
-        CameraComponent* camera = (CameraComponent*)*user_data;
+        CameraResource* cam_resource = (CameraResource*)params.m_Resource;
+        CameraComponent* camera = (CameraComponent*)*params.m_UserData;
         camera->m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
         camera->m_Fov = cam_resource->m_DDF->m_Fov;
         camera->m_NearZ = cam_resource->m_DDF->m_NearZ;

@@ -6,38 +6,19 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompSpriteNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompSpriteDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompSpriteCreate(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompSpriteDestroy(dmGameObject::HCollection collection,
-            dmGameObject::HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompSpriteUpdate(dmGameObject::HCollection collection,
-            const dmGameObject::UpdateContext* update_context,
-            void* world,
-            void* context);
+    dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompSpriteOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    void CompSpriteOnReload(dmGameObject::HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_SPRITE_H

@@ -155,8 +155,11 @@ namespace dmGameObject
         DoDeleteAll(collection);
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
+            ComponentDeleteWorldParams params;
+            params.m_Context = regist->m_ComponentTypes[i].m_Context;
+            params.m_World = collection->m_ComponentWorlds[i];
             if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
-                regist->m_ComponentTypes[i].m_DeleteWorldFunction(regist->m_ComponentTypes[i].m_Context, collection->m_ComponentWorlds[i]);
+                regist->m_ComponentTypes[i].m_DeleteWorldFunction(params);
         }
 
         dmMutex::Lock(regist->m_Mutex);
@@ -368,7 +371,6 @@ namespace dmGameObject
         bool ok = true;
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
-            instance->m_CurrentComponentIndex = (uint8_t)i;
             Prototype::Component* component = &proto->m_Components[i];
             uint32_t component_type_index;
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -382,7 +384,15 @@ namespace dmGameObject
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            CreateResult create_result =  component_type->m_CreateFunction(collection, instance, component->m_Resource, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
+            ComponentCreateParams params;
+            params.m_Collection = collection;
+            params.m_Instance = instance;
+            params.m_ComponentIndex = (uint8_t)i;
+            params.m_Resource = component->m_Resource;
+            params.m_World = collection->m_ComponentWorlds[component_type_index];
+            params.m_Context = component_type->m_Context;
+            params.m_UserData = component_instance_data;
+            CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
                 collection->m_Register->m_ComponentInstanceCount[component_type_index]++;
@@ -400,7 +410,6 @@ namespace dmGameObject
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < components_created; ++i)
             {
-                instance->m_CurrentComponentIndex = (uint8_t)i;
                 Prototype::Component* component = &proto->m_Components[i];
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -413,7 +422,13 @@ namespace dmGameObject
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
                 collection->m_Register->m_ComponentInstanceCount[component_type_index]--;
-                component_type->m_DestroyFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
+                ComponentDestroyParams params;
+                params.m_Collection = collection;
+                params.m_Instance = instance;
+                params.m_World = collection->m_ComponentWorlds[component_type_index];
+                params.m_Context = component_type->m_Context;
+                params.m_UserData = component_instance_data;
+                component_type->m_DestroyFunction(params);
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
@@ -589,7 +604,6 @@ namespace dmGameObject
             Prototype* prototype = instance->m_Prototype;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
-                instance->m_CurrentComponentIndex = (uint8_t)i;
                 Prototype::Component* component = &prototype->m_Components[i];
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -604,7 +618,13 @@ namespace dmGameObject
 
                 if (component_type->m_InitFunction)
                 {
-                    CreateResult result = component_type->m_InitFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
+                    ComponentInitParams params;
+                    params.m_Collection = collection;
+                    params.m_Instance = instance;
+                    params.m_World = collection->m_ComponentWorlds[component_type_index];
+                    params.m_Context = component_type->m_Context;
+                    params.m_UserData = component_instance_data;
+                    CreateResult result = component_type->m_InitFunction(params);
                     if (result != CREATE_RESULT_OK)
                     {
                         return false;
@@ -655,7 +675,6 @@ namespace dmGameObject
             Prototype* prototype = instance->m_Prototype;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
-                instance->m_CurrentComponentIndex = (uint8_t)i;
                 Prototype::Component* component = &prototype->m_Components[i];
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -670,7 +689,13 @@ namespace dmGameObject
 
                 if (component_type->m_FinalFunction)
                 {
-                    CreateResult result = component_type->m_FinalFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
+                    ComponentFinalParams params;
+                    params.m_Collection = collection;
+                    params.m_Instance = instance;
+                    params.m_World = collection->m_ComponentWorlds[component_type_index];
+                    params.m_Context = component_type->m_Context;
+                    params.m_UserData = component_instance_data;
+                    CreateResult result = component_type->m_FinalFunction(params);
                     if (result != CREATE_RESULT_OK)
                     {
                         return false;
@@ -722,7 +747,6 @@ namespace dmGameObject
         Prototype* prototype = instance->m_Prototype;
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
         {
-            instance->m_CurrentComponentIndex = (uint8_t)i;
             Prototype::Component* component = &prototype->m_Components[i];
             uint32_t component_type_index;
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -736,7 +760,13 @@ namespace dmGameObject
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
             collection->m_Register->m_ComponentInstanceCount[component_type_index]--;
-            component_type->m_DestroyFunction(collection, instance, collection->m_ComponentWorlds[component_type_index], component_type->m_Context, component_instance_data);
+            ComponentDestroyParams params;
+            params.m_Collection = collection;
+            params.m_Instance = instance;
+            params.m_World = collection->m_ComponentWorlds[component_type_index];
+            params.m_Context = component_type->m_Context;
+            params.m_UserData = component_instance_data;
+            component_type->m_DestroyFunction(params);
         }
 
         if (instance->m_Identifier != UNNAMED_IDENTIFIER)
@@ -1012,7 +1042,12 @@ namespace dmGameObject
             }
             {
                 DM_PROFILE(GameObject, "OnMessageFunction");
-                UpdateResult res = component_type->m_OnMessageFunction(instance, instance_message, component_type->m_Context, component_instance_data);
+                ComponentOnMessageParams params;
+                params.m_Instance = instance;
+                params.m_MessageData = instance_message;
+                params.m_Context = component_type->m_Context;
+                params.m_UserData = component_instance_data;
+                UpdateResult res = component_type->m_OnMessageFunction(params);
                 if (res != UPDATE_RESULT_OK)
                     context->m_Success = false;
             }
@@ -1122,7 +1157,12 @@ namespace dmGameObject
             if (component_type->m_UpdateFunction)
             {
                 DM_PROFILE(GameObject, component_type->m_Name);
-                UpdateResult res = component_type->m_UpdateFunction(collection, update_context, collection->m_ComponentWorlds[update_index], component_type->m_Context);
+                ComponentsUpdateParams params;
+                params.m_Collection = collection;
+                params.m_UpdateContext = update_context;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+                UpdateResult res = component_type->m_UpdateFunction(params);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
             }
@@ -1178,7 +1218,11 @@ namespace dmGameObject
             if (component_type->m_PostUpdateFunction)
             {
                 DM_PROFILE(GameObject, component_type->m_Name);
-                UpdateResult res = component_type->m_PostUpdateFunction(collection, collection->m_ComponentWorlds[update_index], component_type->m_Context);
+                ComponentsPostUpdateParams params;
+                params.m_Collection = collection;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+                UpdateResult res = component_type->m_PostUpdateFunction(params);
                 if (res != UPDATE_RESULT_OK && result)
                     result = false;
             }
@@ -1225,7 +1269,6 @@ namespace dmGameObject
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t l = 0; l < components_size; ++l)
                     {
-                        instance->m_CurrentComponentIndex = (uint8_t)l;
                         ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[l].m_ResourceType, 0x0);
                         assert(component_type);
                         if (component_type->m_OnInputFunction)
@@ -1235,7 +1278,12 @@ namespace dmGameObject
                             {
                                 component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                             }
-                            InputResult comp_res = component_type->m_OnInputFunction(instance, &input_action, component_type->m_Context, component_instance_data);
+                            ComponentOnInputParams params;
+                            params.m_Instance = instance;
+                            params.m_InputAction = &input_action;
+                            params.m_Context = component_type->m_Context;
+                            params.m_UserData = component_instance_data;
+                            InputResult comp_res = component_type->m_OnInputFunction(params);
                             if (comp_res == INPUT_RESULT_CONSUMED)
                                 res = comp_res;
                             else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
@@ -1532,7 +1580,6 @@ namespace dmGameObject
                 uint32_t next_component_instance_data = 0;
                 for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)
                 {
-                    instance->m_CurrentComponentIndex = (uint8_t)j;
                     Prototype::Component& component = instance->m_Prototype->m_Components[j];
                     uint32_t component_type_index;
                     ComponentType* type = FindComponentType(collection->m_Register, component.m_ResourceType, &component_type_index);
@@ -1545,7 +1592,13 @@ namespace dmGameObject
                             {
                                 user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                             }
-                            type->m_OnReloadFunction(instance, descriptor->m_Resource, collection->m_ComponentWorlds[component_type_index], type->m_Context, user_data);
+                            ComponentOnReloadParams params;
+                            params.m_Instance = instance;
+                            params.m_Resource = descriptor->m_Resource;
+                            params.m_World = collection->m_ComponentWorlds[component_type_index];
+                            params.m_Context = type->m_Context;
+                            params.m_UserData = user_data;
+                            type->m_OnReloadFunction(params);
                         }
                     }
                     if (type->m_InstanceHasUserData)

@@ -5,32 +5,17 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompModelNewWorld(void* context, void** world);
+    dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
-    dmGameObject::CreateResult CompModelDeleteWorld(void* context, void* world);
+    dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
 
-    dmGameObject::CreateResult CompModelCreate(dmGameObject::HCollection collection,
-                                            dmGameObject::HInstance instance,
-                                            void* resource,
-                                            void* world,
-                                            void* context,
-                                            uintptr_t* user_data);
+    dmGameObject::CreateResult CompModelCreate(const dmGameObject::ComponentCreateParams& params);
 
-    dmGameObject::CreateResult CompModelDestroy(dmGameObject::HCollection collection,
-                                             dmGameObject::HInstance instance,
-                                             void* world,
-                                             void* context,
-                                             uintptr_t* user_data);
+    dmGameObject::CreateResult CompModelDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::UpdateResult CompModelUpdate(dmGameObject::HCollection collection,
-                         const dmGameObject::UpdateContext* update_context,
-                         void* world,
-                         void* context);
+    dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
-    dmGameObject::UpdateResult CompModelOnMessage(dmGameObject::HInstance instance,
-            const dmGameObject::InstanceMessageData* message_data,
-            void* context,
-            uintptr_t* user_data);
+    dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 }
 
 #endif

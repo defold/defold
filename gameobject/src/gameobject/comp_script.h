@@ -7,53 +7,25 @@
 
 namespace dmGameObject
 {
-    CreateResult CompScriptNewWorld(void* context, void** world);
+    CreateResult CompScriptNewWorld(const ComponentNewWorldParams& params);
 
-    CreateResult CompScriptDeleteWorld(void* context, void* world);
+    CreateResult CompScriptDeleteWorld(const ComponentDeleteWorldParams& params);
 
-    CreateResult CompScriptCreate(HCollection collection,
-            HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    CreateResult CompScriptCreate(const ComponentCreateParams& params);
 
-    CreateResult CompScriptDestroy(HCollection collection,
-            HInstance instance,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    CreateResult CompScriptDestroy(const ComponentDestroyParams& params);
 
-    CreateResult CompScriptInit(HCollection collection,
-            HInstance instance,
-            void* context,
-            uintptr_t* user_data);
+    CreateResult CompScriptInit(const ComponentInitParams& params);
 
-    CreateResult CompScriptFinal(HCollection collection,
-            HInstance instance,
-            void* context,
-            uintptr_t* user_data);
+    CreateResult CompScriptFinal(const ComponentFinalParams& params);
 
-    UpdateResult CompScriptUpdate(HCollection collection,
-            const UpdateContext* update_context,
-            void* world,
-            void* context);
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params);
 
-    UpdateResult CompScriptOnMessage(HInstance instance,
-            const InstanceMessageData* instance_message_data,
-            void* context,
-            uintptr_t* user_data);
+    UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params);
 
-    InputResult CompScriptOnInput(HInstance instance,
-            const InputAction* input_action,
-            void* context,
-            uintptr_t* user_data);
+    InputResult CompScriptOnInput(const ComponentOnInputParams& params);
 
-    void CompScriptOnReload(HInstance instance,
-            void* resource,
-            void* world,
-            void* context,
-            uintptr_t* user_data);
+    void CompScriptOnReload(const ComponentOnReloadParams& params);
 }
 
 #endif // DM_GAMEOBJECT_COMP_SCRIPT_H
