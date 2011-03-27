@@ -336,7 +336,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
                         void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
