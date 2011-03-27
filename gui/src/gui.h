@@ -55,6 +55,9 @@ namespace dmGui
 
     struct MessageData
     {
+        /// Component id
+        dmhash_t                 m_ComponentId;
+
         /// Message hash
         dmhash_t                 m_MessageId;
 

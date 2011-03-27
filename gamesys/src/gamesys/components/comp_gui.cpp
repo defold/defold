@@ -196,19 +196,33 @@ namespace dmGameSystem
     {
         DM_PROFILE(Game, "DispatchGui");
 
-        dmGameObject::HCollection collection = (dmGameObject::HCollection) user_ptr;
         dmGui::MessageData* gui_message = (dmGui::MessageData*) message_object->m_Data;
         dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData(gui_message->m_Scene);
         assert(instance);
 
-        dmGameObject::InstanceMessageData data;
-        data.m_Component = 0xff;
-        data.m_DDFDescriptor = 0x0;
-        data.m_MessageId = gui_message->m_MessageId;
-        data.m_Instance = instance;
-        dmMessage::HSocket socket = dmGameObject::GetReplyMessageSocket(collection);
-        dmhash_t message = dmGameObject::GetMessageId(dmGameObject::GetRegister(collection));
-        dmMessage::Post(socket, message, &data, sizeof(dmGameObject::InstanceMessageData));
+        uint8_t component_index;
+        dmGameObject::Result result = dmGameObject::GetComponentIndex(instance, gui_message->m_ComponentId, &component_index);
+        if (result == dmGameObject::RESULT_OK)
+        {
+            dmGameObject::InstanceMessageParams params;
+            params.m_ReceiverInstance = instance;
+            params.m_ReceiverComponent = component_index;
+            params.m_Buffer = gui_message->m_DDFData;
+            params.m_BufferSize = message_object->m_DataSize - sizeof(dmGui::MessageData);
+            if (gui_message->m_DDFDescriptor != 0x0)
+            {
+                params.m_DDFDescriptor = gui_message->m_DDFDescriptor;
+            }
+            else
+            {
+                params.m_MessageId = gui_message->m_MessageId;
+            }
+            result = dmGameObject::PostInstanceMessage(params);
+        }
+        if (result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Error when sending message from gui: %d", result);
+        }
     }
 
     struct RenderGuiContext

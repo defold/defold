@@ -12,7 +12,7 @@ function update(self, dt)
     local expired = false
     if self.hit_response then
         expired = true
-        go.post_to(self.hit_response.game_object_id, "script", "hit", { damage = self.impact_damage })
+        go.post_to(self, self.hit_response.game_object_id, "script", "hit", { damage = self.impact_damage })
     else
         local pos = go.get_world_position(self)
         -- prediction for CD
@@ -23,7 +23,7 @@ function update(self, dt)
         local next_pos = pos + dp
         go.set_position(self, pos)
         -- request ray cast
-        go.post("ray_cast_request", {from = prev_pos, to = next_pos, ignored_game_object_id = self.id, mask = self.mask})
+        go.post(self, "ray_cast_request", {from = prev_pos, to = next_pos, ignored_game_object_id = go.get_id(self), mask = self.mask})
     end
     if expired then
         go.delete(self)

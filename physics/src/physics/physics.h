@@ -570,16 +570,16 @@ namespace dmPhysics
         Vectormath::Aos::Point3 m_From;
         /// End of ray, exclusive since the ray is valid in [m_From, m_To)
         Vectormath::Aos::Point3 m_To;
-        /// User supplied id to identify this query when the response is handled
-        dmhash_t m_UserId;
-        /// Bit field to filter out collision objects of the corresponding groups
-        uint16_t m_Mask;
+        /// Response callback function that will be called once the ray cast has been performed
+        RayCastCallback m_Callback;
         /// All collision objects with this user data will be ignored in the ray cast
         void* m_IgnoredUserData;
         /// User supplied data that will be passed to the response callback
         void* m_UserData;
-        /// Response callback function that will be called once the ray cast has been performed
-        RayCastCallback m_Callback;
+        /// Bit field to filter out collision objects of the corresponding groups
+        uint16_t m_Mask;
+        /// User supplied id to identify this query when the response is handled
+        uint8_t m_UserId;
     };
 
     /**

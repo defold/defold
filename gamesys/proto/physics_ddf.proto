@@ -98,7 +98,6 @@ message RayCastResponse
 
 message VelocityRequest
 {
-    required uint64 client_id = 1;
 }
 
 message VelocityResponse

@@ -26,8 +26,9 @@ namespace dmScript
      * @param buffer Buffer that will be written to
      * @param buffer_size Buffer size
      * @param index Index of the table
+     * @return Number of bytes used in the buffer
      */
-    void CheckDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index);
+    uint32_t CheckDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index);
 
     /**
      * Push DDF message to Lua stack

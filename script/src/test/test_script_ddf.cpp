@@ -25,7 +25,8 @@ TEST(LuaTableToDDF, Transform)
 
     char* buf = new char[sizeof(TestScript::Transform)];
 
-    dmScript::CheckDDF(L, TestScript::Transform::m_DDFDescriptor, buf, sizeof(TestScript::Transform), -1);
+    uint32_t size = dmScript::CheckDDF(L, TestScript::Transform::m_DDFDescriptor, buf, sizeof(TestScript::Transform), -1);
+    ASSERT_EQ(sizeof(TestScript::Transform), size);
 
     TestScript::Transform* transform = (TestScript::Transform*) buf;
 
@@ -133,7 +134,8 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     char* buf = new char[1024];
 
-    dmScript::CheckDDF(L, TestScript::Msg::m_DDFDescriptor, buf, 1024, -1);
+    uint32_t size = dmScript::CheckDDF(L, TestScript::Msg::m_DDFDescriptor, buf, 1024, -1);
+    ASSERT_EQ(sizeof(TestScript::Msg) + strlen("string_value") + 1, size);
 
     TestScript::Msg* msg = (TestScript::Msg*) buf;
 
@@ -245,8 +247,8 @@ int ProtectedLuaDDFBufferOverflow (lua_State *L)
     lua_pushstring(L, "string_value");
     lua_setfield(L, -2, "string_value");
 
-    dmScript::CheckDDF(L, TestScript::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize, -1);
-
+    uint32_t buffer_size = dmScript::CheckDDF(L, TestScript::LuaDDFBufferOverflow::m_DDFDescriptor, p->m_Buf, p->m_BufferSize, -1);
+    assert(buffer_size == sizeof(TestScript::LuaDDFBufferOverflow) + strlen("string_value") + 1);
     return 0;
 }
 

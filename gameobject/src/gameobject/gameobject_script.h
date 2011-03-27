@@ -44,10 +44,11 @@ namespace dmGameObject
 
     struct ScriptInstance
     {
-        HScript   m_Script;
-        Instance* m_Instance;
-        int       m_InstanceReference;
-        int       m_ScriptDataReference;
+        HScript     m_Script;
+        Instance*   m_Instance;
+        int         m_InstanceReference;
+        int         m_ScriptDataReference;
+        uint8_t     m_ComponentIndex;
     };
 
     struct ScriptWorld
@@ -64,7 +65,7 @@ namespace dmGameObject
     bool    ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename);
     void    DeleteScript(HScript script);
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance);
+    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 }
 

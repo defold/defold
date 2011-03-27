@@ -70,8 +70,8 @@ namespace dmGameSystem
                                                   GuiRenderContext* gui_render_context,
                                                   SpriteContext* sprite_context);
 
-    void RequestRayCast3D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
-    void RequestRayCast2D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
+    void RequestRayCast3D(dmGameObject::HInstance instance, uint8_t component_index, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
+    void RequestRayCast2D(dmGameObject::HInstance instance, uint8_t component_index, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
 }
 
 #endif // DM_GAMESYS_H

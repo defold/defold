@@ -31,6 +31,15 @@ namespace dmGameObject
     InstanceMessageData::InstanceMessageData()
     {
         memset(this, 0, sizeof(InstanceMessageData));
+        m_SenderComponent = 0xff;
+        m_ReceiverComponent = 0xff;
+    }
+
+    InstanceMessageParams::InstanceMessageParams()
+    {
+        memset(this, 0, sizeof(InstanceMessageParams));
+        m_SenderComponent = 0xff;
+        m_ReceiverComponent = 0xff;
     }
 
     Register::Register(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata)
@@ -359,6 +368,7 @@ namespace dmGameObject
         bool ok = true;
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
+            instance->m_CurrentComponentIndex = (uint8_t)i;
             Prototype::Component* component = &proto->m_Components[i];
             uint32_t component_type_index;
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -390,6 +400,7 @@ namespace dmGameObject
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < components_created; ++i)
             {
+                instance->m_CurrentComponentIndex = (uint8_t)i;
                 Prototype::Component* component = &proto->m_Components[i];
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -578,6 +589,7 @@ namespace dmGameObject
             Prototype* prototype = instance->m_Prototype;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
+                instance->m_CurrentComponentIndex = (uint8_t)i;
                 Prototype::Component* component = &prototype->m_Components[i];
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -643,6 +655,7 @@ namespace dmGameObject
             Prototype* prototype = instance->m_Prototype;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
+                instance->m_CurrentComponentIndex = (uint8_t)i;
                 Prototype::Component* component = &prototype->m_Components[i];
                 uint32_t component_type_index;
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -709,6 +722,7 @@ namespace dmGameObject
         Prototype* prototype = instance->m_Prototype;
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
         {
+            instance->m_CurrentComponentIndex = (uint8_t)i;
             Prototype::Component* component = &prototype->m_Components[i];
             uint32_t component_type_index;
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
@@ -869,106 +883,92 @@ namespace dmGameObject
             return 0;
     }
 
-    Result PostMessage(HCollection collection, InstanceMessageData* instance_message_data)
+    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index)
     {
-        instance_message_data->m_Instance = 0;
-        dmMessage::Post(collection->m_SocketId, collection->m_Register->m_MessageId, (void*)instance_message_data, INSTANCE_MESSAGE_MAX);
-
-        return RESULT_OK;
-    }
-
-    Result PostNamedMessage(HCollection collection, dmhash_t message_id)
-    {
-        char buf[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = message_id;
-        e->m_DDFDescriptor = 0x0;
-
-        return PostMessage(collection, e);
-    }
-
-    Result PostDDFMessage(HCollection collection, const dmDDF::Descriptor* ddf_desc, const void* ddf_data)
-    {
-        assert(ddf_desc != 0x0);
-        assert(ddf_data != 0x0);
-
-        char buf[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = dmHashString64(ddf_desc->m_Name);
-        e->m_DDFDescriptor = ddf_desc;
-
-        uint32_t max_data_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
-        // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
-        assert(ddf_desc->m_Size < max_data_size);
-        // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
-        memcpy(buf + sizeof(InstanceMessageData), ddf_data, max_data_size);
-
-        return PostMessage(collection, e);
-    }
-
-    Result PostMessageTo(const char* component_name, InstanceMessageData* instance_message_data)
-    {
-        assert(instance_message_data->m_BufferSize + sizeof(InstanceMessageData) <= INSTANCE_MESSAGE_MAX);
-        uint32_t component_index = 0xffffffff;
-
-        // Send to component or broadcast?
-        if (component_name != 0 && *component_name != '\0')
+        assert(instance != 0x0);
+        for (uint32_t i = 0; i < instance->m_Prototype->m_Components.Size(); ++i)
         {
-            dmhash_t component_name_hash = dmHashString64(component_name);
-            Prototype* p = instance_message_data->m_Instance->m_Prototype;
-            for (uint32_t i = 0; i < p->m_Components.Size(); ++i)
+            Prototype::Component* component = &instance->m_Prototype->m_Components[i];
+            if (component->m_Id == component_id)
             {
-                if (p->m_Components[i].m_NameHash == component_name_hash)
-                {
-                    component_index = i;
-                    break;
-                }
-            }
-            if (component_index == 0xffffffff)
-            {
-                return RESULT_COMPONENT_NOT_FOUND;
+                *component_index = (uint8_t)i & 0xff;
+                return RESULT_OK;
             }
         }
+        return RESULT_COMPONENT_NOT_FOUND;
+    }
 
-        instance_message_data->m_Component = component_index & 0xff;
+    Result PostInstanceMessage(const InstanceMessageParams& params)
+    {
+        if (params.m_BufferSize + sizeof(InstanceMessageData) > INSTANCE_MESSAGE_MAX)
+        {
+            dmLogError("Message could not be sent since it was too large (%d vs %d).", params.m_BufferSize + sizeof(InstanceMessageData), INSTANCE_MESSAGE_MAX);
+            return RESULT_BUFFER_OVERFLOW;
+        }
 
-        dmMessage::Post(instance_message_data->m_Instance->m_Collection->m_ReplySocketId, instance_message_data->m_Instance->m_Collection->m_Register->m_MessageId, (void*)instance_message_data, instance_message_data->m_BufferSize + sizeof(InstanceMessageData));
+        Prototype* p = params.m_ReceiverInstance->m_Prototype;
+        if (params.m_ReceiverComponent >= p->m_Components.Size())
+        {
+            dmLogError("Component index out of bounds, index: %d, size: %d.", params.m_ReceiverComponent, p->m_Components.Size());
+            return RESULT_COMPONENT_NOT_FOUND;
+        }
+
+        char buffer[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* message = (InstanceMessageData*)buffer;
+        message->m_MessageId = params.m_MessageId;
+        message->m_SenderInstance = params.m_SenderInstance;
+        message->m_SenderComponent = params.m_SenderComponent;
+        message->m_ReceiverInstance = params.m_ReceiverInstance;
+        message->m_ReceiverComponent = params.m_ReceiverComponent;
+        message->m_DDFDescriptor = params.m_DDFDescriptor;
+        if (message->m_DDFDescriptor != 0x0 && message->m_MessageId == 0)
+        {
+            message->m_MessageId = dmHashString64(message->m_DDFDescriptor->m_Name);
+        }
+        message->m_BufferSize = params.m_BufferSize;
+        if (message->m_BufferSize > 0)
+            memcpy(message->m_Buffer, params.m_Buffer, message->m_BufferSize);
+
+        HCollection collection = params.m_ReceiverInstance->m_Collection;
+        dmMessage::Post(collection->m_ReplySocketId, collection->m_Register->m_MessageId, (void*)message, params.m_BufferSize + sizeof(InstanceMessageData));
 
         return RESULT_OK;
     }
 
-    Result PostNamedMessageTo(HInstance instance, const char* component_name, dmhash_t message_id, const void* buffer, uint32_t buffer_size)
+    Result BroadcastInstanceMessage(const InstanceMessageParams& params)
     {
-        char buf[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = message_id;
-        e->m_Instance = instance;
-        e->m_DDFDescriptor = 0x0;
-        e->m_BufferSize = buffer_size;
-        if (buffer_size > 0)
-            memcpy(e->m_Buffer, buffer, buffer_size);
+        if (params.m_BufferSize + sizeof(InstanceMessageData) > INSTANCE_MESSAGE_MAX)
+        {
+            dmLogError("Message could not be sent since it was too large (%d vs %d).", params.m_BufferSize + sizeof(InstanceMessageData), INSTANCE_MESSAGE_MAX);
+            return RESULT_BUFFER_OVERFLOW;
+        }
 
-        return PostMessageTo(component_name, e);
-    }
+        char buffer[INSTANCE_MESSAGE_MAX];
+        InstanceMessageData* message = (InstanceMessageData*)buffer;
+        message->m_MessageId = params.m_MessageId;
+        message->m_SenderInstance = params.m_SenderInstance;
+        message->m_SenderComponent = params.m_SenderComponent;
+        message->m_ReceiverInstance = params.m_ReceiverInstance;
+        message->m_DDFDescriptor = params.m_DDFDescriptor;
+        if (message->m_DDFDescriptor != 0x0 && message->m_MessageId == 0)
+        {
+            message->m_MessageId = dmHashString64(message->m_DDFDescriptor->m_Name);
+        }
 
-    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, const void* ddf_data)
-    {
-        assert(ddf_desc != 0x0);
-        assert(ddf_data != 0x0);
+        message->m_BufferSize = params.m_BufferSize;
+        if (message->m_BufferSize > 0)
+            memcpy(message->m_Buffer, params.m_Buffer, message->m_BufferSize);
 
-        char buf[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* e = (InstanceMessageData*)buf;
-        e->m_MessageId = dmHashString64(ddf_desc->m_Name);
-        e->m_Instance = instance;
-        e->m_DDFDescriptor = ddf_desc;
+        HCollection collection = params.m_ReceiverInstance->m_Collection;
 
-        e->m_BufferSize = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
-        // TODO: This assert does not cover the case when e.g. strings are located after the ddf-message.
-        assert(ddf_desc->m_Size < e->m_BufferSize);
-        // TODO: We need to copy the whole mem-block since we don't know how much data is located after the ddf-message. How to solve? Size as parameter?
-        memcpy(e->m_Buffer, ddf_data, e->m_BufferSize);
+        Prototype* prototype = params.m_ReceiverInstance->m_Prototype;
+        for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+        {
+            message->m_ReceiverComponent = (uint8_t)i & 0xff;
+            dmMessage::Post(collection->m_ReplySocketId, collection->m_Register->m_MessageId, (void*)message, params.m_BufferSize + sizeof(InstanceMessageData));
+        }
 
-        return PostMessageTo(component_name, e);
+        return RESULT_OK;
     }
 
     struct DispatchMessagesContext
@@ -981,78 +981,46 @@ namespace dmGameObject
     {
         DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
 
-        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-        assert(instance_message_data->m_Instance);
+        dmGameObject::InstanceMessageData* instance_message = (dmGameObject::InstanceMessageData*) message_object->m_Data;
+        Instance* instance = instance_message->m_ReceiverInstance;
 
-        Instance* instance = instance_message_data->m_Instance;
+        assert(instance);
         Prototype* prototype = instance->m_Prototype;
-        // Broadcast to all components
-        if (instance_message_data->m_Component == 0xff)
-        {
-            uint32_t next_component_instance_data = 0;
-            uint32_t components_size = prototype->m_Components.Size();
-            for (uint32_t i = 0; i < components_size; ++i)
-            {
-                ComponentType* component_type = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                assert(component_type);
-                if (component_type->m_OnMessageFunction)
-                {
-                    uintptr_t* component_instance_data = 0;
-                    if (component_type->m_InstanceHasUserData)
-                    {
-                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                    }
-                    {
-                        DM_PROFILE(GameObject, "OnMessageFunction");
-                        UpdateResult res = component_type->m_OnMessageFunction(instance, instance_message_data, component_type->m_Context, component_instance_data);
-                        if (res != UPDATE_RESULT_OK)
-                            context->m_Success = false;
-                    }
-                }
+        assert(instance_message->m_ReceiverComponent < prototype->m_Components.Size());
+        uint32_t resource_type = prototype->m_Components[instance_message->m_ReceiverComponent].m_ResourceType;
+        ComponentType* component_type = FindComponentType(context->m_Register, resource_type, 0x0);
+        assert(component_type);
 
-                if (component_type->m_InstanceHasUserData)
+        if (component_type->m_OnMessageFunction)
+        {
+            // TODO: Not optimal way to find index of component instance data
+            uint32_t next_component_instance_data = 0;
+            for (uint32_t i = 0; i < instance_message->m_ReceiverComponent; ++i)
+            {
+                ComponentType* ct = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
+                assert(component_type);
+                if (ct->m_InstanceHasUserData)
                 {
                     next_component_instance_data++;
                 }
             }
+
+            uintptr_t* component_instance_data = 0;
+            if (component_type->m_InstanceHasUserData)
+            {
+                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+            }
+            {
+                DM_PROFILE(GameObject, "OnMessageFunction");
+                UpdateResult res = component_type->m_OnMessageFunction(instance, instance_message, component_type->m_Context, component_instance_data);
+                if (res != UPDATE_RESULT_OK)
+                    context->m_Success = false;
+            }
         }
         else
         {
-            uint32_t resource_type = prototype->m_Components[instance_message_data->m_Component].m_ResourceType;
-            ComponentType* component_type = FindComponentType(context->m_Register, resource_type, 0x0);
-            assert(component_type);
-
-            if (component_type->m_OnMessageFunction)
-            {
-                // TODO: Not optimal way to find index of component instance data
-                uint32_t next_component_instance_data = 0;
-                for (uint32_t i = 0; i < instance_message_data->m_Component; ++i)
-                {
-                    ComponentType* ct = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                    assert(component_type);
-                    if (ct->m_InstanceHasUserData)
-                    {
-                        next_component_instance_data++;
-                    }
-                }
-
-                uintptr_t* component_instance_data = 0;
-                if (component_type->m_InstanceHasUserData)
-                {
-                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                }
-                {
-                    DM_PROFILE(GameObject, "OnMessageFunction");
-                    UpdateResult res = component_type->m_OnMessageFunction(instance, instance_message_data, component_type->m_Context, component_instance_data);
-                    if (res != UPDATE_RESULT_OK)
-                        context->m_Success = false;
-                }
-            }
-            else
-            {
-                // TODO User-friendly error message here...
-                dmLogWarning("Component type is missing OnMessage function");
-            }
+            // TODO User-friendly error message here...
+            dmLogWarning("Component type is missing OnMessage function");
         }
     }
 
@@ -1257,6 +1225,7 @@ namespace dmGameObject
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t l = 0; l < components_size; ++l)
                     {
+                        instance->m_CurrentComponentIndex = (uint8_t)l;
                         ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[l].m_ResourceType, 0x0);
                         assert(component_type);
                         if (component_type->m_OnInputFunction)
@@ -1563,10 +1532,11 @@ namespace dmGameObject
                 uint32_t next_component_instance_data = 0;
                 for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)
                 {
+                    instance->m_CurrentComponentIndex = (uint8_t)j;
                     Prototype::Component& component = instance->m_Prototype->m_Components[j];
                     uint32_t component_type_index;
                     ComponentType* type = FindComponentType(collection->m_Register, component.m_ResourceType, &component_type_index);
-                    if (component.m_ResourceNameHash == descriptor->m_NameHash)
+                    if (component.m_ResourceId == descriptor->m_NameHash)
                     {
                         if (type->m_OnReloadFunction)
                         {

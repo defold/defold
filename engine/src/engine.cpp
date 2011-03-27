@@ -494,7 +494,7 @@ bail:
     {
         Engine* self = (Engine*) user_ptr;
         dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-        dmGameObject::HInstance sender_instance = instance_message_data->m_Instance;
+        dmGameObject::HInstance sender_instance = instance_message_data->m_SenderInstance;
 
         if (instance_message_data->m_DDFDescriptor == dmEngineDDF::Exit::m_DDFDescriptor)
         {
@@ -533,21 +533,17 @@ bail:
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, pq->m_GameObjectId);
             if (instance)
             {
-                const uint32_t offset = sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameObjectDDF::GameObjectTransformResult);
-                char buf[offset];
-                dmGameObject::InstanceMessageData* out_instance_message_data = (dmGameObject::InstanceMessageData*)buf;
-                out_instance_message_data->m_MessageId = dmHashString64(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_Name);
-                out_instance_message_data->m_Instance = instance_message_data->m_Instance;
-                out_instance_message_data->m_Component = 0xff;
-                out_instance_message_data->m_DDFDescriptor = dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
-
-                dmGameObjectDDF::GameObjectTransformResult* result = (dmGameObjectDDF::GameObjectTransformResult*)(buf + sizeof(dmGameObject::InstanceMessageData));
-                result->m_GameObjectId = pq->m_GameObjectId;
-                result->m_Position = dmGameObject::GetPosition(instance);
-                result->m_Rotation = dmGameObject::GetRotation(instance);
-                dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(collection);
-                dmhash_t reply_message_id = dmGameObject::GetMessageId(self->m_Register);
-                dmMessage::Post(reply_socket, reply_message_id, buf, dmGameObject::INSTANCE_MESSAGE_MAX);
+                dmGameObjectDDF::GameObjectTransformResult result;
+                result.m_GameObjectId = pq->m_GameObjectId;
+                result.m_Position = dmGameObject::GetPosition(instance);
+                result.m_Rotation = dmGameObject::GetRotation(instance);
+                dmGameObject::InstanceMessageParams params;
+                params.m_ReceiverInstance = instance_message_data->m_SenderInstance;
+                params.m_ReceiverComponent = instance_message_data->m_SenderComponent;
+                params.m_DDFDescriptor = dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
+                params.m_Buffer = &result;
+                params.m_BufferSize = sizeof(dmGameObjectDDF::GameObjectTransformResult);
+                dmGameObject::PostInstanceMessage(params);
             }
             else
             {
@@ -595,12 +591,11 @@ bail:
         }
         else if (instance_message_data->m_DDFDescriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
         {
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
             dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)instance_message_data->m_Buffer;
             if (self->m_PhysicsContext.m_3D)
-                dmGameSystem::RequestRayCast3D(collection, instance_message_data->m_Instance, ddf->m_From, ddf->m_To, ddf->m_Mask);
+                dmGameSystem::RequestRayCast3D(instance_message_data->m_SenderInstance, instance_message_data->m_SenderComponent, ddf->m_From, ddf->m_To, ddf->m_Mask);
             else
-                dmGameSystem::RequestRayCast2D(collection, instance_message_data->m_Instance, ddf->m_From, ddf->m_To, ddf->m_Mask);
+                dmGameSystem::RequestRayCast2D(instance_message_data->m_SenderInstance, instance_message_data->m_SenderComponent, ddf->m_From, ddf->m_To, ddf->m_Mask);
         }
         else
         {

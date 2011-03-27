@@ -70,7 +70,13 @@ void TestScript01Dispatch(dmMessage::Message *message_object, void* user_ptr)
 
     TestGameObjectDDF::SpawnResult result;
     result.m_Status = 1010;
-    dmGameObject::PostDDFMessageTo(instance_message_data->m_Instance, 0x0, TestGameObjectDDF::SpawnResult::m_DDFDescriptor, (char*)&result);
+    dmGameObject::InstanceMessageParams params;
+    params.m_ReceiverInstance = instance_message_data->m_SenderInstance;
+    params.m_ReceiverComponent = instance_message_data->m_SenderComponent;
+    params.m_DDFDescriptor = TestGameObjectDDF::SpawnResult::m_DDFDescriptor;
+    params.m_Buffer = &result;
+    params.m_BufferSize = sizeof(TestGameObjectDDF::SpawnResult);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostInstanceMessage(params));
 
     *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
@@ -157,9 +163,19 @@ TEST_F(ScriptTest, TestFailingScript03)
 
 TEST_F(ScriptTest, TestFailingScript04)
 {
-    // Test update failure
+    // Test update failure, lua update-identifier used for something else than function callback
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go4.goc");
     ASSERT_EQ((void*) 0, (void*) go);
+}
+
+TEST_F(ScriptTest, TestFailingScript05)
+{
+    // Test posting to missing component id
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go5.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
+    ASSERT_FALSE(dmGameObject::Init(m_Collection));
+    dmGameObject::Delete(m_Collection, go);
 }
 
 static void CreateFile(const char* file_name, const char* contents)
@@ -238,8 +254,6 @@ TEST_F(ScriptTest, Null)
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostNamedMessageTo(go, 0, dmHashString64("test"), 0x0, 0));
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 

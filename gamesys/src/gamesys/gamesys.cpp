@@ -202,20 +202,24 @@ namespace dmGameSystem
     {
         if (response.m_Hit)
         {
-            dmGameObject::HCollection collection = (dmGameObject::HCollection)request.m_UserData;
-
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, request.m_UserId);
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
             ddf.m_GameObjectId = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
             ddf.m_Group = response.m_CollisionObjectGroup;
             ddf.m_Position = response.m_Position;
             ddf.m_Normal = response.m_Normal;
-            dmGameObject::PostDDFMessageTo(instance, 0x0, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, &ddf);
+            dmGameObject::InstanceMessageParams params;
+            params.m_ReceiverInstance = instance;
+            params.m_ReceiverComponent = request.m_UserId;
+            params.m_DDFDescriptor = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
+            params.m_Buffer = &ddf;
+            params.m_BufferSize = sizeof(dmPhysicsDDF::RayCastResponse);
+            dmGameObject::PostInstanceMessage(params);
         }
     }
 
-    void RequestRayCast3D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
+    void RequestRayCast3D(dmGameObject::HInstance instance, uint8_t component_index, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
     {
         // Request ray cast
         dmPhysics::RayCastRequest request;
@@ -223,10 +227,11 @@ namespace dmGameSystem
         request.m_To = to;
         request.m_IgnoredUserData = instance;
         request.m_Mask = mask;
-        request.m_UserId = dmGameObject::GetIdentifier(instance);
-        request.m_UserData = (void*)collection;
+        request.m_UserId = component_index;
+        request.m_UserData = (void*)instance;
         request.m_Callback = &RayCastCallback;
 
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
         uint32_t type;
         dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
@@ -241,7 +246,7 @@ namespace dmGameSystem
         }
     }
 
-    void RequestRayCast2D(dmGameObject::HCollection collection, dmGameObject::HInstance instance, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
+    void RequestRayCast2D(dmGameObject::HInstance instance, uint8_t component_index, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask)
     {
         // Request ray cast
         dmPhysics::RayCastRequest request;
@@ -249,10 +254,11 @@ namespace dmGameSystem
         request.m_To = to;
         request.m_IgnoredUserData = instance;
         request.m_Mask = mask;
-        request.m_UserId = dmGameObject::GetIdentifier(instance);
-        request.m_UserData = (void*)collection;
+        request.m_UserId = component_index;
+        request.m_UserData = (void*)instance;
         request.m_Callback = &RayCastCallback;
 
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
         uint32_t type;
         dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
         if (fact_result != dmResource::FACTORY_RESULT_OK)

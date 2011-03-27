@@ -314,7 +314,7 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
 
-    static int LuaPost(lua_State* L)
+    static int LuaPostTo(lua_State* L)
     {
         char buf[MAX_MESSAGE_DATA_SIZE];
         MessageData* message_data = (MessageData*) buf;
@@ -325,31 +325,39 @@ namespace dmGui
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        const char* type_name = luaL_checkstring(L, 1);
+        const char* component_id = luaL_checkstring(L, 1);
+        message_data->m_ComponentId = dmHashString64(component_id);
+
+        const char* type_name = luaL_checkstring(L, 2);
         message_data->m_MessageId = dmHashString64(type_name);
         message_data->m_Scene = scene;
+        uint32_t actual_data_size = 0;
 
-        if (lua_istable(L, 2))
+        if (lua_istable(L, 3))
         {
-            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_data->m_MessageId);
-            if (d_tmp == 0)
-            {
-                luaL_error(L, "Unknown ddf type: %s", type_name);
-            }
-            const dmDDF::Descriptor* d = *d_tmp;
-
-            uint32_t size = sizeof(MessageData) + d->m_Size;
-            if (size > MAX_MESSAGE_DATA_SIZE)
-            {
-                luaL_error(L, "sizeof(%s) > %d", type_name, d->m_Size);
-            }
-
-            message_data->m_DDFDescriptor = d;
-
             char* p = buf + sizeof(MessageData);
-            lua_pushvalue(L, 2);
-            dmScript::CheckDDF(L, d, p, MAX_MESSAGE_DATA_SIZE - sizeof(MessageData), -1);
-            lua_pop(L, 1);
+            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_data->m_MessageId);
+            if (d_tmp != 0)
+            {
+                const dmDDF::Descriptor* d = *d_tmp;
+
+                uint32_t size = sizeof(MessageData) + d->m_Size;
+                if (size > MAX_MESSAGE_DATA_SIZE)
+                {
+                    luaL_error(L, "sizeof(%s) > %d", type_name, d->m_Size);
+                }
+
+                message_data->m_DDFDescriptor = d;
+
+                lua_pushvalue(L, 3);
+                actual_data_size = dmScript::CheckDDF(L, d, p, MAX_MESSAGE_DATA_SIZE - sizeof(MessageData), -1);
+                lua_pop(L, 1);
+            }
+            else
+            {
+                message_data->m_DDFDescriptor = 0x0;
+                actual_data_size = dmScript::CheckTable(L, p, MAX_MESSAGE_DATA_SIZE - sizeof(MessageData), -1);
+            }
         }
         else
         {
@@ -357,7 +365,7 @@ namespace dmGui
         }
 
         assert(top == lua_gettop(L));
-        dmMessage::Post(scene->m_Context->m_Socket, message_data->m_MessageId, buf, MAX_MESSAGE_DATA_SIZE);
+        dmMessage::Post(scene->m_Context->m_Socket, message_data->m_MessageId, buf, actual_data_size + sizeof(MessageData));
         return 0;
     }
 
@@ -478,7 +486,7 @@ namespace dmGui
         {"animate",         LuaAnimate},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
-        {"post",            LuaPost},
+        {"post_to",         LuaPostTo},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"get_blend_mode",  LuaGetBlendMode},

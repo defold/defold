@@ -159,7 +159,7 @@ namespace dmScript
         }
     }
 
-    void CheckDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index)
+    uint32_t CheckDDF(lua_State* L, const dmDDF::Descriptor* descriptor, char* buffer, uint32_t buffer_size, int index)
     {
         if (index < 0)
             index = lua_gettop(L) + 1 + index;
@@ -173,7 +173,8 @@ namespace dmScript
         char* data_start = buffer + size;
         char* data_end = data_start + buffer_size - size;
 
-        return DoLuaTableToDDF(L, descriptor, buffer, &data_start, &data_end, index);
+        DoLuaTableToDDF(L, descriptor, buffer, &data_start, &data_end, index);
+        return data_start - buffer;
     }
 
     void DDFToLuaValue(lua_State* L, const dmDDF::FieldDescriptor* f, const char* data)

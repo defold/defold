@@ -43,6 +43,7 @@ namespace dmGameObject
         RESULT_MAXIMUM_HIEARCHICAL_DEPTH = -6, //!< RESULT_MAXIMUM_HIEARCHICAL_DEPTH
         RESULT_INVALID_OPERATION = -7,      //!< RESULT_INVALID_OPERATION
         RESULT_RESOURCE_TYPE_NOT_FOUND = -8,    //!< RESULT_COMPONENT_TYPE_NOT_FOUND
+        RESULT_BUFFER_OVERFLOW = -9,        //!< RESULT_BUFFER_OVERFLOW
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -89,18 +90,22 @@ namespace dmGameObject
     const uint32_t INSTANCE_MESSAGE_MAX = 256;
 
     /**
-     * Game script message data
+     * Message sent to and from instances
      */
     struct InstanceMessageData
     {
         InstanceMessageData();
 
-        /// Subject
-        HInstance m_Instance;
+        /// Sender instance
+        HInstance m_SenderInstance;
+        /// Receiver instance
+        HInstance m_ReceiverInstance;
 
-        /// Subject instance component index. Set to 0xff to broadcast to all components. Set to 0 to target scripts.
-        uint8_t   m_Component;
-        uint8_t   m_Pad[3];
+        /// Sender component index
+        uint8_t   m_SenderComponent;
+        /// Receiver component index
+        uint8_t   m_ReceiverComponent;
+        uint8_t   m_Pad[2];
 
         /// Message id
         dmhash_t  m_MessageId;
@@ -428,40 +433,52 @@ namespace dmGameObject
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
     /**
-     * Post named message
-     * @param collection Handle to the collection which defines the socket of the message.
-     * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
-     * @return RESULT_OK on success
-     */
-    Result PostNamedMessage(HCollection collection, dmhash_t message_id);
-
-    /**
-     * Post ddf message
-     * @param collection Handle to the collection which defines the socket of the message.
-     * @param ddf_desc Descripor of the ddf message to send
-     * @param ddf_data The actual ddf message to send
-     * @return RESULT_OK on success
-     */
-    Result PostDDFMessage(HCollection collection, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
-
-    /**
-     * Post named message to instance
+     * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
-     * @param component_name Component name. NULL broadcasts the message to every component.
-     * @param message_id Hash of the message, the original name should be lowercase with underscore as separator
-     * @return RESULT_OK on success
+     * @param component_id Component id
+     * @param component_index Component index as out-argument
+     * @return index of the specified component
      */
-    Result PostNamedMessageTo(HInstance instance, const char* component_name, dmhash_t message_id, const void* buffer, uint32_t buffer_size);
+    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index);
 
     /**
-     * Post ddf message to instance
-     * @param instance Instance
-     * @param component_name Component name. NULL broadcasts the message to every component.
-     * @param ddf_desc Descripor of the ddf message to send
-     * @param ddf_data The actual ddf message to send
+     * Parameters when sending messages.
+     */
+    struct InstanceMessageParams
+    {
+        InstanceMessageParams();
+
+        /// Message id
+        dmhash_t m_MessageId;
+        /// Sender instance
+        HInstance m_SenderInstance;
+        /// Receiver instance
+        HInstance m_ReceiverInstance;
+        /// Descriptor of ddf data, set to 0x0 for other data
+        const dmDDF::Descriptor* m_DDFDescriptor;
+        /// Buffer for the message contents
+        void* m_Buffer;
+        /// Size of the buffer
+        uint32_t m_BufferSize;
+        /// Sender component as an index
+        uint8_t m_SenderComponent;
+        /// Receiver component as an index
+        uint8_t m_ReceiverComponent;
+    };
+
+    /**
+     * Posts the specified message on the instance reply port.
+     * @params params Input parameters
      * @return RESULT_OK on success
      */
-    Result PostDDFMessageTo(HInstance instance, const char* component_name, const dmDDF::Descriptor* ddf_desc, const void* ddf_data);
+    Result PostInstanceMessage(const InstanceMessageParams& params);
+
+    /**
+     * Posts the specified message on the instance reply port to every component in the instance.
+     * @params params Input parameters, InstanceMessageParams::m_ReceiverComponent is ignored.
+     * @return RESULT_OK on success
+     */
+    Result BroadcastInstanceMessage(const InstanceMessageParams& params);
 
     /**
      * Initializes all game object instances in the supplied collection.

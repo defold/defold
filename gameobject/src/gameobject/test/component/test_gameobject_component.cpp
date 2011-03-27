@@ -284,14 +284,12 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmhash_t message_id = dmHashString64("test");
-
-    dmGameObject::InstanceMessageData data;
-    data.m_MessageId = message_id;
-    data.m_Component = 0xff;
-    data.m_Instance = go;
-    data.m_DDFDescriptor = 0x0;
-    dmMessage::Post(dmGameObject::GetReplyMessageSocket(m_Collection), message_id, (void*)&data, sizeof(dmGameObject::InstanceMessageData));
+    dmGameObject::InstanceMessageParams params;
+    params.m_MessageId = dmHashString64("test");
+    params.m_ReceiverInstance = go;
+    params.m_DDFDescriptor = 0x0;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("script"), &params.m_ReceiverComponent));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostInstanceMessage(params));
 
     dmGameObject::Delete(m_Collection, go);
 

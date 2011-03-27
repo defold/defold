@@ -182,12 +182,26 @@ namespace dmGameSystem
             dmPhysicsDDF::CollisionMessage ddf;
             ddf.m_Group = group_b;
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_b);
-            dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, &ddf);
+            dmGameObject::InstanceMessageParams params;
+            params.m_ReceiverInstance = instance_a;
+            params.m_DDFDescriptor = dmPhysicsDDF::CollisionMessage::m_DDFDescriptor;
+            params.m_Buffer = &ddf;
+            params.m_BufferSize = sizeof(dmPhysicsDDF::CollisionMessage);
+            dmGameObject::Result result = dmGameObject::BroadcastInstanceMessage(params);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Could not send collision callback to component: %d", result);
+            }
 
             // Broadcast to B components
             ddf.m_Group = group_a;
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
-            dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor, &ddf);
+            params.m_ReceiverInstance = instance_b;
+            result = dmGameObject::BroadcastInstanceMessage(params);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Could not send collision callback to component: %d", result);
+            }
 
             return true;
         }
@@ -211,6 +225,11 @@ namespace dmGameSystem
             float mass_a = dmMath::Select(-contact_point.m_InvMassA, 0.0f, 1.0f / contact_point.m_InvMassA);
             float mass_b = dmMath::Select(-contact_point.m_InvMassB, 0.0f, 1.0f / contact_point.m_InvMassB);
 
+            dmGameObject::InstanceMessageParams params;
+            params.m_DDFDescriptor = dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor;
+            params.m_Buffer = &ddf;
+            params.m_BufferSize = sizeof(dmPhysicsDDF::ContactPointMessage);
+
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;
             ddf.m_Normal = -contact_point.m_Normal;
@@ -221,7 +240,12 @@ namespace dmGameSystem
             ddf.m_OtherMass = mass_b;
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_b);
             ddf.m_Group = contact_point.m_GroupB;
-            dmGameObject::PostDDFMessageTo(instance_a, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, &ddf);
+            params.m_ReceiverInstance = instance_a;
+            dmGameObject::Result result = dmGameObject::BroadcastInstanceMessage(params);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Could not send collision callback to component: %d", result);
+            }
 
             // Broadcast to B components
             ddf.m_Position = contact_point.m_PositionB;
@@ -233,7 +257,12 @@ namespace dmGameSystem
             ddf.m_OtherMass = mass_a;
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
             ddf.m_Group = contact_point.m_GroupA;
-            dmGameObject::PostDDFMessageTo(instance_b, 0x0, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor, &ddf);
+            params.m_ReceiverInstance = instance_b;
+            result = dmGameObject::BroadcastInstanceMessage(params);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Could not send collision callback to component: %d", result);
+            }
 
             return true;
         }
@@ -325,22 +354,28 @@ namespace dmGameSystem
         }
         if (message_data->m_MessageId == dmHashString64(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_Name))
         {
-            dmPhysicsDDF::VelocityRequest* request = (dmPhysicsDDF::VelocityRequest*)message_data->m_Buffer;
-            if (request->m_ClientId)
+            dmPhysicsDDF::VelocityResponse response;
+            if (physics_context->m_3D)
             {
-                dmGameObject::HInstance client = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), request->m_ClientId);
-                dmPhysicsDDF::VelocityResponse response;
-                if (physics_context->m_3D)
-                {
-                    response.m_LinearVelocity = dmPhysics::GetLinearVelocity3D(component->m_Object3D);
-                    response.m_AngularVelocity = dmPhysics::GetAngularVelocity3D(component->m_Object3D);
-                }
-                else
-                {
-                    response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(component->m_Object2D);
-                    response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(component->m_Object2D);
-                }
-                dmGameObject::PostDDFMessageTo(client, 0x0, dmPhysicsDDF::VelocityResponse::m_DDFDescriptor, (char*)&response);
+                response.m_LinearVelocity = dmPhysics::GetLinearVelocity3D(component->m_Object3D);
+                response.m_AngularVelocity = dmPhysics::GetAngularVelocity3D(component->m_Object3D);
+            }
+            else
+            {
+                response.m_LinearVelocity = dmPhysics::GetLinearVelocity2D(component->m_Object2D);
+                response.m_AngularVelocity = dmPhysics::GetAngularVelocity2D(component->m_Object2D);
+            }
+            dmGameObject::InstanceMessageParams params;
+            params.m_ReceiverInstance = message_data->m_SenderInstance;
+            params.m_ReceiverComponent = message_data->m_SenderComponent;
+            params.m_DDFDescriptor = dmPhysicsDDF::VelocityResponse::m_DDFDescriptor;
+            params.m_Buffer = &response;
+            params.m_BufferSize = sizeof(dmPhysicsDDF::VelocityResponse);
+            dmGameObject::Result result = dmGameObject::PostInstanceMessage(params);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Could not send %s to component, result: %d.", dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name, result);
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;

@@ -57,7 +57,7 @@ namespace dmGameObject
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        HScriptInstance script_instance = NewScriptInstance(script, instance);
+        HScriptInstance script_instance = NewScriptInstance(script, instance, instance->m_CurrentComponentIndex);
         if (script_instance == 0x0)
         {
             dmLogError("Could not create script component, out of memory.");
@@ -225,7 +225,6 @@ namespace dmGameObject
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*user_data;
-        assert(instance_message_data->m_Instance);
 
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
         if (function_ref != LUA_NOREF)

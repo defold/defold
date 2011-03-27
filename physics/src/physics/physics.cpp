@@ -47,11 +47,11 @@ namespace dmPhysics
     RayCastRequest::RayCastRequest()
     : m_From(0.0f, 0.0f, 0.0f)
     , m_To(0.0f, 0.0f, 0.0f)
-    , m_UserId(0)
-    , m_Mask(~0)
+    , m_Callback(0x0)
     , m_IgnoredUserData((void*)~0) // unlikely user data to ignore
     , m_UserData(0x0)
-    , m_Callback(0x0)
+    , m_Mask(~0)
+    , m_UserId(0)
     {
 
     }

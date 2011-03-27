@@ -31,6 +31,7 @@ namespace dmGameSystem
     struct Component
     {
         dmGameObject::HInstance     m_Instance;
+        dmGameObject::HInstance     m_ListenerInstance;
         SpriteResource*             m_Resource;
         dmGameSystemDDF::Playback   m_Playback;
         float                       m_FrameTime;
@@ -38,8 +39,9 @@ namespace dmGameSystem
         uint16_t                    m_StartFrame;
         uint16_t                    m_EndFrame;
         uint16_t                    m_CurrentFrame;
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_PlayBackwards : 1;
+        uint8_t                     m_ListenerComponent;
+        uint8_t                     m_Enabled : 1;
+        uint8_t                     m_PlayBackwards : 1;
     };
 
     struct SpriteWorld
@@ -125,6 +127,8 @@ namespace dmGameSystem
         Component* component = &sprite_world->m_Components[index];
         component->m_Instance = instance;
         component->m_Resource = (SpriteResource*)resource;
+        component->m_ListenerInstance = 0x0;
+        component->m_ListenerComponent = 0xff;
         component->m_Enabled = 1;
 
         *user_data = (uintptr_t)component;
@@ -239,9 +243,20 @@ namespace dmGameSystem
                     if (component->m_CurrentFrame == component->m_EndFrame)
                     {
                         component->m_Playback = dmGameSystemDDF::PLAYBACK_NONE;
-                        dmGameSystemDDF::AnimationDone message;
-                        message.m_CurrentFrame = component->m_CurrentFrame;
-                        dmGameObject::PostDDFMessageTo(component->m_Instance, 0x0, dmGameSystemDDF::AnimationDone::m_DDFDescriptor, (char*)&message);
+                        if (component->m_ListenerInstance != 0x0)
+                        {
+                            dmGameSystemDDF::AnimationDone message;
+                            message.m_CurrentFrame = component->m_CurrentFrame;
+                            dmGameObject::InstanceMessageParams params;
+                            params.m_ReceiverInstance = component->m_ListenerInstance;
+                            params.m_ReceiverComponent = component->m_ListenerComponent;
+                            params.m_DDFDescriptor = dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
+                            params.m_Buffer = &message;
+                            params.m_BufferSize = sizeof(dmGameSystemDDF::AnimationDone);
+                            dmGameObject::PostInstanceMessage(params);
+                            component->m_ListenerInstance = 0x0;
+                            component->m_ListenerComponent = 0xff;
+                        }
                     }
                 }
                 // Animate
@@ -331,6 +346,8 @@ namespace dmGameSystem
                 component->m_PlayBackwards = 0;
                 component->m_FrameTime = 1.0f / ddf->m_Fps;
                 component->m_FrameTimer = 0.0f;
+                component->m_ListenerInstance = message_data->m_SenderInstance;
+                component->m_ListenerComponent = message_data->m_SenderComponent;
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;

@@ -38,7 +38,7 @@ namespace dmGameObject
                 id = dmHashString64(proto_desc->m_Components[i].m_Id);
                 for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
                 {
-                    if (proto->m_Components[j].m_NameHash == id)
+                    if (proto->m_Components[j].m_Id == id)
                     {
                         dmLogError("The id '%s' has already been used in the prototype %s.", proto_desc->m_Components[i].m_Id, filename);
                         id_used = true;

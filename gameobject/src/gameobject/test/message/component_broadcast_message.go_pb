@@ -1,5 +1,10 @@
 components
 {
+    id: "script"
+    component: "component_broadcast_message.scriptc"
+}
+components
+{
     id: "mt1"
     component: "message_target.mt"
 }

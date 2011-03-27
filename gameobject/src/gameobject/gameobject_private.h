@@ -22,16 +22,16 @@ namespace dmGameObject
     {
         struct Component
         {
-            Component(void* resource, uint32_t resource_type, dmhash_t name_hash, dmhash_t resource_name_hash) :
-                m_NameHash(name_hash),
-                m_ResourceNameHash(resource_name_hash),
+            Component(void* resource, uint32_t resource_type, dmhash_t id, dmhash_t resource_id) :
+                m_Id(id),
+                m_ResourceId(resource_id),
                 m_Resource(resource),
                 m_ResourceType(resource_type)
             {
             }
 
-            dmhash_t m_NameHash;
-            dmhash_t m_ResourceNameHash;
+            dmhash_t m_Id;
+            dmhash_t m_ResourceId;
             void*    m_Resource;
             uint32_t m_ResourceType;
         };
@@ -83,8 +83,10 @@ namespace dmGameObject
         uint16_t        m_Depth : 4;
         // If the instance was initialized or not (Init())
         uint16_t        m_Initialized : 1;
+        // Hack! During loops this stores which component is currently being handled
+        uint16_t        m_CurrentComponentIndex : 8;
         // Padding
-        uint16_t        m_Pad : 11;
+        uint16_t        m_Pad : 3;
 
         // Index to parent
         uint16_t        m_Parent : 16;
@@ -119,7 +121,7 @@ namespace dmGameObject
         Quat   m_Rotation;
     };
 
-    // Max component types could not be larger than 255 since 0xff is used as a special case index meaning "all components" when passing named messages
+    // Max component types could not be larger than 255 since the index is stored as a uint8_t
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
     #define DM_GAMEOBJECT_MESSAGE_NAME "go_message"
