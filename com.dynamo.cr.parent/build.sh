@@ -13,4 +13,5 @@ export PYTHONPATH=$DYNAMO_HOME/lib/python:$DYNAMO_HOME/ext/lib/python
 ln -sfn $DYNAMO_HOME ../com.dynamo.cr.common/DYNAMO_HOME
 ln -sfn $DYNAMO_HOME ../com.dynamo.cr.contenteditor/DYNAMO_HOME
 
-$DYNAMO_HOME/ext/share/maven/bin/mvn $@
+export MAVEN_OPTS="-Xms256m -Xmx700m -XX:MaxPermSize=1024m"
+$DYNAMO_HOME/ext/share/maven/bin/mvn  $@
