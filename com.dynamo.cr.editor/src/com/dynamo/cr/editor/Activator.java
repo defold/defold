@@ -129,7 +129,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         IProject[] projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
         for (IProject p : projects) {
             if (p.isOpen()) {
-                IProjectNature nature = p.getNature("com.dynamo.cr.editor.crnature");
+                IProjectNature nature = p.getNature("com.dynamo.cr.editor.core.crnature");
                 if (nature != null) {
                     p.delete(true, new NullProgressMonitor());
                 }
@@ -311,7 +311,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                         EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
 
                         IProjectDescription pd = p.getDescription();
-                        pd.setNatureIds(new String[] { "com.dynamo.cr.editor.crnature" });
+                        pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
                         ICommand build_command = pd.newCommand();
                         build_command.setBuilderName("com.dynamo.cr.editor.builders.contentbuilder");
                         pd.setBuildSpec(new ICommand[] {build_command});

@@ -47,5 +47,14 @@
          </enablement>
       </deleteParticipant>
    </extension>
+   <extension
+         id="crnature"
+         point="org.eclipse.core.resources.natures">
+      <runtime>
+         <run
+               class="com.dynamo.cr.editor.core.ProjectNature">
+         </run>
+      </runtime>
+   </extension>
 
 </plugin>

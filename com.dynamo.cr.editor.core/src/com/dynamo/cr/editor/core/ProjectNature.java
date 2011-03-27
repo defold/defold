@@ -1,4 +1,4 @@
-package com.dynamo.cr.editor;
+package com.dynamo.cr.editor.core;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectNature;
@@ -18,11 +18,12 @@ public class ProjectNature implements IProjectNature {
 
     @Override
     public IProject getProject() {
-        return this.project;
+        return project;
     }
 
     @Override
     public void setProject(IProject project) {
         this.project = project;
     }
+
 }
