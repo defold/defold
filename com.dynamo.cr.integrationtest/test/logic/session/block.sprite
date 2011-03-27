@@ -1,0 +1,7 @@
+texture: "graphics/block.png"
+width: 60.0
+height: 20.0
+tile_width: 60
+tile_height: 20
+frames_per_row: 1
+frame_count: 1

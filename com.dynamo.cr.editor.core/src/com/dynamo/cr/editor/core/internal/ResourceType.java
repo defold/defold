@@ -127,7 +127,7 @@ public class ResourceType implements IResourceType {
 
     @Override
     public String toString() {
-        return this.name;
+        return this.id;
     }
 
     @Override

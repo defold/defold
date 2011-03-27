@@ -80,8 +80,6 @@
     <modules>
         <module>../com.dynamo.cr.common</module>
         <module>../com.dynamo.cr.common.test</module>
-        <module>../com.dynamo.cr.server</module>
-        <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.editor</module>
         <module>../com.dynamo.cr.editor.core</module>
         <module>../com.dynamo.cr.contenteditor</module>
@@ -91,6 +89,9 @@
         <module>../com.dynamo.cr.ddfeditor.test</module>
         <module>../com.dynamo.cr.protobind</module>
         <module>../com.dynamo.cr.protobind.test</module>
+        <module>../com.dynamo.cr.integrationtest</module>
+        <module>../com.dynamo.cr.server</module>
+        <module>../com.dynamo.cr.server.test</module>
     </modules>
 
 </project>
