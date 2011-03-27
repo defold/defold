@@ -107,6 +107,7 @@ public class RefactorTest {
         RenameResourceDescriptor descriptor = (RenameResourceDescriptor) contribution.createDescriptor();
         descriptor.setResourcePath(path);
         descriptor.setNewName(newName);
+        descriptor.setUpdateReferences(true);
         return descriptor;
     }
 
@@ -157,14 +158,26 @@ public class RefactorTest {
         Change undoChange = perform(descriptor);
 
         PrototypeDesc postBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
-        /*System.out.println(preBallGo);
-        System.out.println("--------------");
-        System.out.println(postBallGo);*/
         assertEquals("logic/session/ball2.sprite", postBallGo.getComponents(0).getComponent());
 
         perform(undoChange);
     }
 
+    @Test
+    public void testGameObjectUpdateFolder() throws CoreException, IOException {
+        PrototypeDesc preBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
+        assertEquals("logic/session/ball.sprite", preBallGo.getComponents(0).getComponent());
+
+        IFolder session = project.getFolder("logic/session");
+
+        RenameResourceDescriptor descriptor = rename(session.getFullPath(), "session2");
+        Change undoChange = perform(descriptor);
+
+        PrototypeDesc postBallGo = (PrototypeDesc) loadMessageFile("logic/session2/ball.go", PrototypeDesc.newBuilder());
+        assertEquals("logic/session2/ball.sprite", postBallGo.getComponents(0).getComponent());
+
+        perform(undoChange);
+    }
 
 }
 

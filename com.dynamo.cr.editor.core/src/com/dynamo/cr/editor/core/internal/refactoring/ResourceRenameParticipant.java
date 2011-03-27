@@ -77,7 +77,16 @@ public class ResourceRenameParticipant extends RenameParticipant {
     @Override
     public Change createChange(IProgressMonitor pm) throws CoreException,
             OperationCanceledException {
-        return ParticipantUtils.moveFiles(pm, elements);
+        return null;
+    }
+
+    @Override
+    public Change createPreChange(IProgressMonitor pm) throws CoreException,
+            OperationCanceledException {
+        if (getArguments().getUpdateReferences())
+            return ParticipantUtils.moveFiles(pm, elements);
+        else
+            return null;
     }
 
 }
