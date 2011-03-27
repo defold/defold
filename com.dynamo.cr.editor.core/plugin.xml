@@ -11,7 +11,7 @@
          <enablement>
             <with variable="affectedNatures">
                 <iterate operator="or">
-                    <equals value="com.dynamo.cr.editor.crnature"/>
+                    <equals value="com.dynamo.cr.editor.core.crnature"/>
                 </iterate>
             </with>
          </enablement>
@@ -26,7 +26,7 @@
          <enablement>
             <with variable="affectedNatures">
                 <iterate operator="or">
-                    <equals value="com.dynamo.cr.editor.crnature"/>
+                    <equals value="com.dynamo.cr.editor.core.crnature"/>
                 </iterate>
             </with>
          </enablement>
@@ -41,7 +41,7 @@
          <enablement>
             <with variable="affectedNatures">
                 <iterate operator="or">
-                    <equals value="com.dynamo.cr.editor.crnature"/>
+                    <equals value="com.dynamo.cr.editor.core.crnature"/>
                 </iterate>
             </with>
          </enablement>
