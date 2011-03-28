@@ -17,6 +17,10 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params);
 
+    dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params);
+
+    dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params);
+
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params);

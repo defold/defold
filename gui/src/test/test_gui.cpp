@@ -374,16 +374,18 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::SetNodeName(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
-                    "gui.animate(gui.get_node(\"n\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5 + 0.001)\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5 + 0.001)\n"
                     "end\n"
-                    "function update(self)\n"
+                    "function final(self)\n"
+                    "    gui.delete(self.node)\n"
                     "end\n";
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
@@ -406,7 +408,53 @@ TEST_F(dmGuiTest, ScriptAnimate)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::FinalScene(m_Scene);
+}
+
+TEST_F(dmGuiTest, ScriptCounterAnimate)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeName(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5 + 0.001)\n"
+                    "end\n"
+                    "function update(self, dt)\n"
+                    "    gui.set_position(self.node, vmath.vector3(0,0,0))\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete(gui.get_node(\"n\"))\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+
+    // Delay
+    for (int i = 0; i < 30; ++i)
+    {
+        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+
+    dmGui::FinalScene(m_Scene);
 }
 
 TEST_F(dmGuiTest, ScriptAnimateComplete)
@@ -414,22 +462,21 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(m_Scene, node, "n");
     const char* s = "function cb(node)\n"
-                    "gui.animate(node, gui.POSITION, vmath.vector4(2,0,0,0), gui.EASING_NONE, 0.5, 0)\n"
+                    "    gui.animate(node, gui.POSITION, vmath.vector4(2,0,0,0), gui.EASING_NONE, 0.5, 0)\n"
                     "end\n;"
                     "function init(self)\n"
-                    "gui.animate(gui.get_node(\"n\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
-                    "end\n"
-                    "function update(self)\n"
+                    "    gui.animate(gui.get_node(\"n\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
                     "end\n";
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+
     // Animation
     for (int i = 0; i < 60; ++i)
     {
@@ -456,20 +503,18 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
     dmGui::SetNodeName(m_Scene, node1, "n1");
     dmGui::SetNodeName(m_Scene, node2, "n2");
     const char* s = "function cb(node)\n"
-                    "gui.delete_node(node)\n"
+                    "    gui.delete_node(node)\n"
                     "end\n;"
                     "function init(self)\n"
-                    "gui.animate(gui.get_node(\"n1\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
-                    "gui.animate(gui.get_node(\"n2\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
-                    "end\n"
-                    "function update(self)\n"
+                    "    gui.animate(gui.get_node(\"n1\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
+                    "    gui.animate(gui.get_node(\"n2\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
                     "end\n";
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     uint32_t node_count = dmGui::GetNodeCount(m_Scene);
@@ -492,7 +537,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
 {
     const char* s = "function init(self)\n"
                     "    for i=1,10000 do\n"
-                    "       gui.new_box_node({0,0,0}, {1,1,1})\n"
+                    "        gui.new_box_node({0,0,0}, {1,1,1})\n"
                     "    end\n"
                     "end\n"
                     "function update(self)\n"
@@ -501,7 +546,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 }
 
@@ -640,7 +685,7 @@ TEST_F(dmGuiTest, PostMessage1)
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     TestMessage test_message;
@@ -691,7 +736,7 @@ TEST_F(dmGuiTest, PostMessage2)
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmTestGuiDDF::AMessage amessage;
@@ -737,6 +782,9 @@ TEST_F(dmGuiTest, PostMessage3)
     r = dmGui::SetScript(script2, s2, strlen(s2), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
@@ -760,7 +808,7 @@ TEST_F(dmGuiTest, PostMessageMissingField)
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 }
 
@@ -845,6 +893,8 @@ TEST_F(dmGuiTest, UseDeletedNode)
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
@@ -859,20 +909,22 @@ TEST_F(dmGuiTest, NodeProperties)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeName(m_Scene, node, "n");
     const char* s = "function init(self)\n"
-                    "self.n = gui.get_node(\"n\")\n"
-                    "gui.set_position(self.n, vmath.vector4(1,2,3,0))\n"
-                    "gui.set_text(self.n, \"test\")\n"
-                    "gui.set_text(self.n, \"flipper\")\n"
+                    "    self.n = gui.get_node(\"n\")\n"
+                    "    gui.set_position(self.n, vmath.vector4(1,2,3,0))\n"
+                    "    gui.set_text(self.n, \"test\")\n"
+                    "    gui.set_text(self.n, \"flipper\")\n"
                     "end\n"
                     "function update(self) "
-                    "local pos = gui.get_position(self.n)\n"
-                    "assert(pos.x == 1)\n"
-                    "assert(pos.y == 2)\n"
-                    "assert(pos.z == 3)\n"
-                    "assert(gui.get_text(self.n) == \"flipper\")\n"
+                    "    local pos = gui.get_position(self.n)\n"
+                    "    assert(pos.x == 1)\n"
+                    "    assert(pos.y == 2)\n"
+                    "    assert(pos.z == 3)\n"
+                    "    assert(gui.get_text(self.n) == \"flipper\")\n"
                     "end";
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -947,6 +999,8 @@ TEST_F(dmGuiTest, Self)
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
@@ -958,6 +1012,9 @@ TEST_F(dmGuiTest, Reload)
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s1, strlen(s1), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);

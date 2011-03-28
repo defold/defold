@@ -21,6 +21,7 @@ namespace dmGui
     enum ScriptFunction
     {
         SCRIPT_FUNCTION_INIT,
+        SCRIPT_FUNCTION_FINAL,
         SCRIPT_FUNCTION_UPDATE,
         SCRIPT_FUNCTION_ONMESSAGE,
         SCRIPT_FUNCTION_ONINPUT,
@@ -87,7 +88,6 @@ namespace dmGui
         void*                   m_DefaultFont;
         void*                   m_UserData;
         uint16_t                m_NextVersionNumber;
-        uint16_t                m_RunInit : 1;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

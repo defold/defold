@@ -21,6 +21,7 @@ namespace dmGui
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
         "init",
+        "final",
         "update",
         "on_message",
         "on_input",
@@ -124,8 +125,6 @@ namespace dmGui
         lua_newtable(L);
         scene->m_SelfReference = luaL_ref(L, LUA_REGISTRYINDEX);
         assert(top == lua_gettop(L));
-
-        scene->m_RunInit = 1;
 
         return scene;
     }
@@ -401,6 +400,82 @@ namespace dmGui
         }
     }
 
+    Result InitScene(HScene scene)
+    {
+        lua_State* L = scene->m_Context->m_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+
+        Result result = RESULT_OK;
+        if (scene->m_Script == 0x0)
+            return result;
+
+        lua_pushlightuserdata(L, (void*) scene);
+        lua_setglobal(L, "__scene__");
+
+        if (scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_INIT] != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_INIT]);
+            assert(lua_isfunction(L, -1));
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+            int ret = lua_pcall(L, 1, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+                result = RESULT_SCRIPT_ERROR;
+            }
+        }
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
+    Result FinalScene(HScene scene)
+    {
+        lua_State* L = scene->m_Context->m_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+
+        Result result = RESULT_OK;
+        if (scene->m_Script == 0x0)
+            return result;
+
+        lua_pushlightuserdata(L, (void*) scene);
+        lua_setglobal(L, "__scene__");
+
+        if (scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_INIT] != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_INIT]);
+            assert(lua_isfunction(L, -1));
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+            int ret = lua_pcall(L, 1, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+                result = RESULT_SCRIPT_ERROR;
+            }
+        }
+        // Deferred deletion of nodes
+        uint32_t n = scene->m_Nodes.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            InternalNode* node = &scene->m_Nodes[i];
+            if (node->m_Deleted)
+            {
+                uint16_t index = node->m_Index;
+                uint16_t version = node->m_Version;
+                HNode hnode = ((uint32_t) version) << 16 | index;
+                DeleteNode(scene, hnode);
+                node->m_Deleted = 0; // Make sure to clear deferred delete flag
+            }
+        }
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
     Result UpdateScene(HScene scene, float dt)
     {
         lua_State* L = scene->m_Context->m_LuaState;
@@ -415,41 +490,21 @@ namespace dmGui
         lua_pushlightuserdata(L, (void*) scene);
         lua_setglobal(L, "__scene__");
 
-        if (scene->m_RunInit && scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_INIT] != LUA_NOREF)
+        if (scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF)
         {
-            scene->m_RunInit = 0;
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE]);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_INIT]);
             assert(lua_isfunction(L, -1));
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
-            int ret = lua_pcall(L, 1, 0, 0);
+            lua_pushnumber(L, (lua_Number) dt);
+            int ret = lua_pcall(L, 2, 0, 0);
+
             if (ret != 0)
             {
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
                 lua_pop(L, 1);
                 result = RESULT_SCRIPT_ERROR;
-            }
-        }
-
-        if (result == RESULT_OK)
-        {
-            if (scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF)
-            {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE]);
-
-                assert(lua_isfunction(L, -1));
-
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
-                lua_pushnumber(L, (lua_Number) dt);
-                int ret = lua_pcall(L, 2, 0, 0);
-
-                if (ret != 0)
-                {
-                    dmLogError("Error running script: %s", lua_tostring(L,-1));
-                    lua_pop(L, 1);
-                    result = RESULT_SCRIPT_ERROR;
-                }
             }
         }
 

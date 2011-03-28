@@ -183,6 +183,32 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params)
+    {
+        Component* gui_component = (Component*)*params.m_UserData;
+        dmGui::Result result = dmGui::InitScene(gui_component->m_Scene);
+        if (result != dmGui::RESULT_OK)
+        {
+            // TODO: Translate result
+            dmLogError("Error when initializing gui component: %d.", result);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
+    {
+        Component* gui_component = (Component*)*params.m_UserData;
+        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
+        if (result != dmGui::RESULT_OK)
+        {
+            // TODO: Translate result
+            dmLogError("Error when finalizing gui component: %d.", result);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     void DispatchGui(dmMessage::Message *message_object, void* user_ptr)
     {
         DM_PROFILE(Game, "DispatchGui");

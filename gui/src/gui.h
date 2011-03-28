@@ -239,6 +239,25 @@ namespace dmGui
 
     void RenderScene(HScene scene, RenderNode render_node, void* context);
 
+    /**
+     * Run the init-function of the scene script.
+     * @param scene Scene for which to run the script
+     * @return RESULT_OK on success
+     */
+    Result InitScene(HScene scene);
+
+    /**
+     * Run the final-function of the scene script.
+     * @param scene Scene for which to run the script
+     * @return RESULT_OK on success
+     */
+    Result FinalScene(HScene scene);
+
+    /**
+     * Run the update-function of the scene script.
+     * @param scene Scene for which to run the script
+     * @return RESULT_OK on success
+     */
     Result UpdateScene(HScene scene, float dt);
 
     Result SetSceneScript(HScene scene, HScript script);
