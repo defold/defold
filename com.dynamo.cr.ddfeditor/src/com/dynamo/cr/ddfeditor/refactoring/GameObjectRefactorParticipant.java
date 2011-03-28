@@ -21,6 +21,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.DynamicMessage;
+import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
@@ -68,7 +69,9 @@ public class GameObjectRefactorParticipant implements
                     MessageNode node = new MessageNode(embeddedBuilder.build());
                     boolean embeddedChanged = GenericRefactorParticipant.doUpdateReferences(contentRoot, reference, newPath, node, node);
                     if (embeddedChanged) {
-                        newBuilder.addEmbeddedComponents(EmbeddedComponentDesc.newBuilder(embeddedComponentDesc).setData(node.build().toString()));
+                        changed = true;
+                        Message newEmbeddedData = node.build();
+                        newBuilder.addEmbeddedComponents(EmbeddedComponentDesc.newBuilder(embeddedComponentDesc).setData(newEmbeddedData.toString()));
                     }
                     else {
                         newBuilder.addEmbeddedComponents(embeddedComponentDesc);
