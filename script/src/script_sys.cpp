@@ -35,17 +35,17 @@ namespace dmScript
         luaL_checktype(L, 2, LUA_TTABLE);
         uint32_t n_used = CheckTable(L, buffer, sizeof(buffer), 2);
         FILE* file = fopen(filename, "wb");
-        bool result = fwrite(buffer, 1, n_used, file) == n_used;
-        fclose(file);
-        if (result)
+        if (file != 0x0)
         {
-            lua_pushboolean(L, result);
-            return 1;
+            bool result = fwrite(buffer, 1, n_used, file) == n_used;
+            fclose(file);
+            if (result)
+            {
+                lua_pushboolean(L, result);
+                return 1;
+            }
         }
-        else
-        {
-            return luaL_error(L, "Could not write to the file %s.", filename);
-        }
+        return luaL_error(L, "Could not write to the file %s.", filename);
     }
 
     int Sys_Load(lua_State* L)

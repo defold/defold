@@ -116,6 +116,9 @@ namespace dmScript
                     if (buffer_end - buffer < align_size)
                         luaL_error(L, "table too large");
 
+#ifndef NDEBUG
+                    memset(buffer, 0, align_size);
+#endif
                     buffer += align_size;
 
                     if (buffer_end - buffer < int32_t(sizeof(lua_Number)) || buffer_end - buffer < align_size)
@@ -159,6 +162,9 @@ namespace dmScript
                     if (buffer_end - buffer < align_size)
                         luaL_error(L, "table too large");
 
+#ifndef NDEBUG
+                    memset(buffer, 0, align_size);
+#endif
                     buffer += align_size;
 
                     float* f = (float*) (buffer);
