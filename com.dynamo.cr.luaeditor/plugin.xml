@@ -43,5 +43,20 @@
          <enablement></enablement>
       </commonWizard>
    </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="script"
+            id="com.dynamo.cr.luaeditor.resourcetypes.Script"
+            name="Script"
+            type-class="component">
+      </resource-type>
+      <resource-type
+            file-extension="gui_script"
+            id="com.dynamo.cr.luaeditor.resourcetypes.GuiScript"
+            name="Gui Script"
+            type-class="component">
+      </resource-type>
+   </extension>
 
 </plugin>
