@@ -312,7 +312,8 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
             proto-message-class="com.dynamo.model.proto.Model$ModelDesc"
-            template-data="name: &apos;unnamed&apos; mesh: &apos;&apos; material: &apos;&apos;">
+            template-data="name: &apos;unnamed&apos; mesh: &apos;&apos; material: &apos;&apos;"
+            type-class="component">
       </resource-type>
       <resource-type
             file-extension="go"
@@ -333,14 +334,16 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Camera"
             name="Camera"
             proto-message-class="com.dynamo.camera.proto.Camera$CameraDesc"
-            template-data="aspect_ratio: 1 fov: 45 near_z: 0.1 far_z: 1000 ">
+            template-data="aspect_ratio: 1 fov: 45 near_z: 0.1 far_z: 1000 "
+            type-class="component">
       </resource-type>
       <resource-type
             file-extension="light"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Light"
             name="Light"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$LightDesc"
-            template-data="id: &apos;unnamed&apos; type: POINT intensity: 10 color { x: 1 y: 1 z: 1 } range: 50 decay: 0.9 ">
+            template-data="id: &apos;unnamed&apos; type: POINT intensity: 10 color { x: 1 y: 1 z: 1 } range: 50 decay: 0.9 "
+            type-class="component">
       </resource-type>
       <resource-type
             embeddable="true"
@@ -348,7 +351,14 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.SpawnPoint"
             name="Spawn Point"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$SpawnPointDesc"
-            template-data="prototype: &apos;&apos;">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SpawnPointRefactorParticipant"
+            template-data="prototype: &apos;&apos;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="gameobject">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             embeddable="true"
@@ -356,7 +366,14 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.CollisionObject"
             name="Collision Object"
             proto-message-class="com.dynamo.physics.proto.Physics$CollisionObjectDesc"
-            template-data="collision_shape: &apos;&apos; type: COLLISION_OBJECT_TYPE_DYNAMIC mass: 1 friction: 0.1 restitution: 0.5 group: 1">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollisionObjectRefactorParticipant"
+            template-data="collision_shape: &apos;&apos; type: COLLISION_OBJECT_TYPE_DYNAMIC mass: 1 friction: 0.1 restitution: 0.5 group: 1"
+            type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.ConvexShape">
+            </reference-resource-type>
+         </references>
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.GuiEditSupport"
@@ -364,14 +381,31 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Gui"
             name="Gui"
             proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
-            template-data="script: &apos;&apos;">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.GuiRefactorParticipant"
+            template-data="script: &apos;&apos;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="fontdesc">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             file-extension="font"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Font"
             name="Font"
             proto-message-class="com.dynamo.render.proto.Font$FontDesc"
-            template-data="font: &apos;&apos; material: &apos;&apos; size: 15">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.FontRefactorParticipant"
+            template-data="font: &apos;&apos; material: &apos;&apos; size: 15"
+            type-class="fontdesc">
+         <references>
+            <reference-type-class
+                  type-class="font">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.MaterialEditSupport"
@@ -379,7 +413,17 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Material"
             name="Material"
             proto-message-class="com.dynamo.render.proto.Material$MaterialDesc"
-            template-data="name: &apos;unnamed&apos; vertex_program: &apos;&apos; fragment_program: &apos;&apos;">
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.MaterialRefactorParticipant"
+            template-data="name: &apos;unnamed&apos; vertex_program: &apos;&apos; fragment_program: &apos;&apos;"
+            type-class="material">
+         <references>
+            <reference-type-class
+                  type-class="vertex_program">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="fragment_program">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.RenderEditSupport"
@@ -387,7 +431,16 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Render"
             name="Render"
             proto-message-class="com.dynamo.render.proto.Render$RenderPrototypeDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.RenderRefactorParticipant"
             template-data="script: &apos;&apos;">
+         <references>
+            <reference-type-class
+                  type-class="render_script">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="material">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.InputBindingEditSupport"
@@ -409,7 +462,16 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Collection"
             name="Collection"
             proto-message-class="com.dynamo.gameobject.proto.GameObject$CollectionDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionRefactorParticipant"
             template-data="name: &apos;unnamed&apos;">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.GameObject">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
+            </reference-resource-type>
+         </references>
       </resource-type>
       <resource-type
             edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.EmitterEditSupport"
@@ -417,7 +479,8 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Emitter"
             name="Emitter"
             proto-message-class="com.dynamo.particle.proto.Particle$Emitter"
-            template-data="mode: PLAY_MODE_ONCE duration: 0.2 space: EMISSION_SPACE_WORLD rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } texture { name: &apos;unnamed&apos; t_x: 1 t_y: 1 } material: &apos;unnamed&apos; max_particle_count: 8 type: EMITTER_TYPE_CONE">
+            template-data="mode: PLAY_MODE_ONCE duration: 0.2 space: EMISSION_SPACE_WORLD rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 } texture { name: &apos;unnamed&apos; t_x: 1 t_y: 1 } material: &apos;unnamed&apos; max_particle_count: 8 type: EMITTER_TYPE_CONE"
+            type-class="component">
       </resource-type>
       <resource-type
             file-extension="sprite"
@@ -446,7 +509,13 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.CollectionProxy"
             name="Collection Proxy"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionProxyDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionProxyRefactorParticipant"
             template-data="collection: &apos;&apos;">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
+            </reference-resource-type>
+         </references>
       </resource-type>
     </extension>
    <extension

@@ -28,12 +28,15 @@ import org.eclipse.ltk.core.refactoring.RefactoringContribution;
 import org.eclipse.ltk.core.refactoring.RefactoringCore;
 import org.eclipse.ltk.core.refactoring.RefactoringDescriptor;
 import org.eclipse.ltk.core.refactoring.RefactoringStatus;
+import org.eclipse.ltk.core.refactoring.resource.DeleteResourcesDescriptor;
 import org.eclipse.ltk.core.refactoring.resource.RenameResourceDescriptor;
 import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
@@ -111,8 +114,19 @@ public class RefactorTest {
         return descriptor;
     }
 
+    DeleteResourcesDescriptor delete(IPath path) {
+        RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(DeleteResourcesDescriptor.ID);
+        DeleteResourcesDescriptor descriptor = (DeleteResourcesDescriptor) contribution.createDescriptor();
+        descriptor.setResourcePaths(new IPath[] { path });
+        return descriptor;
+    }
+
+    /*
+     * Rename tests single files
+     */
     @Test
-    public void testSpriteTextureUpdateFile() throws CoreException, IOException {
+    public void testRenameBallPng() throws CoreException, IOException {
+        // Simple test. Rename ball.png -> ball2.png and check reference update
         SpriteDesc preBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
 
         assertEquals("graphics/ball.png", preBallSprite.getTexture());
@@ -130,24 +144,47 @@ public class RefactorTest {
     }
 
     @Test
-    public void testSpriteTextureUpdateFolder() throws CoreException, IOException {
-        SpriteDesc preBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
+    public void testRenameWall() throws CoreException, IOException {
+        // Simple test. Rename wall.go -> wall2.go and check reference update
+        CollectionDesc preCollection = (CollectionDesc) loadMessageFile("logic/session/base_level.collection", CollectionDesc.newBuilder());
+        assertEquals("logic/session/wall.go", preCollection.getInstances(0).getPrototype());
+        assertEquals("logic/session/wall.go", preCollection.getInstances(3).getPrototype());
 
-        assertEquals("graphics/ball.png", preBallSprite.getTexture());
+        IFile wall = project.getFile("logic/session/wall.go");
+        assertTrue(wall.exists());
 
-        IFolder graphics = project.getFolder("graphics");
-
-        RenameResourceDescriptor descriptor = rename(graphics.getFullPath(), "graphics2");
+        RenameResourceDescriptor descriptor = rename(wall.getFullPath(), "wall2.go");
         Change undoChange = perform(descriptor);
 
-        SpriteDesc postBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
-        assertEquals("graphics2/ball.png", postBallSprite.getTexture());
+        CollectionDesc postCollection = (CollectionDesc) loadMessageFile("logic/session/base_level.collection", CollectionDesc.newBuilder());
+        assertEquals("logic/session/wall2.go", postCollection.getInstances(0).getPrototype());
+        assertEquals("logic/session/wall2.go", postCollection.getInstances(3).getPrototype());
 
         perform(undoChange);
     }
 
     @Test
-    public void testGameObjectUpdateFile() throws CoreException, IOException {
+    public void testRenameBaseLevelCollection() throws CoreException, IOException {
+        // Simple test. Rename base_level.collection -> base_level2.collection and check reference update
+        CollectionDesc preCollection = (CollectionDesc) loadMessageFile("logic/session/level01.collection", CollectionDesc.newBuilder());
+        assertEquals("logic/session/base_level.collection", preCollection.getCollectionInstances(0).getCollection());
+
+        IFile baseLevel = project.getFile("logic/session/base_level.collection");
+        assertTrue(baseLevel.exists());
+
+        RenameResourceDescriptor descriptor = rename(baseLevel.getFullPath(), "base_level2.collection");
+        Change undoChange = perform(descriptor);
+
+        CollectionDesc postCollection = (CollectionDesc) loadMessageFile("logic/session/level01.collection", CollectionDesc.newBuilder());
+        assertEquals("logic/session/base_level2.collection", postCollection.getCollectionInstances(0).getCollection());
+
+        perform(undoChange);
+    }
+
+    //
+    @Test
+    public void testRenameBallSprite() throws CoreException, IOException {
+        // Simple test. Rename ball.sprite to ball2.sprite. Check that ball.go is updated.
         PrototypeDesc preBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
         assertEquals("logic/session/ball.sprite", preBallGo.getComponents(0).getComponent());
 
@@ -163,8 +200,51 @@ public class RefactorTest {
         perform(undoChange);
     }
 
+    /*
+     * Folder and complex renames
+     */
     @Test
-    public void testGameObjectUpdateFolder() throws CoreException, IOException {
+    public void testRenameGraphicsFolder() throws CoreException, IOException {
+        // Rename the graphics folder. ie rename and update N files
+        SpriteDesc preBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
+        assertEquals("graphics/ball.png", preBallSprite.getTexture());
+        SceneDesc preGui = (SceneDesc) loadMessageFile("logic/session/hud.gui", SceneDesc.newBuilder());
+        assertEquals("graphics/left_hud.png", preGui.getTextures(0).getTexture());
+
+        IFolder graphics = project.getFolder("graphics");
+
+        RenameResourceDescriptor descriptor = rename(graphics.getFullPath(), "graphics2");
+        Change undoChange = perform(descriptor);
+
+        SpriteDesc postBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
+        assertEquals("graphics2/ball.png", postBallSprite.getTexture());
+        SceneDesc postGui = (SceneDesc) loadMessageFile("logic/session/hud.gui", SceneDesc.newBuilder());
+        assertEquals("graphics2/left_hud.png", postGui.getTextures(0).getTexture());
+
+        perform(undoChange);
+    }
+
+    @Test
+    public void testRenameFontFolder() throws CoreException, IOException {
+        // Rename the fonts folder. ie rename and update N files
+        SceneDesc preGui = (SceneDesc) loadMessageFile("logic/session/hud.gui", SceneDesc.newBuilder());
+        assertEquals("fonts/vera_mo_bd.font", preGui.getFonts(0).getFont());
+
+        IFolder fonts = project.getFolder("fonts");
+
+        RenameResourceDescriptor descriptor = rename(fonts.getFullPath(), "fonts2");
+        Change undoChange = perform(descriptor);
+
+        SceneDesc postGui = (SceneDesc) loadMessageFile("logic/session/hud.gui", SceneDesc.newBuilder());
+        assertEquals("fonts2/vera_mo_bd.font", postGui.getFonts(0).getFont());
+
+        perform(undoChange);
+    }
+
+    @Test
+    public void testOverlappingRenameUpdate() throws CoreException, IOException {
+        // Rename logic/session to logic/session2
+        // Ensure that overlapping changes works (rename and file-changes on the same sub-tree)
         PrototypeDesc preBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
         assertEquals("logic/session/ball.sprite", preBallGo.getComponents(0).getComponent());
 
@@ -177,6 +257,73 @@ public class RefactorTest {
         assertEquals("logic/session2/ball.sprite", postBallGo.getComponents(0).getComponent());
 
         perform(undoChange);
+    }
+
+    /*
+     * Test delete components
+     */
+    public void genericComponentDelete(String goFileName, String componentFileName) throws CoreException, IOException {
+        // Delete component. Check that #components is reduced by one, ie the reference to component is removed.
+        PrototypeDesc preGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
+        int preCount = preGo.getComponentsCount();
+
+        IFile componentFile = project.getFile(componentFileName);
+        assertTrue(componentFile.exists());
+
+        DeleteResourcesDescriptor descriptor = delete(componentFile.getFullPath());
+        Change undoChange = perform(descriptor);
+
+        PrototypeDesc postGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
+        int postCount = postGo.getComponentsCount();
+        assertEquals(preCount-1, postCount);
+
+        perform(undoChange);
+    }
+
+    @Test
+    public void testDeleteSprite() throws CoreException, IOException {
+        genericComponentDelete("logic/session/ball.go", "logic/session/ball.sprite");
+    }
+
+    @Test
+    public void testDeleteScript() throws CoreException, IOException {
+        genericComponentDelete("logic/session/ball.go", "logic/session/ball.script");
+    }
+
+    @Test
+    public void testDeleteGui() throws CoreException, IOException {
+        genericComponentDelete("logic/session/hud.go", "logic/session/hud.gui");
+    }
+
+    /*
+     * Test embedded components delete, ie remove files referred from embedded component
+     */
+    public void genericEmbeddedComponentReferenceDelete(String goFileName, String componentFileName) throws CoreException, IOException {
+        // Delete resource referred by embedded component. Check that #embedded_components is reduced by one, ie the embedded component is removed
+        PrototypeDesc preGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
+        int preCount = preGo.getEmbeddedComponentsCount();
+
+        IFile componentFile = project.getFile(componentFileName);
+        assertTrue(componentFile.exists());
+
+        DeleteResourcesDescriptor descriptor = delete(componentFile.getFullPath());
+        Change undoChange = perform(descriptor);
+
+        PrototypeDesc postGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
+        int postCount = postGo.getEmbeddedComponentsCount();
+        assertEquals(preCount-1, postCount);
+
+        perform(undoChange);
+    }
+
+    @Test
+    public void testEmbeddedDeleteConvexShape() throws CoreException, IOException {
+        genericEmbeddedComponentReferenceDelete("logic/session/ball.go", "logic/session/ball.convexshape");
+    }
+
+    @Test
+    public void testEmbeddedDeleteSpawnPointReference() throws CoreException, IOException {
+        genericEmbeddedComponentReferenceDelete("logic/session/ball.go", "logic/session/pow.go");
     }
 
 }

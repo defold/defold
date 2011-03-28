@@ -10,11 +10,17 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.ddfeditor.Activator;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.IResourceRefactorParticipant;
+import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.ResourceRefactorContext;
+import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc.Builder;
+import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
@@ -36,6 +42,7 @@ public class GameObjectRefactorParticipant implements
 
             Builder newBuilder = PrototypeDesc.newBuilder(prototype);
             newBuilder.clearComponents();
+            newBuilder.clearEmbeddedComponents();
 
             boolean changed = false;
             List<ComponentDesc> originalList = prototype.getComponentsList();
@@ -47,6 +54,25 @@ public class GameObjectRefactorParticipant implements
                 }
                 else {
                     newBuilder.addComponents(componentDesc);
+                }
+            }
+
+            List<EmbeddedComponentDesc> originalEmbeddedList = prototype.getEmbeddedComponentsList();
+            for (EmbeddedComponentDesc embeddedComponentDesc : originalEmbeddedList) {
+                String type = embeddedComponentDesc.getType();
+                IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromExtension(type);
+                if (resourceType != null) {
+                    Descriptor descriptor = resourceType.getMessageDescriptor();
+                    DynamicMessage.Builder embeddedBuilder = DynamicMessage.newBuilder(descriptor);
+                    TextFormat.merge(embeddedComponentDesc.getData(), embeddedBuilder);
+                    MessageNode node = new MessageNode(embeddedBuilder.build());
+                    boolean embeddedChanged = GenericRefactorParticipant.doUpdateReferences(contentRoot, reference, newPath, node, node);
+                    if (embeddedChanged) {
+                        newBuilder.addEmbeddedComponents(EmbeddedComponentDesc.newBuilder(embeddedComponentDesc).setData(node.build().toString()));
+                    }
+                    else {
+                        newBuilder.addEmbeddedComponents(embeddedComponentDesc);
+                    }
                 }
             }
 
@@ -72,6 +98,7 @@ public class GameObjectRefactorParticipant implements
 
             Builder newBuilder = PrototypeDesc.newBuilder(prototype);
             newBuilder.clearComponents();
+            newBuilder.clearEmbeddedComponents();
 
             boolean changed = false;
             List<ComponentDesc> originalList = prototype.getComponentsList();
@@ -84,6 +111,28 @@ public class GameObjectRefactorParticipant implements
                     newBuilder.addComponents(componentDesc);
                 }
             }
+
+            List<EmbeddedComponentDesc> originalEmbeddedList = prototype.getEmbeddedComponentsList();
+            for (EmbeddedComponentDesc embeddedComponentDesc : originalEmbeddedList) {
+                String type = embeddedComponentDesc.getType();
+                IResourceType resourceType = EditorCorePlugin.getDefault().getResourceTypeFromExtension(type);
+                if (resourceType != null) {
+                    Descriptor descriptor = resourceType.getMessageDescriptor();
+                    DynamicMessage.Builder embeddedBuilder = DynamicMessage.newBuilder(descriptor);
+                    TextFormat.merge(embeddedComponentDesc.getData(), embeddedBuilder);
+                    MessageNode node = new MessageNode(embeddedBuilder.build());
+                    boolean embeddedChanged = GenericRefactorParticipant.doUpdateReferences(contentRoot, reference, "", node, node);
+                    // If changed do nothing, ie remove embedded component
+                    // otherwise add
+                    if (embeddedChanged) {
+                        changed = true;
+                    }
+                    else {
+                        newBuilder.addEmbeddedComponents(embeddedComponentDesc);
+                    }
+                }
+            }
+
 
             if (changed) {
                 return newBuilder.build().toString();

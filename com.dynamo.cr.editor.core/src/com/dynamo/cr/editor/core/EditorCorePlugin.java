@@ -86,7 +86,7 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
                         referenceTypeClasses.add(referenceElement.getAttribute("type-class"));
                     }
                     else if (referenceElement.getName().equals("reference-resource-type")) {
-                        referenceResourceTypeIds.add(referenceElement.getAttribute("type-class"));
+                        referenceResourceTypeIds.add(referenceElement.getAttribute("resource-type"));
                     }
                     else {
                         System.err.println("WARNING: Unknown element: " + referenceElement.getName());
