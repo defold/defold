@@ -351,6 +351,7 @@ namespace dmGameObject
         message->m_DDFDescriptor = 0x0;
         message->m_SenderInstance = i->m_Instance;
         message->m_SenderComponent = i->m_ComponentIndex;
+        message->m_BufferSize = 0;
 
         if (top > 2)
         {
