@@ -37,6 +37,7 @@ import org.osgi.framework.Bundle;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
+import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
@@ -181,7 +182,6 @@ public class RefactorTest {
         perform(undoChange);
     }
 
-    //
     @Test
     public void testRenameBallSprite() throws CoreException, IOException {
         // Simple test. Rename ball.sprite to ball2.sprite. Check that ball.go is updated.
@@ -196,6 +196,33 @@ public class RefactorTest {
 
         PrototypeDesc postBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
         assertEquals("logic/session/ball2.sprite", postBallGo.getComponents(0).getComponent());
+
+        perform(undoChange);
+    }
+
+    /*
+     * Render files referrred by embedded components
+     */
+    @Test
+    public void testRenameBlockConvexShape() throws CoreException, IOException {
+        // Rename block.convexshape to block.convexshape. Check that block.go is updated.
+        PrototypeDesc preBlockGo = (PrototypeDesc) loadMessageFile("logic/session/block.go", PrototypeDesc.newBuilder());
+        CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
+        TextFormat.merge(preBlockGo.getEmbeddedComponents(0).getData(), builder);
+        CollisionObjectDesc preCollisionObject = builder.build();
+        assertEquals("logic/session/block.convexshape", preCollisionObject.getCollisionShape());
+
+        IFile blockConvexShape = project.getFile("logic/session/block.convexshape");
+        assertTrue(blockConvexShape.exists());
+
+        RenameResourceDescriptor descriptor = rename(blockConvexShape.getFullPath(), "block2.convexshape");
+        Change undoChange = perform(descriptor);
+
+        PrototypeDesc postBlockGo = (PrototypeDesc) loadMessageFile("logic/session/block.go", PrototypeDesc.newBuilder());
+        builder = CollisionObjectDesc.newBuilder();
+        TextFormat.merge(postBlockGo.getEmbeddedComponents(0).getData(), builder);
+        CollisionObjectDesc postCollisionObject = builder.build();
+        assertEquals("logic/session/block2.convexshape", postCollisionObject.getCollisionShape());
 
         perform(undoChange);
     }
