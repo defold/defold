@@ -42,10 +42,16 @@ public abstract class GenericRefactorParticipant implements IResourceRefactorPar
                     List<Object> values = repeated.getValueList();
                     int index = 0;
                     for (Object listValue : values) {
-                        IFile file = contentRoot.getFile(new Path((String) listValue));
-                        if (reference.equals(file)) {
-                            root.setField(repeated.getPathTo(index), newPath);
-                            changed = true;
+                        if (listValue instanceof MessageNode) {
+                            MessageNode listNode = (MessageNode) listValue;
+                            if (doUpdateReferences(contentRoot, reference, newPath, root, listNode))
+                                changed = true;
+                        } else {
+                            IFile file = contentRoot.getFile(new Path((String) listValue));
+                            if (reference.equals(file)) {
+                                root.setField(repeated.getPathTo(index), newPath);
+                                changed = true;
+                            }
                         }
                         ++index;
                     }

@@ -432,7 +432,8 @@
             name="Render"
             proto-message-class="com.dynamo.render.proto.Render$RenderPrototypeDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.RenderRefactorParticipant"
-            template-data="script: &apos;&apos;">
+            template-data="script: &apos;&apos;"
+            type-class="render">
          <references>
             <reference-type-class
                   type-class="render_script">

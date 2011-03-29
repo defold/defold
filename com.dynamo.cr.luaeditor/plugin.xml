@@ -57,6 +57,12 @@
             name="Gui Script"
             type-class="component">
       </resource-type>
+      <resource-type
+            file-extension="render_script"
+            id="com.dynamo.cr.luaeditor.resourcetypes.RenderScript"
+            name="Render Script"
+            type-class="render_script">
+      </resource-type>
    </extension>
 
 </plugin>

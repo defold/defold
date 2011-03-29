@@ -38,6 +38,7 @@ import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
@@ -196,6 +197,42 @@ public class RefactorTest {
 
         PrototypeDesc postBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
         assertEquals("logic/session/ball2.sprite", postBallGo.getComponents(0).getComponent());
+
+        perform(undoChange);
+    }
+
+    @Test
+    public void testRenameRenderScriptForRender() throws CoreException, IOException {
+        // Simple test. Rename render script and check that render is updated
+        RenderPrototypeDesc preRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
+        assertEquals("logic/default.render_script", preRender.getScript());
+
+        IFile renderScript = project.getFile("logic/default.render_script");
+        assertTrue(renderScript.exists());
+
+        RenameResourceDescriptor descriptor = rename(renderScript.getFullPath(), "default2.render_script");
+        Change undoChange = perform(descriptor);
+
+        RenderPrototypeDesc postRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
+        assertEquals("logic/default2.render_script", postRender.getScript());
+
+        perform(undoChange);
+    }
+
+    @Test
+    public void testRenameMaterialForRender() throws CoreException, IOException {
+        // Simple test. Rename render script and check that render is updated
+        RenderPrototypeDesc preRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
+        assertEquals("logic/test.material", preRender.getMaterials(0).getMaterial());
+
+        IFile material = project.getFile("logic/test.material");
+        assertTrue(material.exists());
+
+        RenameResourceDescriptor descriptor = rename(material.getFullPath(), "test2.material");
+        Change undoChange = perform(descriptor);
+
+        RenderPrototypeDesc postRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
+        assertEquals("logic/test2.material", postRender.getMaterials(0).getMaterial());
 
         perform(undoChange);
     }
