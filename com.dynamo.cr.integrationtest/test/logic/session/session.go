@@ -2,8 +2,7 @@ components {
   id: "script"
   component: "logic/session/session.script"
 }
-embedded_components {
+components {
   id: "level01_proxy"
-  type: "collectionproxy"
-  data: "collection: \"logic/session/level01.collection\"\n"
+  component: "logic/session/level01.collectionproxy"
 }

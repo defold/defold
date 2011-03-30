@@ -10,8 +10,7 @@ components {
   id: "wav"
   component: "sounds/powerup.wav"
 }
-embedded_components {
+components {
   id: "co"
-  type: "collisionobject"
-  data: "collision_shape: \"logic/session/paddle.convexshape\"\ntype: COLLISION_OBJECT_TYPE_KINEMATIC\nmass: 0.0\nfriction: 0.0\nrestitution: 1.0\ngroup: 2\nmask: 1\nmask: 4\nmask: 16\n"
+  component: "logic/session/paddle.collisionobject"
 }

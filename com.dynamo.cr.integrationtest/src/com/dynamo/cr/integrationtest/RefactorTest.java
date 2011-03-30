@@ -36,13 +36,19 @@ import org.osgi.framework.Bundle;
 
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesystem.proto.GameSystem.SpawnPointDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
+import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
 import com.google.protobuf.TextFormat;
+import com.google.protobuf.TextFormat.ParseException;
 
 public class RefactorTest {
 
@@ -123,150 +129,412 @@ public class RefactorTest {
         return descriptor;
     }
 
-    /*
-     * Rename tests single files
-     */
-    @Test
-    public void testRenameBallPng() throws CoreException, IOException {
-        // Simple test. Rename ball.png -> ball2.png and check reference update
-        SpriteDesc preBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
+    private interface ReferenceFetcher<Desc> {
+        String[] getReferences(Desc desc);
+    }
 
-        assertEquals("graphics/ball.png", preBallSprite.getTexture());
+    @SuppressWarnings("unchecked")
+    private <Desc> void testRename(Builder builder, String referer, String referee, ReferenceFetcher<Desc> referenceFetcher) throws IOException, CoreException {
+        Builder postBuilder = builder.clone();
+        Desc preReferer = (Desc) loadMessageFile(referer, builder);
+        for (String s : referenceFetcher.getReferences(preReferer)) {
+            assertEquals(referee, s);
+        }
 
-        IFile ball = project.getFile("graphics/ball.png");
-        assertTrue(ball.exists());
+        IFile refereeFile = project.getFile(referee);
+        assertTrue(refereeFile.exists());
 
-        RenameResourceDescriptor descriptor = rename(ball.getFullPath(), "ball2.png");
+        IPath refereePath = new Path(referee);
+        String newRefereeName = refereePath.removeFileExtension().lastSegment() + "2." + refereePath.getFileExtension();
+        IPath newRefereePath = refereePath.removeLastSegments(1).append(newRefereeName);
+        RenameResourceDescriptor descriptor = rename(refereeFile.getFullPath(), newRefereeName);
         Change undoChange = perform(descriptor);
 
-        SpriteDesc postBallSprite = (SpriteDesc) loadMessageFile("logic/session/ball.sprite", SpriteDesc.newBuilder());
-        assertEquals("graphics/ball2.png", postBallSprite.getTexture());
+        Desc postReferer = (Desc) loadMessageFile(referer, postBuilder);
+        for (String s : referenceFetcher.getReferences(postReferer)) {
+            assertEquals(newRefereePath.toString(), s);
+        }
 
         perform(undoChange);
     }
 
-    @Test
-    public void testRenameWall() throws CoreException, IOException {
-        // Simple test. Rename wall.go -> wall2.go and check reference update
-        CollectionDesc preCollection = (CollectionDesc) loadMessageFile("logic/session/base_level.collection", CollectionDesc.newBuilder());
-        assertEquals("logic/session/wall.go", preCollection.getInstances(0).getPrototype());
-        assertEquals("logic/session/wall.go", preCollection.getInstances(3).getPrototype());
+    @SuppressWarnings("unchecked")
+    private <Desc> void testDelete(Builder builder, String referer, String referee, ReferenceFetcher<Desc> referenceFetcher) throws IOException, CoreException {
+        Builder postBuilder = builder.clone();
+        Desc preReferer = (Desc) loadMessageFile(referer, builder);
+        for (String s : referenceFetcher.getReferences(preReferer)) {
+            assertEquals(referee, s);
+        }
 
-        IFile wall = project.getFile("logic/session/wall.go");
-        assertTrue(wall.exists());
+        IFile refereeFile = project.getFile(referee);
+        assertTrue(refereeFile.exists());
 
-        RenameResourceDescriptor descriptor = rename(wall.getFullPath(), "wall2.go");
+        DeleteResourcesDescriptor descriptor = delete(refereeFile.getFullPath());
         Change undoChange = perform(descriptor);
 
-        CollectionDesc postCollection = (CollectionDesc) loadMessageFile("logic/session/base_level.collection", CollectionDesc.newBuilder());
-        assertEquals("logic/session/wall2.go", postCollection.getInstances(0).getPrototype());
-        assertEquals("logic/session/wall2.go", postCollection.getInstances(3).getPrototype());
+        Desc postReferer = (Desc) loadMessageFile(referer, postBuilder);
+        for (String s : referenceFetcher.getReferences(postReferer)) {
+            assertEquals("", s);
+        }
 
         perform(undoChange);
     }
 
-    @Test
-    public void testRenameBaseLevelCollection() throws CoreException, IOException {
-        // Simple test. Rename base_level.collection -> base_level2.collection and check reference update
-        CollectionDesc preCollection = (CollectionDesc) loadMessageFile("logic/session/level01.collection", CollectionDesc.newBuilder());
-        assertEquals("logic/session/base_level.collection", preCollection.getCollectionInstances(0).getCollection());
-
-        IFile baseLevel = project.getFile("logic/session/base_level.collection");
-        assertTrue(baseLevel.exists());
-
-        RenameResourceDescriptor descriptor = rename(baseLevel.getFullPath(), "base_level2.collection");
-        Change undoChange = perform(descriptor);
-
-        CollectionDesc postCollection = (CollectionDesc) loadMessageFile("logic/session/level01.collection", CollectionDesc.newBuilder());
-        assertEquals("logic/session/base_level2.collection", postCollection.getCollectionInstances(0).getCollection());
-
-        perform(undoChange);
-    }
-
-    @Test
-    public void testRenameBallSprite() throws CoreException, IOException {
-        // Simple test. Rename ball.sprite to ball2.sprite. Check that ball.go is updated.
-        PrototypeDesc preBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
-        assertEquals("logic/session/ball.sprite", preBallGo.getComponents(0).getComponent());
-
-        IFile spriteBall = project.getFile("logic/session/ball.sprite");
-        assertTrue(spriteBall.exists());
-
-        RenameResourceDescriptor descriptor = rename(spriteBall.getFullPath(), "ball2.sprite");
-        Change undoChange = perform(descriptor);
-
-        PrototypeDesc postBallGo = (PrototypeDesc) loadMessageFile("logic/session/ball.go", PrototypeDesc.newBuilder());
-        assertEquals("logic/session/ball2.sprite", postBallGo.getComponents(0).getComponent());
-
-        perform(undoChange);
-    }
-
-    @Test
-    public void testRenameRenderScriptForRender() throws CoreException, IOException {
-        // Simple test. Rename render script and check that render is updated
-        RenderPrototypeDesc preRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
-        assertEquals("logic/default.render_script", preRender.getScript());
-
-        IFile renderScript = project.getFile("logic/default.render_script");
-        assertTrue(renderScript.exists());
-
-        RenameResourceDescriptor descriptor = rename(renderScript.getFullPath(), "default2.render_script");
-        Change undoChange = perform(descriptor);
-
-        RenderPrototypeDesc postRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
-        assertEquals("logic/default2.render_script", postRender.getScript());
-
-        perform(undoChange);
-    }
-
-    @Test
-    public void testRenameMaterialForRender() throws CoreException, IOException {
-        // Simple test. Rename render script and check that render is updated
-        RenderPrototypeDesc preRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
-        assertEquals("logic/test.material", preRender.getMaterials(0).getMaterial());
-
-        IFile material = project.getFile("logic/test.material");
-        assertTrue(material.exists());
-
-        RenameResourceDescriptor descriptor = rename(material.getFullPath(), "test2.material");
-        Change undoChange = perform(descriptor);
-
-        RenderPrototypeDesc postRender = (RenderPrototypeDesc) loadMessageFile("logic/default.render", RenderPrototypeDesc.newBuilder());
-        assertEquals("logic/test2.material", postRender.getMaterials(0).getMaterial());
-
-        perform(undoChange);
+    private <Desc> void testRenameAndDelete(Builder builder, String referer, String referee, ReferenceFetcher<Desc> referenceFetcher) throws IOException, CoreException {
+        testRename(builder.clone(), referer, referee, referenceFetcher);
+        testDelete(builder.clone(), referer, referee, referenceFetcher);
     }
 
     /*
-     * Render files referrred by embedded components
+     * Sprites
      */
+
     @Test
-    public void testRenameBlockConvexShape() throws CoreException, IOException {
-        // Rename block.convexshape to block.convexshape. Check that block.go is updated.
-        PrototypeDesc preBlockGo = (PrototypeDesc) loadMessageFile("logic/session/block.go", PrototypeDesc.newBuilder());
-        CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
-        TextFormat.merge(preBlockGo.getEmbeddedComponents(0).getData(), builder);
-        CollisionObjectDesc preCollisionObject = builder.build();
-        assertEquals("logic/session/block.convexshape", preCollisionObject.getCollisionShape());
+    public void testPngForSprite() throws CoreException, IOException {
+        testRenameAndDelete(SpriteDesc.newBuilder(), "logic/session/ball.sprite", "graphics/ball.png", new ReferenceFetcher<SpriteDesc>() {
+            @Override
+            public String[] getReferences(SpriteDesc desc) {
+                return new String[] {desc.getTexture()};
+            }
+        });
+    }
 
-        IFile blockConvexShape = project.getFile("logic/session/block.convexshape");
-        assertTrue(blockConvexShape.exists());
+    /*
+     * Collections
+     */
 
-        RenameResourceDescriptor descriptor = rename(blockConvexShape.getFullPath(), "block2.convexshape");
-        Change undoChange = perform(descriptor);
+    @Test
+    public void testGoForCollection() throws CoreException, IOException {
+        testRenameAndDelete(CollectionDesc.newBuilder(), "logic/session/base_level.collection", "logic/session/wall.go", new ReferenceFetcher<CollectionDesc>() {
+            @Override
+            public String[] getReferences(CollectionDesc desc) {
+                return new String[] {
+                        desc.getInstances(0).getPrototype(),
+                        desc.getInstances(3).getPrototype()
+                };
+            }
+        });
+    }
 
-        PrototypeDesc postBlockGo = (PrototypeDesc) loadMessageFile("logic/session/block.go", PrototypeDesc.newBuilder());
-        builder = CollisionObjectDesc.newBuilder();
-        TextFormat.merge(postBlockGo.getEmbeddedComponents(0).getData(), builder);
-        CollisionObjectDesc postCollisionObject = builder.build();
-        assertEquals("logic/session/block2.convexshape", postCollisionObject.getCollisionShape());
+    @Test
+    public void testCollectionForCollection() throws CoreException, IOException {
+        testRenameAndDelete(CollectionDesc.newBuilder(), "logic/session/level01.collection", "logic/session/base_level.collection", new ReferenceFetcher<CollectionDesc>() {
+            @Override
+            public String[] getReferences(CollectionDesc desc) {
+                return new String[] { desc.getCollectionInstances(0).getCollection() };
+            }
+        });
+    }
 
-        perform(undoChange);
+    /*
+     * Render
+     */
+
+    @Test
+    public void testRenderScriptForRender() throws CoreException, IOException {
+        testRenameAndDelete(RenderPrototypeDesc.newBuilder(), "logic/default.render", "logic/default.render_script", new ReferenceFetcher<RenderPrototypeDesc>() {
+            @Override
+            public String[] getReferences(RenderPrototypeDesc desc) {
+                return new String[] { desc.getScript() };
+            }
+        });
+    }
+
+    @Test
+    public void testMaterialForRender() throws CoreException, IOException {
+        testRenameAndDelete(RenderPrototypeDesc.newBuilder(), "logic/default.render", "logic/test.material", new ReferenceFetcher<RenderPrototypeDesc>() {
+            @Override
+            public String[] getReferences(RenderPrototypeDesc desc) {
+                return new String[] { desc.getMaterials(0).getMaterial() };
+            }
+        });
+    }
+
+    /*
+     * Components and prototypes
+     */
+
+    @Test
+    public void testCameraForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/main.go", "logic/test.camera", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(2).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testCollectionForCollectionProxy() throws CoreException, IOException {
+        testRenameAndDelete(CollectionProxyDesc.newBuilder(), "logic/session/level01.collectionproxy", "logic/session/level01.collection", new ReferenceFetcher<CollectionProxyDesc>() {
+            @Override
+            public String[] getReferences(CollectionProxyDesc desc) {
+                return new String[] { desc.getCollection() };
+            }
+        });
+    }
+
+    @Test
+    public void testCollectionProxyForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/session.go", "logic/session/level01.collectionproxy", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(1).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testConvexShapeForCollisionObject() throws CoreException, IOException {
+        testRenameAndDelete(CollisionObjectDesc.newBuilder(), "logic/session/paddle.collisionobject", "logic/session/paddle.convexshape", new ReferenceFetcher<CollisionObjectDesc>() {
+            @Override
+            public String[] getReferences(CollisionObjectDesc desc) {
+                return new String[] { desc.getCollisionShape() };
+            }
+        });
+    }
+
+    @Test
+    public void testCollisionObjectForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/paddle.go", "logic/session/paddle.collisionobject", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(3).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testGuiForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/hud.go", "logic/session/hud.gui", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(0).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testLightForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/main.go", "logic/test.light", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(3).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testModelForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "graphics/box.go", "graphics/box.model", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(0).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testScriptForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "logic/session/ball.script", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(1).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testSpriteForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "logic/session/ball.sprite", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(0).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testWAVForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "sounds/tink.wav", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(2).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testCollectionForEmbeddedCollectionProxy() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/main.go", "logic/session/session.collection", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
+                    CollisionObjectDesc collisionObjectDesc = builder.build();
+                    return new String[] { collisionObjectDesc.getCollisionShape() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testConvexShapeForEmbeddedCollisionObject() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/block.go", "logic/session/block.convexshape", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(0).getData(), builder);
+                    CollisionObjectDesc collisionObjectDesc = builder.build();
+                    return new String[] { collisionObjectDesc.getCollisionShape() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testGOForEmbeddedSpawnPoint() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "logic/session/pow.go", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                SpawnPointDesc.Builder builder = SpawnPointDesc.newBuilder();
+                try {
+                    TextFormat.merge(desc.getEmbeddedComponents(1).getData(), builder);
+                    SpawnPointDesc spawnPointDesc = builder.build();
+                    return new String[] { spawnPointDesc.getPrototype() };
+                } catch (ParseException e) {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    /*
+     * Fonts
+     */
+
+    @Test
+    public void testTTFForFont() throws CoreException, IOException {
+        testRenameAndDelete(FontDesc.newBuilder(), "fonts/active_menu_item.font", "fonts/justov.ttf", new ReferenceFetcher<FontDesc>() {
+            @Override
+            public String[] getReferences(FontDesc desc) {
+                return new String[] { desc.getFont() };
+            }
+        });
+    }
+
+    @Test
+    public void testMaterialForFont() throws CoreException, IOException {
+        testRenameAndDelete(FontDesc.newBuilder(), "fonts/active_menu_item.font", "fonts/active_menu_item.material", new ReferenceFetcher<FontDesc>() {
+            @Override
+            public String[] getReferences(FontDesc desc) {
+                return new String[] { desc.getMaterial() };
+            }
+        });
+    }
+
+    /*
+     * Materials
+     */
+
+    @Test
+    public void testVPForMaterial() throws CoreException, IOException {
+        testRenameAndDelete(MaterialDesc.newBuilder(), "fonts/active_menu_item.material", "fonts/font.vp", new ReferenceFetcher<MaterialDesc>() {
+            @Override
+            public String[] getReferences(MaterialDesc desc) {
+                return new String[] { desc.getVertexProgram() };
+            }
+        });
+    }
+
+    @Test
+    public void testFPForMaterial() throws CoreException, IOException {
+        testRenameAndDelete(MaterialDesc.newBuilder(), "fonts/active_menu_item.material", "fonts/font.fp", new ReferenceFetcher<MaterialDesc>() {
+            @Override
+            public String[] getReferences(MaterialDesc desc) {
+                return new String[] { desc.getFragmentProgram() };
+            }
+        });
+    }
+
+    /*
+     * Gui
+     */
+
+    @Test
+    public void testGuiScriptForGui() throws CoreException, IOException {
+        testRenameAndDelete(SceneDesc.newBuilder(), "logic/main.gui", "logic/main.gui_script", new ReferenceFetcher<SceneDesc>() {
+            @Override
+            public String[] getReferences(SceneDesc desc) {
+                return new String[] { desc.getScript() };
+            }
+        });
+    }
+
+    @Test
+    public void testFontForGui() throws CoreException, IOException {
+        testRenameAndDelete(SceneDesc.newBuilder(), "logic/main.gui", "fonts/menu_item.font", new ReferenceFetcher<SceneDesc>() {
+            @Override
+            public String[] getReferences(SceneDesc desc) {
+                return new String[] { desc.getFonts(0).getFont() };
+            }
+        });
+    }
+
+    @Test
+    public void testTextureForGui() throws CoreException, IOException {
+        testRenameAndDelete(SceneDesc.newBuilder(), "logic/main.gui", "graphics/ball.png", new ReferenceFetcher<SceneDesc>() {
+            @Override
+            public String[] getReferences(SceneDesc desc) {
+                return new String[] { desc.getTextures(0).getTexture() };
+            }
+        });
+    }
+
+    /*
+     * Model
+     */
+
+    @Test
+    public void testMeshForModel() throws CoreException, IOException {
+        testRenameAndDelete(ModelDesc.newBuilder(), "graphics/box.model", "graphics/box.dae", new ReferenceFetcher<ModelDesc>() {
+            @Override
+            public String[] getReferences(ModelDesc desc) {
+                return new String[] { desc.getMesh() };
+            }
+        });
+    }
+
+    @Test
+    public void testMaterialForModel() throws CoreException, IOException {
+        testRenameAndDelete(ModelDesc.newBuilder(), "graphics/box.model", "graphics/simple.material", new ReferenceFetcher<ModelDesc>() {
+            @Override
+            public String[] getReferences(ModelDesc desc) {
+                return new String[] { desc.getMaterial() };
+            }
+        });
+    }
+
+    @Test
+    public void testTextureForModel() throws CoreException, IOException {
+        testRenameAndDelete(ModelDesc.newBuilder(), "graphics/box.model", "graphics/block.png", new ReferenceFetcher<ModelDesc>() {
+            @Override
+            public String[] getReferences(ModelDesc desc) {
+                return new String[] { desc.getTextures(0) };
+            }
+        });
     }
 
     /*
      * Folder and complex renames
      */
+
     @Test
     public void testRenameGraphicsFolder() throws CoreException, IOException {
         // Rename the graphics folder. ie rename and update N files
@@ -321,73 +589,6 @@ public class RefactorTest {
         assertEquals("logic/session2/ball.sprite", postBallGo.getComponents(0).getComponent());
 
         perform(undoChange);
-    }
-
-    /*
-     * Test delete components
-     */
-    public void genericComponentDelete(String goFileName, String componentFileName) throws CoreException, IOException {
-        // Delete component. Check that #components is reduced by one, ie the reference to component is removed.
-        PrototypeDesc preGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
-        int preCount = preGo.getComponentsCount();
-
-        IFile componentFile = project.getFile(componentFileName);
-        assertTrue(componentFile.exists());
-
-        DeleteResourcesDescriptor descriptor = delete(componentFile.getFullPath());
-        Change undoChange = perform(descriptor);
-
-        PrototypeDesc postGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
-        int postCount = postGo.getComponentsCount();
-        assertEquals(preCount-1, postCount);
-
-        perform(undoChange);
-    }
-
-    @Test
-    public void testDeleteSprite() throws CoreException, IOException {
-        genericComponentDelete("logic/session/ball.go", "logic/session/ball.sprite");
-    }
-
-    @Test
-    public void testDeleteScript() throws CoreException, IOException {
-        genericComponentDelete("logic/session/ball.go", "logic/session/ball.script");
-    }
-
-    @Test
-    public void testDeleteGui() throws CoreException, IOException {
-        genericComponentDelete("logic/session/hud.go", "logic/session/hud.gui");
-    }
-
-    /*
-     * Test embedded components delete, ie remove files referred from embedded component
-     */
-    public void genericEmbeddedComponentReferenceDelete(String goFileName, String componentFileName) throws CoreException, IOException {
-        // Delete resource referred by embedded component. Check that #embedded_components is reduced by one, ie the embedded component is removed
-        PrototypeDesc preGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
-        int preCount = preGo.getEmbeddedComponentsCount();
-
-        IFile componentFile = project.getFile(componentFileName);
-        assertTrue(componentFile.exists());
-
-        DeleteResourcesDescriptor descriptor = delete(componentFile.getFullPath());
-        Change undoChange = perform(descriptor);
-
-        PrototypeDesc postGo = (PrototypeDesc) loadMessageFile(goFileName, PrototypeDesc.newBuilder());
-        int postCount = postGo.getEmbeddedComponentsCount();
-        assertEquals(preCount-1, postCount);
-
-        perform(undoChange);
-    }
-
-    @Test
-    public void testEmbeddedDeleteConvexShape() throws CoreException, IOException {
-        genericEmbeddedComponentReferenceDelete("logic/session/ball.go", "logic/session/ball.convexshape");
-    }
-
-    @Test
-    public void testEmbeddedDeleteSpawnPointReference() throws CoreException, IOException {
-        genericEmbeddedComponentReferenceDelete("logic/session/ball.go", "logic/session/pow.go");
     }
 
 }

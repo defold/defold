@@ -7,5 +7,6 @@ Bundle-Vendor: DYNAMO
 Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.ui,
  org.eclipse.jface.text,
- org.eclipse.ui.editors
+ org.eclipse.ui.editors,
+ com.dynamo.cr.editor.core
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6

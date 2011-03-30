@@ -15,3 +15,7 @@ fonts {
   name: "highscore"
   font: "fonts/highscore.font"
 }
+textures {
+  name: "test"
+  texture: "graphics/ball.png"
+}

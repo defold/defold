@@ -55,7 +55,7 @@
             file-extension="gui_script"
             id="com.dynamo.cr.luaeditor.resourcetypes.GuiScript"
             name="Gui Script"
-            type-class="component">
+            type-class="gui_script">
       </resource-type>
       <resource-type
             file-extension="render_script"

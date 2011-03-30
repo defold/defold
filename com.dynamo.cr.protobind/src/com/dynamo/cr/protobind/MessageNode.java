@@ -190,7 +190,7 @@ public class MessageNode extends Node {
             FieldElement fieldElement = (FieldElement) pathElement;
             MessageNode messageContainer = (MessageNode) object;
             value = messageContainer.valuesMap.get(fieldElement.fieldDescriptor);
-            if (value == null) {
+            if (!fieldElement.fieldDescriptor.isOptional() && value == null) {
                 throw new RuntimeException(String.format("Invalid path '%s'. No such element '%s' in '%s'",
                         path,
                         pathElement,

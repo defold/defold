@@ -55,9 +55,8 @@ public abstract class GenericRefactorParticipant implements IResourceRefactorPar
                         }
                         ++index;
                     }
-                }
-                else {
-                    String tmp = (String) root.getField(path);
+                } else {
+                    String tmp = (String) value;
                     if (tmp.length() > 0) {
                         IFile file = contentRoot.getFile(new Path(tmp));
                         if (reference.equals(file)) {
@@ -65,14 +64,6 @@ public abstract class GenericRefactorParticipant implements IResourceRefactorPar
                             changed = true;
                         }
                     }
-                }
-
-            }
-            else {
-                if (value instanceof MessageNode) {
-                    MessageNode subNode = (MessageNode) value;
-                    if (doUpdateReferences(contentRoot, reference, newPath, root, subNode))
-                        changed = true;
                 }
             }
         }

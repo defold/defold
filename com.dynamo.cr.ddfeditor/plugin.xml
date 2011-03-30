@@ -312,8 +312,20 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.Model"
             name="Model"
             proto-message-class="com.dynamo.model.proto.Model$ModelDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.ModelRefactorParticipant"
             template-data="name: &apos;unnamed&apos; mesh: &apos;&apos; material: &apos;&apos;"
             type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="material">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="mesh">
+            </reference-type-class>
+         </references>
       </resource-type>
       <resource-type
             file-extension="go"
@@ -391,12 +403,15 @@
             <reference-type-class
                   type-class="fontdesc">
             </reference-type-class>
+            <reference-type-class
+                  type-class="gui_script">
+            </reference-type-class>
          </references>
       </resource-type>
       <resource-type
             file-extension="font"
-            id="com.dynamo.cr.ddfeditor.resourcetypes.Font"
-            name="Font"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.FontDesc"
+            name="Font Desc"
             proto-message-class="com.dynamo.render.proto.Font$FontDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.FontRefactorParticipant"
             template-data="font: &apos;&apos; material: &apos;&apos; size: 15"
@@ -404,6 +419,9 @@
          <references>
             <reference-type-class
                   type-class="font">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="material">
             </reference-type-class>
          </references>
       </resource-type>
@@ -418,10 +436,10 @@
             type-class="material">
          <references>
             <reference-type-class
-                  type-class="vertex_program">
+                  type-class="vp">
             </reference-type-class>
             <reference-type-class
-                  type-class="fragment_program">
+                  type-class="fp">
             </reference-type-class>
          </references>
       </resource-type>
@@ -511,12 +529,31 @@
             name="Collection Proxy"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionProxyDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionProxyRefactorParticipant"
-            template-data="collection: &apos;&apos;">
+            template-data="collection: &apos;&apos;"
+            type-class="component">
          <references>
             <reference-resource-type
                   resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Collection">
             </reference-resource-type>
          </references>
+      </resource-type>
+      <resource-type
+            file-extension="wav"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Sound"
+            name="Sound"
+            type-class="component">
+      </resource-type>
+      <resource-type
+            file-extension="ttf"
+            id="com.dynamo.cr.ddfeditor.resourcetype.Font"
+            name="Font"
+            type-class="font">
+      </resource-type>
+      <resource-type
+            file-extension="dae"
+            id="com.dynamo.cr.ddfeditor.resourcetype.Mesh"
+            name="Mesh"
+            type-class="mesh">
       </resource-type>
     </extension>
    <extension

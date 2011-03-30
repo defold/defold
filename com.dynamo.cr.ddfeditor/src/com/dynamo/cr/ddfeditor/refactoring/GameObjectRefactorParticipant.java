@@ -11,7 +11,6 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.ddfeditor.Activator;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
-import com.dynamo.cr.editor.core.IResourceRefactorParticipant;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.ResourceRefactorContext;
 import com.dynamo.cr.protobind.MessageNode;
@@ -25,10 +24,14 @@ import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
-public class GameObjectRefactorParticipant implements
-        IResourceRefactorParticipant {
+public class GameObjectRefactorParticipant extends GenericRefactorParticipant {
 
     public GameObjectRefactorParticipant() {
+    }
+
+    @Override
+    public com.google.protobuf.Message.Builder getBuilder() {
+        return PrototypeDesc.newBuilder();
     }
 
     @Override
@@ -109,8 +112,8 @@ public class GameObjectRefactorParticipant implements
                 IFile componentFile = contentRoot.getFile(new Path(componentDesc.getComponent()));
                 if (reference.equals(componentFile)) {
                     changed = true;
-                }
-                else {
+                    newBuilder.addComponents(ComponentDesc.newBuilder(componentDesc).setComponent(""));
+                } else {
                     newBuilder.addComponents(componentDesc);
                 }
             }
@@ -125,12 +128,11 @@ public class GameObjectRefactorParticipant implements
                     TextFormat.merge(embeddedComponentDesc.getData(), embeddedBuilder);
                     MessageNode node = new MessageNode(embeddedBuilder.build());
                     boolean embeddedChanged = GenericRefactorParticipant.doUpdateReferences(contentRoot, reference, "", node, node);
-                    // If changed do nothing, ie remove embedded component
-                    // otherwise add
                     if (embeddedChanged) {
                         changed = true;
-                    }
-                    else {
+                        Message newEmbeddedData = node.build();
+                        newBuilder.addEmbeddedComponents(EmbeddedComponentDesc.newBuilder(embeddedComponentDesc).setData(newEmbeddedData.toString()));
+                    } else {
                         newBuilder.addEmbeddedComponents(embeddedComponentDesc);
                     }
                 }
