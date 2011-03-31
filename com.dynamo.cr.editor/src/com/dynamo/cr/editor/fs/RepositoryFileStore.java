@@ -130,7 +130,7 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
 
         byte[] data = new byte[0];
         try {
-            data = client.getResourceData(path.toPortableString());
+            data = client.getResourceData(path.toPortableString(), "");
         } catch (RepositoryException e) {
             System.err.println(e);
         }

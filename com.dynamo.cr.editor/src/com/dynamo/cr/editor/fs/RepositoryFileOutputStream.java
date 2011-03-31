@@ -26,7 +26,7 @@ public class RepositoryFileOutputStream extends ByteArrayOutputStream {
 
         try {
             if ((options & EFS.APPEND) != 0) {
-                byte[] data = client.getResourceData(path.toPortableString());
+                byte[] data = client.getResourceData(path.toPortableString(), "");
                 write(data);
             }
         } catch (Throwable e) {

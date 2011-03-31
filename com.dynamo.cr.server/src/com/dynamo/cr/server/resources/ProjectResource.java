@@ -416,10 +416,11 @@ public class ProjectResource extends BaseResource {
     public byte[] getResourceData(@PathParam("project") String project,
                                   @PathParam("user") String user,
                                   @PathParam("branch") String branch,
-                                  @QueryParam("path") String path) throws IOException, ServerException {
+                                  @QueryParam("path") String path,
+                                  @QueryParam("revision") String revision) throws IOException, ServerException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
-        byte[] ret = server.getResourceData(em, project, user, branch, path);
+        byte[] ret = server.getResourceData(em, project, user, branch, path, revision);
         em.close();
         return ret;
     }

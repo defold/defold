@@ -200,7 +200,7 @@ public class ProjectResourceTest {
     }
 
     @Test
-    public void makeDirAddCommitRemove() throws Exception {
+    public void makeDirAddCommitUpdateRevertRemove() throws Exception {
         project_client.createBranch("branch1");
         branch_client.mkdir("/content/foo");
         branch_client.mkdir("/content/foo");
@@ -213,8 +213,17 @@ public class ProjectResourceTest {
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
-        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt")));
+        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
         branch_client.commit("message...");
+
+        branch_client.putResourceData("/content/foo/bar.txt", "bar2 data".getBytes());
+        assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
+
+        assertEquals("bar2 data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
+        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "master")));
+
+        branch_client.revertResource("/content/foo/bar.txt");
+        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
 
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
@@ -241,7 +250,7 @@ public class ProjectResourceTest {
         }
 
         try {
-            branch_client.getResourceData("/content/does_not_exists");
+            branch_client.getResourceData("/content/does_not_exists", "");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
@@ -249,7 +258,37 @@ public class ProjectResourceTest {
         }
 
         try {
-            branch_client.getResourceData("/content/content");
+            branch_client.getResourceData("/content/does_not_exists", "does_not_exist");
+            assertTrue(false);
+        } catch (RepositoryException e) {
+            assertEquals(404, e.getStatusCode());
+            e.printStackTrace();
+        }
+
+        branch_client.putResourceData("/content/foo.txt", "foo".getBytes());
+        assertEquals(Protocol.BranchStatus.State.DIRTY, branch_client.getBranchStatus().getBranchState());
+        assertEquals("foo", new String(branch_client.getResourceData("/content/foo.txt", "")));
+        try {
+            branch_client.getResourceData("/content/foo.txt", "does_not_exist");
+            assertTrue(false);
+        } catch (RepositoryException e) {
+            assertEquals(404, e.getStatusCode());
+            e.printStackTrace();
+        } finally {
+            branch_client.deleteResource("/content/foo.txt");
+            assertEquals(Protocol.BranchStatus.State.CLEAN, branch_client.getBranchStatus().getBranchState());
+        }
+
+        try {
+            branch_client.getResourceData("/content/content", "");
+            assertTrue(false);
+        } catch (RepositoryException e) {
+            assertEquals(404, e.getStatusCode());
+            e.printStackTrace();
+        }
+
+        try {
+            branch_client.getResourceData("/content/content", "does_not_exist");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
@@ -278,14 +317,15 @@ public class ProjectResourceTest {
             String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), userInfo.getId());
             long expected_size = new File(local_path).length();
 
-            byte[] data = branch_client.getResourceData("/content/file1.txt");
+            byte[] data = branch_client.getResourceData("/content/file1.txt", "");
+            String content = new String(data);
             assertEquals(expected_size, data.length);
-            assertEquals("file1 data\n", new String(data));
+            assertEquals("file1 data\n", content);
         }
 
         {
             try {
-                branch_client.getResourceData("/content");
+                branch_client.getResourceData("/content", "");
             } catch (RepositoryException e) {
                 assertEquals(400, e.getStatusCode());
                 e.printStackTrace();
@@ -329,7 +369,7 @@ public class ProjectResourceTest {
         BranchStatus branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
-        byte[] old_data = branch_client.getResourceData("/content/file1.txt");
+        byte[] old_data = branch_client.getResourceData("/content/file1.txt", "");
 
         // Update resource
         branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
@@ -415,7 +455,7 @@ public class ProjectResourceTest {
         // Create branch
         project_client.createBranch("branch1");
 
-        byte[] old_data = branch_client.getResourceData("/content/file1.txt");
+        byte[] old_data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(old_data).indexOf("testing") == -1);
 
         // Add commit
@@ -429,7 +469,7 @@ public class ProjectResourceTest {
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt");
+        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("testing") != -1);
     }
 
@@ -457,12 +497,12 @@ public class ProjectResourceTest {
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt");
+        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("<<<<<<< HEAD") != -1);
 
         branch_client.resolve("/content/file1.txt", "yours");
 
-        byte[] data = branch_client.getResourceData("/content/file1.txt");
+        byte[] data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(data).indexOf("<<<<<<< HEAD") == -1);
 
         // Commit in this branch
@@ -502,12 +542,12 @@ public class ProjectResourceTest {
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt");
+        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("<<<<<<< HEAD") != -1);
 
         branch_client.resolve("/content/file1.txt", "theirs");
 
-        byte[] data = branch_client.getResourceData("/content/file1.txt");
+        byte[] data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(data).indexOf("<<<<<<< HEAD") == -1);
 
         // Commit in this branch
@@ -545,7 +585,7 @@ public class ProjectResourceTest {
         branch = branch_client.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt");
+        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("<<<<<<< HEAD") != -1);
 
         // Publish this branch

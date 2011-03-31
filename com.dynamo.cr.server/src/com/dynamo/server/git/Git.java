@@ -460,4 +460,18 @@ public class Git {
             checkResult(r);
         }
     }
+
+    /**
+     * Returns the content of the file at the specified revision, runs:
+     * git show {revision}:{file}
+     * @param directory Repository root
+     * @param file File to be read
+     * @param revision File revision
+     * @return File content
+     */
+    public byte[] show(String directory, String file, String revision) throws IOException {
+        Result r = execGitCommand(directory, "git", "show", String.format("%s:%s", revision, file));
+        checkResult(r);
+        return r.stdOut.toString().getBytes();
+    }
 }

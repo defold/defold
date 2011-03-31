@@ -56,9 +56,9 @@ public class BranchClient extends BaseClient implements IBranchClient {
     }
 
     @Override
-    public byte[] getResourceData(String path) throws RepositoryException {
+    public byte[] getResourceData(String path, String revision) throws RepositoryException {
         try {
-            ClientResponse resp = resource.path("/resources/data").queryParam("path", path).get(ClientResponse.class);
+            ClientResponse resp = resource.path("/resources/data").queryParam("path", path).queryParam("revision", revision).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
                 throwRespositoryException(resp);
             }

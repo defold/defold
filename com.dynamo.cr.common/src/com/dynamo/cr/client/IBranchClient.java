@@ -10,7 +10,7 @@ import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 
 public interface IBranchClient {
 
-    public byte[] getResourceData(String path) throws RepositoryException;
+    public byte[] getResourceData(String path, String revision) throws RepositoryException;
 
     public ResourceInfo getResourceInfo(String path)
             throws RepositoryException;

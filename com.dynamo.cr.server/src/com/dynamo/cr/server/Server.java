@@ -352,26 +352,34 @@ public class Server {
     }
 
     public byte[] getResourceData(EntityManager em, String project, String user, String branch,
-            String path) throws IOException, ServerException {
+            String path, String revision) throws IOException, ServerException {
         ensureProjectBranch(em, project, user, branch);
         if (path == null)
             throw new ServerException("null path");
 
         User u = getUser(em, user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
-        File f = new File(p);
+        if (revision != null && !revision.equals("")) {
+            Git git = new Git();
+            try {
+                return git.show(String.format("%s/%s/%d/%s", branchRoot, project, u.getId(), branch), path.substring(1), revision);
+            } catch (IOException e) {
+                throw new NotFoundException(String.format("%s (rev '%s') not found", p, revision));
+            }
+        } else {
+            File f = new File(p);
 
-        if (!f.exists())
-            throw new NotFoundException(String.format("%s not found", p));
-        else if (!f.isFile()) {
-            throw new ServerException("getResourceData opertion is not applicable on non-files");
+            if (!f.exists())
+                throw new NotFoundException(String.format("%s not found", p));
+            else if (!f.isFile())
+                throw new ServerException("getResourceData opertion is not applicable on non-files");
+
+            byte[] file_data = new byte[(int) f.length()];
+            BufferedInputStream is = new BufferedInputStream(new FileInputStream(p));
+            is.read(file_data);
+            is.close();
+            return file_data;
         }
-
-        byte[] file_data = new byte[(int) f.length()];
-        BufferedInputStream is = new BufferedInputStream(new FileInputStream(p));
-        is.read(file_data);
-        is.close();
-        return file_data;
     }
 
     public void deleteResource(EntityManager em, String project, String user, String branch,
