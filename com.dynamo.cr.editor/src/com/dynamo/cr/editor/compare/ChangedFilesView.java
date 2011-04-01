@@ -258,7 +258,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
         Iterator<Status> iterator = structSelection.iterator();
 
         if (event.widget == this.diffItem) {
-            Status status = iterator.next();
+            final Status status = iterator.next();
             final String path = status.getName();
             final String originalPath = status.hasOriginal() ? status.getOriginal() : status.getName();
             CompareConfiguration config = new CompareConfiguration();
@@ -272,7 +272,10 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
                 protected Object prepareInput(IProgressMonitor monitor)
                         throws InvocationTargetException, InterruptedException {
                     CompareItem left = new CompareItem(branch_client, originalPath, "master");
-                    CompareItem right = new CompareItem(branch_client, path, "");
+                    CompareItem right = null;
+                    if (!status.getIndexStatus().equals("D")) {
+                        right = new CompareItem(branch_client, path, "");
+                    }
                     return new DiffNode(null, Differencer.CHANGE, null, left, right);
                 }
 
