@@ -17,11 +17,11 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
 import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
-import com.dynamo.cr.contenteditor.operations.AddSubCollectionOperation;
-import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.Scene;
+import com.dynamo.cr.scene.graph.CollectionInstanceNode;
+import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.Scene;
+import com.dynamo.cr.scene.operations.AddSubCollectionOperation;
 
 public class AddSubCollection extends AbstractHandler {
 

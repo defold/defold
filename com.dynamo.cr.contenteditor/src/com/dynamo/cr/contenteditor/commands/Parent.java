@@ -10,9 +10,9 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.operations.ParentOperation;
-import com.dynamo.cr.contenteditor.scene.InstanceNode;
-import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.scene.graph.InstanceNode;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.operations.ParentOperation;
 
 public class Parent extends AbstractHandler {
 

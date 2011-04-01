@@ -7,7 +7,7 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.Path;
 
-import com.dynamo.cr.contenteditor.math.MathUtil;
+import com.dynamo.cr.scene.math.MathUtil;
 
 public class ContentEditorUtil
 {

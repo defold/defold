@@ -41,13 +41,13 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.ViewPart;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.operations.SetPropertyOperation;
-import com.dynamo.cr.contenteditor.scene.IProperty;
-import com.dynamo.cr.contenteditor.scene.ISceneListener;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.Scene;
-import com.dynamo.cr.contenteditor.scene.SceneEvent;
-import com.dynamo.cr.contenteditor.scene.ScenePropertyChangedEvent;
+import com.dynamo.cr.scene.graph.IProperty;
+import com.dynamo.cr.scene.graph.ISceneListener;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.Scene;
+import com.dynamo.cr.scene.graph.SceneEvent;
+import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
+import com.dynamo.cr.scene.operations.SetPropertyOperation;
 
 public class PropertiesView extends ViewPart implements ISelectionListener,
         ISceneListener {

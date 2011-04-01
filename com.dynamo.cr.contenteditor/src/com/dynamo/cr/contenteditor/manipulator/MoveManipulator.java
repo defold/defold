@@ -3,10 +3,10 @@ package com.dynamo.cr.contenteditor.manipulator;
 import javax.media.opengl.GL;
 import javax.vecmath.Vector4d;
 
-import com.dynamo.cr.contenteditor.editors.Constants;
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.math.MathUtil;
-import com.dynamo.cr.contenteditor.util.GLUtil;
+import com.dynamo.cr.scene.math.MathUtil;
+import com.dynamo.cr.scene.util.Constants;
+import com.dynamo.cr.scene.util.GLUtil;
 
 // http://caad.arch.ethz.ch/info/maya/manual/UserGuide/Overview/TransformingObjects.fm.html
 public class MoveManipulator extends TransformManipulator {

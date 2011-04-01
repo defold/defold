@@ -5,7 +5,7 @@ import javax.media.opengl.glu.GLU;
 
 import org.eclipse.swt.events.MouseEvent;
 
-import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.scene.graph.Node;
 
 public class RectangleSelectController {
 

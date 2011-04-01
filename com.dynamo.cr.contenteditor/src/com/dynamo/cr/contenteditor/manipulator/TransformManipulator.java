@@ -5,11 +5,11 @@ import javax.vecmath.Vector4d;
 
 import org.eclipse.swt.SWT;
 
-import com.dynamo.cr.contenteditor.math.MathUtil;
-import com.dynamo.cr.contenteditor.math.Transform;
-import com.dynamo.cr.contenteditor.operations.TransformNodeOperation;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.NodeUtil;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeUtil;
+import com.dynamo.cr.scene.math.MathUtil;
+import com.dynamo.cr.scene.math.Transform;
+import com.dynamo.cr.scene.operations.TransformNodeOperation;
 
 // http://caad.arch.ethz.ch/info/maya/manual/UserGuide/Overview/TransformingObjects.fm.html
 public abstract class TransformManipulator implements IManipulator {

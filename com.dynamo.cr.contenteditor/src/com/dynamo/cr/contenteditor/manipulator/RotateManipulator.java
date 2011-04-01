@@ -4,8 +4,8 @@ import javax.media.opengl.GL;
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
 
-import com.dynamo.cr.contenteditor.editors.Constants;
-import com.dynamo.cr.contenteditor.util.GLUtil;
+import com.dynamo.cr.scene.util.Constants;
+import com.dynamo.cr.scene.util.GLUtil;
 
 public class RotateManipulator extends TransformManipulator {
     private int startX;

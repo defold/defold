@@ -17,12 +17,12 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
 import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
-import com.dynamo.cr.contenteditor.operations.AddGameObjectOperation;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
-import com.dynamo.cr.contenteditor.scene.InstanceNode;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.PrototypeNode;
-import com.dynamo.cr.contenteditor.scene.Scene;
+import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.InstanceNode;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.PrototypeNode;
+import com.dynamo.cr.scene.graph.Scene;
+import com.dynamo.cr.scene.operations.AddGameObjectOperation;
 
 public class AddGameObject extends AbstractHandler {
 

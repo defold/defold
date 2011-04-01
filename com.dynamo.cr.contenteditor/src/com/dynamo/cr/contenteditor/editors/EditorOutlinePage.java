@@ -47,15 +47,15 @@ import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
 import com.dynamo.cr.contenteditor.Activator;
-import com.dynamo.cr.contenteditor.operations.SetIdentifierOperation;
-import com.dynamo.cr.contenteditor.scene.CollectionInstanceNode;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
-import com.dynamo.cr.contenteditor.scene.CollectionRootNode;
-import com.dynamo.cr.contenteditor.scene.ComponentNode;
-import com.dynamo.cr.contenteditor.scene.InstanceNode;
-import com.dynamo.cr.contenteditor.scene.MeshNode;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.PrototypeNode;
+import com.dynamo.cr.scene.graph.CollectionInstanceNode;
+import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.CollectionRootNode;
+import com.dynamo.cr.scene.graph.ComponentNode;
+import com.dynamo.cr.scene.graph.InstanceNode;
+import com.dynamo.cr.scene.graph.MeshNode;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.PrototypeNode;
+import com.dynamo.cr.scene.operations.SetIdentifierOperation;
 
 class EditorOutlinePageContentProvider implements ITreeContentProvider
 {

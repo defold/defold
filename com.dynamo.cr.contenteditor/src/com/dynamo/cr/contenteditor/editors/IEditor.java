@@ -8,8 +8,8 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.Scene;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.Scene;
 
 public interface IEditor {
 

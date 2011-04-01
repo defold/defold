@@ -13,10 +13,10 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.operations.PasteOperation;
-import com.dynamo.cr.contenteditor.scene.CollectionNode;
-import com.dynamo.cr.contenteditor.scene.Node;
-import com.dynamo.cr.contenteditor.scene.Scene;
+import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.Scene;
+import com.dynamo.cr.scene.operations.PasteOperation;
 
 public class Paste extends AbstractHandler {
 

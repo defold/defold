@@ -3,7 +3,7 @@ package com.dynamo.cr.contenteditor.manipulator;
 import javax.media.opengl.GL;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.scene.graph.Node;
 
 public class ManipulatorDrawContext
 {

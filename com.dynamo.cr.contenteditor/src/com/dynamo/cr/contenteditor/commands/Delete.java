@@ -7,8 +7,8 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.operations.DeleteOperation;
-import com.dynamo.cr.contenteditor.scene.Node;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.operations.DeleteOperation;
 
 public class Delete extends AbstractHandler {
 
