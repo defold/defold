@@ -53,7 +53,7 @@
          point="org.eclipse.ui.views">
       <view
             category="com.dynamo.cr.editorcategory"
-            class="com.dynamo.cr.editor.status.ChangedFilesView"
+            class="com.dynamo.cr.editor.compare.ChangedFilesView"
             icon="icons/repository_rep.gif"
             id="com.dynamo.crepo.changedfiles"
             name="Changed Files"

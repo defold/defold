@@ -5,7 +5,7 @@ import org.eclipse.ui.IPageLayout;
 import org.eclipse.ui.IPerspectiveFactory;
 import org.eclipse.ui.console.IConsoleConstants;
 
-import com.dynamo.cr.editor.status.ChangedFilesView;
+import com.dynamo.cr.editor.compare.ChangedFilesView;
 
 public class Perspective implements IPerspectiveFactory {
 

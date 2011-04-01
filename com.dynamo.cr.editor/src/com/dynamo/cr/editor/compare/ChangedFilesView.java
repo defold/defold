@@ -1,4 +1,4 @@
-package com.dynamo.cr.editor.status;
+package com.dynamo.cr.editor.compare;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
@@ -8,6 +8,11 @@ import java.util.concurrent.Semaphore;
 
 import javax.ws.rs.core.UriBuilder;
 
+import org.eclipse.compare.CompareConfiguration;
+import org.eclipse.compare.CompareEditorInput;
+import org.eclipse.compare.CompareUI;
+import org.eclipse.compare.structuremergeviewer.DiffNode;
+import org.eclipse.compare.structuremergeviewer.Differencer;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -54,7 +59,8 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
     public final static String ID = "com.dynamo.crepo.changedfiles";
     private TableViewer tableViewer;
 	private Menu menu;
-	private MenuItem revertItem;
+    private MenuItem diffItem;
+    private MenuItem revertItem;
     private UpdateThread updateThread;
 
 	class UpdateThread extends Thread {
@@ -196,6 +202,10 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
         tableViewer.setInput(new ArrayList<Status>());
 
         menu = new Menu(parent.getShell(), SWT.POP_UP);
+        diffItem = new MenuItem(menu, SWT.PUSH);
+        diffItem.setText("Diff");
+        diffItem.setEnabled(false);
+        diffItem.addListener(SWT.Selection, this);
         revertItem = new MenuItem(menu, SWT.PUSH);
         revertItem.setText("Revert");
         revertItem.setEnabled(false);
@@ -247,58 +257,82 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
         final
         Iterator<Status> iterator = structSelection.iterator();
 
-        IProgressService service = PlatformUI.getWorkbench().getProgressService();
-        try {
-            service.runInUI(service, new IRunnableWithProgress() {
+        if (event.widget == this.diffItem) {
+            Status status = iterator.next();
+            final String path = status.getName();
+            final String originalPath = status.hasOriginal() ? status.getOriginal() : status.getName();
+            CompareConfiguration config = new CompareConfiguration();
+            config.setLeftEditable(false);
+            config.setLeftLabel(String.format("%s#master", originalPath));
+            config.setRightEditable(true);
+            config.setRightLabel(String.format("%s#yours", path));
+            CompareEditorInput input = new CompareEditorInput(config) {
 
-            @Override
-            public void run(IProgressMonitor monitor)
-                    throws InvocationTargetException,
-                    InterruptedException {
-                monitor.beginTask("Reverting", structSelection.size());
+                @Override
+                protected Object prepareInput(IProgressMonitor monitor)
+                        throws InvocationTargetException, InterruptedException {
+                    CompareItem left = new CompareItem(branch_client, originalPath, "master");
+                    CompareItem right = new CompareItem(branch_client, path, "");
+                    return new DiffNode(null, Differencer.CHANGE, null, left, right);
+                }
 
-                while (iterator.hasNext()) {
-                    final Status status = iterator.next();
-                        SubProgressMonitor subMonitor = new SubProgressMonitor(monitor, 1);
-                        subMonitor.subTask(status.getName());
-                        subMonitor.beginTask(status.getName(), 3);
-                        String path = status.getName();
-                        URI uri = UriBuilder.fromUri(branch_client.getURI()).scheme("crepo").queryParam("path", path).build();
+            };
+            CompareUI.openCompareDialog(input);
+        } else {
 
-                        IResource revert_resource = findResourceFromURI(uri, path);
+            IProgressService service = PlatformUI.getWorkbench().getProgressService();
+            try {
+                service.runInUI(service, new IRunnableWithProgress() {
 
-                        try {
-                            branch_client.revertResource(path);
-                            subMonitor.worked(1);
-                            Activator.getDefault().sendBranchChanged();
+                @Override
+                public void run(IProgressMonitor monitor)
+                        throws InvocationTargetException,
+                        InterruptedException {
+                    monitor.beginTask("Reverting", structSelection.size());
 
-                            if (revert_resource != null) {
-                                revert_resource.getParent().refreshLocal(IResource.DEPTH_INFINITE, null);
+                    while (iterator.hasNext()) {
+                        final Status status = iterator.next();
+                            SubProgressMonitor subMonitor = new SubProgressMonitor(monitor, 1);
+                            subMonitor.subTask(status.getName());
+                            subMonitor.beginTask(status.getName(), 3);
+                            String path = status.getName();
+                            URI uri = UriBuilder.fromUri(branch_client.getURI()).scheme("crepo").queryParam("path", path).build();
+
+                            IResource revert_resource = findResourceFromURI(uri, path);
+
+                            try {
+                                branch_client.revertResource(path);
                                 subMonitor.worked(1);
-                            }
+                                Activator.getDefault().sendBranchChanged();
 
-                            if (status.hasOriginal()) {
-                                // We can't use getParent(). The does not "exists" - yet.
-                                IPath originalPath = new Path(status.getOriginal());
-                                IPath refreshPath = originalPath.removeLastSegments(1);
-                                URI originalUri = UriBuilder.fromUri(branch_client.getURI()).scheme("crepo").queryParam("path", refreshPath.toPortableString()).build();
-                                IResource originalResource = findResourceFromURI(originalUri, refreshPath.toPortableString());
-                                if (originalResource != null) {
-                                    originalResource.refreshLocal(IResource.DEPTH_INFINITE, null);
+                                if (revert_resource != null) {
+                                    revert_resource.getParent().refreshLocal(IResource.DEPTH_INFINITE, null);
                                     subMonitor.worked(1);
                                 }
-                            }
-                        }
-                        catch (Exception e) {
 
+                                if (status.hasOriginal()) {
+                                    // We can't use getParent(). The does not "exists" - yet.
+                                    IPath originalPath = new Path(status.getOriginal());
+                                    IPath refreshPath = originalPath.removeLastSegments(1);
+                                    URI originalUri = UriBuilder.fromUri(branch_client.getURI()).scheme("crepo").queryParam("path", refreshPath.toPortableString()).build();
+                                    IResource originalResource = findResourceFromURI(originalUri, refreshPath.toPortableString());
+                                    if (originalResource != null) {
+                                        originalResource.refreshLocal(IResource.DEPTH_INFINITE, null);
+                                        subMonitor.worked(1);
+                                    }
+                                }
+                            }
+                            catch (Exception e) {
+
+                            }
+                            subMonitor.done();
                         }
-                        subMonitor.done();
+                        monitor.done();
                     }
-                    monitor.done();
-                }
-            }, null);
-        } catch (Throwable e) {
-            e.printStackTrace();
+                }, null);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -314,8 +348,15 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 
     @Override
     public void selectionChanged(SelectionChangedEvent event) {
-        boolean enable = !tableViewer.getSelection().isEmpty();
-        if (revertItem.isEnabled() != enable)
-            revertItem.setEnabled(enable);
+        boolean diffEnabled = false;
+        if (!tableViewer.getSelection().isEmpty()) {
+            IStructuredSelection selection = (IStructuredSelection)tableViewer.getSelection();
+            diffEnabled = selection.size() == 1;
+        }
+        if (diffItem.isEnabled() != diffEnabled)
+            diffItem.setEnabled(diffEnabled);
+        boolean revertEnabled = !tableViewer.getSelection().isEmpty();
+        if (revertItem.isEnabled() != revertEnabled)
+            revertItem.setEnabled(revertEnabled);
     }
 }
