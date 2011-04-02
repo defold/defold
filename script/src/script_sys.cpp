@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <sys/stat.h>
 
 #if defined(__linux__) || defined(__MACH__)
@@ -13,6 +14,7 @@
 #endif
 
 #include <dlib/dstrings.h>
+#include <dlib/sys.h>
 #include "script.h"
 
 #include <string.h>
@@ -75,47 +77,26 @@ namespace dmScript
     int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);
+
+        char app_support_path[1024];
+        dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
+        if (r != dmSys::RESULT_OK)
+        {
+            luaL_error(L, "Unable to locate application support path (%d)", r);
+        }
+
         const char* filename = luaL_checkstring(L, 2);
-        char* home = 0;
         char* dm_home = getenv("DM_SAVE_HOME");
-#if defined(__linux__) || defined(__MACH__)
-        home = getenv("HOME");
-#elif defined(_WIN32)
-        home = getenv("USERPROFILE");
-#else
-#error "Unsupported platform"
-#endif
 
         // Higher priority
         if (dm_home)
-            home = dm_home;
-
-        if (home == 0)
         {
-            luaL_error(L, "Unable to locate home folder (HOME or USERPROFILE)");
+            dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
         }
 
-        char buf[1024];
-        dmStrlCpy(buf, home, sizeof(buf));
-        dmStrlCat(buf, "/", sizeof(buf));
-        dmStrlCat(buf, application_id, sizeof(buf));
-
-        int ret;
-#ifdef _WIN32
-        ret = mkdir(buf);
-#else
-        ret = mkdir(buf, 0700);
-#endif
-        if (ret)
-        {
-            if (errno != EEXIST)
-                luaL_error(L, "Unable to create save folder %s (%d)", buf, errno);
-        }
-
-        dmStrlCat(buf, "/", sizeof(buf));
-        dmStrlCat(buf, filename, sizeof(buf));
-
-        lua_pushstring(L, buf);
+        dmStrlCat(app_support_path, "/", sizeof(app_support_path));
+        dmStrlCat(app_support_path, filename, sizeof(app_support_path));
+        lua_pushstring(L, app_support_path);
 
         return 1;
     }
