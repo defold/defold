@@ -284,7 +284,7 @@ TEST_F(dmHttpClientTest, TestHeaders)
     ASSERT_STREQ("123", m_Headers["Content-Length"].c_str());
 }
 
-TEST_F(dmHttpClientTest, Test400)
+TEST_F(dmHttpClientTest, Test404)
 {
     for (int i = 0; i < 17; ++i)
     {
@@ -293,7 +293,7 @@ TEST_F(dmHttpClientTest, Test400)
         m_StatusCode = -1;
         r = dmHttpClient::Get(m_Client, "/does_not_exists");
         ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
-        ASSERT_EQ(400, m_StatusCode);
+        ASSERT_EQ(404, m_StatusCode);
     }
 }
 
