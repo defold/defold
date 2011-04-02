@@ -45,7 +45,7 @@ namespace dmTime
 #else
         timeval tv;
         gettimeofday(&tv, 0);
-        return tv.tv_sec * 1000000 + tv.tv_usec;
+        return ((uint64_t) tv.tv_sec) * 1000000U + tv.tv_usec;
 #endif
     }
 }
