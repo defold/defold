@@ -280,7 +280,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
                 }
 
             };
-            CompareUI.openCompareDialog(input);
+            CompareUI.openCompareEditor(input);
         } else {
 
             IProgressService service = PlatformUI.getWorkbench().getProgressService();
