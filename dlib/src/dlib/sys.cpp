@@ -3,13 +3,19 @@
 #include <errno.h>
 #include "sys.h"
 #include "log.h"
+#include "dstrings.h"
 
 #ifdef _WIN32
+#include <Shlobj.h>
 #include <io.h>
 #include <direct.h>
 #else
 #include <unistd.h>
 #include <sys/stat.h>
+#endif
+
+#ifdef __MACH__
+#include <Carbon/Carbon.h>
 #endif
 
 namespace dmSys
@@ -91,4 +97,68 @@ namespace dmSys
         else
             return NativeToResult(errno);
     }
+
+#if defined(__MACH__)
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        FSRef file;
+        FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
+        FSRefMakePath(&file, (UInt8*) path, path_len);
+        if (dmStrlCat(path, "/", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+        Result r =  Mkdir(path, 0755);
+        if (r == RESULT_EXIST)
+            return RESULT_OK;
+        else
+            return r;
+    }
+#elif defined(_WIN32)
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        char tmp_path[MAX_PATH];
+
+        if(SUCCEEDED(SHGetFolderPath(NULL,
+                                     CSIDL_APPDATA | CSIDL_FLAG_CREATE,
+                                     NULL,
+                                     0,
+                                     tmp_path)))
+        {
+            if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
+                return RESULT_INVAL;
+            if (dmStrlCat(path, "\\", path_len) >= path_len)
+                return RESULT_INVAL;
+            if (dmStrlCat(path, application_name, path_len) >= path_len)
+                return RESULT_INVAL;
+            Result r =  Mkdir(path, 0755);
+            if (r == RESULT_EXIST)
+                return RESULT_OK;
+            else
+                return r;
+        }
+        else
+        {
+            return RESULT_UNKNOWN;
+        }
+    }
+#elif defined(__linux__)
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        char* home = getenv("HOME");
+        if (dmStrlCpy(path, home, path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, "/", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, ".", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+        Result r =  Mkdir(path, 0755);
+        if (r == RESULT_EXIST)
+            return RESULT_OK;
+        else
+            return r;
+    }
+#endif
 }

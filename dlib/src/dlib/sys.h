@@ -65,6 +65,20 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result Unlink(const char* path);
+
+    /**
+     * Get and create platform specific application support directory.
+     * Example paths:
+     * OSX: ~/Library/Application Support/APPLICATION_NAME
+     * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
+     * Linux: ~/.APPLICATION_NAME
+     * @param application_name application name to get path for. This is the name of "your" application.
+     * @param path path buffer
+     * @param path_len path buffer len
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Genernal IO-errors could reusult in other
+     * codes, eg RESULT_ACCES if permission is denied.
+     */
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len);
 }
 
 #endif

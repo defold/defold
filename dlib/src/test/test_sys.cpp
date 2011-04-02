@@ -1,5 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <string>
 #include <gtest/gtest.h>
 #include "../dlib/sys.h"
@@ -29,6 +31,27 @@ TEST(dmSys, Unlink)
 
     r = dmSys::Unlink("tmp/afile");
     ASSERT_EQ(dmSys::RESULT_OK, r);
+}
+
+TEST(dmSys, GetApplicationSupportPathBuffer)
+{
+    char path[4];
+    path[3] = '!';
+    dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
+    ASSERT_EQ(dmSys::RESULT_INVAL, result);
+    ASSERT_EQ('\0', path[2]);
+    ASSERT_EQ('!', path[3]);
+}
+
+TEST(dmSys, GetApplicationSupportPath)
+{
+    char path[1024];
+    dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, sizeof(path));
+    ASSERT_EQ(dmSys::RESULT_OK, result);
+    struct stat stat_data;
+    int ret = stat(path, &stat_data);
+    ASSERT_EQ(0, ret);
+    ASSERT_EQ(S_IFDIR, stat_data.st_mode & S_IFDIR);
 }
 
 int main(int argc, char **argv)
