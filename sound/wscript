@@ -49,7 +49,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     if platform == "win32":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-        conf.env.append_value('LINKFLAGS', ['user32.lib'])
+        conf.env.append_value('LINKFLAGS', ['user32.lib', 'shell32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')

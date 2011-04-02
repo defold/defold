@@ -43,7 +43,7 @@ def configure(conf):
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     if platform == "win32":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'

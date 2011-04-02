@@ -46,10 +46,10 @@ def configure(conf):
         conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
-
     else:
         conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+        conf.env.append_value('LINKFLAGS', ['shell32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
