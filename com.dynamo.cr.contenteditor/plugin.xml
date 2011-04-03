@@ -89,34 +89,35 @@
          point="org.eclipse.ui.menus">
       <menuContribution
             allPopups="false"
-            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
-         <menu
-               label="Tools">
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.parent"
-                  icon="icons/bricks.png"
-                  label="Parent"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.unparent"
-                  icon="icons/brick.png"
-                  label="Unparent"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.addgameobject"
-                  icon="icons/add_att_16x16.gif"
-                  label="Add GameObject"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.addsubcollection"
-                  icon="icons/add_att_16x16.gif"
-                  label="Add Subcollection"
-                  style="push">
-            </command>
-         </menu>
+            locationURI="menu:com.dynamo.cr.editor.menus.tools?after=com.dynamo.cr.editor.menus.launch">
+         <separator
+               name="com.dynamo.cr.contenteditor.separators.toolsStart"
+               visible="true">
+         </separator>
+         <command
+               commandId="com.dynamo.cr.contenteditor.commands.parent"
+               icon="icons/bricks.png"
+               label="Parent"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.cr.contenteditor.commands.unparent"
+               icon="icons/brick.png"
+               label="Unparent"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.cr.contenteditor.commands.addgameobject"
+               icon="icons/add_att_16x16.gif"
+               label="Add GameObject"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.cr.contenteditor.commands.addsubcollection"
+               icon="icons/add_att_16x16.gif"
+               label="Add Subcollection"
+               style="push">
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"

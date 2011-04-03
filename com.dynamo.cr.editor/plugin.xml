@@ -54,7 +54,7 @@
       <view
             category="com.dynamo.cr.editorcategory"
             class="com.dynamo.cr.editor.compare.ChangedFilesView"
-            icon="icons/repository_rep.gif"
+            icon="icons/database_edit.png"
             id="com.dynamo.crepo.changedfiles"
             name="Changed Files"
             restorable="true">
@@ -76,37 +76,32 @@
                   commandId="org.eclipse.ui.file.save"
                   icon="icons/save_edit.gif"
                   label="Save"
-                  mode="FORCE_TEXT"
                   style="push">
             </command>
             <command
                   commandId="com.dynamo.crepo.commands.connect"
-                  icon="icons/repository_rep.gif"
+                  icon="icons/database_connect.png"
                   label="Connect"
-                  mode="FORCE_TEXT"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.launch"
-                  icon="icons/start_task.gif"
-                  id="com.dynamo.crepo.commands.toolbar.launch"
-                  label="Launch"
-                  mode="FORCE_TEXT"
-                  style="pulldown">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.publish"
-                  icon="icons/cvs_synch.gif"
-                  label="Publish"
-                  mode="FORCE_TEXT"
                   style="push">
             </command>
             <command
                   commandId="com.dynamo.crepo.commands.update"
-                  icon="icons/synced.gif"
+                  icon="icons/database_refresh.png"
                   label="Update"
-                  mode="FORCE_TEXT"
                   style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.publish"
+                  icon="icons/database_go.png"
+                  label="Publish"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.launch"
+                  icon="icons/application_go.png"
+                  id="com.dynamo.crepo.commands.toolbar.launch"
+                  label="Launch"
+                  style="pulldown">
             </command>
          </toolbar>
       </menuContribution>
@@ -150,6 +145,59 @@
                style="push"
                tooltip="Open resource">
          </command>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:file">
+         <command
+               commandId="com.dynamo.crepo.commands.connect"
+               icon="icons/database_connect.png"
+               label="Connect"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.crepo.commands.update"
+               icon="icons/database_refresh.png"
+               label="Update"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.crepo.commands.publish"
+               icon="icons/database_go.png"
+               label="Publish"
+               style="push">
+         </command>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:org.eclipse.ui.main.menu?after=edit">
+         <menu
+               id="com.dynamo.cr.editor.menus.tools"
+               label="Tools">
+            <menu
+                  icon="icons/application_go.png"
+                  id="com.dynamo.cr.editor.menus.launch"
+                  label="Launch">
+               <command
+                     commandId="com.dynamo.crepo.commands.launch"
+                     label="Build"
+                     style="push">
+                  <parameter
+                        name="com.dynamo.crepo.commands.launch.type"
+                        value="build">
+                  </parameter>
+               </command>
+               <command
+                     commandId="com.dynamo.crepo.commands.launch"
+                     label="Rebuild"
+                     style="push">
+                  <parameter
+                        name="com.dynamo.crepo.commands.launch.type"
+                        value="rebuild">
+                  </parameter>
+               </command>
+            </menu>
+         </menu>
       </menuContribution>
    </extension>
    <extension
@@ -230,6 +278,39 @@
             commandId="com.dynamo.crepo.commands.reloadresource"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="M1+R">
+      </key>
+      <key
+            commandId="com.dynamo.crepo.commands.connect"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+O">
+      </key>
+      <key
+            commandId="com.dynamo.crepo.commands.publish"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+Shift+P">
+      </key>
+      <key
+            commandId="com.dynamo.crepo.commands.update"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+U">
+      </key>
+      <key
+            commandId="com.dynamo.crepo.commands.launch"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+T">
+         <parameter
+               id="com.dynamo.crepo.commands.launch.type"
+               value="build">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.crepo.commands.launch"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+Shift+T">
+         <parameter
+               id="com.dynamo.crepo.commands.launch.type"
+               value="rebuild">
+         </parameter>
       </key>
    </extension>
    <extension
