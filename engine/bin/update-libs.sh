@@ -19,5 +19,6 @@ for lib in $LIBS; do
         waf
         set -e
     fi
+    waf
     waf install
 done
