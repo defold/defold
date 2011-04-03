@@ -282,7 +282,14 @@ namespace dmHttpCache
         {
             CacheCreator* h = &cache->m_CacheCreators[i];
             if (h->m_Filename)
+            {
                 free(h->m_Filename);
+            }
+
+            if (h->m_File)
+            {
+                fclose(h->m_File);
+            }
         }
 
         char cache_file[512];
