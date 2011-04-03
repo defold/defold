@@ -1,4 +1,5 @@
 import shutil, os
 shutil.rmtree('tmp', True)
-os.mkdir("tmp")
+if not os.path.exists('tmp'):
+    os.mkdir("tmp")
 
