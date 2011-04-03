@@ -26,6 +26,7 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -77,10 +78,15 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.IPartListener;
+import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.contexts.IContextService;
+import org.eclipse.ui.handlers.RadioState;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
@@ -90,6 +96,7 @@ import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.Activator;
+import com.dynamo.cr.contenteditor.commands.ActivateTool;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -149,6 +156,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private IContainer contentRoot;
     private ResourceLoaderFactory resourceFactory;
 
+    // TODO: Part of a hack described in the end of init()
+    private IPartListener partListener;
+
     public CollectionEditor() {
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
     }
@@ -159,6 +169,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         history.removeOperationHistoryListener(this);
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
+        // TODO: Part of a hack described in the end of init()
+        getEditorSite().getPage().removePartListener(partListener);
     }
 
     @SuppressWarnings("rawtypes")
@@ -330,6 +342,35 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         m_ManipulatorController = new ManipulatorController(this);
         m_ManipulatorController.setManipulator("move");
+
+        // TODO: This is a hack to update the manipulator controller (which should be in an editor context since its state should be shared over editor instances).
+        final CollectionEditor editor = this;
+        partListener = new IPartListener() {
+
+            @Override
+            public void partOpened(IWorkbenchPart part) {}
+
+            @Override
+            public void partDeactivated(IWorkbenchPart part) {}
+
+            @Override
+            public void partClosed(IWorkbenchPart part) {}
+
+            @Override
+            public void partBroughtToTop(IWorkbenchPart part) {}
+
+            @Override
+            public void partActivated(IWorkbenchPart part) {
+                if (part == editor) {
+                    IWorkbenchWindow window = part.getSite().getWorkbenchWindow();
+                    ICommandService commandService = (ICommandService)window.getService(ICommandService.class);
+                    Command command = commandService.getCommand(ActivateTool.ACTIVATE_TOOL_COMMAND_ID);
+                    editor.setManipulator((String)command.getState(RadioState.STATE_ID).getValue());
+                }
+            }
+        };
+
+        getEditorSite().getPage().addPartListener(partListener);
     }
 
     @Override

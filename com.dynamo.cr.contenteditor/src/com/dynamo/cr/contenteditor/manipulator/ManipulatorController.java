@@ -31,6 +31,9 @@ public class ManipulatorController
     public void setManipulator(String manipulator)
     {
         this.manipulator = manipulators.get(manipulator);
+        if (this.manipulator == null) {
+            this.manipulatorHandle = -1;
+        }
     }
 
     public IManipulator getManipulator() {

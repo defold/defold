@@ -16,42 +16,49 @@
          point="org.eclipse.ui.commands">
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.contenteditor.commands.SelectMoveTool"
-            description="Select Move Tool"
-            id="com.dynamo.cr.contenteditor.commands.selectmovetool"
-            name="Select Move Tool">
+            description="Activate Tool"
+            id="com.dynamo.cr.contenteditor.commands.activateTool"
+            name="Activate Tool">
+         <commandParameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               name="tool"
+               optional="false">
+         </commandParameter>
+         <state
+               id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="select">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
+         </state>
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.contenteditor.commands.SelectRotateTool"
-            description="Select Rotate Tool"
-            id="com.dynamo.cr.contenteditor.commands.selectrotatetool"
-            name="Select Rotate Tool">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.contenteditor.commands.Parent"
             description="Parent objects"
             id="com.dynamo.cr.contenteditor.commands.parent"
             name="Parent objects">
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.contenteditor.commands.Unparent"
             description="Unparent objects"
             id="com.dynamo.cr.contenteditor.commands.unparent"
             name="Unparent objects">
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.contenteditor.commands.AddGameObject"
             description="Add GameObject"
             id="com.dynamo.cr.contenteditor.commands.addgameobject"
             name="Add GameObject">
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.contenteditor.commands.AddSubCollection"
             description="Add Subcollection"
             id="com.dynamo.cr.contenteditor.commands.addsubcollection"
             name="Add Subcollection">
@@ -86,18 +93,6 @@
          <menu
                label="Tools">
             <command
-                  commandId="com.dynamo.cr.contenteditor.commands.selectmovetool"
-                  icon="icons/move.png"
-                  label="Move"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.cr.contenteditor.commands.selectrotatetool"
-                  icon="icons/rotate_cw.png"
-                  label="Rotate"
-                  style="push">
-            </command>
-            <command
                   commandId="com.dynamo.cr.contenteditor.commands.parent"
                   icon="icons/bricks.png"
                   label="Parent"
@@ -123,20 +118,76 @@
             </command>
          </menu>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=com.dynamo.crepo.toolbar">
+         <toolbar
+               id="com.dynamo.cr.contenteditor.toolbars.tools"
+               label="Tools">
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+                  icon="icons/select.png"
+                  label="Select"
+                  style="radio">
+                <parameter
+                        name="org.eclipse.ui.commands.radioStateParameter"
+                        value="select">
+                </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+                  icon="icons/move.png"
+                  label="Move"
+                  style="radio">
+                <parameter
+                        name="org.eclipse.ui.commands.radioStateParameter"
+                        value="move">
+                </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+                  icon="icons/rotate.png"
+                  label="Rotate"
+                  style="radio">
+                <parameter
+                        name="org.eclipse.ui.commands.radioStateParameter"
+                        value="rotate">
+                </parameter>
+            </command>
+         </toolbar>
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
       <key
-            commandId="com.dynamo.cr.contenteditor.commands.selectmovetool"
+            commandId="com.dynamo.cr.contenteditor.commands.activateTool"
             contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="Q">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="select">
+         </parameter>
       </key>
       <key
-            commandId="com.dynamo.cr.contenteditor.commands.selectrotatetool"
+            commandId="com.dynamo.cr.contenteditor.commands.activateTool"
             contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="W">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="move">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.contenteditor.commands.activateTool"
+            contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="E">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="rotate">
+         </parameter>
       </key>
       <key
             commandId="com.dynamo.cr.contenteditor.commands.parent"
@@ -209,6 +260,51 @@
             </with>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.Parent"
+            commandId="com.dynamo.cr.contenteditor.commands.parent">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.Unparent"
+            commandId="com.dynamo.cr.contenteditor.commands.unparent">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.AddGameObject"
+            commandId="com.dynamo.cr.contenteditor.commands.addgameobject">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.AddSubCollection"
+            commandId="com.dynamo.cr.contenteditor.commands.addsubcollection">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.ActivateTool"
+            commandId="com.dynamo.cr.contenteditor.commands.activateTool">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.scenePartActive">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.views">
@@ -234,6 +330,27 @@
                relative="org.eclipse.ui.editorss">
          </view>
       </perspectiveExtension>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+         <with
+               variable="activeEditorId">
+            <equals
+                  value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
+            </equals>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.contenteditor.definitions.scenePartActive">
+         <with
+               variable="activePartId">
+            <equals
+                  value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
+            </equals>
+         </with>
+      </definition>
    </extension>
 
 </plugin>
