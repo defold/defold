@@ -115,7 +115,7 @@ namespace dmHttpCache
         static const char hex_chars[] = "0123456789abcdef";
         for (int i = 0; i < 8; ++i)
         {
-            uint32_t x = (hash >> 8 * (i - 7)) & 0xff;
+            uint32_t x = (hash >> 8 * (7 - i)) & 0xff;
             *str++ = hex_chars[x >> 4];
             *str++ = hex_chars[x & 0xf];
         }
