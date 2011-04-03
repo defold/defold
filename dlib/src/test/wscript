@@ -151,6 +151,15 @@ def build(bld):
 
     test_http_client.install_path = None
 
+    test_http_cache = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_httpcache.cpp',
+                                 uselib = 'GTEST PLATFORM_SOCKET THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_httpcache')
+
+    test_http_cache.install_path = None
+
     test_http_server = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_httpserver.cpp',
                                  uselib = 'GTEST PLATFORM_SOCKET THREAD',

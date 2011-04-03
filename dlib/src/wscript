@@ -13,6 +13,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')

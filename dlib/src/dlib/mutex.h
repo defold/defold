@@ -45,6 +45,21 @@ namespace dmMutex
      */
     void Unlock(Mutex mutex);
 
+    struct ScopedLock
+    {
+        Mutex m_Mutex;
+        ScopedLock(Mutex mutex)
+        {
+            m_Mutex = mutex;
+            Lock(m_Mutex);
+        }
+
+        ~ScopedLock()
+        {
+            Unlock(m_Mutex);
+        }
+    };
+
 
 }  // namespace dmMutex
 
