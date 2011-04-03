@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "dstrings.h"
@@ -506,7 +507,9 @@ namespace dmHttpCache
         int ret = rename(cache_creator->m_Filename, path);
         if (ret != 0)
         {
-            dmLogError("Unable to rename temporary cache file from '%s' to '%s'", cache_creator->m_Filename, path);
+            // TODO: strerror is not thread-safe.
+            char* error_msg = strerror(errno);
+            dmLogError("Unable to rename temporary cache file from '%s' to '%s'. %s (%d)", cache_creator->m_Filename, path, error_msg, errno);
             FreeCacheCreator(cache, cache_creator);
             cache->m_CacheTable.Erase(uri_hash);
             return RESULT_IO_ERROR;
