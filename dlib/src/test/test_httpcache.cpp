@@ -215,7 +215,7 @@ TEST_F(dmHttpCacheTest, DoublePut)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }
 
-TEST_F(dmHttpCacheTest, ParticlUpdate)
+TEST_F(dmHttpCacheTest, PartialUpdate)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
