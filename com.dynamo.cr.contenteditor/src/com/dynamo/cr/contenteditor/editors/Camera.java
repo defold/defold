@@ -33,10 +33,9 @@ public class Camera
     {
         m_Type = type;
         float distance = 44.0f;
-        m_Position.set(0, 0.7071f, 0.7071f);
+        m_Position.set(0.0f, 0.0f, 1.0f);
         m_Position.scale(distance);
-        AxisAngle4d a = new AxisAngle4d(1, 0, 0, -0.25 * Math.PI);
-        m_Rotation.set(a);
+        m_Rotation.set(0.0, 0.0, 0.0, 1.0);
         updateViewMatrix();
     }
 

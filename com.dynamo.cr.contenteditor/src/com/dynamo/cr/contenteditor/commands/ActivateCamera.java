@@ -8,8 +8,9 @@ import org.eclipse.ui.handlers.RadioState;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
 
-public class ActivateTool extends AbstractRadioHandler {
-    public static final String COMMAND_ID = "com.dynamo.cr.contenteditor.commands.activateTool";
+public class ActivateCamera extends AbstractRadioHandler {
+
+    public static final String COMMAND_ID = "com.dynamo.cr.contenteditor.commands.activateCamera";
 
     @Override
     public String getCommandId() {
@@ -23,13 +24,13 @@ public class ActivateTool extends AbstractRadioHandler {
             if(HandlerUtil.matchesRadioState(event))
                 return null; // we are already in the updated state - do nothing
 
-            String currentState = event.getParameter(RadioState.PARAMETER_ID);
+            String value = event.getParameter(RadioState.PARAMETER_ID);
 
             // do whatever having "currentState" implies
-            ((IEditor) editor).setManipulator(currentState);
+            ((IEditor) editor).setCamera(value);
 
             // and finally update the current state
-            HandlerUtil.updateRadioState(event.getCommand(), currentState);
+            HandlerUtil.updateRadioState(event.getCommand(), ((IEditor)editor).getCameraName());
 
         }
         return null;
