@@ -10,15 +10,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.eclipse.jetty.http.HttpHeaders;
+import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.bio.SocketConnector;
+import org.eclipse.jetty.server.handler.HandlerList;
+import org.eclipse.jetty.server.handler.ResourceHandler;
+import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
 
@@ -49,7 +61,6 @@ import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
 import com.google.protobuf.TextFormat;
 import com.sun.grizzly.http.SelectorThread;
-import com.sun.grizzly.http.embed.GrizzlyWebServer;
 import com.sun.jersey.api.NotFoundException;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.container.grizzly.GrizzlyWebContainerFactory;
@@ -62,8 +73,8 @@ public class Server {
     private String branchRoot;
     private Pattern[] filterPatterns;
     private Configuration configuration;
-    private GrizzlyWebServer dataServer;
     private EntityManagerFactory emf;
+    private org.eclipse.jetty.server.Server jettyServer;
     public Server(String configuration_file) throws IOException {
         loadConfig(configuration_file);
 
@@ -112,8 +123,63 @@ public class Server {
             throw new RuntimeException("Invalid version of git or not found");
         }
 
-        dataServer = new GrizzlyWebServer(configuration.getBuildDataPort(), configuration.getBranchRoot());
-        dataServer.start();
+        jettyServer = new org.eclipse.jetty.server.Server();
+
+        SocketConnector connector = new SocketConnector();
+        connector.setPort(configuration.getBuildDataPort());
+        jettyServer.addConnector(connector);
+        HandlerList handlerList = new HandlerList();
+        ResourceHandler resourceHandler = new ResourceHandler() {
+
+            @Override
+            public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+                if (baseRequest.isHandled())
+                    return;
+
+                String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+                if (ifNoneMatch != null) {
+                    Resource resource = getResource(request);
+                    if (resource != null && resource.exists()) {
+                        File file = resource.getFile();
+                        if (file != null) {
+                            String thisEtag = String.format("\"%d\"", file.lastModified());
+                            if (ifNoneMatch.equals(thisEtag)) {
+                                baseRequest.setHandled(true);
+                                response.setStatus(HttpStatus.NOT_MODIFIED_304);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                super.handle(target, baseRequest, request, response);
+            }
+
+            @Override
+            protected void doResponseHeaders(HttpServletResponse response,
+                    Resource resource,
+                    String mimeType) {
+                super.doResponseHeaders(response, resource, mimeType);
+                try {
+                    File file = resource.getFile();
+                    if (file != null) {
+                        response.setHeader(HttpHeaders.ETAG, String.format("\"%d\"", file.lastModified()));
+                    }
+                }
+                catch(IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+        resourceHandler.setResourceBase(configuration.getBranchRoot());
+        handlerList.addHandler(resourceHandler);
+        jettyServer.setHandler(handlerList);
+
+        try {
+            jettyServer.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void bootStrapUsers() {
@@ -198,7 +264,11 @@ public class Server {
         ServerProvider.server = null;
 
         threadSelector.stopEndpoint();
-        dataServer.stop();
+        try {
+            jettyServer.stop();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         emf.close();
     }
 
