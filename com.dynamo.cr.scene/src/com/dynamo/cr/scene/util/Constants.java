@@ -16,4 +16,6 @@ public class Constants {
 
     public static float AXIS_COLOR[][] = new float[][] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
 
+    public static float SELECTED_AXIS_COLOR[] = new float[] { 1, 1, 0 };
+
 }

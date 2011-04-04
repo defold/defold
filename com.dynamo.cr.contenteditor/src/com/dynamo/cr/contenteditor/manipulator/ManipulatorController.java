@@ -40,10 +40,11 @@ public class ManipulatorController
         manipulators.put("rotate", new RotateManipulator());
     }
 
-    public void setManipulator(String manipulator)
+    public void setManipulator(String manipulatorName)
     {
-        this.manipulator = manipulators.get(manipulator);
-        if (this.manipulator == null) {
+        IManipulator manipulator = manipulators.get(manipulatorName);
+        if (this.manipulator == null || manipulator != this.manipulator) {
+            this.manipulator = manipulator;
             this.manipulatorHandle = -1;
         }
     }
@@ -105,13 +106,11 @@ public class ManipulatorController
             ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation);
             this.manipulator.mouseUp(ctx);
         }
-        this.manipulatorHandle = -1;
     }
 
     public void mouseMove(MouseEvent e)
     {
-        if (this.manipulatorHandle != -1 && this.selected.length > 0)
-        {
+        if (this.manipulatorHandle != -1 && this.selected.length > 0 && this.manipulator.isActive()) {
             ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation);
             this.manipulator.mouseMove(ctx);
         }
