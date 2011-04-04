@@ -21,6 +21,14 @@ public interface IEditor {
 
     IManipulator getManipulator();
 
+    void setManipulatorOrientation(String manipulatorOrientation);
+
+    String getManipulatorOrientationName();
+
+    void setCamera(String cameraName);
+
+    String getCameraName();
+
     double[] worldToView(Point3d point);
 
     Camera getCamera();

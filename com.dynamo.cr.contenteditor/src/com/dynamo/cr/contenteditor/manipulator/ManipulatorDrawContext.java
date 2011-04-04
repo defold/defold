@@ -14,6 +14,7 @@ public class ManipulatorDrawContext
     public GL gl;
     public Node[] nodes;
     public int manipulatorHandle;
+    public int orientation;
 
     private final boolean selectMode;
     private int nextName = 0;
@@ -24,12 +25,13 @@ public class ManipulatorDrawContext
      * @param gl GL handle
      * @param select_mode Select mode (OpenGL picking)
      */
-    public ManipulatorDrawContext(IEditor editor, GL gl, Node[] selected, int manipulatorHandle, boolean select_mode)
+    public ManipulatorDrawContext(IEditor editor, GL gl, Node[] selected, int manipulatorHandle, int space, boolean select_mode)
     {
         this.editor = editor;
         this.gl = gl;
         this.nodes = selected;
         this.manipulatorHandle = manipulatorHandle;
+        this.orientation = space;
         this.selectMode = select_mode;
     }
 

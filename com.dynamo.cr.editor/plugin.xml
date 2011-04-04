@@ -74,7 +74,7 @@
                label="Content Repository">
             <command
                   commandId="org.eclipse.ui.file.save"
-                  icon="icons/save_edit.gif"
+                  icon="icons/save.png"
                   label="Save"
                   style="push">
             </command>
@@ -98,7 +98,7 @@
             </command>
             <command
                   commandId="com.dynamo.crepo.commands.launch"
-                  icon="icons/application_go.png"
+                  icon="icons/play.png"
                   id="com.dynamo.crepo.commands.toolbar.launch"
                   label="Launch"
                   style="pulldown">
@@ -331,6 +331,30 @@
             name="PNG"
             type-class="image">
       </resource-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.activities">
+      <activity
+            description="Disable unwanted eclipse UI"
+            id="com.dynamo.cr.editor.activities.disableEclipseUI"
+            name="Disable">
+      </activity>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.ide/org\.eclipse\.ui\.wizards\.new\.project">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.ide/org\.eclipse\.ui\.wizards\.new\.file">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.ide/org\.eclipse\.ui\.wizards\.new\.folder">
+      </activityPatternBinding>
+      <activityPatternBinding
+            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
+            pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.editors\.wizards\.UntitledTextFileWizard">
+      </activityPatternBinding>
    </extension>
 
 </plugin>

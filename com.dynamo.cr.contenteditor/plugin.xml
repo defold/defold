@@ -84,6 +84,52 @@
             id="com.dynamo.cr.contenteditor.commands.paste"
             name="Paste">
       </command>
+      <command
+            id="com.dynamo.cr.contenteditor.commands.activateCamera"
+            name="Activate Camera">
+         <commandParameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               name="camera"
+               optional="false">
+         </commandParameter>
+         <state
+               id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="orthographic">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
+         </state>
+      </command>
+      <command
+            id="com.dynamo.cr.contenteditor.commands.activateOrientation"
+            name="Activate Orientation">
+         <commandParameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               name="orientation"
+               optional="false">
+         </commandParameter>
+         <state
+               id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="local">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
+         </state>
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -156,6 +202,54 @@
                 </parameter>
             </command>
          </toolbar>
+         <toolbar
+               id="com.dynamo.cr.contenteditor.toolbars.camera"
+               label="Camera">
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
+                  icon="icons/box_closed.png"
+                  label="Orthographic"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="orthographic">
+               </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
+                  icon="icons/box.png"
+                  label="Perspective"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="perspective">
+               </parameter>
+            </command>
+         </toolbar>
+         <toolbar
+               id="com.dynamo.cr.contenteditor.toolbars.orientation"
+               label="Orientation">
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
+                  icon="icons/local.png"
+                  label="Local Orientation"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="local">
+               </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
+                  icon="icons/global.png"
+                  label="Global Orientation"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="global">
+               </parameter>
+            </command>
+         </toolbar>
       </menuContribution>
    </extension>
    <extension
@@ -213,6 +307,26 @@
             contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="O">
+      </key>
+      <key
+            commandId="com.dynamo.cr.contenteditor.commands.activateCamera"
+            contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="SPACE">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="next">
+         </parameter>
+      </key>
+      <key
+            commandId="com.dynamo.cr.contenteditor.commands.activateOrientation"
+            contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="TAB">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="next">
+         </parameter>
       </key>
    </extension>
    <extension
@@ -302,7 +416,25 @@
             commandId="com.dynamo.cr.contenteditor.commands.activateTool">
          <activeWhen>
             <reference
-                  definitionId="com.dynamo.cr.contenteditor.definitions.scenePartActive">
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.ActivateCamera"
+            commandId="com.dynamo.cr.contenteditor.commands.activateCamera">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.ActivateOrientation"
+            commandId="com.dynamo.cr.contenteditor.commands.activateOrientation">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
          </activeWhen>
       </handler>
@@ -337,19 +469,14 @@
       <definition
             id="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
          <with
-               variable="activeEditorId">
-            <equals
-                  value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
-            </equals>
-         </with>
-      </definition>
-      <definition
-            id="com.dynamo.cr.contenteditor.definitions.scenePartActive">
-         <with
-               variable="activePartId">
-            <equals
-                  value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
-            </equals>
+               variable="activeContexts">
+            <iterate
+                  ifEmpty="false"
+                  operator="or">
+               <equals
+                     value="com.dynamo.cr.contenteditor.contexts.collectioneditor">
+               </equals>
+            </iterate>
          </with>
       </definition>
    </extension>

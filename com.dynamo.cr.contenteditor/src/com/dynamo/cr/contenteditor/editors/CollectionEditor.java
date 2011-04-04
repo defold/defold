@@ -56,8 +56,6 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
@@ -96,6 +94,8 @@ import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.Activator;
+import com.dynamo.cr.contenteditor.commands.ActivateCamera;
+import com.dynamo.cr.contenteditor.commands.ActivateOrientation;
 import com.dynamo.cr.contenteditor.commands.ActivateTool;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
@@ -124,14 +124,14 @@ import com.dynamo.cr.scene.resource.TextureLoader;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
 
-public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, KeyListener, ISceneListener, ISelectionProvider, IOperationHistoryListener, IResourceChangeListener {
+public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, ISceneListener, ISelectionProvider, IOperationHistoryListener, IResourceChangeListener {
 
     private GLCanvas m_Canvas;
     private GLContext m_Context;
     private final int[] m_ViewPort = new int[4];
     private Camera m_PerspCamera = new Camera(Camera.Type.PERSPECTIVE);
     private Camera m_OrthoCamera = new Camera(Camera.Type.ORTHOGRAPHIC);
-    private Camera m_ActiveCamera = m_PerspCamera;
+    private Camera m_ActiveCamera = m_OrthoCamera;
     private CameraController m_CameraController = new CameraController();
     private NodeLoaderFactory factory;
     private Node m_Root;
@@ -344,6 +344,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_ManipulatorController.setManipulator("move");
 
         // TODO: This is a hack to update the manipulator controller (which should be in an editor context since its state should be shared over editor instances).
+        // Also it needs to refresh the state of the camera toolbar, since there is no mechanism of having commands reflect model state in Eclipse 3.*
         final CollectionEditor editor = this;
         partListener = new IPartListener() {
 
@@ -364,8 +365,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 if (part == editor) {
                     IWorkbenchWindow window = part.getSite().getWorkbenchWindow();
                     ICommandService commandService = (ICommandService)window.getService(ICommandService.class);
-                    Command command = commandService.getCommand(ActivateTool.ACTIVATE_TOOL_COMMAND_ID);
-                    editor.setManipulator((String)command.getState(RadioState.STATE_ID).getValue());
+                    Command activateToolCommand = commandService.getCommand(ActivateTool.COMMAND_ID);
+                    editor.setManipulator((String)activateToolCommand.getState(RadioState.STATE_ID).getValue());
+                    Command activateCameraCommand = commandService.getCommand(ActivateCamera.COMMAND_ID);
+                    activateCameraCommand.getState(RadioState.STATE_ID).setValue(getCameraName());
+                    Command activateOrientationCommand = commandService.getCommand(ActivateOrientation.COMMAND_ID);
+                    activateOrientationCommand.getState(RadioState.STATE_ID).setValue(getManipulatorOrientationName());
                 }
             }
         };
@@ -421,7 +426,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_Canvas.addListener(SWT.Resize, this);
         m_Canvas.addMouseListener(this);
         m_Canvas.addMouseMoveListener(this);
-        m_Canvas.addKeyListener(this);
 
         m_UndoContext = new UndoContext();
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
@@ -1132,19 +1136,32 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     @Override
-    public void widgetSelected(SelectionEvent e) {
-        Object data = e.widget.getData();
-        if (data == null)
-            return;
+    public
+    void setManipulatorOrientation(String orientationName) {
+        m_ManipulatorController.setManipulatorOrientation(orientationName);
     }
 
     @Override
-    public void widgetDefaultSelected(SelectionEvent e) {
+    public
+    String getManipulatorOrientationName() {
+        return m_ManipulatorController.getManipulatorOrientationName();
     }
 
     @Override
-    public void keyPressed(KeyEvent e) {
-        if (e.character == ' ') {
+    public void setCamera(String cameraName) {
+        Camera cam = null;
+        if (cameraName.equals("orthographic")) {
+            cam = m_OrthoCamera;
+        } else if (cameraName.equals("perspective")) {
+            cam = m_PerspCamera;
+        } else if (cameraName.equals("next")) {
+            if (m_ActiveCamera == m_OrthoCamera) {
+                cam = m_PerspCamera;
+            } else {
+                cam = m_OrthoCamera;
+            }
+        }
+        if (cam != m_ActiveCamera) {
             if (m_ActiveCamera == m_PerspCamera) {
                 // ortho camera view rotation
                 Matrix4d view = new Matrix4d();
@@ -1247,14 +1264,27 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 m_ActiveCamera = m_PerspCamera;
             }
         }
-        else
-        {
-            m_ManipulatorController.keyPressed(e);
-        }
     }
 
     @Override
-    public void keyReleased(KeyEvent e) {
+    public String getCameraName() {
+        if (m_ActiveCamera == m_PerspCamera) {
+            return "perspective";
+        } else if (m_ActiveCamera == m_OrthoCamera) {
+            return "orthographic";
+        }
+        return null;
+    }
+
+    @Override
+    public void widgetSelected(SelectionEvent e) {
+        Object data = e.widget.getData();
+        if (data == null)
+            return;
+    }
+
+    @Override
+    public void widgetDefaultSelected(SelectionEvent e) {
     }
 
     void updateDirtyState() {

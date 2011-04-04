@@ -3,8 +3,6 @@ package com.dynamo.cr.contenteditor.manipulator;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4d;
 
-import org.eclipse.swt.SWT;
-
 import com.dynamo.cr.scene.graph.Node;
 import com.dynamo.cr.scene.graph.NodeUtil;
 import com.dynamo.cr.scene.math.MathUtil;
@@ -13,19 +11,6 @@ import com.dynamo.cr.scene.operations.TransformNodeOperation;
 
 // http://caad.arch.ethz.ch/info/maya/manual/UserGuide/Overview/TransformingObjects.fm.html
 public abstract class TransformManipulator implements IManipulator {
-    /**
-     * Defines local space manipulation.
-     */
-    protected final static int LOCAL = 0;
-    /**
-     * Defines world (global) space manipulation.
-     */
-    protected final static int WORLD = 1;
-
-    /**
-     * The space space in which the manipulation takes place.
-     */
-    protected int space = LOCAL;
     /**
      * Axis of the selected manipulator handle in world (global) space.
      */
@@ -58,7 +43,7 @@ public abstract class TransformManipulator implements IManipulator {
     /**
      * If the manipulator is being moved or not, disables the ability to switch manipulation space.
      */
-    private boolean moving = false;
+    private boolean active = false;
 
     public TransformManipulator() {
         for (int i = 0; i < 3; ++i) {
@@ -83,11 +68,12 @@ public abstract class TransformManipulator implements IManipulator {
 
     @Override
     public void draw(ManipulatorDrawContext context) {
-        if (!this.moving) {
-            if (this.space == LOCAL && context.nodes.length > 1)
-                this.space = WORLD;
+        if (!this.active) {
+            int orientation = context.orientation;
+            if (orientation == ManipulatorController.LOCAL && context.nodes.length > 1)
+                orientation = ManipulatorController.GLOBAL;
 
-            if (this.space == WORLD) {
+            if (orientation == ManipulatorController.GLOBAL) {
                 Vector4d translation = getHandlePosition(context.nodes);
                 this.manipulatorTransformWS.setIdentity();
                 this.manipulatorTransformWS.setColumn(3, translation);
@@ -99,10 +85,11 @@ public abstract class TransformManipulator implements IManipulator {
 
     @Override
     public void mouseDown(ManipulatorContext context) {
-        this.moving = true;
+        this.active = true;
 
-        if (this.space == LOCAL && context.nodes.length > 1)
-            this.space = WORLD;
+        int orientation = context.orientation;
+        if (orientation == ManipulatorController.LOCAL && context.nodes.length > 1)
+            orientation = ManipulatorController.GLOBAL;
 
         this.originalManipulatorTransformWS.set(this.manipulatorTransformWS);
         this.handleAxisMS.set(1.0, 0.0, 0.0, 0.0);
@@ -139,7 +126,7 @@ public abstract class TransformManipulator implements IManipulator {
 
     @Override
     public void mouseUp(ManipulatorContext context) {
-        this.moving = false;
+        this.active = false;
 
         Transform[] t = new Transform[context.nodes.length];
         for (int i = 0; i < context.nodes.length; ++i) {
@@ -151,19 +138,6 @@ public abstract class TransformManipulator implements IManipulator {
     }
 
     @Override
-    public void keyPressed(ManipulatorContext ctx) {
-        if (this.moving)
-            return;
-
-        if (ctx.keyEvent.character == SWT.TAB) {
-            if (this.space == LOCAL)
-                this.space = WORLD;
-            else
-                this.space = LOCAL;
-        }
-    }
-
-    @Override
     public void setName(String name) {
         this.name = name;
     }
@@ -171,5 +145,10 @@ public abstract class TransformManipulator implements IManipulator {
     @Override
     public String getName() {
         return this.name;
+    }
+
+    @Override
+    public boolean isActive() {
+        return this.active;
     }
 }

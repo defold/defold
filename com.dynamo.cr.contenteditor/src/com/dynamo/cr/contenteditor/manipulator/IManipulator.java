@@ -40,8 +40,8 @@ public interface IManipulator
     String getName();
 
     /**
-     * Called on key pressed
-     * @param ctx Context
+     * If the manipulator is currently active or not
+     * @return Active status of the manipulator
      */
-    void keyPressed(ManipulatorContext ctx);
+    boolean isActive();
 }
