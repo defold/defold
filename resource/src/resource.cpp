@@ -17,9 +17,11 @@
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/http_client.h>
+#include <dlib/http_cache.h>
 #include <dlib/http_server.h>
 #include <dlib/uri.h>
 #include <dlib/profile.h>
+#include <dlib/sys.h>
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -81,6 +83,7 @@ struct SResourceFactory
 
     dmURI::Parts                                 m_UriParts;
     dmHttpClient::HClient                        m_HttpClient;
+    dmHttpCache::HCache                          m_HttpCache;
 
     char*                                        m_StreamBuffer;
     uint32_t                                     m_StreamBufferSize;
@@ -278,10 +281,26 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0)
     {
+        factory->m_HttpCache = 0;
+        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_HTTP_CACHE)
+        {
+            dmHttpCache::NewParams cache_params;
+            char path[1024];
+            dmSys::GetApplicationSupportPath("dynamo", path, sizeof(path));
+            dmStrlCat(path, "/cache", sizeof(path));
+            cache_params.m_Path = path;
+            dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &factory->m_HttpCache);
+            if (cache_r != dmHttpCache::RESULT_OK)
+            {
+                dmLogWarning("Unable to open http cache (%d)", cache_r);
+            }
+        }
+
         dmHttpClient::NewParams http_params;
         http_params.m_HttpHeader = &HttpHeader;
         http_params.m_HttpContent = &HttpContent;
         http_params.m_Userdata = factory;
+        http_params.m_HttpCache = factory->m_HttpCache;
         factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port);
         if (!factory->m_HttpClient)
         {
@@ -367,6 +386,11 @@ void DeleteFactory(HFactory factory)
     {
         dmHttpClient::Delete(factory->m_HttpClient);
     }
+    if (factory->m_HttpCache)
+    {
+        dmHttpCache::Close(factory->m_HttpCache);
+    }
+
     if (factory->m_HttpServer)
     {
         dmHttpServer::Delete(factory->m_HttpServer);
@@ -455,24 +479,27 @@ static FactoryResult LoadResource(HFactory factory, const char* path, const char
         dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, path);
         if (http_result != dmHttpClient::RESULT_OK)
         {
-            dmLogError("Resource not found: %s", path);
-
             if (factory->m_HttpStatus == 404)
             {
+                dmLogError("Resource not found: %s", path);
                 return FACTORY_RESULT_RESOURCE_NOT_FOUND;
             }
             else
             {
-                if (http_result == dmHttpClient::RESULT_NOT_200_OK)
+                // 304 (NOT MODIFIED) is OK. 304 is returned when the resource is loaded from cache, ie ETag or similar match
+                if (http_result == dmHttpClient::RESULT_NOT_200_OK && factory->m_HttpStatus != 304)
+                {
                     dmLogWarning("Unexpected http status code: %d", factory->m_HttpStatus);
-                return FACTORY_RESULT_IO_ERROR;
+                    return FACTORY_RESULT_IO_ERROR;
+                }
             }
         }
 
         if (factory->m_HttpFactoryResult != FACTORY_RESULT_OK)
             return factory->m_HttpFactoryResult;
 
-        if (factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
+        // Only check content-length if status != 304 (NOT MODIFIED)
+        if (factory->m_HttpStatus != 304 && factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
         {
             dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
         }

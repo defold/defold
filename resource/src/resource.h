@@ -29,6 +29,11 @@ namespace dmResource
     #define RESOURCE_FACTORY_FLAGS_HTTP_SERVER    (1 << 1)
 
     /**
+     * Enable HTTP cache
+     */
+    #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)
+
+    /**
      * Factory result
      */
     enum FactoryResult

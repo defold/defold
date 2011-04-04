@@ -254,8 +254,11 @@ namespace dmEngine
         const uint32_t max_resources = 256;
 
         dmResource::NewFactoryParams params;
+        int32_t http_cache = dmConfigFile::GetInt(config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT | RESOURCE_FACTORY_FLAGS_HTTP_SERVER;
+        if (http_cache)
+            params.m_Flags = RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         params.m_StreamBufferSize = 8 * 1024 * 1024; // We have some *large* textures...!
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;

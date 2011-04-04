@@ -117,9 +117,10 @@ public class TestHttpServer extends AbstractHandler
                         if (resource != null && resource.exists()) {
                             File file = resource.getFile();
                             if (file != null) {
-                                String thisEtag = "" + file.lastModified();
+                                String thisEtag = String.format("%d", file.lastModified());
                                 if (ifNoneMatch.equals(thisEtag)) {
                                     baseRequest.setHandled(true);
+                                    response.setHeader(HttpHeaders.ETAG, thisEtag);
                                     response.setStatus(HttpStatus.NOT_MODIFIED_304);
                                     return;
                                 }
