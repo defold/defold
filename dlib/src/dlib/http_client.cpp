@@ -3,12 +3,16 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "math.h"
 #include "./socket.h"
 #include "./socks_proxy.h"
 #include "http_client.h"
 #include "http_client_private.h"
 #include "log.h"
+#include "sys.h"
+#include "dstrings.h"
 
 namespace dmHttpClient
 {
@@ -29,17 +33,23 @@ namespace dmHttpClient
 
         // Headers
         int      m_ContentLength;
+        char     m_ETag[64];
         uint32_t m_Chunked : 1;
         uint32_t m_CloseConnection : 1;
+
+        // Cache
+        dmHttpCache::HCacheCreator m_CacheCreator;
 
         Response(HClient client)
         {
             m_Client = client;
             m_ContentLength = -1;
+            m_ETag[0] = '\0';
             m_ContentOffset = -1;
             m_TotalReceived = 0;
             m_Chunked = 0;
             m_CloseConnection = 0;
+            m_CacheCreator = 0;
         }
     };
 
@@ -56,6 +66,8 @@ namespace dmHttpClient
 
     struct Client
     {
+        char*               m_Hostname;
+        char                m_URI[1024];
         dmSocket::Socket    m_Socket;
         dmSocket::Address   m_Address;
         uint16_t            m_Port;
@@ -66,6 +78,9 @@ namespace dmHttpClient
         HttpContent         m_HttpContent;
         HttpHeader          m_HttpHeader;
         int                 m_MaxGetRetries;
+        Statistics          m_Statistics;
+
+        dmHttpCache::HCache m_HttpCache;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
@@ -84,6 +99,7 @@ namespace dmHttpClient
     {
         params->m_HttpContent = &DefaultHttpContentData;
         params->m_HttpHeader = 0;
+        params->m_HttpCache = 0;
     }
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port)
@@ -107,6 +123,7 @@ namespace dmHttpClient
 
         Client* client = new Client();
 
+        client->m_Hostname = strdup(hostname);
         client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         client->m_Address = address;
         client->m_Port = port;
@@ -116,6 +133,8 @@ namespace dmHttpClient
         client->m_HttpContent = params->m_HttpContent;
         client->m_HttpHeader = params->m_HttpHeader;
         client->m_MaxGetRetries = 4;
+        memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
+        client->m_HttpCache = params->m_HttpCache;
 
         client->m_UseSocksProxy = getenv("DMSOCKS_PROXY") != 0;
 
@@ -143,6 +162,7 @@ namespace dmHttpClient
         {
             dmSocket::Delete(client->m_Socket);
         }
+        free(client->m_Hostname);
         delete client;
     }
 
@@ -236,6 +256,10 @@ namespace dmHttpClient
         {
             resp->m_CloseConnection = 1;
         }
+        else if (strcmp(key, "ETag") == 0)
+        {
+            dmStrlCpy(resp->m_ETag, value, sizeof(resp->m_ETag));
+        }
 
         HClient c = resp->m_Client;
         if (c->m_HttpHeader)
@@ -325,6 +349,17 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL(path)
         HTTP_CLIENT_SENDALL_AND_BAIL(" HTTP/1.1\r\n")
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: foo.com\r\n")
+        if (client->m_HttpCache)
+        {
+            char etag[64];
+            dmHttpCache::Result cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, etag, sizeof(etag));
+            if (cache_result == dmHttpCache::RESULT_OK)
+            {
+                HTTP_CLIENT_SENDALL_AND_BAIL("If-None-Match: ");
+                HTTP_CLIENT_SENDALL_AND_BAIL(etag);
+                HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
+            }
+        }
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n\r\n")
 
         return sock_res;
@@ -342,6 +377,12 @@ bail:
         {
             int n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             http_content(client, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
+
+            if (response->m_CacheCreator)
+            {
+                dmHttpCache::Add(client->m_HttpCache, response->m_CacheCreator, client->m_Buffer + response->m_ContentOffset, n);
+            }
+
             total_transferred += n;
             assert(total_transferred <= to_transfer);
             response->m_ContentOffset += n;
@@ -402,9 +443,139 @@ bail:
         (void) content_data_size;
     }
 
+    static Result HandleCached(HClient client, const char* path, const Response* response)
+    {
+        client->m_Statistics.m_CachedResponses++;
+
+        if (client->m_HttpCache == 0)
+        {
+            dmLogFatal("Got HTTP response NOT MODIFIED (304) but no cache present. Server error?");
+            return RESULT_IO_ERROR;
+        }
+        dmHttpCache::Result cache_result;
+
+        char cache_etag[64];
+        cache_etag[0] = '\0';
+        cache_result = dmHttpCache::GetETag(client->m_HttpCache, client->m_URI, cache_etag, sizeof(cache_etag));
+
+        if (strcmp(cache_etag, response->m_ETag) != 0)
+        {
+            dmLogFatal("ETag mismatch (%s vs %s)", cache_etag, response->m_ETag);
+            return RESULT_IO_ERROR;
+        }
+
+        FILE* file = 0;
+        uint64_t checksum;
+        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, response->m_ETag, &file, &checksum);
+        if (cache_result == dmHttpCache::RESULT_OK)
+        {
+            // NOTE: We have an extra byte for null-termination so no buffer overrun here.
+            size_t nread;
+            do
+            {
+                nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
+                client->m_Buffer[nread] = '\0';
+                client->m_HttpContent(client, client->m_Userdata, response->m_Status, client->m_Buffer, nread);
+            }
+            while (nread > 0);
+            dmHttpCache::Release(client->m_HttpCache, client->m_URI, response->m_ETag, file);
+        }
+        else
+        {
+            return RESULT_IO_ERROR;
+        }
+
+        return RESULT_OK;
+    }
+
+    static Result HandleResponse(HClient client, const char* path, Response* response)
+    {
+        Result r = RESULT_OK;
+
+        if (response->m_Chunked)
+        {
+            // Chunked encoding
+            // Move actual data to the beginning of the buffer
+            memmove(client->m_Buffer, client->m_Buffer + response->m_ContentOffset, response->m_TotalReceived - response->m_ContentOffset);
+
+            response->m_TotalReceived = response->m_TotalReceived - response->m_ContentOffset;
+            response->m_ContentOffset = 0;
+
+            int chunk_size;
+            int chunk_number = 0;
+            while(true)
+            {
+                chunk_size = 0;
+                // NOTE: We have an extra byte for null-termination so no buffer overrun here.
+                client->m_Buffer[response->m_TotalReceived] = '\0';
+
+                char* chunk_size_end = strstr(client->m_Buffer, "\r\n");
+                if (chunk_size_end)
+                {
+                    // We found a chunk
+                    sscanf(client->m_Buffer, "%x", &chunk_size);
+                    chunk_size_end += 2; // "\r\n"
+
+                    // Move content-offset after chunk termination, ie after "\r\n"
+                    response->m_ContentOffset = chunk_size_end - client->m_Buffer;
+                    r = DoTransfer(client, response, chunk_size, client->m_HttpContent);
+                    if (r != RESULT_OK)
+                        break;
+
+                    // Consume \r\n"
+                    r = DoTransfer(client, response, 2, &HttpContentConsume);
+                    if (r != RESULT_OK)
+                        break;
+
+                    if (chunk_size == 0)
+                    {
+                        r = RESULT_OK;
+                        break;
+                    }
+
+                    ++chunk_number;
+                }
+                else
+                {
+                    // We need more data
+                    int max_to_recv = BUFFER_SIZE - response->m_TotalReceived;
+
+                    if (max_to_recv <= 0)
+                    {
+                        dmSocket::Delete(client->m_Socket);
+                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                        return RESULT_HTTP_HEADERS_ERROR;
+                    }
+
+                    int recv_bytes;
+                    dmSocket::Result sock_r = dmSocket::Receive(client->m_Socket, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
+                    if (sock_r == dmSocket::RESULT_TRY_AGAIN)
+                        continue;
+
+                    if (sock_r != dmSocket::RESULT_OK)
+                    {
+                        dmSocket::Delete(client->m_Socket);
+                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+                        return RESULT_SOCKET_ERROR;
+                    }
+                    response->m_TotalReceived += recv_bytes;
+                }
+            }
+        }
+        else
+        {
+            // "Regular" transfer, single chunk
+            assert(response->m_ContentOffset != -1);
+            r = DoTransfer(client, response, response->m_ContentLength, client->m_HttpContent);
+        }
+
+        return r;
+    }
+
     Result DoGet(HClient client, const char* path)
     {
         Response response(client);
+        client->m_Statistics.m_Responses++;
 
         client->m_SocketResult = dmSocket::RESULT_OK;
         Result r = Connect(client);
@@ -433,89 +604,45 @@ bail:
         {
             // Ok
         }
-        else if (response.m_ContentLength == -1)
+        else if (response.m_ContentLength == -1 && response.m_Status != 304)
         {
-            // If not chunked we require Content-Length attribute to be set.
+            // If not chunked (and not 304) we require Content-Length attribute to be set.
             dmSocket::Delete(client->m_Socket);
             client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-            return RESULT_MISSING_CONTENT_LENGTH;
+            return RESULT_INVALID_RESPONSE;
         }
 
-        if (response.m_Chunked)
+        if (response.m_Status == 304 /* NOT MODIFIED */)
         {
-            // Chunked encoding
-            // Move actual data to the beginning of the buffer
-            memmove(client->m_Buffer, client->m_Buffer + response.m_ContentOffset, response.m_TotalReceived - response.m_ContentOffset);
-
-            response.m_TotalReceived = response.m_TotalReceived - response.m_ContentOffset;
-            response.m_ContentOffset = 0;
-
-            int chunk_size;
-            int chunk_number = 0;
-            while(true)
+            // Use cached version
+            if (response.m_ContentLength == 0 || response.m_ContentLength == -1)
             {
-                chunk_size = 0;
-                // NOTE: We have an extra byte for null-termination so no buffer overrun here.
-                client->m_Buffer[response.m_TotalReceived] = '\0';
-
-                char* chunk_size_end = strstr(client->m_Buffer, "\r\n");
-                if (chunk_size_end)
-                {
-                    // We found a chunk
-                    sscanf(client->m_Buffer, "%x", &chunk_size);
-                    chunk_size_end += 2; // "\r\n"
-
-                    // Move content-offset after chunk termination, ie after "\r\n"
-                    response.m_ContentOffset = chunk_size_end - client->m_Buffer;
-                    r = DoTransfer(client, &response, chunk_size, client->m_HttpContent);
-                    if (r != RESULT_OK)
-                        break;
-
-                    // Consume \r\n"
-                    r = DoTransfer(client, &response, 2, &HttpContentConsume);
-                    if (r != RESULT_OK)
-                        break;
-
-                    if (chunk_size == 0)
-                    {
-                        r = RESULT_OK;
-                        break;
-                    }
-
-                    ++chunk_number;
-                }
-                else
-                {
-                    // We need more data
-                    int max_to_recv = BUFFER_SIZE - response.m_TotalReceived;
-
-                    if (max_to_recv <= 0)
-                    {
-                        dmSocket::Delete(client->m_Socket);
-                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                        return RESULT_HTTP_HEADERS_ERROR;
-                    }
-
-                    int recv_bytes;
-                    dmSocket::Result sock_r = dmSocket::Receive(client->m_Socket, client->m_Buffer + response.m_TotalReceived, max_to_recv, &recv_bytes);
-                    if (sock_r == dmSocket::RESULT_TRY_AGAIN)
-                        continue;
-
-                    if (sock_r != dmSocket::RESULT_OK)
-                    {
-                        dmSocket::Delete(client->m_Socket);
-                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                        return RESULT_SOCKET_ERROR;
-                    }
-                    response.m_TotalReceived += recv_bytes;
-                }
+                r = HandleCached(client, path, &response);
+                response.m_TotalReceived = 0;
+            }
+            else
+            {
+                // Cached version can't have payload
+                if (response.m_ContentLength != -1)
+                    dmLogWarning("Unexpected Content-Length: %d for NOT MODIFIED response (304)", response.m_ContentLength);
+                r = RESULT_INVALID_RESPONSE;
             }
         }
         else
         {
-            // "Regular" transfer, single chunk
-            assert(response.m_ContentOffset != -1);
-            r = DoTransfer(client, &response, response.m_ContentLength, client->m_HttpContent);
+            // Non-cached response
+            if (client->m_HttpCache)
+            {
+                dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
+            }
+
+            r = HandleResponse(client, path, &response);
+
+            if (response.m_CacheCreator)
+            {
+                dmHttpCache::End(client->m_HttpCache, response.m_CacheCreator);
+                response.m_CacheCreator = 0;
+            }
         }
 
         assert(response.m_TotalReceived == 0);
@@ -543,6 +670,8 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
+        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+
         Result r;
         for (int i = 0; i < client->m_MaxGetRetries; ++i)
         {
@@ -560,6 +689,12 @@ bail:
         }
         return r;
     }
+
+    void GetStatistics(HClient client, Statistics* statistics)
+    {
+        *statistics = client->m_Statistics;
+    }
+
 
 #undef HTTP_CLIENT_SENDALL_AND_BAIL
 

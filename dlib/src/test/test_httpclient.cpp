@@ -32,6 +32,9 @@ public:
 
     virtual void SetUp()
     {
+        int ret = system("python src/test/test_httpclient.py");
+        ASSERT_EQ(0, ret);
+
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = dmHttpClientTest::HttpContent;
@@ -360,6 +363,45 @@ TEST_F(dmHttpClientTest, SimpleProxy)
 
     unsetenv("DMSOCKS_PROXY");
     unsetenv("DMSOCKS_PROXY_PORT");
+}
+
+TEST_F(dmHttpClientTest, Cache)
+{
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = "tmp/cache";
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
+    ASSERT_NE((void*) 0, m_Client);
+
+    for (int i = 0; i < 100; ++i)
+    {
+        m_Content = "";
+        dmHttpClient::Result r;
+        r = dmHttpClient::Get(m_Client, "/cached");
+        if (r == dmHttpClient::RESULT_OK)
+        {
+            ASSERT_EQ(200, m_StatusCode);
+        }
+        else
+        {
+            ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+            ASSERT_EQ(304, m_StatusCode);
+        }
+        ASSERT_EQ(std::string("cached_content"), m_Content);
+    }
+
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    ASSERT_EQ(100U, stats.m_Responses);
+    ASSERT_EQ(99U, stats.m_CachedResponses);
 }
 
 #endif // #ifndef _WIN32

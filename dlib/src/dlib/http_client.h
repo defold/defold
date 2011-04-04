@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <dlib/socket.h>
+#include <dlib/http_cache.h>
 
 namespace dmHttpClient
 {
@@ -40,11 +41,12 @@ namespace dmHttpClient
         RESULT_OK = 0,                            //!< RESULT_OK
         RESULT_SOCKET_ERROR = -1,                 //!< RESULT_SOCKET_ERROR
         RESULT_HTTP_HEADERS_ERROR = -2,           //!< RESULT_HTTP_HEADERS_ERROR
-        RESULT_MISSING_CONTENT_LENGTH = -3,       //!< RESULT_MISSING_CONTENT_LENGTH
+        RESULT_INVALID_RESPONSE = -3,             //!< RESULT_INVALID_RESPONSE
         RESULT_PARTIAL_CONTENT = -4,              //!< RESULT_PARTIAL_CONTENT
         RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5,//!< RESULT_UNSUPPORTED_TRANSFER_ENCODING
         RESULT_INVAL_ERROR = -6,                  //!< RESULT_INVAL_ERROR
         RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
+        RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
     };
 
     /**
@@ -77,10 +79,24 @@ namespace dmHttpClient
         /// HTTP-header handle
         HttpHeader  m_HttpHeader;
 
+        /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
+        dmHttpCache::HCache m_HttpCache;
+
         NewParams()
         {
             SetDefaultParams(this);
         }
+    };
+
+    /**
+     * HTTP-client statistics
+     */
+    struct Statistics
+    {
+        /// Number of responses. This includes all responses, even for retries for idempotent requests.
+        uint32_t m_Responses;
+        /// Number of cached responses. This includes all cached responses, even for retries for idempotent requests.
+        uint32_t m_CachedResponses;
     };
 
     /**
@@ -115,6 +131,13 @@ namespace dmHttpClient
      * @return RESULT_OK on success
      */
     Result Get(HClient client, const char* path);
+
+    /**
+     * Get HTTP-client statistics
+     * @param client Client handle
+     * @param statistics Pointer to statistics struct
+     */
+    void GetStatistics(HClient client, Statistics* statistics);
 
     /**
      * Delete HTTP client

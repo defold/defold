@@ -6,6 +6,7 @@ import java.util.regex.*;
 import java.io.*;
 
 import org.eclipse.jetty.http.HttpHeaders;
+import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Handler;
@@ -37,6 +38,25 @@ public class TestHttpServer extends AbstractHandler
         {
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
+        }
+        else if (target.equals("/cached"))
+        {
+            String tag = String.format("W/\"A TAG\"");
+            response.setHeader(HttpHeaders.ETAG, tag);
+            int status = HttpServletResponse.SC_OK;
+
+            String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+            if (ifNoneMatch != null) {
+                if (ifNoneMatch.equals(tag)) {
+                    baseRequest.setHandled(true);
+                    status = HttpStatus.NOT_MODIFIED_304;
+                }
+            }
+
+            response.setStatus(status);
+            baseRequest.setHandled(true);
+            if (status == HttpServletResponse.SC_OK)
+                response.getWriter().print("cached_content");
         }
         else if (addm.matches())
         {
@@ -85,6 +105,31 @@ public class TestHttpServer extends AbstractHandler
             HandlerList handlerList = new HandlerList();
             handlerList.addHandler(new TestHttpServer());
             ResourceHandler resourceHandler = new ResourceHandler() {
+
+                @Override
+                public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+                    if (baseRequest.isHandled())
+                        return;
+
+                    String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+                    if (ifNoneMatch != null) {
+                        Resource resource = getResource(request);
+                        if (resource != null && resource.exists()) {
+                            File file = resource.getFile();
+                            if (file != null) {
+                                String thisEtag = "" + file.lastModified();
+                                if (ifNoneMatch.equals(thisEtag)) {
+                                    baseRequest.setHandled(true);
+                                    response.setStatus(HttpStatus.NOT_MODIFIED_304);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    super.handle(target, baseRequest, request, response);
+                }
+
                 @Override
                 protected void doResponseHeaders(HttpServletResponse response,
                         Resource resource,
