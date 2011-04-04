@@ -10,9 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -145,6 +143,7 @@ public class Server {
                             String thisEtag = String.format("\"%d\"", file.lastModified());
                             if (ifNoneMatch.equals(thisEtag)) {
                                 baseRequest.setHandled(true);
+                                response.setHeader(HttpHeaders.ETAG, thisEtag);
                                 response.setStatus(HttpStatus.NOT_MODIFIED_304);
                                 return;
                             }
