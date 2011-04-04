@@ -278,7 +278,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
 
     factory->m_HttpClient = 0;
-
+    factory->m_HttpCache = 0;
     if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0)
     {
         factory->m_HttpCache = 0;
