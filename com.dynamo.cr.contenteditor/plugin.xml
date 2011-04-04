@@ -85,6 +85,8 @@
             name="Paste">
       </command>
       <command
+            categoryId="com.dynamo.crepo.category"
+            description="Activate Camera"
             id="com.dynamo.cr.contenteditor.commands.activateCamera"
             name="Activate Camera">
          <commandParameter
@@ -108,6 +110,8 @@
          </state>
       </command>
       <command
+            categoryId="com.dynamo.crepo.category"
+            description="Activate Orientation"
             id="com.dynamo.cr.contenteditor.commands.activateOrientation"
             name="Activate Orientation">
          <commandParameter
