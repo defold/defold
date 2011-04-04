@@ -402,6 +402,8 @@ TEST_F(dmHttpClientTest, Cache)
     dmHttpClient::GetStatistics(m_Client, &stats);
     ASSERT_EQ(100U, stats.m_Responses);
     ASSERT_EQ(99U, stats.m_CachedResponses);
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
 #endif // #ifndef _WIN32
