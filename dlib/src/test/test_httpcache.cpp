@@ -30,7 +30,7 @@ public:
         return r;
     }
 
-    dmHttpCache::Result Get(dmHttpCache::HCache cache, const char* uri, const char* etag, void** content, uint64_t* checksum)
+    dmHttpCache::Result Get(dmHttpCache::HCache cache, const char* uri, const char* etag, void** content, uint64_t* checksum, uint32_t* size_out = 0)
     {
         FILE* f = 0;
         dmHttpCache::Result r;
@@ -49,6 +49,8 @@ public:
         // http://code.google.com/p/googletest/wiki/AdvancedGuide
         EXPECT_EQ(size, n_read);
         *content = buffer;
+        if (size_out)
+            *size_out = size;
         dmHttpCache::Release(cache, uri, etag, f);
 
         return dmHttpCache::RESULT_OK;
@@ -118,6 +120,94 @@ TEST_F(dmHttpCacheTest, Simple)
     free(buffer);
 
     // Free
+    r = dmHttpCache::Close(cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+}
+
+TEST_F(dmHttpCacheTest, CorruptContent)
+{
+    dmHttpCache::HCache cache;
+    dmHttpCache::NewParams params;
+    params.m_Path = "tmp/cache";
+    dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    r = Put(cache, "uri", "etag", "data", strlen("data"));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    // Get etags
+    char tag_buffer[16];
+    r = dmHttpCache::GetETag(cache, "uri", tag_buffer, sizeof(tag_buffer));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_STREQ("etag", tag_buffer);
+
+    // Get content
+    void* buffer;
+    uint64_t checksum;
+    uint32_t size;
+    r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_EQ(dmHashString64("data"), checksum);
+    ASSERT_EQ(checksum, dmHashBuffer64(buffer, size));
+    ASSERT_TRUE(memcmp("data", buffer, strlen("data")) == 0);
+    free(buffer);
+
+    ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
+
+    int ret = system("python src/test/test_httpcache_corrupt_content.py");
+    ASSERT_EQ(0, ret);
+
+    // Get content, ensure that the checksum is incorrect
+    r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_NE(checksum, dmHashBuffer64(buffer, size));
+    ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
+    free(buffer);
+
+    // Close
+    r = dmHttpCache::Close(cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+}
+
+TEST_F(dmHttpCacheTest, MissingContent)
+{
+    dmHttpCache::HCache cache;
+    dmHttpCache::NewParams params;
+    params.m_Path = "tmp/cache";
+    dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    r = Put(cache, "uri", "etag", "data", strlen("data"));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    // Get etags
+    char tag_buffer[16];
+    r = dmHttpCache::GetETag(cache, "uri", tag_buffer, sizeof(tag_buffer));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_STREQ("etag", tag_buffer);
+
+    // Get content
+    void* buffer;
+    uint64_t checksum;
+    uint32_t size;
+    r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_EQ(dmHashString64("data"), checksum);
+    ASSERT_EQ(checksum, dmHashBuffer64(buffer, size));
+    ASSERT_TRUE(memcmp("data", buffer, strlen("data")) == 0);
+    free(buffer);
+
+    ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
+
+    int ret = system("python src/test/test_httpcache_remove_content.py");
+    ASSERT_EQ(0, ret);
+
+    // Get content, ensure that the checksum is incorrect
+    r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
+    ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, r);
+    ASSERT_EQ(0U, dmHttpCache::GetEntryCount(cache));
+
+    // Close
     r = dmHttpCache::Close(cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }

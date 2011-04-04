@@ -581,7 +581,7 @@ namespace dmHttpCache
                 dmLogError("Unable to open %s", path);
                 // Remove invalid cache entry
                 cache->m_CacheTable.Erase(uri_hash);
-                return RESULT_IO_ERROR;
+                return RESULT_NO_ENTRY;
             }
         }
 
