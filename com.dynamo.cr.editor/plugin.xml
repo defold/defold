@@ -74,7 +74,7 @@
                label="Content Repository">
             <command
                   commandId="org.eclipse.ui.file.save"
-                  icon="icons/save_edit.gif"
+                  icon="icons/save.png"
                   label="Save"
                   style="push">
             </command>
@@ -98,7 +98,7 @@
             </command>
             <command
                   commandId="com.dynamo.crepo.commands.launch"
-                  icon="icons/application_go.png"
+                  icon="icons/play.png"
                   id="com.dynamo.crepo.commands.toolbar.launch"
                   label="Launch"
                   style="pulldown">
