@@ -23,10 +23,21 @@ namespace dmHttpCache
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 1;
+    const uint32_t VERSION = 2;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;
+
+    // Index header struct
+    struct IndexHeader
+    {
+        // Magic number, see MAGIC
+        uint32_t m_Magic;
+        // Index file version number
+        uint32_t m_Version;
+        // Checksum of the index payload, ie the data that follows the header
+        uint64_t m_Checksum;
+    };
 
     /*
      * In-memory represention of a cache entry
@@ -190,35 +201,44 @@ namespace dmHttpCache
             fseek(f, 0, SEEK_SET);
             void* buffer = malloc(size);
             fread(buffer, 1, size, f);
-            if (size < (sizeof(MAGIC) + sizeof(VERSION)))
+            IndexHeader* header = (IndexHeader*) buffer;
+            if (size < (sizeof(IndexHeader)))
             {
                 dmLogError("Invalid cache index file '%s'. Removing file.", cache_file);
                 // We remove the file and return RESULT_OK
                 dmSys::Unlink(cache_file);
             }
-            else if (((uint32_t*) buffer)[0] == MAGIC && ((uint32_t*) buffer)[1] == VERSION)
+            else if (header->m_Magic == MAGIC && header->m_Version == VERSION)
             {
-                uint32_t n_entries = (size - sizeof(MAGIC) - sizeof(VERSION)) / sizeof(FileEntry);
-                FileEntry* entries = (FileEntry*) (((uintptr_t) buffer) + sizeof(MAGIC) + sizeof(VERSION));
-                uint32_t capacity = n_entries + 128;
-                c->m_CacheTable.SetCapacity(2 * capacity / 3, capacity);
-                uint64_t current_time = dmTime::GetTime();
-                for (uint32_t i = 0; i < n_entries; ++i)
+                uint64_t checksum = dmHashBuffer64((void*) (((uintptr_t) buffer) + sizeof(IndexHeader)), size - sizeof(IndexHeader));
+                if (checksum != header->m_Checksum)
                 {
-                    if (entries[i].m_LastAccessed + c->m_MaxCacheEntryAge >= current_time)
+                    dmLogError("Corrupt cache index file '%s'. Removing file.", cache_file);
+                }
+                else
+                {
+                    uint32_t n_entries = (size - sizeof(IndexHeader)) / sizeof(FileEntry);
+                    FileEntry* entries = (FileEntry*) (((uintptr_t) buffer) + sizeof(IndexHeader));
+                    uint32_t capacity = n_entries + 128;
+                    c->m_CacheTable.SetCapacity(2 * capacity / 3, capacity);
+                    uint64_t current_time = dmTime::GetTime();
+                    for (uint32_t i = 0; i < n_entries; ++i)
                     {
-                        // Keep cache entry, ie within max age
-                        Entry e;
-                        memcpy(e.m_ETag, entries[i].m_ETag, sizeof(e.m_ETag));
-                        e.m_IdentifierHash = entries[i].m_IdentifierHash;
-                        e.m_LastAccessed = entries[i].m_LastAccessed;
-                        e.m_Checksum = entries[i].m_Checksum;
-                        c->m_CacheTable.Put(entries[i].m_UriHash, e);
-                    }
-                    else
-                    {
-                        // Remove old cache entry
-                        RemoveCachedContentFile(c, entries[i].m_IdentifierHash);
+                        if (entries[i].m_LastAccessed + c->m_MaxCacheEntryAge >= current_time)
+                        {
+                            // Keep cache entry, ie within max age
+                            Entry e;
+                            memcpy(e.m_ETag, entries[i].m_ETag, sizeof(e.m_ETag));
+                            e.m_IdentifierHash = entries[i].m_IdentifierHash;
+                            e.m_LastAccessed = entries[i].m_LastAccessed;
+                            e.m_Checksum = entries[i].m_Checksum;
+                            c->m_CacheTable.Put(entries[i].m_UriHash, e);
+                        }
+                        else
+                        {
+                            // Remove old cache entry
+                            RemoveCachedContentFile(c, entries[i].m_IdentifierHash);
+                        }
                     }
                 }
             }
@@ -242,11 +262,13 @@ namespace dmHttpCache
         FILE* m_File;
         bool m_Error;
         const char* m_Filename;
+        HashState64 m_HashState;
         WriteEntryContext(FILE* f, const char* file_name)
         {
             m_File = f;
             m_Filename = file_name;
             m_Error = false;
+            dmHashInit64(&m_HashState);
         }
     };
 
@@ -268,6 +290,7 @@ namespace dmHttpCache
         file_entry.m_LastAccessed = entry->m_LastAccessed;
         file_entry.m_Checksum = entry->m_Checksum;
 
+        dmHashUpdateBuffer64(&context->m_HashState, &file_entry, sizeof(file_entry));
         size_t n_written = fwrite(&file_entry, 1, sizeof(file_entry), context->m_File);
         if (n_written != sizeof(file_entry))
         {
@@ -297,14 +320,11 @@ namespace dmHttpCache
         FILE* f = fopen(cache_file, "wb");
         if (f)
         {
-            struct
-            {
-                uint32_t magic;
-                uint32_t version;
-            } header;
+            IndexHeader header;
 
-            header.magic = MAGIC;
-            header.version = VERSION;
+            header.m_Magic = MAGIC;
+            header.m_Version = VERSION;
+            header.m_Checksum = 0;
             size_t n_written = fwrite(&header, 1, sizeof(header), f);
             if (n_written != sizeof(header))
             {
@@ -326,6 +346,17 @@ namespace dmHttpCache
                 }
                 else
                 {
+                    // Rewrite header with checksum
+                    fseek(f, 0, SEEK_SET);
+                    header.m_Checksum = dmHashFinal64(&context.m_HashState);
+                    size_t n_written = fwrite(&header, 1, sizeof(header), f);
+                    if (n_written != sizeof(header))
+                    {
+                        dmLogError("Error writing to index file '%s'", cache_file);
+                        fclose(f);
+                        dmSys::Unlink(cache_file);
+                        return RESULT_IO_ERROR;
+                    }
                     fclose(f);
                 }
             }
