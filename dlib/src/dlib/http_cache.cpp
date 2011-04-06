@@ -87,6 +87,7 @@ namespace dmHttpCache
         uint64_t    m_IdentifierHash;
         uint64_t    m_UriHash;
         uint16_t    m_Index;
+        uint32_t    m_Error : 1;
     };
 
     /*
@@ -447,6 +448,7 @@ namespace dmHttpCache
         handle->m_Filename = file_name;
         handle->m_IdentifierHash = identifier_hash;
         handle->m_UriHash = dmHashString64(uri);
+        handle->m_Error = 0;
         *cache_creator = handle;
 
         return RESULT_OK;
@@ -477,11 +479,16 @@ namespace dmHttpCache
         assert(cache_creator->m_File && cache_creator->m_Filename);
         dmHashUpdateBuffer64(&cache_creator->m_ChecksumState, content, content_len);
 
+        if (cache_creator->m_Error)
+        {
+            return RESULT_IO_ERROR;
+        }
+
         size_t nwritten = fwrite(content, 1, content_len, cache_creator->m_File);
         if (nwritten != content_len)
         {
             dmLogError("Error writing to cache file: '%s'", cache_creator->m_Filename);
-            FreeCacheCreator(cache, cache_creator);
+            cache_creator->m_Error = 1;
             return RESULT_IO_ERROR;
         }
 
@@ -501,6 +508,13 @@ namespace dmHttpCache
         uint64_t uri_hash = cache_creator->m_UriHash;
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         assert(entry);
+
+        if (cache_creator->m_Error)
+        {
+            FreeCacheCreator(cache, cache_creator);
+            cache->m_CacheTable.Erase(uri_hash);
+            return RESULT_IO_ERROR;
+        }
 
         char path[512];
         ContentFilePath(cache, identifier_hash, path, sizeof(path));
