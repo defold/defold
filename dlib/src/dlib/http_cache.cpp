@@ -493,11 +493,14 @@ namespace dmHttpCache
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
         assert(cache_creator->m_File && cache_creator->m_Filename);
-        //uint64_t content_hash = dmHashFinal64(&cache_creator->m_ContentHashState);
         uint64_t identifier_hash = cache_creator->m_IdentifierHash;
 
         fclose(cache_creator->m_File);
         cache_creator->m_File = 0;
+
+        uint64_t uri_hash = cache_creator->m_UriHash;
+        Entry* entry = cache->m_CacheTable.Get(uri_hash);
+        assert(entry);
 
         char path[512];
         ContentFilePath(cache, identifier_hash, path, sizeof(path));
@@ -509,6 +512,7 @@ namespace dmHttpCache
             {
                 dmLogError("Unable to remove cache file: %s", path);
                 FreeCacheCreator(cache, cache_creator);
+                cache->m_CacheTable.Erase(uri_hash);
                 return RESULT_IO_ERROR;
             }
         }
@@ -528,15 +532,13 @@ namespace dmHttpCache
                 {
                     dmLogError("Unable to create directory '%s'", path);
                     FreeCacheCreator(cache, cache_creator);
+                    cache->m_CacheTable.Erase(uri_hash);
                     return RESULT_IO_ERROR;
                 }
             }
             *last_slash = save;
         }
 
-        uint64_t uri_hash = cache_creator->m_UriHash;
-        Entry* entry = cache->m_CacheTable.Get(uri_hash);
-        assert(entry);
         assert(entry->m_WriteLock);
         assert(entry->m_IdentifierHash == identifier_hash);
         entry->m_WriteLock = 0;
