@@ -6,5 +6,6 @@ Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Fragment-Host: com.dynamo.cr.server;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Require-Bundle: org.junit4;bundle-version="4.8.1"
+Require-Bundle: org.junit4;bundle-version="4.8.1",
+ com.dynamo.cr.client;bundle-version="1.0.0"
 JPA-PersistenceUnits: unit-test

@@ -94,6 +94,7 @@
         <module>../com.dynamo.cr.integrationtest</module>
         <module>../com.dynamo.cr.server</module>
         <module>../com.dynamo.cr.server.test</module>
+        <module>../com.dynamo.cr.client</module>
     </modules>
 
 </project>
