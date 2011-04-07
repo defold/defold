@@ -175,7 +175,7 @@
                id="com.dynamo.cr.editor.menus.tools"
                label="Tools">
             <menu
-                  icon="icons/application_go.png"
+                  icon="icons/play.png"
                   id="com.dynamo.cr.editor.menus.launch"
                   label="Launch">
                <command
