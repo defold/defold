@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Quat4d;
@@ -40,6 +41,8 @@ import com.dynamo.cr.scene.operations.SetIdentifierOperation;
 import com.dynamo.cr.scene.operations.TransformNodeOperation;
 import com.dynamo.cr.scene.operations.UnparentOperation;
 import com.dynamo.cr.scene.resource.CollectionResource;
+import com.dynamo.cr.scene.resource.PrototypeResource;
+import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.test.util.SceneContext;
 
 /**
@@ -81,7 +84,7 @@ public class OperationsTest {
     public void testAddGameObject() {
         InstanceNode node = null;
         CollectionNode parent = null;
-        PrototypeNode prototype = new PrototypeNode("prototype", null, this.scene);
+        PrototypeNode prototype = new PrototypeNode("prototype", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, null);
         // Empty operations, should fail
         try {
             node = new InstanceNode("instance", this.scene, null, prototype);
