@@ -103,9 +103,9 @@ public class CollectionNode extends Node implements IResourceListener {
                     PrototypeResource subResource = resource.getPrototypeInstances().get(i);
                     Node prototype;
                     try {
-                        prototype = factory.create(instanceDesc.getId(), subResource, null, getScene());
+                        prototype = factory.create(subResource.getPath(), subResource, null, getScene());
                     } catch (IOException e) {
-                        prototype = new PrototypeNode(instanceDesc.getId(), subResource, getScene(), factory);
+                        prototype = new PrototypeNode(subResource.getPath(), subResource, getScene(), factory);
                         prototype.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
                         factory.reportError(e.getMessage());
                     }
@@ -147,7 +147,7 @@ public class CollectionNode extends Node implements IResourceListener {
 
     @Override
     public String getLabel() {
-        return String.format("%s (%s)", getIdentifier(), resource);
+        return String.format("%s (%s)", getIdentifier(), this.resource.getPath());
     }
 
     private void addId(Node node, Map<String, Node> registry) {
