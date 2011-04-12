@@ -53,7 +53,7 @@ import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.TextFormat;
 
-public class ReloadTest {
+public class ReloadResourceTest {
 
     private IProject project;
     private NullProgressMonitor monitor;
