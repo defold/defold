@@ -5,17 +5,20 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileWriter;
+import java.io.ByteArrayInputStream;
+import java.io.CharArrayWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 
 import javax.vecmath.Matrix4d;
 
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
@@ -55,6 +58,7 @@ public class SceneTest {
     private NodeFactory nodeFactory;
     private ResourceFactory resourceFactory;
     private Scene scene;
+    private IProject project;
 
     @Before
     public void setup() throws CoreException, IOException {
@@ -62,6 +66,7 @@ public class SceneTest {
         this.nodeFactory = context.nodeFactory;
         this.resourceFactory = context.resourceFactory;
         this.scene = context.scene;
+        this.project = context.project;
     }
 
     InstanceNode getInstanceNode(Node[] nodes, String resource) {
@@ -365,16 +370,19 @@ public class SceneTest {
         Resource resource = resourceFactory.load(new NullProgressMonitor(), collectionName);
         CollectionNode root = (CollectionNode)nodeFactory.create(collectionName, resource, null, scene);
         CollectionDesc desc = root.buildDescriptor();
-        FileWriter output = new FileWriter("test/" + tmpName);
+        IFile tmpFile = this.project.getFile(tmpName);
+        CharArrayWriter output = new CharArrayWriter();
         TextFormat.print(desc, output);
         output.close();
+        tmpFile.create(new ByteArrayInputStream(output.toString().getBytes()), 0, new NullProgressMonitor());
+        assertTrue(tmpFile.exists());
         Scene tmpScene = new Scene();
         Resource tmpResource = resourceFactory.load(new NullProgressMonitor(), tmpName);
         Node tmpRoot = nodeFactory.create(tmpName, tmpResource, null, tmpScene);
         assertTrue(tmpRoot != null);
         deepCompare(root, tmpRoot);
-        File tmpFile = new File("test/" + tmpName);
-        assertTrue(tmpFile.delete());
+        tmpFile.delete(true, new NullProgressMonitor());
+        assertFalse(tmpFile.exists());
     }
 
     @Test
