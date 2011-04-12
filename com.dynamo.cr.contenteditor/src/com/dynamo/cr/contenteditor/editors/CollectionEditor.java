@@ -279,7 +279,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         resourceFactory.addLoader("collection", new CollectionLoader());
         resourceFactory.addLoader("model", new ModelLoader());
         resourceFactory.addLoader("go", new PrototypeLoader());
-        resourceFactory.addLoader("mesh", new MeshLoader());
+        resourceFactory.addLoader("dae", new MeshLoader());
         ResourcesPlugin.getWorkspace().addResourceChangeListener(resourceFactory);
         factory = new NodeFactory();
         factory.addCreator("collection", CollectionNode.getCreator());
