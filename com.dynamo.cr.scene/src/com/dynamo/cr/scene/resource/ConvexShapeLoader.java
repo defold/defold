@@ -7,7 +7,7 @@ import java.io.InputStreamReader;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.scene.graph.LoaderException;
+import com.dynamo.cr.scene.graph.CreateException;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 import com.dynamo.physics.proto.Physics.ConvexShape.Builder;
 import com.google.protobuf.TextFormat;
@@ -15,14 +15,23 @@ import com.google.protobuf.TextFormat;
 public class ConvexShapeLoader implements IResourceLoader {
 
     @Override
-    public Object load(IProgressMonitor monitor, String name,
-            InputStream stream, IResourceLoaderFactory factory)
-            throws IOException, LoaderException {
+    public Resource load(IProgressMonitor monitor, String name,
+            InputStream stream, IResourceFactory factory)
+            throws IOException, CreateException {
 
         InputStreamReader reader = new InputStreamReader(stream);
         Builder builder = ConvexShape.newBuilder();
         TextFormat.merge(reader, builder);
-        return new ConvexShapeResource(builder.build());
+        return new ConvexShapeResource(name, builder.build());
     }
 
+    @Override
+    public void reload(Resource resource, IProgressMonitor monitor, String name,
+            InputStream stream, IResourceFactory factory)
+            throws IOException, CreateException {
+        InputStreamReader reader = new InputStreamReader(stream);
+        Builder builder = ConvexShape.newBuilder();
+        TextFormat.merge(reader, builder);
+        ((ConvexShapeResource)resource).setConvexShape(builder.build());
+    }
 }

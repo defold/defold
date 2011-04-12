@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.scene.graph.LoaderException;
+import com.dynamo.cr.scene.graph.CreateException;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc.Builder;
 import com.google.protobuf.TextFormat;
@@ -14,14 +14,23 @@ import com.google.protobuf.TextFormat;
 public class LightLoader implements IResourceLoader {
 
     @Override
-    public Object load(IProgressMonitor monitor, String name,
-            InputStream stream, IResourceLoaderFactory factory)
-            throws IOException, LoaderException {
+    public Resource load(IProgressMonitor monitor, String name,
+            InputStream stream, IResourceFactory factory)
+            throws IOException, CreateException {
 
         InputStreamReader reader = new InputStreamReader(stream);
         Builder builder = LightDesc.newBuilder();
         TextFormat.merge(reader, builder);
-        return new LightResource(builder.build());
+        return new LightResource(name, builder.build());
     }
 
+    @Override
+    public void reload(Resource resource, IProgressMonitor monitor, String name,
+            InputStream stream, IResourceFactory factory)
+            throws IOException, CreateException {
+        InputStreamReader reader = new InputStreamReader(stream);
+        Builder builder = LightDesc.newBuilder();
+        TextFormat.merge(reader, builder);
+        ((LightResource)resource).setLightDesc(builder.build());
+    }
 }

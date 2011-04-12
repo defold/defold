@@ -1,11 +1,10 @@
 package com.dynamo.cr.contenteditor.commands;
 
-import java.io.ByteArrayOutputStream;
+import java.io.CharArrayWriter;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.swt.dnd.Clipboard;
 import org.eclipse.swt.dnd.TextTransfer;
 import org.eclipse.swt.dnd.Transfer;
@@ -14,9 +13,10 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.scene.graph.CollectionNode;
 import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.google.protobuf.TextFormat;
 
 public class Copy extends AbstractHandler {
 
@@ -29,14 +29,12 @@ public class Copy extends AbstractHandler {
 
                 ((IEditor) editor).setPasteTarget(selectedNodes[0].getParent());
 
-                NodeLoaderFactory factory = ((IEditor) editor).getLoaderFactory();
                 Shell shell = editor.getSite().getShell();
                 Clipboard cb = new Clipboard(shell.getDisplay());
 
-                ByteArrayOutputStream stream = new ByteArrayOutputStream(1024);
                 try {
                     // Create a temporary collection of selected nodes
-                    CollectionNode coll = new CollectionNode("clipboard_collection", ((IEditor) editor).getScene(), "dummy");
+                    CollectionNode coll = new CollectionNode("clipboard_collection", null, ((IEditor) editor).getScene(), ((IEditor)editor).getNodeFactory());
                     Node prevNode = null;
                     for (Node node : selectedNodes) {
                         boolean copy = true;
@@ -60,9 +58,13 @@ public class Copy extends AbstractHandler {
                             }
                         }
                     }
-                    factory.save(new NullProgressMonitor(), "clipboard.collection", coll, stream);
+
+                    CollectionDesc desc = coll.buildDescriptor();
+                    CharArrayWriter output = new CharArrayWriter(1024);
+                    TextFormat.print(desc, output);
                     TextTransfer transfer = TextTransfer.getInstance();
-                    cb.setContents(new Object[] {stream.toString()}, new Transfer[] {transfer});
+                    cb.setContents(new Object[] {output.toString()}, new Transfer[] {transfer});
+                    output.close();
                 } catch (Throwable e) {
                     throw new ExecutionException(e.getMessage(), e);
                 }

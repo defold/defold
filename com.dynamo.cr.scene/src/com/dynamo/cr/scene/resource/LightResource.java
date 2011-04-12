@@ -2,11 +2,12 @@ package com.dynamo.cr.scene.resource;
 
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 
-public class LightResource {
+public class LightResource extends Resource {
 
     private LightDesc lightDesc;
 
-    public LightResource(LightDesc lightDesc) {
+    public LightResource(String path, LightDesc lightDesc) {
+        super(path);
         this.lightDesc = lightDesc;
     }
 
@@ -14,4 +15,7 @@ public class LightResource {
         return lightDesc;
     }
 
+    public void setLightDesc(LightDesc lightDesc) {
+        this.lightDesc = lightDesc;
+    }
 }

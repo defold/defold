@@ -8,4 +8,6 @@ Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Require-Bundle: org.eclipse.core.commands,
  com.dynamo.cr.scene,
  org.junit4;bundle-version="4.8.1",
- org.eclipse.core.runtime
+ org.eclipse.core.runtime,
+ org.eclipse.core.resources;bundle-version="3.6.0",
+ com.dynamo.cr.common;bundle-version="1.0.0"

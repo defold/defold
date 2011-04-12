@@ -5,17 +5,16 @@ import java.awt.image.BufferedImage;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
 
-public class TextureResource {
+public class TextureResource extends Resource {
 
     private BufferedImage image;
     private Texture texture;
     private int width;
     private int height;
 
-    public TextureResource(BufferedImage image) {
-        this.image = image;
-        this.width = image.getWidth();
-        this.height = image.getHeight();
+    public TextureResource(String path, BufferedImage image) {
+        super(path);
+        setImage(image);
     }
 
     public Texture getTexture() {
@@ -36,4 +35,14 @@ public class TextureResource {
         return this.height;
     }
 
+    public BufferedImage getImage() {
+        return this.image;
+    }
+
+    public void setImage(BufferedImage image) {
+        this.image = image;
+        this.width = image.getWidth();
+        this.height = image.getHeight();
+        this.texture = null;
+    }
 }

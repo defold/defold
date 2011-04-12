@@ -51,9 +51,10 @@ import com.dynamo.cr.scene.graph.CollectionInstanceNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
 import com.dynamo.cr.scene.graph.CollectionRootNode;
 import com.dynamo.cr.scene.graph.ComponentNode;
+import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.InstanceNode;
-import com.dynamo.cr.scene.graph.MeshNode;
 import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.operations.SetIdentifierOperation;
 
@@ -140,10 +141,6 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
             } else {
                 return regist.get(Activator.BROKEN_COLLECTION_IMAGE_ID);
             }
-        }
-        else if (element instanceof MeshNode)
-        {
-            return regist.get(Activator.MESH_IMAGE_ID);
         }
         else if (element instanceof ComponentNode)
         {
@@ -344,8 +341,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
                 }
 
                 if (resource_name != null) {
-                    NodeLoaderFactory factory = m_Editor.getLoaderFactory();
-                    IContainer content_root = factory.getContentRoot();
+                    INodeFactory factory = m_Editor.getNodeFactory();
+                    IContainer content_root = ((NodeFactory)factory).getContentRoot();
                     IFile file = content_root.getFile(new Path(resource_name));
                     IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
                     try {

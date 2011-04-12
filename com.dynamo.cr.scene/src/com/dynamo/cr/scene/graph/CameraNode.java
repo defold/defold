@@ -1,17 +1,34 @@
 package com.dynamo.cr.scene.graph;
 
+import java.io.IOException;
+
 import javax.media.opengl.GL;
+
+import org.eclipse.core.runtime.CoreException;
 
 import com.dynamo.camera.proto.Camera.CameraDesc;
 import com.dynamo.cr.scene.resource.CameraResource;
+import com.dynamo.cr.scene.resource.Resource;
 
 public class CameraNode extends ComponentNode {
 
-    private CameraResource cameraResource;
+    private CameraResource resource;
 
-    public CameraNode(String resource, Scene scene, CameraResource cameraResource) {
-        super(resource, scene);
-        this.cameraResource = cameraResource;
+    public static INodeCreator getCreator() {
+        return new INodeCreator() {
+
+            @Override
+            public Node create(String identifier, Resource resource,
+                    Node parent, Scene scene, INodeFactory factory)
+                    throws IOException, CreateException, CoreException {
+                return new CameraNode(identifier, (CameraResource)resource, scene);
+            }
+        };
+    }
+
+    public CameraNode(String identifier, CameraResource resource, Scene scene) {
+        super(identifier, scene);
+        this.resource = resource;
     }
 
     @Override
@@ -21,7 +38,7 @@ public class CameraNode extends ComponentNode {
         double[] minMax0 = new double[4];
         double[] minMax1 = new double[4];
 
-        CameraDesc cameraDesc = cameraResource.getCameraDesc();
+        CameraDesc cameraDesc = resource.getCameraDesc();
         double fakeFar = 3;
 
         minMax0[3] = cameraDesc.getNearZ() * Math.tan(cameraDesc.getFov() * 1);

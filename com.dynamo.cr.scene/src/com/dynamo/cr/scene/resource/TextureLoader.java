@@ -7,16 +7,22 @@ import javax.imageio.ImageIO;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.cr.scene.graph.LoaderException;
+import com.dynamo.cr.scene.graph.CreateException;
 
 public class TextureLoader implements IResourceLoader {
 
     @Override
-    public Object load(IProgressMonitor monitor, String name,
-            InputStream stream, IResourceLoaderFactory factory)
-            throws IOException, LoaderException {
+    public Resource load(IProgressMonitor monitor, String name,
+            InputStream stream, IResourceFactory factory)
+            throws IOException, CreateException {
 
-        return new TextureResource(ImageIO.read(stream));
+        return new TextureResource(name, ImageIO.read(stream));
     }
 
+    @Override
+    public void reload(Resource resource, IProgressMonitor monitor, String name,
+            InputStream stream, IResourceFactory factory)
+            throws IOException, CreateException {
+        ((TextureResource)resource).setImage(ImageIO.read(stream));
+    }
 }

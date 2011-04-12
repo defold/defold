@@ -1,19 +1,19 @@
 package com.dynamo.cr.scene.graph;
 
 
-public class LoaderException extends Exception
+public class CreateException extends Exception
 {
-    public LoaderException(String message)
+    public CreateException(String message)
     {
         super(message);
     }
 
-    public LoaderException(String message, Throwable e)
+    public CreateException(String message, Throwable e)
     {
         super(message, e);
     }
 
-    public LoaderException(Throwable e) {
+    public CreateException(Throwable e) {
         super(e);
     }
 

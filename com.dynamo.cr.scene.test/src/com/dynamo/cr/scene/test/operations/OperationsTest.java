@@ -5,6 +5,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
+
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -15,14 +17,15 @@ import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.scene.test.util.SceneContext;
 import com.dynamo.cr.scene.graph.CollectionInstanceNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.CreateException;
 import com.dynamo.cr.scene.graph.InstanceNode;
 import com.dynamo.cr.scene.graph.Node;
 import com.dynamo.cr.scene.graph.PrototypeNode;
@@ -36,6 +39,8 @@ import com.dynamo.cr.scene.operations.PasteOperation;
 import com.dynamo.cr.scene.operations.SetIdentifierOperation;
 import com.dynamo.cr.scene.operations.TransformNodeOperation;
 import com.dynamo.cr.scene.operations.UnparentOperation;
+import com.dynamo.cr.scene.resource.CollectionResource;
+import com.dynamo.cr.scene.test.util.SceneContext;
 
 /**
  * All operations should be tested for:
@@ -51,7 +56,7 @@ public class OperationsTest {
     private IUndoContext undoContext;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException, CoreException {
         SceneContext context = new SceneContext();
         this.scene = context.scene;
         this.history = new DefaultOperationHistory();
@@ -76,7 +81,7 @@ public class OperationsTest {
     public void testAddGameObject() {
         InstanceNode node = null;
         CollectionNode parent = null;
-        PrototypeNode prototype = new PrototypeNode("prototype", this.scene);
+        PrototypeNode prototype = new PrototypeNode("prototype", null, this.scene);
         // Empty operations, should fail
         try {
             node = new InstanceNode("instance", this.scene, null, prototype);
@@ -88,10 +93,12 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
         try {
             node = null;
-            parent = new CollectionNode("parent", this.scene, null);
+            parent = new CollectionNode("parent", new CollectionResource("", null), this.scene, null);
             execute(new AddGameObjectOperation(node, parent));
             assertTrue(false);
         } catch (ExecutionException e) {
+            assertTrue(true);
+        } catch (CreateException e) {
             assertTrue(true);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
@@ -99,7 +106,7 @@ public class OperationsTest {
         try {
             String childId = "instance";
             node = new InstanceNode(childId, this.scene, null, prototype);
-            parent = new CollectionNode("parent", this.scene, null);
+            parent = new CollectionNode("parent", new CollectionResource("", null), this.scene, null);
             Node child = new InstanceNode(childId, this.scene, null, prototype);
             child.setParent(parent);
             assertThat(parent.getChildren().length, is(1));
@@ -114,14 +121,16 @@ public class OperationsTest {
             assertTrue(!node.getIdentifier().equals(childId));
         } catch (ExecutionException e) {
             assertTrue(false);
+        } catch (CreateException e) {
+            assertTrue(true);
         }
     }
 
     @Test
-    public void testAddSubCollection() {
+    public void testAddSubCollection() throws CreateException {
         CollectionInstanceNode node = null;
         CollectionNode parent = null;
-        CollectionNode collection = new CollectionNode("collection", this.scene, null);
+        CollectionNode collection = new CollectionNode("collection", new CollectionResource("", null), this.scene, null);
         // Empty operations, should fail
         try {
             node = new CollectionInstanceNode("instance", this.scene, null, collection);
@@ -133,7 +142,7 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
         try {
             node = null;
-            parent = new CollectionNode("parent", this.scene, null);
+            parent = new CollectionNode("parent", new CollectionResource("", null), this.scene, null);
             execute(new AddSubCollectionOperation(node, parent));
             assertTrue(false);
         } catch (ExecutionException e) {
@@ -144,7 +153,7 @@ public class OperationsTest {
         try {
             String childId = "instance";
             node = new CollectionInstanceNode(childId, this.scene, null, collection);
-            parent = new CollectionNode("parent", this.scene, null);
+            parent = new CollectionNode("parent", new CollectionResource("", null), this.scene, null);
             Node child = new CollectionInstanceNode(childId, this.scene, null, collection);
             child.setParent(parent);
             assertThat(parent.getChildren().length, is(1));
@@ -163,7 +172,7 @@ public class OperationsTest {
     }
 
     @Test
-    public void testDelete() {
+    public void testDelete() throws CreateException {
         Node[] nodes = null;
         // Empty operations, should fail
         try {
@@ -184,7 +193,7 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
         // Valid operations, should succeed
         try {
-            CollectionNode root = new CollectionNode("root", this.scene, null);
+            CollectionNode root = new CollectionNode("root", new CollectionResource("", null), this.scene, null);
             nodes = new Node[] {new InstanceNode("child", this.scene, null, null)};
             nodes[0].setParent(root);
             assertThat(root.getChildren().length, is(1));
@@ -289,7 +298,7 @@ public class OperationsTest {
         // Valid operations, should succeed
         try {
             nodes = new Node[] {new InstanceNode("id1", this.scene, null, null), new InstanceNode("id2", this.scene, null, null)};
-            Node root = new CollectionNode("collection", this.scene, null);
+            Node root = new CollectionNode("collection", new CollectionResource("", null), this.scene, null);
             target = new CollectionInstanceNode("id3", this.scene, null, null);
             target.setParent(root);
             assertThat(root.getChildren().length, is(1));
@@ -300,6 +309,8 @@ public class OperationsTest {
             redo();
             assertThat(root.getChildren().length, is(3));
         } catch (ExecutionException e) {
+            assertTrue(false);
+        } catch (CreateException e) {
             assertTrue(false);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
@@ -362,7 +373,7 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
         // Invalid operations, should fail
         try {
-            CollectionNode root = new CollectionNode("root", this.scene, null);
+            CollectionNode root = new CollectionNode("root", new CollectionResource("", null), this.scene, null);
             InstanceNode child1 = new InstanceNode("id1", this.scene, null, null);
             child1.setParent(root);
             InstanceNode child2 = new InstanceNode("id2", this.scene, null, null);
@@ -371,6 +382,8 @@ public class OperationsTest {
             assertTrue(false);
         } catch (ExecutionException e) {
             assertTrue(true);
+        } catch (CreateException e) {
+            assertTrue(false);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
     }
@@ -471,7 +484,7 @@ public class OperationsTest {
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(0));
         // Valid operations, should succeed
         try {
-            CollectionNode root = new CollectionNode("root", this.scene, null);
+            CollectionNode root = new CollectionNode("root", new CollectionResource("", null), this.scene, null);
             InstanceNode child = new InstanceNode("child", this.scene, null, null);
             child.setParent(root);
             InstanceNode grandChild = new InstanceNode("grand_child", this.scene, null, null);
@@ -490,17 +503,21 @@ public class OperationsTest {
             assertTrue(grandChild.getParent() == root);
         } catch (ExecutionException e) {
             assertTrue(false);
+        } catch (CreateException e) {
+            assertTrue(false);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
         // Invalid operations, should fail
         try {
-            CollectionNode root = new CollectionNode("root", this.scene, null);
+            CollectionNode root = new CollectionNode("root", new CollectionResource("", null), this.scene, null);
             InstanceNode child1 = new InstanceNode("id1", this.scene, null, null);
             child1.setParent(root);
             execute(new UnparentOperation(new InstanceNode[] {child1}));
             assertTrue(false);
         } catch (ExecutionException e) {
             assertTrue(true);
+        } catch (CreateException e) {
+            assertTrue(false);
         }
         assertThat(this.history.getUndoHistory(this.undoContext).length, is(1));
     }

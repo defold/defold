@@ -17,6 +17,7 @@ import com.dynamo.cr.scene.graph.CollectionNode;
 import com.dynamo.cr.scene.graph.Node;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.operations.PasteOperation;
+import com.dynamo.cr.scene.resource.Resource;
 
 public class Paste extends AbstractHandler {
 
@@ -42,7 +43,9 @@ public class Paste extends AbstractHandler {
             ByteArrayInputStream stream = new ByteArrayInputStream(data.getBytes());
             Scene scene = new Scene();
             try {
-                CollectionNode node = (CollectionNode) ((IEditor)editor).getLoaderFactory().load(new NullProgressMonitor(), scene, "clipboard.collection", stream, null);
+                String name = "clipboard.collection";
+                Resource resource = ((IEditor)editor).getResourceFactory().load(new NullProgressMonitor(), name, stream);
+                CollectionNode node = (CollectionNode) ((IEditor)editor).getNodeFactory().create(name, resource, null, scene);
                 setScene(target.getScene(), node);
 
                 if (data != null) {

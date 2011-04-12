@@ -16,12 +16,11 @@ import org.jagatoo.loaders.models.collada.stax.XMLInput;
 import org.jagatoo.loaders.models.collada.stax.XMLMesh;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 
-import com.dynamo.cr.scene.graph.LoaderException;
-import com.dynamo.cr.scene.graph.Mesh;
+import com.dynamo.cr.scene.graph.CreateException;
 
-public class ColladaUtil
-{
-    private static XMLInput findInput(List<XMLInput> inputs, String semantic) throws LoaderException
+public class ColladaUtil {
+
+    private static XMLInput findInput(List<XMLInput> inputs, String semantic) throws CreateException
     {
         for (XMLInput i : inputs)
         {
@@ -45,7 +44,7 @@ public class ColladaUtil
         return sourcesMap;
     }
 
-    public static Mesh loadMesh(InputStream is) throws IOException, XMLStreamException, LoaderException
+    public static Mesh loadMesh(InputStream is) throws IOException, XMLStreamException, CreateException
     {
         XMLInputFactory factory = XMLInputFactory.newInstance();
         XMLStreamReader stream_reader = factory.createXMLStreamReader(is);
@@ -55,7 +54,7 @@ public class ColladaUtil
 
         if (collada.libraryGeometries.size() != 1)
         {
-            throw new LoaderException("Only a single geometry is supported");
+            throw new CreateException("Only a single geometry is supported");
         }
 
         XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values().iterator().next();
@@ -71,7 +70,7 @@ public class ColladaUtil
         XMLInput texcoord_input = findInput(mesh.triangles.inputs, "TEXCOORD");
 
         if (mesh.triangles.inputs.size() == 0)
-            throw new LoaderException("No inputs in triangles");
+            throw new CreateException("No inputs in triangles");
 
         int stride = 0;
         for (XMLInput i : mesh.triangles.inputs)

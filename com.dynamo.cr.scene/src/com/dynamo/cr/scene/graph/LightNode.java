@@ -1,19 +1,36 @@
 package com.dynamo.cr.scene.graph;
 
+import java.io.IOException;
+
 import javax.media.opengl.GL;
 import javax.media.opengl.glu.GLU;
 import javax.media.opengl.glu.GLUquadric;
 
+import org.eclipse.core.runtime.CoreException;
+
 import com.dynamo.cr.scene.resource.LightResource;
+import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightType;
 
 public class LightNode extends ComponentNode {
 
+    public static INodeCreator getCreator() {
+        return new INodeCreator() {
+
+            @Override
+            public Node create(String identifier, Resource resource, Node parent,
+                    Scene scene, INodeFactory factory) throws IOException,
+                    CreateException, CoreException {
+                return new LightNode(identifier, (LightResource)resource, scene);
+            }
+        };
+    }
+
     private LightResource lightResource;
 
-    public LightNode(String resource, Scene scene, LightResource lightResource) {
-        super(resource, scene);
+    public LightNode(String identifier, LightResource lightResource, Scene scene) {
+        super(identifier, scene);
         this.lightResource = lightResource;
     }
 

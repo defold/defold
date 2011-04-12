@@ -8,8 +8,10 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
+import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.Node;
 import com.dynamo.cr.scene.graph.Scene;
+import com.dynamo.cr.scene.resource.IResourceFactory;
 
 public interface IEditor {
 
@@ -39,7 +41,8 @@ public interface IEditor {
 
     Node getRoot();
 
-    NodeLoaderFactory getLoaderFactory();
+    IResourceFactory getResourceFactory();
+    INodeFactory getNodeFactory();
 
     Node getPasteTarget();
     void setPasteTarget(Node node);

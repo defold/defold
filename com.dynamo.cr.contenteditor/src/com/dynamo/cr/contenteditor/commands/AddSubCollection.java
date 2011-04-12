@@ -16,12 +16,14 @@ import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.scene.graph.CollectionInstanceNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.operations.AddSubCollectionOperation;
+import com.dynamo.cr.scene.resource.Resource;
 
 public class AddSubCollection extends AbstractHandler {
 
@@ -55,12 +57,13 @@ public class AddSubCollection extends AbstractHandler {
                 Node root = editor.getRoot();
                 Scene scene = editor.getScene();
 
-                NodeLoaderFactory factory = editor.getLoaderFactory();
-                IContainer content_root = factory.getContentRoot();
+                INodeFactory factory = editor.getNodeFactory();
+                IContainer content_root = ((NodeFactory)factory).getContentRoot();
                 IFile file = (IFile)r;
                 String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
                 try {
-                    CollectionNode proto = (CollectionNode) factory.load(new NullProgressMonitor(), scene, name, root);
+                    Resource resource = editor.getResourceFactory().load(new NullProgressMonitor(), name);
+                    CollectionNode proto = (CollectionNode) factory.create(name, resource, root, scene);
                     CollectionNode parent = (CollectionNode)root;
                     CollectionInstanceNode node = new CollectionInstanceNode(file.getName(), scene, name, proto);
                     ((IEditor) editor).executeOperation(new AddSubCollectionOperation(node, parent));

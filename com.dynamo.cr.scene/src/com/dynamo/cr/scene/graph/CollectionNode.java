@@ -1,19 +1,148 @@
 package com.dynamo.cr.scene.graph;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.eclipse.core.runtime.CoreException;
+
+import com.dynamo.cr.scene.math.MathUtil;
+import com.dynamo.cr.scene.resource.CollectionResource;
+import com.dynamo.cr.scene.resource.IResourceListener;
+import com.dynamo.cr.scene.resource.PrototypeResource;
+import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 
-public class CollectionNode extends Node {
+public class CollectionNode extends Node implements IResourceListener {
 
-    private String resource;
-    private Map<String, Node> collectionInstanceIdToNode = new HashMap<String, Node>();
-    private Map<String, Node> instanceIdToNode = new HashMap<String, Node>();
+    private CollectionResource resource;
+    private Map<String, Node> collectionInstanceIdToNode;
+    private Map<String, Node> instanceIdToNode;
+    private INodeFactory factory;
 
-    public CollectionNode(String identifier, Scene scene, String resource) {
+    public static INodeCreator getCreator() {
+        return new INodeCreator() {
+
+            @Override
+            public Node create(String identifier, Resource resource, Node parent, Scene scene, INodeFactory factory)
+                    throws IOException, CreateException, CoreException {
+                return new CollectionNode(identifier, (CollectionResource)resource, scene, factory);
+            }
+        };
+    }
+
+    public CollectionNode(String identifier, CollectionResource resource, Scene scene, INodeFactory factory) throws CreateException {
         super(identifier, scene, FLAG_EDITABLE | FLAG_CAN_HAVE_CHILDREN);
         this.resource = resource;
+        this.collectionInstanceIdToNode = new HashMap<String, Node>();
+        this.instanceIdToNode = new HashMap<String, Node>();
+        this.factory = factory;
+        setup();
+        resource.addListener(this);
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        resource.removeListener(this);
+        super.finalize();
+    }
+
+    private void setup() throws CreateException {
+        try {
+            CollectionDesc desc = this.resource.getCollectionDesc();
+            if (desc != null) {
+                String id = desc.getName();
+                setIdentifier(id);
+                Node parent = getParent();
+                boolean canHaveChildren = (getFlags() & FLAG_CAN_HAVE_CHILDREN) == FLAG_CAN_HAVE_CHILDREN;
+                setFlags(getFlags() | FLAG_CAN_HAVE_CHILDREN);
+                clearNodes();
+                for (int i = 0; i < desc.getCollectionInstancesCount(); ++i) {
+                    CollectionInstanceDesc cid = desc.getCollectionInstances(i);
+                    CollectionResource subResource = this.resource.getCollectionInstances().get(i);
+                    // detect recursion
+                    String ancestorCollection = id;
+                    Node subNode;
+                    if (!id.equals(cid.getCollection()) && parent != null) {
+                        Node ancestor = parent;
+                        ancestorCollection = ((CollectionNode)parent).getResource();
+                        while (!ancestorCollection.equals(cid.getCollection()) && ancestor != null) {
+                            ancestor = ancestor.getParent();
+                            if (ancestor != null && ancestor instanceof CollectionNode) {
+                                ancestorCollection = ((CollectionNode)ancestor).getResource();
+                            }
+                        }
+                    }
+                    Node subCollection = null;
+                    if (!ancestorCollection.equals(cid.getCollection()) && subResource != null) {
+                        subCollection = factory.create(cid.getId(), subResource, parent, getScene());
+                        if (subResource.getCollectionDesc() == null) {
+                            String error = "Unable to open " + cid.getCollection();
+                            subCollection.setError(Node.ERROR_FLAG_RESOURCE_ERROR, error);
+                            factory.reportError(error);
+                        }
+                    }
+
+                    subNode = new CollectionInstanceNode(cid.getId(), getScene(), cid.getCollection(), subCollection);
+                    if (subCollection == null) {
+                        subNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The resource %s is already used in a collection above this item.", cid.getCollection()));
+                    }
+
+                    subNode.setLocalTranslation(MathUtil.toVector4(cid.getPosition()));
+                    subNode.setLocalRotation(MathUtil.toQuat4(cid.getRotation()));
+
+                    addNode(subNode);
+                }
+
+                // Needs to be map of lists to handle duplicated ids
+                Map<String, Node> idToNode = new HashMap<String, Node>();
+                for (int i = 0; i < desc.getInstancesCount(); ++i) {
+                    InstanceDesc instanceDesc = desc.getInstances(i);
+                    PrototypeResource subResource = resource.getPrototypeInstances().get(i);
+                    Node prototype;
+                    try {
+                        prototype = factory.create(instanceDesc.getId(), subResource, null, getScene());
+                    } catch (IOException e) {
+                        prototype = new PrototypeNode(instanceDesc.getId(), subResource, getScene(), factory);
+                        prototype.setError(Node.ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
+                        factory.reportError(e.getMessage());
+                    }
+
+                    InstanceNode in = new InstanceNode(instanceDesc.getId(), getScene(), instanceDesc.getPrototype(), prototype);
+                    idToNode.put(instanceDesc.getId(), in);
+                    in.setLocalTranslation(MathUtil.toVector4(instanceDesc.getPosition()));
+                    in.setLocalRotation(MathUtil.toQuat4(instanceDesc.getRotation()));
+                    addNode(in);
+                }
+
+                for (InstanceDesc instanceDesc : desc.getInstancesList()) {
+                    Node parentInstance = idToNode.get(instanceDesc.getId());
+                    for (String childId : instanceDesc.getChildrenList()) {
+                        Node child = idToNode.get(childId);
+                        if (child == null)
+                            throw new CreateException(String.format("Child %s not found", childId));
+
+                        if (parentInstance.acceptsChild(child)) {
+                            removeNode(child);
+                            parentInstance.addNode(child);
+                        } else {
+                            Node instanceNode = new InstanceNode(childId, getScene(), null, null);
+                            parentInstance.addNode(instanceNode);
+                            instanceNode.setError(Node.ERROR_FLAG_RECURSION, String.format("The instance %s can not be a child of %s since it occurs above %s in the hierarchy.", childId, instanceDesc.getId(), instanceDesc.getId()));
+                        }
+                    }
+                }
+                if (!canHaveChildren) {
+                    setFlags(getFlags() & ~FLAG_CAN_HAVE_CHILDREN);
+                }
+            }
+        } catch (IOException e) {
+            throw new CreateException(e.getMessage(), e);
+        } catch (CoreException e) {
+            throw new CreateException(e.getMessage(), e);
+        }
     }
 
     @Override
@@ -70,7 +199,7 @@ public class CollectionNode extends Node {
     }
 
     public String getResource() {
-        return resource;
+        return resource.getPath();
     }
 
     void buildInstance(CollectionDesc.Builder builder, InstanceNode in) {
@@ -205,6 +334,16 @@ public class CollectionNode extends Node {
     @Override
     protected boolean verifyChild(Node child) {
         return (child instanceof CollectionInstanceNode) || (child instanceof InstanceNode);
+    }
+
+    @Override
+    public void resourceChanged(Resource resource) {
+        try {
+            setup();
+            getScene().fireSceneEvent(new SceneEvent(SceneEvent.NODE_CHANGED, this));
+        } catch (CreateException e) {
+            e.printStackTrace();
+        }
     }
 }
 

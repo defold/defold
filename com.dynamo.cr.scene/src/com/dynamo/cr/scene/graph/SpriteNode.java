@@ -1,22 +1,35 @@
 package com.dynamo.cr.scene.graph;
 
+import java.io.IOException;
+
 import javax.media.opengl.GL;
 
+import org.eclipse.core.runtime.CoreException;
+
+import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.resource.SpriteResource;
-import com.dynamo.cr.scene.resource.TextureResource;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.sun.opengl.util.texture.Texture;
 
 public class SpriteNode extends ComponentNode {
 
-    private SpriteResource spriteResource;
-    private TextureResource textureResource;
+    public static INodeCreator getCreator() {
+        return new INodeCreator() {
 
-    public SpriteNode(String resource, Scene scene, SpriteResource spriteResource, TextureResource textureResource) {
-        super(resource, scene);
+            @Override
+            public Node create(String identifier, Resource resource, Node parent,
+                    Scene scene, INodeFactory factory) throws IOException,
+                    CreateException, CoreException {
+                return new SpriteNode(identifier, (SpriteResource)resource, scene);
+            }
+        };
+    }
+    private SpriteResource spriteResource;
+
+    public SpriteNode(String identifier, SpriteResource spriteResource, Scene scene) {
+        super(identifier, scene);
         this.spriteResource = spriteResource;
-        this.textureResource = textureResource;
     }
 
     @Override
@@ -31,8 +44,8 @@ public class SpriteNode extends ComponentNode {
         GL gl = context.m_GL;
 
         Texture texture = null;
-        if (textureResource != null)
-            texture = textureResource.getTexture();
+        if (spriteResource.getTextureResource() != null)
+            texture = spriteResource.getTextureResource().getTexture();
 
         float[] uvs = { 1.0f, 1.0f };
         if (texture != null) {

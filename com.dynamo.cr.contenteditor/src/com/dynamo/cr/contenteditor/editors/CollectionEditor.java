@@ -2,6 +2,7 @@ package com.dynamo.cr.contenteditor.editors;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -100,29 +101,38 @@ import com.dynamo.cr.contenteditor.commands.ActivateTool;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.scene.graph.CameraNodeLoader;
-import com.dynamo.cr.scene.graph.CollectionNodeLoader;
-import com.dynamo.cr.scene.graph.CollisionNodeLoader;
+import com.dynamo.cr.scene.graph.CameraNode;
+import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.CollisionNode;
 import com.dynamo.cr.scene.graph.DrawContext;
+import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.ISceneListener;
-import com.dynamo.cr.scene.graph.LightNodeLoader;
-import com.dynamo.cr.scene.graph.MeshNodeLoader;
-import com.dynamo.cr.scene.graph.ModelNodeLoader;
+import com.dynamo.cr.scene.graph.LightNode;
+import com.dynamo.cr.scene.graph.ModelNode;
 import com.dynamo.cr.scene.graph.Node;
-import com.dynamo.cr.scene.graph.PrototypeNodeLoader;
+import com.dynamo.cr.scene.graph.NodeFactory;
+import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SceneEvent;
 import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
-import com.dynamo.cr.scene.graph.SpriteNodeLoader;
+import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.resource.CameraLoader;
+import com.dynamo.cr.scene.resource.CollectionLoader;
 import com.dynamo.cr.scene.resource.CollisionLoader;
 import com.dynamo.cr.scene.resource.ConvexShapeLoader;
+import com.dynamo.cr.scene.resource.IResourceFactory;
 import com.dynamo.cr.scene.resource.LightLoader;
-import com.dynamo.cr.scene.resource.ResourceLoaderFactory;
+import com.dynamo.cr.scene.resource.MeshLoader;
+import com.dynamo.cr.scene.resource.ModelLoader;
+import com.dynamo.cr.scene.resource.PrototypeLoader;
+import com.dynamo.cr.scene.resource.Resource;
+import com.dynamo.cr.scene.resource.ResourceFactory;
 import com.dynamo.cr.scene.resource.SpriteLoader;
 import com.dynamo.cr.scene.resource.TextureLoader;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.google.protobuf.TextFormat;
 
 public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, ISceneListener, ISelectionProvider, IOperationHistoryListener, IResourceChangeListener {
 
@@ -133,7 +143,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private Camera m_OrthoCamera = new Camera(Camera.Type.ORTHOGRAPHIC);
     private Camera m_ActiveCamera = m_OrthoCamera;
     private CameraController m_CameraController = new CameraController();
-    private NodeLoaderFactory factory;
+    private NodeFactory factory;
     private Node m_Root;
     private EditorOutlinePage m_OutlinePage;
     private IntBuffer m_SelectBuffer;
@@ -154,7 +164,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     private boolean isRendering;
     private IContainer contentRoot;
-    private ResourceLoaderFactory resourceFactory;
+    private ResourceFactory resourceFactory;
 
     // TODO: Part of a hack described in the end of init()
     private IPartListener partListener;
@@ -195,7 +205,11 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         try
         {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            factory.save(monitor, i.getName(), m_Root, stream);
+            CollectionNode rootCollection = (CollectionNode)m_Root;
+            CollectionDesc desc = rootCollection.buildDescriptor();
+            OutputStreamWriter writer = new OutputStreamWriter(stream);
+            TextFormat.print(desc, writer);
+            writer.close();
             i.getFile().setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, monitor);
 
             IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
@@ -230,7 +244,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 throws InvocationTargetException, InterruptedException {
             try {
                 factory.clearErrors();
-                node = factory.load(monitor, m_Scene, path, null);
+                Resource resource = resourceFactory.load(monitor, path);
+                node = factory.create(path, resource, null, m_Scene);
             } catch (Throwable e) {
                 this.exception = e;
                 e.printStackTrace();
@@ -254,28 +269,33 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             throw new PartInitException("Unable to find content root. Missing game.project file?");
         }
 
-        resourceFactory = new ResourceLoaderFactory(contentRoot);
-        resourceFactory.addLoader(new TextureLoader(), "png");
-        resourceFactory.addLoader(new CameraLoader(), "camera");
-        resourceFactory.addLoader(new LightLoader(), "light");
-        resourceFactory.addLoader(new SpriteLoader(), "sprite");
-        resourceFactory.addLoader(new CollisionLoader(), "collisionobject");
-        resourceFactory.addLoader(new ConvexShapeLoader(), "convexshape");
-        factory = new NodeLoaderFactory(resourceFactory);
-        factory.addLoader(new CollectionNodeLoader(), "collection");
-        factory.addLoader(new PrototypeNodeLoader(), "go");
-        factory.addLoader(new ModelNodeLoader(), "model");
-        factory.addLoader(new MeshNodeLoader(), "dae");
-        factory.addLoader(new CameraNodeLoader(), "camera");
-        factory.addLoader(new LightNodeLoader(), "light");
-        factory.addLoader(new SpriteNodeLoader(), "sprite");
-        factory.addLoader(new CollisionNodeLoader(), "collisionobject");
+        resourceFactory = new ResourceFactory(contentRoot);
+        resourceFactory.addLoader("png", new TextureLoader());
+        resourceFactory.addLoader("camera", new CameraLoader());
+        resourceFactory.addLoader("light", new LightLoader());
+        resourceFactory.addLoader("sprite", new SpriteLoader());
+        resourceFactory.addLoader("collisionobject", new CollisionLoader());
+        resourceFactory.addLoader("convexshape", new ConvexShapeLoader());
+        resourceFactory.addLoader("collection", new CollectionLoader());
+        resourceFactory.addLoader("model", new ModelLoader());
+        resourceFactory.addLoader("go", new PrototypeLoader());
+        resourceFactory.addLoader("mesh", new MeshLoader());
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(resourceFactory);
+        factory = new NodeFactory();
+        factory.addCreator("collection", CollectionNode.getCreator());
+        factory.addCreator("go", PrototypeNode.getCreator());
+        factory.addCreator("model", ModelNode.getCreator());
+        factory.addCreator("camera", CameraNode.getCreator());
+        factory.addCreator("light", LightNode.getCreator());
+        factory.addCreator("sprite", SpriteNode.getCreator());
+        factory.addCreator("collisionobject", CollisionNode.getCreator());
 
         try
         {
-            boolean found = factory.findContentRoot(i.getFile());
+            IContainer root = EditorUtil.findContentRoot(i.getFile());
+            if (root != null) {
+                factory.setContentRoot(root);
 
-            if (found) {
                 m_Scene = new Scene();
                 IProgressService service = PlatformUI.getWorkbench().getProgressService();
                 IContainer content_root = this.factory.getContentRoot();
@@ -1303,7 +1323,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         if (event.m_Type == SceneEvent.NODE_REMOVED) {
             setSelectedNodes(new Node[] {});
         } else if (event.m_Type == SceneEvent.NODE_CHANGED) {
-            m_OutlinePage.update(event.node, new String[] {"status"});
+            if (m_OutlinePage != null) {
+                m_OutlinePage.refresh(event.node);
+            }
         }
     }
 
@@ -1362,7 +1384,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     @Override
-    public NodeLoaderFactory getLoaderFactory() {
+    public IResourceFactory getResourceFactory() {
+        return resourceFactory;
+    }
+
+    @Override
+    public INodeFactory getNodeFactory() {
         return factory;
     }
 

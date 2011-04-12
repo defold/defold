@@ -289,6 +289,7 @@ public abstract class Node
         assert (children.indexOf(node) == -1);
         children.add(node);
         m_Scene.nodeAdded(node);
+        m_Scene.nodeChanged(this);
         nodeAdded(node);
     }
 
@@ -302,6 +303,7 @@ public abstract class Node
         checkChildrenErrors();
         nodeAdded(node);
         m_Scene.nodeAdded(node);
+        m_Scene.nodeChanged(this);
     }
 
     protected void nodeRemoved(Node node) {
@@ -317,8 +319,21 @@ public abstract class Node
         checkChildrenErrors();
         nodeRemoved(node);
         m_Scene.nodeRemoved(node);
+        m_Scene.nodeChanged(this);
     }
 
+    public final void clearNodes() {
+        if ((m_Flags & FLAG_CAN_HAVE_CHILDREN) == 0)
+            throw new UnsupportedOperationException("removeNode is not supported for this node: " + this);
+        for (Node child : children) {
+            child.m_Parent = null;
+            nodeRemoved(child);
+            m_Scene.nodeRemoved(child);
+        }
+        m_Scene.nodeChanged(this);
+        children.clear();
+        checkChildrenErrors();
+    }
     protected abstract boolean verifyChild(Node child);
 
     public final boolean acceptsChild(Node child) {

@@ -1,41 +1,78 @@
-name: "test"
-collection_instances
-{
-    collection: "sub.collection"
-    id: "sub"
-    position { x: 0 y: 0 z: 0 }
-    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+name: "test.collection"
+instances {
+  id: "attacker"
+  prototype: "attacker.go"
+  children: "attacker_child1"
+  children: "attacker_child2"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }
-instances
-{
-    prototype: "attacker.go"
-    id: "attacker"
-    position { x: 0 y: 0 z: 0 }
-    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
-    children: "attacker_child1"
-    children: "attacker_child2"
+instances {
+  id: "attacker_child1"
+  prototype: "attacker_child.go"
+  position {
+    x: 1.0
+    y: 1.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }
-
-instances
-{
-    prototype: "attacker_child.go"
-    id: "attacker_child1"
-    position { x: 1 y: 1 z: 0 }
-    rotation { x: 0 y: 0 z: 0.0 w: 1.0 }
+instances {
+  id: "attacker_child2"
+  prototype: "attacker_child.go"
+  position {
+    x: -1.0
+    y: 1.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }
-
-instances
-{
-    prototype: "attacker_child.go"
-    id: "attacker_child2"
-    position { x: -1 y: 1 z: 0 }
-    rotation { x: 0 y: 0 z: 0.0 w: 1.0 }
+instances {
+  id: "target"
+  prototype: "target.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: -2.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }
-
-instances
-{
-    prototype: "target.go"
-    id: "target"
-    position { x: 0 y: 0 z: -2 }
-    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+collection_instances {
+  id: "sub"
+  collection: "sub.collection"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }

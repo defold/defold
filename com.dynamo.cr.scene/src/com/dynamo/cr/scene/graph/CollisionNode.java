@@ -1,9 +1,13 @@
 package com.dynamo.cr.scene.graph;
 
+import java.io.IOException;
+
 import javax.media.opengl.GL;
 
+import org.eclipse.core.runtime.CoreException;
+
 import com.dynamo.cr.scene.resource.CollisionResource;
-import com.dynamo.cr.scene.resource.ConvexShapeResource;
+import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
 import com.dynamo.physics.proto.Physics.ConvexShape;
@@ -11,16 +15,24 @@ import com.dynamo.physics.proto.Physics.ConvexShape.Type;
 
 public class CollisionNode extends ComponentNode {
 
-    @SuppressWarnings("unused")
+    public static INodeCreator getCreator() {
+        return new INodeCreator() {
+
+            @Override
+            public Node create(String identifier, Resource resource,
+                    Node parent, Scene scene, INodeFactory factory)
+                    throws IOException, CreateException, CoreException {
+                return new CollisionNode(identifier, (CollisionResource)resource, scene);
+            }
+        };
+    }
+
     private CollisionResource collisionResource;
-    private ConvexShapeResource convexShapeResource;
     private boolean invalid = false;
 
-    public CollisionNode(String resource, Scene scene,
-            CollisionResource collisionResource, ConvexShapeResource convexShapeResource) {
-        super(resource, scene);
+    public CollisionNode(String identifier, CollisionResource collisionResource, Scene scene) {
+        super(identifier, scene);
         this.collisionResource = collisionResource;
-        this.convexShapeResource = convexShapeResource;
     }
 
     @Override
@@ -32,7 +44,7 @@ public class CollisionNode extends ComponentNode {
         gl.glPushAttrib(GL.GL_ENABLE_BIT);
         gl.glEnable(GL.GL_BLEND);
 
-        ConvexShape shape = convexShapeResource.getConvextShape();
+        ConvexShape shape = collisionResource.getConvexShapeResource().getConvexShape();
         if (shape.getShapeType() == Type.TYPE_BOX) {
             if (shape.getDataCount() != 3) {
                 invalid = true;

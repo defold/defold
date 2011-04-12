@@ -8,17 +8,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-import java.io.ByteArrayOutputStream;
+import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
 
 import javax.vecmath.Matrix4d;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.scene.graph.AbstractNodeLoaderFactory;
 import com.dynamo.cr.scene.graph.CameraNode;
 import com.dynamo.cr.scene.graph.CollectionInstanceNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
@@ -26,23 +28,39 @@ import com.dynamo.cr.scene.graph.CollisionNode;
 import com.dynamo.cr.scene.graph.ComponentNode;
 import com.dynamo.cr.scene.graph.InstanceNode;
 import com.dynamo.cr.scene.graph.LightNode;
-import com.dynamo.cr.scene.graph.MeshNode;
 import com.dynamo.cr.scene.graph.ModelNode;
 import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SpriteNode;
+import com.dynamo.cr.scene.resource.CameraResource;
+import com.dynamo.cr.scene.resource.CollectionResource;
+import com.dynamo.cr.scene.resource.CollisionResource;
+import com.dynamo.cr.scene.resource.ConvexShapeResource;
+import com.dynamo.cr.scene.resource.LightResource;
+import com.dynamo.cr.scene.resource.MeshResource;
+import com.dynamo.cr.scene.resource.ModelResource;
+import com.dynamo.cr.scene.resource.PrototypeResource;
+import com.dynamo.cr.scene.resource.Resource;
+import com.dynamo.cr.scene.resource.ResourceFactory;
+import com.dynamo.cr.scene.resource.SpriteResource;
+import com.dynamo.cr.scene.resource.TextureResource;
 import com.dynamo.cr.scene.test.util.SceneContext;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.google.protobuf.TextFormat;
 
 public class SceneTest {
 
-    private AbstractNodeLoaderFactory factory;
+    private NodeFactory nodeFactory;
+    private ResourceFactory resourceFactory;
     private Scene scene;
 
     @Before
-    public void setup() {
+    public void setup() throws CoreException, IOException {
         SceneContext context = new SceneContext();
-        this.factory = context.factory;
+        this.nodeFactory = context.nodeFactory;
+        this.resourceFactory = context.resourceFactory;
         this.scene = context.scene;
     }
 
@@ -62,7 +80,9 @@ public class SceneTest {
     @Test
     public void testCollectionLoader() throws Exception {
         String name = "test.collection";
-        Node node = factory.load(new NullProgressMonitor(), scene, name, null);
+
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), name);
+        Node node = nodeFactory.create(name, resource, null, scene);
         assertThat(node, instanceOf(CollectionNode.class));
         assertThat(node.getChildren().length, is(3));
 
@@ -112,7 +132,8 @@ public class SceneTest {
     @Test
     public void testPrototypeLoader() throws Exception {
         String name = "attacker.go";
-        Node node = factory.load(new NullProgressMonitor(), scene, name, null);
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), name);
+        Node node = nodeFactory.create(name, resource, null, scene);
         assertThat(node, instanceOf(PrototypeNode.class));
         assertThat(node.getChildren().length, is(3));
 
@@ -129,9 +150,7 @@ public class SceneTest {
         assertThat(node.contains(n2), is(true));
         assertThat(node.contains(n3), is(true));
 
-        assertThat(n3.getChildren().length, is(1));
-        Node mn = n3.getChildren()[0];
-        assertThat(mn, instanceOf(MeshNode.class));
+        assertThat(n3.getChildren().length, is(0));
     }
 
     private void testNodeFlags(Node[] nodes, int flags) throws Exception {
@@ -156,7 +175,8 @@ public class SceneTest {
     @Test
     public void testNodeFlags() throws Exception {
         String name = "test.collection";
-        Node node = factory.load(new NullProgressMonitor(), scene, name, null);
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), name);
+        Node node = nodeFactory.create(name, resource, null, scene);
         assertThat(node, instanceOf(CollectionNode.class));
         assertThat(node.getChildren().length, is(3));
         assertThat(node.getFlags(), is(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN));
@@ -176,7 +196,8 @@ public class SceneTest {
     @Test
     public void testIds() throws Exception {
         String collectionName = "dup_id.collection";
-        Node root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), collectionName);
+        Node root = nodeFactory.create(collectionName, resource, null, scene);
         assertThat(root, instanceOf(CollectionNode.class));
         assertThat(root.getChildren().length, is(6));
 
@@ -289,7 +310,8 @@ public class SceneTest {
     @Test
     public void testRecursion() throws Exception {
         String collectionName = "recurse.collection";
-        Node parent = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), collectionName);
+        Node parent = nodeFactory.create(collectionName, resource, null, scene);
         assertThat(parent, instanceOf(CollectionNode.class));
         assertThat(parent.getChildren().length, is(4));
 
@@ -340,32 +362,19 @@ public class SceneTest {
     public void testSaveAndLoad() throws Exception {
         String collectionName = "test.collection";
         String tmpName = "tmp.collection";
-        Node root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        this.factory.save(new NullProgressMonitor(), tmpName, root, out);
-        FileOutputStream fileOut = new FileOutputStream("test/" + tmpName);
-        fileOut.write(out.toByteArray());
-        fileOut.close();
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), collectionName);
+        CollectionNode root = (CollectionNode)nodeFactory.create(collectionName, resource, null, scene);
+        CollectionDesc desc = root.buildDescriptor();
+        FileWriter output = new FileWriter("test/" + tmpName);
+        TextFormat.print(desc, output);
+        output.close();
         Scene tmpScene = new Scene();
-        Node tmpRoot = this.factory.load(new NullProgressMonitor(), tmpScene, tmpName, null);
+        Resource tmpResource = resourceFactory.load(new NullProgressMonitor(), tmpName);
+        Node tmpRoot = nodeFactory.create(tmpName, tmpResource, null, tmpScene);
         assertTrue(tmpRoot != null);
         deepCompare(root, tmpRoot);
         File tmpFile = new File("test/" + tmpName);
         assertTrue(tmpFile.delete());
-
-        // Save not possible for collections containing errors
-        collectionName = "dup_id.collection";
-        root = this.factory.load(new NullProgressMonitor(), this.scene, collectionName, null);
-        assertTrue(root != null);
-        assertTrue(!root.isOk());
-        out = new ByteArrayOutputStream();
-        boolean saved = true;
-        try {
-            this.factory.save(new NullProgressMonitor(), tmpName, root, out);
-        } catch (Exception e) {
-            saved = false;
-        }
-        assertTrue(!saved);
     }
 
     @Test
@@ -376,34 +385,31 @@ public class SceneTest {
         final int TYPE_COLLISION = 3;
         final int TYPE_INSTANCE = 4;
         final int TYPE_LIGHT = 5;
-        final int TYPE_MESH = 6;
-        final int TYPE_MODEL = 7;
-        final int TYPE_PROTOTYPE = 8;
-        final int TYPE_SPRITE = 9;
-        final int TYPE_COUNT = 10;
+        final int TYPE_MODEL = 6;
+        final int TYPE_PROTOTYPE = 7;
+        final int TYPE_SPRITE = 8;
+        final int TYPE_COUNT = 9;
 
         Node[][] nodes = new Node[TYPE_COUNT][2];
 
-        nodes[TYPE_CAMERA][0] = new CameraNode("camera0", this.scene, null);
-        nodes[TYPE_CAMERA][1] = new CameraNode("camera1", this.scene, null);
-        nodes[TYPE_COLLECTION_INSTANCE][0] = new CollectionInstanceNode("collection_instance0", this.scene, null, new CollectionNode("collection2", this.scene, null));
-        nodes[TYPE_COLLECTION_INSTANCE][1] = new CollectionInstanceNode("collection_instance1", this.scene, null, new CollectionNode("collection3", this.scene, null));
-        nodes[TYPE_COLLECTION][0] = new CollectionNode("collection0", this.scene, null);
-        nodes[TYPE_COLLECTION][1] = new CollectionNode("collection1", this.scene, null);
-        nodes[TYPE_COLLISION][0] = new CollisionNode("collision0", this.scene, null, null);
-        nodes[TYPE_COLLISION][1] = new CollisionNode("collision1", this.scene, null, null);
-        nodes[TYPE_INSTANCE][0] = new InstanceNode("instance0", this.scene, null, new PrototypeNode("prototype2", this.scene));
-        nodes[TYPE_INSTANCE][1] = new InstanceNode("instance1", this.scene, null, new PrototypeNode("prototype3", this.scene));
-        nodes[TYPE_LIGHT][0] = new LightNode("light0", this.scene, null);
-        nodes[TYPE_LIGHT][1] = new LightNode("light1", this.scene, null);
-        nodes[TYPE_MESH][0] = new MeshNode("mesh0", this.scene, null);
-        nodes[TYPE_MESH][1] = new MeshNode("mesh1", this.scene, null);
-        nodes[TYPE_MODEL][0] = new ModelNode("model0", this.scene, new MeshNode("mesh2", this.scene, null));
-        nodes[TYPE_MODEL][1] = new ModelNode("model1", this.scene, new MeshNode("mesh3", this.scene, null));
-        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", this.scene);
-        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", this.scene);
-        nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", this.scene, null, null);
-        nodes[TYPE_SPRITE][1] = new SpriteNode("sprite1", this.scene, null, null);
+        nodes[TYPE_CAMERA][0] = new CameraNode("camera0", new CameraResource("", null), this.scene);
+        nodes[TYPE_CAMERA][1] = new CameraNode("camera1", new CameraResource("", null), this.scene);
+        nodes[TYPE_COLLECTION_INSTANCE][0] = new CollectionInstanceNode("collection_instance0", this.scene, null, new CollectionNode("collection2", new CollectionResource("", null), this.scene, this.nodeFactory));
+        nodes[TYPE_COLLECTION_INSTANCE][1] = new CollectionInstanceNode("collection_instance1", this.scene, null, new CollectionNode("collection3", new CollectionResource("", null), this.scene, this.nodeFactory));
+        nodes[TYPE_COLLECTION][0] = new CollectionNode("collection0", new CollectionResource("", null), this.scene, nodeFactory);
+        nodes[TYPE_COLLECTION][1] = new CollectionNode("collection1", new CollectionResource("", null), this.scene, nodeFactory);
+        nodes[TYPE_COLLISION][0] = new CollisionNode("collision0", new CollisionResource("", null, new ConvexShapeResource("", null)), this.scene);
+        nodes[TYPE_COLLISION][1] = new CollisionNode("collision1", new CollisionResource("", null, new ConvexShapeResource("", null)), this.scene);
+        nodes[TYPE_INSTANCE][0] = new InstanceNode("instance0", this.scene, null, new PrototypeNode("prototype2", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory));
+        nodes[TYPE_INSTANCE][1] = new InstanceNode("instance1", this.scene, null, new PrototypeNode("prototype3", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory));
+        nodes[TYPE_LIGHT][0] = new LightNode("light0", new LightResource("", null), this.scene);
+        nodes[TYPE_LIGHT][1] = new LightNode("light1", new LightResource("", null), this.scene);
+        nodes[TYPE_MODEL][0] = new ModelNode("model0", new ModelResource("", null, new MeshResource("", null), new ArrayList<TextureResource>()), this.scene);
+        nodes[TYPE_MODEL][1] = new ModelNode("model1", new ModelResource("", null, new MeshResource("", null), new ArrayList<TextureResource>()), this.scene);
+        nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
+        nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
+        nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", new SpriteResource("", null, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
+        nodes[TYPE_SPRITE][1] = new SpriteNode("sprite1", new SpriteResource("", null, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
 
         for (int i = 0; i < TYPE_COUNT; ++i) {
             assertTrue(nodes[i][0] != null);
@@ -430,8 +436,6 @@ public class SceneTest {
 
         accepts[TYPE_INSTANCE][TYPE_INSTANCE] = true;
         accepts[TYPE_INSTANCE][TYPE_PROTOTYPE] = true;
-
-        accepts[TYPE_MODEL][TYPE_MESH] = true;
 
         for (int i = 0; i < TYPE_COUNT; ++i) {
             for (int j = 0; j < TYPE_COUNT; ++j) {

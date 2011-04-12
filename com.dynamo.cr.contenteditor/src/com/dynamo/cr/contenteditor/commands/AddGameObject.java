@@ -16,13 +16,15 @@ import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
-import com.dynamo.cr.contenteditor.editors.NodeLoaderFactory;
 import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.InstanceNode;
 import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.operations.AddGameObjectOperation;
+import com.dynamo.cr.scene.resource.Resource;
 
 public class AddGameObject extends AbstractHandler {
 
@@ -56,12 +58,13 @@ public class AddGameObject extends AbstractHandler {
                 Node root = editor.getRoot();
                 Scene scene = editor.getScene();
 
-                NodeLoaderFactory factory = editor.getLoaderFactory();
-                IContainer content_root = factory.getContentRoot();
+                INodeFactory factory = editor.getNodeFactory();
+                IContainer content_root = ((NodeFactory)factory).getContentRoot();
                 IFile file = (IFile)r;
                 String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
                 try {
-                    PrototypeNode proto = (PrototypeNode) factory.load(new NullProgressMonitor(), scene, name, root);
+                    Resource resource = editor.getResourceFactory().load(new NullProgressMonitor(), name);
+                    PrototypeNode proto = (PrototypeNode) factory.create(name, resource, root, scene);
                     CollectionNode parent = (CollectionNode)root;
                     InstanceNode node = new InstanceNode(file.getName(), scene, name, proto);
                     AddGameObjectOperation op = new AddGameObjectOperation(node, parent);
