@@ -1324,7 +1324,13 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             setSelectedNodes(new Node[] {});
         } else if (event.m_Type == SceneEvent.NODE_CHANGED) {
             if (m_OutlinePage != null) {
-                m_OutlinePage.refresh(event.node);
+                final Node node = event.node;
+                getSite().getShell().getDisplay().asyncExec(new Runnable() {
+                    @Override
+                    public void run() {
+                        m_OutlinePage.refresh(node);
+                    }
+                });
             }
         }
     }
