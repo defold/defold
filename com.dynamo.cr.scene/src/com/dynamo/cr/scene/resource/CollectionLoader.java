@@ -9,7 +9,6 @@ import java.util.List;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
-import org.eclipse.core.runtime.SubProgressMonitor;
 
 import com.dynamo.cr.scene.graph.CreateException;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
