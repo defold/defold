@@ -259,6 +259,39 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                             });
                             return false;
                         }
+                    } else if ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED) {
+                        IResource resource = delta.getResource();
+                        if (resource.equals(input.getFile())) {
+                            try {
+                                Reader reader = new InputStreamReader(input.getFile().getContents());
+
+                                try {
+                                    Method m = resourceType.getMessageClass().getDeclaredMethod("newBuilder");
+                                    @SuppressWarnings("rawtypes")
+                                    GeneratedMessage.Builder builder = (Builder) m.invoke(null);
+
+                                    try {
+                                        TextFormat.merge(reader, builder);
+
+                                        MessageNode msg = new MessageNode(builder.build());
+                                        message = msg;
+                                        getSite().getShell().getDisplay().asyncExec(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                protoTreeEditor.setInput(message, resourceType);
+                                            }
+                                        });
+                                    } finally {
+                                        reader.close();
+                                    }
+                                } catch (Throwable e) {
+                                    throw new PartInitException(e.getMessage(), e);
+                                }
+
+                            } catch (CoreException e) {
+                                throw new PartInitException(e.getMessage(), e);
+                            }
+                        }
                     }
                     return true;
                 }
