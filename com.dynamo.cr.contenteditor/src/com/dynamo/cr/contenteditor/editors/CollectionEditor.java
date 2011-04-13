@@ -246,6 +246,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 factory.clearErrors();
                 Resource resource = resourceFactory.load(monitor, path);
                 node = factory.create(path, resource, null, m_Scene);
+                monitor.done();
             } catch (Throwable e) {
                 this.exception = e;
                 e.printStackTrace();
