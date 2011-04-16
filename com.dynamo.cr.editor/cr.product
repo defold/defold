@@ -23,6 +23,7 @@
       <plugin id="com.dynamo.cr.ddfeditor"/>
       <plugin id="com.dynamo.cr.editor"/>
       <plugin id="com.dynamo.cr.editor.core"/>
+      <plugin id="com.dynamo.cr.editor.fs"/>
       <plugin id="com.dynamo.cr.luaeditor"/>
       <plugin id="com.dynamo.cr.protobind"/>
       <plugin id="com.dynamo.cr.scene"/>

@@ -49,7 +49,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
-import com.dynamo.cr.editor.fs.RepositoryFileSystem;
+import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -155,7 +155,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.PRE_REFRESH);
-        RepositoryFileSystem.activator = this;
 	}
 
 	private void updateSocksProxy() {
@@ -209,6 +208,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
         Client client = Client.create(cc);
         factory = new ClientFactory(client);
+        RepositoryFileSystemPlugin.setClientFactory(factory);
         client.addFilter(new HTTPBasicAuthFilter(user, passwd));
 
         IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());

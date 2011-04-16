@@ -14,13 +14,10 @@ import org.eclipse.core.filesystem.provider.FileStore;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
-import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
-import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 import com.sun.jersey.api.client.ClientHandlerException;
@@ -156,7 +153,7 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
         try {
             client.deleteResource(path.toPortableString());
         } catch (RepositoryException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+            RepositoryFileSystemPlugin.throwCoreExceptionError(e.getMessage(), e);
         }
     }
 
@@ -168,7 +165,8 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
 
             return this;
         } catch (RepositoryException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+            RepositoryFileSystemPlugin.throwCoreExceptionError(e.getMessage(), e);
+            return null; // Never reached
         }
     }
 
@@ -194,7 +192,7 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
             }
             client.renameResource(path.toPortableString(), destination_path);
         } catch (RepositoryException e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+            RepositoryFileSystemPlugin.throwCoreExceptionError(e.getMessage(), e);
         }
     }
 
