@@ -11,7 +11,7 @@ import com.dynamo.cr.client.IClientFactory;
 public class RepositoryFileSystemPlugin implements BundleActivator {
 
     public static final String PLUGIN_ID = "com.dynamo.cr.fs"; //$NON-NLS-1$
-    static IClientFactory clientFactory = null;
+    public static IClientFactory clientFactory = null;
 
     @Override
     public void start(BundleContext context) throws Exception {

@@ -1,4 +1,4 @@
-package com.dynamo.cr.editor.fs;
+package com.dynamo.cr.editor.fs.internal;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -18,6 +18,7 @@ import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
+import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 import com.sun.jersey.api.client.ClientHandlerException;

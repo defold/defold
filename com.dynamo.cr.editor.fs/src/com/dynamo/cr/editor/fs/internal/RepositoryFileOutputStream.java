@@ -1,4 +1,4 @@
-package com.dynamo.cr.editor.fs;
+package com.dynamo.cr.editor.fs.internal;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,6 +10,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
+import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 
 public class RepositoryFileOutputStream extends ByteArrayOutputStream {
 

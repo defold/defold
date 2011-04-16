@@ -1,4 +1,4 @@
-package com.dynamo.cr.editor.fs;
+package com.dynamo.cr.editor.fs.internal;
 
 import java.net.URI;
 import java.util.List;
@@ -13,6 +13,7 @@ import org.eclipse.core.filesystem.provider.FileSystem;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 
