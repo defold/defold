@@ -7,6 +7,7 @@
 #include "array.h"
 #include "index_pool.h"
 #include "mutex.h"
+#include "dstrings.h"
 
 namespace dmMessage
 {
@@ -35,6 +36,11 @@ namespace dmMessage
         MemoryPage* m_FreePages;
         MemoryPage* m_FullPages;
     };
+
+    URI::URI()
+    {
+        memset(this, 0, sizeof(URI));
+    }
 
     static void AllocateNewPage(MemoryAllocator* allocator)
     {
@@ -113,8 +119,13 @@ namespace dmMessage
             g_SocketPool.SetCapacity(MAX_SOCKETS);
             g_Initialized = true;
         }
+        if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
+        {
+            return RESULT_INVALID_SOCKET_NAME;
+        }
 
-        if (GetSocket(name))
+        HSocket tmp;
+        if (GetSocket(name, &tmp) == RESULT_OK)
         {
             return RESULT_SOCKET_EXISTS;
         }
@@ -179,35 +190,50 @@ namespace dmMessage
         g_SocketPool.Push(id);
     }
 
-    HSocket GetSocket(const char *name)
+    Result GetSocket(const char *name, HSocket* out_socket)
     {
         DM_PROFILE(Message, "GetSocket")
 
+        if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
+        {
+            return RESULT_INVALID_SOCKET_NAME;
+        }
         dmhash_t name_hash = dmHashString64(name);
         for (uint32_t i = 0; i < g_Sockets.Size(); ++i)
         {
             MessageSocket* socket = &g_Sockets[i];
             if (socket->m_NameHash == name_hash)
             {
-                return socket->m_Version << 16 | i;
+                *out_socket = socket->m_Version << 16 | i;
+                return RESULT_OK;
             }
         }
-        return 0;
+        return RESULT_SOCKET_NOT_FOUND;
     }
 
     uint32_t g_MessagesHash = dmHashString32("Messages");
-    void Post(HSocket socket, dmhash_t message_id, const void* message_data, uint32_t message_data_size)
+
+    void Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
 
-        uint16_t id;
-        MessageSocket*s = GetSocketInternal(socket, id);
+        uint16_t socket_id;
+        MessageSocket* s = GetSocketInternal(receiver->m_Socket, socket_id);
 
         dmMutex::Lock(s->m_Mutex);
         MemoryAllocator* allocator = &s->m_Allocator;
         uint32_t data_size = sizeof(Message) + message_data_size;
         Message *new_message = (Message *) AllocateMessage(allocator, data_size);
+        if (sender != 0x0)
+        {
+            new_message->m_Sender = *sender;
+        }
+        else
+        {
+            new_message->m_Sender = URI();
+        }
+        new_message->m_Receiver = *receiver;
         new_message->m_ID = message_id;
         new_message->m_DataSize = message_data_size;
         new_message->m_Next = 0;
@@ -282,6 +308,67 @@ namespace dmMessage
     uint32_t Consume(HSocket socket)
     {
         return Dispatch(socket, &ConsumeCallback, 0);
+    }
+
+    Result ParseURI(const char* uri, URI* out_uri)
+    {
+        if (uri == 0x0)
+        {
+            *out_uri = URI();
+            return RESULT_OK;
+        }
+        dmMessage::HSocket socket = 0;
+        const char* path = uri;
+        uint32_t path_size = 0;
+        const char* fragment = 0x0;
+        uint32_t fragment_size = 0;
+        const char* socket_end = strchr(uri, ':');
+        const char* fragment_start = strchr(uri, '#');
+        if (fragment_start != 0x0)
+        {
+            if (fragment_start < socket_end)
+            {
+                return RESULT_MALFORMED_URI;
+            }
+            if (fragment_start != strrchr(uri, '#'))
+            {
+                return RESULT_MALFORMED_URI;
+            }
+        }
+        if (socket_end != 0x0)
+        {
+            if (socket_end != strrchr(uri, ':'))
+            {
+                return RESULT_MALFORMED_URI;
+            }
+            uint32_t socket_size = socket_end - uri;
+            if (socket_size >= 64)
+            {
+                return RESULT_MALFORMED_URI;
+            }
+            char socket_name[64];
+            dmStrlCpy(socket_name, uri, socket_size + 1);
+            Result result = GetSocket(socket_name, &socket);
+            if (result != RESULT_OK)
+            {
+                return result;
+            }
+            path = socket_end + 1;
+        }
+        if (fragment_start != 0x0)
+        {
+            fragment = fragment_start + 1;
+            fragment_size = strlen(uri) - (fragment - uri);
+            path_size = fragment_start - path;
+        }
+        else
+        {
+            path_size = strlen(uri) - (path - uri);
+        }
+        out_uri->m_Socket = socket;
+        out_uri->m_Path = dmHashBuffer64(path, path_size);
+        out_uri->m_Fragment = dmHashBuffer64(fragment, fragment_size);
+        return RESULT_OK;
     }
 }
 
