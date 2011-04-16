@@ -16,6 +16,8 @@ extern "C"
 
 namespace dmGameObject
 {
+    extern const char* ID_SEPARATOR;
+
     extern lua_State* g_LuaState;
 
     struct Prototype

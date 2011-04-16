@@ -127,7 +127,7 @@ namespace dmGameObject
 
             dmStrlCpy(prev_identifier_path, regist->m_CurrentIdentifierPath, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
             dmStrlCat(regist->m_CurrentIdentifierPath, coll_instance_desc.m_Id, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
-            dmStrlCat(regist->m_CurrentIdentifierPath, ".", DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
+            dmStrlCat(regist->m_CurrentIdentifierPath, ID_SEPARATOR, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
 
             Collection* child_coll;
             Vector3 prev_translation = regist->m_AccumulatedTranslation;

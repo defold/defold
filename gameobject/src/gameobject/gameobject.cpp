@@ -25,6 +25,7 @@ namespace dmGameObject
 {
     uint32_t g_RegisterIndex = 0;
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
+    const char* ID_SEPARATOR = "/";
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
 
@@ -898,10 +899,18 @@ namespace dmGameObject
 
     dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id)
     {
-        // Make a copy of the state.
-        HashState64 tmp_state = instance->m_CollectionPathHashState;
-        dmHashUpdateBuffer64(&tmp_state, id, strlen(id));
-        return dmHashFinal64(&tmp_state);
+        // check for global id (/foo/bar)
+        if (*id == *ID_SEPARATOR)
+        {
+            return dmHashString64(&id[1]);
+        }
+        else
+        {
+            // Make a copy of the state.
+            HashState64 tmp_state = instance->m_CollectionPathHashState;
+            dmHashUpdateBuffer64(&tmp_state, id, strlen(id));
+            return dmHashFinal64(&tmp_state);
+        }
     }
 
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier)
