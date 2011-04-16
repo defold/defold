@@ -234,7 +234,8 @@ namespace dmMessage
             new_message->m_Sender = URI();
         }
         new_message->m_Receiver = *receiver;
-        new_message->m_ID = message_id;
+        new_message->m_Id = message_id;
+        new_message->m_Descriptor = descriptor;
         new_message->m_DataSize = message_data_size;
         new_message->m_Next = 0;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);

@@ -31,9 +31,10 @@ namespace dmMessage
     {
         URI();
 
-        HSocket m_Socket;       //! Socket
-        dmhash_t m_Path;        //! Path of the receiver
-        dmhash_t m_Fragment;    //! Fragment of the receiver
+        HSocket     m_Socket;       //! Socket
+        dmhash_t    m_Path;         //! Path of the receiver
+        dmhash_t    m_Fragment;     //! Fragment of the receiver
+        uintptr_t   m_UserData;     //! User data
     };
 
     /**
@@ -44,7 +45,7 @@ namespace dmMessage
     {
         URI             m_Sender;       //! Sender uri
         URI             m_Receiver;     //! Receiver uri
-        dmhash_t        m_ID;           //! Unique ID of message
+        dmhash_t        m_Id;           //! Unique id of message
         uintptr_t       m_Descriptor;   //! User specified descriptor of the message data
         uint32_t        m_DataSize;     //! Size of userdata in bytes
         struct Message* m_Next;         //! Ptr to next message (or 0 if last)

@@ -314,58 +314,72 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
 
-    static int LuaPostTo(lua_State* L)
+    static int LuaPost(lua_State* L)
     {
-        char buf[MAX_MESSAGE_DATA_SIZE];
-        MessageData* message_data = (MessageData*) buf;
-
         int top = lua_gettop(L);
 
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        const char* component_id = luaL_checkstring(L, 1);
-        message_data->m_ComponentId = dmHashString64(component_id);
+        const char* uri = luaL_checkstring(L, 1);
+        const char* message_id_str = luaL_checkstring(L, 2);
 
-        const char* type_name = luaL_checkstring(L, 2);
-        message_data->m_MessageId = dmHashString64(type_name);
-        message_data->m_Scene = scene;
-        uint32_t actual_data_size = 0;
+        dmMessage::URI receiver;
+        dmMessage::Result result = dmMessage::ParseURI(uri, &receiver);
+        if (result != dmMessage::RESULT_OK)
+        {
+            const char* error = "Could not send message %s to %s because %s.";
+            if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
+            {
+                return luaL_error(L, error, message_id_str, uri, "the socket could not be found");
+            }
+            if (result == dmMessage::RESULT_INVALID_SOCKET_NAME)
+            {
+                return luaL_error(L, error, message_id_str, uri, "the socket name is invalid");
+            }
+            if (result == dmMessage::RESULT_MALFORMED_URI)
+            {
+                return luaL_error(L, error, message_id_str, uri, "the address is invalid (should be [socket:][path][#fragment])");
+            }
+        }
+        if (receiver.m_Socket == 0)
+        {
+            receiver.m_Socket = scene->m_Context->m_Socket;
+        }
+        receiver.m_UserData = (uintptr_t)scene;
+
+        char data[MAX_MESSAGE_DATA_SIZE];
+        uint32_t data_size = 0;
+
+        dmhash_t message_id = dmHashString64(message_id_str);
+        uintptr_t descriptor = 0;
 
         if (lua_istable(L, 3))
         {
-            char* p = buf + sizeof(MessageData);
-            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_data->m_MessageId);
+            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_id);
             if (d_tmp != 0)
             {
                 const dmDDF::Descriptor* d = *d_tmp;
 
-                uint32_t size = sizeof(MessageData) + d->m_Size;
+                uint32_t size = d->m_Size;
                 if (size > MAX_MESSAGE_DATA_SIZE)
                 {
-                    luaL_error(L, "sizeof(%s) > %d", type_name, d->m_Size);
+                    luaL_error(L, "The message %s is too big to be sent (%d bytes, max is %d).", message_id_str, d->m_Size, MAX_MESSAGE_DATA_SIZE);
                 }
 
-                message_data->m_DDFDescriptor = d;
+                descriptor = (uintptr_t)d;
 
-                lua_pushvalue(L, 3);
-                actual_data_size = dmScript::CheckDDF(L, d, p, MAX_MESSAGE_DATA_SIZE - sizeof(MessageData), -1);
-                lua_pop(L, 1);
+                data_size = dmScript::CheckDDF(L, d, data, MAX_MESSAGE_DATA_SIZE, 3);
             }
             else
             {
-                message_data->m_DDFDescriptor = 0x0;
-                actual_data_size = dmScript::CheckTable(L, p, MAX_MESSAGE_DATA_SIZE - sizeof(MessageData), -1);
+                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
             }
-        }
-        else
-        {
-            message_data->m_DDFDescriptor = 0;
         }
 
         assert(top == lua_gettop(L));
-        dmMessage::Post(scene->m_Context->m_Socket, message_data->m_MessageId, buf, actual_data_size + sizeof(MessageData));
+        dmMessage::Post(0x0, &receiver, message_id, descriptor, data, data_size);
         return 0;
     }
 
@@ -486,7 +500,7 @@ namespace dmGui
         {"animate",         LuaAnimate},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
-        {"post_to",         LuaPostTo},
+        {"post",            LuaPost},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"get_blend_mode",  LuaGetBlendMode},

@@ -669,16 +669,15 @@ struct TestMessage
 
 static void Dispatch1(dmMessage::Message* message, void* user_ptr)
 {
-    dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
     TestMessage* test_message = (TestMessage*) user_ptr;
-    test_message->m_ComponentId = md->m_ComponentId;
-    test_message->m_MessageId = md->m_MessageId;
+    test_message->m_ComponentId = message->m_Receiver.m_Fragment;
+    test_message->m_MessageId = message->m_Id;
 }
 
 TEST_F(dmGuiTest, PostMessage1)
 {
     const char* s = "function init(self)\n"
-                    "   gui.post_to(\"component\", \"my_named_message\")\n"
+                    "   gui.post(\"#component\", \"my_named_message\")\n"
                     "end\n";
 
     dmGui::Result r;
@@ -700,7 +699,7 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
     const char* s = "function update(self)\n"
                     "end\n"
                     "function on_input(self, action_id, action)\n"
-                    "   gui.post_to(\"component\", \"my_named_message\")\n"
+                    "   gui.post(\"#component\", \"my_named_message\")\n"
                     "end\n";
 
     dmGui::Result r;
@@ -716,11 +715,10 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
 
 static void Dispatch2(dmMessage::Message* message, void* user_ptr)
 {
-    dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
-    assert(md->m_ComponentId == dmHashString64("component"));
-    assert(md->m_DDFDescriptor == dmTestGuiDDF::AMessage::m_DDFDescriptor);
+    assert(message->m_Receiver.m_Fragment == dmHashString64("component"));
+    assert((dmDDF::Descriptor*)message->m_Descriptor == dmTestGuiDDF::AMessage::m_DDFDescriptor);
 
-    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*) md->m_DDFData;
+    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*) message->m_Data;
     dmTestGuiDDF::AMessage* amessage_out = (dmTestGuiDDF::AMessage*) user_ptr;
 
     *amessage_out = *amessage;
@@ -729,7 +727,7 @@ static void Dispatch2(dmMessage::Message* message, void* user_ptr)
 TEST_F(dmGuiTest, PostMessage2)
 {
     const char* s = "function init(self)\n"
-                    "   gui.post_to(\"component\", \"a_message\", { a = 123, b = 456 })\n"
+                    "   gui.post(\"#component\", \"a_message\", { a = 123, b = 456 })\n"
                     "end\n";
 
     dmGui::Result r;
@@ -748,15 +746,14 @@ TEST_F(dmGuiTest, PostMessage2)
 
 static void Dispatch3(dmMessage::Message* message, void* user_ptr)
 {
-    dmGui::MessageData* md = (dmGui::MessageData*) &message->m_Data[0];
-    dmGui::Result r = dmGui::DispatchMessage((dmGui::HScene)user_ptr, md->m_MessageId, md->m_DDFData, md->m_DDFDescriptor);
+    dmGui::Result r = dmGui::DispatchMessage((dmGui::HScene)user_ptr, message->m_Id, message->m_Data, (dmDDF::Descriptor*)message->m_Descriptor);
     assert(r == dmGui::RESULT_OK);
 }
 
 TEST_F(dmGuiTest, PostMessage3)
 {
     const char* s1 = "function init(self)\n"
-                     "    gui.post_to(\"component\", \"test_message\", { a = 123 })\n"
+                     "    gui.post(\"#component\", \"test_message\", { a = 123 })\n"
                      "end\n";
 
     const char* s2 = "function update(self, dt)\n"
@@ -801,7 +798,7 @@ TEST_F(dmGuiTest, PostMessage3)
 TEST_F(dmGuiTest, PostMessageMissingField)
 {
     const char* s = "function init(self)\n"
-                    "   gui.post_to(\"a_message\", { a = 123 })\n"
+                    "   gui.post(\"a_message\", { a = 123 })\n"
                     "end\n";
 
     dmGui::Result r;

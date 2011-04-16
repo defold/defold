@@ -53,23 +53,6 @@ namespace dmGui
         }
     };
 
-    struct MessageData
-    {
-        /// Component id
-        dmhash_t                 m_ComponentId;
-
-        /// Message hash
-        dmhash_t                 m_MessageId;
-
-        /// Gui scene handle
-        HScene                   m_Scene;
-
-        /// Pay-load DDF descriptor. NULL if not present
-        const dmDDF::Descriptor* m_DDFDescriptor;
-        /// Pay-load (DDF). Optional. Requires non-NULL m_DDFDescriptor
-        uint8_t                  m_DDFData[0];
-    };
-
     enum Result
     {
         RESULT_OK = 0,

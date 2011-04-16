@@ -18,7 +18,7 @@ struct CustomMessageData1
 
 void HandleMessage(dmMessage::Message *message_object, void *user_ptr)
 {
-    switch(message_object->m_ID)
+    switch(message_object->m_Id)
     {
         case m_HashMessage1:
             break;
@@ -199,7 +199,7 @@ void HandleMessagePostDuring(dmMessage::Message *message_object, void *user_ptr)
     CustomMessageData1 message_data1;
     message_data1.m_MyValue = 123;
 
-    switch(message_object->m_ID)
+    switch(message_object->m_Id)
     {
         case m_HashMessage2:
             dmMessage::Post(0x0, receiver, m_HashMessage1, 0x0, &message_data1, sizeof(CustomMessageData1));
@@ -286,7 +286,7 @@ TEST(dmMessage, ThreadTest1)
 void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 {
     dmhash_t hash = dmHashBuffer64(message_object->m_Data, message_object->m_DataSize);
-    assert(hash == message_object->m_ID);
+    assert(hash == message_object->m_Id);
 }
 
 TEST(dmMessage, Integrity)
