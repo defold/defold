@@ -20,6 +20,7 @@ import org.junit.Test;
 
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -53,7 +54,7 @@ public class ProjectResourceTest {
     int port = 6500;
     String userEmail = "mrtest@foo.com";
     String passwd = "secret";
-    private ClientFactory factory;
+    private IClientFactory factory;
     private Project proj1;
     private User user;
     private UserInfo userInfo;

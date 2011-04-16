@@ -7,14 +7,7 @@ import java.util.Map;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.sun.jersey.api.client.Client;
 
-/**
- * Factory for constructing {@link IBranchClient} and {@link IProjectClient}.
- * Internally the implementation of IBranchClient can cache meta-data. In order to ensure
- * cache coherence all instances should be created using the same {@link #ClientFactory(Client)}
- * @author chmu
- */
-
-public class ClientFactory {
+public class ClientFactory implements IClientFactory {
     private Map<URI, ResourceInfo> resourceInfoCache = new HashMap<URI, ResourceInfo>();
 
     private Client client;
@@ -23,35 +16,36 @@ public class ClientFactory {
         this.client = client;
     }
 
-    /**
-     * Get {@link IProjectClient} from uri
-     * @param uri URI to get {@link IProjectClient} from
-     * @return A new {@link IProjectClient}
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.client.IClientFactory#getProjectClient(java.net.URI)
      */
+    @Override
     public IProjectClient getProjectClient(URI uri) {
         ProjectClient pc = new ProjectClient(this, uri, client);
         return pc;
     }
 
-    /**
-     * Get {@link IProjectsClient} from uri
-     * @param uri URI to get {@link IProjectClient} from
-     * @return A new {@link IProjectsClient}
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.client.IClientFactory#getProjectsClient(java.net.URI)
      */
+    @Override
     public IProjectsClient getProjectsClient(URI uri) {
         ProjectsClient pc = new ProjectsClient(this, uri, client);
         return pc;
     }
 
-    /**
-     * Get {@link IBranchClient} from #uri
-     * @param uri URI to get {@link IBranchClient} from
-     * @return A new {@link IBranchClient}
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.client.IClientFactory#getBranchClient(java.net.URI)
      */
+    @Override
     public IBranchClient getBranchClient(URI uri) {
         return new BranchClient(this, uri, client);
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.client.IClientFactory#getUsersClient(java.net.URI)
+     */
+    @Override
     public IUsersClient getUsersClient(URI uri) {
         return new UsersClient(uri, client);
     }

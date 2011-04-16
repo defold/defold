@@ -43,6 +43,7 @@ import org.osgi.util.tracker.ServiceTracker;
 
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
@@ -103,7 +104,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public Logger logger;
 
-    private ClientFactory factory;
+    private IClientFactory factory;
 
     private ServiceTracker proxyTracker;
 
@@ -205,7 +206,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
 	}
 
-	public ClientFactory getClientFactory() {
+	public IClientFactory getClientFactory() {
 	    return factory;
 	}
 
