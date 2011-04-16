@@ -2,8 +2,6 @@ package com.dynamo.cr.editor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.logging.Logger;
 
 import javax.ws.rs.core.UriBuilder;
@@ -96,8 +94,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public IProjectClient projectClient;
 
-    private List<IRepositoryListener> listeners = new ArrayList<IRepositoryListener>();
-
     private IBranchClient branchClient;
 
     public String activeBranch;
@@ -111,16 +107,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
     public UserInfo userInfo;
 
     public IProjectsClient projectsClient;
-
-    public void addRepositoryListener(IRepositoryListener l) {
-        assert listeners.indexOf(l) == -1;
-        this.listeners.add(l);
-    }
-
-    public void removeRepositoryListener(IRepositoryListener l) {
-        assert listeners.indexOf(l) != -1;
-        this.listeners.remove(l);
-    }
 
     public IProxyService getProxyService() {
         return (IProxyService) proxyTracker.getService();
@@ -327,18 +313,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 
         setProjectExplorerInput(p.getFolder("content"));
-
-        RepositoryChangeEvent e = new RepositoryChangeEvent();
-        for (IRepositoryListener l : listeners) {
-            l.branchChanged(e);
-        }
-    }
-
-    public void sendBranchChanged() {
-        RepositoryChangeEvent e = new RepositoryChangeEvent();
-        for (IRepositoryListener l : listeners) {
-            l.branchChanged(e);
-        }
     }
 
     public URI getBranchURI() {

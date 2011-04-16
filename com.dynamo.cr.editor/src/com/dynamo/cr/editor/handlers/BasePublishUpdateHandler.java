@@ -111,8 +111,6 @@ public abstract class BasePublishUpdateHandler extends AbstractHandler {
             MessageDialog.openError(shell, "Error", e.getMessage());
         }
 
-        Activator.getDefault().sendBranchChanged();
-
         return null;
     }
 

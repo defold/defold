@@ -38,11 +38,6 @@ public class RepositoryFileOutputStream extends ByteArrayOutputStream {
     public void close() throws IOException {
         try {
             client.putResourceData(path.toPortableString(), toByteArray());
-
-            // Perhaps not the most beautiful solution but it works.
-            // We don't use the ResourcesPlugin for the editor so we
-            // don't have (don't know where) to listen for save-events. (ie IResourceChangedEvent)
-            Activator.getDefault().sendBranchChanged();
         } catch (RepositoryException e) {
             throw new IOException(e);
         }

@@ -49,12 +49,10 @@ import org.eclipse.ui.progress.IProgressService;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
-import com.dynamo.cr.editor.IRepositoryListener;
-import com.dynamo.cr.editor.RepositoryChangeEvent;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 
-public class ChangedFilesView extends ViewPart implements SelectionListener, IRepositoryListener, IResourceChangeListener, ISelectionChangedListener, Listener {
+public class ChangedFilesView extends ViewPart implements SelectionListener, IResourceChangeListener, ISelectionChangedListener, Listener {
 
     public final static String ID = "com.dynamo.crepo.changedfiles";
     private TableViewer tableViewer;
@@ -139,7 +137,6 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 	}
 
     public ChangedFilesView() {
-        Activator.getDefault().addRepositoryListener(this);
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
         this.updateThread = new UpdateThread();
         this.updateThread.start();
@@ -218,7 +215,6 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
     public void dispose() {
         super.dispose();
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
-        Activator.getDefault().removeRepositoryListener(this);
         this.updateThread.dispose();
     }
 
@@ -306,7 +302,6 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
                             try {
                                 branch_client.revertResource(path);
                                 subMonitor.worked(1);
-                                Activator.getDefault().sendBranchChanged();
 
                                 if (revert_resource != null) {
                                     revert_resource.getParent().refreshLocal(IResource.DEPTH_INFINITE, null);
@@ -337,11 +332,6 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
                 e.printStackTrace();
             }
         }
-    }
-
-    @Override
-    public void branchChanged(RepositoryChangeEvent e) {
-        this.updateThread.update();
     }
 
     @Override
