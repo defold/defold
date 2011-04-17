@@ -16,7 +16,7 @@ public class ClientFactory implements IClientFactory {
      */
     @Override
     public IProjectClient getProjectClient(URI uri) {
-        ProjectClient pc = new ProjectClient(this, uri, client);
+        ProjectClient pc = new ProjectClient(uri, client);
         return pc;
     }
 
@@ -25,7 +25,7 @@ public class ClientFactory implements IClientFactory {
      */
     @Override
     public IProjectsClient getProjectsClient(URI uri) {
-        ProjectsClient pc = new ProjectsClient(this, uri, client);
+        ProjectsClient pc = new ProjectsClient(uri, client);
         return pc;
     }
 
@@ -34,7 +34,7 @@ public class ClientFactory implements IClientFactory {
      */
     @Override
     public IBranchClient getBranchClient(URI uri) {
-        return new BranchClient(this, uri, client);
+        return new BranchClient(uri, client);
     }
 
     /* (non-Javadoc)

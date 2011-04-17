@@ -7,7 +7,6 @@ import java.net.URI;
 
 import javax.ws.rs.core.UriBuilder;
 
-import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileInfo;
 import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.filesystem.provider.FileInfo;

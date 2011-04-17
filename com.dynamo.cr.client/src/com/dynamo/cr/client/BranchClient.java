@@ -14,11 +14,8 @@ import com.sun.jersey.api.client.WebResource;
 
 public class BranchClient extends BaseClient implements IBranchClient {
 
-    private ClientFactory factory;
-
     // NOTE: Only public for package
-    BranchClient(ClientFactory factory, URI uri, Client client) {
-        this.factory = factory;
+    BranchClient(URI uri, Client client) {
         this.resource = client.resource(uri);
     }
 
@@ -45,10 +42,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
         }
     }
 
-    void discardResourceInfo(String path) {
-        WebResource sub_resource = resource.path("/resources/info").queryParam("path", path);
-    }
-
     @Override
     public byte[] getResourceData(String path, String revision) throws RepositoryException {
         try {
@@ -67,7 +60,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public void putResourceData(String path, byte[] data) throws RepositoryException {
         try {
-            discardResourceInfo(path);
             ClientResponse resp = resource.path("/resources/data").queryParam("path", path).put(ClientResponse.class, data);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
@@ -94,7 +86,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public void deleteResource(String path) throws RepositoryException {
         try {
-            discardResourceInfo(path);
             ClientResponse resp = resource.path("/resources/info").queryParam("path", path).delete(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
@@ -165,8 +156,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public void resolve(String path, String stage) throws RepositoryException {
         try {
-            discardResourceInfo(path);
-
             ClientResponse resp = resource.path("resolve")
                 .queryParam("path", path)
                 .queryParam("stage", stage)
