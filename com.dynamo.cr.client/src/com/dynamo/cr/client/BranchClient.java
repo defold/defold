@@ -31,17 +31,12 @@ public class BranchClient extends BaseClient implements IBranchClient {
     public ResourceInfo getResourceInfo(String path) throws RepositoryException {
         try {
             WebResource sub_resource = resource.path("/resources/info").queryParam("path", path);
-            ResourceInfo cached = factory.getCachedResourceInfo(sub_resource.getURI());
-
-            if (cached != null)
-                return cached;
 
             ClientResponse resp = sub_resource.accept(ProtobufProviders.APPLICATION_XPROTOBUF).get(ClientResponse.class);
             if (resp.getStatus() != 200) {
                 throwRespositoryException(resp);
             }
             ResourceInfo ret = resp.getEntity(ResourceInfo.class);
-            factory.cacheResourceInfo(sub_resource.getURI(), ret);
             return ret;
         }
         catch (ClientHandlerException e) {
@@ -52,7 +47,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
 
     void discardResourceInfo(String path) {
         WebResource sub_resource = resource.path("/resources/info").queryParam("path", path);
-        factory.discardResourceInfo(sub_resource.getURI());
     }
 
     @Override
@@ -114,11 +108,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public void renameResource(String source, String destination) throws RepositoryException {
         try {
-            // NOTE: Currently we flush all resources.
-            // It is not sufficient to flush source and destination. We be also
-            // flush the parent directory as it contains the sub-resources
-            factory.flushResourceInfoCache();
-
             ClientResponse resp = resource.path("/resources/rename").queryParam("source", source).queryParam("destination", destination).post(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
@@ -132,11 +121,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
 	@Override
 	public void revertResource(String path) throws RepositoryException {
         try {
-            // NOTE: Currently we flush all resources.
-            // It is not sufficient to flush path. We be also
-            // flush the parent directory as it contains the sub-resources
-            factory.flushResourceInfoCache();
-
             ClientResponse resp = resource.path("/resources/revert").queryParam("path", path).put(ClientResponse.class);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
@@ -149,7 +133,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
 
     @Override
     public BranchStatus update() throws RepositoryException {
-        factory.flushResourceInfoCache();
         return wrapPost("update", BranchStatus.class);
     }
 
@@ -257,11 +240,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
             return null; // Never reached
         }
 
-    }
-
-    @Override
-    public void flushCache() {
-        factory.flushResourceInfoCache();
     }
 
 }

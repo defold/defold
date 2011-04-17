@@ -1,7 +1,9 @@
 package com.dynamo.cr.editor.fs.internal;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.core.UriBuilder;
 
@@ -19,8 +21,9 @@ import com.sun.jersey.api.client.config.DefaultClientConfig;
 
 public class RepositoryFileSystem extends FileSystem {
 
-    public RepositoryFileSystem() {
+    private Map<String, CachingBranchClient> branchClients = new HashMap<String, CachingBranchClient>();
 
+    public RepositoryFileSystem() {
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
@@ -43,8 +46,16 @@ public class RepositoryFileSystem extends FileSystem {
         }
 
         URI http_uri = UriBuilder.fromUri(uri).scheme("http").replaceQuery("").build();
-        IBranchClient branch_client = RepositoryFileSystemPlugin.clientFactory.getBranchClient(http_uri);
 
-        return new RepositoryFileStore(branch_client, path);
+        // The key is the URI with ?path= removed
+        String key = UriBuilder.fromUri(uri).replaceQuery("").build().toString();
+        IBranchClient branchClient;
+        if (!branchClients.containsKey(key)) {
+            IBranchClient bc = RepositoryFileSystemPlugin.clientFactory.getBranchClient(http_uri);
+            branchClients.put(key, new CachingBranchClient(bc));
+        }
+        branchClient = branchClients.get(key);
+
+        return new RepositoryFileStore(branchClient, path);
     }
 }

@@ -1,8 +1,10 @@
 package com.dynamo.cr.editor.fs.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
 
 import javax.ws.rs.core.UriBuilder;
@@ -10,13 +12,11 @@ import javax.ws.rs.core.UriBuilder;
 import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileInfo;
 import org.eclipse.core.filesystem.IFileStore;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
-import com.dynamo.cr.editor.fs.internal.ResourceInfoCache;
-import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
-import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 
 public class RepositoryFileSystemTest {
 
@@ -27,7 +27,7 @@ public class RepositoryFileSystemTest {
     }
 
     static URI makeURI(String path) {
-        return UriBuilder.fromPath("/").scheme("crepo").queryParam("path", path).build();
+        return UriBuilder.fromPath("/dummy_branch").host("localhost").port(1234).scheme("crepo").queryParam("path", path).build();
     }
 
     @Test
@@ -46,24 +46,16 @@ public class RepositoryFileSystemTest {
     }
 
     @Test
-    public void testBasic__() throws Exception {
-        ResourceInfoCache cache = new ResourceInfoCache(new MockBranchClient("test"));
-
-        ResourceInfo root = cache.getResourceInfo("/");
-      //  assertEquals("/", root.getName());
-        assertEquals("/", root.getPath());
-        assertEquals(0, root.getSize());
-        assertEquals(ResourceType.DIRECTORY, root.getType());
-        assertEquals(2, root.getSubResourceNamesCount());
-        if (root.getSubResourceNames(0).equals("a"))
-            assertEquals("b", root.getSubResourceNames(1));
-        else
-            assertEquals("b", root.getSubResourceNames(0));
-
-        ResourceInfo f1 = cache.getResourceInfo("/a/f1.txt");
-        assertEquals("/a/f1.txt", f1.getPath());
-        assertEquals(0, f1.getSize());
-        assertEquals(ResourceType.FILE, f1.getType());
+    public void testModify() throws Exception {
+        IFileStore store = EFS.getStore(makeURI("/a/f1.txt"));
+        IFileInfo preInfo = store.fetchInfo();
+        Thread.sleep(1100); // NOTE: Resolution can be in seconds...
+        store = EFS.getStore(makeURI("/a//f1.txt"));
+        OutputStream os = store.openOutputStream(EFS.NONE, new NullProgressMonitor());
+        os.close();
+        IFileInfo postInfo = store.fetchInfo();
+        assertTrue(postInfo.getLastModified() != preInfo.getLastModified());
     }
+
 }
 

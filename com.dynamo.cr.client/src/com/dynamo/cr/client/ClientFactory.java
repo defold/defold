@@ -1,15 +1,10 @@
 package com.dynamo.cr.client;
 
 import java.net.URI;
-import java.util.HashMap;
-import java.util.Map;
 
-import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.sun.jersey.api.client.Client;
 
 public class ClientFactory implements IClientFactory {
-    private Map<URI, ResourceInfo> resourceInfoCache = new HashMap<URI, ResourceInfo>();
-
     private Client client;
 
     public ClientFactory(Client client) {
@@ -48,22 +43,6 @@ public class ClientFactory implements IClientFactory {
     @Override
     public IUsersClient getUsersClient(URI uri) {
         return new UsersClient(uri, client);
-    }
-
-    synchronized ResourceInfo getCachedResourceInfo(URI uri) {
-        return resourceInfoCache.get(uri.normalize());
-    }
-
-    synchronized void cacheResourceInfo(URI uri, ResourceInfo resource_info) {
-        resourceInfoCache.put(uri.normalize(), resource_info);
-    }
-
-    synchronized void discardResourceInfo(URI uri) {
-        resourceInfoCache.remove(uri.normalize());
-    }
-
-    synchronized void flushResourceInfoCache() {
-        resourceInfoCache.clear();
     }
 
 }

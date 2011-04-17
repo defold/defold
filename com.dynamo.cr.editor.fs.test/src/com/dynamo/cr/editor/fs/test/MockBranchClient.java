@@ -106,7 +106,27 @@ public class MockBranchClient implements IBranchClient {
     @Override
     public void putResourceData(String path, byte[] bytes)
             throws RepositoryException {
-        throw new RuntimeException("Not impl.");
+
+        File f = new File(tempPath.append(path).toPortableString());
+        if (!f.exists()) {
+            throw new RepositoryException(String.format("File %s doesn't exists", path), 404);
+        }
+
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(f);
+            fos.write(bytes);
+            fos.close();
+        } catch (IOException e) {
+            throw new RepositoryException(e.getMessage(), -1);
+        }
+        finally {
+            if (fos != null) {
+                try {
+                    fos.close();
+                } catch (IOException e) {}
+            }
+        }
     }
 
     @Override
@@ -173,11 +193,6 @@ public class MockBranchClient implements IBranchClient {
 
     @Override
     public URI getURI() {
-        throw new RuntimeException("Not impl.");
-    }
-
-    @Override
-    public void flushCache() {
         throw new RuntimeException("Not impl.");
     }
 
