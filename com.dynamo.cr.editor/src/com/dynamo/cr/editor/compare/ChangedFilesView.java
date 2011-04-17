@@ -6,8 +6,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.Semaphore;
 
-import javax.ws.rs.core.UriBuilder;
-
 import org.eclipse.compare.CompareConfiguration;
 import org.eclipse.compare.CompareEditorInput;
 import org.eclipse.compare.CompareUI;
@@ -18,9 +16,8 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -293,37 +290,22 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
                         final Status status = iterator.next();
                             SubProgressMonitor subMonitor = new SubProgressMonitor(monitor, 1);
                             subMonitor.subTask(status.getName());
-                            subMonitor.beginTask(status.getName(), 3);
+                            subMonitor.beginTask(status.getName(), 1);
                             String path = status.getName();
-                            URI uri = UriBuilder.fromUri(branch_client.getURI()).scheme("crepo").queryParam("path", path).build();
-
-                            IResource revert_resource = findResourceFromURI(uri, path);
 
                             try {
                                 branch_client.revertResource(path);
                                 subMonitor.worked(1);
-
-                                if (revert_resource != null) {
-                                    revert_resource.getParent().refreshLocal(IResource.DEPTH_INFINITE, null);
-                                    subMonitor.worked(1);
-                                }
-
-                                if (status.hasOriginal()) {
-                                    // We can't use getParent(). The does not "exists" - yet.
-                                    IPath originalPath = new Path(status.getOriginal());
-                                    IPath refreshPath = originalPath.removeLastSegments(1);
-                                    URI originalUri = UriBuilder.fromUri(branch_client.getURI()).scheme("crepo").queryParam("path", refreshPath.toPortableString()).build();
-                                    IResource originalResource = findResourceFromURI(originalUri, refreshPath.toPortableString());
-                                    if (originalResource != null) {
-                                        originalResource.refreshLocal(IResource.DEPTH_INFINITE, null);
-                                        subMonitor.worked(1);
-                                    }
-                                }
                             }
                             catch (Exception e) {
-
+                                e.printStackTrace();
                             }
                             subMonitor.done();
+                        }
+                        try {
+                            ResourcesPlugin.getWorkspace().getRoot().refreshLocal(IResource.DEPTH_INFINITE, monitor);
+                        } catch (CoreException e) {
+                            e.printStackTrace();
                         }
                         monitor.done();
                     }
