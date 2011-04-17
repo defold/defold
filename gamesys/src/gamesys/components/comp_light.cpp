@@ -60,10 +60,16 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         LightWorld* light_world = (LightWorld*) params.m_World;
-        char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight) + 9];
-        dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*) (buf + sizeof(dmGameObject::InstanceMessageData));
+        const uint32_t data_size = sizeof(dmGameSystemDDF::SetLight) + 9;
+        char buf[data_size];
+        dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*)buf;
 
-        dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
+        dmMessage::URI receiver;
+        if (dmMessage::RESULT_OK != dmMessage::GetSocket("@render", &receiver.m_Socket))
+        {
+            dmLogError("Could not find the socket @render.");
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
         dmhash_t message_id = dmHashString64("set_light");
 
         for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)
@@ -73,7 +79,7 @@ namespace dmGameSystem
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 
             dmGameSystemDDF::LightDesc* light_desc = *light->m_LightResource;
-            DM_SNPRINTF(buf + sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light_desc->m_Id));
+            DM_SNPRINTF(buf + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light_desc->m_Id));
             set_light->m_Light.m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
             set_light->m_Light.m_Type = light_desc->m_Type;
             set_light->m_Light.m_Intensity = light_desc->m_Intensity;
@@ -86,12 +92,12 @@ namespace dmGameSystem
             set_light->m_Position = position;
             set_light->m_Rotation = rotation;
 
-            dmGameObject::InstanceMessageData* msg = (dmGameObject::InstanceMessageData*) buf;
-            msg->m_BufferSize = sizeof(dmGameSystemDDF::SetLight) + 9;
-            msg->m_DDFDescriptor = dmGameSystemDDF::SetLight::m_DDFDescriptor;
-            msg->m_MessageId = message_id;
-
-            dmMessage::Post(socket_id, message_id, buf, sizeof(buf));
+            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)dmGameSystemDDF::SetLight::m_DDFDescriptor, buf, data_size);
+            if (result != dmMessage::RESULT_OK)
+            {
+                dmLogError("Could not send set_light message to @render.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

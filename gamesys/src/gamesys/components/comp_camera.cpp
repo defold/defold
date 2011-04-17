@@ -136,23 +136,23 @@ namespace dmGameSystem
             Vectormath::Aos::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
 
             // Send the matrices to the render script
-            char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmGameSystemDDF::SetViewProjection) + 9];
-            dmGameSystemDDF::SetViewProjection* set_view_projection = (dmGameSystemDDF::SetViewProjection*) (buf + sizeof(dmGameObject::InstanceMessageData));
 
-
-            dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
             dmhash_t message_id = dmHashString64(dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_Name);
 
-            set_view_projection->m_Id = dmHashString64("game");
-            set_view_projection->m_View = view;
-            set_view_projection->m_Projection = projection;
+            dmGameSystemDDF::SetViewProjection set_view_projection;
+            set_view_projection.m_Id = dmHashString64("game");
+            set_view_projection.m_View = view;
+            set_view_projection.m_Projection = projection;
 
-            dmGameObject::InstanceMessageData* msg = (dmGameObject::InstanceMessageData*) buf;
-            msg->m_BufferSize = sizeof(dmGameSystemDDF::SetViewProjection) + 9;
-            msg->m_DDFDescriptor = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor;
-            msg->m_MessageId = message_id;
+            dmMessage::URI receiver;
+            dmMessage::Result result = dmMessage::GetSocket("@render", &receiver.m_Socket);
+            if (result != dmMessage::RESULT_OK)
+            {
+                dmLogError("The socket @render could not be found.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
 
-            dmMessage::Post(socket_id, message_id, buf, sizeof(buf));
+            dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection));
 
             // Set matrices immediately
             // TODO: Remove this once render scripts are implemented everywhere
@@ -165,15 +165,15 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCameraOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CameraComponent* camera = (CameraComponent*)*params.m_UserData;
-        if (params.m_MessageData->m_DDFDescriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
+        if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
         {
-            dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)params.m_MessageData->m_Buffer;
+            dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)params.m_Message->m_Data;
             camera->m_AspectRatio = ddf->m_AspectRatio;
             camera->m_Fov = ddf->m_Fov;
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("acquire_camera_focus"))
+        else if (params.m_Message->m_Id == dmHashString64("acquire_camera_focus"))
         {
             bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
@@ -200,7 +200,7 @@ namespace dmGameSystem
                 dmLogWarning("Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
             }
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("release_camera_focus"))
+        else if (params.m_Message->m_Id == dmHashString64("release_camera_focus"))
         {
             bool found = false;
             for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)

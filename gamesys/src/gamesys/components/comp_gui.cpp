@@ -209,34 +209,19 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void DispatchGui(dmMessage::Message *message_object, void* user_ptr)
+    void DispatchGui(dmMessage::Message* message, void* user_ptr)
     {
         DM_PROFILE(Game, "DispatchGui");
 
-        dmGui::MessageData* gui_message = (dmGui::MessageData*) message_object->m_Data;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData(gui_message->m_Scene);
+        dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData((dmGui::HScene)message->m_Receiver.m_UserData);
         assert(instance);
 
-        uint8_t component_index;
-        dmGameObject::Result result = dmGameObject::GetComponentIndex(instance, gui_message->m_ComponentId, &component_index);
-        if (result == dmGameObject::RESULT_OK)
-        {
-            dmGameObject::InstanceMessageParams params;
-            params.m_ReceiverInstance = instance;
-            params.m_ReceiverComponent = component_index;
-            params.m_Buffer = gui_message->m_DDFData;
-            params.m_BufferSize = message_object->m_DataSize - sizeof(dmGui::MessageData);
-            if (gui_message->m_DDFDescriptor != 0x0)
-            {
-                params.m_DDFDescriptor = gui_message->m_DDFDescriptor;
-            }
-            else
-            {
-                params.m_MessageId = gui_message->m_MessageId;
-            }
-            result = dmGameObject::PostInstanceMessage(params);
-        }
-        if (result != dmGameObject::RESULT_OK)
+        dmMessage::URI receiver = message->m_Receiver;
+        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+        receiver.m_UserData = (uintptr_t)instance;
+
+        dmMessage::Result result = dmMessage::Post(&message->m_Sender, &receiver, message->m_Id, message->m_Descriptor, message->m_Data, message->m_DataSize);
+        if (result != dmMessage::RESULT_OK)
         {
             dmLogError("Error when sending message from gui: %d", result);
         }
@@ -372,17 +357,17 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         Component* gui_component = (Component*)*params.m_UserData;
-        if (params.m_MessageData->m_MessageId == dmHashString64("enable"))
+        if (params.m_Message->m_Id == dmHashString64("enable"))
         {
             gui_component->m_Enabled = 1;
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("disable"))
+        else if (params.m_Message->m_Id == dmHashString64("disable"))
         {
             gui_component->m_Enabled = 0;
         }
         else
         {
-            dmGui::DispatchMessage(gui_component->m_Scene, params.m_MessageData->m_MessageId, (const void*) params.m_MessageData->m_Buffer, params.m_MessageData->m_DDFDescriptor);
+            dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message->m_Id, (const void*) params.m_Message->m_Data, (dmDDF::Descriptor*)params.m_Message->m_Descriptor);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

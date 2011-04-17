@@ -77,7 +77,7 @@ void GamesysTest<T>::SetUp()
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
-    m_Register = dmGameObject::NewRegister(0, 0);
+    m_Register = dmGameObject::NewRegister();
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
 
@@ -113,7 +113,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiRenderContext, &m_SpriteContext));
 
-    m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }
 
 template<typename T>

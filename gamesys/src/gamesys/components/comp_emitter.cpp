@@ -163,15 +163,15 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompEmitterOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         Emitter* emitter = (Emitter*)*params.m_UserData;
-        if (params.m_MessageData->m_MessageId == dmHashString64("start"))
+        if (params.m_Message->m_Id == dmHashString64("start"))
         {
             dmParticle::StartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("restart"))
+        else if (params.m_Message->m_Id == dmHashString64("restart"))
         {
             dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("stop"))
+        else if (params.m_Message->m_Id == dmHashString64("stop"))
         {
             dmParticle::StopEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
         }

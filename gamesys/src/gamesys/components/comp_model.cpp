@@ -122,29 +122,29 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)*params.m_UserData;
         dmRender::RenderObject* ro = &component->m_RenderObject;
-        if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)params.m_MessageData->m_Buffer;
+            dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)params.m_Message->m_Data;
             dmRender::EnableRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)params.m_MessageData->m_Buffer;
+            dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)params.m_Message->m_Data;
             dmRender::DisableRenderObjectVertexConstant(ro, ddf->m_Register);
         }
-        if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)params.m_MessageData->m_Buffer;
+            dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)params.m_Message->m_Data;
             dmRender::EnableRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
         }
-        if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)params.m_MessageData->m_Buffer;
+            dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)params.m_Message->m_Data;
             dmRender::DisableRenderObjectFragmentConstant(ro, ddf->m_Register);
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)params.m_MessageData->m_Buffer;
+            dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)params.m_Message->m_Data;
             uint32_t unit = ddf->m_TextureUnit;
             dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)params.m_Context;
             dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, ddf->m_TextureHash);

@@ -209,13 +209,26 @@ namespace dmGameSystem
             ddf.m_Group = response.m_CollisionObjectGroup;
             ddf.m_Position = response.m_Position;
             ddf.m_Normal = response.m_Normal;
-            dmGameObject::InstanceMessageParams params;
-            params.m_ReceiverInstance = instance;
-            params.m_ReceiverComponent = request.m_UserId;
-            params.m_DDFDescriptor = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
-            params.m_Buffer = &ddf;
-            params.m_BufferSize = sizeof(dmPhysicsDDF::RayCastResponse);
-            dmGameObject::PostInstanceMessage(params);
+            dmhash_t message_id = dmHashString64(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_Name);
+            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmPhysicsDDF::RayCastResponse);
+            dmMessage::URI receiver;
+            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+            receiver.m_Path = dmGameObject::GetIdentifier(instance);
+            receiver.m_UserData = (uintptr_t)instance;
+            dmGameObject::Result result = dmGameObject::GetComponentId(instance, request.m_UserId, &receiver.m_Fragment);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Error when sending ray cast response: %d", result);
+            }
+            else
+            {
+                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
+                if (message_result != dmMessage::RESULT_OK)
+                {
+                    dmLogError("Error when sending ray cast response: %d", message_result);
+                }
+            }
         }
     }
 

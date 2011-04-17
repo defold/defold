@@ -46,7 +46,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        if (params.m_MessageData->m_MessageId == dmHashString64("play_sound"))
+        if (params.m_Message->m_Id == dmHashString64("play_sound"))
         {
             dmSound::HSoundInstance sound_instance = (dmSound::HSoundInstance)*params.m_UserData;
             dmSound::Result r = dmSound::Play(sound_instance);

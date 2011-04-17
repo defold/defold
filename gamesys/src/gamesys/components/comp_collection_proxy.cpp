@@ -183,7 +183,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
-        if (params.m_MessageData->m_MessageId == dmHashString64("load"))
+        if (params.m_Message->m_Id == dmHashString64("load"))
         {
             if (proxy->m_Collection == 0)
             {
@@ -201,7 +201,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("unload"))
+        else if (params.m_Message->m_Id == dmHashString64("unload"))
         {
             if (proxy->m_Collection != 0)
             {
@@ -212,7 +212,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("init"))
+        else if (params.m_Message->m_Id == dmHashString64("init"))
         {
             if (proxy->m_Initialized == 0)
             {
@@ -224,7 +224,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("final"))
+        else if (params.m_Message->m_Id == dmHashString64("final"))
         {
             if (proxy->m_Initialized == 1)
             {
@@ -236,7 +236,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("enable"))
+        else if (params.m_Message->m_Id == dmHashString64("enable"))
         {
             if (proxy->m_Enabled == 0)
             {
@@ -252,7 +252,7 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("disable"))
+        else if (params.m_Message->m_Id == dmHashString64("disable"))
         {
             if (proxy->m_Enabled == 1)
             {
@@ -263,13 +263,13 @@ namespace dmGameSystem
                 dmLogWarning("The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_MessageData->m_DDFDescriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
+        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
         {
-            dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)params.m_MessageData->m_Buffer;
+            dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)params.m_Message->m_Data;
             proxy->m_TimeStepFactor = ddf->m_Factor;
             proxy->m_TimeStepMode = ddf->m_Mode;
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("reset_time_step"))
+        else if (params.m_Message->m_Id == dmHashString64("reset_time_step"))
         {
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;

@@ -32,6 +32,7 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance     m_Instance;
         dmGameObject::HInstance     m_ListenerInstance;
+        dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
         dmGameSystemDDF::Playback   m_Playback;
         float                       m_FrameTime;
@@ -39,7 +40,6 @@ namespace dmGameSystem
         uint16_t                    m_StartFrame;
         uint16_t                    m_EndFrame;
         uint16_t                    m_CurrentFrame;
-        uint8_t                     m_ListenerComponent;
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_PlayBackwards : 1;
     };
@@ -233,17 +233,24 @@ namespace dmGameSystem
                         component->m_Playback = dmGameSystemDDF::PLAYBACK_NONE;
                         if (component->m_ListenerInstance != 0x0)
                         {
+                            dmhash_t message_id = dmHashString64(dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_Name);
                             dmGameSystemDDF::AnimationDone message;
                             message.m_CurrentFrame = component->m_CurrentFrame;
-                            dmGameObject::InstanceMessageParams params;
-                            params.m_ReceiverInstance = component->m_ListenerInstance;
-                            params.m_ReceiverComponent = component->m_ListenerComponent;
-                            params.m_DDFDescriptor = dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
-                            params.m_Buffer = &message;
-                            params.m_BufferSize = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmGameObject::PostInstanceMessage(params);
+                            dmMessage::URI receiver;
+                            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
+                            receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
+                            receiver.m_UserData = (uintptr_t)component->m_ListenerInstance;
+                            receiver.m_Fragment = component->m_ListenerComponent;
+                            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
+                            uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
+                            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &message, data_size);
                             component->m_ListenerInstance = 0x0;
                             component->m_ListenerComponent = 0xff;
+                            if (result != dmMessage::RESULT_OK)
+                            {
+                                dmLogError("Could not send animation_done to listener.");
+                                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                            }
                         }
                     }
                 }
@@ -311,19 +318,19 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         Component* component = (Component*)*params.m_UserData;
-        if (params.m_MessageData->m_MessageId == dmHashString64("enable"))
+        if (params.m_Message->m_Id == dmHashString64("enable"))
         {
             component->m_Enabled = 1;
         }
-        else if (params.m_MessageData->m_MessageId == dmHashString64("disable"))
+        else if (params.m_Message->m_Id == dmHashString64("disable"))
         {
             component->m_Enabled = 0;
         }
-        else if (params.m_MessageData->m_DDFDescriptor != 0x0)
+        else if (params.m_Message->m_Descriptor != 0x0)
         {
-            if (params.m_MessageData->m_MessageId == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
+            if (params.m_Message->m_Id == dmHashString64(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_Name))
             {
-                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_MessageData->m_Buffer;
+                dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 component->m_Playback = ddf->m_Playback;
                 component->m_StartFrame = ddf->m_StartFrame - 1;
                 component->m_EndFrame = ddf->m_EndFrame - 1;
@@ -331,8 +338,8 @@ namespace dmGameSystem
                 component->m_PlayBackwards = 0;
                 component->m_FrameTime = 1.0f / ddf->m_Fps;
                 component->m_FrameTimer = 0.0f;
-                component->m_ListenerInstance = params.m_MessageData->m_SenderInstance;
-                component->m_ListenerComponent = params.m_MessageData->m_SenderComponent;
+                component->m_ListenerInstance = (dmGameObject::HInstance)params.m_Message->m_Sender.m_UserData;
+                component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
