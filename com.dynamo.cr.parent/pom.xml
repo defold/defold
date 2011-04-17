@@ -83,6 +83,7 @@
         <module>../com.dynamo.cr.editor</module>
         <module>../com.dynamo.cr.editor.core</module>
         <module>../com.dynamo.cr.editor.fs</module>
+        <module>../com.dynamo.cr.editor.fs.test</module>
         <module>../com.dynamo.cr.scene</module>
         <module>../com.dynamo.cr.scene.test</module>
         <module>../com.dynamo.cr.contenteditor</module>

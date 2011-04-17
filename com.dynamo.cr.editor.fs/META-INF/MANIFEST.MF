@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Fs
-Bundle-SymbolicName: com.dynamo.cr.editor.fs
+Bundle-SymbolicName: com.dynamo.cr.editor.fs;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
