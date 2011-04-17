@@ -7,6 +7,7 @@ import java.net.URI;
 
 import javax.ws.rs.core.UriBuilder;
 
+import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileInfo;
 import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.filesystem.provider.FileInfo;
@@ -90,15 +91,8 @@ public class RepositoryFileStore extends FileStore implements IFileStore {
 
     @Override
     public IFileStore getChild(String name) {
-        ResourceInfo info = getInfo();
-
-        if (info == null) {
-            return null;
-        }
-        else {
-            IPath new_path = path.append(name);
-            return new RepositoryFileStore(client, new_path.toPortableString());
-        }
+        IPath new_path = path.append(name);
+        return new RepositoryFileStore(client, new_path.toPortableString());
     }
 
     @Override
