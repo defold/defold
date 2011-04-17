@@ -379,7 +379,11 @@ namespace dmGui
         }
 
         assert(top == lua_gettop(L));
-        dmMessage::Post(0x0, &receiver, message_id, descriptor, data, data_size);
+        result = dmMessage::Post(0x0, &receiver, message_id, descriptor, data, data_size);
+        if (result != dmMessage::RESULT_OK)
+        {
+            return luaL_error(L, "Could not send message %s to %s because the socket could not be found.");
+        }
         return 0;
     }
 
