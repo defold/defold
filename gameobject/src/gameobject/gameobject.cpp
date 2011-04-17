@@ -934,6 +934,17 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
+    Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id)
+    {
+        assert(instance != 0x0);
+        if (component_index < instance->m_Prototype->m_Components.Size())
+        {
+            *component_id = instance->m_Prototype->m_Components[component_index].m_Id;
+            return RESULT_OK;
+        }
+        return RESULT_COMPONENT_NOT_FOUND;
+    }
+
     struct DispatchMessagesContext
     {
         HCollection m_Collection;

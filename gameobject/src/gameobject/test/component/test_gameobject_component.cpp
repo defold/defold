@@ -357,6 +357,25 @@ TEST_F(ComponentTest, TestDuplicatedIds)
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
+TEST_F(ComponentTest, TestIndexId)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+
+    uint8_t component_index;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("script"), &component_index));
+    ASSERT_EQ(0u, component_index);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("a"), &component_index));
+    ASSERT_EQ(1u, component_index);
+    dmhash_t component_id;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, 0, &component_id));
+    ASSERT_EQ(dmHashString64("script"), component_id);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, 1, &component_id));
+    ASSERT_EQ(dmHashString64("a"), component_id);
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64("does_not_exist"), &component_index));
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, 2, &component_id));
+    dmGameObject::Delete(m_Collection, go);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

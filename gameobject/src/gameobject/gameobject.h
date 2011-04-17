@@ -514,9 +514,18 @@ namespace dmGameObject
      * @param instance Instance
      * @param component_id Component id
      * @param component_index Component index as out-argument
-     * @return index of the specified component
+     * @return RESULT_OK if the comopnent was found
      */
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index);
+
+    /**
+     * Get component id from component index.
+     * @param instance Instance
+     * @param component_index Component index
+     * @param component_id Component id as out-argument
+     * @return RESULT_OK if the comopnent was found
+     */
+    Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id);
 
     /**
      * Initializes all game object instances in the supplied collection.
