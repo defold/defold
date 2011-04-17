@@ -74,7 +74,7 @@ void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
     result.m_Status = 1010;
     dmMessage::URI receiver = message->m_Sender;
     dmDDF::Descriptor* descriptor = TestGameObjectDDF::SpawnResult::m_DDFDescriptor;
-    dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::SpawnResult));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::SpawnResult)));
 
     *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }

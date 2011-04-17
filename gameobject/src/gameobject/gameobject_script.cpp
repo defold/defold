@@ -209,7 +209,11 @@ namespace dmGameObject
 
         assert(top == lua_gettop(L));
 
-        dmMessage::Post(&sender, &receiver, message_id, descriptor, data, data_size);
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, descriptor, data, data_size);
+        if (result != dmMessage::RESULT_OK)
+        {
+            return luaL_error(L, "Could not send message %s to %s.", message_id_str, uri);
+        }
 
         return 0;
     }

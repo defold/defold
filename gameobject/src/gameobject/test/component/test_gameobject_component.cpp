@@ -274,7 +274,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_UserData = (uintptr_t)go;
     receiver.m_Fragment = dmHashString64("script");
-    dmMessage::Post(0x0, &receiver, message_id, 0, 0x0, 0);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0x0, 0));
 
     dmGameObject::Delete(m_Collection, go);
 
