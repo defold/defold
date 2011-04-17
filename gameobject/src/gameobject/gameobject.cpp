@@ -23,27 +23,12 @@
 
 namespace dmGameObject
 {
-    uint32_t g_RegisterIndex = 0;
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
 
     dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
 
-    InstanceMessageData::InstanceMessageData()
-    {
-        memset(this, 0, sizeof(InstanceMessageData));
-        m_SenderComponent = 0xff;
-        m_ReceiverComponent = 0xff;
-    }
-
-    InstanceMessageParams::InstanceMessageParams()
-    {
-        memset(this, 0, sizeof(InstanceMessageParams));
-        m_SenderComponent = 0xff;
-        m_ReceiverComponent = 0xff;
-    }
-
-    Register::Register(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata)
+    Register::Register()
     {
         m_ComponentTypeCount = 0;
         m_Mutex = dmMutex::New();
@@ -53,16 +38,6 @@ namespace dmGameObject
         // Accumulated position for child collections
         m_AccumulatedTranslation = Vector3(0,0,0);
         m_AccumulatedRotation = Quat::identity();
-
-        char buffer[32];
-
-        DM_SNPRINTF(buffer, 32, "%s%d", DM_GAMEOBJECT_MESSAGE_NAME, g_RegisterIndex);
-        m_MessageId = dmHashString64(buffer);
-
-        m_DispatchCallback = dispatch_callback;
-        m_DispatchUserdata = dispatch_userdata;
-
-        ++g_RegisterIndex;
     }
 
     Register::~Register()
@@ -107,9 +82,9 @@ namespace dmGameObject
         }
     }
 
-    HRegister NewRegister(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata)
+    HRegister NewRegister()
     {
-        return new Register(dispatch_callback, dispatch_userdata);
+        return new Register();
     }
 
     void DeleteRegister(HRegister regist)
@@ -119,7 +94,7 @@ namespace dmGameObject
 
     void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
 
-    HCollection NewCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
@@ -127,6 +102,19 @@ namespace dmGameObject
             return 0;
         }
         Collection* collection = new Collection(factory, regist, max_instances);
+
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
+        {
+            if (regist->m_ComponentTypes[i].m_NewWorldFunction)
+            {
+                ComponentNewWorldParams params;
+                params.m_Context = regist->m_ComponentTypes[i].m_Context;
+                params.m_World = &collection->m_ComponentWorlds[i];
+                regist->m_ComponentTypes[i].m_NewWorldFunction(params);
+            }
+        }
+
+        collection->m_NameHash = dmHashString64(name);
 
         dmMutex::Lock(regist->m_Mutex);
         if (regist->m_Collections.Full())
@@ -138,12 +126,20 @@ namespace dmGameObject
 
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, collection);
 
-        char buffer[32];
-        DM_SNPRINTF(buffer, 32, "%s%d%d", DM_GAMEOBJECT_SOCKET_NAME, regist->m_Collections.Size(), g_RegisterIndex);
-        dmMessage::NewSocket(buffer, &collection->m_SocketId);
-
-        DM_SNPRINTF(buffer, 32, "%s%d%d", DM_GAMEOBJECT_REPLY_SOCKET_NAME, regist->m_Collections.Size(), g_RegisterIndex);
-        dmMessage::NewSocket(buffer, &collection->m_ReplySocketId);
+        dmMessage::Result result = dmMessage::NewSocket(name, &collection->m_Socket);
+        if (result != dmMessage::RESULT_OK)
+        {
+            if (result == dmMessage::RESULT_SOCKET_EXISTS)
+            {
+                dmLogError("The collection '%s' could not be created since there is already a socket with the same name.", name);
+            }
+            else if (result == dmMessage::RESULT_INVALID_SOCKET_NAME)
+            {
+                dmLogError("The collection '%s' could not be created since the name is invalid for sockets.", name);
+            }
+            DeleteCollection(collection);
+            return 0;
+        }
 
         return collection;
     }
@@ -179,15 +175,10 @@ namespace dmGameObject
 
         dmResource::UnregisterResourceReloadedCallback(collection->m_Factory, ResourceReloadedCallback, collection);
 
-        if (collection->m_SocketId)
+        if (collection->m_Socket)
         {
-            dmMessage::Consume(collection->m_SocketId);
-            dmMessage::DeleteSocket(collection->m_SocketId);
-        }
-        if (collection->m_ReplySocketId)
-        {
-            dmMessage::Consume(collection->m_ReplySocketId);
-            dmMessage::DeleteSocket(collection->m_ReplySocketId);
+            dmMessage::Consume(collection->m_Socket);
+            dmMessage::DeleteSocket(collection->m_Socket);
         }
 
         delete collection;
@@ -346,6 +337,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
+            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, 0x0);
             if (!component_type)
             {
@@ -374,6 +366,7 @@ namespace dmGameObject
         {
             Prototype::Component* component = &proto->m_Components[i];
             uint32_t component_type_index;
+            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
             assert(component_type);
 
@@ -413,6 +406,7 @@ namespace dmGameObject
             {
                 Prototype::Component* component = &proto->m_Components[i];
                 uint32_t component_type_index;
+                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
                 assert(component_type);
                 uintptr_t* component_instance_data = 0;
@@ -607,6 +601,7 @@ namespace dmGameObject
             {
                 Prototype::Component* component = &prototype->m_Components[i];
                 uint32_t component_type_index;
+                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
                 assert(component_type);
 
@@ -678,6 +673,7 @@ namespace dmGameObject
             {
                 Prototype::Component* component = &prototype->m_Components[i];
                 uint32_t component_type_index;
+                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
                 ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
                 assert(component_type);
 
@@ -750,6 +746,7 @@ namespace dmGameObject
         {
             Prototype::Component* component = &prototype->m_Components[i];
             uint32_t component_type_index;
+            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
             ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
             assert(component_type);
 
@@ -937,134 +934,121 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    Result PostInstanceMessage(const InstanceMessageParams& params)
-    {
-        if (params.m_BufferSize + sizeof(InstanceMessageData) > INSTANCE_MESSAGE_MAX)
-        {
-            dmLogError("Message could not be sent since it was too large (%d vs %d).", params.m_BufferSize + sizeof(InstanceMessageData), INSTANCE_MESSAGE_MAX);
-            return RESULT_BUFFER_OVERFLOW;
-        }
-
-        Prototype* p = params.m_ReceiverInstance->m_Prototype;
-        if (params.m_ReceiverComponent >= p->m_Components.Size())
-        {
-            dmLogError("Component index out of bounds, index: %d, size: %d.", params.m_ReceiverComponent, p->m_Components.Size());
-            return RESULT_COMPONENT_NOT_FOUND;
-        }
-
-        char buffer[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* message = (InstanceMessageData*)buffer;
-        message->m_MessageId = params.m_MessageId;
-        message->m_SenderInstance = params.m_SenderInstance;
-        message->m_SenderComponent = params.m_SenderComponent;
-        message->m_ReceiverInstance = params.m_ReceiverInstance;
-        message->m_ReceiverComponent = params.m_ReceiverComponent;
-        message->m_DDFDescriptor = params.m_DDFDescriptor;
-        if (message->m_DDFDescriptor != 0x0 && message->m_MessageId == 0)
-        {
-            message->m_MessageId = dmHashString64(message->m_DDFDescriptor->m_Name);
-        }
-        message->m_BufferSize = params.m_BufferSize;
-        if (message->m_BufferSize > 0)
-            memcpy(message->m_Buffer, params.m_Buffer, message->m_BufferSize);
-
-        HCollection collection = params.m_ReceiverInstance->m_Collection;
-        dmMessage::Post(collection->m_ReplySocketId, collection->m_Register->m_MessageId, (void*)message, params.m_BufferSize + sizeof(InstanceMessageData));
-
-        return RESULT_OK;
-    }
-
-    Result BroadcastInstanceMessage(const InstanceMessageParams& params)
-    {
-        if (params.m_BufferSize + sizeof(InstanceMessageData) > INSTANCE_MESSAGE_MAX)
-        {
-            dmLogError("Message could not be sent since it was too large (%d vs %d).", params.m_BufferSize + sizeof(InstanceMessageData), INSTANCE_MESSAGE_MAX);
-            return RESULT_BUFFER_OVERFLOW;
-        }
-
-        char buffer[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* message = (InstanceMessageData*)buffer;
-        message->m_MessageId = params.m_MessageId;
-        message->m_SenderInstance = params.m_SenderInstance;
-        message->m_SenderComponent = params.m_SenderComponent;
-        message->m_ReceiverInstance = params.m_ReceiverInstance;
-        message->m_DDFDescriptor = params.m_DDFDescriptor;
-        if (message->m_DDFDescriptor != 0x0 && message->m_MessageId == 0)
-        {
-            message->m_MessageId = dmHashString64(message->m_DDFDescriptor->m_Name);
-        }
-
-        message->m_BufferSize = params.m_BufferSize;
-        if (message->m_BufferSize > 0)
-            memcpy(message->m_Buffer, params.m_Buffer, message->m_BufferSize);
-
-        HCollection collection = params.m_ReceiverInstance->m_Collection;
-
-        Prototype* prototype = params.m_ReceiverInstance->m_Prototype;
-        for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
-        {
-            message->m_ReceiverComponent = (uint8_t)i & 0xff;
-            dmMessage::Post(collection->m_ReplySocketId, collection->m_Register->m_MessageId, (void*)message, params.m_BufferSize + sizeof(InstanceMessageData));
-        }
-
-        return RESULT_OK;
-    }
-
     struct DispatchMessagesContext
     {
-        HRegister m_Register;
+        HCollection m_Collection;
         bool m_Success;
     };
 
-    void DispatchMessagesFunction(dmMessage::Message *message_object, void* user_ptr)
+    void DispatchMessagesFunction(dmMessage::Message *message, void* user_ptr)
     {
         DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
 
-        dmGameObject::InstanceMessageData* instance_message = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-        Instance* instance = instance_message->m_ReceiverInstance;
-
+        Instance* instance = (Instance*)message->m_Receiver.m_UserData;
+        if (instance == 0x0)
+        {
+            instance = GetInstanceFromIdentifier(context->m_Collection, message->m_Receiver.m_Path);
+        }
+        if (instance == 0x0)
+        {
+            // TODO: hash to string
+            dmLogError("Instance could not be found when dispatching message %llu.", message->m_Id);
+            context->m_Success = false;
+            return;
+        }
         assert(instance);
         Prototype* prototype = instance->m_Prototype;
-        assert(instance_message->m_ReceiverComponent < prototype->m_Components.Size());
-        uint32_t resource_type = prototype->m_Components[instance_message->m_ReceiverComponent].m_ResourceType;
-        ComponentType* component_type = FindComponentType(context->m_Register, resource_type, 0x0);
-        assert(component_type);
 
-        if (component_type->m_OnMessageFunction)
+        if (message->m_Receiver.m_Fragment != 0)
         {
-            // TODO: Not optimal way to find index of component instance data
-            uint32_t next_component_instance_data = 0;
-            for (uint32_t i = 0; i < instance_message->m_ReceiverComponent; ++i)
+            uint8_t component_index;
+            Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
+            if (result != RESULT_OK)
             {
-                ComponentType* ct = FindComponentType(context->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
-                assert(component_type);
-                if (ct->m_InstanceHasUserData)
+                // TODO: hash to string
+                dmLogError("Component could not be found when dispatching message %llu.", message->m_Id);
+                context->m_Success = false;
+                return;
+            }
+            uint32_t resource_type = prototype->m_Components[component_index].m_ResourceType;
+            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
+            ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type, 0x0);
+            assert(component_type);
+
+            if (component_type->m_OnMessageFunction)
+            {
+                // TODO: Not optimal way to find index of component instance data
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t i = 0; i < component_index; ++i)
                 {
-                    next_component_instance_data++;
+                    ComponentType* ct = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
+                    assert(component_type);
+                    if (ct->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_InstanceHasUserData)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                }
+                {
+                    DM_PROFILE(GameObject, "OnMessageFunction");
+                    ComponentOnMessageParams params;
+                    params.m_Instance = instance;
+                    params.m_Context = component_type->m_Context;
+                    params.m_UserData = component_instance_data;
+                    params.m_Message = message;
+                    UpdateResult res = component_type->m_OnMessageFunction(params);
+                    if (res != UPDATE_RESULT_OK)
+                        context->m_Success = false;
                 }
             }
-
-            uintptr_t* component_instance_data = 0;
-            if (component_type->m_InstanceHasUserData)
+            else
             {
-                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-            }
-            {
-                DM_PROFILE(GameObject, "OnMessageFunction");
-                ComponentOnMessageParams params;
-                params.m_Instance = instance;
-                params.m_MessageData = instance_message;
-                params.m_Context = component_type->m_Context;
-                params.m_UserData = component_instance_data;
-                UpdateResult res = component_type->m_OnMessageFunction(params);
-                if (res != UPDATE_RESULT_OK)
-                    context->m_Success = false;
+                // TODO User-friendly error message here...
+                dmLogWarning("Component type is missing OnMessage function");
             }
         }
-        else
+        else // broadcast
         {
-            // TODO User-friendly error message here...
-            dmLogWarning("Component type is missing OnMessage function");
+            uint32_t next_component_instance_data = 0;
+            for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+            {
+                uint32_t resource_type = prototype->m_Components[i].m_ResourceType;
+                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
+                ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type, 0x0);
+                assert(component_type);
+
+                if (component_type->m_OnMessageFunction)
+                {
+                    uintptr_t* component_instance_data = 0;
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                    }
+                    {
+                        DM_PROFILE(GameObject, "OnMessageFunction");
+                        ComponentOnMessageParams params;
+                        params.m_Instance = instance;
+                        params.m_Context = component_type->m_Context;
+                        params.m_UserData = component_instance_data;
+                        params.m_Message = message;
+                        UpdateResult res = component_type->m_OnMessageFunction(params);
+                        if (res != UPDATE_RESULT_OK)
+                            context->m_Success = false;
+                    }
+                }
+                else
+                {
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        ++next_component_instance_data;
+                    }
+                }
+            }
         }
     }
 
@@ -1073,12 +1057,9 @@ namespace dmGameObject
         DM_PROFILE(GameObject, "DispatchMessages");
 
         DispatchMessagesContext ctx;
-        ctx.m_Register = collection->m_Register;
+        ctx.m_Collection = collection;
         ctx.m_Success = true;
-        if (collection->m_Register->m_DispatchCallback)
-            (void) dmMessage::Dispatch(collection->m_SocketId, collection->m_Register->m_DispatchCallback, collection->m_Register->m_DispatchUserdata);
-
-        (void) dmMessage::Dispatch(collection->m_ReplySocketId, &DispatchMessagesFunction, (void*) &ctx);
+        (void) dmMessage::Dispatch(collection->m_Socket, &DispatchMessagesFunction, (void*) &ctx);
 
         return ctx.m_Success;
     }
@@ -1385,23 +1366,7 @@ namespace dmGameObject
     dmMessage::HSocket GetMessageSocket(HCollection collection)
     {
         if (collection)
-            return collection->m_SocketId;
-        else
-            return 0;
-    }
-
-    dmMessage::HSocket GetReplyMessageSocket(HCollection collection)
-    {
-        if (collection)
-            return collection->m_ReplySocketId;
-        else
-            return 0;
-    }
-
-    dmhash_t GetMessageId(HRegister reg)
-    {
-        if (reg)
-            return reg->m_MessageId;
+            return collection->m_Socket;
         else
             return 0;
     }

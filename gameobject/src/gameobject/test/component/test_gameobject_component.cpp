@@ -24,10 +24,10 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
-        m_Register = dmGameObject::NewRegister(0, 0);
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
-        m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
         dmResource::FactoryResult e;
@@ -268,12 +268,13 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::InstanceMessageParams params;
-    params.m_MessageId = dmHashString64("test");
-    params.m_ReceiverInstance = go;
-    params.m_DDFDescriptor = 0x0;
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("script"), &params.m_ReceiverComponent));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostInstanceMessage(params));
+    dmhash_t message_id = dmHashString64("test");
+    dmMessage::URI receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    receiver.m_UserData = (uintptr_t)go;
+    receiver.m_Fragment = dmHashString64("script");
+    dmMessage::Post(0x0, &receiver, message_id, 0, 0x0, 0);
 
     dmGameObject::Delete(m_Collection, go);
 

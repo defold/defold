@@ -37,8 +37,12 @@ namespace dmGameObject
         {
             loading_root = true;
             // TODO: How to configure 1024. In collection?
-            collection = NewCollection(factory, regist, 1024);
-            collection->m_NameHash = dmHashString64(collection_desc->m_Name);
+            collection = NewCollection(collection_desc->m_Name, factory, regist, 1024);
+            if (collection == 0)
+            {
+                dmMutex::Unlock(regist->m_Mutex);
+                return dmResource::CREATE_RESULT_UNKNOWN;
+            }
             regist->m_CurrentCollection = collection;
             regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
             regist->m_AccumulatedRotation = Quat::identity();
@@ -166,7 +170,7 @@ namespace dmGameObject
         {
             // We must create a child collection. We can't return "collection" and release.
             // The root collection is not yet created.
-            resource->m_Resource = (void*) NewCollection(factory, regist, 1);
+            resource->m_Resource = (void*) new Collection(factory, regist, 1);
         }
 bail:
         dmDDF::FreeMessage(collection_desc);
@@ -192,8 +196,16 @@ bail:
                                                  void* context,
                                                  dmResource::SResourceDescriptor* resource)
     {
+        HRegister regist = (HRegister)context;
         HCollection collection = (HCollection) resource->m_Resource;
-        DeleteCollection(collection);
+        if (regist->m_CurrentCollection != 0x0)
+        {
+            delete collection;
+        }
+        else
+        {
+            DeleteCollection(collection);
+        }
         return dmResource::CREATE_RESULT_OK;
     }
 }

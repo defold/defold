@@ -1,3 +1,4 @@
+
 #include "comp_script.h"
 
 #include <dlib/profile.h>
@@ -222,15 +223,16 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            dmScript::PushHash(L, params.m_MessageData->m_MessageId);
+            dmScript::PushHash(L, params.m_Message->m_Id);
 
-            if (params.m_MessageData->m_DDFDescriptor)
+            if (params.m_Message->m_Descriptor != 0)
             {
                 // adjust char ptrs to global mem space
-                char* data = (char*)params.m_MessageData->m_Buffer;
-                for (uint8_t i = 0; i < params.m_MessageData->m_DDFDescriptor->m_FieldCount; ++i)
+                char* data = (char*)params.m_Message->m_Data;
+                dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)params.m_Message->m_Descriptor;
+                for (uint8_t i = 0; i < descriptor->m_FieldCount; ++i)
                 {
-                    dmDDF::FieldDescriptor* field = &params.m_MessageData->m_DDFDescriptor->m_Fields[i];
+                    dmDDF::FieldDescriptor* field = &descriptor->m_Fields[i];
                     uint32_t field_type = field->m_Type;
                     if (field_type == dmDDF::TYPE_STRING)
                     {
@@ -239,12 +241,12 @@ namespace dmGameObject
                 }
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
-                dmScript::PushDDF(L, params.m_MessageData->m_DDFDescriptor, (const char*) params.m_MessageData->m_Buffer);
+                dmScript::PushDDF(L, descriptor, (const char*) params.m_Message->m_Data);
             }
             else
             {
-                if (params.m_MessageData->m_BufferSize > 0)
-                    dmScript::PushTable(L, (const char*)params.m_MessageData->m_Buffer);
+                if (params.m_Message->m_DataSize > 0)
+                    dmScript::PushTable(L, (const char*)params.m_Message->m_Data);
                 else
                     lua_newtable(L);
             }

@@ -30,14 +30,16 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_Register = dmGameObject::NewRegister(0, 0);
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
-        m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        assert(dmMessage::NewSocket("@system", &m_Socket) == dmMessage::RESULT_OK);
     }
 
     virtual void TearDown()
     {
+        dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
@@ -50,6 +52,7 @@ public:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
+    dmMessage::HSocket m_Socket;
     const char* m_Path;
 };
 
@@ -59,10 +62,9 @@ struct TestScript01Context
     bool m_Result;
 };
 
-void TestScript01Dispatch(dmMessage::Message *message_object, void* user_ptr)
+void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
 {
-    dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-    TestGameObjectDDF::Spawn* s = (TestGameObjectDDF::Spawn*) instance_message_data->m_Buffer;
+    TestGameObjectDDF::Spawn* s = (TestGameObjectDDF::Spawn*) message->m_Data;
     // NOTE: We relocate the string here (from offset to pointer)
     s->m_Prototype = (const char*) ((uintptr_t) s->m_Prototype + (uintptr_t) s);
     TestScript01Context* context = (TestScript01Context*)user_ptr;
@@ -70,18 +72,14 @@ void TestScript01Dispatch(dmMessage::Message *message_object, void* user_ptr)
 
     TestGameObjectDDF::SpawnResult result;
     result.m_Status = 1010;
-    dmGameObject::InstanceMessageParams params;
-    params.m_ReceiverInstance = instance_message_data->m_SenderInstance;
-    params.m_ReceiverComponent = instance_message_data->m_SenderComponent;
-    params.m_DDFDescriptor = TestGameObjectDDF::SpawnResult::m_DDFDescriptor;
-    params.m_Buffer = &result;
-    params.m_BufferSize = sizeof(TestGameObjectDDF::SpawnResult);
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::PostInstanceMessage(params));
+    dmMessage::URI receiver = message->m_Sender;
+    dmDDF::Descriptor* descriptor = TestGameObjectDDF::SpawnResult::m_DDFDescriptor;
+    dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::SpawnResult));
 
     *dispatch_result = s->m_Pos.getX() == 1.0 && s->m_Pos.getY() == 2.0 && s->m_Pos.getZ() == 3.0 && strcmp("test", s->m_Prototype) == 0;
 }
 
-void TestScript01DispatchReply(dmMessage::Message *message_object, void* user_ptr)
+void TestScript01CollectionDispatch(dmMessage::Message *message_object, void* user_ptr)
 {
 
 }
@@ -105,19 +103,18 @@ TEST_F(ScriptTest, TestScript01)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    dmMessage::HSocket socket = dmGameObject::GetMessageSocket(m_Collection);
-    dmMessage::HSocket reply_socket = dmGameObject::GetReplyMessageSocket(m_Collection);
+    dmMessage::HSocket collection_socket = dmGameObject::GetMessageSocket(m_Collection);
     TestScript01Context context;
     context.m_Register = m_Register;
     context.m_Result = false;
-    dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
+    dmMessage::Dispatch(m_Socket, TestScript01SystemDispatch, &context);
 
     ASSERT_TRUE(context.m_Result);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     // Final dispatch to deallocate message data
-    dmMessage::Dispatch(socket, TestScript01Dispatch, &context);
-    dmMessage::Dispatch(reply_socket, TestScript01DispatchReply, &context);
+    dmMessage::Dispatch(m_Socket, TestScript01SystemDispatch, &context);
+    dmMessage::Dispatch(collection_socket, TestScript01CollectionDispatch, &context);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 

@@ -86,38 +86,6 @@ namespace dmGameObject
 
     extern const uint32_t UNNAMED_IDENTIFIER;
 
-    // TODO: Configurable?
-    const uint32_t INSTANCE_MESSAGE_MAX = 256;
-
-    /**
-     * Message sent to and from instances
-     */
-    struct InstanceMessageData
-    {
-        InstanceMessageData();
-
-        /// Sender instance
-        HInstance m_SenderInstance;
-        /// Receiver instance
-        HInstance m_ReceiverInstance;
-
-        /// Sender component index
-        uint8_t   m_SenderComponent;
-        /// Receiver component index
-        uint8_t   m_ReceiverComponent;
-        uint8_t   m_Pad[2];
-
-        /// Message id
-        dmhash_t  m_MessageId;
-
-        /// Pay-load DDF descriptor. NULL if not present
-        const dmDDF::Descriptor* m_DDFDescriptor;
-        /// Pay-load size
-        uint32_t                 m_BufferSize;
-        /// Pay-load
-        uint8_t                  m_Buffer[0];
-    };
-
     /**
      * Container of input related information.
      */
@@ -321,12 +289,12 @@ namespace dmGameObject
     {
         /// Instance handle
         HInstance m_Instance;
-        /// Message data
-        const InstanceMessageData* m_MessageData;
         /// User context
         void* m_Context;
         /// User data storage pointer
         uintptr_t* m_UserData;
+        /// Message
+        dmMessage::Message* m_Message;
     };
 
     /**
@@ -426,11 +394,9 @@ namespace dmGameObject
 
     /**
      * Create a new component type register
-     * @param dispatch_callback Message dispatch function that will be called when collections belonging to this register are updated.
-     * @param dispatch_userdata User-defined data that will be passed to the dispatch_callback.
      * @return Register handle
      */
-    HRegister NewRegister(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata);
+    HRegister NewRegister();
 
     /**
      * Delete a component type register
@@ -440,12 +406,13 @@ namespace dmGameObject
 
     /**
      * Creates a new gameobject collection
+     * @param name Collection name, which must be unique and follow the same naming as for sockets
      * @param factory Resource factory. Must be valid during the life-time of the collection
      * @param regist Register
      * @param max_instances Max instances in this collection
      * @return HCollection
      */
-    HCollection NewCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
 
     /**
      * Deletes a gameobject collection
@@ -552,45 +519,6 @@ namespace dmGameObject
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index);
 
     /**
-     * Parameters when sending messages.
-     */
-    struct InstanceMessageParams
-    {
-        InstanceMessageParams();
-
-        /// Message id
-        dmhash_t m_MessageId;
-        /// Sender instance
-        HInstance m_SenderInstance;
-        /// Receiver instance
-        HInstance m_ReceiverInstance;
-        /// Descriptor of ddf data, set to 0x0 for other data
-        const dmDDF::Descriptor* m_DDFDescriptor;
-        /// Buffer for the message contents
-        void* m_Buffer;
-        /// Size of the buffer
-        uint32_t m_BufferSize;
-        /// Sender component as an index
-        uint8_t m_SenderComponent;
-        /// Receiver component as an index
-        uint8_t m_ReceiverComponent;
-    };
-
-    /**
-     * Posts the specified message on the instance reply port.
-     * @params params Input parameters
-     * @return RESULT_OK on success
-     */
-    Result PostInstanceMessage(const InstanceMessageParams& params);
-
-    /**
-     * Posts the specified message on the instance reply port to every component in the instance.
-     * @params params Input parameters, InstanceMessageParams::m_ReceiverComponent is ignored.
-     * @return RESULT_OK on success
-     */
-    Result BroadcastInstanceMessage(const InstanceMessageParams& params);
-
-    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */
@@ -656,20 +584,6 @@ namespace dmGameObject
      * @return The message socket id of the specified collection
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
-
-    /**
-     * Retrieve the reply message socket id for the specified collection.
-     * @param collection Collection handle
-     * @return The reply message socket id of the specified collection
-     */
-    dmMessage::HSocket GetReplyMessageSocket(HCollection collection);
-
-    /**
-     * Retrieve the designated message id for game object messages for the specified register.
-     * @param reg Register handle
-     * @return The message id of the specified collection
-     */
-    dmhash_t GetMessageId(HRegister reg);
 
     /**
      * Set gameobject instance position

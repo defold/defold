@@ -3,5 +3,5 @@ function on_message(self, message_id, message)
 end
 
 function update(self)
-    go.post_to_collection(self, "post2", "go2", "script", "message2")
+    go.post(self, "post2:go2#script", "message2")
 end

@@ -117,265 +117,99 @@ namespace dmGameObject
         {0, 0}
     };
 
+    // TODO: This should be moved to the registry
     extern dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors;
-    extern uint32_t g_Socket;
-    extern uint32_t g_ReplySocket;
-    extern uint32_t g_MessageID;
-
-    int Script_PostTo(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        dmhash_t id = dmScript::CheckHash(L, 2);
-        const char* component_id_str = luaL_checkstring(L, 3);
-        const char* message_id_str = luaL_checkstring(L, 4);
-
-        HInstance instance = dmGameObject::GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
-        if (instance)
-        {
-            InstanceMessageParams params;
-            params.m_MessageId = dmHashString64(message_id_str);
-            params.m_SenderInstance = i->m_Instance;
-            params.m_SenderComponent = i->m_ComponentIndex;
-            params.m_ReceiverInstance = instance;
-
-            dmhash_t component_id = dmHashString64(component_id_str);
-            dmGameObject::Result result = dmGameObject::GetComponentIndex(instance, component_id, &params.m_ReceiverComponent);
-            if (result == dmGameObject::RESULT_COMPONENT_NOT_FOUND)
-            {
-                return luaL_error(L, "The component '%s' could not be found when posting message '%s'.", component_id_str, message_id_str);
-            }
-
-            const uint32_t buffer_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
-            char buffer[buffer_size];
-            params.m_Buffer = buffer;
-
-            // Passing ddf data is optional atm
-            if (result == dmGameObject::RESULT_OK)
-            {
-                if (top >= 5)
-                {
-                    const dmDDF::Descriptor** desc = g_Descriptors->Get(params.m_MessageId);
-                    if (desc != 0)
-                    {
-                        params.m_DDFDescriptor = *desc;
-                        if (params.m_DDFDescriptor->m_Size > buffer_size)
-                        {
-                            return luaL_error(L, "The message %s is to big to be sent.", message_id_str);
-                        }
-                        luaL_checktype(L, -1, LUA_TTABLE);
-                        lua_pushvalue(L, -1);
-                        params.m_BufferSize = dmScript::CheckDDF(L, *desc, buffer, buffer_size, -1);
-                        lua_pop(L, 1);
-                    }
-                    else
-                    {
-                        params.m_BufferSize = dmScript::CheckTable(L, buffer, buffer_size, -1);
-                    }
-                }
-
-                result = dmGameObject::PostInstanceMessage(params);
-            }
-            if (result != dmGameObject::RESULT_OK)
-            {
-                // TODO: Translate result to string
-                luaL_error(L, "Error %d when posting message '%s' to %p/%s", result, message_id_str, (void*)id, component_id_str);
-            }
-        }
-        else
-        {
-            dmLogError("Error sending message. Unknown instance: %llu", id);
-            return luaL_error(L, "Error sending message. Unknown instance.");
-        }
-        assert(top == lua_gettop(L));
-
-        return 0;
-    }
-
-    int Script_BroadcastTo(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        dmhash_t id = dmScript::CheckHash(L, 2);
-        const char* message_id_str = luaL_checkstring(L, 3);
-
-        HInstance instance = dmGameObject::GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
-        if (instance)
-        {
-            InstanceMessageParams params;
-            params.m_MessageId = dmHashString64(message_id_str);
-            params.m_SenderInstance = i->m_Instance;
-            params.m_SenderComponent = i->m_ComponentIndex;
-            params.m_ReceiverInstance = instance;
-
-            const uint32_t buffer_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
-            char buffer[buffer_size];
-            params.m_Buffer = buffer;
-
-            // Passing ddf data is optional atm
-            if (top >= 4)
-            {
-                const dmDDF::Descriptor** desc = g_Descriptors->Get(params.m_MessageId);
-                if (desc != 0)
-                {
-                    params.m_DDFDescriptor = *desc;
-                    if (params.m_DDFDescriptor->m_Size > buffer_size)
-                    {
-                        return luaL_error(L, "The message %s is to big to be sent.", message_id_str);
-                    }
-                    luaL_checktype(L, -1, LUA_TTABLE);
-                    lua_pushvalue(L, -1);
-                    params.m_BufferSize = dmScript::CheckDDF(L, *desc, buffer, buffer_size, -1);
-                    lua_pop(L, 1);
-                }
-                else
-                {
-                    params.m_BufferSize = dmScript::CheckTable(L, buffer, buffer_size, -1);
-                }
-            }
-
-            dmGameObject::Result result = dmGameObject::BroadcastInstanceMessage(params);
-            if (result != dmGameObject::RESULT_OK)
-            {
-                // TODO: Translate result to string
-                return luaL_error(L, "Error %d when broadcasting message '%s' to %p", result, message_id_str, (void*)id);
-            }
-        }
-        else
-        {
-            dmLogError("Error sending message. Unknown instance: %llu", id);
-            return luaL_error(L, "Error sending message. Unknown instance.");
-        }
-        assert(top == lua_gettop(L));
-
-        return 0;
-    }
-
-    int Script_PostToCollection(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        const char* collection_id_str = luaL_checkstring(L, 2);
-        const char* instance_id_str = luaL_checkstring(L, 3);
-        const char* component_id_str = luaL_checkstring(L, 4);
-        const char* message_id_str = luaL_checkstring(L, 5);
-
-        HCollection collection = i->m_Instance->m_Collection;
-        HRegister regist = collection->m_Register;
-        HCollection to_collection = 0;
-        dmhash_t collection_id = dmHashString64(collection_id_str);
-        for (uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
-        {
-            if (regist->m_Collections[i]->m_NameHash == collection_id)
-            {
-                to_collection = regist->m_Collections[i];
-                break;
-            }
-        }
-
-        if (to_collection == 0)
-        {
-            return luaL_error(L, "The collection '%s' could not be found.", collection_id_str);
-        }
-
-        dmhash_t instance_id = dmHashString64(instance_id_str);
-        HInstance instance = dmGameObject::GetInstanceFromIdentifier(to_collection, instance_id);
-        if (instance)
-        {
-            InstanceMessageParams params;
-            params.m_MessageId = dmHashString64(message_id_str);
-            params.m_SenderInstance = i->m_Instance;
-            params.m_SenderComponent = i->m_ComponentIndex;
-            params.m_ReceiverInstance = instance;
-
-            const uint32_t buffer_size = INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData);
-            char buffer[buffer_size];
-            params.m_Buffer = buffer;
-
-            dmhash_t component_id = dmHashString64(component_id_str);
-            dmGameObject::Result result = dmGameObject::GetComponentIndex(instance, component_id, &params.m_ReceiverComponent);
-            if (result == dmGameObject::RESULT_OK)
-            {
-                // Passing data is optional atm
-                if (top >= 6)
-                {
-                    const dmDDF::Descriptor** desc = g_Descriptors->Get(params.m_MessageId);
-                    if (desc != 0)
-                    {
-                        params.m_DDFDescriptor = *desc;
-                        if ((*desc)->m_Size > buffer_size)
-                        {
-                            return luaL_error(L, "The message '%s' is too large to be posted.", message_id_str);
-                        }
-                        luaL_checktype(L, -1, LUA_TTABLE);
-
-                        lua_pushvalue(L, -1);
-                        params.m_BufferSize = dmScript::CheckDDF(L, *desc, buffer, buffer_size, -1);
-                        lua_pop(L, 1);
-                    }
-                    else
-                    {
-                        params.m_BufferSize = dmScript::CheckTable(L, buffer, buffer_size, -1);
-                    }
-                }
-
-                result = dmGameObject::PostInstanceMessage(params);
-            }
-            if (result != dmGameObject::RESULT_OK)
-            {
-                luaL_error(L, "The component '%s' could not be found.", component_id_str);
-            }
-        }
-        else
-        {
-            return luaL_error(L, "The instance '%s' could not be found.", instance_id_str);
-        }
-        assert(top == lua_gettop(L));
-
-        return 0;
-    }
 
     int Script_Post(lua_State* L)
     {
         int top = lua_gettop(L);
 
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        const char* message_id_str = luaL_checkstring(L, 2);
+        const char* uri = luaL_checkstring(L, 2);
+        const char* message_id_str = luaL_checkstring(L, 3);
 
-        char buf[INSTANCE_MESSAGE_MAX];
-        InstanceMessageData* message = (InstanceMessageData*) buf;
-        message->m_MessageId = dmHashString64(message_id_str);
-        message->m_DDFDescriptor = 0x0;
-        message->m_SenderInstance = i->m_Instance;
-        message->m_SenderComponent = i->m_ComponentIndex;
-        message->m_BufferSize = 0;
-
-        if (top > 2)
+        dmMessage::URI receiver;
+        dmMessage::Result message_result = dmMessage::ParseURI(uri, &receiver);
+        if (message_result != dmMessage::RESULT_OK)
         {
-            const dmDDF::Descriptor** desc = g_Descriptors->Get(message->m_MessageId);
-            if (desc == 0)
+            const char* error = "Could not send message %s to %s because %s.";
+            if (message_result == dmMessage::RESULT_SOCKET_NOT_FOUND)
             {
-                return luaL_error(L, "Unknown ddf type: %s", message_id_str);
+                return luaL_error(L, error, message_id_str, uri, "the socket could not be found");
             }
-            message->m_DDFDescriptor = *desc;
+            if (message_result == dmMessage::RESULT_INVALID_SOCKET_NAME)
+            {
+                return luaL_error(L, error, message_id_str, uri, "the socket name is invalid");
+            }
+            if (message_result == dmMessage::RESULT_MALFORMED_URI)
+            {
+                return luaL_error(L, error, message_id_str, uri, "the address is invalid (should be [socket:][path][#fragment])");
+            }
+        }
+        if (receiver.m_Socket == 0)
+        {
+            receiver.m_Socket = i->m_Instance->m_Collection->m_Socket;
+            if (receiver.m_Path != 0)
+            {
+                receiver.m_UserData = (uintptr_t)GetInstanceFromIdentifier(i->m_Instance->m_Collection, receiver.m_Path);
+                if (receiver.m_UserData == 0)
+                {
+                    return luaL_error(L, "The instance could not be found when sending the message %s to %s.", message_id_str, uri);
+                }
+            }
+            else
+            {
+                receiver.m_Path = i->m_Instance->m_Identifier;
+                receiver.m_UserData = (uintptr_t)i->m_Instance;
+                if (receiver.m_Fragment != 0)
+                {
+                    uint8_t component_index;
+                    Result result = GetComponentIndex(i->m_Instance, receiver.m_Fragment, &component_index);
+                    if (result != RESULT_OK)
+                    {
+                        return luaL_error(L, "The component could not be found when sending the message %s to %s.", message_id_str, uri);
+                    }
+                }
+            }
+        }
 
-            uint32_t size = sizeof(InstanceMessageData) + message->m_DDFDescriptor->m_Size;
-            if (size > INSTANCE_MESSAGE_MAX)
+        dmhash_t message_id = dmHashString64(message_id_str);
+        uintptr_t descriptor = 0;
+
+        dmMessage::URI sender;
+        sender.m_Socket = i->m_Instance->m_Collection->m_Socket;
+        sender.m_Path = i->m_Instance->m_Identifier;
+        sender.m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        sender.m_UserData = (uintptr_t)i->m_Instance;
+
+        char data[MAX_MESSAGE_DATA_SIZE];
+        uint32_t data_size = 0;
+
+        if (top > 3)
+        {
+            const dmDDF::Descriptor** desc = g_Descriptors->Get(message_id);
+            if (desc != 0)
             {
-                return luaL_error(L, "sizeof(%s) > %d", message_id_str, message->m_DDFDescriptor->m_Size);
+                descriptor = (uintptr_t)*desc;
+                if ((*desc)->m_Size > MAX_MESSAGE_DATA_SIZE)
+                {
+                    return luaL_error(L, "The message '%s' is too large to be sent (%d bytes, max is %d).", message_id_str, (*desc)->m_Size, MAX_MESSAGE_DATA_SIZE);
+                }
+                luaL_checktype(L, 4, LUA_TTABLE);
+
+                lua_pushvalue(L, 4);
+                data_size = dmScript::CheckDDF(L, *desc, data, MAX_MESSAGE_DATA_SIZE, 4);
+                lua_pop(L, 1);
             }
-            char* p = buf + sizeof(InstanceMessageData);
-            message->m_BufferSize = dmScript::CheckDDF(L, message->m_DDFDescriptor, p, INSTANCE_MESSAGE_MAX - sizeof(InstanceMessageData), -1);
+            else
+            {
+                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 4);
+            }
         }
 
         assert(top == lua_gettop(L));
 
-        HCollection collection = i->m_Instance->m_Collection;
-        dmGameObject::HRegister reg = dmGameObject::GetRegister(collection);
-        dmMessage::Post(dmGameObject::GetMessageSocket(collection), dmGameObject::GetMessageId(reg), buf, message->m_BufferSize + sizeof(InstanceMessageData));
+        dmMessage::Post(&sender, &receiver, message_id, descriptor, data, data_size);
 
         return 0;
     }
@@ -497,9 +331,6 @@ namespace dmGameObject
     static const luaL_reg Script_methods[] =
     {
         {"post",                Script_Post},
-        {"post_to",             Script_PostTo},
-        {"broadcast_to",        Script_BroadcastTo},
-        {"post_to_collection",  Script_PostToCollection},
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"set_position",        Script_SetPosition},

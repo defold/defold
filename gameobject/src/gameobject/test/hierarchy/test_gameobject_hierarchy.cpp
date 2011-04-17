@@ -27,10 +27,10 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/hierarchy");
-        m_Register = dmGameObject::NewRegister(0, 0);
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
-        m_Collection = dmGameObject::NewCollection(m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     }
 
     virtual void TearDown()

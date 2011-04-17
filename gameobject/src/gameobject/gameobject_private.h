@@ -20,6 +20,9 @@ namespace dmGameObject
 
     extern lua_State* g_LuaState;
 
+    // TODO: Configurable?
+    const uint32_t MAX_MESSAGE_DATA_SIZE = 256;
+
     struct Prototype
     {
         struct Component
@@ -124,12 +127,6 @@ namespace dmGameObject
     // Max component types could not be larger than 255 since the index is stored as a uint8_t
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
-    #define DM_GAMEOBJECT_MESSAGE_NAME "go_message"
-    #define DM_GAMEOBJECT_SOCKET_NAME "go_socket"
-    #define DM_GAMEOBJECT_SPAWN_MESSAGE_NAME "spawn_message"
-    #define DM_GAMEOBJECT_SPAWN_SOCKET_NAME "go_spawn_socket"
-    #define DM_GAMEOBJECT_REPLY_SOCKET_NAME "go_reply_socket"
-
     /**
      * TODO: This needs a revisit once the collection refactoring is done
      */
@@ -162,12 +159,7 @@ namespace dmGameObject
         Vector3                     m_AccumulatedTranslation;
         Quat                        m_AccumulatedRotation;
 
-        dmhash_t                    m_MessageId;
-
-        dmMessage::DispatchCallback m_DispatchCallback;
-        void*                       m_DispatchUserdata;
-
-        Register(dmMessage::DispatchCallback dispatch_callback, void* dispatch_userdata);
+        Register();
         ~Register();
     };
 
@@ -194,8 +186,7 @@ namespace dmGameObject
             // TODO: Un-hard-code
             m_InputFocusStack.SetCapacity(16);
             m_NameHash = 0;
-            m_SocketId = 0;
-            m_ReplySocketId = 0;
+            m_Socket = 0;
             m_InUpdate = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
@@ -206,17 +197,6 @@ namespace dmGameObject
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
             memset(&m_WorldTransforms[0], 0xcc, sizeof(Transform) * max_instances);
             memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
-
-            for (uint32_t i = 0; i < m_Register->m_ComponentTypeCount; ++i)
-            {
-                if (m_Register->m_ComponentTypes[i].m_NewWorldFunction)
-                {
-                    ComponentNewWorldParams params;
-                    params.m_Context = m_Register->m_ComponentTypes[i].m_Context;
-                    params.m_World = &m_ComponentWorlds[i];
-                    m_Register->m_ComponentTypes[i].m_NewWorldFunction(params);
-                }
-            }
         }
         // Resource factory
         dmResource::HFactory     m_Factory;
@@ -268,9 +248,7 @@ namespace dmGameObject
         dmhash_t                 m_NameHash;
 
         // Socket for sending to instances
-        dmMessage::HSocket       m_SocketId;
-        // Socket to receive replies from instances
-        dmMessage::HSocket       m_ReplySocketId;
+        dmMessage::HSocket       m_Socket;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
