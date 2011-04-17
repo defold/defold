@@ -156,38 +156,51 @@ namespace dmMessage
         return RESULT_OK;
     }
 
-    static MessageSocket* GetSocketInternal(HSocket socket, uint16_t& id)
+    static MessageSocket* GetSocketInternal(HSocket socket, uint16_t& out_id)
     {
-        uint16_t version = socket >> 16;
-        assert(version != 0);
+        if (socket != 0)
+        {
+            uint16_t version = socket >> 16;
+            assert(version != 0);
 
-        id = socket & 0xffff;
+            uint16_t id = socket & 0xffff;
 
-        MessageSocket* s = &g_Sockets[id];
-        assert(s->m_Version == version);
-        return s;
+            if (id < g_Sockets.Size())
+            {
+                MessageSocket* s = &g_Sockets[id];
+                assert(s->m_Version == version);
+                out_id = id;
+                return s;
+            }
+        }
+        return 0x0;
     }
 
-    void DeleteSocket(HSocket socket)
+    Result DeleteSocket(HSocket socket)
     {
         uint16_t id;
         MessageSocket* s = GetSocketInternal(socket, id);
-        free((void*) s->m_Name);
-
-        MemoryPage* p = s->m_Allocator.m_FreePages;
-        while (p)
+        if (s != 0x0)
         {
-            MemoryPage* next = p->m_NextPage;
-            delete p;
-            p = next;
+            free((void*) s->m_Name);
+
+            MemoryPage* p = s->m_Allocator.m_FreePages;
+            while (p)
+            {
+                MemoryPage* next = p->m_NextPage;
+                delete p;
+                p = next;
+            }
+            if (s->m_Allocator.m_CurrentPage)
+                delete s->m_Allocator.m_CurrentPage;
+
+            dmMutex::Delete(s->m_Mutex);
+
+            memset(s, 0, sizeof(*s));
+            g_SocketPool.Push(id);
+            return RESULT_OK;
         }
-        if (s->m_Allocator.m_CurrentPage)
-            delete s->m_Allocator.m_CurrentPage;
-
-        dmMutex::Delete(s->m_Mutex);
-
-        memset(s, 0, sizeof(*s));
-        g_SocketPool.Push(id);
+        return RESULT_SOCKET_NOT_FOUND;
     }
 
     Result GetSocket(const char *name, HSocket* out_socket)
@@ -213,13 +226,21 @@ namespace dmMessage
 
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
-    void Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
+    Result Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
 
+        if (receiver == 0x0)
+        {
+            return RESULT_SOCKET_NOT_FOUND;
+        }
         uint16_t socket_id;
         MessageSocket* s = GetSocketInternal(receiver->m_Socket, socket_id);
+        if (s == 0x0)
+        {
+            return RESULT_SOCKET_NOT_FOUND;
+        }
 
         dmMutex::Lock(s->m_Mutex);
         MemoryAllocator* allocator = &s->m_Allocator;
@@ -252,6 +273,7 @@ namespace dmMessage
         }
 
         dmMutex::Unlock(s->m_Mutex);
+        return RESULT_OK;
     }
 
     uint32_t Dispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr)

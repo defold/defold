@@ -69,8 +69,9 @@ namespace dmMessage
      * Delete a socket
      * @note  The socket must not have any pending messages
      * @param socket Socket to delete
+     * @return RESULT_OK if the socket was deleted
      */
-    void DeleteSocket(HSocket socket);
+    Result DeleteSocket(HSocket socket);
 
     /**
      * Get socket by name
@@ -89,8 +90,9 @@ namespace dmMessage
      * @param descriptor User specified descriptor of the message data
      * @param message_data Message data reference
      * @param message_data_size Message data size in bytes
+     * @return RESULT_OK if the message was posted
      */
-    void Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size);
+    Result Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size);
 
     /**
      * Dispatch messages
