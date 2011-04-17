@@ -12,6 +12,9 @@ import org.apache.http.client.utils.URLEncodedUtils;
 import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.filesystem.provider.FileSystem;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.ResourcesPlugin;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.providers.ProtobufProviders;
@@ -19,7 +22,7 @@ import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 
-public class RepositoryFileSystem extends FileSystem {
+public class RepositoryFileSystem extends FileSystem implements IResourceChangeListener {
 
     private Map<String, CachingBranchClient> branchClients = new HashMap<String, CachingBranchClient>();
 
@@ -27,6 +30,15 @@ public class RepositoryFileSystem extends FileSystem {
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
+
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.PRE_REFRESH);
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        // TODO: Better solution than in finalize()?
+        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
     @Override
@@ -57,5 +69,22 @@ public class RepositoryFileSystem extends FileSystem {
         branchClient = branchClients.get(key);
 
         return new RepositoryFileStore(branchClient, path);
+    }
+
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+        /*
+         * TODO:
+         * Somewhat temporary solution?
+         * Workaround for actions on IBranchClient not created by this plugin, eg UpdateHandler()
+         * We need to flush the cache.
+         *
+         * Should we merge client and fs such that we have a single factory with full control?
+         */
+        if (event.getType() == IResourceChangeEvent.PRE_REFRESH) {
+            for (CachingBranchClient client : branchClients.values()) {
+                client.flushAll();
+            }
+        }
     }
 }

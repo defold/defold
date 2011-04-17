@@ -60,7 +60,7 @@ public class CachingBranchClient implements IBranchClient {
         }
     }
 
-    private void flushAll() {
+    void flushAll() {
         cache.clear();
     }
 
