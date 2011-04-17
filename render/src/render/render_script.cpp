@@ -12,7 +12,7 @@
 
 namespace dmRender
 {
-    #define RENDER_SCRIPT_SOCKET_NAME "render"
+    #define RENDER_SCRIPT_SOCKET_NAME "@render"
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
 
     #define RENDER_SCRIPT_LIB_NAME "render"
