@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Mockito
 Bundle-SymbolicName: org.mockito
-Bundle-Version: 1.8.5
+Bundle-Version: 1.8.5.qualifier
 Bundle-ClassPath: mockito-all-1.8.5.jar
 Export-Package: org.hamcrest,
  org.hamcrest.core,
