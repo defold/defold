@@ -224,6 +224,20 @@ namespace dmMessage
         return RESULT_SOCKET_NOT_FOUND;
     }
 
+    const char* GetSocketName(HSocket socket)
+    {
+        uint16_t index;
+        MessageSocket* message_socket = GetSocketInternal(socket, index);
+        if (message_socket != 0x0)
+        {
+            return message_socket->m_Name;
+        }
+        else
+        {
+            return 0x0;
+        }
+    }
+
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
     Result Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)

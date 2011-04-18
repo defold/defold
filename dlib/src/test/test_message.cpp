@@ -29,6 +29,16 @@ void HandleMessage(dmMessage::Message *message_object, void *user_ptr)
     }
 }
 
+TEST(dmMessage, Name)
+{
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test", &socket));
+    ASSERT_EQ(0, strcmp("test", dmMessage::GetSocketName(socket)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+    socket = 0;
+    ASSERT_EQ((void*)0x0, (void*)dmMessage::GetSocketName(socket));
+}
+
 TEST(dmMessage, Post)
 {
     const uint32_t max_message_count = 16;
@@ -45,7 +55,7 @@ TEST(dmMessage, Post)
             message_data1.m_MyValue = i;
             ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0x0, &message_data1, sizeof(CustomMessageData1)));
         }
-        ASSERT_LT(0, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
+        ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
     }
 
     for (uint32_t i = 0; i < 2048; ++i)
@@ -55,7 +65,7 @@ TEST(dmMessage, Post)
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0x0, &message_data1, sizeof(CustomMessageData1)));
     }
 
-    ASSERT_LT(0, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
+    ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
@@ -110,7 +120,7 @@ TEST(dmMessage, Bench)
     {
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0x0, &message_data1, sizeof(CustomMessageData1)));
     }
-    ASSERT_LT(0, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
+    ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
 
     // Benchmark
     uint64_t start = dmTime::GetTime();
@@ -118,11 +128,11 @@ TEST(dmMessage, Bench)
     {
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0x0, &message_data1, sizeof(CustomMessageData1)));
     }
-    ASSERT_LT(0, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
+    ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
     uint64_t end = dmTime::GetTime();
     printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
 
-    ASSERT_EQ(0, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
+    ASSERT_EQ(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
@@ -309,10 +319,10 @@ TEST(dmMessage, Integrity)
 
             ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, hash, 0x0, msg, size));
         }
-        ASSERT_LT(0, dmMessage::Dispatch(receiver.m_Socket, HandleIntegrityMessage, 0));
+        ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleIntegrityMessage, 0));
     }
 
-    ASSERT_EQ(0, dmMessage::Dispatch(receiver.m_Socket, HandleIntegrityMessage, 0));
+    ASSERT_EQ(0u, dmMessage::Dispatch(receiver.m_Socket, HandleIntegrityMessage, 0));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 

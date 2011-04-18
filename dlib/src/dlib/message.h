@@ -82,6 +82,13 @@ namespace dmMessage
     Result GetSocket(const char *name, HSocket* out_socket);
 
     /**
+     * Get socket name
+     * @param socket Socket
+     * @return socket name, 0x0 if it was not found
+     */
+    const char* GetSocketName(HSocket socket);
+
+    /**
      * Post an message to a socket
      * @note Message data is copied by value
      * @param sender The sender URI if the receiver wants to respond. 0x0 is accepted
