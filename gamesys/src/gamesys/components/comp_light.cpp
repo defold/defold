@@ -5,6 +5,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
+#include <render/render.h>
 #include <gameobject/gameobject.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
@@ -65,9 +66,9 @@ namespace dmGameSystem
         dmGameSystemDDF::SetLight* set_light = (dmGameSystemDDF::SetLight*)buf;
 
         dmMessage::URI receiver;
-        if (dmMessage::RESULT_OK != dmMessage::GetSocket("@render", &receiver.m_Socket))
+        if (dmMessage::RESULT_OK != dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket))
         {
-            dmLogError("Could not find the socket @render.");
+            dmLogError("Could not find the socket '%s'.", dmRender::RENDER_SOCKET_NAME);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         dmhash_t message_id = dmHashString64("set_light");
@@ -95,7 +96,7 @@ namespace dmGameSystem
             dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)dmGameSystemDDF::SetLight::m_DDFDescriptor, buf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
-                dmLogError("Could not send set_light message to @render.");
+                dmLogError("Could not send 'set_light' message to '%s'.", dmRender::RENDER_SOCKET_NAME);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }

@@ -145,10 +145,10 @@ namespace dmGameSystem
             set_view_projection.m_Projection = projection;
 
             dmMessage::URI receiver;
-            dmMessage::Result result = dmMessage::GetSocket("@render", &receiver.m_Socket);
+            dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
             if (result != dmMessage::RESULT_OK)
             {
-                dmLogError("The socket @render could not be found.");
+                dmLogError("The socket '%s' could not be found.", dmRender::RENDER_SOCKET_NAME);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
 
