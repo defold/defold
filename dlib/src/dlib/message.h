@@ -16,7 +16,7 @@ namespace dmMessage
         RESULT_SOCKET_NOT_FOUND = -2,       //!< RESULT_SOCKET_NOT_FOUND
         RESULT_SOCKET_OUT_OF_RESOURCES = -3,//!< RESULT_SOCKET_OUT_OF_RESOURCES
         RESULT_INVALID_SOCKET_NAME = -4,    //!< RESULT_INVALID_SOCKET_NAME
-        RESULT_MALFORMED_URI = -5           //!< RESULT_MALFORMED_URI
+        RESULT_MALFORMED_URL = -5           //!< RESULT_MALFORMED_URL
     };
 
     /**
@@ -25,11 +25,11 @@ namespace dmMessage
     typedef uint32_t HSocket;
 
     /**
-     * URI specifying a receiver of messages
+     * URL specifying a receiver of messages
      */
-    struct URI
+    struct URL
     {
-        URI();
+        URL();
 
         HSocket     m_Socket;       //! Socket
         dmhash_t    m_Path;         //! Path of the receiver
@@ -43,8 +43,8 @@ namespace dmMessage
      */
     struct Message
     {
-        URI             m_Sender;       //! Sender uri
-        URI             m_Receiver;     //! Receiver uri
+        URL             m_Sender;       //! Sender uri
+        URL             m_Receiver;     //! Receiver uri
         dmhash_t        m_Id;           //! Unique id of message
         uintptr_t       m_Descriptor;   //! User specified descriptor of the message data
         uint32_t        m_DataSize;     //! Size of userdata in bytes
@@ -59,7 +59,7 @@ namespace dmMessage
 
     /**
      * Create a new socket
-     * @param name Socket name. Its length must be more than 0 and it cannot contain the characters '#' or ':' (@see ParseURI)
+     * @param name Socket name. Its length must be more than 0 and it cannot contain the characters '#' or ':' (@see ParseURL)
      * @param socket Socket handle (out value)
      * @return RESULT_OK on success
      */
@@ -91,15 +91,15 @@ namespace dmMessage
     /**
      * Post an message to a socket
      * @note Message data is copied by value
-     * @param sender The sender URI if the receiver wants to respond. 0x0 is accepted
-     * @param receiver The receiver URI, must not be 0x0
+     * @param sender The sender URL if the receiver wants to respond. 0x0 is accepted
+     * @param receiver The receiver URL, must not be 0x0
      * @param message_id Message id
      * @param descriptor User specified descriptor of the message data
      * @param message_data Message data reference
      * @param message_data_size Message data size in bytes
      * @return RESULT_OK if the message was posted
      */
-    Result Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size);
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size);
 
     /**
      * Dispatch messages
@@ -121,15 +121,15 @@ namespace dmMessage
     uint32_t Consume(HSocket socket);
 
     /**
-     * Convert a string to a URI struct
+     * Convert a string to a URL struct
      * @param uri string of the format [socket:][path][#fragment]
-     * @param out_uri URI struct as out parameter
+     * @param out_uri URL struct as out parameter
      * @return
      * - RESULT_OK on success
-     * - RESULT_MALFORMED_URI if the uri could not be parsed
+     * - RESULT_MALFORMED_URL if the uri could not be parsed
      * - RESULT_SOCKET_NOT_FOUND if the socket in the uri could not be found
      */
-    Result ParseURI(const char* uri, URI* out_uri);
+    Result ParseURL(const char* uri, URL* out_uri);
 };
 
 #endif // DM_MESSAGE_H

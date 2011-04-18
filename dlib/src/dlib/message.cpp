@@ -37,9 +37,9 @@ namespace dmMessage
         MemoryPage* m_FullPages;
     };
 
-    URI::URI()
+    URL::URL()
     {
-        memset(this, 0, sizeof(URI));
+        memset(this, 0, sizeof(URL));
     }
 
     static void AllocateNewPage(MemoryAllocator* allocator)
@@ -240,7 +240,7 @@ namespace dmMessage
 
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
-    Result Post(const URI* sender, const URI* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
@@ -266,7 +266,7 @@ namespace dmMessage
         }
         else
         {
-            new_message->m_Sender = URI();
+            new_message->m_Sender = URL();
         }
         new_message->m_Receiver = *receiver;
         new_message->m_Id = message_id;
@@ -347,11 +347,11 @@ namespace dmMessage
         return Dispatch(socket, &ConsumeCallback, 0);
     }
 
-    Result ParseURI(const char* uri, URI* out_uri)
+    Result ParseURL(const char* uri, URL* out_uri)
     {
         if (uri == 0x0)
         {
-            *out_uri = URI();
+            *out_uri = URL();
             return RESULT_OK;
         }
         dmMessage::HSocket socket = 0;
@@ -365,23 +365,23 @@ namespace dmMessage
         {
             if (fragment_start < socket_end)
             {
-                return RESULT_MALFORMED_URI;
+                return RESULT_MALFORMED_URL;
             }
             if (fragment_start != strrchr(uri, '#'))
             {
-                return RESULT_MALFORMED_URI;
+                return RESULT_MALFORMED_URL;
             }
         }
         if (socket_end != 0x0)
         {
             if (socket_end != strrchr(uri, ':'))
             {
-                return RESULT_MALFORMED_URI;
+                return RESULT_MALFORMED_URL;
             }
             uint32_t socket_size = socket_end - uri;
             if (socket_size >= 64)
             {
-                return RESULT_MALFORMED_URI;
+                return RESULT_MALFORMED_URL;
             }
             char socket_name[64];
             dmStrlCpy(socket_name, uri, socket_size + 1);

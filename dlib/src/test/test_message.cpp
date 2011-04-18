@@ -42,7 +42,7 @@ TEST(dmMessage, Name)
 TEST(dmMessage, Post)
 {
     const uint32_t max_message_count = 16;
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -69,45 +69,45 @@ TEST(dmMessage, Post)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
-TEST(dmMessage, URI)
+TEST(dmMessage, URL)
 {
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
-    dmMessage::URI uri;
-    dmMessage::URI null_uri;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI(0x0, &uri));
-    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URI)));
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI("", &uri));
+    dmMessage::URL uri;
+    dmMessage::URL null_uri;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL(0x0, &uri));
+    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URL)));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("", &uri));
     ASSERT_EQ((void*)0x0, (void*)uri.m_Socket);
     ASSERT_EQ(dmHashString64(""), uri.m_Path);
     ASSERT_EQ(0U, uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI("socket:", &uri));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("socket:", &uri));
     ASSERT_EQ(socket, uri.m_Socket);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI("path", &uri));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("path", &uri));
     ASSERT_EQ(dmHashString64("path"), uri.m_Path);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI("#fragment", &uri));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#fragment", &uri));
     ASSERT_EQ(dmHashString64("fragment"), uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI("socket:path#fragment", &uri));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("socket:path#fragment", &uri));
     ASSERT_EQ(socket, uri.m_Socket);
     ASSERT_EQ(dmHashString64("path"), uri.m_Path);
     ASSERT_EQ(dmHashString64("fragment"), uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURI("#", &uri));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#", &uri));
     ASSERT_EQ(dmHashString64(""), uri.m_Path);
     ASSERT_EQ(dmHashString64(""), uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URI, dmMessage::ParseURI("socket:path:fragment", &uri));
-    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URI)));
-    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URI, dmMessage::ParseURI("socket#path#fragment", &uri));
-    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URI, dmMessage::ParseURI("socket#path:fragment", &uri));
-    ASSERT_EQ(dmMessage::RESULT_SOCKET_NOT_FOUND, dmMessage::ParseURI("socket2:path", &uri));
-    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URI)));
-    ASSERT_EQ(dmMessage::RESULT_INVALID_SOCKET_NAME, dmMessage::ParseURI(":path", &uri));
+    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket:path:fragment", &uri));
+    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URL)));
+    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket#path#fragment", &uri));
+    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket#path:fragment", &uri));
+    ASSERT_EQ(dmMessage::RESULT_SOCKET_NOT_FOUND, dmMessage::ParseURL("socket2:path", &uri));
+    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URL)));
+    ASSERT_EQ(dmMessage::RESULT_INVALID_SOCKET_NAME, dmMessage::ParseURL(":path", &uri));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 }
 
 TEST(dmMessage, Bench)
 {
     const uint32_t iter_count = 1024 * 16;
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -205,7 +205,7 @@ TEST(dmMessage, OutofResources)
 
 void HandleMessagePostDuring(dmMessage::Message *message_object, void *user_ptr)
 {
-    dmMessage::URI* receiver = (dmMessage::URI*) user_ptr;
+    dmMessage::URL* receiver = (dmMessage::URL*) user_ptr;
     CustomMessageData1 message_data1;
     message_data1.m_MyValue = 123;
 
@@ -224,7 +224,7 @@ void HandleMessagePostDuring(dmMessage::Message *message_object, void *user_ptr)
 TEST(dmMessage, PostDuringDispatch)
 {
     const uint32_t max_message_count = 16;
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -254,7 +254,7 @@ TEST(dmMessage, PostDuringDispatch)
 
 void PostThread(void* arg)
 {
-    dmMessage::URI* receiver = (dmMessage::URI*) arg;
+    dmMessage::URL* receiver = (dmMessage::URL*) arg;
 
     for (int i = 0; i < 1024; ++i)
     {
@@ -265,7 +265,7 @@ void PostThread(void* arg)
 
 TEST(dmMessage, ThreadTest1)
 {
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
@@ -301,7 +301,7 @@ void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 
 TEST(dmMessage, Integrity)
 {
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     dmMessage::Result r;
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
