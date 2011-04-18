@@ -4,6 +4,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
+#include <dlib/message.h>
 
 #include "material.h"
 
@@ -63,8 +64,6 @@ namespace dmRender
         RenderScriptContext();
 
         lua_State*                  m_LuaState;
-        dmMessage::HSocket          m_Socket;
-        dmMessage::DispatchCallback m_DispatchCallback;
         uint32_t                    m_CommandBufferSize;
     };
 
@@ -86,6 +85,8 @@ namespace dmRender
         dmGraphics::HContext        m_GraphicsContext;
 
         HMaterial                   m_Material;
+
+        dmMessage::HSocket          m_Socket;
 
         uint32_t                    m_VertexConstantMask;
         uint32_t                    m_FragmentConstantMask;

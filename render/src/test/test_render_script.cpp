@@ -160,16 +160,15 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
 
-    char buffer[sizeof(dmRenderDDF::WindowResized)];
-    dmRenderDDF::WindowResized* window_resize = (dmRenderDDF::WindowResized*)buffer;
-    window_resize->m_Width = 1;
-    window_resize->m_Height = 1;
-    dmRender::Message message;
-    message.m_Id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
-    message.m_DDFDescriptor = dmRenderDDF::WindowResized::m_DDFDescriptor;
-    message.m_Buffer = buffer;
-    message.m_BufferSize = sizeof(dmRenderDDF::WindowResized);
-    dmRender::OnMessageRenderScriptInstance(render_script_instance, &message);
+    dmRenderDDF::WindowResized window_resize;
+    window_resize.m_Width = 1;
+    window_resize.m_Height = 1;
+    dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
+    uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
+    uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
+    dmMessage::URI receiver;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, descriptor, &window_resize, data_size));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);

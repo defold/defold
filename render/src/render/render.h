@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include <dlib/message.h>
 #include <dlib/hash.h>
 
 #include <graphics/graphics.h>
@@ -15,6 +14,8 @@
 namespace dmRender
 {
     using namespace Vectormath::Aos;
+
+    extern const char* RENDER_SOCKET_NAME;
 
     enum Result
     {
@@ -88,7 +89,6 @@ namespace dmRender
     {
         RenderContextParams();
 
-        dmMessage::DispatchCallback     m_DispatchCallback;
         void*                           m_VertexProgramData;
         void*                           m_FragmentProgramData;
         uint32_t                        m_MaxRenderTypes;
@@ -98,14 +98,6 @@ namespace dmRender
         uint32_t                        m_FragmentProgramDataSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_CommandBufferSize;
-    };
-
-    struct Message
-    {
-        dmhash_t                        m_Id;
-        const dmDDF::Descriptor*        m_DDFDescriptor;
-        uint32_t                        m_BufferSize;
-        void*                           m_Buffer;
     };
 
     typedef struct RenderContext*           HRenderContext;
@@ -188,7 +180,6 @@ namespace dmRender
     void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
-    void                    OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message);
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 }
 

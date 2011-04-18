@@ -12,7 +12,6 @@
 
 namespace dmRender
 {
-    #define RENDER_SCRIPT_SOCKET_NAME "@render"
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
 
     #define RENDER_SCRIPT_LIB_NAME "render"
@@ -802,10 +801,8 @@ namespace dmRender
         {0, 0}
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmMessage::DispatchCallback dispatch_callback, uint32_t command_buffer_size)
+    void InitializeRenderScriptContext(RenderScriptContext& context, uint32_t command_buffer_size)
     {
-        dmMessage::NewSocket(RENDER_SCRIPT_SOCKET_NAME, &context.m_Socket);
-        context.m_DispatchCallback = dispatch_callback;
         context.m_CommandBufferSize = command_buffer_size;
 
         lua_State *L = lua_open();
@@ -904,9 +901,6 @@ namespace dmRender
 
     void FinalizeRenderScriptContext(RenderScriptContext& context)
     {
-        if (context.m_Socket)
-            dmMessage::DeleteSocket(context.m_Socket);
-
         if (context.m_LuaState)
             lua_close(context.m_LuaState);
         context.m_LuaState = 0;
@@ -1136,20 +1130,21 @@ bail:
             {
                 arg_count = 3;
 
-                Message* message = (Message*)args;
+                dmMessage::Message* message = (dmMessage::Message*)args;
                 dmScript::PushHash(L, message->m_Id);
-                if (message->m_DDFDescriptor)
+                if (message->m_Descriptor != 0)
                 {
+                    dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
                     // adjust char ptrs to global mem space
-                    char* data = (char*)message->m_Buffer;
-                    RelocateMessageStrings(message->m_DDFDescriptor, data, data);
+                    char* data = (char*)message->m_Data;
+                    RelocateMessageStrings(descriptor, data, data);
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
-                    dmScript::PushDDF(L, message->m_DDFDescriptor, (const char*)message->m_Buffer);
+                    dmScript::PushDDF(L, descriptor, (const char*)message->m_Data);
                 }
-                else if (message->m_BufferSize > 0)
+                else if (message->m_DataSize > 0)
                 {
-                    dmScript::PushTable(L, (const char*)message->m_Buffer);
+                    dmScript::PushTable(L, (const char*)message->m_Data);
                 }
                 else
                 {
@@ -1175,22 +1170,21 @@ bail:
         return RunScript(instance, RENDER_SCRIPT_FUNCTION_INIT, 0x0);
     }
 
+    void DispatchCallback(dmMessage::Message *message, void* user_ptr)
+    {
+        RunScript((HRenderScriptInstance)user_ptr, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
+    }
+
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
-        RenderScriptContext& context = instance->m_RenderContext->m_RenderScriptContext;
-        dmMessage::Dispatch(context.m_Socket, context.m_DispatchCallback, (void*)instance);
+        dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)instance);
         instance->m_CommandBuffer.SetSize(0);
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         if (instance->m_CommandBuffer.Size() > 0)
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
         return result;
-    }
-
-    void OnMessageRenderScriptInstance(HRenderScriptInstance render_script_instance, Message* message)
-    {
-        RunScript(render_script_instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 
     void OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance)

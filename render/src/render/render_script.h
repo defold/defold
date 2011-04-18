@@ -27,7 +27,7 @@ namespace dmRender
         int                         m_RenderScriptDataReference;
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, dmMessage::DispatchCallback dispatch_callback, uint32_t command_buffer_size);
+    void InitializeRenderScriptContext(RenderScriptContext& context, uint32_t command_buffer_size);
     void FinalizeRenderScriptContext(RenderScriptContext& context);
 }
 

@@ -15,6 +15,8 @@ namespace dmRender
 {
     using namespace Vectormath::Aos;
 
+    const char* RENDER_SOCKET_NAME = "@render";
+
     RenderObject::RenderObject()
     {
         memset(this, 0, sizeof(RenderObject));
@@ -22,8 +24,7 @@ namespace dmRender
     }
 
     RenderContextParams::RenderContextParams()
-    : m_DispatchCallback(0x0)
-    , m_VertexProgramData(0x0)
+    : m_VertexProgramData(0x0)
     , m_FragmentProgramData(0x0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
@@ -38,8 +39,6 @@ namespace dmRender
 
     RenderScriptContext::RenderScriptContext()
     : m_LuaState(0)
-    , m_Socket(0)
-    , m_DispatchCallback(0)
     , m_CommandBufferSize(0)
     {
 
@@ -62,7 +61,7 @@ namespace dmRender
         context->m_Projection = Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
 
-        InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_DispatchCallback, params.m_CommandBufferSize);
+        InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_CommandBufferSize);
 
         InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
 
@@ -75,6 +74,8 @@ namespace dmRender
 
         context->m_OutOfResources = 0;
 
+        assert(dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket) == dmMessage::RESULT_OK);
+
         return context;
     }
 
@@ -85,6 +86,7 @@ namespace dmRender
         FinalizeRenderScriptContext(render_context->m_RenderScriptContext);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
+        dmMessage::DeleteSocket(render_context->m_Socket);
         delete render_context;
 
         return RESULT_OK;
