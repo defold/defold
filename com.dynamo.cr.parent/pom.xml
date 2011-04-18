@@ -78,7 +78,7 @@
     </build>
 
     <modules>
-        <module>../org.hamcrest</module>
+        <module>../org.mockito</module>
         <module>../com.dynamo.cr.common</module>
         <module>../com.dynamo.cr.common.test</module>
         <module>../com.dynamo.cr.editor</module>
