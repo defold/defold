@@ -58,6 +58,14 @@ namespace dmScript
     void PushTable(lua_State*L, const char* data);
 
     /**
+     * Check if the value at #index is a hash
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if the value at #index is a hash
+     */
+    bool IsHash(lua_State *L, int index);
+
+    /**
      * Push a hash value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param hash Hash value to push

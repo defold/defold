@@ -14,7 +14,26 @@ extern "C"
 
 namespace dmScript
 {
-    #define SCRIPT_TYPE_NAME "hash"
+    #define SCRIPT_TYPE_NAME_HASH "hash"
+
+    bool IsHash(lua_State *L, int index)
+    {
+        void *p = lua_touserdata(L, index);
+        bool result = false;
+        if (p != 0x0)
+        {  /* value is a userdata? */
+            if (lua_getmetatable(L, index))
+            {  /* does it have a metatable? */
+                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_HASH);  /* get correct metatable */
+                if (lua_rawequal(L, -1, -2))
+                {  /* does it have the correct mt? */
+                    result = true;
+                }
+                lua_pop(L, 2);  /* remove both metatables */
+            }
+        }
+        return result;
+    }
 
     int Script_Hash(lua_State* L)
     {
@@ -33,7 +52,7 @@ namespace dmScript
     {
         dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
         *lua_hash = hash;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME);
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
         lua_setmetatable(L, -2);
     }
 
@@ -46,7 +65,7 @@ namespace dmScript
             return *lua_hash;
         }
 
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME);
+        luaL_typerror(L, index, SCRIPT_TYPE_NAME_HASH);
         return 0;
     }
 
@@ -71,7 +90,7 @@ namespace dmScript
     {
         dmhash_t hash = CheckHash(L, 1);
         char buffer[64];
-        DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu]", SCRIPT_TYPE_NAME, hash);
+        DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu]", SCRIPT_TYPE_NAME_HASH, hash);
         lua_pushstring(L, buffer);
         return 1;
     }
@@ -90,14 +109,14 @@ namespace dmScript
 
     static const luaL_reg ScriptHash_methods[] =
     {
-        {SCRIPT_TYPE_NAME, Script_Hash},
+        {SCRIPT_TYPE_NAME_HASH, Script_Hash},
         {0, 0}
     };
 
     void InitializeHash(lua_State* L)
     {
         int top = lua_gettop(L);
-        luaL_newmetatable(L, SCRIPT_TYPE_NAME);
+        luaL_newmetatable(L, SCRIPT_TYPE_NAME_HASH);
 
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
         lua_pushstring(L, "__gc");
@@ -117,12 +136,12 @@ namespace dmScript
         lua_settable(L, -3);
 
         lua_pushcfunction(L, Script_Hash);
-        lua_setglobal(L, SCRIPT_TYPE_NAME);
+        lua_setglobal(L, SCRIPT_TYPE_NAME_HASH);
 
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
     }
 
-    #undef SCRIPT_TYPE_NAME
+    #undef SCRIPT_TYPE_NAME_HASH
 }
