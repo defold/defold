@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/hash.h>
+#include <dlib/message.h>
 #include <ddf/ddf.h>
 
 extern "C"
@@ -81,10 +82,10 @@ namespace dmScript
     dmhash_t CheckHash(lua_State* L, int index);
 
     /**
-     * Check is the value at #index is a vector3
+     * Check if the value at #index is a vector3
      * @param L Lua state
      * @param index Index of the value
-     * @return true is value at #index is a vector3
+     * @return true if value at #index is a vector3
      */
     bool IsVector3(lua_State *L, int index);
 
@@ -104,10 +105,10 @@ namespace dmScript
     Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
 
     /**
-     * Check is the value at #index is a vector4
+     * Check if the value at #index is a vector4
      * @param L Lua state
      * @param index Index of the value
-     * @return true is value at #index is a vector4
+     * @return true if value at #index is a vector4
      */
     bool IsVector4(lua_State *L, int index);
 
@@ -127,10 +128,10 @@ namespace dmScript
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
 
     /**
-     * Check is the value at #index is a quat
+     * Check if the value at #index is a quat
      * @param L Lua state
      * @param index Index of the value
-     * @return true is value at #index is a quat
+     * @return true if value at #index is a quat
      */
     bool IsQuat(lua_State *L, int index);
 
@@ -150,10 +151,10 @@ namespace dmScript
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
 
     /**
-     * Check is the value at #index is a matrix4
+     * Check if the value at #index is a matrix4
      * @param L Lua state
      * @param index Index of the value
-     * @return true is value at #index is a matrix4
+     * @return true if value at #index is a matrix4
      */
     bool IsMatrix4(lua_State *L, int index);
 
@@ -171,6 +172,29 @@ namespace dmScript
      * @return The matrix4 value
      */
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a URL
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true is value at #index is a URL
+     */
+    bool IsURL(lua_State *L, int index);
+
+    /**
+     * Push a URL value onto the supplied lua state, will increase the stack by 1
+     * @param L Lua state
+     * @param a URL value to push
+     */
+    void PushURL(lua_State* L, const dmMessage::URL& m);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a URL
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The URL value
+     */
+    dmMessage::URL* CheckURL(lua_State* L, int index);
 }
 
 #endif // DM_SCRIPT_H
