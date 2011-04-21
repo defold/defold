@@ -13,13 +13,16 @@ using namespace Vectormath::Aos;
 class dmRenderScriptTest : public ::testing::Test
 {
 protected:
+    dmScript::HContext m_ScriptContext;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
 
     virtual void SetUp()
     {
+        m_ScriptContext = dmScript::NewContext();
         m_GraphicsContext = dmGraphics::NewContext();
         dmRender::RenderContextParams params;
+        params.m_ScriptContext = m_ScriptContext;
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 1;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
@@ -34,6 +37,7 @@ protected:
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmScript::DeleteContext(m_ScriptContext);
     }
 };
 
@@ -166,7 +170,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
     uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
     uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, descriptor, &window_resize, data_size));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));

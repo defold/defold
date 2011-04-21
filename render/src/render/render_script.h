@@ -5,6 +5,8 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
+#include <script/script.h>
+
 #include "render.h"
 #include "render_command.h"
 #include "render_private.h"
@@ -27,7 +29,7 @@ namespace dmRender
         int                         m_RenderScriptDataReference;
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, uint32_t command_buffer_size);
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size);
     void FinalizeRenderScriptContext(RenderScriptContext& context);
 }
 

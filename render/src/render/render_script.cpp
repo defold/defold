@@ -801,7 +801,18 @@ namespace dmRender
         {0, 0}
     };
 
-    void InitializeRenderScriptContext(RenderScriptContext& context, uint32_t command_buffer_size)
+    bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, index);
+        sender->m_Socket = i->m_RenderContext->m_Socket;
+        if (receiver->m_Socket == 0)
+        {
+            receiver->m_Socket = i->m_RenderContext->m_Socket;
+        }
+        return true;
+    }
+
+    void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
 
@@ -892,7 +903,10 @@ namespace dmRender
 
         lua_pop(L, 1);
 
-        dmScript::Initialize(L);
+        dmScript::ScriptParams params;
+        params.m_Context = script_context;
+        params.m_SetURLsCallback = SetURLsCallback;
+        dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
 

@@ -24,7 +24,8 @@ namespace dmRender
     }
 
     RenderContextParams::RenderContextParams()
-    : m_VertexProgramData(0x0)
+    : m_ScriptContext(0x0)
+    , m_VertexProgramData(0x0)
     , m_FragmentProgramData(0x0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
@@ -61,7 +62,7 @@ namespace dmRender
         context->m_Projection = Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
 
-        InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_CommandBufferSize);
+        InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
 
         InitializeDebugRenderer(context, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
 

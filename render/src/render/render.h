@@ -7,6 +7,8 @@
 
 #include <dlib/hash.h>
 
+#include <script/script.h>
+
 #include <graphics/graphics.h>
 
 #include "material.h"
@@ -89,6 +91,7 @@ namespace dmRender
     {
         RenderContextParams();
 
+        dmScript::HContext              m_ScriptContext;
         void*                           m_VertexProgramData;
         void*                           m_FragmentProgramData;
         uint32_t                        m_MaxRenderTypes;
