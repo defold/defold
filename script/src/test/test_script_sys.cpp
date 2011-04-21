@@ -26,7 +26,6 @@ protected:
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L);
         lua_close(L);
     }
 

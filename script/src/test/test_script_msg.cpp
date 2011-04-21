@@ -24,18 +24,21 @@ protected:
     {
         L = lua_open();
         luaL_openlibs(L);
+        m_ScriptContext = dmScript::NewContext();
+        dmScript::RegisterDDFType(m_ScriptContext, TestScript::SubMsg::m_DDFDescriptor);
         dmScript::ScriptParams params;
+        params.m_Context = m_ScriptContext;
         params.m_SetURLsCallback = SetURLsCallback;
         dmScript::Initialize(L, params);
-        dmScript::RegisterDDFType(L, TestScript::SubMsg::m_DDFDescriptor);
     }
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L);
         lua_close(L);
+        dmScript::DeleteContext(m_ScriptContext);
     }
 
+    dmScript::HContext m_ScriptContext;
     lua_State* L;
 };
 

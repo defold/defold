@@ -39,7 +39,6 @@ protected:
     virtual void TearDown()
     {
         ASSERT_EQ(top, lua_gettop(L));
-        dmScript::Finalize(L);
         lua_close(L);
         g_LuaTableTest = 0;
     }

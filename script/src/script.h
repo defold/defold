@@ -14,6 +14,26 @@ extern "C"
 
 namespace dmScript
 {
+    typedef struct Context* HContext;
+
+    /**
+     * Create and return a new context.
+     * @return context
+     */
+    HContext NewContext();
+
+    /**
+     * Delete an existing context.
+     */
+    void DeleteContext(HContext context);
+
+    /**
+     * Registers a ddf type so it can be used as message when posting in scripts.
+     * @param descriptor DDF descriptor of the type
+     * @return wether the type could be registered
+     */
+    bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor);
+
     /**
      * Callback used to fill out URL addresses.
      * Implementations of this callback are expected to supply additional information into both sender and receiver
@@ -33,6 +53,7 @@ namespace dmScript
     {
         ScriptParams();
 
+        HContext m_Context;
         SetURLsCallback m_SetURLsCallback;
     };
 
@@ -41,14 +62,6 @@ namespace dmScript
      * @param L Lua state
      */
     void Initialize(lua_State* L, const ScriptParams& params);
-
-    /**
-     * Removes any stored variables from the supplied lua state.
-     * @param L Lua state
-     */
-    void Finalize(lua_State* L);
-
-    bool RegisterDDFType(lua_State* L, const dmDDF::Descriptor* descriptor);
 
     /**
      * Retrieve a ddf structure from a lua state.

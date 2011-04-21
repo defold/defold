@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
-#include <dlib/hashtable.h>
 #include <dlib/message.h>
 
 #include <ddf/ddf.h>
@@ -384,10 +383,10 @@ namespace dmScript
 
         if (top > 3)
         {
-            lua_getglobal(L, SCRIPT_DDF_TYPES);
-            dmHashTable64<const dmDDF::Descriptor*>* descriptors = (dmHashTable64<const dmDDF::Descriptor*>*)lua_touserdata(L, -1);
+            lua_getglobal(L, SCRIPT_CONTEXT);
+            HContext context = (HContext)lua_touserdata(L, -1);
             lua_pop(L, 1);
-            const dmDDF::Descriptor** desc = descriptors->Get(message_id);
+            const dmDDF::Descriptor** desc = context->m_Descriptors.Get(message_id);
             if (desc != 0)
             {
                 descriptor = (uintptr_t)*desc;

@@ -1,6 +1,5 @@
 #include "script.h"
 
-#include <dlib/hashtable.h>
 #include <dlib/log.h>
 
 #include "script_private.h"
@@ -17,8 +16,21 @@ extern "C"
 
 namespace dmScript
 {
+    HContext NewContext()
+    {
+        Context* context = new Context();
+        context->m_Descriptors.SetCapacity(17, 128);
+        return context;
+    }
+
+    void DeleteContext(HContext context)
+    {
+        delete context;
+    }
+
     ScriptParams::ScriptParams()
-    : m_SetURLsCallback(0x0)
+    : m_Context(0x0)
+    , m_SetURLsCallback(0x0)
     {
 
     }
@@ -33,32 +45,20 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)params.m_SetURLsCallback);
         lua_setglobal(L, SCRIPT_GET_URLS_CALLBACK);
 
-        dmHashTable64<const dmDDF::Descriptor*>* descriptors = new dmHashTable64<const dmDDF::Descriptor*>();
-        lua_pushlightuserdata(L, (void*)descriptors);
-        descriptors->SetCapacity(17, 128);
-        lua_setglobal(L, SCRIPT_DDF_TYPES);
+        lua_pushlightuserdata(L, (void*)params.m_Context);
+        lua_setglobal(L, SCRIPT_CONTEXT);
     }
 
-    void Finalize(lua_State* L)
+    bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor)
     {
-        lua_getglobal(L, SCRIPT_DDF_TYPES);
-        delete (dmHashTable64<const dmDDF::Descriptor*>*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-    }
-
-    bool RegisterDDFType(lua_State* L, const dmDDF::Descriptor* descriptor)
-    {
-        lua_getglobal(L, SCRIPT_DDF_TYPES);
-        dmHashTable64<const dmDDF::Descriptor*>* descriptors = (dmHashTable64<const dmDDF::Descriptor*>*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        if (descriptors->Full())
+        if (context->m_Descriptors.Full())
         {
             dmLogError("Unable to register ddf type. Out of resources.");
             return false;
         }
         else
         {
-            descriptors->Put(dmHashString64(descriptor->m_Name), descriptor);
+            context->m_Descriptors.Put(dmHashString64(descriptor->m_Name), descriptor);
             return true;
         }
     }
