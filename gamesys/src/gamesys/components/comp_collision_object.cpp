@@ -168,7 +168,7 @@ namespace dmGameSystem
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::CollisionMessage::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::CollisionMessage);
             dmPhysicsDDF::CollisionMessage ddf;
-            dmMessage::URI receiver;
+            dmMessage::URL receiver;
 
             // Broadcast to A components
             ddf.m_Group = group_b;
@@ -221,7 +221,7 @@ namespace dmGameSystem
             dmhash_t message_id = dmHashString64(dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name);
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::ContactPointMessage);
-            dmMessage::URI receiver;
+            dmMessage::URL receiver;
 
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;

@@ -26,6 +26,7 @@ protected:
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
 
+    dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
@@ -69,7 +70,8 @@ template<typename T>
 void GamesysTest<T>::SetUp()
 {
     dmSound::Initialize(0x0, 0x0);
-    dmGameObject::Initialize();
+    m_ScriptContext = dmScript::NewContext();
+    dmGameObject::Initialize(m_ScriptContext);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -131,4 +133,5 @@ void GamesysTest<T>::TearDown()
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);
     dmPhysics::DeleteContext3D(m_PhysicsContext.m_Context3D);
+    dmScript::DeleteContext(m_ScriptContext);
 }

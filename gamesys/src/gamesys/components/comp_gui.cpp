@@ -216,7 +216,7 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData((dmGui::HScene)message->m_Receiver.m_UserData);
         assert(instance);
 
-        dmMessage::URI receiver = message->m_Receiver;
+        dmMessage::URL receiver = message->m_Receiver;
         receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
         receiver.m_UserData = (uintptr_t)instance;
 

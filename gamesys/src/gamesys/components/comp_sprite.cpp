@@ -236,7 +236,7 @@ namespace dmGameSystem
                             dmhash_t message_id = dmHashString64(dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_Name);
                             dmGameSystemDDF::AnimationDone message;
                             message.m_CurrentFrame = component->m_CurrentFrame;
-                            dmMessage::URI receiver;
+                            dmMessage::URL receiver;
                             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
                             receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
                             receiver.m_UserData = (uintptr_t)component->m_ListenerInstance;

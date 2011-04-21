@@ -43,18 +43,21 @@
 
 namespace dmGameSystem
 {
-    void RegisterDDFTypes()
+    void RegisterDDFTypes(dmScript::HContext script_context)
     {
-        dmGameObject::RegisterDDFType(dmGamesysDDF::AddCameraTarget::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGamesysDDF::SetCamera::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastRequest::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGamesysDDF::AddCameraTarget::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGamesysDDF::SetCamera::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RayCastRequest::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::VelocityRequest::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SpawnObject::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
@@ -107,10 +110,6 @@ namespace dmGameSystem
                                                 GuiRenderContext* gui_render_context,
                                                 SpriteContext* sprite_context)
     {
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor);
-
         uint32_t type;
         dmGameObject::ComponentType component_type;
         dmResource::FactoryResult factory_result;
@@ -212,7 +211,7 @@ namespace dmGameSystem
             dmhash_t message_id = dmHashString64(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_Name);
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::RayCastResponse);
-            dmMessage::URI receiver;
+            dmMessage::URL receiver;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
             receiver.m_Path = dmGameObject::GetIdentifier(instance);
             receiver.m_UserData = (uintptr_t)instance;

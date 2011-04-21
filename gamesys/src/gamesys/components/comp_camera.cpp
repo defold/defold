@@ -144,7 +144,7 @@ namespace dmGameSystem
             set_view_projection.m_View = view;
             set_view_projection.m_Projection = projection;
 
-            dmMessage::URI receiver;
+            dmMessage::URL receiver;
             dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
             if (result != dmMessage::RESULT_OK)
             {

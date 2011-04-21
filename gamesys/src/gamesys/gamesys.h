@@ -3,6 +3,8 @@
 
 #include <dlib/configfile.h>
 
+#include <script/script.h>
+
 #include <resource/resource.h>
 
 #include <gameobject/gameobject.h>
@@ -54,7 +56,7 @@ namespace dmGameSystem
         uint32_t                    m_MaxSpriteCount;
     };
 
-    void RegisterDDFTypes();
+    void RegisterDDFTypes(dmScript::HContext script_context);
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
