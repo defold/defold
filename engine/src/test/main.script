@@ -1,20 +1,20 @@
 function init(self)
-    self.collection_sp_ids = { "test_attacker_target_proxy" }
-    go.post_to(self, go.get_id(self), self.collection_sp_ids[1], "load")
-    go.post_to(self, go.get_id(self), self.collection_sp_ids[1], "init")
-    go.post_to(self, go.get_id(self), self.collection_sp_ids[1], "enable")
+    self.collection_sp_ids = { "#test_attacker_target_proxy" }
+    msg.post(self, self.collection_sp_ids[1], "load")
+    msg.post(self, self.collection_sp_ids[1], "init")
+    msg.post(self, self.collection_sp_ids[1], "enable")
     self.timer = 4
 end
 
 function update(self, dt)
     self.timer = self.timer - dt
     if self.timer < 0 then
-        go.post(self, "exit", { code = 1 })
+        msg.post(self, "@system:", "exit", { code = 1 })
     end
 end
 
 function on_message(self, message_id, message)
     if message_id == hash("target_dead") then
-        go.post(self, "exit", { code = 0 })
+        msg.post(self, "@system:", "exit", { code = 0 })
     end
 end

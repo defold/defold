@@ -62,23 +62,31 @@ namespace dmEngine
 
     void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
-        char buf[sizeof(dmGameObject::InstanceMessageData) + sizeof(dmRenderDDF::WindowResized)];
+        uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
+        uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
+        dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
 
-        dmGameObject::InstanceMessageData* msg = (dmGameObject::InstanceMessageData*) buf;
-        msg->m_BufferSize = sizeof(dmRenderDDF::WindowResized);
-        msg->m_DDFDescriptor = dmRenderDDF::WindowResized::m_DDFDescriptor;
-        msg->m_MessageId = dmHashString64("window_resized");
+        dmRenderDDF::WindowResized window_resized;
+        window_resized.m_Width = width;
+        window_resized.m_Height = height;
 
-        dmRenderDDF::WindowResized* window_resized = (dmRenderDDF::WindowResized*) (buf + sizeof(dmGameObject::InstanceMessageData));
-        window_resized->m_Width = width;
-        window_resized->m_Height = height;
-
-        dmMessage::HSocket socket_id = dmMessage::GetSocket("render");
-        dmMessage::Post(socket_id, msg->m_MessageId, buf, sizeof(buf));
+        dmMessage::URL receiver;
+        dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmLogError("Could not find '%s' socket.", dmRender::RENDER_SOCKET_NAME);
+        }
+        else
+        {
+            result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &window_resized, data_size);
+            if (result != dmMessage::RESULT_OK)
+            {
+                dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
+            }
+        }
     }
 
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
-    void DispatchRenderScript(dmMessage::Message *message_object, void* user_ptr);
 
     Stats::Stats()
     : m_FrameCount(0)
@@ -94,7 +102,9 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_ScriptContext(0x0)
     , m_Factory(0x0)
+    , m_SystemSocket(0x0)
     , m_GuiSocket(0x0)
     , m_FontMap(0x0)
     , m_SmallFontMap(0x0)
@@ -103,7 +113,7 @@ namespace dmEngine
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     {
-        m_Register = dmGameObject::NewRegister(Dispatch, this);
+        m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
 
         m_PhysicsContext.m_Context3D = 0x0;
@@ -142,11 +152,16 @@ namespace dmEngine
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
 
+        if (engine->m_ScriptContext)
+            dmScript::DeleteContext(engine->m_ScriptContext);
+
         if (engine->m_GraphicsContext)
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
 
         if (engine->m_GuiRenderContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiRenderContext.m_GuiContext);
+        if (engine->m_SystemSocket)
+            dmMessage::DeleteSocket(engine->m_SystemSocket);
         if (engine->m_GuiSocket)
             dmMessage::DeleteSocket(engine->m_GuiSocket);
 
@@ -224,9 +239,11 @@ namespace dmEngine
             return false;
         }
 
-        dmGameObject::Initialize();
+        engine->m_ScriptContext = dmScript::NewContext();
 
-        RegisterDDFTypes();
+        dmGameObject::Initialize(engine->m_ScriptContext);
+
+        RegisterDDFTypes(engine);
 
         dmHID::Initialize();
 
@@ -234,7 +251,6 @@ namespace dmEngine
         dmSound::Initialize(config, &sound_params);
 
         dmRender::RenderContextParams render_params;
-        render_params.m_DispatchCallback = DispatchRenderScript;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = 1024; // TODO: Should be configurable
         render_params.m_MaxRenderTargets = 32;
@@ -269,9 +285,17 @@ namespace dmEngine
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
 
+        const char* system_socket_name = "@system";
+        dmMessage::Result mr = dmMessage::NewSocket(system_socket_name, &engine->m_SystemSocket);
+        if (mr != dmMessage::RESULT_OK)
+        {
+            dmLogFatal("Unable to create gui socket: %s (%d)", system_socket_name, mr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         dmGui::NewContextParams gui_params;
-        const char* gui_socket_name = "dmgui";
-        dmMessage::Result mr = dmMessage::NewSocket(gui_socket_name, &engine->m_GuiSocket);
+        const char* gui_socket_name = "@gui";
+        mr = dmMessage::NewSocket(gui_socket_name, &engine->m_GuiSocket);
         if (mr != dmMessage::RESULT_OK)
         {
             dmLogFatal("Unable to create gui socket: %s (%d)", gui_socket_name, mr);
@@ -428,6 +452,8 @@ bail:
                     break;
                 }
 
+                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+
                 dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
 
                 engine->m_InputBuffer.SetSize(0);
@@ -493,165 +519,163 @@ bail:
         engine->m_ExitCode = code;
     }
 
-    void Dispatch(dmMessage::Message *message_object, void* user_ptr)
+    void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
-        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-        dmGameObject::HInstance sender_instance = instance_message_data->m_SenderInstance;
 
-        if (instance_message_data->m_DDFDescriptor == dmEngineDDF::Exit::m_DDFDescriptor)
+        if (message->m_Descriptor != 0)
         {
-            dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) instance_message_data->m_Buffer;
-            dmEngine::Exit(self, ddf->m_Code);
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
-        {
-            dmGameObjectDDF::AcquireInputFocus* ddf = (dmGameObjectDDF::AcquireInputFocus*) instance_message_data->m_Buffer;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
-            if (instance)
+            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+
+            if (descriptor == dmEngineDDF::Exit::m_DDFDescriptor)
             {
-                dmGameObject::AcquireInputFocus(collection, instance);
+                dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
+                dmEngine::Exit(self, ddf->m_Code);
+            }
+            else if (descriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
+            {
+                dmGameObjectDDF::AcquireInputFocus* ddf = (dmGameObjectDDF::AcquireInputFocus*) message->m_Data;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+                dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
+                if (instance)
+                {
+                    dmGameObject::AcquireInputFocus(collection, instance);
+                }
+                else
+                {
+                    dmLogWarning("Game object with id %llu could not be found when trying to acquire input focus.", ddf->m_GameObjectId);
+                }
+            }
+            else if (descriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
+            {
+                dmGameObjectDDF::ReleaseInputFocus* ddf = (dmGameObjectDDF::ReleaseInputFocus*)message->m_Data;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+                dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
+                if (instance)
+                {
+                    dmGameObject::ReleaseInputFocus(collection, instance);
+                }
+            }
+            else if (descriptor == dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor)
+            {
+                dmGameObjectDDF::GameObjectTransformQuery* pq = (dmGameObjectDDF::GameObjectTransformQuery*)message->m_Data;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+                dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, pq->m_GameObjectId);
+                if (instance)
+                {
+                    dmGameObjectDDF::GameObjectTransformResult result;
+                    result.m_GameObjectId = pq->m_GameObjectId;
+                    result.m_Position = dmGameObject::GetPosition(instance);
+                    result.m_Rotation = dmGameObject::GetRotation(instance);
+                    dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_Name);
+                    uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
+                    uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResult);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, gotr_descriptor, &result, data_size);
+                    if (message_result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send message 'game_object_transform_result' to sender: %d.", message_result);
+                    }
+                }
+                else
+                {
+                    dmLogWarning("Could not find instance with id %llu.", pq->m_GameObjectId);
+                }
+            }
+            else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)
+            {
+                dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*)message->m_Data;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ChildId);
+                dmGameObject::HInstance parent = 0;
+                if (sp->m_ParentId != 0)
+                {
+                    parent = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ParentId);
+                    if (parent == 0)
+                        dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
+                }
+                if (child)
+                {
+                    dmGameObject::Result result = dmGameObject::SetParent(child, parent);
+                    if (result != dmGameObject::RESULT_OK)
+                        dmLogWarning("Error when setting parent of %llu to %llu, error: %i.", sp->m_ChildId, sp->m_ParentId, result);
+                }
+                else
+                {
+                    dmLogWarning("Could not find child instance with id %llu.", sp->m_ChildId);
+                }
+            }
+            else if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
+                dmRender::DrawTextParams params;
+                params.m_Text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
+                params.m_X = dt->m_Position.getX();
+                params.m_Y = dt->m_Position.getY();
+                params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+                dmRender::DrawText(self->m_RenderContext, self->m_FontMap, params);
+            }
+            else if (descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
+                dmRender::Line3D(self->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
+            }
+            else if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
+            {
+                dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                uint8_t component_index;
+                dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
+                if (go_result != dmGameObject::RESULT_OK)
+                {
+                    dmLogError("Component index could not be retrieved when handling 'ray_cast_request': %d.", go_result);
+                }
+                else
+                {
+                    if (self->m_PhysicsContext.m_3D)
+                        dmGameSystem::RequestRayCast3D(sender_instance, component_index, ddf->m_From, ddf->m_To, ddf->m_Mask);
+                    else
+                        dmGameSystem::RequestRayCast2D(sender_instance, component_index, ddf->m_From, ddf->m_To, ddf->m_Mask);
+                }
             }
             else
             {
-                dmLogWarning("Game object with id %llu could not be found when trying to acquire input focus.", ddf->m_GameObjectId);
+                dmLogError("Unknown message: %s\n", descriptor->m_Name);
             }
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
-        {
-            dmGameObjectDDF::ReleaseInputFocus* ddf = (dmGameObjectDDF::ReleaseInputFocus*) instance_message_data->m_Buffer;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
-            if (instance)
-            {
-                dmGameObject::ReleaseInputFocus(collection, instance);
-            }
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor)
-        {
-            dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-            dmGameObjectDDF::GameObjectTransformQuery* pq = (dmGameObjectDDF::GameObjectTransformQuery*) instance_message_data->m_Buffer;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, pq->m_GameObjectId);
-            if (instance)
-            {
-                dmGameObjectDDF::GameObjectTransformResult result;
-                result.m_GameObjectId = pq->m_GameObjectId;
-                result.m_Position = dmGameObject::GetPosition(instance);
-                result.m_Rotation = dmGameObject::GetRotation(instance);
-                dmGameObject::InstanceMessageParams params;
-                params.m_ReceiverInstance = instance_message_data->m_SenderInstance;
-                params.m_ReceiverComponent = instance_message_data->m_SenderComponent;
-                params.m_DDFDescriptor = dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
-                params.m_Buffer = &result;
-                params.m_BufferSize = sizeof(dmGameObjectDDF::GameObjectTransformResult);
-                dmGameObject::PostInstanceMessage(params);
-            }
-            else
-            {
-                dmLogWarning("Could not find instance with id %llu.", pq->m_GameObjectId);
-            }
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)
-        {
-            dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-            dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*) instance_message_data->m_Buffer;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-            dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ChildId);
-            dmGameObject::HInstance parent = 0;
-            if (sp->m_ParentId != 0)
-            {
-                parent = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ParentId);
-                if (parent == 0)
-                    dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
-            }
-            if (child)
-            {
-                dmGameObject::Result result = dmGameObject::SetParent(child, parent);
-                if (result != dmGameObject::RESULT_OK)
-                    dmLogWarning("Error when setting parent of %llu to %llu, error: %i.", sp->m_ChildId, sp->m_ParentId, result);
-            }
-            else
-            {
-                dmLogWarning("Could not find child instance with id %llu.", sp->m_ChildId);
-            }
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
-        {
-            dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*) instance_message_data->m_Buffer;
-            dmRender::DrawTextParams params;
-            params.m_Text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
-            params.m_X = dt->m_Position.getX();
-            params.m_Y = dt->m_Position.getY();
-            params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-            dmRender::DrawText(self->m_RenderContext, self->m_FontMap, params);
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
-        {
-            dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*) instance_message_data->m_Buffer;
-            dmRender::Line3D(self->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
-        }
-        else if (instance_message_data->m_DDFDescriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
-        {
-            dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)instance_message_data->m_Buffer;
-            if (self->m_PhysicsContext.m_3D)
-                dmGameSystem::RequestRayCast3D(instance_message_data->m_SenderInstance, instance_message_data->m_SenderComponent, ddf->m_From, ddf->m_To, ddf->m_Mask);
-            else
-                dmGameSystem::RequestRayCast2D(instance_message_data->m_SenderInstance, instance_message_data->m_SenderComponent, ddf->m_From, ddf->m_To, ddf->m_Mask);
         }
         else
         {
-            if (instance_message_data->m_MessageId == dmHashString64("toggle_profile"))
+            if (message->m_Id == dmHashString64("toggle_profile"))
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
             }
             else
             {
-                if (instance_message_data->m_DDFDescriptor != 0x0)
-                {
-                    dmLogError("Unknown message: %s\n", instance_message_data->m_DDFDescriptor->m_Name);
-                }
-                else
-                {
-                    dmLogError("Unknown message: %llu\n", instance_message_data->m_MessageId);
-                }
+                dmLogError("Unknown message: %llu\n", message->m_Id);
             }
         }
     }
 
-    void DispatchRenderScript(dmMessage::Message *message_object, void* user_ptr)
+    void RegisterDDFTypes(HEngine engine)
     {
-        dmRender::HRenderScriptInstance instance = (dmRender::HRenderScriptInstance)user_ptr;
-        dmGameObject::InstanceMessageData* instance_message_data = (dmGameObject::InstanceMessageData*) message_object->m_Data;
-        dmRender::Message message;
-        message.m_Id = message_object->m_ID;
-        message.m_DDFDescriptor = instance_message_data->m_DDFDescriptor;
-        message.m_BufferSize = instance_message_data->m_BufferSize;
-        message.m_Buffer = instance_message_data->m_Buffer;
-        dmRender::OnMessageRenderScriptInstance(instance, &message);
-    }
+        dmGameSystem::RegisterDDFTypes(engine->m_ScriptContext);
 
-    void RegisterDDFTypes()
-    {
-        dmGameSystem::RegisterDDFTypes();
-
-        dmGameObject::RegisterDDFType(dmEngineDDF::Exit::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::DrawText::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmRenderDDF::DrawLine::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmModelDDF::SetTexture::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmModelDDF::SetVertexConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmModelDDF::ResetVertexConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmModelDDF::SetFragmentConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor);
-        dmGameObject::RegisterDDFType(dmGameObjectDDF::SetParent::m_DDFDescriptor);
-
-        dmGui::RegisterDDFType(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
-        dmGui::RegisterDDFType(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::Exit::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetVertexConstant::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetVertexConstant::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetFragmentConstant::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetFragmentConstant::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::SetParent::m_DDFDescriptor);
     }
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)

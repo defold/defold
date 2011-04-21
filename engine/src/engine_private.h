@@ -51,8 +51,10 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::EmitterContext                m_EmitterContext;
+        dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGameSystem::GuiRenderContext              m_GuiRenderContext;
+        dmMessage::HSocket                          m_SystemSocket;
         dmMessage::HSocket                          m_GuiSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
 
@@ -67,7 +69,7 @@ namespace dmEngine
     };
 
     void ReloadResources(HEngine engine, const char* extension);
-    void RegisterDDFTypes();
+    void RegisterDDFTypes(HEngine engine);
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);
     void UnloadBootstrapContent(HEngine engine);
 }
