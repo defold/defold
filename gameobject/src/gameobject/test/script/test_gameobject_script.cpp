@@ -20,8 +20,9 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize();
-        dmGameObject::RegisterDDFType(TestGameObjectDDF::Spawn::m_DDFDescriptor);
+        m_ScriptContext = dmScript::NewContext();
+        dmScript::RegisterDDFType(m_ScriptContext, TestGameObjectDDF::Spawn::m_DDFDescriptor);
+        dmGameObject::Initialize(m_ScriptContext);
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -44,6 +45,7 @@ protected:
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
         dmGameObject::Finalize();
+        dmScript::DeleteContext(m_ScriptContext);
     }
 
 public:
@@ -53,6 +55,7 @@ public:
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmMessage::HSocket m_Socket;
+    dmScript::HContext m_ScriptContext;
     const char* m_Path;
 };
 
@@ -72,7 +75,7 @@ void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
 
     TestGameObjectDDF::SpawnResult result;
     result.m_Status = 1010;
-    dmMessage::URI receiver = message->m_Sender;
+    dmMessage::URL receiver = message->m_Sender;
     dmDDF::Descriptor* descriptor = TestGameObjectDDF::SpawnResult::m_DDFDescriptor;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::SpawnResult)));
 

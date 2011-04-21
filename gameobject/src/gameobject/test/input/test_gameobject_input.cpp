@@ -17,7 +17,7 @@ class InputTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize();
+        dmGameObject::Initialize(0x0);
 
         m_InputCounter = 0;
 

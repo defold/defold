@@ -15,7 +15,7 @@ class CollectionTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize();
+        dmGameObject::Initialize(0x0);
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 

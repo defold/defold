@@ -3,6 +3,8 @@
 
 #include <dlib/array.h>
 
+#include <script/script.h>
+
 #include <resource/resource.h>
 #include "gameobject.h"
 
@@ -58,7 +60,7 @@ namespace dmGameObject
         dmArray<ScriptInstance*> m_Instances;
     };
 
-    void    InitializeScript();
+    void    InitializeScript(dmScript::HContext context);
     void    FinalizeScript();
 
     HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename);

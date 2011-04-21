@@ -26,8 +26,6 @@ namespace dmGameObject
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
 
-    dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors = 0;
-
     Register::Register()
     {
         m_ComponentTypeCount = 0;
@@ -50,36 +48,14 @@ namespace dmGameObject
         memset(this, 0, sizeof(*this));
     }
 
-    void Initialize()
+    void Initialize(dmScript::HContext context)
     {
-        assert(g_Descriptors == 0);
-
-        g_Descriptors = new dmHashTable64<const dmDDF::Descriptor*>();
-        g_Descriptors->SetCapacity(17, 128);
-
-        InitializeScript();
+        InitializeScript(context);
     }
 
     void Finalize()
     {
         FinalizeScript();
-        delete g_Descriptors;
-
-        g_Descriptors = 0;
-    }
-
-    Result RegisterDDFType(const dmDDF::Descriptor* descriptor)
-    {
-        if (g_Descriptors->Full())
-        {
-            dmLogWarning("Unable to register ddf type. Out of resources.");
-            return RESULT_OUT_OF_RESOURCES;
-        }
-        else
-        {
-            g_Descriptors->Put(dmHashString64(descriptor->m_Name), descriptor);
-            return RESULT_OK;
-        }
     }
 
     HRegister NewRegister()

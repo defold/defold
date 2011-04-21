@@ -27,7 +27,7 @@ class ReloadTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize();
+        dmGameObject::Initialize(0x0);
 
         m_NewResource = 0x0;
 

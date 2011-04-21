@@ -117,107 +117,6 @@ namespace dmGameObject
         {0, 0}
     };
 
-    // TODO: This should be moved to the registry
-    extern dmHashTable64<const dmDDF::Descriptor*>* g_Descriptors;
-
-    int Script_Post(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        const char* uri = luaL_checkstring(L, 2);
-        const char* message_id_str = luaL_checkstring(L, 3);
-
-        dmMessage::URI receiver;
-        dmMessage::Result message_result = dmMessage::ParseURI(uri, &receiver);
-        if (message_result != dmMessage::RESULT_OK)
-        {
-            const char* error = "Could not send message %s to %s because %s.";
-            if (message_result == dmMessage::RESULT_SOCKET_NOT_FOUND)
-            {
-                return luaL_error(L, error, message_id_str, uri, "the socket could not be found");
-            }
-            if (message_result == dmMessage::RESULT_INVALID_SOCKET_NAME)
-            {
-                return luaL_error(L, error, message_id_str, uri, "the socket name is invalid");
-            }
-            if (message_result == dmMessage::RESULT_MALFORMED_URI)
-            {
-                return luaL_error(L, error, message_id_str, uri, "the address is invalid (should be [socket:][path][#fragment])");
-            }
-        }
-        if (receiver.m_Socket == 0)
-        {
-            receiver.m_Socket = i->m_Instance->m_Collection->m_Socket;
-            if (receiver.m_Path != 0)
-            {
-                receiver.m_UserData = (uintptr_t)GetInstanceFromIdentifier(i->m_Instance->m_Collection, receiver.m_Path);
-                if (receiver.m_UserData == 0)
-                {
-                    return luaL_error(L, "The instance could not be found when sending the message %s to %s.", message_id_str, uri);
-                }
-            }
-            else
-            {
-                receiver.m_Path = i->m_Instance->m_Identifier;
-                receiver.m_UserData = (uintptr_t)i->m_Instance;
-                if (receiver.m_Fragment != 0)
-                {
-                    uint8_t component_index;
-                    Result result = GetComponentIndex(i->m_Instance, receiver.m_Fragment, &component_index);
-                    if (result != RESULT_OK)
-                    {
-                        return luaL_error(L, "The component could not be found when sending the message %s to %s.", message_id_str, uri);
-                    }
-                }
-            }
-        }
-
-        dmhash_t message_id = dmHashString64(message_id_str);
-        uintptr_t descriptor = 0;
-
-        dmMessage::URI sender;
-        sender.m_Socket = i->m_Instance->m_Collection->m_Socket;
-        sender.m_Path = i->m_Instance->m_Identifier;
-        sender.m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
-        sender.m_UserData = (uintptr_t)i->m_Instance;
-
-        char data[MAX_MESSAGE_DATA_SIZE];
-        uint32_t data_size = 0;
-
-        if (top > 3)
-        {
-            const dmDDF::Descriptor** desc = g_Descriptors->Get(message_id);
-            if (desc != 0)
-            {
-                descriptor = (uintptr_t)*desc;
-                if ((*desc)->m_Size > MAX_MESSAGE_DATA_SIZE)
-                {
-                    return luaL_error(L, "The message '%s' is too large to be sent (%d bytes, max is %d).", message_id_str, (*desc)->m_Size, MAX_MESSAGE_DATA_SIZE);
-                }
-                luaL_checktype(L, 4, LUA_TTABLE);
-
-                lua_pushvalue(L, 4);
-                data_size = dmScript::CheckDDF(L, *desc, data, MAX_MESSAGE_DATA_SIZE, 4);
-                lua_pop(L, 1);
-            }
-            else
-            {
-                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 4);
-            }
-        }
-
-        assert(top == lua_gettop(L));
-
-        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, descriptor, data, data_size);
-        if (result != dmMessage::RESULT_OK)
-        {
-            return luaL_error(L, "Could not send message %s to %s.", message_id_str, uri);
-        }
-
-        return 0;
-    }
-
     int Script_GetPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
@@ -332,9 +231,45 @@ namespace dmGameObject
         return 0;
     }
 
+    bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L, index);
+
+        if (receiver->m_Socket == 0)
+        {
+            receiver->m_Socket = i->m_Instance->m_Collection->m_Socket;
+            if (receiver->m_Path != 0)
+            {
+                receiver->m_UserData = (uintptr_t)GetInstanceFromIdentifier(i->m_Instance->m_Collection, receiver->m_Path);
+                if (receiver->m_UserData == 0)
+                {
+                    return luaL_error(L, "The instance could not be found.");
+                }
+            }
+            else
+            {
+                receiver->m_Path = i->m_Instance->m_Identifier;
+                receiver->m_UserData = (uintptr_t)i->m_Instance;
+                if (receiver->m_Fragment != 0)
+                {
+                    uint8_t component_index;
+                    Result result = GetComponentIndex(i->m_Instance, receiver->m_Fragment, &component_index);
+                    if (result != RESULT_OK)
+                    {
+                        return luaL_error(L, "The component could not be found.");
+                    }
+                }
+            }
+        }
+        sender->m_Socket = i->m_Instance->m_Collection->m_Socket;
+        sender->m_Path = i->m_Instance->m_Identifier;
+        sender->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        sender->m_UserData = (uintptr_t)i->m_Instance;
+        return true;
+    }
+
     static const luaL_reg Script_methods[] =
     {
-        {"post",                Script_Post},
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"set_position",        Script_SetPosition},
@@ -346,7 +281,7 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript()
+    void InitializeScript(dmScript::HContext context)
     {
         lua_State *L = lua_open();
         g_LuaState = L;
@@ -377,7 +312,10 @@ namespace dmGameObject
         luaL_register(L, "go", Script_methods);
         lua_pop(L, 1);
 
-        dmScript::Initialize(L);
+        dmScript::ScriptParams params;
+        params.m_Context = context;
+        params.m_SetURLsCallback = SetURLsCallback;
+        dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
     }

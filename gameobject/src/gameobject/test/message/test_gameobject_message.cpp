@@ -18,8 +18,9 @@ class MessageTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize();
-        dmGameObject::RegisterDDFType(TestGameObjectDDF::TestMessage::m_DDFDescriptor);
+        m_ScriptContext = dmScript::NewContext();
+        dmScript::RegisterDDFType(m_ScriptContext, TestGameObjectDDF::TestMessage::m_DDFDescriptor);
+        dmGameObject::Initialize(m_ScriptContext);
 
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
@@ -63,6 +64,7 @@ protected:
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
         dmGameObject::Finalize();
+        dmScript::DeleteContext(m_ScriptContext);
     }
 
     static dmResource::CreateResult ResMessageTargetCreate(dmResource::HFactory factory,
@@ -83,6 +85,7 @@ public:
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmMessage::HSocket m_Socket;
+    dmScript::HContext m_ScriptContext;
 
     std::map<uint32_t, uint32_t> m_MessageMap;
 
@@ -134,7 +137,7 @@ dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameO
         if (self->m_MessageTargetCounter == 2)
         {
             dmhash_t message_id = dmHashString64("test_message");
-            dmMessage::URI receiver = params.m_Message->m_Sender;
+            dmMessage::URL receiver = params.m_Message->m_Sender;
             receiver.m_Socket = self->m_Socket;
             assert(dmMessage::RESULT_OK == dmMessage::Post(0x0, &receiver, message_id, 0, 0x0, 0));
         }
@@ -174,7 +177,7 @@ TEST_F(MessageTest, TestPostNamedTo)
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
     ASSERT_NE((void*)0, (void*)instance);
     dmhash_t message_id = POST_NAMED_TO_INST_ID;
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
     receiver.m_UserData = (uintptr_t)instance;
@@ -188,7 +191,7 @@ TEST_F(MessageTest, TestPostDDFTo)
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
     TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
     receiver.m_UserData = (uintptr_t)instance;
@@ -215,12 +218,12 @@ TEST_F(MessageTest, TestComponentMessage)
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
     dmhash_t message_id = dmHashString64("inc");
-    dmMessage::URI sender;
+    dmMessage::URL sender;
     sender.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     sender.m_Path = dmGameObject::GetIdentifier(go);
     sender.m_UserData = (uintptr_t)go;
     sender.m_Fragment = dmHashString64("script");
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_UserData = (uintptr_t)go;
@@ -245,12 +248,12 @@ TEST_F(MessageTest, TestComponentMessageFail)
     ASSERT_NE((void*) 0, (void*) go);
 
     dmhash_t message_id = dmHashString64("inc");
-    dmMessage::URI sender;
+    dmMessage::URL sender;
     sender.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     sender.m_Path = dmGameObject::GetIdentifier(go);
     sender.m_UserData = (uintptr_t)go;
     sender.m_Fragment = dmHashString64("script");
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_UserData = (uintptr_t)go;
@@ -285,7 +288,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
     dmhash_t message_id = dmHashString64("test_message");
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_UserData = (uintptr_t)go;

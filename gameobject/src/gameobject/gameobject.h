@@ -6,7 +6,10 @@
 
 #include <dlib/message.h>
 #include <dlib/hash.h>
+
 #include <ddf/ddf.h>
+
+#include <script/script.h>
 
 #include <resource/resource.h>
 
@@ -377,20 +380,14 @@ namespace dmGameObject
 
     /**
      * Initialize system
+     * @param context Script context
      */
-    void Initialize();
+    void Initialize(dmScript::HContext context);
 
     /**
      * Finalize system
      */
     void Finalize();
-
-    /**
-     * Register DDF type
-     * @param descriptor Descriptor
-     * @return RESULT_OK on success
-     */
-    Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
     /**
      * Create a new component type register

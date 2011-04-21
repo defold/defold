@@ -15,7 +15,7 @@ class ComponentTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmGameObject::Initialize();
+        dmGameObject::Initialize(0x0);
 
         m_UpdateCount = 0;
         m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -269,7 +269,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     ASSERT_NE((void*) 0, (void*) go);
 
     dmhash_t message_id = dmHashString64("test");
-    dmMessage::URI receiver;
+    dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     receiver.m_UserData = (uintptr_t)go;
