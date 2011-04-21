@@ -16,8 +16,6 @@ namespace dmGui
 {
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
 
-    extern dmHashTable64<const dmDDF::Descriptor*> m_DDFDescriptors;
-
     enum ScriptFunction
     {
         SCRIPT_FUNCTION_INIT,

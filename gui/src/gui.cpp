@@ -16,8 +16,6 @@
 
 namespace dmGui
 {
-    dmHashTable64<const dmDDF::Descriptor*> m_DDFDescriptors;
-
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
         "init",
@@ -54,7 +52,7 @@ namespace dmGui
         }
 
         Context* context = new Context();
-        context->m_LuaState = InitializeScript();
+        context->m_LuaState = InitializeScript(params->m_ScriptContext);
         context->m_Socket = params->m_Socket;
 
         return context;
@@ -69,21 +67,6 @@ namespace dmGui
     dmMessage::HSocket GetSocket(HContext context)
     {
         return context->m_Socket;
-    }
-
-    Result RegisterDDFType(const dmDDF::Descriptor* descriptor)
-    {
-        if (m_DDFDescriptors.Empty())
-        {
-            m_DDFDescriptors.SetCapacity(89, 256);
-        }
-
-        if (m_DDFDescriptors.Full())
-        {
-            return RESULT_OUT_OF_RESOURCES;
-        }
-        m_DDFDescriptors.Put(dmHashString64(descriptor->m_Name), descriptor);
-        return RESULT_OK;
     }
 
     void SetDefaultNewSceneParams(NewSceneParams* params)

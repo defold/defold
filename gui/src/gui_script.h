@@ -1,6 +1,8 @@
 #ifndef DM_GUI_SCRIPT_H
 #define DM_GUI_SCRIPT_H
 
+#include <script/script.h>
+
 extern "C"
 {
 #include "lua/lua.h"
@@ -9,7 +11,7 @@ extern "C"
 
 namespace dmGui
 {
-    lua_State* InitializeScript();
+    lua_State* InitializeScript(dmScript::HContext script_context);
     void FinalizeScript(lua_State* L);
 }
 

@@ -7,6 +7,8 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 
+#include <script/script.h>
+
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
@@ -44,6 +46,7 @@ namespace dmGui
 
     struct NewContextParams
     {
+        dmScript::HContext m_ScriptContext;
         dmMessage::HSocket m_Socket;
         uint32_t           m_MaxMessageDataSize;
 
@@ -146,8 +149,6 @@ namespace dmGui
     void DeleteContext(HContext context);
 
     dmMessage::HSocket GetSocket(HContext context);
-
-    Result RegisterDDFType(const dmDDF::Descriptor* descriptor);
 
     HScene NewScene(HContext context, const NewSceneParams* params);
 

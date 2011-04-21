@@ -314,79 +314,6 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
 
-    static int LuaPost(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        const char* uri = luaL_checkstring(L, 1);
-        const char* message_id_str = luaL_checkstring(L, 2);
-
-        dmMessage::URI receiver;
-        dmMessage::Result result = dmMessage::ParseURI(uri, &receiver);
-        if (result != dmMessage::RESULT_OK)
-        {
-            const char* error = "Could not send message %s to %s because %s.";
-            if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
-            {
-                return luaL_error(L, error, message_id_str, uri, "the socket could not be found");
-            }
-            if (result == dmMessage::RESULT_INVALID_SOCKET_NAME)
-            {
-                return luaL_error(L, error, message_id_str, uri, "the socket name is invalid");
-            }
-            if (result == dmMessage::RESULT_MALFORMED_URI)
-            {
-                return luaL_error(L, error, message_id_str, uri, "the address is invalid (should be [socket:][path][#fragment])");
-            }
-        }
-        if (receiver.m_Socket == 0)
-        {
-            receiver.m_Socket = scene->m_Context->m_Socket;
-        }
-        receiver.m_UserData = (uintptr_t)scene;
-
-        char data[MAX_MESSAGE_DATA_SIZE];
-        uint32_t data_size = 0;
-
-        dmhash_t message_id = dmHashString64(message_id_str);
-        uintptr_t descriptor = 0;
-
-        if (lua_istable(L, 3))
-        {
-            const dmDDF::Descriptor** d_tmp = m_DDFDescriptors.Get(message_id);
-            if (d_tmp != 0)
-            {
-                const dmDDF::Descriptor* d = *d_tmp;
-
-                uint32_t size = d->m_Size;
-                if (size > MAX_MESSAGE_DATA_SIZE)
-                {
-                    luaL_error(L, "The message %s is too big to be sent (%d bytes, max is %d).", message_id_str, d->m_Size, MAX_MESSAGE_DATA_SIZE);
-                }
-
-                descriptor = (uintptr_t)d;
-
-                data_size = dmScript::CheckDDF(L, d, data, MAX_MESSAGE_DATA_SIZE, 3);
-            }
-            else
-            {
-                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
-            }
-        }
-
-        assert(top == lua_gettop(L));
-        result = dmMessage::Post(0x0, &receiver, message_id, descriptor, data, data_size);
-        if (result != dmMessage::RESULT_OK)
-        {
-            return luaL_error(L, "Could not send message %s to %s because the socket could not be found.");
-        }
-        return 0;
-    }
-
     static int LuaGetText(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
@@ -504,7 +431,6 @@ namespace dmGui
         {"animate",         LuaAnimate},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
-        {"post",            LuaPost},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"get_blend_mode",  LuaGetBlendMode},
@@ -521,14 +447,36 @@ namespace dmGui
 
 #undef REGGETSET
 
-    lua_State* InitializeScript()
+    bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+    {
+        // TODO should be changed to actually read the argument at 'index'
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        sender->m_Socket = scene->m_Context->m_Socket;
+        sender->m_UserData = (uintptr_t)scene;
+        if (receiver->m_Socket == 0)
+        {
+            receiver->m_Socket = scene->m_Context->m_Socket;
+            if (receiver->m_Path == 0)
+            {
+                 receiver->m_UserData = (uintptr_t)scene;
+            }
+        }
+        return true;
+    }
+
+    lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = lua_open();
 
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::Initialize(L);
+        dmScript::ScriptParams params;
+        params.m_Context = script_context;
+        params.m_SetURLsCallback = SetURLsCallback;
+        dmScript::Initialize(L, params);
 
         luaL_register(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods);   // create methods table, add it to the globals
         lua_pop(L, 1);

@@ -144,6 +144,7 @@ int main(void)
     glfwSwapInterval(1);
 
     dmGui::NewContextParams context_params;
+    context_params.m_ScriptContext = dmScript::NewContext();
     dmGui::HContext context = dmGui::NewContext(&context_params);
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 256;
