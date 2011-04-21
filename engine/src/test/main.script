@@ -2,7 +2,6 @@ function init(self)
     self.collection_sp_ids = { "#test_attacker_target_proxy" }
     msg.post(self, self.collection_sp_ids[1], "load")
     msg.post(self, self.collection_sp_ids[1], "init")
-    msg.post(self, self.collection_sp_ids[1], "enable")
     self.timer = 4
 end
 
@@ -16,5 +15,7 @@ end
 function on_message(self, message_id, message)
     if message_id == hash("target_dead") then
         msg.post(self, "@system:", "exit", { code = 0 })
+    elseif message_id == hash("start") then
+        msg.post(self, self.collection_sp_ids[1], "enable")
     end
 end

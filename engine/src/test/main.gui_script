@@ -1,0 +1,6 @@
+function update(self, dt)
+    if (not self.started) then
+        msg.post(self, "#script", "start")
+        self.started = true
+    end
+end
