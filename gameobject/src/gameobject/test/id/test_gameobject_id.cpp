@@ -72,6 +72,26 @@ TEST_F(IdTest, TestIdentifier)
     dmGameObject::Delete(m_Collection, go2);
 }
 
+TEST_F(IdTest, TestHierarchies)
+{
+    dmGameObject::HCollection collection;
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, dmResource::Get(m_Factory, "root.collectionc", (void**)&collection));
+    dmhash_t id = dmHashString64("go");
+    dmhash_t sub1_id = dmHashString64("sub/go1");
+    dmhash_t sub2_id = dmHashString64("sub/go2");
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, id);
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::HInstance sub1_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub1_id);
+    ASSERT_NE((void*)0, (void*)sub1_instance);
+    dmGameObject::HInstance sub2_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub2_id);
+    ASSERT_NE((void*)0, (void*)sub2_instance);
+    ASSERT_EQ(sub1_id, dmGameObject::GetAbsoluteIdentifier(instance, "sub/go1"));
+    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "/go"));
+    ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2"));
+    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "/go"));
+    dmResource::Release(m_Factory, collection);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

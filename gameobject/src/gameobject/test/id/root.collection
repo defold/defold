@@ -1,0 +1,16 @@
+name: "root"
+instances
+{
+    prototype: "go.goc"
+    id: "go"
+    position { x: 123 y: 0 z: 0 }
+    rotation { x: 0.0 y: 1.0 z: 0.0 w: 0.0 }
+}
+
+collection_instances:
+{
+    id: "sub"
+    collection: "sub.collectionc"
+    position: { x: 0 y: 1000 z: 0 }
+    rotation: { x: 0 y: 0 z: 0 w: 1 }
+}
