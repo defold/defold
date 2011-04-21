@@ -13,7 +13,7 @@ TEST(LuaTableToDDF, Transform)
 {
     lua_State *L = lua_open();
 
-    dmScript::Initialize(L);
+    dmScript::Initialize(L, dmScript::ScriptParams());
 
     int top = lua_gettop(L);
 
@@ -44,6 +44,7 @@ TEST(LuaTableToDDF, Transform)
 
     delete[] buf;
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -51,7 +52,7 @@ TEST(DDFToLuaTable, Transform)
 {
     lua_State *L = lua_open();
 
-    dmScript::Initialize(L);
+    dmScript::Initialize(L, dmScript::ScriptParams());
 
     int top = lua_gettop(L);
 
@@ -87,6 +88,7 @@ TEST(DDFToLuaTable, Transform)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -94,7 +96,7 @@ TEST(LuaTableToDDF, MessageInMessage)
 {
     lua_State *L = lua_open();
 
-    dmScript::Initialize(L);
+    dmScript::Initialize(L, dmScript::ScriptParams());
 
     int top = lua_gettop(L);
 
@@ -167,6 +169,7 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -174,7 +177,7 @@ TEST(DDFToLuaTable, MessageInMessage)
 {
     lua_State *L = lua_open();
 
-    dmScript::Initialize(L);
+    dmScript::Initialize(L, dmScript::ScriptParams());
 
     int top = lua_gettop(L);
 
@@ -227,6 +230,7 @@ TEST(DDFToLuaTable, MessageInMessage)
 
     delete g;
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -282,6 +286,7 @@ TEST(LuaTableToDDF, LuaDDFBufferOverflow)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 

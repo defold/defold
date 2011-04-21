@@ -31,7 +31,7 @@ def build(bld):
                                         uselib_local = 'script',
                                         proto_gen_py = True,
                                         target = 'test_script_msg',
-                                        source = 'test_script_msg.cpp')
+                                        source = 'test_script_msg.cpp test_ddf.proto')
 
     test_script_msg.install_path = None
 

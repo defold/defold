@@ -28,11 +28,12 @@ protected:
         luaopen_math(L);
         luaopen_debug(L);
 
-        dmScript::Initialize(L);
+        dmScript::Initialize(L, dmScript::ScriptParams());
     }
 
     virtual void TearDown()
     {
+        dmScript::Finalize(L);
         lua_close(L);
     }
 

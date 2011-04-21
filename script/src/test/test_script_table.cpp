@@ -23,7 +23,7 @@ protected:
         g_LuaTableTest = this;
         L = lua_open();
         lua_atpanic(L, &AtPanic);
-        dmScript::Initialize(L);
+        dmScript::Initialize(L, dmScript::ScriptParams());
         top = lua_gettop(L);
     }
 
@@ -39,6 +39,7 @@ protected:
     virtual void TearDown()
     {
         ASSERT_EQ(top, lua_gettop(L));
+        dmScript::Finalize(L);
         lua_close(L);
         g_LuaTableTest = 0;
     }

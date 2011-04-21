@@ -15,10 +15,40 @@ extern "C"
 namespace dmScript
 {
     /**
+     * Callback used to fill out URL addresses.
+     * Implementations of this callback are expected to supply additional information into both sender and receiver
+     * given the value in the lua state at the given index.
+     * @param L lua state
+     * @param index Index of the value
+     * @param sender Sender URL
+     * @param receiver Receiver URL
+     * @return wether the information could be supplied
+     */
+    typedef bool(*SetURLsCallback)(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver);
+
+    /**
+     * Parameters to initialize the script context
+     */
+    struct ScriptParams
+    {
+        ScriptParams();
+
+        SetURLsCallback m_SetURLsCallback;
+    };
+
+    /**
      * Register the script libraries into the supplied lua state.
      * @param L Lua state
      */
-    void Initialize(lua_State* L);
+    void Initialize(lua_State* L, const ScriptParams& params);
+
+    /**
+     * Removes any stored variables from the supplied lua state.
+     * @param L Lua state
+     */
+    void Finalize(lua_State* L);
+
+    bool RegisterDDFType(lua_State* L, const dmDDF::Descriptor* descriptor);
 
     /**
      * Retrieve a ddf structure from a lua state.

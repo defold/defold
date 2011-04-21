@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "script.h"
+#include "test/test_ddf.h"
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -14,6 +15,8 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
+bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver);
+
 class ScriptMsgTest : public ::testing::Test
 {
 protected:
@@ -21,11 +24,15 @@ protected:
     {
         L = lua_open();
         luaL_openlibs(L);
-        dmScript::Initialize(L);
+        dmScript::ScriptParams params;
+        params.m_SetURLsCallback = SetURLsCallback;
+        dmScript::Initialize(L, params);
+        dmScript::RegisterDDFType(L, TestScript::SubMsg::m_DDFDescriptor);
     }
 
     virtual void TearDown()
     {
+        dmScript::Finalize(L);
         lua_close(L);
     }
 
@@ -333,6 +340,105 @@ TEST_F(ScriptMsgTest, TestURLEq)
         "assert(url1 == url2)\n"
         "assert(url1 ~= 1)\n"
         ));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+{
+    dmMessage::URL* url = dmScript::CheckURL(L, index);
+    if (url->m_Path == 0 && url->m_Fragment == 0 && url->m_Socket != 0x0)
+    {
+        sender->m_Socket = url->m_Socket;
+        receiver->m_Socket = url->m_Socket;
+        return true;
+    }
+    return false;
+}
+
+void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
+{
+    assert(message->m_Id == dmHashString64(TestScript::SubMsg::m_DDFDescriptor->m_Name));
+    TestScript::SubMsg* msg = (TestScript::SubMsg*)message->m_Data;
+    *((uint32_t*)user_ptr) = msg->m_UintValue;
+}
+
+struct TableUserData
+{
+    lua_State* L;
+    uint32_t m_TestValue;
+};
+
+void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
+{
+    assert(message->m_Id == dmHashString64("table"));
+    TableUserData* user_data = (TableUserData*)user_ptr;
+    dmScript::PushTable(user_data->L, (const char*)message->m_Data);
+    lua_getfield(user_data->L, -1, "uint_value");
+    user_data->m_TestValue = lua_tonumber(user_data->L, -1);
+    lua_pop(user_data->L, 2);
+}
+
+TEST_F(ScriptMsgTest, TestPost)
+{
+    int top = lua_gettop(L);
+
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
+
+    // DDF
+    ASSERT_TRUE(RunString(L,
+        "local self = msg.url(\"socket:\")\n"
+        "msg.post(self, \"\", \"sub_msg\", {uint_value = 1})\n"
+        ));
+    uint32_t test_value = 0;
+    dmMessage::Dispatch(socket, DispatchCallbackDDF, &test_value);
+    ASSERT_EQ(1u, test_value);
+
+    // table
+    ASSERT_TRUE(RunString(L,
+        "local self = msg.url(\"socket:\")\n"
+        "msg.post(self, \"\", \"table\", {uint_value = 1})\n"
+        ));
+    TableUserData user_data;
+    user_data.L = L;
+    user_data.m_TestValue = 0;
+    dmMessage::Dispatch(socket, DispatchCallbackTable, &user_data);
+    ASSERT_EQ(1u, user_data.m_TestValue);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptMsgTest, TestFailPost)
+{
+    int top = lua_gettop(L);
+
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
+
+    ASSERT_FALSE(RunString(L,
+        "local self = msg.url(\"socket:path#fragment\")\n"
+        "msg.post(self, \"\", \"sub_msg\", {uint_value = 1})\n"
+        ));
+
+    ASSERT_FALSE(RunString(L,
+        "local self = msg.url(\"socket:path#fragment\")\n"
+        "msg.post(self, \"socket2:\", \"sub_msg\", {uint_value = 1})\n"
+        ));
+
+    ASSERT_FALSE(RunString(L,
+        "local self = msg.url(\"socket:path#fragment\")\n"
+        "msg.post(self, \":\", \"sub_msg\", {uint_value = 1})\n"
+        ));
+
+    ASSERT_FALSE(RunString(L,
+        "local self = msg.url(\"socket:path#fragment\")\n"
+        "msg.post(self, \"::\", \"sub_msg\", {uint_value = 1})\n"
+        ));
+
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     ASSERT_EQ(top, lua_gettop(L));

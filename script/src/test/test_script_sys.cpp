@@ -21,11 +21,12 @@ protected:
     {
         L = lua_open();
         luaL_openlibs(L);
-        dmScript::Initialize(L);
+        dmScript::Initialize(L, dmScript::ScriptParams());
     }
 
     virtual void TearDown()
     {
+        dmScript::Finalize(L);
         lua_close(L);
     }
 
