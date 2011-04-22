@@ -17,7 +17,7 @@ local function set_mode(self, mode)
 		frame = 2
 		self.mode_timer = 10
 	end
-	go.post_to(go.get_id(self), "sprite", "play_animation", {start_frame = frame, end_frame = frame, playback = 0})
+	msg.post(self, "#sprite", "play_animation", {start_frame = frame, end_frame = frame, playback = 0})
 end
 
 function update(self, dt)
@@ -34,7 +34,7 @@ function update(self, dt)
 		p = p + self.direction * self.speed * dt
 		go.set_position(self, p)
 		if p.y < 0 then
-			go.post_to_collection(hash("session"), hash("session"), "script", "ball_lost")
+			msg.post(self, "session:session#script", "ball_lost")
 		end
 	end
 end
@@ -43,7 +43,7 @@ function on_message(self, message_id, message)
 	if message_id == hash("attach") then
 		if not self.attached then
 			go.set_position(self, vmath.vector3(0, 22.5, 0))
-			go.post("set_parent", { child_id = go.get_id(self), parent_id = go.get_id(self, "paddle") })
+			msg.post(self, "@system:", "set_parent", { child_id = go.get_id(self), parent_id = go.get_id(self, "paddle") })
 			self.attached = true
 			set_mode(self, self.mode_normal)
 		end
@@ -53,21 +53,21 @@ function on_message(self, message_id, message)
 			local r = go.get_world_rotation(self)
 			go.set_position(self, p)
 			go.set_rotation(self, r)
-			go.post("set_parent", { child_id = go.get_id(self), parent_id = nil })
+			msg.post(self, "@system:", "set_parent", { child_id = go.get_id(self), parent_id = nil })
 			self.direction = vmath.vector3(0, 1, 0)
 			self.attached = false
 		end
 	elseif message_id == hash("contact_point_message") then
 		if not self.attached then
-			go.post_to(go.get_id(self), "wav", "play_sound")
+			msg.post(self, "#wav", "play_sound")
             if message.group == 8 and self.mode == self.mode_normal then
                 self.pow_counter = self.pow_counter + 1
                 if self.pow_counter >= 8 then
-                    go.post_to(go.get_id(self), "spawnpoint", "spawn_object", { position = go.get_position(self), rotation = vmath.quat(0,0,0,1) })
+                    msg.post(self, "#spawnpoint", "spawn_object", { position = go.get_position(self), rotation = vmath.quat(0,0,0,1) })
                     self.pow_counter = 0
                 end
             end
-			
+
 			local norm = message.normal
 			if message.group == 2 then
 				local paddle_p = go.get_world_position(self, message.other_game_object_id)
@@ -75,7 +75,7 @@ function on_message(self, message_id, message)
 				norm = vmath.normalize(vmath.vector3(fraction, 1, 0))
 			elseif message.group == 8 then
 				-- remove blocks
-				go.post_to(message.other_game_object_id, "", "destroy")
+				msg.post(self, msg.url(nil, message.other_game_object_id, nil), "destroy")
 				if self.mode == self.mode_penetration then
 					return
 				end

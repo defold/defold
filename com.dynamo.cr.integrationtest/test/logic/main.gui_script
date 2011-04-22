@@ -63,6 +63,6 @@ function on_input(self, action_id, action)
 	elseif action_id == hash("move_down") and action.repeated then
 		activate_menu_item(self, self.selected_item + 1)
 	elseif action_id == hash("ok") and action.pressed then
-		gui.post(self.menu_items[self.selected_item].id)
+		msg.post(self, "#script", self.menu_items[self.selected_item].id)
 	end
 end

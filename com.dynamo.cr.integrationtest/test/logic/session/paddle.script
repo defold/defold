@@ -2,7 +2,7 @@ function init(self)
 	self.speed = 500
 	self.movement = nil
 	self.ball_attached = true
-    go.post("acquire_input_focus", { game_object_id = go.get_id(self) })
+    msg.post(self, "@system:", "acquire_input_focus", { game_object_id = go.get_id(self) })
     self.initial_position = go.get_world_position(self)
 end
 
@@ -26,7 +26,7 @@ function on_input(self, action_id, action)
         return true
     elseif action_id == hash("ok") and action.pressed then
     	if self.ball_attached then
-    		go.post_to(go.get_id(self, "ball"), "script", "detach")
+    		msg.post(self, "ball#script", "detach")
     	end
     end
 end
@@ -34,12 +34,12 @@ end
 function on_message(self, message_id, message)
 	if message_id == hash("reset") then
 		go.set_position(self, self.initial_position)
-		go.post_to(go.get_id(self, "ball"), "script", "attach")
+		msg.post(self, "ball#script", "attach")
 	elseif message_id == hash("collision_message") then
 		if message.group == 16 then
-			go.post_to(go.get_id(self), "wav", "play_sound")
-			go.post_to(go.get_id(self, "ball"), "script", "set_mode", {mode = 1})
-			go.post_to(message.other_game_object_id, "script", "destroy")
+			msg.post(self, "#wav", "play_sound")
+			msg.post(self, "ball#script", "set_mode", {mode = 1})
+			msg.post(self, msg.url(nil, message.other_game_object_id, "script"), "destroy")
 		end
 	elseif message_id == hash("contact_point_message") then
 		if message.group == 1 then

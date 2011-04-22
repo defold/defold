@@ -1,9 +1,9 @@
 -- #### NORMAL ####
 
 local function normal_on_enter(self)
-	go.post_to(go.get_id(self), "level01_proxy", "load")
-	go.post_to(go.get_id(self), "level01_proxy", "init")
-	go.post_to(go.get_id(self), "level01_proxy", "enable")
+	msg.post(self, "#level01_proxy", "load")
+	msg.post(self, "#level01_proxy", "init")
+	msg.post(self, "#level01_proxy", "enable")
 end
 
 local function normal_update(self, dt)
@@ -16,7 +16,7 @@ local function normal_on_message(self, message_id, message)
 	if message_id == hash("block_destroyed") then
 		self.block_count = self.block_count - 1
 		self.score = self.score + message.score
-		go.post_to(go.get_id(self, "hud"), "gui", "inc_score", {score = message.score, position = message.position})
+		msg.post(self, "hud#gui", "inc_score", {score = message.score, position = message.position})
 	elseif message_id == hash("ball_lost") then
 		self.next_state = self.states.fail
 	end
@@ -32,11 +32,11 @@ local function fail_on_exit(self)
 end
 
 local function end_session(self)
-	go.post_to_collection(hash("main"), hash("main"), "script", "session_done", {score = self.score})
+	msg.post(self, "main:main#script", "session_done", {score = self.score})
 end
 
 local function fail_update(self, dt)
-	go.post("draw_text", {text = "Fail!", position = vmath.vector3(300, 300, 0)})
+	msg.post(self, "@system:", "draw_text", {text = "Fail!", position = vmath.vector3(300, 300, 0)})
 	self.timer = self.timer - dt
 	if self.timer < 0 then
 		end_session(self)
@@ -60,7 +60,7 @@ local function win_on_exit(self)
 end
 
 local function win_update(self, dt)
-	go.post("draw_text", {text = "Success!", position = vmath.vector3(300, 300, 0)})
+	msg.post(self, "@system:", "draw_text", {text = "Success!", position = vmath.vector3(300, 300, 0)})
 	self.timer = self.timer - dt
 	if self.timer < 0 then
 		end_session(self)
@@ -100,7 +100,7 @@ function init(self)
 			on_input = win_on_input
 		}
 	}
-    go.post("acquire_input_focus", { game_object_id = go.get_id(self) })
+    msg.post(self, "@system:", "acquire_input_focus", { game_object_id = go.get_id(self) })
     self.score = 0
 	self.next_state = self.states.normal
 end
@@ -117,7 +117,7 @@ function update(self, dt)
 		if self.state.on_enter then
 			self.state.on_enter(self)
 		end
-	end		
+	end
 	if self.state.update then
 		self.state.update(self, dt)
 	end
