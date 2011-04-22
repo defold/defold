@@ -452,8 +452,6 @@ bail:
                     break;
                 }
 
-                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
-
                 dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
 
                 engine->m_InputBuffer.SetSize(0);
@@ -477,6 +475,8 @@ bail:
                     dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
+
+                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
 
                 dmGameObject::PostUpdate(engine->m_MainCollection);
 
