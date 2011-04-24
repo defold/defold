@@ -491,6 +491,65 @@ TEST_F(dmRenderScriptTest, TestLuaConstants)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+void TestDispatchCallback(dmMessage::Message *message, void* user_ptr)
+{
+    if (message->m_Id == dmHashString64("test_message"))
+    {
+        *((uint32_t*)user_ptr) = 1;
+    }
+}
+
+TEST_F(dmRenderScriptTest, TestPost)
+{
+    const char* script =
+    "function init(self)\n"
+    "    msg.post(\"test_socket:\", \"test_message\")\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    dmMessage::HSocket test_socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &test_socket));
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    uint32_t test_value = 0;
+    ASSERT_EQ(1u, dmMessage::Dispatch(test_socket, TestDispatchCallback, (void*)&test_value));
+    ASSERT_EQ(1u, test_value);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(test_socket));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestPostToSelf)
+{
+    const char* script =
+        "function init(self)\n"
+        "    msg.post(nil, \"test_message\", {test_value = 1})\n"
+        "end\n"
+        "function update(self, dt)\n"
+        "    assert(self.test_value == 1, \"invalid test value\")\n"
+        "end\n"
+        "function on_message(self, message_id, message)\n"
+        "    if (message_id == hash(\"test_message\")) then\n"
+        "        self.test_value = message.test_value\n"
+        "    end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

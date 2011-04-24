@@ -13,6 +13,7 @@
 namespace dmRender
 {
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
+    #define RENDER_SCRIPT_INSTANCE_SELF "__render_script_instance"
 
     #define RENDER_SCRIPT_LIB_NAME "render"
     #define RENDER_SCRIPT_FORMAT_NAME "format"
@@ -801,15 +802,18 @@ namespace dmRender
         {0, 0}
     };
 
-    bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+    void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, index);
-        sender->m_Socket = i->m_RenderContext->m_Socket;
-        if (receiver->m_Socket == 0)
-        {
-            receiver->m_Socket = i->m_RenderContext->m_Socket;
-        }
-        return true;
+        lua_getglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        url->m_Socket = i->m_RenderContext->m_Socket;
+        url->m_UserData = (uintptr_t)i;
+    }
+
+    dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
+    {
+        return dmHashBuffer64(path, path_size);
     }
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
@@ -905,7 +909,8 @@ namespace dmRender
 
         dmScript::ScriptParams params;
         params.m_Context = script_context;
-        params.m_SetURLsCallback = SetURLsCallback;
+        params.m_GetURLCallback = GetURLCallback;
+        params.m_ResolvePathCallback = ResolvePathCallback;
         dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
@@ -1135,6 +1140,9 @@ bail:
             int top = lua_gettop(L);
             (void) top;
 
+            lua_pushlightuserdata(L, (void*)script_instance);
+            lua_setglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
@@ -1172,6 +1180,9 @@ bail:
                 lua_pop(L, 1);
                 result = RENDER_SCRIPT_RESULT_FAILED;
             }
+
+            lua_pushlightuserdata(L, (void*)0x0);
+            lua_setglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
 
             assert(top == lua_gettop(L));
         }
