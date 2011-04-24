@@ -682,7 +682,7 @@ static void Dispatch1(dmMessage::Message* message, void* user_ptr)
 TEST_F(dmGuiTest, PostMessage1)
 {
     const char* s = "function init(self)\n"
-                    "   msg.post(self, \"#component\", \"my_named_message\")\n"
+                    "   msg.post(\"#component\", \"my_named_message\")\n"
                     "end\n";
 
     dmGui::Result r;
@@ -704,7 +704,7 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
     const char* s = "function update(self)\n"
                     "end\n"
                     "function on_input(self, action_id, action)\n"
-                    "   msg.post(self, \"#component\", \"my_named_message\")\n"
+                    "   msg.post(\"#component\", \"my_named_message\")\n"
                     "end\n";
 
     dmGui::Result r;
@@ -732,7 +732,7 @@ static void Dispatch2(dmMessage::Message* message, void* user_ptr)
 TEST_F(dmGuiTest, PostMessage2)
 {
     const char* s = "function init(self)\n"
-                    "   msg.post(self, \"#component\", \"a_message\", { a = 123, b = 456 })\n"
+                    "   msg.post(\"#component\", \"a_message\", { a = 123, b = 456 })\n"
                     "end\n";
 
     dmGui::Result r;
@@ -758,7 +758,7 @@ static void Dispatch3(dmMessage::Message* message, void* user_ptr)
 TEST_F(dmGuiTest, PostMessage3)
 {
     const char* s1 = "function init(self)\n"
-                     "    msg.post(self, \"#component\", \"test_message\", { a = 123 })\n"
+                     "    msg.post(\"#component\", \"test_message\", { a = 123 })\n"
                      "end\n";
 
     const char* s2 = "function update(self, dt)\n"
@@ -803,7 +803,7 @@ TEST_F(dmGuiTest, PostMessage3)
 TEST_F(dmGuiTest, PostMessageMissingField)
 {
     const char* s = "function init(self)\n"
-                    "   msg.post(self, \"a_message\", { a = 123 })\n"
+                    "   msg.post(\"a_message\", { a = 123 })\n"
                     "end\n";
 
     dmGui::Result r;

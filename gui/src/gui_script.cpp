@@ -447,23 +447,18 @@ namespace dmGui
 
 #undef REGGETSET
 
-    bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+    dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
     {
-        // TODO should be changed to actually read the argument at 'index'
+        return dmHashBuffer64(path, path_size);
+    }
+
+    void GetURLCallback(lua_State* L, dmMessage::URL* url)
+    {
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
-        sender->m_Socket = scene->m_Context->m_Socket;
-        sender->m_UserData = (uintptr_t)scene;
-        if (receiver->m_Socket == 0)
-        {
-            receiver->m_Socket = scene->m_Context->m_Socket;
-            if (receiver->m_Path == 0)
-            {
-                 receiver->m_UserData = (uintptr_t)scene;
-            }
-        }
-        return true;
+        url->m_Socket = scene->m_Context->m_Socket;
+        url->m_UserData = (uintptr_t)scene;
     }
 
     lua_State* InitializeScript(dmScript::HContext script_context)
@@ -475,7 +470,8 @@ namespace dmGui
 
         dmScript::ScriptParams params;
         params.m_Context = script_context;
-        params.m_SetURLsCallback = SetURLsCallback;
+        params.m_GetURLCallback = GetURLCallback;
+        params.m_ResolvePathCallback = ResolvePathCallback;
         dmScript::Initialize(L, params);
 
         luaL_register(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods);   // create methods table, add it to the globals
