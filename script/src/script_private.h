@@ -3,7 +3,8 @@
 
 #include <dlib/hashtable.h>
 
-#define SCRIPT_GET_URLS_CALLBACK "__script_get_urls_callback"
+#define SCRIPT_RESOLVE_PATH_CALLBACK "__script_resolve_path_callback"
+#define SCRIPT_GET_URL_CALLBACK "__script_get_url_callback"
 #define SCRIPT_CONTEXT "__script_context"
 
 namespace dmScript

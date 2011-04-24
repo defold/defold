@@ -35,16 +35,22 @@ namespace dmScript
     bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor);
 
     /**
-     * Callback used to fill out URL addresses.
-     * Implementations of this callback are expected to supply additional information into both sender and receiver
-     * given the value in the lua state at the given index.
+     * Callback used to resolve paths.
+     * Implementations of this callback are expected to resolve the path given the lua state.
      * @param L lua state
-     * @param index Index of the value
-     * @param sender Sender URL
-     * @param receiver Receiver URL
-     * @return wether the information could be supplied
+     * @param path
+     * @param path_size
+     * @return hashed resolved path
      */
-    typedef bool(*SetURLsCallback)(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver);
+    typedef dmhash_t (*ResolvePathCallback)(lua_State* L, const char* path, uint32_t path_size);
+
+    /**
+     * Callback used to retrieve url
+     * Implementations of this callback are expected to return a url specified by the lua state.
+     * @param L lua state
+     * @param out_url Pointer to the url that should be filled with information
+     */
+    typedef void (*GetURLCallback)(lua_State* L, dmMessage::URL* out_url);
 
     /**
      * Parameters to initialize the script context
@@ -54,7 +60,8 @@ namespace dmScript
         ScriptParams();
 
         HContext m_Context;
-        SetURLsCallback m_SetURLsCallback;
+        ResolvePathCallback m_ResolvePathCallback;
+        GetURLCallback m_GetURLCallback;
     };
 
     /**

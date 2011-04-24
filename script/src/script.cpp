@@ -30,7 +30,8 @@ namespace dmScript
 
     ScriptParams::ScriptParams()
     : m_Context(0x0)
-    , m_SetURLsCallback(0x0)
+    , m_ResolvePathCallback(0x0)
+    , m_GetURLCallback(0x0)
     {
 
     }
@@ -42,11 +43,14 @@ namespace dmScript
         InitializeVmath(L);
         InitializeSys(L);
 
-        lua_pushlightuserdata(L, (void*)params.m_SetURLsCallback);
-        lua_setglobal(L, SCRIPT_GET_URLS_CALLBACK);
-
         lua_pushlightuserdata(L, (void*)params.m_Context);
         lua_setglobal(L, SCRIPT_CONTEXT);
+
+        lua_pushlightuserdata(L, (void*)params.m_ResolvePathCallback);
+        lua_setglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
+
+        lua_pushlightuserdata(L, (void*)params.m_GetURLCallback);
+        lua_setglobal(L, SCRIPT_GET_URL_CALLBACK);
     }
 
     bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor)

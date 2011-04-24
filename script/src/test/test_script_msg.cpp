@@ -15,7 +15,17 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver);
+dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
+{
+    return dmHashBuffer64(path, path_size);
+}
+
+void GetURLCallback(lua_State* L, dmMessage::URL* url)
+{
+    lua_getglobal(L, "__default_url");
+    *url = *dmScript::CheckURL(L, -1);
+    lua_pop(L, 1);
+}
 
 class ScriptMsgTest : public ::testing::Test
 {
@@ -28,18 +38,27 @@ protected:
         dmScript::RegisterDDFType(m_ScriptContext, TestScript::SubMsg::m_DDFDescriptor);
         dmScript::ScriptParams params;
         params.m_Context = m_ScriptContext;
-        params.m_SetURLsCallback = SetURLsCallback;
+        params.m_ResolvePathCallback = ResolvePathCallback;
+        params.m_GetURLCallback = GetURLCallback;
         dmScript::Initialize(L, params);
+
+        assert(dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket) == dmMessage::RESULT_OK);
+        m_DefaultURL.m_Path = dmHashString64("default_path");
+        m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
+        dmScript::PushURL(L, m_DefaultURL);
+        lua_setglobal(L, "__default_url");
     }
 
     virtual void TearDown()
     {
+        dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
         lua_close(L);
         dmScript::DeleteContext(m_ScriptContext);
     }
 
     dmScript::HContext m_ScriptContext;
     lua_State* L;
+    dmMessage::URL m_DefaultURL;
 };
 
 bool RunFile(lua_State* L, const char* filename)
@@ -73,25 +92,25 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // empty
     ASSERT_TRUE(RunString(L,
         "local url = msg.url()\n"
-        "assert(url.socket == nil, \"invalid socket\")\n"
-        "assert(url.path == nil, \"invalid path\")\n"
-        "assert(url.fragment == nil, \"invalid fragment\")\n"
-        ));
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
+       ));
 
     // nil
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(nil)\n"
-        "assert(url.socket == nil, \"invalid socket\")\n"
-        "assert(url.path == nil, \"invalid path\")\n"
-        "assert(url.fragment == nil, \"invalid fragment\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
         ));
 
     // empty string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"\")\n"
-        "assert(url.socket == nil, \"invalid socket\")\n"
-        "assert(url.path == nil, \"invalid path\")\n"
-        "assert(url.fragment == nil, \"invalid fragment\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
         ));
 
     // socket string
@@ -99,25 +118,25 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test", &socket));
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test:\")\n"
-        "assert(url.socket ~= nil, \"invalid socket\")\n"
-        "assert(url.path == nil, \"invalid path\")\n"
-        "assert(url.fragment == nil, \"invalid fragment\")\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     // fragment string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\")\n"
-        "assert(url.socket == nil, \"invalid socket\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
-        "assert(url.fragment == nil, \"invalid fragment\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
         ));
 
     // path string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"#test\")\n"
-        "assert(url.socket == nil, \"invalid socket\")\n"
-        "assert(url.path == nil, \"invalid path\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
         "assert(url.fragment == hash(\"test\"), \"invalid fragment\")\n"
         ));
 
@@ -126,7 +145,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // socket arg string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\", \"\", \"\")\n"
-        "assert(url.socket ~= nil, \"invalid socket\")\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
         "assert(url.fragment == nil, \"invalid fragment\")\n"
         ));
@@ -135,7 +154,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     ASSERT_TRUE(RunString(L,
         "local url1 = msg.url(\"test:\")\n"
         "local url2 = msg.url(url1.socket, \"\", \"\")\n"
-        "assert(url2.socket ~= nil, \"invalid socket\")\n"
+        "assert(url2.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url2.path == nil, \"invalid path\")\n"
         "assert(url2.fragment == nil, \"invalid fragment\")\n"
         ));
@@ -143,7 +162,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // path arg string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\", \"test\", \"\")\n"
-        "assert(url.socket ~= nil, \"invalid socket\")\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
         "assert(url.fragment == nil, \"invalid fragment\")\n"
         ));
@@ -151,7 +170,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // path arg value
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\", hash(\"test\"), \"\")\n"
-        "assert(url.socket ~= nil, \"invalid socket\")\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
         "assert(url.fragment == nil, \"invalid fragment\")\n"
         ));
@@ -159,7 +178,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // fragment arg string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\", \"\", \"test\")\n"
-        "assert(url.socket ~= nil, \"invalid socket\")\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
         "assert(url.fragment == hash(\"test\"), \"invalid fragment\")\n"
         ));
@@ -167,7 +186,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // fragment arg value
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\", \"\", hash(\"test\"))\n"
-        "assert(url.socket ~= nil, \"invalid socket\")\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
         "assert(url.fragment == hash(\"test\"), \"invalid fragment\")\n"
         ));
@@ -188,10 +207,6 @@ TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)
     // malformed
     ASSERT_FALSE(RunString(L,
         "msg.url(\"test:test:\")\n"
-        ));
-    // invalid socket
-    ASSERT_FALSE(RunString(L,
-        "msg.url(\":\")\n"
         ));
     // socket not found
     ASSERT_FALSE(RunString(L,
@@ -348,18 +363,6 @@ TEST_F(ScriptMsgTest, TestURLEq)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
-{
-    dmMessage::URL* url = dmScript::CheckURL(L, index);
-    if (url->m_Path == 0 && url->m_Fragment == 0 && url->m_Socket != 0x0)
-    {
-        sender->m_Socket = url->m_Socket;
-        receiver->m_Socket = url->m_Socket;
-        return true;
-    }
-    return false;
-}
-
 void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 {
     assert(message->m_Id == dmHashString64(TestScript::SubMsg::m_DDFDescriptor->m_Name));
@@ -392,8 +395,7 @@ TEST_F(ScriptMsgTest, TestPost)
 
     // DDF
     ASSERT_TRUE(RunString(L,
-        "local self = msg.url(\"socket:\")\n"
-        "msg.post(self, \"\", \"sub_msg\", {uint_value = 1})\n"
+        "msg.post(\"socket:\", \"sub_msg\", {uint_value = 1})\n"
         ));
     uint32_t test_value = 0;
     dmMessage::Dispatch(socket, DispatchCallbackDDF, &test_value);
@@ -401,8 +403,7 @@ TEST_F(ScriptMsgTest, TestPost)
 
     // table
     ASSERT_TRUE(RunString(L,
-        "local self = msg.url(\"socket:\")\n"
-        "msg.post(self, \"\", \"table\", {uint_value = 1})\n"
+        "msg.post(\"socket:\", \"table\", {uint_value = 1})\n"
         ));
     TableUserData user_data;
     user_data.L = L;
@@ -423,23 +424,15 @@ TEST_F(ScriptMsgTest, TestFailPost)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
 
     ASSERT_FALSE(RunString(L,
-        "local self = msg.url(\"socket:path#fragment\")\n"
-        "msg.post(self, \"\", \"sub_msg\", {uint_value = 1})\n"
+        "msg.post(\"socket2:\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
     ASSERT_FALSE(RunString(L,
-        "local self = msg.url(\"socket:path#fragment\")\n"
-        "msg.post(self, \"socket2:\", \"sub_msg\", {uint_value = 1})\n"
+        "msg.post(\"#:\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
     ASSERT_FALSE(RunString(L,
-        "local self = msg.url(\"socket:path#fragment\")\n"
-        "msg.post(self, \":\", \"sub_msg\", {uint_value = 1})\n"
-        ));
-
-    ASSERT_FALSE(RunString(L,
-        "local self = msg.url(\"socket:path#fragment\")\n"
-        "msg.post(self, \"::\", \"sub_msg\", {uint_value = 1})\n"
+        "msg.post(\"::\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));

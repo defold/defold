@@ -252,22 +252,58 @@ namespace dmScript
     {
         int top = lua_gettop(L);
         dmMessage::URL url;
+        lua_getglobal(L, SCRIPT_GET_URL_CALLBACK);
+        ((GetURLCallback)lua_touserdata(L, -1))(L, &url);
+        lua_pop(L, 1);
         if (top == 1 && !lua_isnil(L, 1))
         {
             const char* s = luaL_checkstring(L, 1);
-            dmMessage::Result result = dmMessage::ParseURL(s, &url);
+            const char* socket;
+            uint32_t socket_size;
+            const char* path;
+            uint32_t path_size;
+            const char* fragment;
+            uint32_t fragment_size;
+            dmMessage::Result result = dmMessage::ParseURL(s, &socket, &socket_size, &path, &path_size, &fragment, &fragment_size);
             switch (result)
             {
                 case dmMessage::RESULT_OK:
                     break;
                 case dmMessage::RESULT_MALFORMED_URL:
                     return luaL_error(L, "Error when parsing '%s', must be of the format 'socket:path#fragment'.", s);
-                case dmMessage::RESULT_INVALID_SOCKET_NAME:
-                    return luaL_error(L, "The socket name in '%s' is invalid.", s);
-                case dmMessage::RESULT_SOCKET_NOT_FOUND:
-                    return luaL_error(L, "The socket in '%s' could not be found.", s);
                 default:
                     return luaL_error(L, "Error when parsing '%s': %d.", s, result);
+            }
+            if (socket_size > 0)
+            {
+                char socket_name[64];
+                dmStrlCpy(socket_name, socket, socket_size+1);
+                result = dmMessage::GetSocket(socket_name, &url.m_Socket);
+                switch (result)
+                {
+                    case dmMessage::RESULT_OK:
+                        break;
+                    case dmMessage::RESULT_INVALID_SOCKET_NAME:
+                        return luaL_error(L, "The socket name in '%s' is invalid.", s);
+                    case dmMessage::RESULT_SOCKET_NOT_FOUND:
+                        return luaL_error(L, "The socket in '%s' could not be found.", s);
+                    default:
+                        return luaL_error(L, "Error when parsing '%s': %d.", s, result);
+                }
+                if (path_size > 0)
+                {
+                    url.m_Path = dmHashBuffer64(path, path_size);
+                }
+            }
+            else if (path_size > 0)
+            {
+                lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
+                url.m_Path = ((ResolvePathCallback)lua_touserdata(L, -1))(L, path, path_size);
+                lua_pop(L, 1);
+            }
+            if (fragment_size > 0)
+            {
+                url.m_Fragment = dmHashBuffer64(fragment, fragment_size);
             }
         }
         else if (top == 3)
@@ -299,7 +335,17 @@ namespace dmScript
             {
                 if (lua_isstring(L, 2))
                 {
-                    url.m_Path = dmHashString64(lua_tostring(L, 2));
+                    const char* path = lua_tostring(L, 2);
+                    if (lua_isnil(L, 1))
+                    {
+                        lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
+                        url.m_Path = ((ResolvePathCallback)lua_touserdata(L, -1))(L, path, strlen(path));
+                        lua_pop(L, 1);
+                    }
+                    else
+                    {
+                        url.m_Path = dmHashString64(path);
+                    }
                 }
                 else
                 {
@@ -334,46 +380,70 @@ namespace dmScript
         dmMessage::URL sender;
         dmMessage::URL receiver;
 
-        if (lua_isstring(L, 2))
+        lua_getglobal(L, SCRIPT_GET_URL_CALLBACK);
+        ((GetURLCallback)lua_touserdata(L, -1))(L, &sender);
+        lua_pop(L, 1);
+
+        if (lua_isstring(L, 1))
         {
-            const char* url = lua_tostring(L, 2);
-            dmMessage::Result result = dmMessage::ParseURL(url, &receiver);
+            const char* url = lua_tostring(L, 1);
+            const char* socket;
+            uint32_t socket_size;
+            const char* path;
+            uint32_t path_size;
+            const char* fragment;
+            uint32_t fragment_size;
+            dmMessage::Result result = dmMessage::ParseURL(url, &socket, &socket_size, &path, &path_size, &fragment, &fragment_size);
             if (result != dmMessage::RESULT_OK)
             {
-                const char* error = "Could not send message to %s because %s.";
-                switch (result)
+                if (result == dmMessage::RESULT_MALFORMED_URL)
                 {
-                    case dmMessage::RESULT_SOCKET_NOT_FOUND:
-                        return luaL_error(L, error, url, "the socket could not be found");
-                    case dmMessage::RESULT_INVALID_SOCKET_NAME:
-                        return luaL_error(L, error, url, "the socket name is invalid");
-                    case dmMessage::RESULT_MALFORMED_URL:
-                        return luaL_error(L, error, url, "the address is invalid (should be [socket:][path][#fragment])");
-                    default:
-                        break;
+                    return luaL_error(L, "Could not send message to '%s' because the address is invalid (should be [socket:][path][#fragment]).", url);
+                }
+                else
+                {
+                    return luaL_error(L, "Error when parsing the URL '%s': %d.", url, result);
                 }
             }
+            if (socket_size > 0)
+            {
+                assert(socket_size < 64);
+                char socket_name[64];
+                dmStrlCpy(socket_name, socket, socket_size + 1);
+                result = dmMessage::GetSocket(socket_name, &receiver.m_Socket);
+                if (result != dmMessage::RESULT_OK)
+                {
+                    switch (result)
+                    {
+                        case dmMessage::RESULT_INVALID_SOCKET_NAME:
+                            return luaL_error(L, "The socket name '%s' is invalid.", socket_name);
+                        case dmMessage::RESULT_SOCKET_NOT_FOUND:
+                            return luaL_error(L, "The socket '%s' could not be found.", socket_name);
+                        default:
+                            return luaL_error(L, "Error when checking socket '%s': %d.", socket_name, result);
+                    }
+                }
+                receiver.m_Path = dmHashBuffer64(path, path_size);
+            }
+            else
+            {
+                receiver.m_Socket = sender.m_Socket;
+                receiver.m_Path = sender.m_Path;
+            }
+            receiver.m_Fragment = dmHashBuffer64(fragment, fragment_size);
         }
         else
         {
-            receiver = *CheckURL(L, 2);
-        }
-        lua_getglobal(L, SCRIPT_GET_URLS_CALLBACK);
-        SetURLsCallback callback = (SetURLsCallback)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        assert(callback != 0x0);
-        if (!callback(L, 1, &sender, &receiver))
-        {
-            return luaL_error(L, "The self reference is invalid.");
+            receiver = *CheckURL(L, 1);
         }
         dmhash_t message_id;
-        if (lua_isstring(L, 3))
+        if (lua_isstring(L, 2))
         {
-            message_id = dmHashString64(lua_tostring(L, 3));
+            message_id = dmHashString64(lua_tostring(L, 2));
         }
         else
         {
-            message_id = CheckHash(L, 3);
+            message_id = CheckHash(L, 2);
         }
 
         uintptr_t descriptor = 0;
@@ -381,7 +451,7 @@ namespace dmScript
         char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
-        if (top > 3)
+        if (top > 2)
         {
             lua_getglobal(L, SCRIPT_CONTEXT);
             HContext context = (HContext)lua_touserdata(L, -1);
@@ -394,15 +464,15 @@ namespace dmScript
                 {
                     return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", (*desc)->m_Size, MAX_MESSAGE_DATA_SIZE);
                 }
-                luaL_checktype(L, 4, LUA_TTABLE);
+                luaL_checktype(L, 3, LUA_TTABLE);
 
-                lua_pushvalue(L, 4);
-                data_size = dmScript::CheckDDF(L, *desc, data, MAX_MESSAGE_DATA_SIZE, 4);
+                lua_pushvalue(L, 3);
+                data_size = dmScript::CheckDDF(L, *desc, data, MAX_MESSAGE_DATA_SIZE, 3);
                 lua_pop(L, 1);
             }
             else
             {
-                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 4);
+                data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
             }
         }
 
