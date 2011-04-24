@@ -384,7 +384,11 @@ namespace dmScript
         ((GetURLCallback)lua_touserdata(L, -1))(L, &sender);
         lua_pop(L, 1);
 
-        if (lua_isstring(L, 1))
+        if (lua_isnil(L, 1))
+        {
+            receiver = sender;
+        }
+        else if (lua_isstring(L, 1))
         {
             const char* url = lua_tostring(L, 1);
             const char* socket;

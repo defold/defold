@@ -390,6 +390,22 @@ TEST_F(ScriptMsgTest, TestPost)
 {
     int top = lua_gettop(L);
 
+    // DDF to default socket
+    ASSERT_TRUE(RunString(L,
+        "msg.post(nil, \"sub_msg\", {uint_value = 1})\n"
+        ));
+    uint32_t test_value = 0;
+    ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, &test_value));
+    ASSERT_EQ(1u, test_value);
+
+    // DDF to default socket
+    ASSERT_TRUE(RunString(L,
+        "msg.post(\"\", \"sub_msg\", {uint_value = 1})\n"
+        ));
+    test_value = 0;
+    ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, &test_value));
+    ASSERT_EQ(1u, test_value);
+
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
 
@@ -397,7 +413,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_TRUE(RunString(L,
         "msg.post(\"socket:\", \"sub_msg\", {uint_value = 1})\n"
         ));
-    uint32_t test_value = 0;
+    test_value = 0;
     dmMessage::Dispatch(socket, DispatchCallbackDDF, &test_value);
     ASSERT_EQ(1u, test_value);
 
