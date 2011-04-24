@@ -98,6 +98,7 @@
         <module>../com.dynamo.cr.server</module>
         <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.client</module>
+        <module>../com.dynamo.cr.client.test</module>
     </modules>
 
 </project>
