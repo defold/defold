@@ -10,6 +10,11 @@ import com.sun.jersey.api.client.WebResource;
 public class BaseClient {
     protected Client client;
     protected WebResource resource;
+    protected IClientFactory factory;
+
+    public BaseClient(IClientFactory factory) {
+        this.factory = factory;
+    }
 
     protected void throwRespositoryException(ClientResponse resp) throws RepositoryException {
         throw new RepositoryException(resp.toString() + "\n" + resp.getEntity(String.class), resp.getClientResponseStatus().getStatusCode());

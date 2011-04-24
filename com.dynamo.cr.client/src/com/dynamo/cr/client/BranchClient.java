@@ -15,7 +15,8 @@ import com.sun.jersey.api.client.WebResource;
 public class BranchClient extends BaseClient implements IBranchClient {
 
     // NOTE: Only public for package
-    BranchClient(URI uri, Client client) {
+    BranchClient(IClientFactory factory, URI uri, Client client) {
+        super(factory);
         this.resource = client.resource(uri);
     }
 

@@ -12,7 +12,8 @@ public class ProjectsClient extends BaseClient implements IProjectsClient {
     private URI uri;
 
     // NOTE: Only public for package
-    ProjectsClient(URI uri, Client client) {
+    ProjectsClient(IClientFactory factory, URI uri, Client client) {
+        super(factory);
         this.uri = uri;
         this.client = client;
         resource = client.resource(uri);
@@ -26,7 +27,6 @@ public class ProjectsClient extends BaseClient implements IProjectsClient {
     @Override
     public IProjectClient getProjectClient(long projectId) {
         URI newUri = UriBuilder.fromUri(uri).path("/" + projectId).build();
-        return new ProjectClient(newUri, client);
+        return new ProjectClient(factory, newUri, client);
     }
-
 }

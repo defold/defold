@@ -22,7 +22,8 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     private long projectId;
 
     // NOTE: Only public for package
-    ProjectClient(URI uri, Client client) {
+    ProjectClient(IClientFactory factory, URI uri, Client client) {
+        super(factory);
         this.uri = uri;
         this.client = client;
         String[] tmp = uri.getPath().split("/");
@@ -60,7 +61,7 @@ public class ProjectClient extends BaseClient implements IProjectClient {
 
     @Override
     public BranchClient getBranchClient(String branch) {
-        return new BranchClient(UriBuilder.fromUri(uri).path("/branches/" + branch).build(), client);
+        return new BranchClient(factory, UriBuilder.fromUri(uri).path("/branches/" + branch).build(), client);
     }
 
     @Override
