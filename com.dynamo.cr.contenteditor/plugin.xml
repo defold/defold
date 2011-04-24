@@ -134,6 +134,13 @@
             </class>
          </state>
       </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.contenteditor.commands.Cut"
+            description="Cut"
+            id="com.dynamo.cr.contenteditor.commands.cut"
+            name="Cut">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -440,6 +447,23 @@
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.Cut"
+            commandId="org.eclipse.ui.edit.cut">
+         <activeWhen>
+            <with
+                  variable="activePartId">
+               <or>
+                  <equals
+                        value="org.eclipse.ui.views.ContentOutline">
+                  </equals>
+                  <equals
+                        value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
+                  </equals>
+               </or>
+            </with>
          </activeWhen>
       </handler>
    </extension>

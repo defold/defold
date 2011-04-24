@@ -69,10 +69,9 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
             if (loader == null)
                 throw new CreateException("No support for loading " + path);
 
-            InputStream stream = file.getContents();
             // avoid inifinite recursion
             resources.put(projectPath, null);
-            Resource resource = loader.load(monitor, path, stream, this);
+            Resource resource = loader.load(monitor, path, in, this);
             resources.put(projectPath, resource);
             return resource;
         }
