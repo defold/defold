@@ -123,13 +123,17 @@ namespace dmMessage
     /**
      * Convert a string to a URL struct
      * @param uri string of the format [socket:][path][#fragment]
-     * @param out_uri URL struct as out parameter
+     * @param socket Socket out parameter, must not be 0x0
+     * @param socket_size Socket size out parameter, must not be 0x0
+     * @param path Path out parameter, must not be 0x0
+     * @param path_size Path size out parameter, must not be 0x0
+     * @param fragment Fragment out parameter, must not be 0x0
+     * @param fragment_size Fragment size out parameter, must not be 0x0
      * @return
      * - RESULT_OK on success
      * - RESULT_MALFORMED_URL if the uri could not be parsed
-     * - RESULT_SOCKET_NOT_FOUND if the socket in the uri could not be found
      */
-    Result ParseURL(const char* uri, URL* out_uri);
+    Result ParseURL(const char* uri, const char** out_socket, uint32_t* out_socket_size, const char** out_path, uint32_t* out_path_size, const char** out_fragment, uint32_t* out_fragment_size);
 };
 
 #endif // DM_MESSAGE_H

@@ -69,39 +69,44 @@ TEST(dmMessage, Post)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
-TEST(dmMessage, URL)
+TEST(dmMessage, ParseURL)
 {
-    dmMessage::HSocket socket;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
-    dmMessage::URL uri;
-    dmMessage::URL null_uri;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL(0x0, &uri));
-    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URL)));
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("", &uri));
-    ASSERT_EQ((void*)0x0, (void*)uri.m_Socket);
-    ASSERT_EQ(dmHashString64(""), uri.m_Path);
-    ASSERT_EQ(0U, uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("socket:", &uri));
-    ASSERT_EQ(socket, uri.m_Socket);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("path", &uri));
-    ASSERT_EQ(dmHashString64("path"), uri.m_Path);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#fragment", &uri));
-    ASSERT_EQ(dmHashString64("fragment"), uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("socket:path#fragment", &uri));
-    ASSERT_EQ(socket, uri.m_Socket);
-    ASSERT_EQ(dmHashString64("path"), uri.m_Path);
-    ASSERT_EQ(dmHashString64("fragment"), uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#", &uri));
-    ASSERT_EQ(dmHashString64(""), uri.m_Path);
-    ASSERT_EQ(dmHashString64(""), uri.m_Fragment);
-    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket:path:fragment", &uri));
-    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URL)));
-    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket#path#fragment", &uri));
-    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket#path:fragment", &uri));
-    ASSERT_EQ(dmMessage::RESULT_SOCKET_NOT_FOUND, dmMessage::ParseURL("socket2:path", &uri));
-    ASSERT_EQ(0, memcmp(&uri, &null_uri, sizeof(dmMessage::URL)));
-    ASSERT_EQ(dmMessage::RESULT_INVALID_SOCKET_NAME, dmMessage::ParseURL(":path", &uri));
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+    dmMessage::HSocket tmp_socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &tmp_socket));
+    const char* socket;
+    uint32_t socket_size;
+    const char* path;
+    uint32_t path_size;
+    const char* fragment;
+    uint32_t fragment_size;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL(0x0, &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ((void*)0, (void*)socket);
+    ASSERT_EQ(0u, socket_size);
+    ASSERT_EQ((void*)0, (void*)path);
+    ASSERT_EQ(0u, path_size);
+    ASSERT_EQ((void*)0, (void*)fragment);
+    ASSERT_EQ(0u, fragment_size);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ((void*)0, (void*)socket);
+    ASSERT_EQ(0, *path);
+    ASSERT_EQ((void*)0, fragment);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("socket:", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(0, strncmp("socket", socket, socket_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("path", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(0, strncmp("path", path, path_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#fragment", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(0, strncmp("fragment", fragment, fragment_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("socket:path#fragment", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(0, strncmp("socket", socket, socket_size));
+    ASSERT_EQ(0, strncmp("path", path, path_size));
+    ASSERT_EQ(0, strncmp("fragment", fragment, fragment_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::ParseURL("#", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(0, strncmp("", path, path_size));
+    ASSERT_EQ(0, strncmp("", fragment, fragment_size));
+    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket:path:fragment", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket#path#fragment", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(dmMessage::RESULT_MALFORMED_URL, dmMessage::ParseURL("socket#path:fragment", &socket, &socket_size, &path, &path_size, &fragment, &fragment_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(tmp_socket));
 }
 
 TEST(dmMessage, Bench)

@@ -107,8 +107,6 @@ namespace dmMessage
     dmArray<MessageSocket> g_Sockets;
     dmIndexPool16 g_SocketPool;
 
-    HSocket GetSocket(const char *name);
-
     Result NewSocket(const char* name, HSocket* socket)
     {
         if (!g_Initialized)
@@ -347,14 +345,20 @@ namespace dmMessage
         return Dispatch(socket, &ConsumeCallback, 0);
     }
 
-    Result ParseURL(const char* uri, URL* out_uri)
+    Result ParseURL(const char* uri, const char** out_socket, uint32_t* out_socket_size, const char** out_path, uint32_t* out_path_size, const char** out_fragment, uint32_t* out_fragment_size)
     {
         if (uri == 0x0)
         {
-            *out_uri = URL();
+            *out_socket = 0x0;
+            *out_socket_size = 0;
+            *out_path = 0x0;
+            *out_path_size = 0;
+            *out_fragment = 0x0;
+            *out_fragment_size = 0;
             return RESULT_OK;
         }
-        dmMessage::HSocket socket = 0;
+        const char* socket = 0x0;
+        uint32_t socket_size = 0;
         const char* path = uri;
         uint32_t path_size = 0;
         const char* fragment = 0x0;
@@ -378,18 +382,12 @@ namespace dmMessage
             {
                 return RESULT_MALFORMED_URL;
             }
-            uint32_t socket_size = socket_end - uri;
+            socket_size = socket_end - uri;
             if (socket_size >= 64)
             {
                 return RESULT_MALFORMED_URL;
             }
-            char socket_name[64];
-            dmStrlCpy(socket_name, uri, socket_size + 1);
-            Result result = GetSocket(socket_name, &socket);
-            if (result != RESULT_OK)
-            {
-                return result;
-            }
+            socket = uri;
             path = socket_end + 1;
         }
         if (fragment_start != 0x0)
@@ -402,9 +400,12 @@ namespace dmMessage
         {
             path_size = strlen(uri) - (path - uri);
         }
-        out_uri->m_Socket = socket;
-        out_uri->m_Path = dmHashBuffer64(path, path_size);
-        out_uri->m_Fragment = dmHashBuffer64(fragment, fragment_size);
+        *out_socket = socket;
+        *out_socket_size = socket_size;
+        *out_path = path;
+        *out_path_size = path_size;
+        *out_fragment = fragment;
+        *out_fragment_size = fragment_size;
         return RESULT_OK;
     }
 }
