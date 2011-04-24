@@ -120,34 +120,14 @@ namespace dmGameObject
     int Script_GetPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        HInstance instance = i->m_Instance;
-        if (lua_gettop(L) > 1)
-        {
-            dmhash_t id = 0;
-            if (lua_isstring(L, 2))
-                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
-            else
-                id = dmScript::CheckHash(L, 2);
-            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
-        }
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(instance)));
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(i->m_Instance)));
         return 1;
     }
 
     int Script_GetRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        HInstance instance = i->m_Instance;
-        if (lua_gettop(L) > 1)
-        {
-            dmhash_t id = 0;
-            if (lua_isstring(L, 2))
-                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
-            else
-                id = dmScript::CheckHash(L, 2);
-            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
-        }
-        dmScript::PushQuat(L, dmGameObject::GetRotation(instance));
+        dmScript::PushQuat(L, dmGameObject::GetRotation(i->m_Instance));
         return 1;
     }
 
@@ -170,34 +150,14 @@ namespace dmGameObject
     int Script_GetWorldPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        HInstance instance = i->m_Instance;
-        if (lua_gettop(L) > 1)
-        {
-            dmhash_t id = 0;
-            if (lua_isstring(L, 2))
-                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
-            else
-                id = dmScript::CheckHash(L, 2);
-            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
-        }
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(instance)));
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(i->m_Instance)));
         return 1;
     }
 
     int Script_GetWorldRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L, 1);
-        HInstance instance = i->m_Instance;
-        if (lua_gettop(L) > 1)
-        {
-            dmhash_t id = 0;
-            if (lua_isstring(L, 2))
-                id = GetAbsoluteIdentifier(i->m_Instance, luaL_checkstring(L, 2));
-            else
-                id = dmScript::CheckHash(L, 2);
-            instance = GetInstanceFromIdentifier(i->m_Instance->m_Collection, id);
-        }
-        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(instance));
+        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(i->m_Instance));
         return 1;
     }
 
@@ -207,7 +167,7 @@ namespace dmGameObject
         if (lua_gettop(L) > 1)
         {
             const char* ident = luaL_checkstring(L, 2);
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident)));
         }
         else
         {
@@ -231,41 +191,27 @@ namespace dmGameObject
         return 0;
     }
 
-    bool SetURLsCallback(lua_State* L, int index, dmMessage::URL* sender, dmMessage::URL* receiver)
+    void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, index);
+        lua_pushliteral(L, "__script_instance__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
 
-        if (receiver->m_Socket == 0)
-        {
-            receiver->m_Socket = i->m_Instance->m_Collection->m_Socket;
-            if (receiver->m_Path != 0)
-            {
-                receiver->m_UserData = (uintptr_t)GetInstanceFromIdentifier(i->m_Instance->m_Collection, receiver->m_Path);
-                if (receiver->m_UserData == 0)
-                {
-                    return luaL_error(L, "The instance could not be found.");
-                }
-            }
-            else
-            {
-                receiver->m_Path = i->m_Instance->m_Identifier;
-                receiver->m_UserData = (uintptr_t)i->m_Instance;
-                if (receiver->m_Fragment != 0)
-                {
-                    uint8_t component_index;
-                    Result result = GetComponentIndex(i->m_Instance, receiver->m_Fragment, &component_index);
-                    if (result != RESULT_OK)
-                    {
-                        return luaL_error(L, "The component could not be found.");
-                    }
-                }
-            }
-        }
-        sender->m_Socket = i->m_Instance->m_Collection->m_Socket;
-        sender->m_Path = i->m_Instance->m_Identifier;
-        sender->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
-        sender->m_UserData = (uintptr_t)i->m_Instance;
-        return true;
+        url->m_Socket = i->m_Instance->m_Collection->m_Socket;
+        url->m_Path = i->m_Instance->m_Identifier;
+        url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+        url->m_UserData = (uintptr_t)i->m_Instance;
+    }
+
+    dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
+    {
+        lua_pushliteral(L, "__script_instance__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        return dmGameObject::GetAbsoluteIdentifier(i->m_Instance, path, path_size);
     }
 
     static const luaL_reg Script_methods[] =
@@ -314,7 +260,8 @@ namespace dmGameObject
 
         dmScript::ScriptParams params;
         params.m_Context = context;
-        params.m_SetURLsCallback = SetURLsCallback;
+        params.m_GetURLCallback = GetURLCallback;
+        params.m_ResolvePathCallback = ResolvePathCallback;
         dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));

@@ -870,18 +870,18 @@ namespace dmGameObject
         return instance->m_Identifier;
     }
 
-    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id)
+    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id, uint32_t id_size)
     {
         // check for global id (/foo/bar)
         if (*id == *ID_SEPARATOR)
         {
-            return dmHashString64(&id[1]);
+            return dmHashBuffer64(&id[1], id_size - 1);
         }
         else
         {
             // Make a copy of the state.
             HashState64 tmp_state = instance->m_CollectionPathHashState;
-            dmHashUpdateBuffer64(&tmp_state, id, strlen(id));
+            dmHashUpdateBuffer64(&tmp_state, id, id_size);
             return dmHashFinal64(&tmp_state);
         }
     }

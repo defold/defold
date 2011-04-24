@@ -174,7 +174,8 @@ TEST_F(ScriptTest, TestFailingScript05)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go5.goc");
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
-    ASSERT_FALSE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, 0x0));
     dmGameObject::Delete(m_Collection, go);
 }
 

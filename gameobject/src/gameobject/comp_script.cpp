@@ -85,8 +85,8 @@ namespace dmGameObject
             lua_pushlightuserdata(L, (void*) update_context);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
-            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_pushliteral(L, "__script_instance__");
+            lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
@@ -116,7 +116,7 @@ namespace dmGameObject
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
+            lua_pushliteral(L, "__script_instance__");
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -216,8 +216,8 @@ namespace dmGameObject
             lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
-            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_pushliteral(L, "__script_instance__");
+            lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
@@ -263,7 +263,7 @@ namespace dmGameObject
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
+            lua_pushliteral(L, "__script_instance__");
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -289,8 +289,8 @@ namespace dmGameObject
             lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
-            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_pushliteral(L, "__script_instance__");
+            lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
@@ -347,7 +347,7 @@ namespace dmGameObject
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
+            lua_pushliteral(L, "__script_instance__");
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -371,8 +371,8 @@ namespace dmGameObject
             lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
-            lua_pushlightuserdata(L, (void*) script_instance->m_Instance);
+            lua_pushliteral(L, "__script_instance__");
+            lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
@@ -390,7 +390,7 @@ namespace dmGameObject
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
-            lua_pushliteral(L, "__instance__");
+            lua_pushliteral(L, "__script_instance__");
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 

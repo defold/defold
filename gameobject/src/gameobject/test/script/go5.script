@@ -1,3 +1,3 @@
 function init(self)
-    msg.post(self, "#missing_component_id", "test_message")
+    msg.post("#missing_component_id", "test_message")
 end
