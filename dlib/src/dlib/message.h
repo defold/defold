@@ -34,7 +34,6 @@ namespace dmMessage
         HSocket     m_Socket;       //! Socket
         dmhash_t    m_Path;         //! Path of the receiver
         dmhash_t    m_Fragment;     //! Fragment of the receiver
-        uintptr_t   m_UserData;     //! User data
     };
 
     /**
