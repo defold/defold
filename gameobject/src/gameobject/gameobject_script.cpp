@@ -201,7 +201,6 @@ namespace dmGameObject
         url->m_Socket = i->m_Instance->m_Collection->m_Socket;
         url->m_Path = i->m_Instance->m_Identifier;
         url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
-        url->m_UserData = (uintptr_t)i->m_Instance;
     }
 
     dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)

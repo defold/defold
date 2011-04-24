@@ -176,11 +176,11 @@ TEST_F(MessageTest, TestPostNamedTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
     ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
     dmhash_t message_id = POST_NAMED_TO_INST_ID;
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
-    receiver.m_UserData = (uintptr_t)instance;
     receiver.m_Fragment = dmHashString64("script");
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0x0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -189,12 +189,13 @@ TEST_F(MessageTest, TestPostNamedTo)
 TEST_F(MessageTest, TestPostDDFTo)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
     TestGameObjectDDF::TestMessage ddf;
     ddf.m_TestUint32 = 2;
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(instance);
-    receiver.m_UserData = (uintptr_t)instance;
     receiver.m_Fragment = dmHashString64("script");
     uintptr_t descriptor = (uintptr_t)TestGameObjectDDF::TestMessage::m_DDFDescriptor;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmHashString64(TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_Name), descriptor, &ddf, sizeof(TestGameObjectDDF::TestMessage)));
@@ -214,6 +215,7 @@ TEST_F(MessageTest, TestComponentMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
@@ -221,12 +223,10 @@ TEST_F(MessageTest, TestComponentMessage)
     dmMessage::URL sender;
     sender.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     sender.m_Path = dmGameObject::GetIdentifier(go);
-    sender.m_UserData = (uintptr_t)go;
     sender.m_Fragment = dmHashString64("script");
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
-    receiver.m_UserData = (uintptr_t)go;
     receiver.m_Fragment = dmHashString64("mt");
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0x0, 0));
@@ -251,12 +251,10 @@ TEST_F(MessageTest, TestComponentMessageFail)
     dmMessage::URL sender;
     sender.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     sender.m_Path = dmGameObject::GetIdentifier(go);
-    sender.m_UserData = (uintptr_t)go;
     sender.m_Fragment = dmHashString64("script");
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
-    receiver.m_UserData = (uintptr_t)go;
     receiver.m_Fragment = dmHashString64("apa");
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0x0, 0));
@@ -284,6 +282,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_broadcast_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
@@ -291,7 +290,6 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
-    receiver.m_UserData = (uintptr_t)go;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0x0, 0));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
     ASSERT_EQ(2U, m_MessageTargetCounter);

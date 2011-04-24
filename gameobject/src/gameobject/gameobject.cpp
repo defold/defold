@@ -931,11 +931,7 @@ namespace dmGameObject
     {
         DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
 
-        Instance* instance = (Instance*)message->m_Receiver.m_UserData;
-        if (instance == 0x0)
-        {
-            instance = GetInstanceFromIdentifier(context->m_Collection, message->m_Receiver.m_Path);
-        }
+        Instance* instance = GetInstanceFromIdentifier(context->m_Collection, message->m_Receiver.m_Path);
         if (instance == 0x0)
         {
             // TODO: hash to string
