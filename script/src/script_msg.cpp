@@ -336,7 +336,7 @@ namespace dmScript
                 if (lua_isstring(L, 2))
                 {
                     const char* path = lua_tostring(L, 2);
-                    if (lua_isnil(L, 1))
+                    if (lua_isnil(L, 1) || (lua_isstring(L, 1) && *lua_tostring(L, 1) == '\0'))
                     {
                         lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
                         url.m_Path = ((ResolvePathCallback)lua_touserdata(L, -1))(L, path, strlen(path));
