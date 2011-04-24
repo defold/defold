@@ -29,8 +29,9 @@ namespace dmGui
 
     struct Context
     {
-        lua_State*         m_LuaState;
-        dmMessage::HSocket m_Socket;
+        lua_State*          m_LuaState;
+        GetURLCallback      m_GetURLCallback;
+        ResolvePathCallback m_ResolvePathCallback;
     };
 
     struct InternalNode

@@ -42,9 +42,13 @@ extern uint32_t BUG352_LUA_SIZE;
 #define MAX_NODES 64U
 #define MAX_ANIMATIONS 32U
 
+void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
+
+dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+
 class dmGuiTest : public ::testing::Test
 {
-protected:
+public:
     dmScript::HContext m_ScriptContext;
     dmGui::HContext m_Context;
     dmGui::HScene m_Scene;
@@ -59,12 +63,14 @@ protected:
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
-        context_params.m_Socket = m_Socket;
+        context_params.m_GetURLCallback = GetURLCallback;
+        context_params.m_ResolvePathCallback = ResolvePathCallback;
 
         m_Context = dmGui::NewContext(&context_params);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
+        params.m_UserData = this;
         m_Scene = dmGui::NewScene(m_Context, &params);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
@@ -79,6 +85,17 @@ protected:
         dmScript::DeleteContext(m_ScriptContext);
     }
 };
+
+void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
+{
+    dmGuiTest* test = (dmGuiTest*)dmGui::GetSceneUserData(scene);
+    url->m_Socket = test->m_Socket;
+}
+
+dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+{
+    return dmHashBuffer64(path, path_size);
+}
 
 TEST_F(dmGuiTest, Basic)
 {

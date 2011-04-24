@@ -417,7 +417,6 @@ namespace dmGui
     void SetDefaultNewContextParams(NewContextParams* params)
     {
         memset(params, 0, sizeof(*params));
-        params->m_MaxMessageDataSize = 128;
     }
 
 #define REGGETSET(name, luaname) \
@@ -447,18 +446,20 @@ namespace dmGui
 
 #undef REGGETSET
 
-    dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
-    {
-        return dmHashBuffer64(path, path_size);
-    }
-
-    void GetURLCallback(lua_State* L, dmMessage::URL* url)
+    dmhash_t ScriptResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
     {
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
-        url->m_Socket = scene->m_Context->m_Socket;
-        url->m_UserData = (uintptr_t)scene;
+        return scene->m_Context->m_ResolvePathCallback(scene, path, path_size);
+    }
+
+    void ScriptGetURLCallback(lua_State* L, dmMessage::URL* url)
+    {
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        scene->m_Context->m_GetURLCallback(scene, url);
     }
 
     lua_State* InitializeScript(dmScript::HContext script_context)
@@ -470,8 +471,8 @@ namespace dmGui
 
         dmScript::ScriptParams params;
         params.m_Context = script_context;
-        params.m_GetURLCallback = GetURLCallback;
-        params.m_ResolvePathCallback = ResolvePathCallback;
+        params.m_GetURLCallback = ScriptGetURLCallback;
+        params.m_ResolvePathCallback = ScriptResolvePathCallback;
         dmScript::Initialize(L, params);
 
         luaL_register(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods);   // create methods table, add it to the globals

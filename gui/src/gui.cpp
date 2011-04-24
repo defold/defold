@@ -45,15 +45,10 @@ namespace dmGui
 
     HContext NewContext(const NewContextParams* params)
     {
-        if (params->m_MaxMessageDataSize > MAX_MESSAGE_DATA_SIZE)
-        {
-            dmLogError("m_MaxMessageDataSize > %d", MAX_MESSAGE_DATA_SIZE);
-            return 0;
-        }
-
         Context* context = new Context();
         context->m_LuaState = InitializeScript(params->m_ScriptContext);
-        context->m_Socket = params->m_Socket;
+        context->m_GetURLCallback = params->m_GetURLCallback;
+        context->m_ResolvePathCallback = params->m_ResolvePathCallback;
 
         return context;
     }
@@ -62,11 +57,6 @@ namespace dmGui
     {
         FinalizeScript(context->m_LuaState);
         delete context;
-    }
-
-    dmMessage::HSocket GetSocket(HContext context)
-    {
-        return context->m_Socket;
     }
 
     void SetDefaultNewSceneParams(NewSceneParams* params)

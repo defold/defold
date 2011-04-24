@@ -41,14 +41,17 @@ namespace dmGui
         }
     };
 
+    typedef void (*GetURLCallback)(HScene scene, dmMessage::URL* url);
+    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path, uint32_t path_size);
+
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
     struct NewContextParams
     {
         dmScript::HContext m_ScriptContext;
-        dmMessage::HSocket m_Socket;
-        uint32_t           m_MaxMessageDataSize;
+        GetURLCallback m_GetURLCallback;
+        ResolvePathCallback m_ResolvePathCallback;
 
         NewContextParams()
         {
@@ -147,8 +150,6 @@ namespace dmGui
     HContext NewContext(const NewContextParams* params);
 
     void DeleteContext(HContext context);
-
-    dmMessage::HSocket GetSocket(HContext context);
 
     HScene NewScene(HContext context, const NewSceneParams* params);
 
