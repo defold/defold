@@ -40,6 +40,8 @@ import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 
 import com.dynamo.cr.client.ClientFactory;
+import com.dynamo.cr.client.ClientUtils;
+import com.dynamo.cr.client.DelegatingClientFactory;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
@@ -207,7 +209,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         String usersUriString = String.format("%s/users", baseUriString);
 
         Client client = Client.create(cc);
-        factory = new ClientFactory(client);
+        factory = new DelegatingClientFactory(new ClientFactory(client));
         RepositoryFileSystemPlugin.setClientFactory(factory);
         client.addFilter(new HTTPBasicAuthFilter(user, passwd));
 
@@ -267,7 +269,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
         this.projectClient = projectClient;
-        this.branchClient = projectClient.getBranchClient(branch);
+        URI uri = ClientUtils.getBranchUri(projectClient, branch);
+        this.branchClient = projectClient.getClientFactory().getBranchClient(uri);
         activeBranch = branch;
 
         try {

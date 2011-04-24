@@ -32,7 +32,7 @@ public class DelegatingClientFactory implements IClientFactory {
         if (path.endsWith("/")) {
             path = path.substring(0, path.lastIndexOf('/'));
         }
-        return UriBuilder.fromUri(uri).path(path).build();
+        return UriBuilder.fromUri(uri).replacePath(path).build();
     }
 
     @Override

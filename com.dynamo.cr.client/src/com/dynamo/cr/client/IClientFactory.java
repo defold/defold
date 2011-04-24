@@ -35,7 +35,7 @@ public interface IClientFactory {
 
     /**
      * Get {@link IBranchClient} from uri
-     * @param uri URI to get {@link IBranchClient} from
+     * @param uri URI to get {@link IUsersClient} from
      * @return A new {@link IBranchClient}
      */
     public IUsersClient getUsersClient(URI uri);

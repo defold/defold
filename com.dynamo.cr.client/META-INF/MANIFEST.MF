@@ -5,5 +5,7 @@ Bundle-SymbolicName: com.dynamo.cr.client
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0"
+Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
+ com.google.common;bundle-version="0.0.9",
+ org.eclipse.core.runtime;bundle-version="3.6.0"
 Export-Package: com.dynamo.cr.client

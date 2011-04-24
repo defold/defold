@@ -16,7 +16,7 @@ public class BranchClient extends BaseClient implements IBranchClient {
 
     // NOTE: Only public for package
     BranchClient(IClientFactory factory, URI uri, Client client) {
-        super(factory);
+        super(factory, uri);
         this.resource = client.resource(uri);
     }
 
@@ -173,11 +173,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
     @Override
     public void publish() throws RepositoryException {
         wrapPost("publish");
-    }
-
-    @Override
-    public URI getURI() {
-        return resource.getURI();
     }
 
     @Override

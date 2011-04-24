@@ -1,10 +1,12 @@
 package com.dynamo.cr.editor.wizards;
 
+import java.net.URI;
 import java.util.Collection;
 
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
 
+import com.dynamo.cr.client.ClientUtils;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -20,10 +22,8 @@ public class ConnectionWizardProjectsPagePresenter {
         String getErrorMessage();
 
         void setProjectsNames(Collection<ProjectInfo> projectNames);
-        //String[] getProjectNames();
         void setPageComplete(boolean pageComplete);
         boolean isPageComplete();
-        //void setSelected(String name);
         Shell getShell();
     }
 
@@ -38,7 +38,8 @@ public class ConnectionWizardProjectsPagePresenter {
 
     public void onSelectProject(ProjectInfo projectInfo) {
         if (projectInfo != null) {
-            IProjectClient projectClient = client.getProjectClient(projectInfo.getId());
+            URI uri = ClientUtils.getProjectUri(client, projectInfo.getId());
+            IProjectClient projectClient = client.getClientFactory().getProjectClient(uri);
             branchPresenter.setProjectResourceClient(projectClient);
             display.setPageComplete(canFinish());
         }

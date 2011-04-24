@@ -1,19 +1,23 @@
 package com.dynamo.cr.client;
 
 
+import java.net.URI;
+
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
 
-public class BaseClient {
+public class BaseClient implements IClient {
     protected Client client;
     protected WebResource resource;
     protected IClientFactory factory;
+    protected URI uri;
 
-    public BaseClient(IClientFactory factory) {
+    public BaseClient(IClientFactory factory, URI uri) {
         this.factory = factory;
+        this.uri = uri;
     }
 
     protected void throwRespositoryException(ClientResponse resp) throws RepositoryException {
@@ -99,6 +103,16 @@ public class BaseClient {
         catch (ClientHandlerException e) {
             throwRespositoryException(e);
         }
+    }
+
+    @Override
+    public IClientFactory getClientFactory() {
+        return factory;
+    }
+
+    @Override
+    public URI getURI() {
+        return uri;
     }
 
 }

@@ -8,7 +8,7 @@ import com.sun.jersey.api.client.Client;
 public class UsersClient extends BaseClient implements IUsersClient {
 
     public UsersClient(IClientFactory factory, URI uri, Client client) {
-        super(factory);
+        super(factory, uri);
         this.client = client;
         resource = client.resource(uri);
     }

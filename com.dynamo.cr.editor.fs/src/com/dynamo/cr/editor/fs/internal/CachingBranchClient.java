@@ -12,6 +12,7 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
@@ -168,6 +169,11 @@ public class CachingBranchClient implements IBranchClient {
     @Override
     public BuildLog getBuildLogs(int id) throws RepositoryException {
         return client.getBuildLogs(id);
+    }
+
+    @Override
+    public IClientFactory getClientFactory() {
+        return client.getClientFactory();
     }
 
     @Override
