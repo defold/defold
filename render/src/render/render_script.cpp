@@ -808,7 +808,6 @@ namespace dmRender
         RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
         url->m_Socket = i->m_RenderContext->m_Socket;
-        url->m_UserData = (uintptr_t)i;
     }
 
     dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
