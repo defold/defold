@@ -1,9 +1,9 @@
 function update(self)
-    msg.post(self, "@system:", "game_object_transform_query", { game_object_id = go.get_id(self, "target") })
+    msg.post("@system:", "game_object_transform_query", { game_object_id = go.get_id(self, "target") })
     if self.target_pos then
         local pos = go.get_position(self)
         local dir = vmath.normalize(self.target_pos - pos)
-        msg.post(self, "#bullet_spawner", "spawn_object", {position = pos, rotation = vmath.quat_from_to(vmath.vector3(1, 0, 0), dir)})
+        msg.post("#bullet_spawner", "spawn_object", {position = pos, rotation = vmath.quat_from_to(vmath.vector3(1, 0, 0), dir)})
     end
 end
 
@@ -12,6 +12,6 @@ function on_message(self, message_id, message)
         assert(message.game_object_id == go.get_id(self, "target"), "invalid id in game object transform result")
         self.target_pos = message.position
     elseif message_id == hash("target_dead") then
-        msg.post(self, "main:main#script", "target_dead")
+        msg.post("main:main#script", "target_dead")
     end
 end

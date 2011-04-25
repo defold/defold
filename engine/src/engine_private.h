@@ -55,7 +55,6 @@ namespace dmEngine
         dmResource::HFactory                        m_Factory;
         dmGameSystem::GuiRenderContext              m_GuiRenderContext;
         dmMessage::HSocket                          m_SystemSocket;
-        dmMessage::HSocket                          m_GuiSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
 
         dmRender::HFontMap                          m_FontMap;

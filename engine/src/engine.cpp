@@ -78,7 +78,7 @@ namespace dmEngine
         }
         else
         {
-            result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &window_resized, data_size);
+            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resized, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
@@ -105,7 +105,6 @@ namespace dmEngine
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
-    , m_GuiSocket(0x0)
     , m_FontMap(0x0)
     , m_SmallFontMap(0x0)
     , m_InputContext(0x0)
@@ -162,8 +161,6 @@ namespace dmEngine
             dmGui::DeleteContext(engine->m_GuiRenderContext.m_GuiContext);
         if (engine->m_SystemSocket)
             dmMessage::DeleteSocket(engine->m_SystemSocket);
-        if (engine->m_GuiSocket)
-            dmMessage::DeleteSocket(engine->m_GuiSocket);
 
         if (engine->m_PhysicsContext.m_Context3D)
         {
@@ -294,14 +291,10 @@ namespace dmEngine
         }
 
         dmGui::NewContextParams gui_params;
-        const char* gui_socket_name = "@gui";
-        mr = dmMessage::NewSocket(gui_socket_name, &engine->m_GuiSocket);
-        if (mr != dmMessage::RESULT_OK)
-        {
-            dmLogFatal("Unable to create gui socket: %s (%d)", gui_socket_name, mr);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-        gui_params.m_Socket = engine->m_GuiSocket;
+        gui_params.m_ScriptContext = engine->m_ScriptContext;
+        gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
+        gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
+        gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         engine->m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiRenderContext.m_RenderContext = engine->m_RenderContext;
 
@@ -535,7 +528,8 @@ bail:
             else if (descriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
             {
                 dmGameObjectDDF::AcquireInputFocus* ddf = (dmGameObjectDDF::AcquireInputFocus*) message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                // TODO: Assumes the sender is the instance acquiring focus, this should be solved in a more robust way (specifying id in the message?)
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
                 dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
                 dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
                 if (instance)
@@ -550,7 +544,7 @@ bail:
             else if (descriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
             {
                 dmGameObjectDDF::ReleaseInputFocus* ddf = (dmGameObjectDDF::ReleaseInputFocus*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
                 dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
                 dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
                 if (instance)
@@ -561,7 +555,7 @@ bail:
             else if (descriptor == dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor)
             {
                 dmGameObjectDDF::GameObjectTransformQuery* pq = (dmGameObjectDDF::GameObjectTransformQuery*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
                 dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
                 dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, pq->m_GameObjectId);
                 if (instance)
@@ -573,7 +567,7 @@ bail:
                     dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_Name);
                     uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
                     uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResult);
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, gotr_descriptor, &result, data_size);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, 0, gotr_descriptor, &result, data_size);
                     if (message_result != dmMessage::RESULT_OK)
                     {
                         dmLogError("Could not send message 'game_object_transform_result' to sender: %d.", message_result);
@@ -587,7 +581,7 @@ bail:
             else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)
             {
                 dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
                 dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
                 dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ChildId);
                 dmGameObject::HInstance parent = 0;
@@ -626,7 +620,7 @@ bail:
             else if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
             {
                 dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_Sender.m_UserData;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
                 uint8_t component_index;
                 dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
                 if (go_result != dmGameObject::RESULT_OK)
