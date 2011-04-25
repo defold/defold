@@ -1545,6 +1545,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void frameObjects() {
+        if (m_ActiveCamera.getType() == Camera.Type.PERSPECTIVE)
+            return;
+
         AABB aabb = new AABB();
 
         if (m_SelectedNodes.length > 0) {
