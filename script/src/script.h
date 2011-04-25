@@ -46,11 +46,19 @@ namespace dmScript
 
     /**
      * Callback used to retrieve url
-     * Implementations of this callback are expected to return a url specified by the lua state.
+     * Implementations of this callback are expected to fill out the url appropriately given the lua state.
      * @param L lua state
      * @param out_url Pointer to the url that should be filled with information
      */
     typedef void (*GetURLCallback)(lua_State* L, dmMessage::URL* out_url);
+
+    /**
+     * Callback used to retrieve message user data
+     * Implementations of this callback are expected to return appropriate user data given the lua state.
+     * @param L lua state
+     * @return User data pointer
+     */
+    typedef uintptr_t (*GetUserDataCallback)(lua_State* L);
 
     /**
      * Parameters to initialize the script context
@@ -62,6 +70,7 @@ namespace dmScript
         HContext m_Context;
         ResolvePathCallback m_ResolvePathCallback;
         GetURLCallback m_GetURLCallback;
+        GetUserDataCallback m_GetUserDataCallback;
     };
 
     /**

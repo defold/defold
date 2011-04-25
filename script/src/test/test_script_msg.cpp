@@ -27,6 +27,14 @@ void GetURLCallback(lua_State* L, dmMessage::URL* url)
     lua_pop(L, 1);
 }
 
+uintptr_t GetUserDataCallback(lua_State* L)
+{
+    lua_getglobal(L, "__default_url");
+    uintptr_t default_url = (uintptr_t)dmScript::CheckURL(L, -1);
+    lua_pop(L, 1);
+    return default_url;
+}
+
 class ScriptMsgTest : public ::testing::Test
 {
 protected:
@@ -40,6 +48,7 @@ protected:
         params.m_Context = m_ScriptContext;
         params.m_ResolvePathCallback = ResolvePathCallback;
         params.m_GetURLCallback = GetURLCallback;
+        params.m_GetUserDataCallback = GetUserDataCallback;
         dmScript::Initialize(L, params);
 
         assert(dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket) == dmMessage::RESULT_OK);

@@ -32,6 +32,7 @@ namespace dmScript
     : m_Context(0x0)
     , m_ResolvePathCallback(0x0)
     , m_GetURLCallback(0x0)
+    , m_GetUserDataCallback(0x0)
     {
 
     }
@@ -51,6 +52,9 @@ namespace dmScript
 
         lua_pushlightuserdata(L, (void*)params.m_GetURLCallback);
         lua_setglobal(L, SCRIPT_GET_URL_CALLBACK);
+
+        lua_pushlightuserdata(L, (void*)params.m_GetUserDataCallback);
+        lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
     }
 
     bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor)
