@@ -413,7 +413,7 @@ namespace dmGameObject
         script_component.m_OnInputFunction = &CompScriptOnInput;
         script_component.m_OnReloadFunction = &CompScriptOnReload;
         script_component.m_InstanceHasUserData = true;
-        script_component.m_UpdateOrderPrio = 100;
+        script_component.m_UpdateOrderPrio = 200;
         return RegisterComponentType(regist, script_component);
     }
 
