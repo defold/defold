@@ -363,6 +363,10 @@ namespace dmScript
                     url.m_Fragment = CheckHash(L, 3);
                 }
             }
+            else
+            {
+                url.m_Fragment = 0;
+            }
         }
         else if (top > 0 && !lua_isnil(L, 1))
         {

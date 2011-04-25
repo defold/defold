@@ -185,6 +185,14 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         "assert(url.fragment == nil, \"invalid fragment\")\n"
         ));
 
+    // path arg value
+    ASSERT_TRUE(RunString(L,
+        "local url = msg.url(\"test\", hash(\"test\"), nil)\n"
+        "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == hash(\"test\"), \"invalid path\")\n"
+        "assert(url.fragment == nil, \"invalid fragment\")\n"
+        ));
+
     // fragment arg string
     ASSERT_TRUE(RunString(L,
         "local url = msg.url(\"test\", \"\", \"test\")\n"
