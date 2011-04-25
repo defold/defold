@@ -134,7 +134,7 @@ public class SceneTest {
     ComponentNode getComponentNode(Node[] nodes, String resource) {
         for (Node n : nodes) {
             ComponentNode cn = (ComponentNode) n;
-            if (cn.getResource().equals(resource)) {
+            if (cn.getResourceIdentifier().equals(resource)) {
                 return cn;
             }
         }

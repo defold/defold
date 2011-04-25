@@ -6,10 +6,20 @@ public class Resource {
 
     private String path;
     private ArrayList<IResourceListener> listeners;
+    private boolean embedded = false;
 
     Resource(String path) {
         this.path = path;
         this.listeners = new ArrayList<IResourceListener>();
+        this.embedded = false;
+    }
+
+    public boolean isEmbedded() {
+        return embedded;
+    }
+
+    public void setEmbedded(boolean embedded) {
+        this.embedded = embedded;
     }
 
     public String getPath() {

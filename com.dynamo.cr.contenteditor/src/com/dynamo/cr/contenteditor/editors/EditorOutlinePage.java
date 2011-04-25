@@ -145,7 +145,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         else if (element instanceof ComponentNode)
         {
             ComponentNode componentNode = (ComponentNode) element;
-            String resource = componentNode.getResource();
+            String resource = componentNode.getResourceIdentifier();
             String ext = resource.substring(resource.lastIndexOf('.')+1);
             if (!extensionToImage.containsKey(ext)) {
                 Image image = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("dummy." + ext).createImage();
@@ -314,8 +314,11 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
 
                 String resource_name = null;
                 if (element instanceof ComponentNode) {
+                    @SuppressWarnings("rawtypes")
                     ComponentNode component_node = (ComponentNode) element;
-                    resource_name = component_node.getResource();
+                    if (!component_node.getResource().isEmbedded()) {
+                        resource_name = component_node.getResourceIdentifier();
+                    }
                 }
                 else if (element instanceof InstanceNode) {
                     InstanceNode instance_node = (InstanceNode) element;

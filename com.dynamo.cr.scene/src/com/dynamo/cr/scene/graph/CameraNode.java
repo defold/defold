@@ -10,9 +10,7 @@ import com.dynamo.camera.proto.Camera.CameraDesc;
 import com.dynamo.cr.scene.resource.CameraResource;
 import com.dynamo.cr.scene.resource.Resource;
 
-public class CameraNode extends ComponentNode {
-
-    private CameraResource resource;
+public class CameraNode extends ComponentNode<CameraResource> {
 
     public static INodeCreator getCreator() {
         return new INodeCreator() {
@@ -27,7 +25,7 @@ public class CameraNode extends ComponentNode {
     }
 
     public CameraNode(String identifier, CameraResource resource, Scene scene) {
-        super(identifier, scene);
+        super(identifier, resource, scene);
         this.resource = resource;
     }
 

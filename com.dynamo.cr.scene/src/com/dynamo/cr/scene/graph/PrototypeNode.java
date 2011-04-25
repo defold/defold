@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.eclipse.core.runtime.CoreException;
 
+import com.dynamo.cr.scene.resource.DummyResource;
 import com.dynamo.cr.scene.resource.IResourceListener;
 import com.dynamo.cr.scene.resource.PrototypeResource;
 import com.dynamo.cr.scene.resource.Resource;
@@ -69,11 +70,11 @@ public class PrototypeNode extends Node implements IResourceListener {
                 try {
                     comp = factory.create(componentResource.getPath(), componentResource, this, getScene());
                 } catch (Exception e) {
-                    comp = new ComponentNode(componentResource.getPath(), getScene());
+                    comp = new ErrorComponentNode(componentResource.getPath(), new DummyResource(), getScene());
                     comp.setError(ERROR_FLAG_RESOURCE_ERROR, e.getMessage());
                 }
             } else {
-                comp = new ComponentNode(componentResource.getPath(), getScene());
+                comp = new ErrorComponentNode(componentResource.getPath(), new DummyResource(), getScene());
             }
             comp.setParent(this);
         }

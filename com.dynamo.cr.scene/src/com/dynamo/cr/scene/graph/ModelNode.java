@@ -13,7 +13,7 @@ import com.dynamo.cr.scene.util.Mesh;
 import com.sun.opengl.util.texture.Texture;
 
 
-public class ModelNode extends ComponentNode {
+public class ModelNode extends ComponentNode<ModelResource> {
 
     public static INodeCreator getCreator() {
         return new INodeCreator() {
@@ -27,11 +27,8 @@ public class ModelNode extends ComponentNode {
         };
     }
 
-    private ModelResource resource;
-
     public ModelNode(String identifier, ModelResource resource, Scene scene) {
-        super(identifier, scene);
-        this.resource = resource;
+        super(identifier, resource, scene);
 
         Mesh mesh = resource.getMeshResource().getMesh();
         if (mesh != null) {
