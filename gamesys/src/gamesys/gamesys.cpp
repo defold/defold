@@ -221,7 +221,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
+                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
                 if (message_result != dmMessage::RESULT_OK)
                 {
                     dmLogError("Error when sending ray cast response: %d", message_result);

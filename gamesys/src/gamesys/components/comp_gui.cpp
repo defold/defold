@@ -31,8 +31,10 @@ namespace dmGameSystem
 
     struct Component
     {
-        dmGui::HScene       m_Scene;
-        uint16_t            m_Enabled : 1;
+        dmGui::HScene           m_Scene;
+        dmGameObject::HInstance m_Instance;
+        uint8_t                 m_ComponentIndex;
+        uint8_t                 m_Enabled : 1;
     };
 
     struct GuiWorld;
@@ -140,25 +142,27 @@ namespace dmGameSystem
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
 
+
+        Component* gui_component = new Component();
+        gui_component->m_Instance = params.m_Instance;
+        gui_component->m_ComponentIndex = params.m_ComponentIndex;
+        gui_component->m_Enabled = 1;
+
         dmGui::NewSceneParams scene_params;
         scene_params.m_MaxNodes = 256;
         scene_params.m_MaxAnimations = 1024;
-        scene_params.m_UserData = params.m_Instance;
-        dmGui::HScene scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
-        dmGui::SetSceneScript(scene, scene_resource->m_Script);
-
-        Component* gui_component = new Component();
-        gui_component->m_Scene = scene;
-        gui_component->m_Enabled = 1;
+        scene_params.m_UserData = gui_component;
+        gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
+        dmGui::SetSceneScript(gui_component->m_Scene, scene_resource->m_Script);
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
-            dmGui::AddFont(scene, scene_resource->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
+            dmGui::AddFont(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
         }
 
         for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
         {
-            dmGui::AddTexture(scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
+            dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
 
         *params.m_UserData = (uintptr_t)gui_component;
@@ -385,5 +389,29 @@ namespace dmGameSystem
         {
             dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
+    }
+
+    void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
+    {
+        Component* component = (Component*)dmGui::GetSceneUserData(scene);
+        url->m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+        url->m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+        dmGameObject::Result result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &url->m_Fragment);
+        if (result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Could not find gui component: %d", result);
+        }
+    }
+
+    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
+    {
+        Component* component = (Component*)dmGui::GetSceneUserData(scene);
+        return (uintptr_t)component->m_Instance;
+    }
+
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+    {
+        Component* component = (Component*)dmGui::GetSceneUserData(scene);
+        return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
     }
 }

@@ -175,7 +175,7 @@ namespace dmGameSystem
             ddf.m_OtherGameObjectId = instance_b_id;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
-            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
+            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send collision callback to component: %d", result);
@@ -186,7 +186,7 @@ namespace dmGameSystem
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
-            result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
+            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send collision callback to component: %d", result);
@@ -233,7 +233,7 @@ namespace dmGameSystem
             ddf.m_Group = contact_point.m_GroupB;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
-            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
+            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send collision callback to component: %d", result);
@@ -251,7 +251,7 @@ namespace dmGameSystem
             ddf.m_Group = contact_point.m_GroupA;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
-            result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
+            result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send collision callback to component: %d", result);
@@ -355,7 +355,7 @@ namespace dmGameSystem
             dmhash_t message_id = dmHashString64(dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name);
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::VelocityResponse::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::VelocityResponse);
-            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, descriptor, &response, data_size);
+            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, descriptor, &response, data_size);
             if (result != dmMessage::RESULT_OK)
             {
                 dmLogError("Could not send %s to component, result: %d.", dmPhysicsDDF::VelocityResponse::m_DDFDescriptor->m_Name, result);

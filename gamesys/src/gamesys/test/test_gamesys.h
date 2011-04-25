@@ -92,6 +92,9 @@ void GamesysTest<T>::SetUp()
     m_GuiRenderContext.m_RenderContext = m_RenderContext;
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
+    gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
+    gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
+    gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
     m_InputContext = dmInput::NewContext(0.3f, 0.1f);

@@ -242,7 +242,7 @@ namespace dmGameSystem
                             receiver.m_Fragment = component->m_ListenerComponent;
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &message, data_size);
+                            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &message, data_size);
                             component->m_ListenerInstance = 0x0;
                             component->m_ListenerComponent = 0xff;
                             if (result != dmMessage::RESULT_OK)
