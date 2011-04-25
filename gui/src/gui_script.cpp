@@ -462,6 +462,14 @@ namespace dmGui
         scene->m_Context->m_GetURLCallback(scene, url);
     }
 
+    uintptr_t ScriptGetUserDataCallback(lua_State* L)
+    {
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return (uintptr_t)scene->m_UserData;
+    }
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = lua_open();
@@ -472,6 +480,7 @@ namespace dmGui
         dmScript::ScriptParams params;
         params.m_Context = script_context;
         params.m_GetURLCallback = ScriptGetURLCallback;
+        params.m_GetUserDataCallback = ScriptGetUserDataCallback;
         params.m_ResolvePathCallback = ScriptResolvePathCallback;
         dmScript::Initialize(L, params);
 
