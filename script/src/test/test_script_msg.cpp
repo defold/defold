@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 
 extern "C"
 {
@@ -463,6 +464,22 @@ TEST_F(ScriptMsgTest, TestFailPost)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptMsgTest, TestPerf)
+{
+    uint64_t time = dmTime::GetTime();
+    uint32_t count = 10000;
+    char program[256];
+    DM_SNPRINTF(program, 256,
+        "local count = %u\n"
+        "for i = 1,count do\n"
+        "    msg.post(\"test_path\", \"table\", {uint_value = 1})\n"
+        "end\n",
+        count);
+    ASSERT_TRUE(RunString(L, program));
+    time = dmTime::GetTime() - time;
+    printf("Time per post: %.4f\n", time / (double)count);
 }
 
 int main(int argc, char **argv)
