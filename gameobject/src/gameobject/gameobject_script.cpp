@@ -210,7 +210,14 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        return dmGameObject::GetAbsoluteIdentifier(i->m_Instance, path, path_size);
+        if (path_size > 0)
+        {
+            return dmGameObject::GetAbsoluteIdentifier(i->m_Instance, path, path_size);
+        }
+        else
+        {
+            return i->m_Instance->m_Identifier;
+        }
     }
 
     uintptr_t GetUserDataCallback(lua_State* L)
