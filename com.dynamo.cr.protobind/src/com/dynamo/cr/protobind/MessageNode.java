@@ -39,10 +39,6 @@ public class MessageNode extends Node {
         this.descriptor = message.getDescriptorForType();
         List<FieldDescriptor> fieldsList = message.getDescriptorForType().getFields();
         for (FieldDescriptor fd : fieldsList) {
-            // Is the field is optional and not set do not store the value
-            if (fd.isOptional() && !message.hasField(fd))
-                continue;
-
             Object value = message.getField(fd);
 
             if (value instanceof Message) {
@@ -142,8 +138,14 @@ public class MessageNode extends Node {
                 RepeatedNode repeatedNode = (RepeatedNode) value;
                 value = repeatedNode.build();
             }
-            if (value != null)
-                builder.setField(fd, value);
+            if (value != null) {
+                if (fd.isOptional() && value.equals(originalMessage.getField(fd))) {
+                    // Skip value if optional and equal, ie do not "create" the value
+                }
+                else {
+                    builder.setField(fd, value);
+                }
+            }
         }
 
         return builder.build();
@@ -276,7 +278,6 @@ public class MessageNode extends Node {
                     repeatedNode.doAddElement(value);
                 }
                 else {
-                    System.out.println(object);
                     throw new RuntimeException(String.format("Invalid path '%s'. Last element is not a repeated node.", path));
                 }
             }
