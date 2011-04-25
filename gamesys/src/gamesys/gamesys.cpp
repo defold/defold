@@ -214,7 +214,6 @@ namespace dmGameSystem
             dmMessage::URL receiver;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
             receiver.m_Path = dmGameObject::GetIdentifier(instance);
-            receiver.m_UserData = (uintptr_t)instance;
             dmGameObject::Result result = dmGameObject::GetComponentId(instance, request.m_UserId, &receiver.m_Fragment);
             if (result != dmGameObject::RESULT_OK)
             {

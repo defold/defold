@@ -175,7 +175,6 @@ namespace dmGameSystem
             ddf.m_OtherGameObjectId = instance_b_id;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
-            receiver.m_UserData = (uintptr_t)instance_a;
             dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
@@ -187,7 +186,6 @@ namespace dmGameSystem
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
-            receiver.m_UserData = (uintptr_t)instance_b;
             result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
@@ -235,7 +233,6 @@ namespace dmGameSystem
             ddf.m_Group = contact_point.m_GroupB;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
-            receiver.m_UserData = (uintptr_t)instance_a;
             dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {
@@ -254,7 +251,6 @@ namespace dmGameSystem
             ddf.m_Group = contact_point.m_GroupA;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
-            receiver.m_UserData = (uintptr_t)instance_b;
             result = dmMessage::Post(0x0, &receiver, message_id, descriptor, &ddf, data_size);
             if (result != dmMessage::RESULT_OK)
             {

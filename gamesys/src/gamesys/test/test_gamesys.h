@@ -91,8 +91,7 @@ void GamesysTest<T>::SetUp()
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
     m_GuiRenderContext.m_RenderContext = m_RenderContext;
     dmGui::NewContextParams gui_params;
-    gui_params.m_MaxMessageDataSize = 256;
-    assert(dmMessage::RESULT_OK == dmMessage::NewSocket("test", &gui_params.m_Socket));
+    gui_params.m_ScriptContext = m_ScriptContext;
     m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
     m_InputContext = dmInput::NewContext(0.3f, 0.1f);
@@ -122,7 +121,6 @@ template<typename T>
 void GamesysTest<T>::TearDown()
 {
     dmGameObject::DeleteCollection(m_Collection);
-    dmMessage::DeleteSocket(dmGui::GetSocket(m_GuiRenderContext.m_GuiContext));
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
     dmGui::DeleteContext(m_GuiRenderContext.m_GuiContext);
     dmRender::DeleteRenderContext(m_RenderContext);

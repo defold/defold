@@ -209,24 +209,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void DispatchGui(dmMessage::Message* message, void* user_ptr)
-    {
-        DM_PROFILE(Game, "DispatchGui");
-
-        dmGameObject::HInstance instance = (dmGameObject::HInstance) dmGui::GetSceneUserData((dmGui::HScene)message->m_Receiver.m_UserData);
-        assert(instance);
-
-        dmMessage::URL receiver = message->m_Receiver;
-        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
-        receiver.m_UserData = (uintptr_t)instance;
-
-        dmMessage::Result result = dmMessage::Post(&message->m_Sender, &receiver, message->m_Id, message->m_Descriptor, message->m_Data, message->m_DataSize);
-        if (result != dmMessage::RESULT_OK)
-        {
-            dmLogError("Error when sending message from gui: %d", result);
-        }
-    }
-
     struct RenderGuiContext
     {
         dmRender::HRenderContext m_RenderContext;
@@ -336,8 +318,6 @@ namespace dmGameSystem
             if (gui_world->m_Components[i]->m_Enabled)
                 dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, params.m_UpdateContext->m_DT);
         }
-
-        dmMessage::Dispatch(dmGui::GetSocket(gui_render_context->m_GuiContext), &DispatchGui, params.m_Collection);
 
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_render_context->m_RenderContext;

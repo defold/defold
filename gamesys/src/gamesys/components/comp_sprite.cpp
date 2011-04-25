@@ -239,7 +239,6 @@ namespace dmGameSystem
                             dmMessage::URL receiver;
                             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
                             receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
-                            receiver.m_UserData = (uintptr_t)component->m_ListenerInstance;
                             receiver.m_Fragment = component->m_ListenerComponent;
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
@@ -338,7 +337,7 @@ namespace dmGameSystem
                 component->m_PlayBackwards = 0;
                 component->m_FrameTime = 1.0f / ddf->m_Fps;
                 component->m_FrameTimer = 0.0f;
-                component->m_ListenerInstance = (dmGameObject::HInstance)params.m_Message->m_Sender.m_UserData;
+                component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
                 component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
             }
         }
