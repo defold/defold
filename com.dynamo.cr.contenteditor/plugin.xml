@@ -147,6 +147,12 @@
             id="com.dynamo.cr.contenteditor.commands.resetCamera"
             name="Reset Camera">
       </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            description="Frame Objects"
+            id="com.dynamo.cr.contenteditor.commands.frameObjects"
+            name="Frame Object">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -184,6 +190,11 @@
          <command
                commandId="com.dynamo.cr.contenteditor.commands.resetCamera"
                label="Reset Camera"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.cr.contenteditor.commands.frameObjects"
+               label="Frame Objects"
                style="push">
          </command>
       </menuContribution>
@@ -350,6 +361,12 @@
                value="next">
          </parameter>
       </key>
+      <key
+            commandId="com.dynamo.cr.contenteditor.commands.frameObjects"
+            contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="F">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.contexts">
@@ -480,6 +497,15 @@
       <handler
             class="com.dynamo.cr.contenteditor.commands.ResetCamera"
             commandId="com.dynamo.cr.contenteditor.commands.resetCamera">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.FrameObjects"
+            commandId="com.dynamo.cr.contenteditor.commands.frameObjects">
          <enabledWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">

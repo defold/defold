@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Vector4d;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
@@ -37,6 +38,7 @@ import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SpriteNode;
+import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraResource;
 import com.dynamo.cr.scene.resource.CollectionResource;
 import com.dynamo.cr.scene.resource.CollisionResource;
@@ -50,6 +52,7 @@ import com.dynamo.cr.scene.resource.ResourceFactory;
 import com.dynamo.cr.scene.resource.SpriteResource;
 import com.dynamo.cr.scene.resource.TextureResource;
 import com.dynamo.cr.scene.test.util.SceneContext;
+import com.dynamo.cr.scene.util.Mesh;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.google.protobuf.TextFormat;
 
@@ -417,8 +420,9 @@ public class SceneTest {
         nodes[TYPE_INSTANCE][1] = new InstanceNode("instance1", this.scene, null, new PrototypeNode("prototype3", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory));
         nodes[TYPE_LIGHT][0] = new LightNode("light0", new LightResource("", null), this.scene);
         nodes[TYPE_LIGHT][1] = new LightNode("light1", new LightResource("", null), this.scene);
-        nodes[TYPE_MODEL][0] = new ModelNode("model0", new ModelResource("", null, new MeshResource("", null), new ArrayList<TextureResource>()), this.scene);
-        nodes[TYPE_MODEL][1] = new ModelNode("model1", new ModelResource("", null, new MeshResource("", null), new ArrayList<TextureResource>()), this.scene);
+        Mesh mesh = new Mesh(new ArrayList<Float>(), new ArrayList<Float>(), new ArrayList<Float>());
+        nodes[TYPE_MODEL][0] = new ModelNode("model0", new ModelResource("", null, new MeshResource("", mesh), new ArrayList<TextureResource>()), this.scene);
+        nodes[TYPE_MODEL][1] = new ModelNode("model1", new ModelResource("", null, new MeshResource("", mesh), new ArrayList<TextureResource>()), this.scene);
         nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
         nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
         nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", new SpriteResource("", null, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
@@ -463,5 +467,33 @@ public class SceneTest {
             }
         }
     }
+
+    static AABB getLocalAABB(Node node) {
+        AABB aabb = new AABB();
+        node.getLocalAABB(aabb);
+        return aabb;
+    }
+
+    @Test
+    public void testAABB1() throws Exception {
+        String name = "test.collection";
+        Resource resource = resourceFactory.load(new NullProgressMonitor(), name);
+        Node node = nodeFactory.create(name, resource, null, scene);
+
+        AABB aabb = new AABB();
+        node.getWorldAABB(aabb);
+        AABB aabbPrim = new AABB();
+
+        aabbPrim = new AABB();
+        node.setLocalTranslation(new Vector4d(1, 0, 0, 0));
+        node.getWorldAABB(aabbPrim);
+        assertEquals(aabbPrim.m_Min.x - aabb.m_Min.x, 1, 0.001);
+
+        aabbPrim = new AABB();
+        node.setLocalTranslation(new Vector4d(-1, 0, 0, 0));
+        node.getWorldAABB(aabbPrim);
+        assertEquals(aabbPrim.m_Min.x - aabb.m_Min.x, -1, 0.001);
+    }
+
 }
 

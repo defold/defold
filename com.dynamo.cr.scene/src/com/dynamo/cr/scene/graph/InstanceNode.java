@@ -55,8 +55,6 @@ public class InstanceNode extends Node {
     }
     @Override
     public void draw(DrawContext context) {
-        // TODO Auto-generated method stub
-
     }
 
     public String getPrototype() {

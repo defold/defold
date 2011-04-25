@@ -25,6 +25,7 @@ import javax.media.opengl.GLException;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
@@ -97,7 +98,6 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
-import org.openmali.vecmath2.Point3d;
 import org.osgi.service.prefs.Preferences;
 
 import com.dynamo.cr.contenteditor.Activator;
@@ -122,6 +122,7 @@ import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SceneEvent;
 import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
 import com.dynamo.cr.scene.graph.SpriteNode;
+import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraLoader;
 import com.dynamo.cr.scene.resource.CollectionLoader;
 import com.dynamo.cr.scene.resource.CollisionLoader;
@@ -1222,7 +1223,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public double[] worldToView(Point3d point) {
-        javax.vecmath.Point3d ret = m_ActiveCamera.project(point.x(), point.y(), point.z());
+        Point3d ret = m_ActiveCamera.project(point.x, point.y, point.z);
         return new double[] {ret.x, ret.y};
     }
 
@@ -1546,6 +1547,71 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_PerspCamera.reset();
         m_OrthoCamera.reset();
         updateViewPort();
+    }
+
+    @Override
+    public void frameObjects() {
+        AABB aabb = new AABB();
+
+        if (m_SelectedNodes.length > 0) {
+            AABB tmp = new AABB();
+            for (Node node : m_SelectedNodes) {
+                node.getWorldAABB(tmp);
+                aabb.union(tmp);
+            }
+        }
+        else {
+            m_Root.getWorldAABB(aabb);
+        }
+
+        if (aabb.isIdentity())
+            return;
+
+        Matrix4d view = new Matrix4d();
+        m_ActiveCamera.getViewMatrix(view);
+
+        Matrix4d viewInverse = new Matrix4d();
+        m_ActiveCamera.getViewMatrix(viewInverse);
+        viewInverse.invert();
+
+        Point3d center = new Point3d(aabb.m_Min);
+        center.add(aabb.m_Max);
+        center.scale(0.5);
+        view.transform(center);
+        center.z = 0;
+
+        viewInverse.transform(center);
+        m_ActiveCamera.setPosition(center.x, center.y, center.z);
+
+        Point3d minProj = m_ActiveCamera.project(aabb.m_Min.x, aabb.m_Min.y, aabb.m_Min.z);
+        Point3d maxProj = m_ActiveCamera.project(aabb.m_Max.x, aabb.m_Max.y, aabb.m_Max.z);
+
+        double fovX = Math.abs(maxProj.x - minProj.x);
+        double fovY = Math.abs(maxProj.y - minProj.y);
+
+        int[] viewPort = new int[4];
+        m_ActiveCamera.getViewport(viewPort);
+        double factorX = fovX / (viewPort[2] - viewPort[0]);
+        // Convert y-factor to "x-space"
+        double factorY = (fovY / (viewPort[3] - viewPort[1])) * m_ActiveCamera.getAspect();
+
+        double fovXprim = m_ActiveCamera.getFov() * factorX;
+        double fovYprim = m_ActiveCamera.getFov() * factorY;
+        double fovPrim;
+        // Is fov-y in x-space larger than fov-x?
+        if (fovYprim / m_ActiveCamera.getAspect() > fovXprim) {
+            // Yes, frame by y
+            fovPrim = fovYprim / m_ActiveCamera.getAspect();
+        } else {
+            // Otherwise frame by x
+            fovPrim = fovXprim;
+        }
+
+        // Show 10% more
+        fovPrim *= 1.1;
+
+        m_ActiveCamera.setOrthographic(fovPrim, m_ActiveCamera.getAspect(), m_ActiveCamera.getNearZ(), m_ActiveCamera.getFarZ());
+
     }
 
 }

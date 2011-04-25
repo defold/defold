@@ -32,6 +32,17 @@ public class ModelNode extends ComponentNode {
     public ModelNode(String identifier, ModelResource resource, Scene scene) {
         super(identifier, scene);
         this.resource = resource;
+
+        Mesh mesh = resource.getMeshResource().getMesh();
+        if (mesh != null) {
+            float[] p = mesh.positions;
+
+            for (int i = 0; i < p.length/3; i++)
+            {
+                int j = i * 3;
+                m_AABB.union(p[j], p[j+1], p[j+2]);
+            }
+        }
     }
 
     @Override

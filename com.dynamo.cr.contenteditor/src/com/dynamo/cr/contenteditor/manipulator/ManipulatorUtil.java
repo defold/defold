@@ -1,9 +1,8 @@
 package com.dynamo.cr.contenteditor.manipulator;
 
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
-
-import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.editors.Camera;
 import com.dynamo.cr.contenteditor.editors.IEditor;
