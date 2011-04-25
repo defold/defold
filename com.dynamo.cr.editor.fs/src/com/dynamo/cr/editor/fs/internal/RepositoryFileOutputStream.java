@@ -1,4 +1,4 @@
-package com.dynamo.cr.editor.fs;
+package com.dynamo.cr.editor.fs.internal;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -7,12 +7,10 @@ import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
-import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 
 public class RepositoryFileOutputStream extends ByteArrayOutputStream {
 
@@ -30,7 +28,7 @@ public class RepositoryFileOutputStream extends ByteArrayOutputStream {
                 write(data);
             }
         } catch (Throwable e) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+            RepositoryFileSystemPlugin.throwCoreExceptionError(e.getMessage(), e);
         }
     }
 
@@ -38,11 +36,6 @@ public class RepositoryFileOutputStream extends ByteArrayOutputStream {
     public void close() throws IOException {
         try {
             client.putResourceData(path.toPortableString(), toByteArray());
-
-            // Perhaps not the most beautiful solution but it works.
-            // We don't use the ResourcesPlugin for the editor so we
-            // don't have (don't know where) to listen for save-events. (ie IResourceChangedEvent)
-            Activator.getDefault().sendBranchChanged();
         } catch (RepositoryException e) {
             throw new IOException(e);
         }

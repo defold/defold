@@ -8,11 +8,9 @@ import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 
-public interface IProjectClient {
+public interface IProjectClient extends IClient {
 
     public long getProjectId();
-
-    public IBranchClient getBranchClient(String branch);
 
     public void deleteBranch(String branch)
             throws RepositoryException;

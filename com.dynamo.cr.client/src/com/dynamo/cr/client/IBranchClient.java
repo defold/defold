@@ -1,14 +1,12 @@
 package com.dynamo.cr.client;
 
 
-import java.net.URI;
-
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 
-public interface IBranchClient {
+public interface IBranchClient extends IClient {
 
     public byte[] getResourceData(String path, String revision) throws RepositoryException;
 
@@ -42,8 +40,4 @@ public interface IBranchClient {
     public BuildDesc getBuildStatus(int id) throws RepositoryException;
 
     public BuildLog getBuildLogs(int id) throws RepositoryException;
-
-    public URI getURI();
-
-    public void flushCache();
 }

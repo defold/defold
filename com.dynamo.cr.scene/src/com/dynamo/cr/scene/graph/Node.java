@@ -35,6 +35,8 @@ public abstract class Node
     private Vector4Property m_EulerProperty;
     private int m_Flags = 0;
     protected AABB m_AABB = new AABB();
+    protected AABB m_WorldAABB = new AABB();
+    private boolean m_WorldAABBDirty = true;
     private int errorFlags;
     private String[] errorMessages;
     private String identifier;
@@ -45,6 +47,7 @@ public abstract class Node
 
     public Node(String identifier, Scene scene, int flags)
     {
+        m_AABB.setIdentity();
         this.identifier = identifier;
         m_Translation.set(0, 0, 0, 0);
         m_Rotation.set(0, 0, 0, 1);
@@ -259,6 +262,8 @@ public abstract class Node
         if (m_Parent == parent)
             return;
 
+        setDirty();
+
         if (m_Parent != null) {
             m_Parent.removeNode(this);
         }
@@ -267,6 +272,14 @@ public abstract class Node
             m_Parent.addNode(this);
         }
         m_Scene.nodeReparented(this, parent);
+    }
+
+    private void setDirty() {
+        Node n = this;
+        while (n != null) {
+            n.m_WorldAABBDirty = true;
+            n = n.getParent();
+        }
     }
 
     public final Node[] getChildren() {
@@ -382,6 +395,7 @@ public abstract class Node
             m_Scene.nodeTransformChanged(this);
             m_Scene.propertyChanged(this, m_TranslationProperty);
         }
+        setDirty();
 
         updateWorldTranslationProperty();
     }
@@ -396,6 +410,7 @@ public abstract class Node
             m_Scene.propertyChanged(this, m_RotationProperty);
             m_Scene.propertyChanged(this, m_EulerProperty);
         }
+        setDirty();
 
         updateWorldTranslationProperty();
     }
@@ -437,6 +452,7 @@ public abstract class Node
         //System.out.println(transform);
 
         update();
+        setDirty();
 
         if (m_Scene != null)
         {
@@ -530,6 +546,31 @@ public abstract class Node
     public void getLocalAABB(AABB aabb)
     {
         aabb.set(m_AABB);
+    }
+
+    private static void getAABBRecursively(AABB aabb, Node node)
+    {
+        AABB tmp = new AABB();
+        Transform t = new Transform();
+
+        node.getLocalAABB(tmp);
+        node.getWorldTransform(t);
+
+        tmp.transform(t);
+        aabb.union(tmp);
+
+        for (Node n : node.getChildren()) {
+            getAABBRecursively(aabb, n);
+        }
+    }
+
+    public void getWorldAABB(AABB aabb) {
+        if (m_WorldAABBDirty) {
+            m_WorldAABB.setIdentity();
+            getAABBRecursively(m_WorldAABB, this);
+            m_WorldAABBDirty = false;
+        }
+        aabb.set(m_WorldAABB);
     }
 
     public abstract void draw(DrawContext context);

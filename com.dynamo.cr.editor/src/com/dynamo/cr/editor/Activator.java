@@ -2,8 +2,6 @@ package com.dynamo.cr.editor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.logging.Logger;
 
 import javax.ws.rs.core.UriBuilder;
@@ -42,7 +40,10 @@ import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 
 import com.dynamo.cr.client.ClientFactory;
+import com.dynamo.cr.client.ClientUtils;
+import com.dynamo.cr.client.DelegatingClientFactory;
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
@@ -50,7 +51,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
-import com.dynamo.cr.editor.fs.RepositoryFileSystem;
+import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
@@ -95,31 +96,19 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public IProjectClient projectClient;
 
-    private List<IRepositoryListener> listeners = new ArrayList<IRepositoryListener>();
-
     private IBranchClient branchClient;
 
     public String activeBranch;
 
     public Logger logger;
 
-    private ClientFactory factory;
+    private IClientFactory factory;
 
     private ServiceTracker proxyTracker;
 
     public UserInfo userInfo;
 
     public IProjectsClient projectsClient;
-
-    public void addRepositoryListener(IRepositoryListener l) {
-        assert listeners.indexOf(l) == -1;
-        this.listeners.add(l);
-    }
-
-    public void removeRepositoryListener(IRepositoryListener l) {
-        assert listeners.indexOf(l) != -1;
-        this.listeners.remove(l);
-    }
 
     public IProxyService getProxyService() {
         return (IProxyService) proxyTracker.getService();
@@ -168,7 +157,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.PRE_REFRESH);
-        RepositoryFileSystem.activator = this;
 	}
 
 	private void updateSocksProxy() {
@@ -205,7 +193,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
 	}
 
-	public ClientFactory getClientFactory() {
+	public IClientFactory getClientFactory() {
 	    return factory;
 	}
 
@@ -221,7 +209,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         String usersUriString = String.format("%s/users", baseUriString);
 
         Client client = Client.create(cc);
-        factory = new ClientFactory(client);
+        factory = new DelegatingClientFactory(new ClientFactory(client));
+        RepositoryFileSystemPlugin.setClientFactory(factory);
         client.addFilter(new HTTPBasicAuthFilter(user, passwd));
 
         IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
@@ -280,7 +269,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
         this.projectClient = projectClient;
-        this.branchClient = projectClient.getBranchClient(branch);
+        URI uri = ClientUtils.getBranchUri(projectClient, branch);
+        this.branchClient = projectClient.getClientFactory().getBranchClient(uri);
         activeBranch = branch;
 
         try {
@@ -326,18 +316,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 
         setProjectExplorerInput(p.getFolder("content"));
-
-        RepositoryChangeEvent e = new RepositoryChangeEvent();
-        for (IRepositoryListener l : listeners) {
-            l.branchChanged(e);
-        }
-    }
-
-    public void sendBranchChanged() {
-        RepositoryChangeEvent e = new RepositoryChangeEvent();
-        for (IRepositoryListener l : listeners) {
-            l.branchChanged(e);
-        }
     }
 
     public URI getBranchURI() {
@@ -402,11 +380,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        if (event.getType() == IResourceChangeEvent.PRE_REFRESH) {
-            if (branchClient != null) {
-                branchClient.flushCache();
-            }
-        }
     }
 
 }

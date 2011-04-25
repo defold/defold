@@ -1,11 +1,11 @@
 package com.dynamo.cr.contenteditor.editors;
 
 import javax.media.opengl.GLException;
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.UndoContext;
-import org.openmali.vecmath2.Point3d;
 
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.scene.graph.INodeFactory;
@@ -56,4 +56,8 @@ public interface IEditor {
     UndoContext getUndoContext();
 
     boolean isSelecting();
+
+    void resetCamera();
+
+    void frameObjects();
 }

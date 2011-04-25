@@ -7,14 +7,19 @@ public class AABB
 {
     public Vector3d m_Min = new Vector3d();
     public Vector3d m_Max = new Vector3d();
+    private boolean m_Identity;
 
     public AABB()
     {
-        setZero();
+        setIdentity();
     }
 
     public void transform(Transform transform)
     {
+        if (m_Identity) {
+            return;
+        }
+
         Vector3d min = new Vector3d(m_Min);
         Vector3d max = new Vector3d(m_Max);
 
@@ -98,6 +103,10 @@ public class AABB
 
     public void union(AABB aabb)
     {
+        if (aabb.m_Identity)
+            return;
+
+        m_Identity = false;
         m_Min.x = Math.min(m_Min.x, aabb.m_Min.x);
         m_Min.y = Math.min(m_Min.y, aabb.m_Min.y);
         m_Min.z = Math.min(m_Min.z, aabb.m_Min.z);
@@ -109,6 +118,7 @@ public class AABB
 
     public void union(float x, float y, float z)
     {
+        m_Identity = false;
         m_Min.x = Math.min(m_Min.x, x);
         m_Min.y = Math.min(m_Min.y, y);
         m_Min.z = Math.min(m_Min.z, z);
@@ -118,16 +128,13 @@ public class AABB
         m_Max.z = Math.max(m_Max.z, z);
     }
 
-    public void setZero()
-    {
-        m_Min.set(0, 0, 0);
-        m_Max.set(0, 0, 0);
-//        m_Min.set(Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE);
-  //      m_Max.set(-Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE);
+    public boolean isIdentity() {
+        return m_Identity;
     }
 
     public void setIdentity()
     {
+        m_Identity = true;
         m_Min.set(Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE);
         m_Max.set(-Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE);
     }
@@ -138,8 +145,20 @@ public class AABB
         return String.format("(%s, %s)", m_Min, m_Max);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof AABB) {
+            AABB aabb = (AABB) obj;
+            return m_Min.equals(aabb.m_Min) && m_Max.equals(aabb.m_Max);
+        }
+        else {
+            return super.equals(obj);
+        }
+    }
+
     public void set(AABB aabb)
     {
+        m_Identity = aabb.m_Identity;
         m_Min.set(aabb.m_Min);
         m_Max.set(aabb.m_Max);
     }

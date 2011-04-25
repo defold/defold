@@ -1,15 +1,24 @@
 package com.dynamo.cr.editor.handlers;
 
+import java.lang.reflect.InvocationTargetException;
+
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.IWorkbenchPartSite;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.HandlerUtil;
+import org.eclipse.ui.progress.IProgressService;
 
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
@@ -83,7 +92,7 @@ public abstract class BasePublishUpdateHandler extends AbstractHandler {
 
             IWorkbenchPartSite site = part.getSite();
             IWorkbenchPage page = site.getPage();
-            save_ret = page.closeAllEditors(true);
+            save_ret = page.saveAllEditors(true);
             if (!save_ret)
                 return null;
 
@@ -111,7 +120,24 @@ public abstract class BasePublishUpdateHandler extends AbstractHandler {
             MessageDialog.openError(shell, "Error", e.getMessage());
         }
 
-        Activator.getDefault().sendBranchChanged();
+        IProgressService service = PlatformUI.getWorkbench().getProgressService();
+        try {
+            service.runInUI(service, new IRunnableWithProgress() {
+
+                @Override
+                public void run(IProgressMonitor monitor)
+                        throws InvocationTargetException, InterruptedException {
+                    try {
+                        ResourcesPlugin.getWorkspace().getRoot().refreshLocal(IResource.DEPTH_INFINITE, monitor);
+                    } catch (CoreException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }, null);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
 
         return null;
     }

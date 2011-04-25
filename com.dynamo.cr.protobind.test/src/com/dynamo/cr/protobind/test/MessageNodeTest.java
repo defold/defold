@@ -323,15 +323,18 @@ public class MessageNodeTest {
         OptionalAndDefaultValueMessage msg1 = OptionalAndDefaultValueMessage.newBuilder().build();
         MessageNode node = new MessageNode(msg1);
         // Not set field are null
-        assertEquals(null, node.getField("x"));
-        assertEquals(null, node.getField("y"));
-        assertEquals(null, node.getField("msg"));
+        assertEquals(0, node.getField("x"));
+        assertEquals(123, node.getField("y"));
+        assertEquals(SimpleMessage.newBuilder().setA(0).setB(0).setS("").build(), ((MessageNode) node.getField("msg")).build());
 
         OptionalAndDefaultValueMessage msg2 = (OptionalAndDefaultValueMessage) node.build();
         // Test that we don't "create" optional and not set fields
         assertEquals(msg1.hasX(), msg2.hasX());
         assertEquals(msg1.hasY(), msg2.hasY());
-        assertEquals(msg1.hasMsg(), msg2.hasMsg());
+        // NOTE: Optional message are "created" unlike the behavior for scalar values
+        // It's currently by design. It seems to be somewhat difficult to implement and the current
+        // behavior seems sufficient in practice
+        assertEquals(true, msg2.hasMsg());
     }
 
 }

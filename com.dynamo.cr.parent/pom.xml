@@ -78,10 +78,14 @@
     </build>
 
     <modules>
+        <module>../org.mockito</module>
+        <module>../com.google.common</module>
         <module>../com.dynamo.cr.common</module>
         <module>../com.dynamo.cr.common.test</module>
         <module>../com.dynamo.cr.editor</module>
         <module>../com.dynamo.cr.editor.core</module>
+        <module>../com.dynamo.cr.editor.fs</module>
+        <module>../com.dynamo.cr.editor.fs.test</module>
         <module>../com.dynamo.cr.scene</module>
         <module>../com.dynamo.cr.scene.test</module>
         <module>../com.dynamo.cr.contenteditor</module>
@@ -95,6 +99,7 @@
         <module>../com.dynamo.cr.server</module>
         <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.client</module>
+        <module>../com.dynamo.cr.client.test</module>
     </modules>
 
 </project>

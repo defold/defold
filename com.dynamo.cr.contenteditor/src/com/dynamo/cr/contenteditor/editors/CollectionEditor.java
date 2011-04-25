@@ -2,6 +2,8 @@ package com.dynamo.cr.contenteditor.editors;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
@@ -23,6 +25,7 @@ import javax.media.opengl.GLException;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
@@ -36,6 +39,7 @@ import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
@@ -45,7 +49,9 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
@@ -92,7 +98,7 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
-import org.openmali.vecmath2.Point3d;
+import org.osgi.service.prefs.Preferences;
 
 import com.dynamo.cr.contenteditor.Activator;
 import com.dynamo.cr.contenteditor.commands.ActivateCamera;
@@ -116,6 +122,7 @@ import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SceneEvent;
 import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
 import com.dynamo.cr.scene.graph.SpriteNode;
+import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraLoader;
 import com.dynamo.cr.scene.resource.CollectionLoader;
 import com.dynamo.cr.scene.resource.CollisionLoader;
@@ -132,6 +139,8 @@ import com.dynamo.cr.scene.resource.TextureLoader;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
 import com.google.protobuf.TextFormat;
 
 public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, ISceneListener, ISelectionProvider, IOperationHistoryListener, IResourceChangeListener {
@@ -168,6 +177,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     // TODO: Part of a hack described in the end of init()
     private IPartListener partListener;
+    private Preferences preferences;
 
     public CollectionEditor() {
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
@@ -181,6 +191,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
         // TODO: Part of a hack described in the end of init()
         getEditorSite().getPage().removePartListener(partListener);
+
+        IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        saveCamera(input.getFile(), "perspective", m_PerspCamera);
+        saveCamera(input.getFile(), "orthographic", m_OrthoCamera);
     }
 
     @SuppressWarnings("rawtypes")
@@ -198,6 +212,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             return super.getAdapter(adapter);
         }
     }
+
+
 
     @Override
     public void doSave(IProgressMonitor monitor) {
@@ -255,6 +271,55 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     }
 
+    private Camera loadCamera(IFile file, String cameraName) {
+        String collectionName = file.getFullPath().toPortableString();
+
+        try {
+            byte[] data = preferences.getByteArray("cameras", null);
+            if (data == null) {
+                return null;
+            }
+            else {
+                ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(data));
+                @SuppressWarnings("unchecked")
+                Table<String, String, Camera> table = (Table<String, String, Camera>) is.readObject();
+                return table.get(collectionName, cameraName);
+            }
+        }
+        catch (Throwable e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void saveCamera(IFile file, String cameraName, Camera camera) {
+        String collectionName = file.getFullPath().toPortableString();
+
+        Table<String, String, Camera> table = HashBasedTable.create();
+        try {
+            byte[] data = preferences.getByteArray("cameras", null);
+            if (data != null) {
+                ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(data));
+                table = (Table<String, String, Camera>) is.readObject();
+            }
+        }
+        catch (Throwable e) {
+        }
+
+        table.put(collectionName, cameraName, camera);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        ObjectOutputStream oos;
+        try {
+            oos = new ObjectOutputStream(os);
+            oos.writeObject(table);
+            oos.flush();
+            preferences.putByteArray("cameras", os.toByteArray());
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
@@ -263,7 +328,27 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         setInput(input);
         setPartName(input.getName());
 
+        preferences = Platform.getPreferencesService().getRootNode().node(InstanceScope.SCOPE).node("com.dynamo.cr.contenteditor");
         IFileEditorInput i = (IFileEditorInput) input;
+
+        Camera persp = loadCamera(i.getFile(), "perspective");
+        Camera ortho = loadCamera(i.getFile(), "orthographic");
+
+        if (persp != null) {
+            // We only set relevant values - gut feeling
+            Vector4d pos = persp.getPosition();
+            m_PerspCamera.setPosition(pos.x, pos.y, pos.z);
+            m_PerspCamera.setFov(persp.getFov());
+        }
+
+        if (ortho != null) {
+            // We only set relevant values - gut feeling
+            Vector4d pos = ortho.getPosition();
+            m_OrthoCamera.setPosition(pos.x, pos.y, pos.z);
+            m_OrthoCamera.setFov(ortho.getFov());
+        }
+
+        m_ActiveCamera = m_OrthoCamera;
 
         contentRoot = EditorUtil.findContentRoot(i.getFile());
         if (contentRoot == null) {
@@ -524,22 +609,24 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         updateActions();
     }
 
+    private void updateViewPort() {
+        Point size = m_Canvas.getSize();
+        float aspect = ((float) size.x) / size.y;
+        m_ViewPort[0] = 0;
+        m_ViewPort[1] = 0;
+        m_ViewPort[2] = size.x;
+        m_ViewPort[3] = size.y;
+
+        m_PerspCamera.setAspect(aspect);
+        m_PerspCamera.setViewport(0, 0, size.x, size.y);
+        m_OrthoCamera.setAspect(aspect);
+        m_OrthoCamera.setViewport(0, 0, size.x, size.y);
+    }
+
     @Override
     public void handleEvent(Event event) {
-        if (event.type == SWT.Resize)
-        {
-            Point size = m_Canvas.getSize();
-            float aspect = ((float) size.x) / size.y;
-            m_ViewPort[0] = 0;
-            m_ViewPort[1] = 0;
-            m_ViewPort[2] = size.x;
-            m_ViewPort[3] = size.y;
-
-            m_PerspCamera.setAspect(aspect);
-            m_PerspCamera.setViewport(0, 0, size.x, size.y);
-            m_OrthoCamera.setAspect(aspect);
-            m_OrthoCamera.setViewport(0, 0, size.x, size.y);
-
+        if (event.type == SWT.Resize) {
+            updateViewPort();
         }
     }
 
@@ -1136,7 +1223,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public double[] worldToView(Point3d point) {
-        javax.vecmath.Point3d ret = m_ActiveCamera.project(point.x(), point.y(), point.z());
+        Point3d ret = m_ActiveCamera.project(point.x, point.y, point.z);
         return new double[] {ret.x, ret.y};
     }
 
@@ -1447,6 +1534,78 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         } catch (CoreException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void resetCamera() {
+        m_PerspCamera.reset();
+        m_OrthoCamera.reset();
+        updateViewPort();
+    }
+
+    @Override
+    public void frameObjects() {
+        AABB aabb = new AABB();
+
+        if (m_SelectedNodes.length > 0) {
+            AABB tmp = new AABB();
+            for (Node node : m_SelectedNodes) {
+                node.getWorldAABB(tmp);
+                aabb.union(tmp);
+            }
+        }
+        else {
+            m_Root.getWorldAABB(aabb);
+        }
+
+        if (aabb.isIdentity())
+            return;
+
+        Matrix4d view = new Matrix4d();
+        m_ActiveCamera.getViewMatrix(view);
+
+        Matrix4d viewInverse = new Matrix4d();
+        m_ActiveCamera.getViewMatrix(viewInverse);
+        viewInverse.invert();
+
+        Point3d center = new Point3d(aabb.m_Min);
+        center.add(aabb.m_Max);
+        center.scale(0.5);
+        view.transform(center);
+        center.z = 0;
+
+        viewInverse.transform(center);
+        m_ActiveCamera.setPosition(center.x, center.y, center.z);
+
+        Point3d minProj = m_ActiveCamera.project(aabb.m_Min.x, aabb.m_Min.y, aabb.m_Min.z);
+        Point3d maxProj = m_ActiveCamera.project(aabb.m_Max.x, aabb.m_Max.y, aabb.m_Max.z);
+
+        double fovX = Math.abs(maxProj.x - minProj.x);
+        double fovY = Math.abs(maxProj.y - minProj.y);
+
+        int[] viewPort = new int[4];
+        m_ActiveCamera.getViewport(viewPort);
+        double factorX = fovX / (viewPort[2] - viewPort[0]);
+        // Convert y-factor to "x-space"
+        double factorY = (fovY / (viewPort[3] - viewPort[1])) * m_ActiveCamera.getAspect();
+
+        double fovXprim = m_ActiveCamera.getFov() * factorX;
+        double fovYprim = m_ActiveCamera.getFov() * factorY;
+        double fovPrim;
+        // Is fov-y in x-space larger than fov-x?
+        if (fovYprim / m_ActiveCamera.getAspect() > fovXprim) {
+            // Yes, frame by y
+            fovPrim = fovYprim / m_ActiveCamera.getAspect();
+        } else {
+            // Otherwise frame by x
+            fovPrim = fovXprim;
+        }
+
+        // Show 10% more
+        fovPrim *= 1.1;
+
+        m_ActiveCamera.setOrthographic(fovPrim, m_ActiveCamera.getAspect(), m_ActiveCamera.getNearZ(), m_ActiveCamera.getFarZ());
+
     }
 
 }

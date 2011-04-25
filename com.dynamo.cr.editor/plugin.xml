@@ -41,15 +41,6 @@
    </extension>
 
    <extension
-         point="org.eclipse.core.filesystem.filesystems">
-      <filesystem
-            scheme="crepo">
-         <run
-               class="com.dynamo.cr.editor.fs.RepositoryFileSystem">
-         </run>
-      </filesystem>
-   </extension>
-   <extension
          point="org.eclipse.ui.views">
       <view
             category="com.dynamo.cr.editorcategory"

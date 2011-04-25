@@ -256,12 +256,6 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         viewer.setContentProvider(new EditorOutlinePageContentProvider());
         viewer.setLabelProvider(new LabelProvider());
         viewer.setLabelProvider(new EditorOutlineLabelProvider());
-        /*
-        TreeViewerColumn column = new TreeViewerColumn(viewer, SWT.NONE);
-        column.getColumn().setText("Game Object");
-
-        column.setLabelProvider(new EditorOutlineLabelProvider());
-        column.getColumn().setWidth(240);*/
 
         viewer.setSorter(new ViewerSorter() {
             public int compare(Viewer viewer, Object e1, Object e2)
@@ -356,6 +350,7 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
 
         viewer.setColumnProperties(new String[] {"column1"});
         viewer.setInput(m_Root);
+        viewer.expandToLevel(2);
 
         getSite().getPage().addSelectionListener(this);
 

@@ -1,10 +1,7 @@
 package com.dynamo.cr.client;
 
-
 import java.io.InputStream;
 import java.net.URI;
-
-import javax.ws.rs.core.UriBuilder;
 
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
@@ -18,14 +15,11 @@ import com.sun.jersey.api.client.ClientResponse;
 
 public class ProjectClient extends BaseClient implements IProjectClient {
 
-    private ClientFactory factory;
-    private URI uri;
     private long projectId;
 
     // NOTE: Only public for package
-    ProjectClient(ClientFactory factory, URI uri, Client client) {
-        this.factory = factory;
-        this.uri = uri;
+    ProjectClient(IClientFactory factory, URI uri, Client client) {
+        super(factory, uri);
         this.client = client;
         String[] tmp = uri.getPath().split("/");
         // TODO: We should probably not use "full" uri to constructor, ie uri without project id...
@@ -57,12 +51,6 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     @Override
     public void deleteBranch(String branch) throws RepositoryException {
         wrapDelete(String.format("/branches/%s", branch));
-    }
-
-
-    @Override
-    public BranchClient getBranchClient(String branch) {
-        return new BranchClient(factory, UriBuilder.fromUri(uri).path("/branches/" + branch).build(), client);
     }
 
     @Override
@@ -109,5 +97,4 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     public ProjectInfo getProjectInfo() throws RepositoryException {
         return wrapGet("/project_info", ProjectInfo.class);
     }
-
 }

@@ -19,7 +19,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.client.ClientFactory;
+import com.dynamo.cr.client.ClientUtils;
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
@@ -53,7 +55,7 @@ public class ProjectResourceTest {
     int port = 6500;
     String userEmail = "mrtest@foo.com";
     String passwd = "secret";
-    private ClientFactory factory;
+    private IClientFactory factory;
     private Project proj1;
     private User user;
     private UserInfo userInfo;
@@ -118,8 +120,7 @@ public class ProjectResourceTest {
 
         uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", userInfo.getId(), proj1.getId())).port(port).build();
         project_client = factory.getProjectClient(uri);
-
-        branch_client = project_client.getBranchClient("branch1");
+        branch_client = factory.getBranchClient(ClientUtils.getBranchUri(project_client, "branch1"));
 
         FileUtil.removeDir(new File(server.getBranchRoot()));
 

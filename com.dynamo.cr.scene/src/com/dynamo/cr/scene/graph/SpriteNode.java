@@ -30,6 +30,10 @@ public class SpriteNode extends ComponentNode {
     public SpriteNode(String identifier, SpriteResource spriteResource, Scene scene) {
         super(identifier, scene);
         this.spriteResource = spriteResource;
+        float width = spriteResource.getSpriteDesc().getWidth();
+        float height = spriteResource.getSpriteDesc().getHeight();
+        m_AABB.union(-width/2, -height/2, 0);
+        m_AABB.union(width/2, height/2, 0);
     }
 
     @Override
