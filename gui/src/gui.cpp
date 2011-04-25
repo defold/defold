@@ -48,6 +48,7 @@ namespace dmGui
         Context* context = new Context();
         context->m_LuaState = InitializeScript(params->m_ScriptContext);
         context->m_GetURLCallback = params->m_GetURLCallback;
+        context->m_GetUserDataCallback = params->m_GetUserDataCallback;
         context->m_ResolvePathCallback = params->m_ResolvePathCallback;
 
         return context;

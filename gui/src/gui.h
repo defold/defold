@@ -42,6 +42,7 @@ namespace dmGui
     };
 
     typedef void (*GetURLCallback)(HScene scene, dmMessage::URL* url);
+    typedef uintptr_t (*GetUserDataCallback)(HScene scene);
     typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path, uint32_t path_size);
 
     struct NewContextParams;
@@ -51,6 +52,7 @@ namespace dmGui
     {
         dmScript::HContext m_ScriptContext;
         GetURLCallback m_GetURLCallback;
+        GetUserDataCallback m_GetUserDataCallback;
         ResolvePathCallback m_ResolvePathCallback;
 
         NewContextParams()

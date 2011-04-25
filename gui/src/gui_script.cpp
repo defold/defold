@@ -467,7 +467,7 @@ namespace dmGui
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
-        return (uintptr_t)scene->m_UserData;
+        return scene->m_Context->m_GetUserDataCallback(scene);
     }
 
     lua_State* InitializeScript(dmScript::HContext script_context)

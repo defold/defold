@@ -31,6 +31,7 @@ namespace dmGui
     {
         lua_State*          m_LuaState;
         GetURLCallback      m_GetURLCallback;
+        GetUserDataCallback m_GetUserDataCallback;
         ResolvePathCallback m_ResolvePathCallback;
     };
 
