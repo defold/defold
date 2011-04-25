@@ -60,6 +60,11 @@ public class SceneTest {
     private Scene scene;
     private IProject project;
 
+    static {
+        // Fix for strange hang on osx in System#loadLibrary
+        System.setProperty("java.awt.headless", "true");
+    }
+
     @Before
     public void setup() throws CoreException, IOException {
         SceneContext context = new SceneContext();
