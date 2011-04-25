@@ -189,6 +189,13 @@ namespace dmMessage
                 delete p;
                 p = next;
             }
+            p = s->m_Allocator.m_FullPages;
+            while (p)
+            {
+                MemoryPage* next = p->m_NextPage;
+                delete p;
+                p = next;
+            }
             if (s->m_Allocator.m_CurrentPage)
                 delete s->m_Allocator.m_CurrentPage;
 

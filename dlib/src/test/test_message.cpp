@@ -348,6 +348,17 @@ TEST(dmMessage, UserData)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
+TEST(dmMessage, MemLeaks)
+{
+    dmMessage::URL receiver;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("my_socket", &receiver.m_Socket));
+    for (uint32_t i = 0; i < 10000; ++i)
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, 0, 0, 0x0, 0x0, 0));
+    }
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
+}
+
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(1024, 1024 * 1024, 64);
