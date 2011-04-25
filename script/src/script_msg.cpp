@@ -432,7 +432,9 @@ namespace dmScript
             else
             {
                 receiver.m_Socket = sender.m_Socket;
-                receiver.m_Path = sender.m_Path;
+                lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
+                receiver.m_Path = ((ResolvePathCallback)lua_touserdata(L, -1))(L, path, path_size);
+                lua_pop(L, 1);
             }
             receiver.m_Fragment = dmHashBuffer64(fragment, fragment_size);
         }

@@ -384,6 +384,7 @@ struct TableUserData
 {
     lua_State* L;
     uint32_t m_TestValue;
+    dmMessage::URL m_URL;
 };
 
 void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
@@ -394,6 +395,9 @@ void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
     lua_getfield(user_data->L, -1, "uint_value");
     user_data->m_TestValue = lua_tonumber(user_data->L, -1);
     lua_pop(user_data->L, 2);
+    assert(user_data->m_URL.m_Socket == message->m_Receiver.m_Socket);
+    assert(user_data->m_URL.m_Path == message->m_Receiver.m_Path);
+    assert(user_data->m_URL.m_Fragment == message->m_Receiver.m_Fragment);
 }
 
 TEST_F(ScriptMsgTest, TestPost)
@@ -434,7 +438,28 @@ TEST_F(ScriptMsgTest, TestPost)
     TableUserData user_data;
     user_data.L = L;
     user_data.m_TestValue = 0;
-    dmMessage::Dispatch(socket, DispatchCallbackTable, &user_data);
+    user_data.m_URL.m_Socket = socket;
+    ASSERT_EQ(1u, dmMessage::Dispatch(socket, DispatchCallbackTable, &user_data));
+    ASSERT_EQ(1u, user_data.m_TestValue);
+
+    // table, full url
+    ASSERT_TRUE(RunString(L,
+        "msg.post(\"socket:path2#fragment2\", \"table\", {uint_value = 1})\n"
+        ));
+    user_data.m_URL.m_Socket = socket;
+    user_data.m_URL.m_Path = dmHashString64("path2");
+    user_data.m_URL.m_Fragment = dmHashString64("fragment2");
+    ASSERT_EQ(1u, dmMessage::Dispatch(socket, DispatchCallbackTable, &user_data));
+    ASSERT_EQ(1u, user_data.m_TestValue);
+
+    // table, resolve path
+    ASSERT_TRUE(RunString(L,
+        "msg.post(\"path2#fragment2\", \"table\", {uint_value = 1})\n"
+        ));
+    user_data.m_URL.m_Socket = m_DefaultURL.m_Socket;
+    user_data.m_URL.m_Path = dmHashString64("path2");
+    user_data.m_URL.m_Fragment = dmHashString64("fragment2");
+    ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackTable, &user_data));
     ASSERT_EQ(1u, user_data.m_TestValue);
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
