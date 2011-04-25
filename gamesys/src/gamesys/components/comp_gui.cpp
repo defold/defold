@@ -412,6 +412,13 @@ namespace dmGameSystem
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
     {
         Component* component = (Component*)dmGui::GetSceneUserData(scene);
-        return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
+        if (path_size > 0)
+        {
+            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
+        }
+        else
+        {
+            return dmGameObject::GetIdentifier(component->m_Instance);
+        }
     }
 }
