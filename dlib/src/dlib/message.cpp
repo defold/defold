@@ -238,7 +238,7 @@ namespace dmMessage
 
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
-    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
+    Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)
     {
         DM_PROFILE(Message, "Post")
         DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
@@ -268,6 +268,7 @@ namespace dmMessage
         }
         new_message->m_Receiver = *receiver;
         new_message->m_Id = message_id;
+        new_message->m_UserData = user_data;
         new_message->m_Descriptor = descriptor;
         new_message->m_DataSize = message_data_size;
         new_message->m_Next = 0;
