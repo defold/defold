@@ -1,5 +1,7 @@
 package com.dynamo.cr.contenteditor.editors;
 
+import java.io.Serializable;
+
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
@@ -7,36 +9,46 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
 
-public class Camera
-{
+public class Camera implements Serializable {
+    private static final long serialVersionUID = -5401067590554422723L;
+
     public enum Type
     {
         PERSPECTIVE,
         ORTHOGRAPHIC
     }
 
-    private final Vector3f m_Position = new Vector3f();
-    private final Quat4d m_Rotation = new Quat4d();
+    private Vector3f m_Position = new Vector3f();
+    private Quat4d m_Rotation = new Quat4d();
 
-    private final Matrix4d m_ViewMatrix = new Matrix4d();
-    private final Matrix4d m_Projection = new Matrix4d();
-    private final int[] m_Viewport = new int[4];
+    private Matrix4d m_ViewMatrix = new Matrix4d();
+    private Matrix4d m_Projection = new Matrix4d();
+    private int[] m_Viewport;
 
-    private double m_ZNear = 1;
-    private double m_ZFar = 1000;
-    private double m_Aspect = 1;
+    private double m_ZNear;
+    private double m_ZFar;
+    private double m_Aspect;
 
     private Type m_Type;
-    private double m_Fov = 25;
+    private double m_Fov;
 
     public Camera(Type type)
     {
         m_Type = type;
+        reset();
+    }
+
+    public void reset() {
         float distance = 44.0f;
         m_Position.set(0.0f, 0.0f, 1.0f);
         m_Position.scale(distance);
         m_Rotation.set(0.0, 0.0, 0.0, 1.0);
+        m_ZNear = 1;
+        m_ZFar = 1000;
+        m_Fov = 25;
+        m_Viewport = new int[4];
         updateViewMatrix();
+        updateProjectionMatrix();
     }
 
     public void setAspect(double aspect)

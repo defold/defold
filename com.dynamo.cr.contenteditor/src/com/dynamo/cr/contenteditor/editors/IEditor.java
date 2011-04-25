@@ -56,4 +56,6 @@ public interface IEditor {
     UndoContext getUndoContext();
 
     boolean isSelecting();
+
+    void resetCamera();
 }

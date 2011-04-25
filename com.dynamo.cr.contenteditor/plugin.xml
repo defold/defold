@@ -141,6 +141,12 @@
             id="com.dynamo.cr.contenteditor.commands.cut"
             name="Cut">
       </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            description="Reset Camera"
+            id="com.dynamo.cr.contenteditor.commands.resetCamera"
+            name="Reset Camera">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -173,6 +179,11 @@
                commandId="com.dynamo.cr.contenteditor.commands.addsubcollection"
                icon="icons/add_att_16x16.gif"
                label="Add Subcollection"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.cr.contenteditor.commands.resetCamera"
+               label="Reset Camera"
                style="push">
          </command>
       </menuContribution>
@@ -465,6 +476,15 @@
                </or>
             </with>
          </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.ResetCamera"
+            commandId="com.dynamo.cr.contenteditor.commands.resetCamera">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </enabledWhen>
       </handler>
    </extension>
    <extension
