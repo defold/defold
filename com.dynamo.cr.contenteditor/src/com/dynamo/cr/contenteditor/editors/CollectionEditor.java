@@ -1258,27 +1258,21 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 m_OrthoCamera.getProjectionMatrix(proj);
                 Matrix4d viewProj = new Matrix4d(proj);
                 viewProj.mul(view);
-                Vector4d right = new Vector4d(1.0, 0.0, 0.0, 1.0);
-                Vector4d left = new Vector4d(-1.0, 0.0, 0.0, 1.0);
-                Matrix4d invViewProj = new Matrix4d(viewProj);
-                invViewProj.invert();
-                invViewProj.transform(right);
-                invViewProj.transform(left);
+                Vector4d right = new Vector4d(1.0, 0.0, 0.0f, 1.0);
+                Vector4d left = new Vector4d(-1.0, 0.0, 0.0f, 1.0);
+                Matrix4d invProj = new Matrix4d(proj);
+                invProj.invert();
+                invProj.transform(right);
+                invProj.transform(left);
                 right.sub(left);
                 right.scale(0.5);
+                right.w = 1.0;
                 m_PerspCamera.getViewMatrix(view);
                 m_PerspCamera.getProjectionMatrix(proj);
-                right.x = right.length();
-                right.y = 0.0;
-                right.z = 0.0;
-                right.w = 0.0;
-                proj.transform(right);
-
+                Vector4d pos = new Vector4d(0.0f, 0.0f, -(right.x * proj.m00) / proj.m32, 0.0f);
                 Matrix4d invView = new Matrix4d(view);
                 invView.invert();
-                Vector4d pos = new Vector4d();
-                invView.getColumn(2, pos);
-                pos.scale(right.x);
+                invView.transform(pos);
                 pos.add(m_CameraController.getFocusPoint());
                 m_PerspCamera.setPosition(pos.x, pos.y, pos.z);
 

@@ -23,11 +23,11 @@ public class Camera
     private final int[] m_Viewport = new int[4];
 
     private double m_ZNear = 1;
-    private double m_ZFar = 1000;
+    private double m_ZFar = 2000;
     private double m_Aspect = 1;
 
     private Type m_Type;
-    private double m_Fov = 25;
+    private double m_Fov = 30;
 
     public Camera(Type type)
     {
