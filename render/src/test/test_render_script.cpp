@@ -172,7 +172,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
     dmMessage::URL receiver;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, descriptor, &window_resize, data_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resize, data_size));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);

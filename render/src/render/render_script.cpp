@@ -815,6 +815,11 @@ namespace dmRender
         return dmHashBuffer64(path, path_size);
     }
 
+    uintptr_t GetUserDataCallback(lua_State* L)
+    {
+        return 0;
+    }
+
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
@@ -910,6 +915,7 @@ namespace dmRender
         params.m_Context = script_context;
         params.m_GetURLCallback = GetURLCallback;
         params.m_ResolvePathCallback = ResolvePathCallback;
+        params.m_GetUserDataCallback = GetUserDataCallback;
         dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
