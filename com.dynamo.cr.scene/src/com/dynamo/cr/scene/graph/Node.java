@@ -486,6 +486,8 @@ public abstract class Node
         m_Rotation.normalize();
 
         update();
+        setDirty();
+
         if (m_Scene != null) {
             m_Scene.nodeTransformChanged(this);
             m_Scene.propertyChanged(this, m_TranslationProperty);
