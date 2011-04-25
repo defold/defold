@@ -213,6 +213,15 @@ namespace dmGameObject
         return dmGameObject::GetAbsoluteIdentifier(i->m_Instance, path, path_size);
     }
 
+    uintptr_t GetUserDataCallback(lua_State* L)
+    {
+        lua_pushliteral(L, "__script_instance__");
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return (uintptr_t)i->m_Instance;
+    }
+
     static const luaL_reg Script_methods[] =
     {
         {"get_position",        Script_GetPosition},
@@ -261,6 +270,7 @@ namespace dmGameObject
         params.m_Context = context;
         params.m_GetURLCallback = GetURLCallback;
         params.m_ResolvePathCallback = ResolvePathCallback;
+        params.m_GetUserDataCallback = GetUserDataCallback;
         dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
