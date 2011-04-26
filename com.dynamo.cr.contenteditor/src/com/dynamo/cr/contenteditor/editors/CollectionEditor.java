@@ -1545,6 +1545,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void frameObjects() {
+        if (m_ActiveCamera.getType() == Camera.Type.PERSPECTIVE)
+            return;
+
         AABB aabb = new AABB();
 
         if (m_SelectedNodes.length > 0) {
@@ -1605,7 +1608,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         fovPrim *= 1.1;
 
         m_ActiveCamera.setOrthographic(fovPrim, m_ActiveCamera.getAspect(), m_ActiveCamera.getNearZ(), m_ActiveCamera.getFarZ());
-
+        m_CameraController.setFocusPoint(new Vector4d(center.x, center.y, center.z, m_CameraController.getFocusPoint().w));
     }
 
 }

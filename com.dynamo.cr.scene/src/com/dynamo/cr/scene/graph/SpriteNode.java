@@ -12,7 +12,7 @@ import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.sun.opengl.util.texture.Texture;
 
-public class SpriteNode extends ComponentNode {
+public class SpriteNode extends ComponentNode<SpriteResource> {
 
     public static INodeCreator getCreator() {
         return new INodeCreator() {
@@ -25,11 +25,9 @@ public class SpriteNode extends ComponentNode {
             }
         };
     }
-    private SpriteResource spriteResource;
 
     public SpriteNode(String identifier, SpriteResource spriteResource, Scene scene) {
-        super(identifier, scene);
-        this.spriteResource = spriteResource;
+        super(identifier, spriteResource, scene);
         float width = spriteResource.getSpriteDesc().getWidth();
         float height = spriteResource.getSpriteDesc().getHeight();
         m_AABB.union(-width/2, -height/2, 0);
@@ -39,7 +37,7 @@ public class SpriteNode extends ComponentNode {
     @Override
     public void draw(DrawContext context) {
 
-        SpriteDesc spriteDesc = spriteResource.getSpriteDesc();
+        SpriteDesc spriteDesc = this.resource.getSpriteDesc();
 
         float[] exts = new float[2];
         exts[0] = 0.5f * spriteDesc.getWidth();
@@ -48,8 +46,8 @@ public class SpriteNode extends ComponentNode {
         GL gl = context.m_GL;
 
         Texture texture = null;
-        if (spriteResource.getTextureResource() != null)
-            texture = spriteResource.getTextureResource().getTexture();
+        if (this.resource.getTextureResource() != null)
+            texture = this.resource.getTextureResource().getTexture();
 
         float[] uvs = { 1.0f, 1.0f };
         if (texture != null) {

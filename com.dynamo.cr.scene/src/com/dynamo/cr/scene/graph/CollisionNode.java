@@ -13,7 +13,7 @@ import com.dynamo.cr.scene.util.GLUtil;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 import com.dynamo.physics.proto.Physics.ConvexShape.Type;
 
-public class CollisionNode extends ComponentNode {
+public class CollisionNode extends ComponentNode<CollisionResource> {
 
     public static INodeCreator getCreator() {
         return new INodeCreator() {
@@ -27,12 +27,10 @@ public class CollisionNode extends ComponentNode {
         };
     }
 
-    private CollisionResource collisionResource;
     private boolean invalid = false;
 
     public CollisionNode(String identifier, CollisionResource collisionResource, Scene scene) {
-        super(identifier, scene);
-        this.collisionResource = collisionResource;
+        super(identifier, collisionResource, scene);
     }
 
     @Override
@@ -44,7 +42,7 @@ public class CollisionNode extends ComponentNode {
         gl.glPushAttrib(GL.GL_ENABLE_BIT);
         gl.glEnable(GL.GL_BLEND);
 
-        ConvexShape shape = collisionResource.getConvexShapeResource().getConvexShape();
+        ConvexShape shape = this.resource.getConvexShapeResource().getConvexShape();
         if (shape.getShapeType() == Type.TYPE_BOX) {
             if (shape.getDataCount() != 3) {
                 invalid = true;

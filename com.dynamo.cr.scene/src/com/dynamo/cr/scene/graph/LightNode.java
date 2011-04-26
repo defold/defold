@@ -13,7 +13,7 @@ import com.dynamo.cr.scene.resource.Resource;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightType;
 
-public class LightNode extends ComponentNode {
+public class LightNode extends ComponentNode<LightResource> {
 
     public static INodeCreator getCreator() {
         return new INodeCreator() {
@@ -27,11 +27,8 @@ public class LightNode extends ComponentNode {
         };
     }
 
-    private LightResource lightResource;
-
     public LightNode(String identifier, LightResource lightResource, Scene scene) {
-        super(identifier, scene);
-        this.lightResource = lightResource;
+        super(identifier, lightResource, scene);
     }
 
     @Override
@@ -41,7 +38,7 @@ public class LightNode extends ComponentNode {
         gl.glPushAttrib(GL.GL_POLYGON_BIT | GL.GL_ENABLE_BIT);
         gl.glDisable(GL.GL_LIGHTING);
 
-        LightDesc lightDesc = lightResource.getLightDesc();
+        LightDesc lightDesc = this.resource.getLightDesc();
         GLU glu = new GLU();
         GLUquadric quadric = glu.gluNewQuadric();
         gl.glColor3f(0.89f, 0.93f, 0.1f);

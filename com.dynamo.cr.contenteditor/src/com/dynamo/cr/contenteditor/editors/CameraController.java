@@ -29,8 +29,12 @@ public class CameraController
         m_Mac = System.getProperty("os.name").toLowerCase().indexOf( "mac" ) >= 0;
     }
 
-    Vector4d getFocusPoint() {
-        return this.focusPoint;
+    public Vector4d getFocusPoint() {
+        return new Vector4d(this.focusPoint);
+    }
+
+    public void setFocusPoint(Vector4d focusPoint) {
+        this.focusPoint.set(focusPoint);
     }
 
     public boolean mouseDown(MouseEvent event)
