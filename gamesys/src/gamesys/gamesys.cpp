@@ -115,7 +115,7 @@ namespace dmGameSystem
         dmResource::FactoryResult factory_result;
         dmGameObject::Result go_result;
 
-#define REGISTER_COMPONENT_TYPE(extension, context, new_world_func, delete_world_func, create_func, destroy_func, init_func, final_func, update_func, post_update_func, on_message_func, on_input_func, on_reload_func)\
+#define REGISTER_COMPONENT_TYPE(extension, prio, context, new_world_func, delete_world_func, create_func, destroy_func, init_func, final_func, update_func, post_update_func, on_message_func, on_input_func, on_reload_func)\
     factory_result = dmResource::GetTypeFromExtension(factory, extension, &type);\
     if (factory_result != dmResource::FACTORY_RESULT_OK)\
     {\
@@ -138,56 +138,64 @@ namespace dmGameSystem
     component_type.m_OnInputFunction = on_input_func;\
     component_type.m_OnReloadFunction = on_reload_func;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
+    component_type.m_UpdateOrderPrio = prio;\
     go_result = dmGameObject::RegisterComponentType(regist, component_type);\
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 
-        REGISTER_COMPONENT_TYPE("collectionproxyc", factory,
+        /*
+         * About update priority. Component types below have priority evenly spaced with increments by 100
+         *
+         */
+
+        REGISTER_COMPONENT_TYPE("collectionproxyc", 100, factory,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
                 &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, 0,
                 &CompCollectionProxyUpdate, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0);
 
-        REGISTER_COMPONENT_TYPE("camerac", render_context,
-                &CompCameraNewWorld, &CompCameraDeleteWorld,
-                &CompCameraCreate, &CompCameraDestroy, 0, 0,
-                &CompCameraUpdate, 0, &CompCameraOnMessage, 0, &CompCameraOnReload);
+        // Priority 200 is reserved for script
 
-        REGISTER_COMPONENT_TYPE("collisionobjectc", physics_context,
-                &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
-                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, &CompCollisionObjectInit, &CompCollisionObjectFinal,
-                &CompCollisionObjectUpdate, 0, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload);
-
-        REGISTER_COMPONENT_TYPE("wavc", 0x0,
-                CompSoundNewWorld, CompSoundDeleteWorld,
-                CompSoundCreate, CompSoundDestroy, 0, 0,
-                CompSoundUpdate, 0, CompSoundOnMessage, 0, 0);
-
-        REGISTER_COMPONENT_TYPE("modelc", render_context,
-                CompModelNewWorld, CompModelDeleteWorld,
-                CompModelCreate, CompModelDestroy, 0, 0,
-                CompModelUpdate, 0, CompModelOnMessage, 0, 0);
-
-        REGISTER_COMPONENT_TYPE("emitterc", emitter_context,
-                &CompEmitterNewWorld, &CompEmitterDeleteWorld,
-                &CompEmitterCreate, &CompEmitterDestroy, 0, 0,
-                &CompEmitterUpdate, 0, &CompEmitterOnMessage, 0, &CompEmitterOnReload);
-
-        REGISTER_COMPONENT_TYPE("guic", gui_render_context,
+        REGISTER_COMPONENT_TYPE("guic", 300, gui_render_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal,
                 CompGuiUpdate, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload);
 
-        REGISTER_COMPONENT_TYPE("spawnpointc", render_context,
+        REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
+                &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
+                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, &CompCollisionObjectInit, &CompCollisionObjectFinal,
+                &CompCollisionObjectUpdate, 0, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload);
+
+        REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
+                &CompCameraNewWorld, &CompCameraDeleteWorld,
+                &CompCameraCreate, &CompCameraDestroy, 0, 0,
+                &CompCameraUpdate, 0, &CompCameraOnMessage, 0, &CompCameraOnReload);
+
+        REGISTER_COMPONENT_TYPE("wavc", 600, 0x0,
+                CompSoundNewWorld, CompSoundDeleteWorld,
+                CompSoundCreate, CompSoundDestroy, 0, 0,
+                CompSoundUpdate, 0, CompSoundOnMessage, 0, 0);
+
+        REGISTER_COMPONENT_TYPE("modelc", 700, render_context,
+                CompModelNewWorld, CompModelDeleteWorld,
+                CompModelCreate, CompModelDestroy, 0, 0,
+                CompModelUpdate, 0, CompModelOnMessage, 0, 0);
+
+        REGISTER_COMPONENT_TYPE("emitterc", 800, emitter_context,
+                &CompEmitterNewWorld, &CompEmitterDeleteWorld,
+                &CompEmitterCreate, &CompEmitterDestroy, 0, 0,
+                &CompEmitterUpdate, 0, &CompEmitterOnMessage, 0, &CompEmitterOnReload);
+
+        REGISTER_COMPONENT_TYPE("spawnpointc", 900, render_context,
                 CompSpawnPointNewWorld, CompSpawnPointDeleteWorld,
                 CompSpawnPointCreate, CompSpawnPointDestroy, 0, 0,
                 0, CompSpawnPointPostUpdate, CompSpawnPointOnMessage, 0, 0);
 
-        REGISTER_COMPONENT_TYPE("lightc", render_context,
+        REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,
                 CompLightCreate, CompLightDestroy, 0, 0,
                 CompLightUpdate, 0, CompLightOnMessage, 0, 0);
 
-        REGISTER_COMPONENT_TYPE("spritec", sprite_context,
+        REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0,
                 CompSpriteUpdate, 0, CompSpriteOnMessage, 0, CompSpriteOnReload);

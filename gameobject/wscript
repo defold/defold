@@ -42,6 +42,7 @@ def configure(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'darwin' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
         conf.env.append_value('LINKFLAGS', ['shell32.lib'])
