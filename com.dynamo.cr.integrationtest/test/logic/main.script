@@ -1,39 +1,39 @@
 -- #### main_menu ####
 
 local function main_menu_on_enter(self)
-	msg.post(self, "#gui", "enable")
+	msg.post("#gui", "enable")
 end
 
 local function main_menu_on_exit(self)
-	msg.post(self, "#gui", "disable")
+	msg.post("#gui", "disable")
 end
 
 local function main_menu_on_message(self, message_id, message)
 	if message_id == hash("new_game") then
 		if self.session_active then
-			msg.post(self, "#session_proxy", "final")
-			msg.post(self, "#session_proxy", "unload")
+			msg.post("#session_proxy", "final")
+			msg.post("#session_proxy", "unload")
 		end
-		msg.post(self, "#session_proxy", "load")
-		msg.post(self, "#session_proxy", "init")
+		msg.post("#session_proxy", "load")
+		msg.post("#session_proxy", "init")
 		self.session_active = true
 		self.next_state = self.states.session
 	elseif message_id == hash("quit") then
-		msg.post(self, "@system:", "exit", {code = 0})
+		msg.post("@system:", "exit", {code = 0})
 	end
 end
 
 -- #### session #####
 
 local function session_on_enter(self)
-	msg.post(self, "#session_proxy", "enable")
+	msg.post("#session_proxy", "enable")
 end
 
 local function session_on_exit(self)
-	msg.post(self, "#session_proxy", "disable")
+	msg.post("#session_proxy", "disable")
 	if not self.session_active then
-		msg.post(self, "#session_proxy", "final")
-		msg.post(self, "#session_proxy", "unload")
+		msg.post("#session_proxy", "final")
+		msg.post("#session_proxy", "unload")
 	end
 end
 
@@ -45,7 +45,7 @@ local function session_on_message(self, message_id, message)
 		end
 		table.insert(self.highscores, {name = "", score = message.score})
 		table.sort(self.highscores, function(lhs, rhs) return lhs.score < rhs.score end)
-		msg.post(self, "#gui", "set_highscores", {highscores = self.highscores})
+		msg.post("#gui", "set_highscores", {highscores = self.highscores})
 		self.session_active = false
 		self.next_state = self.states.main_menu
 	end
@@ -69,10 +69,10 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(self, "@system:", "acquire_input_focus", {game_object_id = go.get_id(self)})
+	msg.post("@system:", "acquire_input_focus", {game_object_id = go.get_id(self)})
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
-	msg.post(self, "#gui", "set_highscores", {highscores = self.highscores})
+	msg.post("#gui", "set_highscores", {highscores = self.highscores})
 end
 
 function update(self, dt)
@@ -101,7 +101,7 @@ end
 
 function on_input(self, action_id, action)
 	if action_id == hash("profiler_toggle") and action.pressed then
-		msg.post(self, "@system:", "toggle_profile")
+		msg.post("@system:", "toggle_profile")
 		return true
 	end
 	return false
