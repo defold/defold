@@ -66,6 +66,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     private IContainer contentRoot;
     private Form form;
     private IOperationHistory history;
+    private boolean inSave = false;
 
     public DdfEditor(String extension) {
         IResourceTypeRegistry regist = EditorCorePlugin.getDefault().getResourceTypeRegistry();
@@ -103,21 +104,27 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        IFileEditorInput input = (IFileEditorInput) getEditorInput();
-
-        String messageString = TextFormat.printToString(message.build());
-        ByteArrayInputStream stream = new ByteArrayInputStream(messageString.getBytes());
-
+        this.inSave = true;
         try {
-            input.getFile().setContents(stream, false, true, monitor);
-            IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
-            cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
-            firePropertyChange(PROP_DIRTY);
-        } catch (CoreException e) {
-            e.printStackTrace();
-            Status status = new Status(IStatus.ERROR, "com.dynamo.cr.ddfeditor", 0, e.getMessage(), null);
-            ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+            IFileEditorInput input = (IFileEditorInput) getEditorInput();
+
+            String messageString = TextFormat.printToString(message.build());
+            ByteArrayInputStream stream = new ByteArrayInputStream(messageString.getBytes());
+
+            try {
+                input.getFile().setContents(stream, false, true, monitor);
+                IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+                cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
+                firePropertyChange(PROP_DIRTY);
+            } catch (CoreException e) {
+                e.printStackTrace();
+                Status status = new Status(IStatus.ERROR, "com.dynamo.cr.ddfeditor", 0, e.getMessage(), null);
+                ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+            }
         }
+       finally {
+           this.inSave = false;
+       }
     }
 
     @Override
@@ -241,6 +248,8 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
+        if (this.inSave)
+            return;
 
         final IFileEditorInput input = (IFileEditorInput) getEditorInput();
         try {
@@ -269,6 +278,12 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                                     Method m = resourceType.getMessageClass().getDeclaredMethod("newBuilder");
                                     @SuppressWarnings("rawtypes")
                                     GeneratedMessage.Builder builder = (Builder) m.invoke(null);
+
+                                    // NOTE: Budget solution to clear undo history. Couldn't find a better solution...
+                                    history.setLimit(undoContext, 0);
+                                    history.setLimit(undoContext, 100);
+
+                                    cleanUndoStackDepth = 0;
 
                                     try {
                                         TextFormat.merge(reader, builder);
