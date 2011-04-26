@@ -1574,6 +1574,9 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         Point3d center = new Point3d(aabb.m_Min);
         center.add(aabb.m_Max);
         center.scale(0.5);
+
+        m_CameraController.setFocusPoint(new Vector4d(center.x, center.y, center.z, 1.0));
+
         view.transform(center);
         center.z = 0;
 
@@ -1608,7 +1611,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         fovPrim *= 1.1;
 
         m_ActiveCamera.setOrthographic(fovPrim, m_ActiveCamera.getAspect(), m_ActiveCamera.getNearZ(), m_ActiveCamera.getFarZ());
-        m_CameraController.setFocusPoint(new Vector4d(center.x, center.y, center.z, m_CameraController.getFocusPoint().w));
     }
 
 }
