@@ -31,6 +31,21 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
 
     public CollisionNode(String identifier, CollisionResource collisionResource, Scene scene) {
         super(identifier, collisionResource, scene);
+
+        ConvexShape shape = collisionResource.getConvexShapeResource().getConvexShape();
+        if (shape != null) {
+            if (shape.getShapeType() == ConvexShape.Type.TYPE_BOX) {
+                float w_e = shape.getData(0);
+                float h_e = shape.getData(1);
+                float d_e = shape.getData(2);
+                m_AABB.union(-w_e, -h_e, -d_e);
+                m_AABB.union(w_e, h_e, d_e);
+            }
+            else {
+                // TODO: We need to fix the convex shape stuff. Support for non-box shapes is lacking...
+                System.err.println("Warning: Unsupported shape type: " + shape.getShapeType());
+            }
+        }
     }
 
     @Override
@@ -69,6 +84,7 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
             }
 
         } else {
+            // TODO: See commment above
             System.err.println("Warning: Unsupported shape type: " + shape.getShapeType());
             invalid = true;
         }
