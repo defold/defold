@@ -230,6 +230,7 @@ namespace dmGameSystem
             ddf.m_Mass = mass_a;
             ddf.m_OtherMass = mass_b;
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_b);
+            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = contact_point.m_GroupB;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
@@ -248,6 +249,7 @@ namespace dmGameSystem
             ddf.m_Mass = mass_b;
             ddf.m_OtherMass = mass_a;
             ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
+            ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = contact_point.m_GroupA;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;

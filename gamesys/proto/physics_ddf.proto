@@ -77,7 +77,8 @@ message ContactPointMessage
     required float          mass                    = 7;
     required float          other_mass              = 8;
     required uint64         other_game_object_id    = 9;
-    required uint32         group                   = 10;
+    required dmMath.Point3  other_position          = 10;
+    required uint32         group                   = 11;
 }
 
 message RayCastRequest
