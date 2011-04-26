@@ -45,13 +45,14 @@ public class PrototypeLoader implements IResourceLoader {
         for (int i = 0; i < desc.getEmbeddedComponentsCount(); ++i) {
             EmbeddedComponentDesc embeddedDesc = desc.getEmbeddedComponents(i);
             String componentData = embeddedDesc.getData();
+            String embeddedPath = name + "_embedded" + i + "." + embeddedDesc.getType();
             if (factory.canLoad(embeddedDesc.getType())) {
                 ByteArrayInputStream is = new ByteArrayInputStream(componentData.getBytes());
-                Resource resource = (Resource)factory.load(componentProgress.newChild(1), "embedded." + embeddedDesc.getType(), is);
+                Resource resource = (Resource)factory.load(componentProgress.newChild(1), embeddedPath, is);
                 resource.setEmbedded(true);
                 componentResources.add(resource);
             } else {
-                componentResources.add(new Resource("embedded." + embeddedDesc.getType()));
+                componentResources.add(new Resource(embeddedPath));
             }
             componentProgress.worked(1);
         }
