@@ -123,6 +123,7 @@ import com.dynamo.cr.scene.graph.SceneEvent;
 import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
 import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.math.AABB;
+import com.dynamo.cr.scene.math.Transform;
 import com.dynamo.cr.scene.resource.CameraLoader;
 import com.dynamo.cr.scene.resource.CollectionLoader;
 import com.dynamo.cr.scene.resource.CollisionLoader;
@@ -1545,8 +1546,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void frameObjects() {
-        if (m_ActiveCamera.getType() == Camera.Type.PERSPECTIVE)
-            return;
 
         AABB aabb = new AABB();
 
@@ -1577,40 +1576,81 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         m_CameraController.setFocusPoint(new Vector4d(center.x, center.y, center.z, 1.0));
 
-        view.transform(center);
-        center.z = 0;
+        Point3d cameraCenter = new Point3d(center);
+        view.transform(cameraCenter);
+        cameraCenter.z = 0;
 
-        viewInverse.transform(center);
-        m_ActiveCamera.setPosition(center.x, center.y, center.z);
+        viewInverse.transform(cameraCenter);
+        m_ActiveCamera.setPosition(cameraCenter.x, cameraCenter.y, cameraCenter.z);
 
-        Point3d minProj = m_ActiveCamera.project(aabb.m_Min.x, aabb.m_Min.y, aabb.m_Min.z);
-        Point3d maxProj = m_ActiveCamera.project(aabb.m_Max.x, aabb.m_Max.y, aabb.m_Max.z);
+        if (m_ActiveCamera.getType() == Camera.Type.ORTHOGRAPHIC)
+        {
+            // Adjust orthographic fov to cover everything
+            Point3d minProj = m_ActiveCamera.project(aabb.m_Min.x, aabb.m_Min.y, aabb.m_Min.z);
+            Point3d maxProj = m_ActiveCamera.project(aabb.m_Max.x, aabb.m_Max.y, aabb.m_Max.z);
 
-        double fovX = Math.abs(maxProj.x - minProj.x);
-        double fovY = Math.abs(maxProj.y - minProj.y);
+            double fovX = Math.abs(maxProj.x - minProj.x);
+            double fovY = Math.abs(maxProj.y - minProj.y);
 
-        int[] viewPort = new int[4];
-        m_ActiveCamera.getViewport(viewPort);
-        double factorX = fovX / (viewPort[2] - viewPort[0]);
-        // Convert y-factor to "x-space"
-        double factorY = (fovY / (viewPort[3] - viewPort[1])) * m_ActiveCamera.getAspect();
+            int[] viewPort = new int[4];
+            m_ActiveCamera.getViewport(viewPort);
+            double factorX = fovX / (viewPort[2] - viewPort[0]);
+            // Convert y-factor to "x-space"
+            double factorY = (fovY / (viewPort[3] - viewPort[1])) * m_ActiveCamera.getAspect();
 
-        double fovXprim = m_ActiveCamera.getFov() * factorX;
-        double fovYprim = m_ActiveCamera.getFov() * factorY;
-        double fovPrim;
-        // Is fov-y in x-space larger than fov-x?
-        if (fovYprim / m_ActiveCamera.getAspect() > fovXprim) {
-            // Yes, frame by y
-            fovPrim = fovYprim / m_ActiveCamera.getAspect();
-        } else {
-            // Otherwise frame by x
-            fovPrim = fovXprim;
+            double fovXprim = m_ActiveCamera.getFov() * factorX;
+            double fovYprim = m_ActiveCamera.getFov() * factorY;
+            double fovPrim;
+            // Is fov-y in x-space larger than fov-x?
+            if (fovYprim / m_ActiveCamera.getAspect() > fovXprim) {
+                // Yes, frame by y
+                fovPrim = fovYprim / m_ActiveCamera.getAspect();
+            } else {
+                // Otherwise frame by x
+                fovPrim = fovXprim;
+            }
+
+            // Show 10% more
+            fovPrim *= 1.1;
+
+            m_ActiveCamera.setOrthographic(fovPrim, m_ActiveCamera.getAspect(), m_ActiveCamera.getNearZ(), m_ActiveCamera.getFarZ());
         }
+        else {
+            // Adjust position to cover everything
 
-        // Show 10% more
-        fovPrim *= 1.1;
+            Transform viewTransform = new Transform(view);
+            AABB aabbView = new AABB();
+            aabbView.set(aabb);
+            // Transform AABB into camera space
+            aabbView.transform(viewTransform);
 
-        m_ActiveCamera.setOrthographic(fovPrim, m_ActiveCamera.getAspect(), m_ActiveCamera.getNearZ(), m_ActiveCamera.getFarZ());
+            // Calculate x- and y-max frustum values
+            double fov = m_ActiveCamera.getFov();
+            // Scale fov a bit to show more
+            fov *= 0.9;
+            double ymax = m_ActiveCamera.getNearZ() * Math.tan(fov * Math.PI / 360.0);
+            double xmax = ymax * m_ActiveCamera.getAspect();
+
+            // Calculate desired z-value for x and y
+            double zprimx = Math.abs(aabbView.m_Max.x - aabbView.m_Min.x) * 0.5 * m_ActiveCamera.getNearZ() / xmax;
+            double zprimy = Math.abs(aabbView.m_Max.y - aabbView.m_Min.y) * 0.5 * m_ActiveCamera.getNearZ() / ymax;
+            double zprim = zprimx;
+            if (Math.abs(zprimy) > Math.abs(zprimx))
+                zprim = zprimy;
+
+            // Transform unit-vector to world-space
+            Vector3d zVec = new Vector3d(0, 0, zprim);
+            viewInverse.transform(zVec);
+
+            // Calculate delta along z
+            double zVecLen = zVec.length();
+            Vector4d delta = new Vector4d();
+            viewInverse.getColumn(2, delta);
+            delta.scale(zVecLen);
+
+            delta.add(new Vector4d(center.x, center.y, aabb.m_Max.z, 0));
+            m_ActiveCamera.setPosition(delta.x, delta.y, delta.z);
+        }
     }
 
 }
