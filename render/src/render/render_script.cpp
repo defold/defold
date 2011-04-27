@@ -1158,7 +1158,7 @@ bail:
 
             if (script_function == RENDER_SCRIPT_FUNCTION_ONMESSAGE)
             {
-                arg_count = 3;
+                arg_count = 4;
 
                 dmMessage::Message* message = (dmMessage::Message*)args;
                 dmScript::PushHash(L, message->m_Id);
@@ -1180,6 +1180,7 @@ bail:
                 {
                     lua_newtable(L);
                 }
+                dmScript::PushURL(L, message->m_Sender);
             }
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
             if (ret != 0)
@@ -1203,9 +1204,16 @@ bail:
         return RunScript(instance, RENDER_SCRIPT_FUNCTION_INIT, 0x0);
     }
 
+    struct DispatchContext
+    {
+        HRenderScriptInstance m_Instance;
+        RenderScriptResult m_Result;
+    };
+
     void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     {
-        HRenderScriptInstance instance = (HRenderScriptInstance)user_ptr;
+        DispatchContext* context = (DispatchContext*)user_ptr;
+        HRenderScriptInstance instance = context->m_Instance;
         if (message->m_Descriptor != 0)
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
@@ -1225,6 +1233,7 @@ bail:
                 else
                 {
                     dmLogWarning("The text '%s' can not be rendered since the system font is not set.", text);
+                    context->m_Result = RENDER_SCRIPT_RESULT_FAILED;
                 }
                 return;
             }
@@ -1235,19 +1244,25 @@ bail:
                 return;
             }
         }
-        RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
+        context->m_Result = RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
-        dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)instance);
+        DispatchContext context;
+        context.m_Instance = instance;
+        context.m_Result = RENDER_SCRIPT_RESULT_OK;
+        dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)&context);
         instance->m_CommandBuffer.SetSize(0);
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         if (instance->m_CommandBuffer.Size() > 0)
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
-        return result;
+        if (result == RENDER_SCRIPT_RESULT_OK)
+            return context.m_Result;
+        else
+            return result;
     }
 
     void OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance)

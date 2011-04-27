@@ -168,11 +168,12 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     "    assert(self.height == 1)\n"
     "end\n"
     "\n"
-    "function on_message(self, message_id, message)\n"
+    "function on_message(self, message_id, message, sender)\n"
     "    if message_id == hash(\"window_resized\") then\n"
     "        self.width = message.width\n"
     "        self.height = message.height\n"
     "    end\n"
+    "    assert(sender.path == hash(\"test_path\"), \"incorrect path\")\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -185,9 +186,11 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     dmhash_t message_id = dmHashString64(dmRenderDDF::WindowResized::m_DDFDescriptor->m_Name);
     uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
     uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
+    dmMessage::URL sender;
+    sender.m_Path = dmHashString64("test_path");
     dmMessage::URL receiver;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &window_resize, data_size));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &window_resize, data_size));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
