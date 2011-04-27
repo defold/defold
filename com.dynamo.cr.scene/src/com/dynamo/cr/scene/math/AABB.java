@@ -1,5 +1,6 @@
 package com.dynamo.cr.scene.math;
 
+import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 
 
@@ -20,79 +21,21 @@ public class AABB
             return;
         }
 
-        Vector3d min = new Vector3d(m_Min);
-        Vector3d max = new Vector3d(m_Max);
+        Vector3d p0 = new Vector3d(m_Min.x, m_Min.y, m_Min.z);
+        Vector3d p1 = new Vector3d(m_Min.x, m_Min.y, m_Max.z);
+        Vector3d p2 = new Vector3d(m_Min.x, m_Max.y, m_Min.z);
+        Vector3d p3 = new Vector3d(m_Min.x, m_Max.y, m_Max.z);
+        Vector3d p4 = new Vector3d(m_Max.x, m_Min.y, m_Min.z);
+        Vector3d p5 = new Vector3d(m_Max.x, m_Min.y, m_Max.z);
+        Vector3d p6 = new Vector3d(m_Max.x, m_Max.y, m_Min.z);
+        Vector3d p7 = new Vector3d(m_Max.x, m_Max.y, m_Max.z);
 
-        Vector3d half_extents = new Vector3d();
-        half_extents.sub(max, min);
-        half_extents.scale(0.5);
-
-        Vector3d center = new Vector3d();
-        center.add(min, max);
-        center.scale(0.5);
-
-//        min.sub(center, half_extents);
-//        max.add(center, half_extents);
-
-        min.set(half_extents);
-        min.scale(-1);
-        max.set(half_extents);
-
-        boolean testa = true;
-        if (testa)
-        {
-            Vector3d e1 = new Vector3d(half_extents.x, half_extents.y, half_extents.z);
-            Vector3d e2 = new Vector3d(half_extents.x, -half_extents.y, half_extents.z);
-            Vector3d e3 = new Vector3d(half_extents.x, half_extents.y, -half_extents.z);
-            Vector3d e4 = new Vector3d(half_extents.x, -half_extents.y, -half_extents.z);
-
-            transform.transform(e1);
-            transform.transform(e2);
-            transform.transform(e3);
-            transform.transform(e4);
-
-            min.x = e1.x;
-            min.y = e1.y;
-            min.z = e1.z;
-            max.x = e1.x;
-            max.y = e1.y;
-            max.z = e1.z;
-
-            Vector3d[] es = new Vector3d[] { e1, e2, e3, e4 };
-            for (Vector3d e : es)
-            {
-                min.x = Math.min(min.x, e.x);
-                min.y = Math.min(min.y, e.y);
-                min.z = Math.min(min.z, e.z);
-                min.x = Math.min(min.x, -e.x);
-                min.y = Math.min(min.y, -e.y);
-                min.z = Math.min(min.z, -e.z);
-
-                max.x = Math.max(max.x, e.x);
-                max.y = Math.max(max.y, e.y);
-                max.z = Math.max(max.z, e.z);
-                max.x = Math.max(max.x, -e.x);
-                max.y = Math.max(max.y, -e.y);
-                max.z = Math.max(max.z, -e.z);
-
-            }
-
+        Vector3d[] points = new Vector3d[] { p0, p1, p2, p3, p4, p5, p6, p7 };
+        m_Identity = true;
+        for (Vector3d p : points) {
+            transform.transform(p);
+            union((float) p.x, (float) p.y, (float) p.z);
         }
-
-        else
-        {
-            // TODO: Hmm bug... det �r basvektorerna vi ska transformera...
-            transform.transform(min);
-            transform.transform(max);
-
-        }
-
-        half_extents.sub(min, max);
-        half_extents.absolute();
-        half_extents.scale(0.5);
-
-        m_Min.sub(center, half_extents);
-        m_Max.add(center, half_extents);
 
         Vector3d t = new Vector3d();
         transform.getTranslation(t);
