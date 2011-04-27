@@ -3,6 +3,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"
+#include "render/font_renderer.h"
 #include "render/render_private.h"
 #include "render/render_script.h"
 
@@ -16,15 +17,28 @@ protected:
     dmScript::HContext m_ScriptContext;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
+    dmRender::HFontMap m_SystemFontMap;
 
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext();
+        dmScript::RegisterDDFType(m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         m_GraphicsContext = dmGraphics::NewContext();
+        dmRender::FontMapParams font_map_params;
+        font_map_params.m_Glyphs.SetCapacity(128);
+        font_map_params.m_Glyphs.SetSize(128);
+        memset((void*)&font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*128);
+        for (uint32_t i = 0; i < 128; ++i)
+        {
+            font_map_params.m_Glyphs[i].m_Width = 1;
+        }
+        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
         dmRender::RenderContextParams params;
         params.m_ScriptContext = m_ScriptContext;
+        params.m_SystemFontMap = m_SystemFontMap;
         params.m_MaxRenderTargets = 1;
-        params.m_MaxInstances = 1;
+        params.m_MaxInstances = 64;
+        params.m_MaxCharacters = 32;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
         dmGraphics::WindowParams win_params;
         win_params.m_Width = 20;
@@ -36,6 +50,7 @@ protected:
     {
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context);
+        dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
@@ -545,6 +560,28 @@ TEST_F(dmRenderScriptTest, TestPostToSelf)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestDrawText)
+{
+    const char* script =
+        "function init(self)\n"
+        "    msg.post(nil, \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\"})\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_VertexIndex);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+
+    ASSERT_NE(0u, m_Context->m_TextContext.m_VertexIndex);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

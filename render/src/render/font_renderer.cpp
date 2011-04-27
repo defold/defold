@@ -56,7 +56,7 @@ namespace dmRender
         float                   m_ShadowY;
     };
 
-    HFontMap NewFontMap(HRenderContext render_context, FontMapParams& params)
+    HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         FontMap* font_map = new FontMap();
         font_map->m_Material = 0;
@@ -72,7 +72,7 @@ namespace dmRender
         tex_params.m_DataSize = params.m_TextureDataSize;
         tex_params.m_Width = params.m_TextureWidth;
         tex_params.m_Height = params.m_TextureHeight;
-        font_map->m_Texture = dmGraphics::NewTexture(render_context->m_GraphicsContext, tex_params);
+        font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_params);
 
         return font_map;
     }
@@ -117,7 +117,7 @@ namespace dmRender
     {
         TextContext& text_context = render_context->m_TextContext;
 
-        text_context.m_MaxVertexCount = max_characters * 4;
+        text_context.m_MaxVertexCount = max_characters * 4 * 3; // 4 vertices per character and 3 passes
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, 4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         text_context.m_VertexIndex = 0;
 
@@ -129,6 +129,7 @@ namespace dmRender
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         text_context.m_RenderObjects.SetCapacity(max_characters/8);
+        text_context.m_RenderObjectIndex = 0;
         for (uint32_t i = 0; i < text_context.m_RenderObjects.Capacity(); ++i)
         {
             RenderObject ro;

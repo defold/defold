@@ -77,6 +77,7 @@ namespace dmRender
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
+        HFontMap                    m_SystemFontMap;
 
         Matrix4                     m_View;
         Matrix4                     m_Projection;

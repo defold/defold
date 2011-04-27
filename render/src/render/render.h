@@ -19,6 +19,11 @@ namespace dmRender
 
     extern const char* RENDER_SOCKET_NAME;
 
+    /**
+     * Font map handle
+     */
+    typedef struct FontMap* HFontMap;
+
     enum Result
     {
         RESULT_OK = 0,
@@ -92,6 +97,7 @@ namespace dmRender
         RenderContextParams();
 
         dmScript::HContext              m_ScriptContext;
+        HFontMap                        m_SystemFontMap;
         void*                           m_VertexProgramData;
         void*                           m_FragmentProgramData;
         uint32_t                        m_MaxRenderTypes;
@@ -113,6 +119,8 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context);
+
+    void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
     Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash);
     dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, dmhash_t hash);

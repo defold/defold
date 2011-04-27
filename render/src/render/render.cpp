@@ -25,6 +25,7 @@ namespace dmRender
 
     RenderContextParams::RenderContextParams()
     : m_ScriptContext(0x0)
+    , m_SystemFontMap(0)
     , m_VertexProgramData(0x0)
     , m_FragmentProgramData(0x0)
     , m_MaxRenderTypes(0)
@@ -55,6 +56,8 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
+
+        context->m_SystemFontMap = params.m_SystemFontMap;
 
         context->m_Material = 0;
 
@@ -91,6 +94,11 @@ namespace dmRender
         delete render_context;
 
         return RESULT_OK;
+    }
+
+    void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
+    {
+        render_context->m_SystemFontMap = font_map;
     }
 
     Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash)

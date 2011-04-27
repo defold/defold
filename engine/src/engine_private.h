@@ -57,8 +57,7 @@ namespace dmEngine
         dmMessage::HSocket                          m_SystemSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
 
-        dmRender::HFontMap                          m_FontMap;
-        dmRender::HFontMap                          m_SmallFontMap;
+        dmRender::HFontMap                          m_SystemFontMap;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
 

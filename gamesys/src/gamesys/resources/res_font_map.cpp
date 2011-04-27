@@ -52,7 +52,7 @@ namespace dmGameSystem
         params.m_ShadowY = ddf->m_ShadowY;
 
         if (font_map == 0)
-            font_map = dmRender::NewFontMap(context, params);
+            font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);
         else
         {
             dmRender::SetFontMap(font_map, params);

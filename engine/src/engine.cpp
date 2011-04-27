@@ -105,8 +105,7 @@ namespace dmEngine
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
-    , m_FontMap(0x0)
-    , m_SmallFontMap(0x0)
+    , m_SystemFontMap(0x0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
     , m_RenderScriptPrototype(0x0)
@@ -479,7 +478,7 @@ bail:
             dmProfile::Pause(true);
             if (engine->m_ShowProfile)
             {
-                dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SmallFontMap);
+                dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
                 dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
                 dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 0.0f, 1.0f, -1.0f));
                 dmRender::Draw(engine->m_RenderContext, 0x0);
@@ -602,21 +601,6 @@ bail:
                     dmLogWarning("Could not find child instance with id %llu.", sp->m_ChildId);
                 }
             }
-            else if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
-            {
-                dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
-                dmRender::DrawTextParams params;
-                params.m_Text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
-                params.m_X = dt->m_Position.getX();
-                params.m_Y = dt->m_Position.getY();
-                params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-                dmRender::DrawText(self->m_RenderContext, self->m_FontMap, params);
-            }
-            else if (descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
-            {
-                dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
-                dmRender::Line3D(self->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
-            }
             else if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
             {
                 dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
@@ -674,17 +658,14 @@ bail:
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
-        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.font", "fonts/VeraMoBd.fontc"), (void**) &engine->m_FontMap);
+        const char* system_font_map = "builtins/fonts/system_font.fontc";
+        dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
+            dmLogFatal("Could not load system font map '%s'.", system_font_map);
             return false;
         }
-
-        fact_error = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.small_font", "fonts/VeraMoBd2.fontc"), (void**) &engine->m_SmallFontMap);
-        if (fact_error != dmResource::FACTORY_RESULT_OK)
-        {
-            return false;
-        }
+        dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
 
         const char* gamepads = dmConfigFile::GetString(config, "bootstrap.gamepads", "input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
@@ -714,11 +695,8 @@ bail:
     {
         if (engine->m_RenderScriptPrototype)
             dmResource::Release(engine->m_Factory, engine->m_RenderScriptPrototype);
-        if (engine->m_FontMap)
-            dmResource::Release(engine->m_Factory, engine->m_FontMap);
-        if (engine->m_SmallFontMap)
-            dmResource::Release(engine->m_Factory, engine->m_SmallFontMap);
-
+        if (engine->m_SystemFontMap)
+            dmResource::Release(engine->m_Factory, engine->m_SystemFontMap);
         if (engine->m_GameInputBinding)
             dmResource::Release(engine->m_Factory, engine->m_GameInputBinding);
     }

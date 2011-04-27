@@ -2,8 +2,6 @@
 title = test
 [bootstrap]
 main_collection = main.collectionc
-font = test.fontc
-small_font = test.fontc
 debug_fp = debug.fpc
 debug_vp = debug.vpc
 gamepads = default.gamepadsc

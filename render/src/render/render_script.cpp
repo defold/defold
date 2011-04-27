@@ -10,6 +10,9 @@
 
 #include <script/script.h>
 
+#include "font_renderer.h"
+#include "render/render_ddf.h"
+
 namespace dmRender
 {
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
@@ -1202,7 +1205,37 @@ bail:
 
     void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     {
-        RunScript((HRenderScriptInstance)user_ptr, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
+        HRenderScriptInstance instance = (HRenderScriptInstance)user_ptr;
+        if (message->m_Descriptor != 0)
+        {
+            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+            if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
+                const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
+                if (instance->m_RenderContext->m_SystemFontMap != 0)
+                {
+                    DrawTextParams params;
+                    params.m_Text = text;
+                    params.m_X = dt->m_Position.getX();
+                    params.m_Y = dt->m_Position.getY();
+                    params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+                    DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, params);
+                }
+                else
+                {
+                    dmLogWarning("The text '%s' can not be rendered since the system font is not set.", text);
+                }
+                return;
+            }
+            else if (descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
+                Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
+                return;
+            }
+        }
+        RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)

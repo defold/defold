@@ -1,4 +1,0 @@
-name: "font"
-vertex_program: "font.vp"
-vertex_constants { register: 0 type: CONSTANT_TYPE_VIEWPROJ }
-fragment_program: "font.fp"

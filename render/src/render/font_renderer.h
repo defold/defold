@@ -17,11 +17,6 @@
 namespace dmRender
 {
     /**
-     * Font map handle
-     */
-    typedef struct FontMap* HFontMap;
-
-    /**
      * Glyph struct
      */
     struct Glyph
@@ -68,11 +63,11 @@ namespace dmRender
 
     /**
      * Create a new font map. The parameters struct is consumed and should not be read after this call.
-     * @param render_context Render context handle
+     * @param graphics_context Graphics context handle
      * @param params Params used to initialize the font map
      * @return HFontMap on success. NULL on failure
      */
-    HFontMap NewFontMap(HRenderContext render_context, FontMapParams& params);
+    HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Delete a font map
