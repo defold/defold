@@ -7,9 +7,9 @@ function update(self)
     end
 end
 
-function on_message(self, message_id, message)
+function on_message(self, message_id, message, sender)
     if message_id == hash("game_object_transform_response") then
-        assert(message.game_object_id == go.get_id(self, "target"), "invalid id in game object transform result")
+        assert(sender.path == go.get_id(self, "target"), "invalid id in game object transform response")
         self.target_pos = message.position
     elseif message_id == hash("target_dead") then
         msg.post("main:main#script", "target_dead")

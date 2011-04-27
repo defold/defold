@@ -8,6 +8,7 @@ end
 function update(self, dt)
     self.timer = self.timer - dt
     if self.timer < 0 then
+        print("Target never killed, exiting.")
         msg.post("@system:", "exit", { code = 1 })
     end
 end
