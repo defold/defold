@@ -251,7 +251,9 @@ namespace dmGameObject
                     lua_newtable(L);
             }
 
-            ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+            dmScript::PushURL(L, params.m_Message->m_Sender);
+
+            ret = lua_pcall(L, 4, LUA_MULTRET, 0);
             if (ret != 0)
             {
                 dmLogError("Error running script: %s", lua_tostring(L,-1));

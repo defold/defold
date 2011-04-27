@@ -86,8 +86,8 @@ public:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
-    dmMessage::HSocket m_Socket;
     dmScript::HContext m_ScriptContext;
+    dmMessage::HSocket m_Socket;
 
     std::map<uint32_t, uint32_t> m_MessageMap;
 
@@ -139,9 +139,7 @@ dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameO
         if (self->m_MessageTargetCounter == 2)
         {
             dmhash_t message_id = dmHashString64("test_message");
-            dmMessage::URL receiver = params.m_Message->m_Sender;
-            receiver.m_Socket = self->m_Socket;
-            assert(dmMessage::RESULT_OK == dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0));
+            assert(dmMessage::RESULT_OK == dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, message_id, 0, 0, 0x0, 0));
         }
     }
     else if (params.m_Message->m_Id == dmHashString64("dec"))
