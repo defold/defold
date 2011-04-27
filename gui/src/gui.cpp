@@ -180,10 +180,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result DispatchMessage(HScene scene,
-                           dmhash_t message_id,
-                           const void* message,
-                           const dmDDF::Descriptor* descriptor)
+    Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
         lua_State*L = scene->m_Context->m_LuaState;
 
@@ -193,17 +190,20 @@ namespace dmGui
             assert(lua_isfunction(L, -1));
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
 
-            dmScript::PushHash(L, message_id);
+            dmScript::PushHash(L, message->m_Id);
 
-            if (descriptor)
+            if (message->m_Descriptor)
             {
-                dmScript::PushDDF(L, descriptor, (const char*) message);
+                dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data);
             }
             else
             {
-                dmScript::PushTable(L, (const char*) message);
+                dmScript::PushTable(L, (const char*) message->m_Data);
             }
-            int ret = lua_pcall(L, 3, 0, 0);
+
+            dmScript::PushURL(L, message->m_Sender);
+
+            int ret = lua_pcall(L, 4, 0, 0);
 
             if (ret != 0)
             {

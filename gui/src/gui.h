@@ -167,10 +167,7 @@ namespace dmGui
      * @param descriptor DDF-descriptor. NULL for lua-table. See comment above.
      * @return RESULT_OK on success
      */
-    Result DispatchMessage(HScene scene,
-                           dmhash_t message_id,
-                           const void* message,
-                           const dmDDF::Descriptor* descriptor);
+    Result DispatchMessage(HScene scene, dmMessage::Message* message);
 
     void SetSceneUserData(HScene scene, void* user_data);
 

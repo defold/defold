@@ -776,7 +776,7 @@ TEST_F(dmGuiTest, PostMessage2)
 
 static void Dispatch3(dmMessage::Message* message, void* user_ptr)
 {
-    dmGui::Result r = dmGui::DispatchMessage((dmGui::HScene)user_ptr, message->m_Id, message->m_Data, (dmDDF::Descriptor*)message->m_Descriptor);
+    dmGui::Result r = dmGui::DispatchMessage((dmGui::HScene)user_ptr, message);
     assert(r == dmGui::RESULT_OK);
 }
 
@@ -790,10 +790,14 @@ TEST_F(dmGuiTest, PostMessage3)
                      "    assert(self.a == 123)\n"
                      "end\n"
                      "\n"
-                     "function on_message(self, message_id, message)\n"
+                     "function on_message(self, message_id, message, sender)\n"
                      "    if message_id == hash(\"test_message\") then\n"
                      "        self.a = message.a\n"
                      "    end\n"
+                     "    local test_url = msg.url()\n"
+                     "    assert(sender.socket == test_url.socket, \"invalid fragment\")\n"
+                     "    assert(sender.path == test_url.path, \"invalid fragment\")\n"
+                     "    assert(sender.fragment == test_url.fragment, \"invalid fragment\")\n"
                      "end\n";
 
     dmGui::Result r;
@@ -854,9 +858,14 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmTestGuiDDF::AMessage amessage;
-    amessage.m_A = 123;
-    r = dmGui::DispatchMessage(m_Scene, dmHashString64("amessage"), &amessage, dmTestGuiDDF::AMessage::m_DDFDescriptor);
+    char buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
+    dmMessage::Message* message = (dmMessage::Message*)buf;
+    message->m_Id = dmHashString64("amessage");
+    message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
+    message->m_DataSize = sizeof(dmTestGuiDDF::AMessage);
+    dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)message->m_Data;
+    amessage->m_A = 123;
+    r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
@@ -874,21 +883,25 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
                     "   a = message.a\n"
                     "end\n";
 
-    char buffer[256];
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    char buffer[256 + sizeof(dmMessage::Message)];
+    dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Id = dmHashString64("amessage");
+    message->m_Descriptor = 0;
 
     lua_State* L = lua_open();
     lua_newtable(L);
     lua_pushstring(L, "a");
     lua_pushinteger(L, 456);
     lua_settable(L, -3);
-    uint32_t nused = dmScript::CheckTable(L, buffer, sizeof(buffer), -1);
-    ASSERT_GT(nused, 0U);
-    ASSERT_LE(nused, sizeof(buffer));
+    message->m_DataSize = dmScript::CheckTable(L, (char*)message->m_Data, 256, -1);
+    ASSERT_GT(message->m_DataSize, 0U);
+    ASSERT_LE(message->m_DataSize, 256u);
 
-    r = dmGui::DispatchMessage(m_Scene, dmHashString64("amessage"), buffer, 0);
+    r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
@@ -1114,21 +1127,25 @@ TEST_F(dmGuiTest, Bug352)
     r = dmGui::SetScript(m_Script, BUG352_LUA, BUG352_LUA_SIZE, "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buffer[256];
+    char buffer[256 + sizeof(dmMessage::Message)];
+    dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Id = dmHashString64("inc_score");
+    message->m_Descriptor = 0;
+
     lua_State* L = lua_open();
     lua_newtable(L);
     lua_pushstring(L, "score");
     lua_pushinteger(L, 123);
     lua_settable(L, -3);
 
-    uint32_t nused = dmScript::CheckTable(L, buffer, sizeof(buffer), -1);
-    ASSERT_GT(nused, 0U);
-    ASSERT_LE(nused, sizeof(buffer));
+    message->m_DataSize = dmScript::CheckTable(L, (char*)message->m_Data, 256, -1);
+    ASSERT_GT(message->m_DataSize, 0U);
+    ASSERT_LE(message->m_DataSize, 256u);
 
     for (int i = 0; i < 100; ++i)
     {
         dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-        dmGui::DispatchMessage(m_Scene, dmHashString64("inc_score"), buffer, 0);
+        dmGui::DispatchMessage(m_Scene, message);
     }
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
