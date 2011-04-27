@@ -43,7 +43,7 @@ function on_message(self, message_id, message)
 	if message_id == hash("attach") then
 		if not self.attached then
 			go.set_position(self, vmath.vector3(0, 22.5, 0))
-			msg.post("@system:", "set_parent", { child_id = go.get_id(self), parent_id = go.get_id(self, "paddle") })
+			msg.post(nil, "set_parent", { parent_id = go.get_id(self, "paddle") })
 			self.attached = true
 			set_mode(self, self.mode_normal)
 		end
@@ -53,7 +53,7 @@ function on_message(self, message_id, message)
 			local r = go.get_world_rotation(self)
 			go.set_position(self, p)
 			go.set_rotation(self, r)
-			msg.post("@system:", "set_parent", { child_id = go.get_id(self), parent_id = nil })
+			msg.post(nil, "set_parent")
 			self.direction = vmath.vector3(0, 1, 0)
 			self.attached = false
 		end

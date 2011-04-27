@@ -2,7 +2,7 @@ function init(self)
 	self.speed = 500
 	self.movement = nil
 	self.ball_attached = true
-    msg.post("@system:", "acquire_input_focus", { game_object_id = go.get_id(self) })
+    msg.post(nil, "acquire_input_focus")
     self.initial_position = go.get_world_position(self)
 end
 
