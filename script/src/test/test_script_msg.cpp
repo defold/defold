@@ -45,6 +45,7 @@ protected:
         luaL_openlibs(L);
         m_ScriptContext = dmScript::NewContext();
         dmScript::RegisterDDFType(m_ScriptContext, TestScript::SubMsg::m_DDFDescriptor);
+        dmScript::RegisterDDFType(m_ScriptContext, TestScript::EmptyMsg::m_DDFDescriptor);
         dmScript::ScriptParams params;
         params.m_Context = m_ScriptContext;
         params.m_ResolvePathCallback = ResolvePathCallback;
@@ -383,9 +384,17 @@ TEST_F(ScriptMsgTest, TestURLEq)
 
 void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 {
-    assert(message->m_Id == dmHashString64(TestScript::SubMsg::m_DDFDescriptor->m_Name));
-    TestScript::SubMsg* msg = (TestScript::SubMsg*)message->m_Data;
-    *((uint32_t*)user_ptr) = msg->m_UintValue;
+    assert(message->m_Descriptor != 0);
+    dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+    if (descriptor == TestScript::SubMsg::m_DDFDescriptor)
+    {
+        TestScript::SubMsg* msg = (TestScript::SubMsg*)message->m_Data;
+        *((uint32_t*)user_ptr) = msg->m_UintValue;
+    }
+    else if (descriptor == TestScript::EmptyMsg::m_DDFDescriptor)
+    {
+        *((uint32_t*)user_ptr) = 2;
+    }
 }
 
 struct TableUserData
@@ -438,6 +447,14 @@ TEST_F(ScriptMsgTest, TestPost)
     test_value = 0;
     dmMessage::Dispatch(socket, DispatchCallbackDDF, &test_value);
     ASSERT_EQ(1u, test_value);
+
+    // Empty DDF
+    ASSERT_TRUE(RunString(L,
+        "msg.post(\"socket:\", \"empty_msg\")\n"
+        ));
+    test_value = 0;
+    dmMessage::Dispatch(socket, DispatchCallbackDDF, &test_value);
+    ASSERT_EQ(2u, test_value);
 
     // table
     ASSERT_TRUE(RunString(L,

@@ -37,3 +37,5 @@ message LuaDDFBufferOverflow
     required uint32 uint_value = 1;
     required string string_value = 3;
 }
+
+message EmptyMsg {}

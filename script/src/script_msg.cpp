@@ -461,15 +461,18 @@ namespace dmScript
         char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        HContext context = (HContext)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        const dmDDF::Descriptor** desc = context->m_Descriptors.Get(message_id);
+        if (desc != 0)
+        {
+            descriptor = (uintptr_t)*desc;
+        }
         if (top > 2)
         {
-            lua_getglobal(L, SCRIPT_CONTEXT);
-            HContext context = (HContext)lua_touserdata(L, -1);
-            lua_pop(L, 1);
-            const dmDDF::Descriptor** desc = context->m_Descriptors.Get(message_id);
-            if (desc != 0)
+            if (desc != 0x0)
             {
-                descriptor = (uintptr_t)*desc;
                 if ((*desc)->m_Size > MAX_MESSAGE_DATA_SIZE)
                 {
                     return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", (*desc)->m_Size, MAX_MESSAGE_DATA_SIZE);
