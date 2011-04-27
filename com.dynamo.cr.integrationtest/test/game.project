@@ -1,8 +1,6 @@
 [project]
 title = Arkanoid
 [bootstrap]
-font = fonts/vera_mo_bd.fontc
-small_font = fonts/vera_mo_bd2.fontc
 render = logic/default.renderc
 main_collection = logic/main.collectionc
 [sound]

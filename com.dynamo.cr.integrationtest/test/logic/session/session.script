@@ -36,7 +36,7 @@ local function end_session(self)
 end
 
 local function fail_update(self, dt)
-	msg.post("@system:", "draw_text", {text = "Fail!", position = vmath.vector3(300, 300, 0)})
+	msg.post("@render:", "draw_text", {text = "Fail!", position = vmath.vector3(300, 300, 0)})
 	self.timer = self.timer - dt
 	if self.timer < 0 then
 		end_session(self)
@@ -60,7 +60,7 @@ local function win_on_exit(self)
 end
 
 local function win_update(self, dt)
-	msg.post("@system:", "draw_text", {text = "Success!", position = vmath.vector3(300, 300, 0)})
+	msg.post("@render:", "draw_text", {text = "Success!", position = vmath.vector3(300, 300, 0)})
 	self.timer = self.timer - dt
 	if self.timer < 0 then
 		end_session(self)
