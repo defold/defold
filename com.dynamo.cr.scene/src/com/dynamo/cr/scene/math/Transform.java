@@ -28,6 +28,15 @@ public class Transform
         m_Rotation.set(transform.m_Rotation);
     }
 
+    public Transform(Matrix4d transform) {
+        Quat4d rotation = new Quat4d();
+        Vector4d translation = new Vector4d();
+        transform.getColumn(3, translation);
+        transform.get(rotation);
+        m_Translation.set(translation);
+        m_Rotation.set(rotation);
+    }
+
     public Matrix4d getTransform()
     {
         Matrix4d m = new Matrix4d();
