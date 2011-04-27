@@ -351,7 +351,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message->m_Id, (const void*) params.m_Message->m_Data, (dmDDF::Descriptor*)params.m_Message->m_Descriptor);
+            dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
