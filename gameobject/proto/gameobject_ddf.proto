@@ -49,30 +49,21 @@ message CollectionDesc
     repeated CollectionInstanceDesc collection_instances    = 3 [(resource) = true];
 }
 
-message AcquireInputFocus
-{
-    required uint64 game_object_id = 1;
-}
+message AcquireInputFocus {}
 
-message ReleaseInputFocus
-{
-    required uint64 game_object_id = 1;
-}
+message ReleaseInputFocus {}
 
-message GameObjectTransformQuery
-{
-    required uint64 game_object_id = 1;
-}
+message GameObjectTransformQuery {}
 
-message GameObjectTransformResult
+message GameObjectTransformResponse
 {
-    required uint64         game_object_id  = 1;
-    required dmMath.Point3  position        = 2;
-    required dmMath.Quat    rotation        = 3;
+    required dmMath.Point3  position        = 1;
+    required dmMath.Quat    rotation        = 2;
+    required dmMath.Point3  world_position  = 3;
+    required dmMath.Quat    world_rotation  = 4;
 }
 
 message SetParent
 {
-    required uint64 child_id    = 1;
-    optional uint64 parent_id   = 2 [default = 0];
+    optional uint64 parent_id = 1 [default = 0];
 }

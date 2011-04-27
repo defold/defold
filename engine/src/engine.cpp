@@ -524,83 +524,6 @@ bail:
                 dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
                 dmEngine::Exit(self, ddf->m_Code);
             }
-            else if (descriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
-            {
-                dmGameObjectDDF::AcquireInputFocus* ddf = (dmGameObjectDDF::AcquireInputFocus*) message->m_Data;
-                // TODO: Assumes the sender is the instance acquiring focus, this should be solved in a more robust way (specifying id in the message?)
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-                dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
-                if (instance)
-                {
-                    dmGameObject::AcquireInputFocus(collection, instance);
-                }
-                else
-                {
-                    dmLogWarning("Game object with id %llu could not be found when trying to acquire input focus.", ddf->m_GameObjectId);
-                }
-            }
-            else if (descriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
-            {
-                dmGameObjectDDF::ReleaseInputFocus* ddf = (dmGameObjectDDF::ReleaseInputFocus*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-                dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, ddf->m_GameObjectId);
-                if (instance)
-                {
-                    dmGameObject::ReleaseInputFocus(collection, instance);
-                }
-            }
-            else if (descriptor == dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor)
-            {
-                dmGameObjectDDF::GameObjectTransformQuery* pq = (dmGameObjectDDF::GameObjectTransformQuery*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-                dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, pq->m_GameObjectId);
-                if (instance)
-                {
-                    dmGameObjectDDF::GameObjectTransformResult result;
-                    result.m_GameObjectId = pq->m_GameObjectId;
-                    result.m_Position = dmGameObject::GetPosition(instance);
-                    result.m_Rotation = dmGameObject::GetRotation(instance);
-                    dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor->m_Name);
-                    uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor;
-                    uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResult);
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, 0, gotr_descriptor, &result, data_size);
-                    if (message_result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send message 'game_object_transform_result' to sender: %d.", message_result);
-                    }
-                }
-                else
-                {
-                    dmLogWarning("Could not find instance with id %llu.", pq->m_GameObjectId);
-                }
-            }
-            else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)
-            {
-                dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ChildId);
-                dmGameObject::HInstance parent = 0;
-                if (sp->m_ParentId != 0)
-                {
-                    parent = dmGameObject::GetInstanceFromIdentifier(collection, sp->m_ParentId);
-                    if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
-                }
-                if (child)
-                {
-                    dmGameObject::Result result = dmGameObject::SetParent(child, parent);
-                    if (result != dmGameObject::RESULT_OK)
-                        dmLogWarning("Error when setting parent of %llu to %llu, error: %i.", sp->m_ChildId, sp->m_ParentId, result);
-                }
-                else
-                {
-                    dmLogWarning("Could not find child instance with id %llu.", sp->m_ChildId);
-                }
-            }
             else if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
             {
                 dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
@@ -652,7 +575,7 @@ bail:
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformResult::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::SetParent::m_DDFDescriptor);
     }
 

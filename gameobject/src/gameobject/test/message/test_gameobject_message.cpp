@@ -11,6 +11,8 @@
 #include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
 
+#include "../../../proto/gameobject_ddf.h"
+
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
 class MessageTest : public ::testing::Test
@@ -295,6 +297,136 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
     dmGameObject::Delete(m_Collection, go);
+}
+
+TEST_F(MessageTest, TestInputFocus)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
+
+    dmhash_t message_id = dmHashString64(dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor->m_Name);
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0));
+
+    ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+
+    ASSERT_EQ(1u, m_Collection->m_InputFocusStack.Size());
+
+    message_id = dmHashString64(dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_Name);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+
+    ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
+struct GameObjectTransformContext
+{
+    Vectormath::Aos::Point3 m_Position;
+    Vectormath::Aos::Quat m_Rotation;
+    Vectormath::Aos::Point3 m_WorldPosition;
+    Vectormath::Aos::Quat m_WorldRotation;
+};
+
+void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user_ptr)
+{
+    if (message->m_Id == dmHashString64(dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name))
+    {
+        dmGameObjectDDF::GameObjectTransformResponse* ddf = (dmGameObjectDDF::GameObjectTransformResponse*)message->m_Data;
+        GameObjectTransformContext* context = (GameObjectTransformContext*)user_ptr;
+        context->m_Position = ddf->m_Position;
+        context->m_Rotation = ddf->m_Rotation;
+        context->m_WorldPosition = ddf->m_WorldPosition;
+        context->m_WorldRotation = ddf->m_WorldRotation;
+    }
+}
+
+TEST_F(MessageTest, TestGameObjectTransform)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    ASSERT_NE((void*) 0, (void*) parent);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));
+
+    dmGameObject::SetParent(go, parent);
+
+    float sq_2_half = sqrtf(2.0f) * 0.5f;
+    dmGameObject::SetPosition(parent, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(parent, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+
+    dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+
+    dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor->m_Name);
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
+    dmMessage::URL sender;
+    sender.m_Socket = socket;
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor, 0x0, 0));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+
+    GameObjectTransformContext context;
+    memset(&context, 0, sizeof(GameObjectTransformContext));
+
+    ASSERT_EQ(1u, dmMessage::Dispatch(socket, DispatchGameObjectTransformCallback, &context));
+
+    Vectormath::Aos::Point3 position = dmGameObject::GetPosition(go);
+    Vectormath::Aos::Quat rotation = dmGameObject::GetRotation(go);
+    Vectormath::Aos::Point3 world_position = dmGameObject::GetWorldPosition(go);
+    Vectormath::Aos::Quat world_rotation = dmGameObject::GetWorldRotation(go);
+
+    ASSERT_EQ(position.getX(), context.m_Position.getX());
+    ASSERT_EQ(rotation.getX(), context.m_Rotation.getX());
+    ASSERT_EQ(world_position.getX(), context.m_WorldPosition.getX());
+    ASSERT_EQ(world_rotation.getX(), context.m_WorldRotation.getX());
+    ASSERT_NE(context.m_Position.getX(), context.m_WorldPosition.getX());
+    ASSERT_NE(context.m_Rotation.getX(), context.m_WorldRotation.getX());
+
+    dmMessage::DeleteSocket(socket);
+
+    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, parent);
+}
+
+TEST_F(MessageTest, TestSetParent)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    ASSERT_NE((void*) 0, (void*) parent);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));
+
+    dmhash_t message_id = dmHashString64(dmGameObjectDDF::SetParent::m_DDFDescriptor->m_Name);
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmGameObject::GetIdentifier(go);
+    dmGameObjectDDF::SetParent ddf;
+    ddf.m_ParentId = dmHashString64("parent_test_instance");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+
+    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+
+    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, parent);
 }
 
 int main(int argc, char **argv)

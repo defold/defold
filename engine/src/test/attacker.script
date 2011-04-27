@@ -1,5 +1,5 @@
 function update(self)
-    msg.post("@system:", "game_object_transform_query", { game_object_id = go.get_id(self, "target") })
+    msg.post("target", "game_object_transform_query")
     if self.target_pos then
         local pos = go.get_position(self)
         local dir = vmath.normalize(self.target_pos - pos)
@@ -8,7 +8,7 @@ function update(self)
 end
 
 function on_message(self, message_id, message)
-    if message_id == hash("game_object_transform_result") then
+    if message_id == hash("game_object_transform_response") then
         assert(message.game_object_id == go.get_id(self, "target"), "invalid id in game object transform result")
         self.target_pos = message.position
     elseif message_id == hash("target_dead") then

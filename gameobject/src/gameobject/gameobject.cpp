@@ -951,7 +951,52 @@ namespace dmGameObject
             context->m_Success = false;
             return;
         }
-        assert(instance);
+        if (message->m_Descriptor != 0)
+        {
+            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+            if (descriptor == dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor)
+            {
+                dmGameObject::AcquireInputFocus(context->m_Collection, instance);
+                return;
+            }
+            else if (descriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
+            {
+                dmGameObject::ReleaseInputFocus(context->m_Collection, instance);
+                return;
+            }
+            else if (descriptor == dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor)
+            {
+                dmGameObjectDDF::GameObjectTransformResponse response;
+                response.m_Position = dmGameObject::GetPosition(instance);
+                response.m_Rotation = dmGameObject::GetRotation(instance);
+                response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
+                response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
+                dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name);
+                uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor;
+                uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResponse);
+                dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
+                if (message_result != dmMessage::RESULT_OK)
+                {
+                    dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name, message_result);
+                }
+                return;
+            }
+            else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)
+            {
+                dmGameObjectDDF::SetParent* sp = (dmGameObjectDDF::SetParent*)message->m_Data;
+                dmGameObject::HInstance parent = 0;
+                if (sp->m_ParentId != 0)
+                {
+                    parent = dmGameObject::GetInstanceFromIdentifier(context->m_Collection, sp->m_ParentId);
+                    if (parent == 0)
+                        dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
+                }
+                dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
+                if (result != dmGameObject::RESULT_OK)
+                    dmLogWarning("Error when setting parent of %llu to %llu, error: %i.", instance->m_Identifier, sp->m_ParentId, result);
+                return;
+            }
+        }
         Prototype* prototype = instance->m_Prototype;
 
         if (message->m_Receiver.m_Fragment != 0)
