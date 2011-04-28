@@ -212,7 +212,7 @@ TEST_F(ScriptTest, TestReload)
 
     CreateFile(script_file_name,
                "function update(self)\n"
-               "    go.set_position(self, vmath.vector3(1,2,3))\n"
+               "    go.set_position(vmath.vector3(1,2,3))\n"
                "end\n");
 
     dmGameObject::HInstance go;
@@ -229,7 +229,7 @@ TEST_F(ScriptTest, TestReload)
 
     CreateFile(script_file_name,
                "function update(self)\n"
-               "    go.set_position(self, vmath.vector3(10,20,30))\n"
+               "    go.set_position(vmath.vector3(10,20,30))\n"
                "end\n");
 
     dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);

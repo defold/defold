@@ -117,56 +117,66 @@ namespace dmGameObject
         {0, 0}
     };
 
+    static ScriptInstance* ScriptInstance_Check(lua_State *L)
+    {
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        if (i == NULL) luaL_error(L, "Lua state did not contain any '%s'.", SCRIPT_INSTANCE_NAME);
+        return i;
+    }
+
     int Script_GetPosition(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
         dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(i->m_Instance)));
         return 1;
     }
 
     int Script_GetRotation(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
         dmScript::PushQuat(L, dmGameObject::GetRotation(i->m_Instance));
         return 1;
     }
 
     int Script_SetPosition(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, 2);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, 1);
         dmGameObject::SetPosition(i->m_Instance, Vectormath::Aos::Point3(*v));
         return 0;
     }
 
     int Script_SetRotation(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, 2);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, 1);
         dmGameObject::SetRotation(i->m_Instance, *q);
         return 0;
     }
 
     int Script_GetWorldPosition(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
         dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(i->m_Instance)));
         return 1;
     }
 
     int Script_GetWorldRotation(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
         dmScript::PushQuat(L, dmGameObject::GetWorldRotation(i->m_Instance));
         return 1;
     }
 
     int Script_GetId(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        if (lua_gettop(L) > 1)
+        ScriptInstance* i = ScriptInstance_Check(L);
+        if (lua_gettop(L) > 0)
         {
-            const char* ident = luaL_checkstring(L, 2);
+            const char* ident = luaL_checkstring(L, 1);
             dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident)));
         }
         else
@@ -178,25 +188,14 @@ namespace dmGameObject
 
     int Script_Delete(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-
-        lua_pushstring(L, "__collection__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        HCollection collection = (HCollection)lua_touserdata(L, -1);
-        assert(collection);
-        lua_pop(L, 1);
-
-        dmGameObject::Delete(collection, i->m_Instance);
-
+        ScriptInstance* i = ScriptInstance_Check(L);
+        dmGameObject::Delete(i->m_Instance->m_Collection, i->m_Instance);
         return 0;
     }
 
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        lua_pushliteral(L, "__script_instance__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
 
         url->m_Socket = i->m_Instance->m_Collection->m_Socket;
         url->m_Path = i->m_Instance->m_Identifier;
@@ -205,10 +204,7 @@ namespace dmGameObject
 
     dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
     {
-        lua_pushliteral(L, "__script_instance__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
 
         if (path_size > 0)
         {
@@ -222,10 +218,7 @@ namespace dmGameObject
 
     uintptr_t GetUserDataCallback(lua_State* L)
     {
-        lua_pushliteral(L, "__script_instance__");
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
         return (uintptr_t)i->m_Instance;
     }
 

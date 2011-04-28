@@ -1,5 +1,7 @@
-function on_message(self, message_id, message)
+function on_message(self, message_id, message, sender)
     if message_id == hash("test_table") then
         assert(message.test_value == 1.0, "test_value not 1.0")
+        assert(sender.path == go.get_id(), "invalid path")
+        assert(sender.fragment == hash("sender_script"), "invalid fragment")
     end
 end

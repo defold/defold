@@ -77,15 +77,7 @@ namespace dmGameObject
             int top = lua_gettop(L);
             (void) top;
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) collection);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__update_context__");
-            lua_pushlightuserdata(L, (void*) update_context);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -108,15 +100,7 @@ namespace dmGameObject
                 result = SCRIPT_RESULT_FAILED;
             }
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__update_context__");
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -212,11 +196,7 @@ namespace dmGameObject
             (void) top;
             int ret;
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -261,11 +241,7 @@ namespace dmGameObject
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -287,11 +263,7 @@ namespace dmGameObject
             int top = lua_gettop(L);
             (void)top;
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -345,11 +317,7 @@ namespace dmGameObject
                 lua_pop(L, 1);
             }
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -369,11 +337,7 @@ namespace dmGameObject
             int top = lua_gettop(L);
             (void)top;
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushlightuserdata(L, (void*) params.m_Instance->m_Collection);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushlightuserdata(L, (void*) script_instance);
             lua_rawset(L, LUA_GLOBALSINDEX);
 
@@ -388,11 +352,7 @@ namespace dmGameObject
                 lua_pop(L, 1);
             }
 
-            lua_pushliteral(L, "__collection__");
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
-
-            lua_pushliteral(L, "__script_instance__");
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
 

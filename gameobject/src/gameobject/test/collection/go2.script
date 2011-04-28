@@ -1,3 +1,3 @@
 function update(self)
-    assert(go.get_id(self) == go.get_id(self, "go2"))
+    assert(go.get_id() == go.get_id("go2"))
 end

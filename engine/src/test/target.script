@@ -3,7 +3,7 @@ function init(self)
     local max_r = 10
     local a = 2 * math.pi * math.random()
     local r = min_r + math.random() * (max_r - min_r)
-    go.set_position(self, vmath.vector3(r * math.cos(a), r * math.sin(a), 0))
+    go.set_position(vmath.vector3(r * math.cos(a), r * math.sin(a), 0))
     self.health = 1
 end
 
@@ -12,7 +12,7 @@ function on_message(self, message_id, message)
         self.health = self.health - message.damage
         if self.health < 0 then
             msg.post("attacker#script", "target_dead")
-            go.delete(self)
+            go.delete()
         end
     end
 end
