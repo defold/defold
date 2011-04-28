@@ -469,11 +469,11 @@ bail:
                     dmRender::Draw(engine->m_RenderContext, 0x0);
                 }
 
-                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
-
                 dmGameObject::PostUpdate(engine->m_MainCollection);
 
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
+
+                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
             }
 
             dmProfile::Pause(true);
