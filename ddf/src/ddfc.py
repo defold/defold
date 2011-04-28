@@ -282,19 +282,23 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         lst.append(tpl)
 
-    pp_cpp.begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
-
-    for name, number, type, label, msg_desc, offset, default_value in lst:
-        pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s},'  % (name, number, type, label, msg_desc, offset, default_value))
-
-    pp_cpp.end()
+    if len(lst) > 0:
+        pp_cpp.begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
+        for name, number, type, label, msg_desc, offset, default_value in lst:
+            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s},'  % (name, number, type, label, msg_desc, offset, default_value))
+        pp_cpp.end()
+    else:
+        pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
 
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.p('"%s",', to_lower_case(message_type.name))
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
     pp_cpp.p('%s_%s_FIELDS_DESCRIPTOR,', namespace, message_type.name)
-    pp_cpp.p('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
+    if len(lst) > 0:
+        pp_cpp.p('sizeof(%s_%s_FIELDS_DESCRIPTOR)/sizeof(dmDDF::FieldDescriptor),', namespace, message_type.name)
+    else:
+        pp_cpp.p('0,')
     pp_cpp.end()
 
     pp_cpp.p('dmDDF::Descriptor* %s::%s::m_DDFDescriptor = &%s_%s_DESCRIPTOR;' % ('::'.join(namespace_lst), message_type.name, namespace, message_type.name))
