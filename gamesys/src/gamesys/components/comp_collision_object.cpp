@@ -270,11 +270,133 @@ namespace dmGameSystem
     static bool g_CollisionOverflowWarning = false;
     static bool g_ContactOverflowWarning = false;
 
+    static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request)
+    {
+        if (response.m_Hit)
+        {
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
+            dmPhysicsDDF::RayCastResponse ddf;
+            ddf.m_Fraction = response.m_Fraction;
+            ddf.m_GameObjectId = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
+            ddf.m_Group = response.m_CollisionObjectGroup;
+            ddf.m_Position = response.m_Position;
+            ddf.m_Normal = response.m_Normal;
+            dmhash_t message_id = dmHashString64(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_Name);
+            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmPhysicsDDF::RayCastResponse);
+            dmMessage::URL receiver;
+            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+            receiver.m_Path = dmGameObject::GetIdentifier(instance);
+            dmGameObject::Result result = dmGameObject::GetComponentId(instance, request.m_UserId, &receiver.m_Fragment);
+            if (result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Error when sending ray cast response: %d", result);
+            }
+            else
+            {
+                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
+                if (message_result != dmMessage::RESULT_OK)
+                {
+                    dmLogError("Error when sending ray cast response: %d", message_result);
+                }
+            }
+        }
+    }
+
+    struct DispatchContext
+    {
+        PhysicsContext* m_PhysicsContext;
+        bool m_Success;
+    };
+
+    void DispatchCallback(dmMessage::Message *message, void* user_ptr)
+    {
+        DispatchContext* context = (DispatchContext*)user_ptr;
+        if (message->m_Descriptor != 0)
+        {
+            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+            if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
+            {
+                dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
+                uint8_t component_index;
+                dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
+                if (go_result != dmGameObject::RESULT_OK)
+                {
+                    dmLogError("Component index could not be retrieved when handling '%s': %d.", dmPhysicsDDF::RayCastRequest::m_DDFDescriptor->m_Name, go_result);
+                    context->m_Success = false;
+                }
+                else
+                {
+                    // Request ray cast
+                    dmPhysics::RayCastRequest request;
+                    request.m_From = ddf->m_From;
+                    request.m_To = ddf->m_To;
+                    request.m_IgnoredUserData = sender_instance;
+                    request.m_Mask = ddf->m_Mask;
+                    request.m_UserId = component_index;
+                    request.m_UserData = (void*)sender_instance;
+                    request.m_Callback = &RayCastCallback;
+
+                    dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+                    uint32_t type;
+                    dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
+                    if (fact_result != dmResource::FACTORY_RESULT_OK)
+                    {
+                        dmLogError("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
+                        context->m_Success = false;
+                    }
+                    void* world = dmGameObject::FindWorld(collection, type);
+                    if (world != 0x0)
+                    {
+                        if (context->m_PhysicsContext->m_3D)
+                        {
+                            dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) world;
+                            dmPhysics::RequestRayCast3D(physics_world, request);
+                        }
+                        else
+                        {
+                            dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) world;
+                            dmPhysics::RequestRayCast2D(physics_world, request);
+                        }
+                    }
+                    else
+                    {
+                        dmLogError("Could not find the physics world when dispatching messages.");
+                        context->m_Success = false;
+                    }
+                }
+            }
+        }
+    }
+
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         if (params.m_World == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+
+        dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
+
+        // Dispatch messages
+        DispatchContext dispatch_context;
+        dispatch_context.m_PhysicsContext = physics_context;
+        dispatch_context.m_Success = true;
+        dmMessage::HSocket physics_socket = 0;
+        if (physics_context->m_3D)
+        {
+            physics_socket = dmPhysics::GetSocket3D(physics_context->m_Context3D);
+        }
+        else
+        {
+            physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context2D);
+        }
+        dmMessage::Dispatch(physics_socket, DispatchCallback, (void*)&dispatch_context);
+        if (!dispatch_context.m_Success)
+        {
+            result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
         uint32_t collision_count = 0;
         uint32_t contact_count = 0;
         if (physics_context->m_3D)
@@ -322,7 +444,7 @@ namespace dmGameSystem
             else
                 dmPhysics::DrawDebug2D((dmPhysics::HWorld2D)params.m_World);
         }
-        return dmGameObject::UPDATE_RESULT_OK;
+        return result;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params)

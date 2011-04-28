@@ -25,7 +25,7 @@ function update(self, dt)
         local next_pos = pos + dp
         go.set_position(self, pos)
         -- request ray cast
-        msg.post("@system:", "ray_cast_request", {from = prev_pos, to = next_pos, ignored_game_object_id = go.get_id(self), mask = self.mask})
+        msg.post("@physics:", "ray_cast_request", {from = prev_pos, to = next_pos, ignored_game_object_id = go.get_id(self), mask = self.mask})
     end
     if expired then
         go.delete(self)

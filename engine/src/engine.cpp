@@ -529,24 +529,6 @@ bail:
             {
                 self->m_ShowProfile = !self->m_ShowProfile;
             }
-            else if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
-            {
-                dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                uint8_t component_index;
-                dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
-                if (go_result != dmGameObject::RESULT_OK)
-                {
-                    dmLogError("Component index could not be retrieved when handling 'ray_cast_request': %d.", go_result);
-                }
-                else
-                {
-                    if (self->m_PhysicsContext.m_3D)
-                        dmGameSystem::RequestRayCast3D(sender_instance, component_index, ddf->m_From, ddf->m_To, ddf->m_Mask);
-                    else
-                        dmGameSystem::RequestRayCast2D(sender_instance, component_index, ddf->m_From, ddf->m_To, ddf->m_Mask);
-                }
-            }
             else
             {
                 dmLogError("Unknown ddf message '%s' sent to socket '%s'.\n", descriptor->m_Name, SYSTEM_SOCKET_NAME);

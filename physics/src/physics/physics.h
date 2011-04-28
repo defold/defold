@@ -2,11 +2,15 @@
 #define PHYSICS_H
 
 #include <stdint.h>
-#include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
+
+#include <dlib/hash.h>
+#include <dlib/message.h>
 
 namespace dmPhysics
 {
+    extern const char* PHYSICS_SOCKET_NAME;
+
     /// Collision object types defining how such an object will be moved.
     enum CollisionObjectType
     {
@@ -146,6 +150,18 @@ namespace dmPhysics
      * @param context Context to delete
      */
     void DeleteContext2D(HContext2D context);
+
+    /**
+     * Retrieve the message socket from a 3D context.
+     * @return socket
+     */
+    dmMessage::HSocket GetSocket3D(HContext3D context);
+
+    /**
+     * Retrieve the message socket from a 2D context.
+     * @return socket
+     */
+    dmMessage::HSocket GetSocket2D(HContext2D context);
 
     /**
      * Parameters to use when creating a world.

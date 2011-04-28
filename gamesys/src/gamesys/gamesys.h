@@ -72,9 +72,6 @@ namespace dmGameSystem
                                                   GuiRenderContext* gui_render_context,
                                                   SpriteContext* sprite_context);
 
-    void RequestRayCast3D(dmGameObject::HInstance instance, uint8_t component_index, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
-    void RequestRayCast2D(dmGameObject::HInstance instance, uint8_t component_index, const Vectormath::Aos::Point3& from, const Vectormath::Aos::Point3& to, uint32_t mask);
-
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);

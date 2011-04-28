@@ -67,6 +67,7 @@ namespace dmPhysics
     : m_Worlds()
     , m_DebugCallbacks()
     , m_Gravity(0.0f, -10.0f, 0.0f)
+    , m_Socket(0)
     {
 
     }
@@ -139,6 +140,13 @@ namespace dmPhysics
         Context3D* context = new Context3D();
         context->m_Gravity = params.m_Gravity;
         context->m_Worlds.SetCapacity(params.m_WorldCount);
+        dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
+            DeleteContext3D(context);
+            return 0x0;
+        }
         return context;
     }
 
@@ -150,7 +158,14 @@ namespace dmPhysics
             for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
                 delete context->m_Worlds[i];
         }
+        if (context->m_Socket != 0)
+            dmMessage::DeleteSocket(context->m_Socket);
         delete context;
+    }
+
+    dmMessage::HSocket GetSocket3D(HContext3D context)
+    {
+        return context->m_Socket;
     }
 
     HWorld3D NewWorld3D(HContext3D context, const NewWorldParams& params)

@@ -10,6 +10,8 @@ namespace dmPhysics
 {
     using namespace Vectormath::Aos;
 
+    const char* PHYSICS_SOCKET_NAME = "@physics";
+
     NewContextParams::NewContextParams()
     : m_Gravity(0.0f, -10.0f, 0.0f)
     , m_WorldCount(4)

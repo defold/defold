@@ -36,6 +36,7 @@ namespace dmPhysics
         dmArray<World3D*>           m_Worlds;
         DebugCallbacks              m_DebugCallbacks;
         Vectormath::Aos::Vector3    m_Gravity;
+        dmMessage::HSocket          m_Socket;
     };
 }
 
