@@ -97,10 +97,7 @@ message RayCastResponse
     required uint32         group           = 5;
 }
 
-message VelocityRequest
-{
-    optional uint32 padding = 1 [default = 0];
-}
+message VelocityRequest {}
 
 message VelocityResponse
 {
