@@ -991,7 +991,27 @@ namespace dmGameObject
                     if (parent == 0)
                         dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
                 }
+                Point3 parent_wp(0.0f, 0.0f, 0.0f);
+                Quat parent_wr(0.0f, 0.0f, 0.0f, 1.0f);
+                if (parent)
+                {
+                    parent_wp = GetWorldPosition(parent);
+                    parent_wr = GetWorldRotation(parent);
+                }
+                if (sp->m_KeepWorldTransform == 0)
+                {
+                    Transform& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
+                    world.m_Rotation = parent_wr * GetRotation(instance);
+                    world.m_Translation = rotate(parent_wr, Vector3(GetPosition(instance))) + parent_wp;
+                }
+                else
+                {
+                    Quat conj_parent_wr = conj(parent_wr);
+                    dmGameObject::SetPosition(instance, Point3(rotate(conj_parent_wr, GetWorldPosition(instance) - parent_wp)));
+                    dmGameObject::SetRotation(instance, conj_parent_wr * GetWorldRotation(instance));
+                }
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
+
                 if (result != dmGameObject::RESULT_OK)
                     dmLogWarning("Error when setting parent of %llu to %llu, error: %i.", instance->m_Identifier, sp->m_ParentId, result);
                 return;

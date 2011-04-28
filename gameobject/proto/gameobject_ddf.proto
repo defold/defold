@@ -65,5 +65,6 @@ message GameObjectTransformResponse
 
 message SetParent
 {
-    optional uint64 parent_id = 1 [default = 0];
+    optional uint64 parent_id               = 1 [default = 0];
+    optional uint32 keep_world_transform    = 2 [default = 1];
 }

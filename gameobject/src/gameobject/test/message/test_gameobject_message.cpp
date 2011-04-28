@@ -409,19 +409,94 @@ TEST_F(MessageTest, TestSetParent)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));
 
+    const float sq_2_half = sqrtf(2.0f) * 0.5f;
+    const float epsilon = 0.000001f;
+
+    dmGameObject::SetPosition(parent, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(parent, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+
+    dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+
     dmhash_t message_id = dmHashString64(dmGameObjectDDF::SetParent::m_DDFDescriptor->m_Name);
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     dmGameObjectDDF::SetParent ddf;
-    ddf.m_ParentId = dmHashString64("parent_test_instance");
+    dmhash_t parent_id = dmHashString64("parent_test_instance");
+    ddf.m_ParentId = parent_id;
+    ddf.m_KeepWorldTransform = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
 
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
-
     ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    // twice to make sure UpdateTransform has run
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    ddf.m_ParentId = 0;
+    ddf.m_KeepWorldTransform = 1;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    // twice to make sure UpdateTransform has run
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
+    dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+
+    ddf.m_ParentId = parent_id;
+    ddf.m_KeepWorldTransform = 1;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(1.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    // twice to make sure UpdateTransform has run
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(1.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    ddf.m_ParentId = 0;
+    ddf.m_KeepWorldTransform = 0;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
+
+    // twice to make sure UpdateTransform has run
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
+    ASSERT_EQ(0.0f, dmGameObject::GetWorldPosition(go).getX());
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
+    ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     dmGameObject::Delete(m_Collection, go);
     dmGameObject::Delete(m_Collection, parent);
