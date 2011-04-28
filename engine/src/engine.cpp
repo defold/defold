@@ -34,6 +34,8 @@ using namespace Vectormath::Aos;
 
 namespace dmEngine
 {
+#define SYSTEM_SOCKET_NAME "@system"
+
     void GetWorldTransform(void* user_data, Point3& position, Quat& rotation)
     {
         if (!user_data)
@@ -281,11 +283,10 @@ namespace dmEngine
         float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
 
-        const char* system_socket_name = "@system";
-        dmMessage::Result mr = dmMessage::NewSocket(system_socket_name, &engine->m_SystemSocket);
+        dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
         {
-            dmLogFatal("Unable to create gui socket: %s (%d)", system_socket_name, mr);
+            dmLogFatal("Unable to create system socket: %s (%d)", SYSTEM_SOCKET_NAME, mr);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -524,6 +525,10 @@ bail:
                 dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
                 dmEngine::Exit(self, ddf->m_Code);
             }
+            else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
+            {
+                self->m_ShowProfile = !self->m_ShowProfile;
+            }
             else if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
             {
                 dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
@@ -544,19 +549,12 @@ bail:
             }
             else
             {
-                dmLogError("Unknown message: %s\n", descriptor->m_Name);
+                dmLogError("Unknown ddf message '%s' sent to socket '%s'.\n", descriptor->m_Name, SYSTEM_SOCKET_NAME);
             }
         }
         else
         {
-            if (message->m_Id == dmHashString64("toggle_profile"))
-            {
-                self->m_ShowProfile = !self->m_ShowProfile;
-            }
-            else
-            {
-                dmLogError("Unknown message: %llu\n", message->m_Id);
-            }
+            dmLogError("Only system messages can be sent to the '%s' socket.\n", SYSTEM_SOCKET_NAME);
         }
     }
 
@@ -565,6 +563,7 @@ bail:
         dmGameSystem::RegisterDDFTypes(engine->m_ScriptContext);
 
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::Exit::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmEngineDDF::ToggleProfile::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);

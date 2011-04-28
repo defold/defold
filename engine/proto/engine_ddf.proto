@@ -6,3 +6,5 @@ message Exit
 {
     required int32 code = 1;
 }
+
+message ToggleProfile {}
