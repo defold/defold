@@ -207,7 +207,7 @@ public class ReloadResourceTest {
         String path = "logic/session/ball.sprite";
         SpriteResource resource = (SpriteResource)factory.load(monitor, path);
         SpriteDesc.Builder builder = SpriteDesc.newBuilder();
-        SpriteDesc newMessage = builder.setFrameCount(1).setFramesPerRow(1).setHeight(1.0f).setTexture("texture").setTileHeight(1).setTileWidth(1).setWidth(1.0f).build();
+        SpriteDesc newMessage = builder.setFrameCount(1).setFramesPerRow(1).setHeight(1.0f).setTexture("textures/test.png").setTileHeight(1).setTileWidth(1).setWidth(1.0f).build();
         testReload(path, resource, newMessage, new IMessageHelper<SpriteResource, SpriteDesc>() {
             public SpriteDesc getMessage(SpriteResource resource) {
                 return resource.getSpriteDesc();
