@@ -160,7 +160,7 @@ namespace dmGameObject
         delete collection;
     }
 
-    static ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index)
+    ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index)
     {
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
@@ -235,7 +235,7 @@ namespace dmGameObject
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
     {
         dmResource::FactoryResult ret = dmResource::FACTORY_RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", 0, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
         if (ret != dmResource::FACTORY_RESULT_OK)
             return ret;
 
@@ -313,8 +313,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
-            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, 0x0);
+            ComponentType* component_type = component->m_Type;
             if (!component_type)
             {
                 dmLogError("Internal error. Component type #%d for '%s' not found.", i, prototype_name);
@@ -341,9 +340,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
-            uint32_t component_type_index;
-            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
+            ComponentType* component_type = component->m_Type;
             assert(component_type);
 
             uintptr_t* component_instance_data = 0;
@@ -359,13 +356,13 @@ namespace dmGameObject
             params.m_Instance = instance;
             params.m_ComponentIndex = (uint8_t)i;
             params.m_Resource = component->m_Resource;
-            params.m_World = collection->m_ComponentWorlds[component_type_index];
+            params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
-                collection->m_Register->m_ComponentInstanceCount[component_type_index]++;
+                collection->m_Register->m_ComponentInstanceCount[component->m_TypeIndex]++;
                 components_created++;
             }
             else
@@ -381,9 +378,7 @@ namespace dmGameObject
             for (uint32_t i = 0; i < components_created; ++i)
             {
                 Prototype::Component* component = &proto->m_Components[i];
-                uint32_t component_type_index;
-                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
+                ComponentType* component_type = component->m_Type;
                 assert(component_type);
                 uintptr_t* component_instance_data = 0;
                 if (component_type->m_InstanceHasUserData)
@@ -392,11 +387,11 @@ namespace dmGameObject
                 }
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-                collection->m_Register->m_ComponentInstanceCount[component_type_index]--;
+                collection->m_Register->m_ComponentInstanceCount[component->m_TypeIndex]--;
                 ComponentDestroyParams params;
                 params.m_Collection = collection;
                 params.m_Instance = instance;
-                params.m_World = collection->m_ComponentWorlds[component_type_index];
+                params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                 params.m_Context = component_type->m_Context;
                 params.m_UserData = component_instance_data;
                 component_type->m_DestroyFunction(params);
@@ -576,10 +571,7 @@ namespace dmGameObject
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
                 Prototype::Component* component = &prototype->m_Components[i];
-                uint32_t component_type_index;
-                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
-                assert(component_type);
+                ComponentType* component_type = component->m_Type;
 
                 uintptr_t* component_instance_data = 0;
                 if (component_type->m_InstanceHasUserData)
@@ -593,7 +585,7 @@ namespace dmGameObject
                     ComponentInitParams params;
                     params.m_Collection = collection;
                     params.m_Instance = instance;
-                    params.m_World = collection->m_ComponentWorlds[component_type_index];
+                    params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
                     CreateResult result = component_type->m_InitFunction(params);
@@ -648,9 +640,7 @@ namespace dmGameObject
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
                 Prototype::Component* component = &prototype->m_Components[i];
-                uint32_t component_type_index;
-                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-                ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
+                ComponentType* component_type = component->m_Type;
                 assert(component_type);
 
                 uintptr_t* component_instance_data = 0;
@@ -665,7 +655,7 @@ namespace dmGameObject
                     ComponentFinalParams params;
                     params.m_Collection = collection;
                     params.m_Instance = instance;
-                    params.m_World = collection->m_ComponentWorlds[component_type_index];
+                    params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
                     CreateResult result = component_type->m_FinalFunction(params);
@@ -721,10 +711,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
-            uint32_t component_type_index;
-            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-            ComponentType* component_type = FindComponentType(collection->m_Register, component->m_ResourceType, &component_type_index);
-            assert(component_type);
+            ComponentType* component_type = component->m_Type;
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -733,11 +720,11 @@ namespace dmGameObject
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            collection->m_Register->m_ComponentInstanceCount[component_type_index]--;
+            collection->m_Register->m_ComponentInstanceCount[component->m_TypeIndex]--;
             ComponentDestroyParams params;
             params.m_Collection = collection;
             params.m_Instance = instance;
-            params.m_World = collection->m_ComponentWorlds[component_type_index];
+            params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
             component_type->m_DestroyFunction(params);
@@ -1030,9 +1017,7 @@ namespace dmGameObject
                 context->m_Success = false;
                 return;
             }
-            uint32_t resource_type = prototype->m_Components[component_index].m_ResourceType;
-            // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-            ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type, 0x0);
+            ComponentType* component_type = prototype->m_Components[component_index].m_Type;
             assert(component_type);
 
             if (component_type->m_OnMessageFunction)
@@ -1041,7 +1026,7 @@ namespace dmGameObject
                 uint32_t next_component_instance_data = 0;
                 for (uint32_t i = 0; i < component_index; ++i)
                 {
-                    ComponentType* ct = FindComponentType(context->m_Collection->m_Register, prototype->m_Components[i].m_ResourceType, 0x0);
+                    ComponentType* ct = prototype->m_Components[i].m_Type;
                     assert(component_type);
                     if (ct->m_InstanceHasUserData)
                     {
@@ -1077,9 +1062,7 @@ namespace dmGameObject
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
-                uint32_t resource_type = prototype->m_Components[i].m_ResourceType;
-                // TODO: This wouldn't be needed if the component type was stored in the component which seems like a reasonable optimization
-                ComponentType* component_type = FindComponentType(context->m_Collection->m_Register, resource_type, 0x0);
+                ComponentType* component_type = prototype->m_Components[i].m_Type;
                 assert(component_type);
 
                 if (component_type->m_OnMessageFunction)
@@ -1319,7 +1302,7 @@ namespace dmGameObject
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t l = 0; l < components_size; ++l)
                     {
-                        ComponentType* component_type = FindComponentType(collection->m_Register, prototype->m_Components[l].m_ResourceType, 0x0);
+                        ComponentType* component_type = prototype->m_Components[l].m_Type;
                         assert(component_type);
                         if (component_type->m_OnInputFunction)
                         {
@@ -1615,8 +1598,7 @@ namespace dmGameObject
                 for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)
                 {
                     Prototype::Component& component = instance->m_Prototype->m_Components[j];
-                    uint32_t component_type_index;
-                    ComponentType* type = FindComponentType(collection->m_Register, component.m_ResourceType, &component_type_index);
+                    ComponentType* type = component.m_Type;
                     if (component.m_ResourceId == descriptor->m_NameHash)
                     {
                         if (type->m_OnReloadFunction)
@@ -1629,7 +1611,7 @@ namespace dmGameObject
                             ComponentOnReloadParams params;
                             params.m_Instance = instance;
                             params.m_Resource = descriptor->m_Resource;
-                            params.m_World = collection->m_ComponentWorlds[component_type_index];
+                            params.m_World = collection->m_ComponentWorlds[component.m_TypeIndex];
                             params.m_Context = type->m_Context;
                             params.m_UserData = user_data;
                             type->m_OnReloadFunction(params);

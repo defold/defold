@@ -29,18 +29,22 @@ namespace dmGameObject
     {
         struct Component
         {
-            Component(void* resource, uint32_t resource_type, dmhash_t id, dmhash_t resource_id) :
+            Component(void* resource, uint32_t resource_type, dmhash_t id, dmhash_t resource_id, ComponentType* type, uint32_t type_index) :
                 m_Id(id),
                 m_ResourceId(resource_id),
+                m_Type(type),
+                m_TypeIndex(type_index),
                 m_Resource(resource),
                 m_ResourceType(resource_type)
             {
             }
 
-            dmhash_t m_Id;
-            dmhash_t m_ResourceId;
-            void*    m_Resource;
-            uint32_t m_ResourceType;
+            dmhash_t        m_Id;
+            dmhash_t        m_ResourceId;
+            ComponentType*  m_Type;
+            uint32_t        m_TypeIndex;
+            void*           m_Resource;
+            uint32_t        m_ResourceType;
         };
 
         dmArray<Component>     m_Components;
@@ -255,6 +259,8 @@ namespace dmGameObject
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
     };
+
+    ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
 }
 
 #endif // GAMEOBJECT_COMMON_H

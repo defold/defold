@@ -14,6 +14,7 @@ namespace dmGameObject
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
     {
+        HRegister regist = (HRegister)context;
         dmGameObjectDDF::PrototypeDesc* proto_desc;
 
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
@@ -64,10 +65,14 @@ namespace dmGameObject
                 uint32_t resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
+                uint32_t type_index;
+                ComponentType* type = FindComponentType(regist, resource_type, &type_index);
+                assert(type != 0x0);
                 dmResource::SResourceDescriptor descriptor;
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
                 assert(fact_e == dmResource::FACTORY_RESULT_OK);
-                proto->m_Components.Push(Prototype::Component(component, resource_type, id, descriptor.m_NameHash));
+
+                proto->m_Components.Push(Prototype::Component(component, resource_type, id, descriptor.m_NameHash, type, type_index));
             }
         }
 
