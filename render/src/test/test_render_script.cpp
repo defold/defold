@@ -130,8 +130,8 @@ TEST_F(dmRenderScriptTest, TestSetRenderScript)
 TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 {
     const char* script = "function init(self)\n"
-    "    render.enable_material(self, \"test_material\")\n"
-    "    render.disable_material(self, \"test_material\")\n"
+    "    render.enable_material(\"test_material\")\n"
+    "    render.disable_material(\"test_material\")\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -201,14 +201,14 @@ TEST_F(dmRenderScriptTest, TestLuaState)
 {
     const char* script =
     "function update(self)\n"
-    "    render.enable_state(self, render.STATE_ALPHA_TEST)\n"
-    "    render.disable_state(self, render.STATE_ALPHA_TEST)\n"
-    "    render.set_blend_func(self, render.BLEND_FACTOR_ONE, render.BLEND_FACTOR_SRC_COLOR)\n"
-    "    render.set_color_mask(self, true, true, true, true)\n"
-    "    render.set_depth_mask(self, true)\n"
-    "    render.set_stencil_mask(self, 1)\n"
-    "    render.set_cull_face(self, render.FACE_TYPE_BACK)\n"
-    "    render.set_polygon_offset(self, 1, 2)\n"
+    "    render.enable_state(render.STATE_ALPHA_TEST)\n"
+    "    render.disable_state(render.STATE_ALPHA_TEST)\n"
+    "    render.set_blend_func(render.BLEND_FACTOR_ONE, render.BLEND_FACTOR_SRC_COLOR)\n"
+    "    render.set_color_mask(true, true, true, true)\n"
+    "    render.set_depth_mask(true)\n"
+    "    render.set_stencil_mask(1)\n"
+    "    render.set_cull_face(render.FACE_TYPE_BACK)\n"
+    "    render.set_polygon_offset(1, 2)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -274,11 +274,11 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "        u_wrap = render.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = render.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(self, \"rt\", {[render.BUFFER_TYPE_DEPTH_BIT] = params})\n"
-    "    render.enable_render_target(self, self.rt)\n"
-    "    render.disable_render_target(self, self.rt)\n"
-    "    render.set_render_target_size(self, self.rt, 3, 4)\n"
-    "    render.delete_render_target(self, self.rt)\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_TYPE_DEPTH_BIT] = params})\n"
+    "    render.enable_render_target(self.rt)\n"
+    "    render.disable_render_target(self.rt)\n"
+    "    render.set_render_target_size(self.rt, 3, 4)\n"
+    "    render.delete_render_target(self.rt)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -304,7 +304,7 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
 {
     const char* script =
     "function update(self)\n"
-    "    render.clear(self, {[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
+    "    render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -336,9 +336,9 @@ TEST_F(dmRenderScriptTest, TestLuaTransform)
 {
     const char* script =
     "function init(self)\n"
-    "    render.set_viewport(self, 1, 2, 3, 4)\n"
-    "    render.set_view(self, vmath.matrix4())\n"
-    "    render.set_projection(self, vmath.matrix4())\n"
+    "    render.set_viewport(1, 2, 3, 4)\n"
+    "    render.set_view(vmath.matrix4())\n"
+    "    render.set_projection(vmath.matrix4())\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -383,10 +383,10 @@ TEST_F(dmRenderScriptTest, TestLuaDraw)
 {
     const char* script =
     "function init(self)\n"
-    "    self.test_pred = render.predicate(self, {\"one\", \"two\"})\n"
-    "    render.draw(self, self.test_pred)\n"
-    "    render.draw_debug3d(self)\n"
-    "    render.draw_debug2d(self)\n"
+    "    self.test_pred = render.predicate({\"one\", \"two\"})\n"
+    "    render.draw(self.test_pred)\n"
+    "    render.draw_debug3d()\n"
+    "    render.draw_debug2d()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -416,8 +416,8 @@ TEST_F(dmRenderScriptTest, TestLuaWindowSize)
 {
     const char* script =
     "function update(self)\n"
-    "    assert(render.get_window_width(self) == 20)\n"
-    "    assert(render.get_window_height(self) == 10)\n"
+    "    assert(render.get_window_width() == 20)\n"
+    "    assert(render.get_window_height() == 10)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -432,14 +432,14 @@ TEST_F(dmRenderScriptTest, TestLuaConstants)
 {
     const char* script =
     "function init(self)\n"
-    "    render.enable_vertex_constant(self, 1, vmath.vector4(1, 2, 3, 4))\n"
-    "    render.disable_vertex_constant(self, 1)\n"
-    "    render.enable_vertex_constant_block(self, 1, vmath.matrix4() * 2)\n"
-    "    render.disable_vertex_constant_block(self, 1)\n"
-    "    render.enable_fragment_constant(self, 1, vmath.vector4(1, 2, 3, 4))\n"
-    "    render.disable_fragment_constant(self, 1)\n"
-    "    render.enable_fragment_constant_block(self, 1, vmath.matrix4() * 2)\n"
-    "    render.disable_fragment_constant_block(self, 1)\n"
+    "    render.enable_vertex_constant(1, vmath.vector4(1, 2, 3, 4))\n"
+    "    render.disable_vertex_constant(1)\n"
+    "    render.enable_vertex_constant_block(1, vmath.matrix4() * 2)\n"
+    "    render.disable_vertex_constant_block(1)\n"
+    "    render.enable_fragment_constant(1, vmath.vector4(1, 2, 3, 4))\n"
+    "    render.disable_fragment_constant(1)\n"
+    "    render.enable_fragment_constant_block(1, vmath.matrix4() * 2)\n"
+    "    render.disable_fragment_constant_block(1)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);

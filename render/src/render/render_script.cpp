@@ -144,10 +144,19 @@ namespace dmRender
         return true;
     }
 
+    static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
+    {
+        lua_getglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        if (i == NULL) luaL_error(L, "Lua state did not contain '%s'.", RENDER_SCRIPT_INSTANCE_SELF);
+        return i;
+    }
+
     int RenderScript_EnableState(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t state = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t state = luaL_checknumber(L, 1);
 
         switch (state)
         {
@@ -170,8 +179,8 @@ namespace dmRender
 
     int RenderScript_DisableState(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t state = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t state = luaL_checknumber(L, 1);
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
@@ -193,11 +202,11 @@ namespace dmRender
 
     int RenderScript_SetViewport(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        int32_t x = luaL_checknumber(L, 2);
-        int32_t y = luaL_checknumber(L, 3);
-        int32_t width = luaL_checknumber(L, 4);
-        int32_t height = luaL_checknumber(L, 5);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        int32_t x = luaL_checknumber(L, 1);
+        int32_t y = luaL_checknumber(L, 2);
+        int32_t width = luaL_checknumber(L, 3);
+        int32_t height = luaL_checknumber(L, 4);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, width, height)))
             return 0;
         else
@@ -208,15 +217,15 @@ namespace dmRender
     {
         int top = lua_gettop(L);
 
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        const char* name = luaL_checkstring(L, 2);
+        const char* name = luaL_checkstring(L, 1);
 
         uint32_t buffer_type_flags = 0;
-        luaL_checktype(L, 3, LUA_TTABLE);
+        luaL_checktype(L, 2, LUA_TTABLE);
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         lua_pushnil(L);
-        while (lua_next(L, 3))
+        while (lua_next(L, 2))
         {
             uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
             buffer_type_flags |= buffer_type;
@@ -284,13 +293,13 @@ namespace dmRender
 
     int RenderScript_DeleteRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 2))
+        if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
         }
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
@@ -301,12 +310,12 @@ namespace dmRender
 
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 2))
+        if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
         }
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
@@ -319,12 +328,12 @@ namespace dmRender
 
     int RenderScript_DisableRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 2))
+        if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDER_TARGET, (uint32_t)render_target)))
             return 0;
@@ -334,15 +343,15 @@ namespace dmRender
 
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 2))
+        if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
-            uint32_t width = luaL_checknumber(L, 3);
-            uint32_t height = luaL_checknumber(L, 4);
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            uint32_t width = luaL_checknumber(L, 2);
+            uint32_t height = luaL_checknumber(L, 3);
             dmGraphics::SetRenderTargetSize(render_target, width, height);
             return 0;
         }
@@ -354,14 +363,14 @@ namespace dmRender
 
     int RenderScript_EnableTexture(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        uint32_t unit = luaL_checknumber(L, 2);
-        if (lua_islightuserdata(L, 3))
+        uint32_t unit = luaL_checknumber(L, 1);
+        if (lua_islightuserdata(L, 2))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 3);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 4);
+            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
             if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
                 return 0;
@@ -376,8 +385,8 @@ namespace dmRender
 
     int RenderScript_DisableTexture(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t unit = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t unit = luaL_checknumber(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, unit)))
             return 0;
         else
@@ -386,8 +395,8 @@ namespace dmRender
 
     int RenderScript_Clear(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        luaL_checktype(L, 2, LUA_TTABLE);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        luaL_checktype(L, 1, LUA_TTABLE);
 
         int top = lua_gettop(L);
 
@@ -398,7 +407,7 @@ namespace dmRender
         uint32_t stencil = 0;
 
         lua_pushnil(L);
-        while (lua_next(L, 2))
+        while (lua_next(L, 1))
         {
             uint32_t buffer_type = luaL_checknumber(L, -2);
             flags |= buffer_type;
@@ -439,11 +448,11 @@ namespace dmRender
 
     int RenderScript_Draw(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmRender::Predicate* predicate = 0x0;
-        if (lua_islightuserdata(L, 2))
+        if (lua_islightuserdata(L, 1))
         {
-            predicate = (dmRender::Predicate*)lua_touserdata(L, 2);
+            predicate = (dmRender::Predicate*)lua_touserdata(L, 1);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint32_t)predicate)))
             return 0;
@@ -453,7 +462,7 @@ namespace dmRender
 
     int RenderScript_DrawDebug3d(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D)))
             return 0;
         else
@@ -462,7 +471,7 @@ namespace dmRender
 
     int RenderScript_DrawDebug2d(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG2D)))
             return 0;
         else
@@ -471,8 +480,8 @@ namespace dmRender
 
     int RenderScript_SetView(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        Vectormath::Aos::Matrix4 view = *dmScript::CheckMatrix4(L, 1);
 
         Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
         *matrix = view;
@@ -484,8 +493,8 @@ namespace dmRender
 
     int RenderScript_SetProjection(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
         Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
         *matrix = projection;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uint32_t)matrix)))
@@ -496,11 +505,11 @@ namespace dmRender
 
     int RenderScript_SetBlendFunc(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t factors[2];
         for (uint32_t i = 0; i < 2; ++i)
         {
-            factors[i] = luaL_checknumber(L, 2+i);
+            factors[i] = luaL_checknumber(L, 1+i);
         }
         for (uint32_t i = 0; i < 2; ++i)
         {
@@ -534,14 +543,14 @@ namespace dmRender
 
     int RenderScript_SetColorMask(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        if (lua_isboolean(L, 2) && lua_isboolean(L, 3) && lua_isboolean(L, 4) && lua_isboolean(L, 5))
+        if (lua_isboolean(L, 1) && lua_isboolean(L, 2) && lua_isboolean(L, 3) && lua_isboolean(L, 4))
         {
-            bool red = lua_toboolean(L, 2) != 0;
-            bool green = lua_toboolean(L, 3) != 0;
-            bool blue = lua_toboolean(L, 4) != 0;
-            bool alpha = lua_toboolean(L, 5) != 0;
+            bool red = lua_toboolean(L, 1) != 0;
+            bool green = lua_toboolean(L, 2) != 0;
+            bool blue = lua_toboolean(L, 3) != 0;
+            bool alpha = lua_toboolean(L, 4) != 0;
             if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uint32_t)red, (uint32_t)green, (uint32_t)blue, (uint32_t)alpha)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
@@ -554,11 +563,11 @@ namespace dmRender
 
     int RenderScript_SetDepthMask(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        if (lua_isboolean(L, 2))
+        if (lua_isboolean(L, 1))
         {
-            bool mask = lua_toboolean(L, 2) != 0;
+            bool mask = lua_toboolean(L, 1) != 0;
             if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uint32_t)mask)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
@@ -571,9 +580,9 @@ namespace dmRender
 
     int RenderScript_SetStencilMask(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        uint32_t mask = (uint32_t)luaL_checknumber(L, 2);
+        uint32_t mask = (uint32_t)luaL_checknumber(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_MASK, mask)))
             return 0;
         else
@@ -582,8 +591,8 @@ namespace dmRender
 
     int RenderScript_SetCullFace(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t face_type = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t face_type = luaL_checknumber(L, 1);
         switch (face_type)
         {
             case dmGraphics::FACE_TYPE_FRONT:
@@ -601,9 +610,9 @@ namespace dmRender
 
     int RenderScript_SetPolygonOffset(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        float factor = luaL_checknumber(L, 2);
-        float units = luaL_checknumber(L, 3);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        float factor = luaL_checknumber(L, 1);
+        float units = luaL_checknumber(L, 2);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uint32_t)factor, (uint32_t)units)))
             return 0;
         else
@@ -612,7 +621,7 @@ namespace dmRender
 
     int RenderScript_GetWindowWidth(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         lua_pushnumber(L, dmGraphics::GetWindowWidth(i->m_RenderContext->m_GraphicsContext));
         return 1;
@@ -620,7 +629,7 @@ namespace dmRender
 
     int RenderScript_GetWindowHeight(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         lua_pushnumber(L, dmGraphics::GetWindowHeight(i->m_RenderContext->m_GraphicsContext));
         return 1;
@@ -628,14 +637,14 @@ namespace dmRender
 
     int RenderScript_Predicate(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        luaL_checktype(L, 2, LUA_TTABLE);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        luaL_checktype(L, 1, LUA_TTABLE);
         if (i->m_PredicateCount < MAX_PREDICATE_COUNT)
         {
             dmRender::Predicate* predicate = new dmRender::Predicate();
             i->m_Predicates[i->m_PredicateCount++] = predicate;
             lua_pushnil(L);  /* first key */
-            while (lua_next(L, 2) != 0)
+            while (lua_next(L, 1) != 0)
             {
                 const char* tag = luaL_checkstring(L, -1);
                 predicate->m_Tags[predicate->m_TagCount++] = dmHashString32(tag);
@@ -654,9 +663,9 @@ namespace dmRender
 
     int RenderScript_EnableVertexConstant(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
-        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 3);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
+        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 2);
         if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_VERTEX_CONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -664,8 +673,8 @@ namespace dmRender
 
     int RenderScript_DisableVertexConstant(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
         if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_VERTEX_CONSTANT, (uint32_t)reg, (uint32_t)0)))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -673,9 +682,9 @@ namespace dmRender
 
     int RenderScript_EnableVertexConstantBlock(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
-        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 3);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
+        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 2);
         if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_VERTEX_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -683,8 +692,8 @@ namespace dmRender
 
     int RenderScript_DisableVertexConstantBlock(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
         if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_VERTEX_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)0)))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -692,9 +701,9 @@ namespace dmRender
 
     int RenderScript_EnableFragmentConstant(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
-        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 3);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
+        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 2);
         if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -702,8 +711,8 @@ namespace dmRender
 
     int RenderScript_DisableFragmentConstant(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
         if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT, (uint32_t)reg, (uint32_t)0)))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -711,9 +720,9 @@ namespace dmRender
 
     int RenderScript_EnableFragmentConstantBlock(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
-        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 3);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
+        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 2);
         if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -721,8 +730,8 @@ namespace dmRender
 
     int RenderScript_DisableFragmentConstantBlock(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        uint32_t reg = luaL_checknumber(L, 2);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t reg = luaL_checknumber(L, 1);
         if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)0)))
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         return 0;
@@ -731,10 +740,10 @@ namespace dmRender
     int RenderScript_EnableMaterial(lua_State* L)
     {
         int top = lua_gettop(L);
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        if (!lua_isnil(L, 2))
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        if (!lua_isnil(L, 1))
         {
-            const char* material_id = luaL_checkstring(L, 2);
+            const char* material_id = luaL_checkstring(L, 1);
             dmRender::HMaterial* mat = i->m_Materials.Get(dmHashString64(material_id));
             if (mat == 0x0)
             {
@@ -758,7 +767,7 @@ namespace dmRender
 
     int RenderScript_DisableMaterial(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
             return 0;
         else
@@ -807,9 +816,7 @@ namespace dmRender
 
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        lua_getglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
-        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         url->m_Socket = i->m_RenderContext->m_Socket;
     }
 
