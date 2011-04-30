@@ -43,7 +43,6 @@ namespace dmRender
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count)
     {
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
-        Vectormath::Aos::Matrix4 current_view_matrix;
 
         for (uint32_t i=0; i<command_count; i++)
         {
@@ -101,7 +100,6 @@ namespace dmRender
                 {
                     Vectormath::Aos::Matrix4* matrix = (Vectormath::Aos::Matrix4*)c->m_Operands[0];
                     dmRender::SetViewMatrix(render_context, *matrix);
-                    current_view_matrix = *matrix;
                     delete matrix;
                     break;
                 }
@@ -144,7 +142,6 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmRender::GenerateKey(render_context, current_view_matrix);
                     dmRender::Draw(render_context, (dmRender::Predicate*)c->m_Operands[0]);
                     break;
                 }

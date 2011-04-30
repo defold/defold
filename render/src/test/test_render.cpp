@@ -24,7 +24,7 @@ protected:
         m_GraphicsContext = dmGraphics::NewContext();
         dmRender::RenderContextParams params;
         params.m_MaxRenderTargets = 1;
-        params.m_MaxInstances = 1;
+        params.m_MaxInstances = 2;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
     }
 
@@ -72,7 +72,7 @@ TEST_F(dmRenderTest, TestViewProj)
 
     dmRender::SetViewMatrix(m_Context, view);
     dmRender::SetProjectionMatrix(m_Context, proj);
-    Vectormath::Aos::Matrix4 test = *dmRender::GetViewProjectionMatrix(m_Context);
+    const Vectormath::Aos::Matrix4& test = dmRender::GetViewProjectionMatrix(m_Context);
 
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
@@ -82,6 +82,7 @@ TEST_F(dmRenderTest, TestViewProj)
 TEST_F(dmRenderTest, TestRenderObjects)
 {
     dmRender::RenderObject ro;
+    ASSERT_EQ(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
     ASSERT_EQ(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
     ASSERT_NE(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
     ASSERT_EQ(dmRender::RESULT_OK, ClearRenderObjects(m_Context));
@@ -149,6 +150,37 @@ TEST_F(dmRenderTest, TestLine2d)
 TEST_F(dmRenderTest, TestLine3d)
 {
     Line3D(m_Context, Point3(10.0f, 20.0f, 30.0f), Point3(10.0f, 20.0f, 30.0f), Vector4(0.1f, 0.2f, 0.3f, 0.4f), Vector4(0.1f, 0.2f, 0.3f, 0.4f));
+}
+
+TEST_F(dmRenderTest, TestDraw)
+{
+    dmRender::RenderObject ro_neg_z;
+    ro_neg_z.m_WorldTransform.setTranslation(Vector3(0.0f, 0.0f, -1.0f));
+    dmRender::RenderObject ro_pos_z;
+    ro_neg_z.m_WorldTransform.setTranslation(Vector3(0.0f, 0.0f, 1.0f));
+
+    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+
+    dmRender::AddToRender(m_Context, &ro_neg_z);
+    dmRender::AddToRender(m_Context, &ro_pos_z);
+    ASSERT_LT(0u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[0]);
+    ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[1]);
+
+    dmRender::SetProjectionMatrix(m_Context, Matrix4::perspective(3.14*0.5f, 1.0f, 0.1f, 100.0f));
+    dmRender::SetViewMatrix(m_Context, Matrix4::lookAt(Point3(0.0f, 0.0f, 10.0f), Point3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f)));
+
+    dmRender::Draw(m_Context, 0x0);
+
+    ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[0]);
+    ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[1]);
+
+    dmRender::SetViewMatrix(m_Context, Matrix4::lookAt(Point3(0.0f, 0.0f, -10.0f), Point3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f)));
+
+    dmRender::Draw(m_Context, 0x0);
+
+    ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[0]);
+    ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[1]);
 }
 
 int main(int argc, char **argv)

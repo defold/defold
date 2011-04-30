@@ -58,7 +58,7 @@ namespace dmRender
         {
             struct
             {
-                uint64_t    m_Depth:30;
+                uint64_t    m_Depth:32;
                 uint64_t    m_Translucency:1;
                 uint64_t    m_MaterialId:31;
             };
@@ -127,7 +127,7 @@ namespace dmRender
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
-    Matrix4* GetViewProjectionMatrix(HRenderContext render_context);
+    const Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const Matrix4& projection);
 
