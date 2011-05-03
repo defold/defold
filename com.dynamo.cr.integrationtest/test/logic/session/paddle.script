@@ -2,16 +2,16 @@ function init(self)
 	self.speed = 500
 	self.movement = nil
 	self.ball_attached = true
-    msg.post("@system:", "acquire_input_focus", { game_object_id = go.get_id(self) })
-    self.initial_position = go.get_world_position(self)
+    msg.post(nil, "acquire_input_focus")
+    self.initial_position = go.get_world_position()
 end
 
 function update(self, dt)
 	if self.movement and (not self.contact_normal or self.movement * self.contact_normal > 0) then
-		local p = go.get_world_position(self)
+		local p = go.get_world_position()
 		local movement = self.movement
 		p.x = p.x + self.movement * self.speed * dt
-		go.set_position(self, p)
+		go.set_position(p)
 		self.movement = nil
 	end
 	self.contact_normal = nil
@@ -33,7 +33,7 @@ end
 
 function on_message(self, message_id, message)
 	if message_id == hash("reset") then
-		go.set_position(self, self.initial_position)
+		go.set_position(self.initial_position)
 		msg.post("ball#script", "attach")
 	elseif message_id == hash("collision_message") then
 		if message.group == 16 then
@@ -43,10 +43,10 @@ function on_message(self, message_id, message)
 		end
 	elseif message_id == hash("contact_point_message") then
 		if message.group == 1 then
-			local p = go.get_world_position(self)
+			local p = go.get_world_position()
 			p = p - message.normal * message.distance
 			p.z = 0
-			go.set_position(self, p)
+			go.set_position(p)
 			self.contact_normal = message.normal.x
 		end
 	end
