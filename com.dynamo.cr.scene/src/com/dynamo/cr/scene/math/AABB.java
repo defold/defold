@@ -49,26 +49,47 @@ public class AABB
         if (aabb.m_Identity)
             return;
 
+        boolean identity = m_Identity;
         m_Identity = false;
-        m_Min.x = Math.min(m_Min.x, aabb.m_Min.x);
-        m_Min.y = Math.min(m_Min.y, aabb.m_Min.y);
-        m_Min.z = Math.min(m_Min.z, aabb.m_Min.z);
 
-        m_Max.x = Math.max(m_Max.x, aabb.m_Max.x);
-        m_Max.y = Math.max(m_Max.y, aabb.m_Max.y);
-        m_Max.z = Math.max(m_Max.z, aabb.m_Max.z);
+        if (identity) {
+            m_Min.set(aabb.m_Min);
+            m_Max.set(aabb.m_Max);
+        }
+        else {
+            m_Min.x = Math.min(m_Min.x, aabb.m_Min.x);
+            m_Min.y = Math.min(m_Min.y, aabb.m_Min.y);
+            m_Min.z = Math.min(m_Min.z, aabb.m_Min.z);
+
+            m_Max.x = Math.max(m_Max.x, aabb.m_Max.x);
+            m_Max.y = Math.max(m_Max.y, aabb.m_Max.y);
+            m_Max.z = Math.max(m_Max.z, aabb.m_Max.z);
+        }
     }
 
     public void union(float x, float y, float z)
     {
+        boolean identity = m_Identity;
         m_Identity = false;
-        m_Min.x = Math.min(m_Min.x, x);
-        m_Min.y = Math.min(m_Min.y, y);
-        m_Min.z = Math.min(m_Min.z, z);
 
-        m_Max.x = Math.max(m_Max.x, x);
-        m_Max.y = Math.max(m_Max.y, y);
-        m_Max.z = Math.max(m_Max.z, z);
+        if (identity)
+        {
+            m_Min.x = x;
+            m_Min.y = y;
+            m_Min.z = z;
+            m_Max.x = x;
+            m_Max.y = y;
+            m_Max.z = z;
+        }
+        else {
+            m_Min.x = Math.min(m_Min.x, x);
+            m_Min.y = Math.min(m_Min.y, y);
+            m_Min.z = Math.min(m_Min.z, z);
+
+            m_Max.x = Math.max(m_Max.x, x);
+            m_Max.y = Math.max(m_Max.y, y);
+            m_Max.z = Math.max(m_Max.z, z);
+        }
     }
 
     public boolean isIdentity() {
