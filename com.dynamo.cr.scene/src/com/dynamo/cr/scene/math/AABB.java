@@ -105,4 +105,13 @@ public class AABB
         m_Min.set(aabb.m_Min);
         m_Max.set(aabb.m_Max);
     }
+
+    public Point3d getMin() {
+        return new Point3d(m_Min);
+    }
+
+    public Point3d getMax() {
+        return new Point3d(m_Max);
+    }
+
 }

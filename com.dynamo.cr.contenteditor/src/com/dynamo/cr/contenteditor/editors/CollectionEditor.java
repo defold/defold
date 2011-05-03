@@ -1618,38 +1618,62 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         else {
             // Adjust position to cover everything
 
-            Transform viewTransform = new Transform(view);
-            AABB aabbView = new AABB();
-            aabbView.set(aabb);
-            // Transform AABB into camera space
-            aabbView.transform(viewTransform);
+            Point3d p0 = new Point3d(aabb.m_Min.x, aabb.m_Min.y, aabb.m_Min.z);
+            Point3d p1 = new Point3d(aabb.m_Min.x, aabb.m_Min.y, aabb.m_Max.z);
+            Point3d p2 = new Point3d(aabb.m_Min.x, aabb.m_Max.y, aabb.m_Min.z);
+            Point3d p3 = new Point3d(aabb.m_Min.x, aabb.m_Max.y, aabb.m_Max.z);
+            Point3d p4 = new Point3d(aabb.m_Max.x, aabb.m_Min.y, aabb.m_Min.z);
+            Point3d p5 = new Point3d(aabb.m_Max.x, aabb.m_Min.y, aabb.m_Max.z);
+            Point3d p6 = new Point3d(aabb.m_Max.x, aabb.m_Max.y, aabb.m_Min.z);
+            Point3d p7 = new Point3d(aabb.m_Max.x, aabb.m_Max.y, aabb.m_Max.z);
 
-            // Calculate x- and y-max frustum values
-            double fov = m_ActiveCamera.getFov();
-            // Scale fov a bit to show more
-            fov *= 0.9;
-            double ymax = m_ActiveCamera.getNearZ() * Math.tan(fov * Math.PI / 360.0);
-            double xmax = ymax * m_ActiveCamera.getAspect();
+            Point3d[] points = new Point3d[] { p0, p1, p2, p3, p4, p5, p6, p7 };
 
-            // Calculate desired z-value for x and y
-            double zprimx = Math.abs(aabbView.m_Max.x - aabbView.m_Min.x) * 0.5 * m_ActiveCamera.getNearZ() / xmax;
-            double zprimy = Math.abs(aabbView.m_Max.y - aabbView.m_Min.y) * 0.5 * m_ActiveCamera.getNearZ() / ymax;
-            double zprim = zprimx;
-            if (Math.abs(zprimy) > Math.abs(zprimx))
-                zprim = zprimy;
+            double minx = Double.MAX_VALUE;
+            double maxx = -Double.MAX_VALUE;
+            double miny = Double.MAX_VALUE;
+            double maxy = -Double.MAX_VALUE;
+            double maxz = -Double.MAX_VALUE;
 
-            // Transform unit-vector to world-space
-            Vector3d zVec = new Vector3d(0, 0, zprim);
-            viewInverse.transform(zVec);
+            // Calculate AABB in projection-plane
+            for (Point3d p : points) {
+                // NOTE: #project applies view-transform
+                Point3d projected = m_ActiveCamera.project(p.x, p.y, p.z);
+                minx = Math.min(minx, projected.x);
+                maxx = Math.max(maxx, projected.x);
+                miny = Math.min(miny, projected.y);
+                maxy = Math.max(maxy, projected.y);
+                maxz = Math.max(maxz, projected.z);
+            }
 
-            // Calculate delta along z
-            double zVecLen = zVec.length();
-            Vector4d delta = new Vector4d();
-            viewInverse.getColumn(2, delta);
-            delta.scale(zVecLen);
+            // Unproject into world-space
+            Vector4d min = m_ActiveCamera.unProject(minx, miny, maxz);
+            Vector4d max = m_ActiveCamera.unProject(maxx, maxy, maxz);
+            // Transform back into viewspace
+            view.transform(min);
+            view.transform(max);
 
-            delta.add(new Vector4d(center.x, center.y, aabb.m_Max.z, 0));
-            m_ActiveCamera.setPosition(delta.x, delta.y, delta.z);
+            // Calculate frustum
+            double height = 2 * m_ActiveCamera.getNearZ() * Math.tan(m_ActiveCamera.getFov() * Math.PI / 360.0);
+            double width = height * m_ActiveCamera.getAspect();
+            // Calculate desired z value to fill the screen for x and y
+            double zey = -m_ActiveCamera.getNearZ() * (Math.abs(max.y - min.y) / height);
+            double zex = -m_ActiveCamera.getNearZ() * (Math.abs(max.x - min.x) / width);
+            // dz to move
+            double dzy = zey - max.z;
+            double dzx = zex - max.z;
+
+            double dz = dzy;
+            if (dzy > dzx)
+                dz = dzx;
+
+            // Move camera dz along third column
+            Vector4d dir = new Vector4d();
+            viewInverse.getColumn(2, dir);
+            dir.scale(dz);
+            Vector4d position = m_ActiveCamera.getPosition();
+            position.sub(dir);
+            m_ActiveCamera.setPosition(position.x, position.y, position.z);
         }
     }
 
