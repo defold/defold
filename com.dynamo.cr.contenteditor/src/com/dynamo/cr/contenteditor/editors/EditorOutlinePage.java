@@ -144,7 +144,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         }
         else if (element instanceof ComponentNode)
         {
-            ComponentNode componentNode = (ComponentNode) element;
+            ComponentNode<?> componentNode = (ComponentNode<?>) element;
             String resource = componentNode.getResourceIdentifier();
             String ext = resource.substring(resource.lastIndexOf('.')+1);
             if (!extensionToImage.containsKey(ext)) {

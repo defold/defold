@@ -123,7 +123,6 @@ import com.dynamo.cr.scene.graph.SceneEvent;
 import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
 import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.math.AABB;
-import com.dynamo.cr.scene.math.Transform;
 import com.dynamo.cr.scene.resource.CameraLoader;
 import com.dynamo.cr.scene.resource.CollectionLoader;
 import com.dynamo.cr.scene.resource.CollisionLoader;
