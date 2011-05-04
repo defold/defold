@@ -4,6 +4,7 @@ title = test
 main_collection = main.collectionc
 debug_fp = debug.fpc
 debug_vp = debug.vpc
+[input]
 gamepads = default.gamepadsc
 game_binding = default.input_bindingc
 [resource]
