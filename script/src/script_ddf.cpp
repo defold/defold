@@ -18,6 +18,68 @@ namespace dmScript
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last, int index);
 
+    static void DefaultLuaValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f,
+                                     char* buffer, char** data_start, char** data_end, const char* default_value)
+    {
+        switch (f->m_Type)
+        {
+            case dmDDF::TYPE_INT32:
+            {
+                *((int32_t *) &buffer[f->m_Offset]) = *((int32_t*) default_value);
+            }
+            break;
+
+            case dmDDF::TYPE_UINT32:
+            {
+                *((uint32_t *) &buffer[f->m_Offset]) = *((uint32_t*) default_value);
+            }
+            break;
+
+            case dmDDF::TYPE_UINT64:
+            {
+                *((dmhash_t *) &buffer[f->m_Offset]) = *((dmhash_t*) default_value);
+            }
+            break;
+
+            case dmDDF::TYPE_FLOAT:
+            {
+                *((float *) &buffer[f->m_Offset]) = *((float*) default_value);
+            }
+            break;
+
+            case dmDDF::TYPE_STRING:
+            {
+                const char* s = default_value;
+                int size = strlen(s) + 1;
+                if (*data_start + size > *data_end)
+                {
+                    luaL_error(L, "Message data doesn't fit");
+                }
+                else
+                {
+                    memcpy(*data_start, s, size);
+                    // NOTE: We store offset here an relocate later...
+                    *((const char**) &buffer[f->m_Offset]) = (const char*) (*data_start - buffer);
+                }
+                *data_start += size;
+            }
+            break;
+
+            case dmDDF::TYPE_ENUM:
+            {
+                *((int32_t *) &buffer[f->m_Offset]) = *((int32_t*) default_value);
+            }
+            break;
+
+            default:
+            {
+                luaL_error(L, "Unsupported type %d for default value in field %s", f->m_Type, f->m_Name);
+            }
+            break;
+        }
+    }
+
+
     static void LuaValueToDDF(lua_State* L, const dmDDF::FieldDescriptor* f,
                               char* buffer, char** data_start, char** data_end)
     {
@@ -136,6 +198,20 @@ namespace dmScript
         }
     }
 
+    static void DoDefaultLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
+                                       char* buffer, char** data_start, char** data_last)
+    {
+        for (uint32_t i = 0; i < descriptor->m_FieldCount; ++i)
+        {
+            const dmDDF::FieldDescriptor* f = &descriptor->m_Fields[i];
+
+            if (f->m_DefaultValue)
+            {
+                DefaultLuaValueToDDF(L, f, buffer, data_start, data_last, f->m_DefaultValue);
+            }
+        }
+    }
+
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last, int index)
     {
@@ -147,9 +223,23 @@ namespace dmScript
 
             lua_pushstring(L, f->m_Name);
             lua_rawget(L, index);
-            if (lua_isnil(L, -1) && f->m_Label != dmDDF::LABEL_OPTIONAL)
+            if (lua_isnil(L, -1))
             {
-                luaL_error(L, "Field %s not specified in table", f->m_Name);
+                if (f->m_Label == dmDDF::LABEL_OPTIONAL)
+                {
+                    if (f->m_DefaultValue)
+                    {
+                        DefaultLuaValueToDDF(L, f, buffer, data_start, data_last, f->m_DefaultValue);
+                    }
+                    else if (f->m_Type == dmDDF::TYPE_MESSAGE)
+                    {
+                        DoDefaultLuaTableToDDF(L, f->m_MessageDescriptor, &buffer[f->m_Offset], data_start, data_last);
+                    }
+                }
+                else
+                {
+                    luaL_error(L, "Field %s not specified in table", f->m_Name);
+                }
             }
             else
             {

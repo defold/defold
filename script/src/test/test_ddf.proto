@@ -32,6 +32,14 @@ message Msg
     required Enum enum_value = 9;
 }
 
+message DefaultValue
+{
+    optional uint32 uint_value = 1 [ default = 10 ];
+    optional string string_value = 2  [ default = "test" ];
+    optional dmMath.Quat quat_value = 3;
+    optional Enum enum_value = 4 [ default = ENUM_VAL1 ];
+}
+
 message LuaDDFBufferOverflow
 {
     required uint32 uint_value = 1;
