@@ -584,13 +584,10 @@ bail:
         if (fact_error != dmResource::FACTORY_RESULT_OK)
             return false;
 
-        const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", 0x0);
-        if (render_path != 0x0)
-        {
-            fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
-            if (fact_error != dmResource::FACTORY_RESULT_OK)
-                return false;
-        }
+        const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", "builtins/render/default.renderc");
+        fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
+        if (fact_error != dmResource::FACTORY_RESULT_OK)
+            return false;
 
         return true;
     }
