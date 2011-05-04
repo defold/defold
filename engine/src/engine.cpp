@@ -571,7 +571,7 @@ bail:
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
 
-        const char* gamepads = dmConfigFile::GetString(config, "bootstrap.gamepads", "input/default.gamepadsc");
+        const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
         fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
@@ -579,7 +579,7 @@ bail:
         dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
         dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
 
-        const char* game_input_binding = dmConfigFile::GetString(config, "bootstrap.game_binding", "input/game.input_bindingc");
+        const char* game_input_binding = dmConfigFile::GetString(config, "input.game_binding", "input/game.input_bindingc");
         fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
             return false;
