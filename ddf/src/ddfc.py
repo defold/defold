@@ -113,7 +113,7 @@ type_to_struct_format = { FieldDescriptor.TYPE_DOUBLE : ("d", float),
 #                         FieldDescriptor.TYPE_MESSAGE
 #                         FieldDescriptor.TYPE_BYTES
                           FieldDescriptor.TYPE_UINT32 : ("I", int),
-#                         FieldDescriptor.TYPE_ENUM
+                          FieldDescriptor.TYPE_ENUM : ("i", int),
 #                         FieldDescriptor.TYPE_SFIXED32
 #                         FieldDescriptor.TYPE_SFIXED64
                           FieldDescriptor.TYPE_SINT32 : ("i", int),
@@ -246,12 +246,25 @@ def to_cxx_enum(context, pp, message_type):
 
     pp.end()
 
-def to_cxx_default_value_string(f):
+def to_cxx_default_value_string(context, f):
     if len(f.default_value) == 0:
         return '0x0'
     else:
         if f.type == FieldDescriptor.TYPE_STRING:
             return '"%s\\x00"' % ''.join(map(lambda x: '\\x%02x' % ord(x), f.default_value))
+        elif f.type == FieldDescriptor.TYPE_ENUM:
+            default_value = None
+            for e in context.message_types[f.type_name].value:
+                if e.name == f.default_value:
+                    default_value = e.number
+                    break
+            if not default_value:
+                raise Exception("Default '%s' not found" % f.default_value)
+
+            form, func = type_to_struct_format[f.type]
+            # Store in little endian
+            tmp = struct.pack('<' + form, func(default_value))
+            return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
         else:
             form, func = type_to_struct_format[f.type]
             # Store in little endian
@@ -278,7 +291,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         tpl += ("DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, to_camel_case(f.name)), )
 
-        tpl += (to_cxx_default_value_string(f),)
+        tpl += (to_cxx_default_value_string(context, f),)
 
         lst.append(tpl)
 

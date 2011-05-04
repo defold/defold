@@ -224,6 +224,8 @@ message TestDefault
 
     optional QuatWithDefault quat = 10;
     optional SubMessageWithOptionalQuat sub_message = 11;
+
+    optional TestEnum enum = 12 [ default = TEST_ENUM_VAL2 ];
 }
 
 message EmptyMsg {}
