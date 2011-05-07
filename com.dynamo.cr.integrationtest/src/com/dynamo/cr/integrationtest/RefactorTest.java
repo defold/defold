@@ -122,10 +122,10 @@ public class RefactorTest {
         return descriptor;
     }
 
-    DeleteResourcesDescriptor delete(IPath path) {
+    DeleteResourcesDescriptor delete(IPath[] paths) {
         RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(DeleteResourcesDescriptor.ID);
         DeleteResourcesDescriptor descriptor = (DeleteResourcesDescriptor) contribution.createDescriptor();
-        descriptor.setResourcePaths(new IPath[] { path });
+        descriptor.setResourcePaths(paths);
         return descriptor;
     }
 
@@ -169,7 +169,7 @@ public class RefactorTest {
         IFile refereeFile = project.getFile(referee);
         assertTrue(refereeFile.exists());
 
-        DeleteResourcesDescriptor descriptor = delete(refereeFile.getFullPath());
+        DeleteResourcesDescriptor descriptor = delete(new IPath[] { refereeFile.getFullPath() });
         Change undoChange = perform(descriptor);
 
         Desc postReferer = (Desc) loadMessageFile(referer, postBuilder);
@@ -224,6 +224,26 @@ public class RefactorTest {
                 return new String[] { desc.getCollectionInstances(0).getCollection() };
             }
         });
+    }
+
+    @Test
+    public void testDeleteRelatedFiles() throws Exception {
+        IFile main_go = project.getFile("logic/main.go");
+        assertTrue(main_go.exists());
+
+        IFile main_collection = project.getFile("logic/main.collection");
+        assertTrue(main_collection.exists());
+
+        DeleteResourcesDescriptor descriptor = delete(new IPath[] { main_go.getFullPath(), main_collection.getFullPath() });
+        Change undoChange = perform(descriptor);
+
+        assertTrue(!main_go.exists());
+        assertTrue(!main_collection.exists());
+
+        perform(undoChange);
+
+        assertTrue(main_go.exists());
+        assertTrue(main_collection.exists());
     }
 
     /*
