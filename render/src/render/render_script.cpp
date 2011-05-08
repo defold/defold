@@ -153,6 +153,11 @@ namespace dmRender
         return i;
     }
 
+    /*#
+     * Enable render state
+     * @name render.enable_state
+     * @param state state to enable, render.STATE_DEPTH_TEST
+     */
     int RenderScript_EnableState(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -177,6 +182,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Disable render state
+     * @name render.disable_state
+     * @param state state to enable, render.STATE_DEPTH_TEST
+     */
     int RenderScript_DisableState(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -200,6 +210,14 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set render viewport
+     * @name render.set_viewport
+     * @param x left corner
+     * @param y bottom corner
+     * @param width viewport width
+     * @param height viewport height
+     */
     int RenderScript_SetViewport(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -213,6 +231,13 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Create a new render target
+     * @name render.render_target
+     * @param name render target name
+     * @param parameters table of all parameters. Available keys: format, width, height, min_filter, mag_filter, u_wrap, v_wrap
+     * @return new render target
+     */
     int RenderScript_RenderTarget(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -291,6 +316,11 @@ namespace dmRender
         return 1;
     }
 
+    /*#
+     * Delete render target
+     * @name render.delete_render_target
+     * @param render_target render target to delete
+     */
     int RenderScript_DeleteRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -308,6 +338,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Enable render target
+     * @name render.enable_render_target
+     * @param render_target render target to enable
+     */
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -326,6 +361,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Disable render target
+     * @name render.disable_render_target
+     * @param render_target render target to disable
+     */
     int RenderScript_DisableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -341,6 +381,13 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set render target size
+     * @name render.set_render_target_size
+     * @param render_target render target to set size for
+     * @param width new render target width
+     * @param height new render target height
+     */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -361,6 +408,12 @@ namespace dmRender
         }
     }
 
+    /*#
+     * Enable texture
+     * @name render.enable_texture
+     * @param unit texture unit to enable texture for
+     * @param texture texture to enable
+     */
     int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -383,6 +436,12 @@ namespace dmRender
         }
     }
 
+    /*#
+     * Disable texture
+     * @name render.disable_texture
+     * @param unit texture unit to enable disable for
+     * @param texture texture to disable
+     */
     int RenderScript_DisableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -393,6 +452,14 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Clear active render target <br>
+     * Example: <br>
+     * render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1}) <br>
+     * @name render.clear
+     * @param parameters clear parameters. Available keys are: BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT and BUFFER_TYPE_STENCIL_BIT.
+     * @return
+     */
     int RenderScript_Clear(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -446,6 +513,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Draw using a predicate
+     * @name render.draw
+     * @param predicate predicate to draw for
+     */
     int RenderScript_Draw(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -460,6 +532,10 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Draw all 3d debug data
+     * @name render.draw_debug3d
+     */
     int RenderScript_DrawDebug3d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -469,6 +545,10 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Draw all 2d debug data
+     * @name render.draw_debug2d
+     */
     int RenderScript_DrawDebug2d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -478,6 +558,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set render view matrix
+     * @name render.set_view
+     * @param matrix view matrix to set
+     */
     int RenderScript_SetView(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -491,6 +576,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set projection matrix
+     * @name render.set_projection
+     * @param matrix projection matrix
+     */
     int RenderScript_SetProjection(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -503,6 +593,28 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set blending function.<br>
+     * Avaliable factors:<br>
+        BLEND_FACTOR_ZERO <br>
+        BLEND_FACTOR_ONE <br>
+        BLEND_FACTOR_SRC_COLOR <br>
+        BLEND_FACTOR_ONE_MINUS_SRC_COLOR <br>
+        BLEND_FACTOR_DST_COLOR <br>
+        BLEND_FACTOR_ONE_MINUS_DST_COLOR <br>
+        BLEND_FACTOR_SRC_ALPHA <br>
+        BLEND_FACTOR_ONE_MINUS_SRC_ALPHA <br>
+        BLEND_FACTOR_DST_ALPHA <br>
+        BLEND_FACTOR_ONE_MINUS_DST_ALPHA <br>
+        BLEND_FACTOR_SRC_ALPHA_SATURATE <br>
+        BLEND_FACTOR_CONSTANT_COLOR <br>
+        BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR <br>
+        BLEND_FACTOR_CONSTANT_ALPHA <br>
+        BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA <br>
+     * @name render.set_blend_func
+     * @param sfactor source factor
+     * @param dfactor destination factor
+     */
     int RenderScript_SetBlendFunc(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -541,6 +653,15 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set color mask
+     * @name render.set_color_mask
+     * @param red red mask boolean
+     * @param green green mask boolean
+     * @param blue blue mask boolean
+     * @param alpha alpha mask boolean
+     * @return
+     */
     int RenderScript_SetColorMask(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -561,6 +682,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Set depth mask
+     * @name render.set_depth_mask
+     * @param depth depth mask boolean
+     */
     int RenderScript_SetDepthMask(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -578,6 +704,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Set stencil mask
+     * @name render.set_stencil_mask
+     * @param stencil stencil mask integer value
+     */
     int RenderScript_SetStencilMask(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -589,6 +720,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set cull face
+     * @name render.set_cull_face
+     * @param face_type face type. FACE_TYPE_FRONT, FACE_TYPE_BACK or FACE_TYPE_FRONT_AND_BACK
+     */
     int RenderScript_SetCullFace(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -608,6 +744,12 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Set polygon offset
+     * @name render.set_polygon_offset
+     * @param factor polygon offset factor
+     * @param units polygon offset units
+     */
     int RenderScript_SetPolygonOffset(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -619,6 +761,11 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+     * Get window width
+     * @name render.get_window_width
+     * @return window width
+     */
     int RenderScript_GetWindowWidth(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -627,6 +774,11 @@ namespace dmRender
         return 1;
     }
 
+    /*#
+     * Get window height
+     * @name render.get_window_height
+     * @return window height
+     */
     int RenderScript_GetWindowHeight(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -635,6 +787,14 @@ namespace dmRender
         return 1;
     }
 
+    /*#
+     * Create a new render predicate<br>
+     * Example:<br>
+     * render.predicate({ "opaque", "smoke" })
+     * @name render.predicate
+     * @param predicates table of tags
+     * @return new predicate
+     */
     int RenderScript_Predicate(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -661,6 +821,12 @@ namespace dmRender
         }
     }
 
+    /*#
+     * Enable vertex constant
+     * @name render.enable_vertex_constant
+     * @param register register number to enable
+     * @param constant vertex constant (vector4)
+     */
     int RenderScript_EnableVertexConstant(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -671,6 +837,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Disable vertex constant
+     * @name render.enable_vertex_constant
+     * @param register register number to disable
+     */
     int RenderScript_DisableVertexConstant(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -680,6 +851,12 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Enable vertex constant block
+     * @name render.enable_vertex_constant_block
+     * @param register base register number to enable
+     * @param matrix matrix of four constant
+     */
     int RenderScript_EnableVertexConstantBlock(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -690,6 +867,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Disable vertex constant block
+     * @name render.disable_vertex_constant_block
+     * @param register base register number to disable
+     */
     int RenderScript_DisableVertexConstantBlock(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -699,6 +881,12 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Enable fragment constant
+     * @name render.enable_fragment_constant
+     * @param register register number to enable
+     * @param constant fragment constant (vector4)
+     */
     int RenderScript_EnableFragmentConstant(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -709,6 +897,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Disable fragment constant
+     * @name render.enable_fragment_constant
+     * @param register register number to disable
+     */
     int RenderScript_DisableFragmentConstant(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -718,6 +911,12 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Enable fragment constant block
+     * @name render.enable_fragment_constant_block
+     * @param register base register number to enable
+     * @param matrix matrix of four constant
+     */
     int RenderScript_EnableFragmentConstantBlock(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -728,6 +927,11 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Disable fragment constant block
+     * @name render.disable_fragment_constant_block
+     * @param register base register number to disable
+     */
     int RenderScript_DisableFragmentConstantBlock(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
@@ -737,6 +941,13 @@ namespace dmRender
         return 0;
     }
 
+    /*#
+     * Enable material
+     * @name render.enable_material
+     * @param material_id material id to enable
+     *
+     * @return
+     */
     int RenderScript_EnableMaterial(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -765,6 +976,12 @@ namespace dmRender
         assert(top == lua_gettop(L));
     }
 
+    /*#
+     * Disable material
+     * @name render.disable_material
+     * @param material_id material id to disable
+     * @return
+     */
     int RenderScript_DisableMaterial(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
