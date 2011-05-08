@@ -29,6 +29,7 @@ def build(bld):
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
     bld.install_files('${PREFIX}/lib/python', '../proto/script_doc_ddf_pb2.py')
+    bld.install_files('${PREFIX}/share/java', 'script_doc.jar')
 
     script_proto.find_sources_in_dirs(['../proto'])
 
