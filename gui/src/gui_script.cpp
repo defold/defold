@@ -152,6 +152,12 @@ namespace dmGui
         {0, 0}
     };
 
+    /*#
+     * Get node from name
+     * @name gui.get_node
+     * @param name name of the node to get
+     * @return node instance
+     */
     int LuaGetNode(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -179,6 +185,11 @@ namespace dmGui
         return 1;
     }
 
+    /*#
+     * Delete node
+     * @name gui.delete_node
+     * @param node node to delete
+     */
     int LuaDeleteNode(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -214,6 +225,38 @@ namespace dmGui
         lua_unref(L, node_ref);
     }
 
+    /*#
+     * Animate node property
+     * @name gui.animate
+     * @param node node to animate
+     * @param property property to animate
+     * @param to target property value (vector3 or vector4)
+     * @param easing easing. EASING_NONE, EASING_IN, EASING_OUT or EASING_INOUT
+     * @param duration animation duration
+     */
+
+    /*#
+     * Animate node property
+     * @name gui.animate
+     * @param node node to animate
+     * @param property property to animate
+     * @param to target property value (vector3 or vector4)
+     * @param easing easing. EASING_NONE, EASING_IN, EASING_OUT or EASING_INOUT
+     * @param duration animation duration
+     * @param delay animation delay.
+     */
+
+    /*#
+     * Animate node property
+     * @name gui.animate
+     * @param node node to animate
+     * @param property property to animate
+     * @param to target property value (vector3 or vector4)
+     * @param easing easing. EASING_NONE, EASING_IN, EASING_OUT or EASING_INOUT
+     * @param duration animation duration
+     * @param delay animation delay.
+     * @param complete_function function to call when animation is completed.
+     */
     int LuaAnimate(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -299,6 +342,13 @@ namespace dmGui
         return 1;
     }
 
+    /*#
+     * Create a new box node
+     * @name render.new_box_node
+     * @param pos node position
+     * @param ext node extent
+     * @return new box node
+     */
     static int LuaNewBoxNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
@@ -306,6 +356,14 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_BOX, 0);
     }
 
+    /*#
+     * Create a new text node
+     * @name render.new_text_node
+     * @param pos node position
+     * @param ext node extent
+     * @param ext text node text
+     * @return new text node
+     */
     static int LuaNewTextNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
@@ -314,6 +372,12 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
 
+    /*#
+     * Get node text
+     * @name gui.get_text
+     * @param node node to get text for
+     * @return text value
+     */
     static int LuaGetText(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
@@ -321,6 +385,12 @@ namespace dmGui
         return 1;
     }
 
+    /*#
+     * Set node text
+     * @name gui.set_text
+     * @param node node to set text for
+     * @param text text to set
+     */
     static int LuaSetText(lua_State* L)
     {
         HNode hnode;
@@ -332,6 +402,11 @@ namespace dmGui
         return 0;
     }
 
+    /*#
+     * Get node blend mode
+     * @name gui.get_blend_mode
+     * @return node blend mode
+     */
     static int LuaGetBlendMode(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
@@ -339,6 +414,12 @@ namespace dmGui
         return 1;
     }
 
+    /*#
+     * Set node blend mode
+     * @name gui.set_blend_mode
+     * @param node node to set blend mode for
+     * @param blend_mode blend mode to set. Valid blend modes: BLEND_MODE_ALPHA, BLEND_MODE_ADD, BLEND_MODE_ADD_ALPHA and BLEND_MODE_MULT
+     */
     static int LuaSetBlendMode(lua_State* L)
     {
         HNode hnode;
@@ -348,6 +429,12 @@ namespace dmGui
         return 0;
     }
 
+    /*#
+     * Set node texture
+     * @name gui.set_texture
+     * @param node node to set texture for
+     * @param texture texture name
+     */
     static int LuaSetTexture(lua_State* L)
     {
         HNode hnode;
@@ -367,6 +454,12 @@ namespace dmGui
         return 0;
     }
 
+    /*#
+     * Set node font
+     * @name gui.set_font
+     * @param node node to set font for
+     * @param font font name
+     */
     static int LuaSetFont(lua_State* L)
     {
         HNode hnode;

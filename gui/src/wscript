@@ -13,3 +13,9 @@ def build(bld):
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/gui', 'gui.h')
+
+    bld.new_task_gen(source = 'gui_script.cpp',
+                     target = 'gui_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'gui_doc.sdoc')
