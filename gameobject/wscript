@@ -23,8 +23,8 @@ def configure(conf):
     conf.check_tool('compiler_cxx')
     conf.check_tool('java')
     conf.check_tool('waf_dynamo')
-
     waf_ddf.configure(conf)
+    conf.find_program('script_doc.py', var='SCRIPT_DOC', mandatory = True)
 
     conf.sub_config('src')
 

@@ -127,6 +127,11 @@ namespace dmGameObject
         return i;
     }
 
+    /*#
+     * Get GameObject position
+     * @name go.get_position
+     * @return GameObject position (vector3)
+     */
     int Script_GetPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -134,6 +139,11 @@ namespace dmGameObject
         return 1;
     }
 
+    /*#
+     * Get GameObject rotation
+     * @name go.get_rotation
+     * @return GameObject rotation quaternion
+     */
     int Script_GetRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -141,6 +151,11 @@ namespace dmGameObject
         return 1;
     }
 
+    /*#
+     * Set GameObject position
+     * @name vmath.set_position
+     * @param position position to set (vector3)
+     */
     int Script_SetPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -149,6 +164,11 @@ namespace dmGameObject
         return 0;
     }
 
+    /*#
+     * Set GameObject rotation
+     * @name vmath.set_rotation
+     * @param quat rotation quaternion to set
+     */
     int Script_SetRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -157,6 +177,11 @@ namespace dmGameObject
         return 0;
     }
 
+    /*#
+     * Get GameObject world position
+     * @name go.get_world_position
+     * @return GameObject position (vector3)
+     */
     int Script_GetWorldPosition(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -164,6 +189,11 @@ namespace dmGameObject
         return 1;
     }
 
+    /*#
+     * Get GameObject world rotation
+     * @name go.get_world_rotation
+     * @return GameObject rotation (quaternion)
+     */
     int Script_GetWorldRotation(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -171,6 +201,11 @@ namespace dmGameObject
         return 1;
     }
 
+    /*#
+     * Get GameObject id
+     * @name go.get_id
+     * @return GameObject id (hashed format)
+     */
     int Script_GetId(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -186,6 +221,10 @@ namespace dmGameObject
         return 1;
     }
 
+    /*#
+     * Delete GameObject
+     * @name go.delete
+     */
     int Script_Delete(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
