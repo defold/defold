@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 #include <dlib/message.h>
 
 #include <ddf/ddf.h>
@@ -277,7 +278,7 @@ namespace dmScript
             if (socket_size > 0)
             {
                 char socket_name[64];
-                dmStrlCpy(socket_name, socket, socket_size+1);
+                dmStrlCpy(socket_name, socket, dmMath::Min(socket_size+1, (unsigned int) sizeof(socket_name)));
                 result = dmMessage::GetSocket(socket_name, &url.m_Socket);
                 switch (result)
                 {
@@ -417,7 +418,7 @@ namespace dmScript
             {
                 assert(socket_size < 64);
                 char socket_name[64];
-                dmStrlCpy(socket_name, socket, socket_size + 1);
+                dmStrlCpy(socket_name, socket, dmMath::Min(socket_size+1, (unsigned int) sizeof(socket_name)));
                 result = dmMessage::GetSocket(socket_name, &receiver.m_Socket);
                 if (result != dmMessage::RESULT_OK)
                 {
