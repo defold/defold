@@ -22,6 +22,8 @@ def build(bld):
                       install_path='${PREFIX}/lib')
     script_proto.find_sources_in_dirs(['../proto'])
 
+    bld.add_group()
+
     bld.new_task_gen(source = 'script_sys.cpp script_msg.cpp script_vmath.cpp',
                      target = 'script_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')

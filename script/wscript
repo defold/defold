@@ -54,6 +54,8 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SCRIPT"')
 
 def build(bld):
+    python_path = os.environ.get('PYTHONPATH', '')
+    os.environ['PYTHONPATH'] = os.path.abspath('build/default/proto') + os.pathsep + python_path
     bld.add_subdirs('src')
 
 def shutdown():
