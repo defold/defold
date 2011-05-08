@@ -1204,7 +1204,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     @Override
-    public void executeOperation(IUndoableOperation operation) {
+    public void executeOperation(final IUndoableOperation operation) {
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         operation.addContext(m_UndoContext);
         IStatus status = null;
@@ -1212,10 +1212,20 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         {
             status = history.execute(operation, null, null);
 
-        } catch (ExecutionException e)
-        {
-            MessageDialog.openError(getSite().getShell(), operation.getLabel(), e.getMessage());
-            // if-clause below will trigger
+        } catch (final ExecutionException e) {
+
+            /*
+             * Workaround for bug #375 (Shortcuts active when editing labels in outliner)
+             * We postpone the dialog here. Otherwise something gets wrong with the
+             * context activation.
+             */
+            getSite().getShell().getDisplay().timerExec(15, new Runnable() {
+                @Override
+                public void run() {
+                    MessageDialog.openError(getSite().getShell(), operation.getLabel(), e.getMessage());
+                    // if-clause below will trigger
+                }
+            });
         }
 
         if (status != Status.OK_STATUS)
