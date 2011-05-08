@@ -81,6 +81,19 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
     }
 
     @Override
+    public Resource loadNoCache(NullProgressMonitor monitor, String path,
+            InputStream in) throws IOException, CreateException, CoreException {
+        // Normalize path by using the path-class
+        IFile file = getFile(path);
+        IResourceLoader loader = loaders.get(file.getFileExtension());
+        if (loader == null)
+            throw new CreateException("No support for loading " + path);
+
+        Resource resource = loader.load(monitor, path, in, this);
+        return resource;
+    }
+
+    @Override
     public void resourceChanged(IResourceChangeEvent event) {
         // Resource factories are not shared. Return early here
         // in order to avoid to reload ourself
