@@ -54,6 +54,7 @@ import com.dynamo.cr.scene.resource.TextureResource;
 import com.dynamo.cr.scene.test.util.SceneContext;
 import com.dynamo.cr.scene.util.Mesh;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.TextFormat;
 
 public class SceneTest {
@@ -425,8 +426,13 @@ public class SceneTest {
         nodes[TYPE_MODEL][1] = new ModelNode("model1", new ModelResource("", null, new MeshResource("", mesh), new ArrayList<TextureResource>()), this.scene);
         nodes[TYPE_PROTOTYPE][0] = new PrototypeNode("prototype0", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
         nodes[TYPE_PROTOTYPE][1] = new PrototypeNode("prototype1", new PrototypeResource("", null, new ArrayList<Resource>()), this.scene, this.nodeFactory);
-        nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", new SpriteResource("", null, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
-        nodes[TYPE_SPRITE][1] = new SpriteNode("sprite1", new SpriteResource("", null, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
+        SpriteDesc spriteDesc = SpriteDesc.newBuilder()
+                    .setTexture("")
+                    .setWidth(4)
+                    .setHeight(4).build();
+
+        nodes[TYPE_SPRITE][0] = new SpriteNode("sprite0", new SpriteResource("", spriteDesc, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
+        nodes[TYPE_SPRITE][1] = new SpriteNode("sprite1", new SpriteResource("", spriteDesc, new TextureResource("", new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR))), this.scene);
 
         for (int i = 0; i < TYPE_COUNT; ++i) {
             assertTrue(nodes[i][0] != null);
