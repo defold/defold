@@ -249,6 +249,23 @@ namespace dmScript
         {0,0}
     };
 
+    /*#
+     * Create a new URL. The function has two general forms.
+     * Either you pass a single argument containing the URI to be parsed as text
+     * or you pass individual parts of the URI. The two forms are illustrated in the following examples:
+     * <br><br>
+     * msg.url("socket:/path#fragment) <br>
+     * msg.url("socket", "/path", "fragment") <br>
+     * In the second form you could leave out arguments, eg: <br><br>
+     * msg.url("socket", "/path")
+     *
+     * @name msg.url
+     * @param [uristring] uri string to create uri from
+     * @param [socket] socket name from the URI
+     * @param [path] path of the URI
+     * @param [fragment] fragment of the URI
+     * @return a new URI
+     */
     int URL_new(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -378,6 +395,13 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Post message
+     * @name msg.post
+     * @param receiver receiver to send message to. Could be nil, a string or an URL object
+     * @param message_id message id for the message. Either a string or a pre-hashed value
+     * @param [message] lua table message to send. Optional argument
+     */
     int Msg_Post(lua_State* L)
     {
         int top = lua_gettop(L);

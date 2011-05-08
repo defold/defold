@@ -30,6 +30,12 @@ namespace dmScript
 
     const uint32_t MAX_BUFFER_SIZE =  64 * 1024;
 
+    /*#
+     * Save lua table to disk
+     * @name sys.save
+     * @param filename destination filename
+     * @param table table to write to disk
+     */
     int Sys_Save(lua_State* L)
     {
         char buffer[MAX_BUFFER_SIZE];
@@ -50,6 +56,12 @@ namespace dmScript
         return luaL_error(L, "Could not write to the file %s.", filename);
     }
 
+    /*#
+     * Load lua table to disk
+     * @name sys.load
+     * @param filename source filename
+     * @return loaded table
+     */
     int Sys_Load(lua_State* L)
     {
         char buffer[MAX_BUFFER_SIZE];
@@ -74,6 +86,12 @@ namespace dmScript
         }
     }
 
+    /**
+     * Get save-file path to operating system specific save-file location.
+     * @param application_id application-id of the application to get save-file for
+     * @param file_name file-name to get path for
+     * @return path to save-file
+     */
     int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);

@@ -11,6 +11,24 @@ def build(bld):
                           install_path='${PREFIX}/lib')
     script.find_sources_in_dirs(['.'])
 
+    script_proto = bld.new_task_gen(features = 'cxx ddf',
+                      includes = '../proto .',
+                      proto_gen_cc = False,
+                      proto_gen_py = True,
+                      proto_gen_java = True,
+                      ddf_jar = 'script_doc.jar',
+                      protoc_includes = '../proto',
+                      classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
+                      install_path='${PREFIX}/lib')
+    script_proto.find_sources_in_dirs(['../proto'])
+
+    bld.new_task_gen(source = 'script_sys.cpp script_msg.cpp script_vmath.cpp',
+                     target = 'script_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'script_doc.sdoc')
+
+    bld.install_files('${PREFIX}/bin', 'script_doc.py', chmod=493)
     bld.install_files('${PREFIX}/include/script', 'script.h')
 
     bld.add_subdirs('test')

@@ -587,6 +587,27 @@ namespace dmScript
         {0,0}
     };
 
+    /*#
+     * Create a new zero vector3
+     * @name vmath.vector3
+     * @return new zero vector
+     */
+
+    /*#
+     * Create a new vector3 from existing
+     * @name vmath.vector3
+     * @param v existing vector
+     * @return new vector
+     */
+
+    /*#
+     * Create a new vector3 from three coordinates
+     * @name vmath.vector3
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param z z coordinate
+     * @return new vector
+     */
     static int Vector3_new(lua_State* L)
     {
         Vectormath::Aos::Vector3 v;
@@ -608,6 +629,28 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a new zero vector4.
+     * @name vmath.vector4
+     * @return new zero vector
+     */
+
+    /*#
+     * Create a new vector4 from existing.
+     * @name vmath.vector4
+     * @param v existing vector
+     * @return new vector
+     */
+
+    /*#
+     * Create a new vector4 from three coordinates.
+     * @name vmath.vector4
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param z z coordinate
+     * @param w w coordinate
+     * @return new vector
+     */
     static int Vector4_new(lua_State* L)
     {
         Vectormath::Aos::Vector4 v;
@@ -627,6 +670,28 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a new identity quaternion.
+     * @name vmath.quaternion
+     * @return new identity quaternion
+     */
+
+    /*#
+     * Create a new quaternion from existing.
+     * @name vmath.quaternion
+     * @param q existing quaternion
+     * @return new quaternion
+     */
+
+    /*#
+     * Create a new quaternion from four coordinates.
+     * @name vmath.quaternion
+     * @param x x coordinate
+     * @param y y coordinate
+     * @param z z coordinate
+     * @param w w coordinate
+     * @return new quaternion
+     */
     static int Quat_new(lua_State* L)
     {
         Vectormath::Aos::Quat q;
@@ -649,6 +714,13 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a quaternion from two vectors.
+     * @name vmath.quat_from_to
+     * @param v1 first vector
+     * @param v2 second vector
+     * @return quaternion representing the rotation from first to second vector
+     */
     static int Quat_FromTo(lua_State* L)
     {
         Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
@@ -657,6 +729,13 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a quaternion from axis and angle
+     * @name vmath.quat_axis_angle
+     * @param v axis
+     * @param angle angle
+     * @return quaternion represented by axis and angle
+     */
     static int Quat_AxisAngle(lua_State* L)
     {
         Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
@@ -665,6 +744,14 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a quaternion from three base vectors
+     * @name vmath.quat_basis
+     * @param x x base vector
+     * @param y y base vector
+     * @param z z base vector
+     * @return quaternion from base vectors
+     */
     static int Quat_Basis(lua_State* L)
     {
         Vectormath::Aos::Vector3* x = CheckVector3(L, 1);
@@ -678,6 +765,12 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a quaternion from rotation around x-axis
+     * @name vmath.quat_rotation_x
+     * @param angle angle around x-axis
+     * @return quaternion from rotation around x-axis
+     */
     static int Quat_RotationX(lua_State* L)
     {
         float angle = luaL_checknumber(L, 1);
@@ -685,6 +778,12 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a quaternion from rotation around y-axis
+     * @name vmath.quat_rotation_y
+     * @param angle angle around y-axis
+     * @return quaternion from rotation around y-axis
+     */
     static int Quat_RotationY(lua_State* L)
     {
         float angle = luaL_checknumber(L, 1);
@@ -692,6 +791,12 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a quaternion from rotation around z-axis
+     * @name vmath.quat_rotation_z
+     * @param angle angle around z-axis
+     * @return quaternion from rotation around z-axis
+     */
     static int Quat_RotationZ(lua_State* L)
     {
         float angle = luaL_checknumber(L, 1);
@@ -699,6 +804,18 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a new identity matrix4.
+     * @name vmath.matrix4
+     * @return new identity matrix
+     */
+
+    /*#
+     * Create a new matrix4 from existing.
+     * @name vmath.matrix4
+     * @param [m] existing matrix
+     * @return new matrix
+     */
     static int Matrix4_new(lua_State* L)
     {
         Vectormath::Aos::Matrix4 m;
@@ -718,6 +835,17 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a frustum matrix
+     * @name vmath.matrix4_frustum
+     * @param left coordinate for left clipping plane
+     * @param right coordinate for right clipping plane
+     * @param bottom coordinate for bottom clipping plane
+     * @param top coordinate for top clipping plane
+     * @param near coordinate for near clipping plane
+     * @param far coordinate for far clipping plane
+     * @return matrix4 representing the frustum
+     */
     static int Matrix4_Frustum(lua_State* L)
     {
         float left = luaL_checknumber(L, 1);
@@ -730,12 +858,31 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a lookat matrix
+     * @name vmath.matrix4_lookat
+     * @param eye eye position
+     * @param lookat look-at position
+     * @param up up vector
+     * @return lookat matrix
+     */
     static int Matrix4_LookAt(lua_State* L)
     {
         PushMatrix4(L, Vectormath::Aos::Matrix4::lookAt(Vectormath::Aos::Point3(*CheckVector3(L, 1)), Vectormath::Aos::Point3(*CheckVector3(L, 2)), *CheckVector3(L, 3)));
         return 1;
     }
 
+    /*#
+     * Create an orthographic projection matrix
+     * @name vmath.matrix4_orthographic
+     * @param left coordinate for left clipping plane
+     * @param right coordinate for right clipping plane
+     * @param bottom coordinate for bottom clipping plane
+     * @param top coordinate for top clipping plane
+     * @param near coordinate for near clipping plane
+     * @param far coordinate for far clipping plane
+     * @return orthographic projection matrix
+     */
     static int Matrix4_Orthographic(lua_State* L)
     {
         float left = luaL_checknumber(L, 1);
@@ -748,6 +895,15 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a perspective projection matrix
+     * @name vmath.matrix4_perspective
+     * @param fov field of view in radians
+     * @param aspect aspect ratio
+     * @param near coordinate for near clipping plane
+     * @param far coordinate for far clipping plane
+     * @return perspective projection matrix
+     */
     static int Matrix4_Perspective(lua_State* L)
     {
         float fov = luaL_checknumber(L, 1);
@@ -758,12 +914,24 @@ namespace dmScript
         return 1;
     }
 
+    /*# Create a matrix4 from quaternion
+     * @name matrix4_from_quat
+     * @param q quaternion to create matrix from
+     * @return matrix represented by quaternion
+     */
     static int Matrix4_FromQuat(lua_State* L)
     {
         PushMatrix4(L, Vectormath::Aos::Matrix4::rotation(*CheckQuat(L, 1)));
         return 1;
     }
 
+    /*#
+     * Create a matrix4 from axis and angle
+     * @name vmath.matrix4_axis_angle
+     * @param v axis
+     * @param angle angle
+     * @return matrix represented by axis and angle
+     */
     static int Matrix4_AxisAngle(lua_State* L)
     {
         Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
@@ -772,24 +940,49 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Create a matrix4 from rotation around x-axis
+     * @name vmath.matrix4_rotation_x
+     * @param angle angle around x-axis
+     * @return matrix from rotation around x-axis
+     */
     static int Matrix4_RotationX(lua_State* L)
     {
         PushMatrix4(L, Vectormath::Aos::Matrix4::rotationX(luaL_checknumber(L, 1)));
         return 1;
     }
 
+    /*#
+     * Create a matrix4 from rotation around y-axis
+     * @name vmath.matrix4_rotation_y
+     * @param angle angle around y-axis
+     * @return matrix from rotation around y-axis
+     */
     static int Matrix4_RotationY(lua_State* L)
     {
         PushMatrix4(L, Vectormath::Aos::Matrix4::rotationY(luaL_checknumber(L, 1)));
         return 1;
     }
 
+    /*#
+     * Create a matrix4 from rotation around z-axis
+     * @name vmath.matrix4_rotation_z
+     * @param angle angle around z-axis
+     * @return matrix from rotation around z-axis
+     */
     static int Matrix4_RotationZ(lua_State* L)
     {
         PushMatrix4(L, Vectormath::Aos::Matrix4::rotationZ(luaL_checknumber(L, 1)));
         return 1;
     }
 
+    /*#
+     * Calculate dot product of two vector3
+     * @name vmath.dot
+     * @param v1 first vector
+     * @param v1 second vector
+     * @return dot product
+     */
     static int Dot(lua_State* L)
     {
         Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
@@ -798,6 +991,12 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Get squared vector length.
+     * @name vmath.length_sqr
+     * @param v vector3 to get squared length for
+     * @return squared vector length
+     */
     static int LengthSqr(lua_State* L)
     {
         Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
@@ -805,6 +1004,12 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Get vector length.
+     * @name vmath.length
+     * @param v vector3 to get length for
+     * @return vector length
+     */
     static int Length(lua_State* L)
     {
         Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
@@ -812,6 +1017,12 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Normalize a vector3
+     * @name vmath.normalize
+     * @param v vector to normalize
+     * @return new normalized vector
+     */
     static int Normalize(lua_State* L)
     {
         Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
@@ -819,6 +1030,13 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Calculate cross product of two vectors
+     * @name vmath.cross
+     * @param v1 first vector3
+     * @param v2 second vector3
+     * @return new vector3 representing the cross product
+     */
     static int Cross(lua_State* L)
     {
         Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
@@ -826,6 +1044,24 @@ namespace dmScript
         PushVector3(L, Vectormath::Aos::cross(*v1, *v2));
         return 1;
     }
+
+    /*#
+     * Lerp two vector3
+     * @name vmath.lerp
+     * @param t interpolation parameter
+     * @param v1 first vector3 to lerp
+     * @param v2 second vector3 to lerp
+     * @return
+     */
+
+    /*#
+     * Lerp two quaternions
+     * @name vmath.lerp
+     * @param t interpolation parameter
+     * @param q1 first quaternion to lerp
+     * @param q2 second quaternion to lerp
+     * @return
+     */
 
     static int Lerp(lua_State* L)
     {
@@ -847,6 +1083,23 @@ namespace dmScript
         return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
+    /*#
+     * Slerp two vector3
+     * @name vmath.lerp
+     * @param t interpolation parameter
+     * @param v1 first vector3 to slerp
+     * @param v2 second vector3 to slerp
+     * @return
+     */
+
+    /*#
+     * Slerp two quaternions
+     * @name vmath.lerp
+     * @param t interpolation parameter
+     * @param q1 first quaternion to slerp
+     * @param q2 second quaternion to slerp
+     * @return
+     */
     static int Slerp(lua_State* L)
     {
         float t = luaL_checknumber(L, 1);
@@ -867,6 +1120,12 @@ namespace dmScript
         return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "slerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
+    /*#
+     * Get conjugate
+     * @name vmath.conj
+     * @param q quaternion to get conjugate for
+     * @return conjugate
+     */
     static int Conj(lua_State* L)
     {
         Vectormath::Aos::Quat* q = CheckQuat(L, 1);
@@ -874,6 +1133,13 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Rotate vector3 using a quaternion
+     * @name vmath.rotate
+     * @param q quaternion
+     * @param v vector3 to rotate
+     * @return rotated vector
+     */
     static int Rotate(lua_State* L)
     {
         Vectormath::Aos::Quat* q = CheckQuat(L, 1);
@@ -882,6 +1148,13 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * Project two vector3
+     * @name vmath.project
+     * @param v1 first vector to project on
+     * @param v2 second vector to project
+     * @return projected distance
+     */
     static int Project(lua_State* L)
     {
         Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
