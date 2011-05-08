@@ -34,7 +34,7 @@ def configure(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_LUA'] = 'lua'
 
-    conf.env['SCRIPT_DOC'] = os.path.abspath('src/script_doc.py')
+    conf.env['SCRIPT_DOC'] = os.path.abspath('src/script_doc')
 
     platform = conf.env['PLATFORM']
 

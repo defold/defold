@@ -41,7 +41,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/doc', 'script_doc.sdoc')
 
-    bld.install_files('${PREFIX}/bin', 'script_doc.py', chmod=493)
+    bld.install_files('${PREFIX}/bin', 'script_doc', chmod=493)
     bld.install_files('${PREFIX}/include/script', 'script.h')
 
     bld.add_subdirs('test')
