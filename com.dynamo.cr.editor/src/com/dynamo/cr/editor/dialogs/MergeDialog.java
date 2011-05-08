@@ -3,7 +3,9 @@ package com.dynamo.cr.editor.dialogs;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
-import org.eclipse.jface.resource.ImageDescriptor;
+import org.eclipse.jface.viewers.DecoratingLabelProvider;
+import org.eclipse.jface.viewers.ILabelDecorator;
+import org.eclipse.jface.viewers.ILabelProvider;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
@@ -20,12 +22,13 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.ui.PlatformUI;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.MergePresenter;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
+import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 
 public class MergeDialog extends TitleAreaDialog implements Listener, MergePresenter.IDisplay {
 
@@ -45,6 +48,7 @@ public class MergeDialog extends TitleAreaDialog implements Listener, MergePrese
         setMessage("Merge conflicting files below");
         setTitleImage(Activator.getImageDescriptor("/icons/share_wizban.png").createImage());
         getButton(IDialogConstants.OK_ID).setEnabled(false);
+        setShellStyle(SWT.MIN | SWT.MAX | SWT.CLOSE | SWT.APPLICATION_MODAL);
 
         presenter.init();
     }
@@ -60,7 +64,7 @@ public class MergeDialog extends TitleAreaDialog implements Listener, MergePrese
         composite.setLayoutData(new GridData(GridData.FILL_BOTH));
 
         filesViewer = new TableViewer(composite, SWT.SINGLE | SWT.V_SCROLL | SWT.BORDER);
-        filesViewer.setLabelProvider(new LabelProvider() {
+        ILabelProvider labelProvider = new LabelProvider() {
             @Override
             public String getText(Object element) {
                 return ((Status) element).getName();
@@ -68,16 +72,17 @@ public class MergeDialog extends TitleAreaDialog implements Listener, MergePrese
 
             @Override
             public Image getImage(Object element) {
-                Status s = (Status) element;
-                ImageDescriptor desc;
-                if (s.getIndexStatus().equals("U"))
-                    desc = Activator.getImageDescriptor("/icons/conflict_synch.gif");
-                else
-                    desc = Activator.getImageDescriptor("/icons/synced.gif");
-                return desc.createImage();
+                if (element instanceof Status) {
+                    Status status = (Status) element;
+                    if (status.getName().lastIndexOf('.') != -1) {
+                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(status.getName().substring(status.getName().lastIndexOf('.'))).createImage();
+                    }
+                }
+                return super.getImage(element);
             }
-        });
-
+        };
+        ILabelDecorator decorator = PlatformUI.getWorkbench().getDecoratorManager().getLabelDecorator();
+        filesViewer.setLabelProvider(new DecoratingLabelProvider(labelProvider, decorator));
 
         filesViewer.setContentProvider(new IStructuredContentProvider() {
 
@@ -170,4 +175,8 @@ public class MergeDialog extends TitleAreaDialog implements Listener, MergePrese
         MessageDialog.openError(null, "Error", e.getMessage());
     }
 
+    @Override
+    protected boolean isResizable() {
+        return true;
+    }
 }

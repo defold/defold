@@ -110,8 +110,14 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     public IProjectsClient projectsClient;
 
+    private IProject project;
+
     public IProxyService getProxyService() {
         return (IProxyService) proxyTracker.getService();
+    }
+
+    public IProject getProject() {
+        return project;
     }
 
     void deleteAllCrProjects() throws CoreException {
@@ -256,6 +262,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             {
                 try {
                     cr_project.delete(true, new NullProgressMonitor());
+                    this.project = null;
                     setProjectExplorerInput(ResourcesPlugin.getWorkspace().getRoot());
                 } catch (CoreException e) {
                     e.printStackTrace();
@@ -281,7 +288,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
         ProjectInfo projectInfo = projectClient.getProjectInfo();
 
-        final IProject p = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
+        this.project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
+        final IProject p = this.project;
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
         try {
