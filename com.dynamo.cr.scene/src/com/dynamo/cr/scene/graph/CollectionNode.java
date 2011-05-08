@@ -67,7 +67,7 @@ public class CollectionNode extends Node implements IResourceListener {
                     Node subNode;
                     if (!id.equals(cid.getCollection()) && parent != null) {
                         Node ancestor = parent;
-                        ancestorCollection = ((CollectionNode)parent).getResource();
+                        ancestorCollection = "";
                         while (!ancestorCollection.equals(cid.getCollection()) && ancestor != null) {
                             ancestor = ancestor.getParent();
                             if (ancestor != null && ancestor instanceof CollectionNode) {

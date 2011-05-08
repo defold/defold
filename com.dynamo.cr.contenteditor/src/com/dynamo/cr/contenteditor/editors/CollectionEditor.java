@@ -109,6 +109,7 @@ import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.scene.graph.CameraNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
+import com.dynamo.cr.scene.graph.CollectionProxyNode;
 import com.dynamo.cr.scene.graph.CollisionNode;
 import com.dynamo.cr.scene.graph.DrawContext;
 import com.dynamo.cr.scene.graph.INodeFactory;
@@ -125,6 +126,7 @@ import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraLoader;
 import com.dynamo.cr.scene.resource.CollectionLoader;
+import com.dynamo.cr.scene.resource.CollectionProxyLoader;
 import com.dynamo.cr.scene.resource.CollisionLoader;
 import com.dynamo.cr.scene.resource.ConvexShapeLoader;
 import com.dynamo.cr.scene.resource.IResourceFactory;
@@ -220,6 +222,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         IFileEditorInput i = (IFileEditorInput) getEditorInput();
         try
         {
+            resourceFactory.setInSave(true);
+
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             CollectionNode rootCollection = (CollectionNode)m_Root;
             CollectionDesc desc = rootCollection.buildDescriptor();
@@ -233,10 +237,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             m_Dirty = false;
             firePropertyChange(PROP_DIRTY);
 
-        } catch (Throwable e)
-        {
+        } catch (Throwable e) {
             Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0, e.getMessage(), null);
             ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+        }
+        finally {
+            resourceFactory.setInSave(false);
         }
     }
 
@@ -363,12 +369,14 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         resourceFactory.addLoader("collisionobject", new CollisionLoader());
         resourceFactory.addLoader("convexshape", new ConvexShapeLoader());
         resourceFactory.addLoader("collection", new CollectionLoader());
+        resourceFactory.addLoader("collectionproxy", new CollectionProxyLoader());
         resourceFactory.addLoader("model", new ModelLoader());
         resourceFactory.addLoader("go", new PrototypeLoader());
         resourceFactory.addLoader("dae", new MeshLoader());
         ResourcesPlugin.getWorkspace().addResourceChangeListener(resourceFactory);
         factory = new NodeFactory();
         factory.addCreator("collection", CollectionNode.getCreator());
+        factory.addCreator("collectionproxy", CollectionProxyNode.getCreator());
         factory.addCreator("go", PrototypeNode.getCreator());
         factory.addCreator("model", ModelNode.getCreator());
         factory.addCreator("camera", CameraNode.getCreator());

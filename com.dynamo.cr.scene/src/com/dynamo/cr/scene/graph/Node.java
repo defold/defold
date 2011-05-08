@@ -16,6 +16,7 @@ public abstract class Node
     public static final int FLAG_EDITABLE = (1 << 0);
     public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 1);
     public static final int FLAG_TRANSFORMABLE = (1 << 2);
+    public static final int FLAG_GHOST = (1 << 3);
 
     // In order of severity, most severe first
     public static final int ERROR_FLAG_DUPLICATE_ID = (1 << 0);
@@ -127,6 +128,20 @@ public abstract class Node
     public final  void setFlags(int flags)
     {
         m_Flags = flags;
+    }
+
+    public static void orFlags(Node node, int flags) {
+        node.setFlags(node.getFlags() | flags);
+        for (Node n : node.getChildren()) {
+            Node.orFlags(n, flags);
+        }
+    }
+
+    public static void andFlags(Node node, int flags) {
+        node.setFlags(node.getFlags() & flags);
+        for (Node n : node.getChildren()) {
+            Node.andFlags(n, flags);
+        }
     }
 
     public final boolean hasError(int errorFlag) {

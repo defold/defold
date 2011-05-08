@@ -45,54 +45,68 @@ public class SpriteNode extends ComponentNode<SpriteResource> {
 
         GL gl = context.m_GL;
 
-        Texture texture = null;
-        if (this.resource.getTextureResource() != null)
-            texture = this.resource.getTextureResource().getTexture();
-
-        float[] uvs = { 1.0f, 1.0f };
-        if (texture != null) {
-            texture.enable();
-            gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_REPLACE);
-            gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-            gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-            gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-            if (texture.getWidth() > 0)
-                uvs[0] = spriteDesc.getTileWidth() / (float)texture.getWidth();
-            if (texture.getHeight() > 0)
-                uvs[1] = spriteDesc.getTileHeight() / (float)texture.getHeight();
-            texture.bind();
+        if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
+            gl.glColor3fv(Constants.GHOST_COLOR, 0);
+            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+            gl.glBegin(GL.GL_QUADS);
+            gl.glVertex3f(-exts[0], exts[1], 0);
+            gl.glVertex3f(exts[0], exts[1], 0);
+            gl.glVertex3f(exts[0], -exts[1], 0);
+            gl.glVertex3f(-exts[0], -exts[1], 0);
+            gl.glEnd();
         }
-        gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
-        gl.glBegin(GL.GL_QUADS);
-        gl.glTexCoord2f(0.0f, 0.0f);
-        gl.glVertex3f(-exts[0], exts[1], 0);
-        gl.glTexCoord2f(uvs[0], 0.0f);
-        gl.glVertex3f(exts[0], exts[1], 0);
-        gl.glTexCoord2f(uvs[0], uvs[1]);
-        gl.glVertex3f(exts[0], -exts[1], 0);
-        gl.glTexCoord2f(0.0f, uvs[1]);
-        gl.glVertex3f(-exts[0], -exts[1], 0);
-        gl.glEnd();
+        else {
+            Texture texture = null;
+            if (this.resource.getTextureResource() != null)
+                texture = this.resource.getTextureResource().getTexture();
 
-        if (texture != null) {
-            texture.disable();
+            float[] uvs = { 1.0f, 1.0f };
+            if (texture != null) {
+                texture.enable();
+                gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_REPLACE);
+                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+                gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+                if (texture.getWidth() > 0)
+                    uvs[0] = spriteDesc.getTileWidth() / (float)texture.getWidth();
+                if (texture.getHeight() > 0)
+                    uvs[1] = spriteDesc.getTileHeight() / (float)texture.getHeight();
+                texture.bind();
+            }
+            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+            gl.glBegin(GL.GL_QUADS);
+            gl.glTexCoord2f(0.0f, 0.0f);
+            gl.glVertex3f(-exts[0], exts[1], 0);
+            gl.glTexCoord2f(uvs[0], 0.0f);
+            gl.glVertex3f(exts[0], exts[1], 0);
+            gl.glTexCoord2f(uvs[0], uvs[1]);
+            gl.glVertex3f(exts[0], -exts[1], 0);
+            gl.glTexCoord2f(0.0f, uvs[1]);
+            gl.glVertex3f(-exts[0], -exts[1], 0);
+            gl.glEnd();
+
+            if (texture != null) {
+                texture.disable();
+            }
+
+            gl.glPolygonMode(GL.GL_FRONT, GL.GL_LINE);
+
+            if (context.isSelected(this))
+                gl.glColor3fv(Constants.SELECTED_COLOR, 0);
+            else
+                gl.glColor3fv(Constants.OBJECT_COLOR, 0);
+
+            gl.glBegin(GL.GL_LINE_LOOP);
+            gl.glVertex3f(-exts[0], exts[1], 0);
+            gl.glVertex3f(exts[0], exts[1], 0);
+            gl.glVertex3f(exts[0], -exts[1], 0);
+            gl.glVertex3f(-exts[0], -exts[1], 0);
+            gl.glEnd();
+
+            gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+
         }
-
-        gl.glPolygonMode(GL.GL_FRONT, GL.GL_LINE);
-        if (context.isSelected(this))
-            gl.glColor3fv(Constants.SELECTED_COLOR, 0);
-        else
-            gl.glColor3fv(Constants.OBJECT_COLOR, 0);
-
-        gl.glBegin(GL.GL_LINE_LOOP);
-        gl.glVertex3f(-exts[0], exts[1], 0);
-        gl.glVertex3f(exts[0], exts[1], 0);
-        gl.glVertex3f(exts[0], -exts[1], 0);
-        gl.glVertex3f(-exts[0], -exts[1], 0);
-        gl.glEnd();
-
-        gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
     }
 
     @Override

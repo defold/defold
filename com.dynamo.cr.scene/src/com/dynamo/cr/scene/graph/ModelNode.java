@@ -59,7 +59,9 @@ public class ModelNode extends ComponentNode<ModelResource> {
             gl.glEnable(GL.GL_BLEND);
         }
 
-        if (context.isSelected(this))
+        if ((getFlags() & FLAG_GHOST) == FLAG_GHOST)
+            gl.glColor3fv(Constants.GHOST_COLOR, 0);
+        else if (context.isSelected(this))
             gl.glColor3fv(Constants.SELECTED_COLOR, 0);
         else
             gl.glColor3fv(Constants.OBJECT_COLOR, 0);

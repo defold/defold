@@ -449,7 +449,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
     }
 
     public void refresh(Node node) {
-        getTreeViewer().refresh(node);
+        if (!getTreeViewer().getTree().isDisposed())
+            getTreeViewer().refresh(node);
     }
 
     void activateContext() {

@@ -25,6 +25,7 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
     private Map<IPath, Resource> resources = new HashMap<IPath, Resource>();
 
     Map<String, IResourceLoader> loaders = new HashMap<String, IResourceLoader>();
+    private boolean inSave;
 
     public boolean canLoad(String path) {
         String extension = path.substring(path.lastIndexOf('.') + 1);
@@ -81,6 +82,10 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
+        // Resource factories are not shared. Return early here
+        // in order to avoid to reload ourself
+        if (inSave)
+            return;
 
         try {
             final IResourceFactory factory = this;
@@ -117,5 +122,9 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
         } catch (CoreException e) {
             e.printStackTrace();
         }
+    }
+
+    public void setInSave(boolean inSave) {
+        this.inSave = inSave;
     }
 }
