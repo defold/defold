@@ -302,6 +302,11 @@ public class CollectionNode extends Node implements IResourceListener {
     }
 
     private String getUniqueInstanceId(String base) {
+
+        // Return directly if the id is valid
+        if (!instanceIdToNode.containsKey(base))
+            return base;
+
         int id = 0;
 
         int i = base.length()-1;
