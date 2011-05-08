@@ -11,15 +11,19 @@ def build(bld):
                           install_path='${PREFIX}/lib')
     script.find_sources_in_dirs(['.'])
 
-    script_proto = bld.new_task_gen(features = 'cxx ddf',
+    script_proto = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                       includes = '../proto .',
                       proto_gen_cc = False,
                       proto_gen_py = True,
                       proto_gen_java = True,
                       ddf_jar = 'script_doc.jar',
                       protoc_includes = '../proto',
+                      # Create a dummy lib in order to avoid internal waf problem
+                      # File "...\waf-1.5.9-d1e0349fc8937631a656fb8ea7e99063\wafadmin\Tools\msvc.py", line 460, in apply_flags_msvc
+                      # pdbnode=self.link_task.outputs[0].change_ext('.pdb')
+                      # AttributeError: 'NoneType' object has no attribute 'outputs'                      target = 'dummylib',
                       classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                      install_path='${PREFIX}/lib')
+                      install_path=None)
     script_proto.find_sources_in_dirs(['../proto'])
 
     bld.add_group()
