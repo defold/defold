@@ -56,6 +56,8 @@ public:
     dmGui::HScene m_Scene;
     dmMessage::HSocket m_Socket;
     dmGui::HScript m_Script;
+    std::map<std::string, dmGui::HNode> m_NodeTextToNode;
+    std::map<std::string, Vector4> m_NodeTextToRenderedPosition;
 
     virtual void SetUp()
     {
@@ -77,6 +79,15 @@ public:
         m_Scene = dmGui::NewScene(m_Context, &params);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
+    }
+
+    static void RenderNode(dmGui::HScene scene, const dmGui::Node* nodes, uint32_t node_count, void* context)
+    {
+        dmGuiTest* self = (dmGuiTest*) context;
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            self->m_NodeTextToRenderedPosition[nodes[i].m_Text] = nodes[i].m_Properties[dmGui::PROPERTY_POSITION];
+        }
     }
 
     virtual void TearDown()
@@ -1151,6 +1162,63 @@ TEST_F(dmGuiTest, Bug352)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
     lua_close(L);
+}
+
+TEST_F(dmGuiTest, Scaling)
+{
+    uint32_t reference_width = 1024;
+    uint32_t reference_height = 768;
+
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 480;
+
+    dmGui::SetReferenceResolution(m_Scene, reference_width, reference_height);
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+
+    const char* n1_name = "n1";
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(reference_width/2, reference_height/2,0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, n1, n1_name);
+    dmGui::RenderScene(m_Scene, &RenderNode, this);
+
+    Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
+    ASSERT_EQ(physical_width/2, pos1.getX());
+    ASSERT_EQ(physical_height/2, pos1.getY());
+}
+
+TEST_F(dmGuiTest, Anchoring)
+{
+    uint32_t reference_width = 1024;
+    uint32_t reference_height = 768;
+
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+
+    float scale = physical_width / (float) reference_width;
+
+    dmGui::SetReferenceResolution(m_Scene, reference_width, reference_height);
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+
+    const char* n1_name = "n1";
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, n1, n1_name);
+    dmGui::SetNodeXAnchor(m_Scene, n1, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_TOP);
+
+    const char* n2_name = "n2";
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(reference_width - 10, reference_height - 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, n2, n2_name);
+    dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
+    dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_BOTTOM);
+
+    dmGui::RenderScene(m_Scene, &RenderNode, this);
+
+    Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
+    ASSERT_EQ(10 * scale, pos1.getX());
+    ASSERT_EQ(10 * scale, pos1.getY());
+
+    Vector4 pos2 = m_NodeTextToRenderedPosition[n2_name];
+    ASSERT_EQ(physical_width - 10 * scale, pos2.getX());
+    ASSERT_EQ(physical_height - 10 * scale, pos2.getY());
 }
 
 int main(int argc, char **argv)

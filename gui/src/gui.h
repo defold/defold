@@ -114,12 +114,28 @@ namespace dmGui
         Vector4     m_Properties[PROPERTY_COUNT];
         uint32_t    m_BlendMode : 4;
         uint32_t    m_NodeType : 4;
-        uint32_t    m_Reserved : 24;
+        uint32_t    m_XAnchor : 2;
+        uint32_t    m_YAnchor : 2;
+        uint32_t    m_Reserved : 20;
         const char* m_Text;
         uint64_t    m_TextureHash;
         void*       m_Texture;
         uint64_t    m_FontHash;
         void*       m_Font;
+    };
+
+    enum XAnchor
+    {
+        XANCHOR_NONE  = 0,
+        XANCHOR_LEFT  = 1,
+        XANCHOR_RIGHT = 2,
+    };
+
+    enum YAnchor
+    {
+        YANCHOR_NONE   = 0,
+        YANCHOR_TOP    = 1,
+        YANCHOR_BOTTOM = 2,
     };
 
     /**
@@ -156,6 +172,10 @@ namespace dmGui
     HScene NewScene(HContext context, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
+
+    void SetReferenceResolution(HScene scene, uint32_t width, uint32_t height);
+
+    void SetPhysicalResolution(HScene scene, uint32_t width, uint32_t height);
 
     /**
      * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
@@ -271,6 +291,9 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font);
 
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
+
+    void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
+    void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
 
     void AnimateNode(HScene scene, HNode node,
                      Property property,

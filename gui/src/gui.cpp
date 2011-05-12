@@ -86,6 +86,11 @@ namespace dmGui
 
         scene->m_NextVersionNumber = 0;
 
+        scene->m_ReferenceWidth = 640;
+        scene->m_ReferenceHeight = 480;
+        scene->m_PhysicalWidth = scene->m_ReferenceWidth;
+        scene->m_PhysicalHeight = scene->m_ReferenceHeight;
+
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
@@ -116,6 +121,18 @@ namespace dmGui
 
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         delete scene;
+    }
+
+    void SetReferenceResolution(HScene scene, uint32_t width, uint32_t height)
+    {
+        scene->m_ReferenceWidth = width;
+        scene->m_ReferenceHeight = height;
+    }
+
+    void SetPhysicalResolution(HScene scene, uint32_t width, uint32_t height)
+    {
+        scene->m_PhysicalWidth = width;
+        scene->m_PhysicalHeight = height;
     }
 
     void SetSceneUserData(HScene scene, void* user_data)
@@ -291,12 +308,34 @@ namespace dmGui
 
     void RenderScene(HScene scene, RenderNode render_node, void* context)
     {
+        float scale_factor = (float) scene->m_PhysicalWidth / (float) scene->m_ReferenceWidth;
+        //float scale_y = (float) scene->m_PhysicalHeight / (float) scene->m_ReferenceHeight;
+
+        Vector4 scale(scale_factor, scale_factor, 1, 1);
+
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
             if (n->m_Index != 0xffff)
             {
+                Vector4 saved_position = n->m_Node.m_Properties[PROPERTY_POSITION];
+                Vector4 scaled_position = mulPerElem(saved_position, scale);
+
+                if (n->m_Node.m_XAnchor == XANCHOR_RIGHT)
+                {
+                    float distance = (scene->m_ReferenceWidth - saved_position.getX()) * scale_factor;
+                    scaled_position.setX(scene->m_PhysicalWidth - distance);
+                }
+
+                if (n->m_Node.m_YAnchor == YANCHOR_BOTTOM)
+                {
+                    float distance = (scene->m_ReferenceHeight - saved_position.getY()) * scale_factor;
+                    scaled_position.setY(scene->m_PhysicalHeight - distance);
+                }
+
+                n->m_Node.m_Properties[PROPERTY_POSITION] = scaled_position;
                 render_node(scene, &n->m_Node, 1, context);
+                n->m_Node.m_Properties[PROPERTY_POSITION] = saved_position;
             }
         }
     }
@@ -669,6 +708,18 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_BlendMode = (uint32_t) blend_mode;
+    }
+
+    void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_XAnchor = (uint32_t) x_anchor;
+    }
+
+    void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_YAnchor = (uint32_t) y_anchor;
     }
 
     void AnimateNode(HScene scene,

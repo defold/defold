@@ -88,6 +88,11 @@ namespace dmGui
         void*                   m_DefaultFont;
         void*                   m_UserData;
         uint16_t                m_NextVersionNumber;
+
+        uint32_t                m_ReferenceWidth;
+        uint32_t                m_ReferenceHeight;
+        uint32_t                m_PhysicalWidth;
+        uint32_t                m_PhysicalHeight;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
