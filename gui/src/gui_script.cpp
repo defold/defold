@@ -479,6 +479,61 @@ namespace dmGui
         return 0;
     }
 
+    /*#
+     * Set x-anchor for node
+     * @name gui.set_xanchor
+     * @param node node to set x-anchor for
+     * @param anchor anchor value, eg gui.LEFT
+     */
+    static int LuaSetXAnchor(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int anchor = luaL_checknumber(L, 2);
+        if (anchor != XANCHOR_LEFT && anchor != XANCHOR_RIGHT)
+        {
+            luaL_error(L, "Invalid x-anchor: %d", anchor);
+        }
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        SetNodeXAnchor(scene, hnode, (XAnchor) anchor);
+
+        return 0;
+    }
+
+    /*#
+     * Set y-anchor for node
+     * @name gui.set_yanchor
+     * @param node node to set y-anchor for
+     * @param anchor anchor value, eg gui.TOP
+     */
+    static int LuaSetYAnchor(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int anchor = luaL_checknumber(L, 2);
+        if (anchor != YANCHOR_TOP && anchor != YANCHOR_BOTTOM)
+        {
+            luaL_error(L, "Invalid y-anchor: %d", anchor);
+        }
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        SetNodeYAnchor(scene, hnode, (YAnchor) anchor);
+
+        return 0;
+    }
+
+
 #define LUAGETSET(name, property) \
     int LuaGet##name(lua_State* L)\
     {\
@@ -529,6 +584,8 @@ namespace dmGui
         {"set_blend_mode",  LuaSetBlendMode},
         {"set_texture",     LuaSetTexture},
         {"set_font",        LuaSetFont},
+        {"set_xanchor",     LuaSetXAnchor},
+        {"set_yanchor",     LuaSetYAnchor},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -623,6 +680,15 @@ namespace dmGui
         SETBLEND(MULT)
 
 #undef SETBLEND
+
+        lua_pushnumber(L, (lua_Number) XANCHOR_LEFT);
+        lua_setfield(L, -2, "LEFT");
+        lua_pushnumber(L, (lua_Number) XANCHOR_RIGHT);
+        lua_setfield(L, -2, "RIGHT");
+        lua_pushnumber(L, (lua_Number) YANCHOR_TOP);
+        lua_setfield(L, -2, "TOP");
+        lua_pushnumber(L, (lua_Number) YANCHOR_BOTTOM);
+        lua_setfield(L, -2, "BOTTOM");
 
         lua_pop(L, 1);
 

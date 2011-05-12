@@ -1221,6 +1221,54 @@ TEST_F(dmGuiTest, Anchoring)
     ASSERT_EQ(physical_height - 10 * scale, pos2.getY());
 }
 
+TEST_F(dmGuiTest, ScriptAnchoring)
+{
+
+    uint32_t reference_width = 1024;
+    uint32_t reference_height = 768;
+
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+
+    float scale = physical_width / (float) reference_width;
+
+    dmGui::SetReferenceResolution(m_Scene, reference_width, reference_height);
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+
+    const char* s = "function init(self)\n"
+                    "    assert (1024 == gui.width)\n"
+                    "    assert (768 == gui.height)\n"
+                    "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
+                    "    gui.set_xanchor(self.n1, gui.LEFT)\n"
+                    "    gui.set_yanchor(self.n1, gui.TOP)\n"
+                    "    self.n2 = gui.new_text_node(vmath.vector3(gui.width - 10, gui.height-10, 0), \"n2\")"
+                    "    gui.set_xanchor(self.n2, gui.RIGHT)\n"
+                    "    gui.set_yanchor(self.n2, gui.BOTTOM)\n"
+                    "end\n"
+                    "function update(self)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::RenderScene(m_Scene, &RenderNode, this);
+
+    Vector4 pos1 = m_NodeTextToRenderedPosition["n1"];
+    ASSERT_EQ(10 * scale, pos1.getX());
+    ASSERT_EQ(10 * scale, pos1.getY());
+
+    Vector4 pos2 = m_NodeTextToRenderedPosition["n2"];
+    ASSERT_EQ(physical_width - 10 * scale, pos2.getX());
+    ASSERT_EQ(physical_height - 10 * scale, pos2.getY());
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

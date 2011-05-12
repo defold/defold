@@ -423,6 +423,13 @@ namespace dmGui
         if (scene->m_Script == 0x0)
             return result;
 
+        lua_getglobal(L, "gui");
+        lua_pushnumber(L, (lua_Number) scene->m_ReferenceWidth);
+        lua_setfield(L, -2, "width");
+        lua_pushnumber(L, (lua_Number) scene->m_ReferenceHeight);
+        lua_setfield(L, -2, "height");
+        lua_pop(L, 1);
+
         lua_pushlightuserdata(L, (void*) scene);
         lua_setglobal(L, "__scene__");
 
@@ -499,6 +506,13 @@ namespace dmGui
         UpdateAnimations(scene, dt);
         if (scene->m_Script == 0x0)
             return result;
+
+        lua_getglobal(L, "gui");
+        lua_pushnumber(L, (lua_Number) scene->m_ReferenceWidth);
+        lua_setfield(L, -2, "width");
+        lua_pushnumber(L, (lua_Number) scene->m_ReferenceHeight);
+        lua_setfield(L, -2, "height");
+        lua_pop(L, 1);
 
         lua_pushlightuserdata(L, (void*) scene);
         lua_setglobal(L, "__scene__");
