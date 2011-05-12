@@ -308,8 +308,8 @@ namespace dmGui
 
     void RenderScene(HScene scene, RenderNode render_node, void* context)
     {
+        // NOTE: Currently width is the reference for scale factor
         float scale_factor = (float) scene->m_PhysicalWidth / (float) scene->m_ReferenceWidth;
-        //float scale_y = (float) scene->m_PhysicalHeight / (float) scene->m_ReferenceHeight;
 
         Vector4 scale(scale_factor, scale_factor, 1, 1);
 
