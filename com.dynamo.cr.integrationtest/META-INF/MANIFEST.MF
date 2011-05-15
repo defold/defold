@@ -18,4 +18,5 @@ Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
  org.eclipse.core.runtime;bundle-version="3.6.0",
  org.eclipse.ltk.core.refactoring;bundle-version="3.5.100",
  org.eclipse.text;bundle-version="3.5.0",
- com.dynamo.cr.scene;bundle-version="1.0.0"
+ com.dynamo.cr.scene;bundle-version="1.0.0",
+ javax.media.opengl;bundle-version="1.1.1"
