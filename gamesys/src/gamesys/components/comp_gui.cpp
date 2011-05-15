@@ -139,9 +139,10 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiRenderContext* gui_render_context = (GuiRenderContext*)params.m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_render_context->m_RenderContext);
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
-
 
         Component* gui_component = new Component();
         gui_component->m_Instance = params.m_Instance;
@@ -153,10 +154,16 @@ namespace dmGameSystem
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
-        dmGui::SetSceneScript(gui_component->m_Scene, scene_resource->m_Script);
         dmGui::HScene scene = gui_component->m_Scene;
-
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
+
+        dmGui::SetSceneScript(scene, scene_resource->m_Script);
+        dmGui::SetReferenceResolution(scene, scene_desc->m_ReferenceWidth, scene_desc->m_ReferenceHeight);
+
+        uint32_t physical_width = dmGraphics::GetWindowWidth(graphics_context);
+        uint32_t physical_height = dmGraphics::GetWindowHeight(graphics_context);
+        dmGui::SetPhysicalResolution(scene, physical_width, physical_height);
+
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
             dmGui::AddFont(scene, scene_desc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
