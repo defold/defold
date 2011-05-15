@@ -57,10 +57,21 @@ def transform_model(msg):
 
 def transform_gui(msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
+    font_names = set()
+    texture_names = set()
     for f in msg.fonts:
+        font_names.add(f.name)
         f.font = f.font.replace('.font', '.fontc')
     for t in msg.textures:
+        texture_names.add(t.name)
         t.texture = transform_texture_name(t.texture)
+    for n in msg.nodes:
+        if n.texture:
+            if not n.texture in texture_names:
+                raise Exception('Texture "%s" not declared in gui-file' % (n.texture))
+        if n.font:
+            if not n.font in font_names:
+                raise Exception('Font "%s" not declared in gui-file' % (n.font))
     return msg
 
 def transform_spawnpoint(msg):

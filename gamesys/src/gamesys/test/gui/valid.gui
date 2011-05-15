@@ -1,4 +1,6 @@
 script: "gui/valid.gui_script"
+reference_width: 960
+reference_height: 640
 fonts
 {
     name: "test_font"
@@ -8,4 +10,18 @@ textures
 {
     name: "test_texture"
     texture: "texture/valid_png.png"
+}
+nodes
+{
+    position { x: 1 y: 2 z: 3 }
+    extent { x: 10 y: 20 z: 30 }
+    type: TYPE_BOX
+    blend_mode: BLEND_MODE_ALPHA
+    texture: "test_texture"
+    font: "test_font"
+    properties
+    {
+        type: PROPERTY_COLOR
+        value: { x: 1 y: 0 z: 0 w: 0 }
+    }
 }

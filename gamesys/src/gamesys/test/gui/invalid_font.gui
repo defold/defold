@@ -1,4 +1,6 @@
 script: "gui/valid.gui_script"
+reference_width: 960
+reference_height: 640
 fonts
 {
     name: "test_font"

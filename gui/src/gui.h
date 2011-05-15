@@ -70,6 +70,8 @@ namespace dmGui
         RESULT_RESOURCE_NOT_FOUND = -5,
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum Property
     {
         PROPERTY_POSITION  = 0,
@@ -95,6 +97,8 @@ namespace dmGui
         EASING_COUNT = 4,
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum BlendMode
     {
         BLEND_MODE_ALPHA     = 0,
@@ -103,6 +107,8 @@ namespace dmGui
         BLEND_MODE_MULT      = 3,
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum NodeType
     {
         NODE_TYPE_BOX  = 0,

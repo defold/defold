@@ -154,20 +154,58 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::SetSceneScript(gui_component->m_Scene, scene_resource->m_Script);
+        dmGui::HScene scene = gui_component->m_Scene;
 
+        dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
-            dmGui::AddFont(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
+            dmGui::AddFont(scene, scene_desc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
         }
 
         for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
         {
-            dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
+            dmGui::AddTexture(scene, scene_desc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
 
-        *params.m_UserData = (uintptr_t)gui_component;
-        gui_world->m_Components.Push(gui_component);
-        return dmGameObject::CREATE_RESULT_OK;
+        bool error = false;
+        for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
+        {
+            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
+
+            // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
+            dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
+            dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
+
+            dmGui::HNode n = dmGui::NewNode(scene, node_desc->m_Position,  node_desc->m_Extent, type);
+            if (n)
+            {
+                dmGui::SetNodeBlendMode(scene, n, blend_mode);
+                uint32_t property_count = node_desc->m_Properties.m_Count;
+                for (uint32_t j = 0; j < property_count; ++j)
+                {
+                    const dmGuiDDF::NodeDesc::Property* property = &node_desc->m_Properties[j];
+                    dmGui::SetNodeProperty(scene, n, (dmGui::Property) property->m_Type, property->m_Value);
+                }
+            }
+            else
+            {
+                error = true;
+                break;
+            }
+        }
+
+        if (error)
+        {
+            dmGui::DeleteScene(gui_component->m_Scene);
+            delete gui_component;
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        else
+        {
+            *params.m_UserData = (uintptr_t)gui_component;
+            gui_world->m_Components.Push(gui_component);
+            return dmGameObject::CREATE_RESULT_OK;
+        }
     }
 
     dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)

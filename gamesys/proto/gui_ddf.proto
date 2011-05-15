@@ -1,9 +1,60 @@
 package dmGuiDDF;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.gui.proto";
 option java_outer_classname = "Gui";
+
+message NodeDesc
+{
+    // NOTE: Enum values must correspond to the enum values in dmGui
+    enum Type
+    {
+        TYPE_BOX  = 0;
+        TYPE_TEXT = 1;
+    }
+
+    // NOTE: Enum values must correspond to the enum values in dmGui
+    enum PropertyType
+    {
+        PROPERTY_POSITION  = 0;
+        PROPERTY_ROTATION  = 1;
+        PROPERTY_SCALE     = 2;
+        PROPERTY_COLOR     = 3;
+        PROPERTY_EXTENTS   = 4;
+
+        PROPERTY_RESERVED1 = 5;
+        PROPERTY_RESERVED2 = 6;
+        PROPERTY_RESERVED3 = 7;
+
+        PROPERTY_COUNT     = 8;
+    }
+
+    // NOTE: Enum values must correspond to the enum values in dmGui
+    enum BlendMode
+    {
+        BLEND_MODE_ALPHA     = 0;
+        BLEND_MODE_ADD       = 1;
+        BLEND_MODE_ADD_ALPHA = 2;
+        BLEND_MODE_MULT      = 3;
+    }
+
+    message Property
+    {
+        required PropertyType type    = 1;
+        required dmMath.Vector4 value = 2;
+    }
+
+    required Type       type        = 1;
+    required dmMath.Point3 position = 2;
+    required dmMath.Vector3 extent  = 3;
+    required BlendMode  blend_mode  = 4;
+    optional string     text        = 5;
+    optional string     texture     = 6;
+    optional string     font        = 7;
+    repeated Property   properties  = 8;
+}
 
 message SceneDesc
 {
@@ -17,7 +68,12 @@ message SceneDesc
         required string name    = 1;
         required string texture = 2 [(resource)=true];
     }
-    required string script          = 1 [(resource)=true];
-    repeated FontDesc fonts         = 2 [(resource)=true];
-    repeated TextureDesc textures   = 3 [(resource)=true];
+
+    required string      script                  = 1 [(resource)=true];
+    repeated FontDesc    fonts                   = 2 [(resource)=true];
+    repeated TextureDesc textures                = 3 [(resource)=true];
+
+    optional uint32      reference_width         = 4 [default = 960];
+    optional uint32      reference_height        = 5 [default = 640];
+    repeated NodeDesc    nodes                   = 6;
 }

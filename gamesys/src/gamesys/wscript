@@ -19,6 +19,7 @@ def build(bld):
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])
 
+    bld.add_group()
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
