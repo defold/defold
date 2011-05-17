@@ -29,5 +29,8 @@ public class Perspective implements IPerspectiveFactory {
         layout.getViewLayout(IConsoleConstants.ID_CONSOLE_VIEW).setCloseable(false);
         folder.addView("org.eclipse.ui.views.ProblemView");
         layout.getViewLayout("org.eclipse.ui.views.ProblemView").setCloseable(false);
+
+        folder.addView(IPageLayout.ID_PROP_SHEET);
+        layout.getViewLayout(IPageLayout.ID_PROP_SHEET).setCloseable(false);
 	}
 }
