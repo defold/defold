@@ -78,7 +78,9 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     @Override
     public void dispose() {
         super.dispose();
-        history.removeOperationHistoryListener(this);
+        if (history != null) {
+            history.removeOperationHistoryListener(this);
+        }
         ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
