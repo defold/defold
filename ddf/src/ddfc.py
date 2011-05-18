@@ -258,7 +258,7 @@ def to_cxx_default_value_string(context, f):
                 if e.name == f.default_value:
                     default_value = e.number
                     break
-            if not default_value:
+            if default_value == None:
                 raise Exception("Default '%s' not found" % f.default_value)
 
             form, func = type_to_struct_format[f.type]
