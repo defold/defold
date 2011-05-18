@@ -12,6 +12,8 @@ public class Constants {
 
     public static float SELECTED_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
 
+    public static float GHOST_COLOR[] = new float[] { 150.0f/255, 150.0f/255, 150.0f/255 };
+
     public static float GRID_COLOR[] = new float[] { 130.0f/255, 130.0f/255, 130.0f/255 };
 
     public static float AXIS_COLOR[][] = new float[][] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };

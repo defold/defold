@@ -44,7 +44,7 @@ public class Paste extends AbstractHandler {
             Scene scene = new Scene();
             try {
                 String name = "clipboard.collection";
-                Resource resource = ((IEditor)editor).getResourceFactory().load(new NullProgressMonitor(), name, stream);
+                Resource resource = ((IEditor)editor).getResourceFactory().loadNoCache(new NullProgressMonitor(), name, stream);
                 CollectionNode node = (CollectionNode) ((IEditor)editor).getNodeFactory().create(name, resource, null, scene);
                 setScene(target.getScene(), node);
 

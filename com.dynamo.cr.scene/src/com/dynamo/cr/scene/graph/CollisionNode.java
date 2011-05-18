@@ -68,19 +68,26 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                 float h_e = shape.getData(1);
                 float d_e = shape.getData(2);
 
-                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
-                if (context.isSelected(this))
-                    gl.glColor3fv(Constants.SELECTED_COLOR, 0);
-                else
-                    gl.glColor3fv(Constants.OBJECT_COLOR, 0);
-                GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
-                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
-
-                if (context.isSelected(this)) {
+                if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
+                    gl.glColor3fv(Constants.GHOST_COLOR, 0);
+                    GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
                 }
+                else {
+                    gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+                    if (context.isSelected(this))
+                        gl.glColor3fv(Constants.SELECTED_COLOR, 0);
+                    else
+                        gl.glColor3fv(Constants.OBJECT_COLOR, 0);
 
-                gl.glColor4f(255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f);
-                GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
+                    GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
+                    gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+
+                    if (context.isSelected(this)) {
+                    }
+
+                    gl.glColor4f(255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f);
+                    GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
+                }
             }
 
         } else {

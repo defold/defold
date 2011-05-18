@@ -1,7 +1,6 @@
 package com.dynamo.cr.luaeditor;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import org.eclipse.jface.text.BadLocationException;
@@ -12,44 +11,14 @@ import org.eclipse.jface.text.contentassist.ICompletionProposal;
 import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
+import org.eclipse.swt.graphics.Image;
+
+import com.dynamo.scriptdoc.proto.ScriptDoc;
+import com.dynamo.scriptdoc.proto.ScriptDoc.Parameter;
 
 public class LuaContentAssistProcessor implements IContentAssistProcessor {
 
-    static class Function {
-        private String name;
-        private String[] args;
-
-        public Function(String name, String...args) {
-            this.name = name;
-            this.args = args;
-        }
-    }
-
-    static class Namespace {
-        public Namespace(Function...functions) {
-            for (Function f : functions) {
-                functionList.add(f);
-            }
-        }
-        public ArrayList<Function> functionList = new ArrayList<Function>();
-    }
-
-    private HashMap<String, Namespace> namespaces;
-
     public LuaContentAssistProcessor() {
-        namespaces = new HashMap<String, Namespace>();
-        namespaces.put("go", new Namespace(new Function("get_position", "self"),
-                                           new Function("post", "\"message_name\""),
-                                           new Function("post_to", "id", "\"component\"", "\"message_name\""),
-                                           new Function("get_position", "self"),
-                                           new Function("get_rotation", "self"),
-                                           new Function("set_position", "self", "position"),
-                                           new Function("set_rotation", "self", "rotation"),
-                                           new Function("get_world_position", "self"),
-                                           new Function("get_id", "self", "\"goname\""),
-                                           new Function("is_visible", "min, max, margin"),
-                                           new Function("delete", "self")
-                                           ));
     }
 
     @Override
@@ -57,36 +26,49 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             int offset) {
         List<ICompletionProposal> proposals = new ArrayList<ICompletionProposal>();
 
+        Image luaImage = LuaEditorPlugin.getDefault().getLuaImage();
         IDocument doc = viewer.getDocument();
         try {
             int line_nr = doc.getLineOfOffset(offset);
             int line_offset = doc.getLineOffset(line_nr);
 
-            for (String namespace_name : namespaces.keySet()) {
-                String line = doc.get(line_offset, offset - line_offset);
-                int ns_index = line.lastIndexOf(namespace_name + ".");
-                if (ns_index != -1) {
-                    String function_name = line.substring(ns_index + namespace_name.length() + 1);
-                    Namespace namespace = namespaces.get(namespace_name);
-                    for (Function f : namespace.functionList) {
-                        if (f.name.startsWith(function_name)) {
-                            String s = f.name + "(";
+            String line = doc.get(line_offset, offset - line_offset);
+            line = line.replaceAll("^\\s+", "");
 
-                            int i = 0;
-                            for (String arg : f.args) {
-                                s = s + arg;
-                                if (i < f.args.length-1)
-                                    s = s + ", ";
-                                ++i;
-                            }
-                            s = s + ")";
+            ScriptDoc.Function[] functions = LuaEditorPlugin.getDefault().getDocumentation(line);
+            for (ScriptDoc.Function function : functions) {
+                StringBuffer additionalInfo = new StringBuffer();
+                additionalInfo.append(function.getDescription());
+                additionalInfo.append("<br><br>");
+                additionalInfo.append("<b>Parameters:</b>");
+                additionalInfo.append("<br>");
 
-                            proposals.add(new CompletionProposal(s.substring(function_name.length()), offset, 0, s.length(), null, f.name, null, null));
-                        }
-                    }
+                String s = function.getName() + "(";
+                int i = 0;
+                for (Parameter parameter : function.getParametersList()) {
+                    additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
+                    additionalInfo.append(parameter.getName());
+                    additionalInfo.append("</b> ");
+                    additionalInfo.append(parameter.getDoc());
+                    additionalInfo.append("<br>");
+
+                    s = s + parameter.getName();
+                    if (i < function.getParametersCount()-1)
+                        s = s + ", ";
+                    ++i;
                 }
-            }
+                s = s + ")";
 
+                if (function.getReturn().length() > 0) {
+                    additionalInfo.append("<br>");
+                    additionalInfo.append("<b>Returns:</b><br>");
+                    additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
+                    additionalInfo.append(function.getReturn());
+                }
+
+                int cursorPosition = s.length() - line.length();
+                proposals.add(new CompletionProposal(s.substring(line.length()), offset, 0, cursorPosition, luaImage, s, null, additionalInfo.toString()));
+            }
         } catch (BadLocationException e) {
             e.printStackTrace();
         }

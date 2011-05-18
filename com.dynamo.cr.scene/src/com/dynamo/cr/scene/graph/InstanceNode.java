@@ -21,17 +21,17 @@ public class InstanceNode extends Node {
         }
     }
 
-    void andFlags(Node node, int flags) {
+    private void notInstanceNodeAndFlags(Node node, int flags) {
         if (!(node instanceof InstanceNode))
             node.setFlags(node.getFlags() & flags);
         for (Node n : node.getChildren()) {
-            andFlags(n, flags);
+            notInstanceNodeAndFlags(n, flags);
         }
     }
 
     @Override
     public void nodeAdded(Node node) {
-        andFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
+        notInstanceNodeAndFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
         // tell collection node
         Node parent = getParent();
         while (parent != null && !(parent instanceof CollectionNode)) {

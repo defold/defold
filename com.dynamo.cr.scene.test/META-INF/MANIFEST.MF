@@ -10,4 +10,5 @@ Require-Bundle: org.eclipse.core.commands,
  org.junit4;bundle-version="4.8.1",
  org.eclipse.core.runtime,
  org.eclipse.core.resources;bundle-version="3.6.0",
- com.dynamo.cr.common;bundle-version="1.0.0"
+ com.dynamo.cr.common;bundle-version="1.0.0",
+ javax.media.opengl;bundle-version="1.1.1"

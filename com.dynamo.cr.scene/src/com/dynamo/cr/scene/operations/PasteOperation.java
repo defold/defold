@@ -66,9 +66,9 @@ public class PasteOperation extends AbstractOperation {
                     if (!addedNodes.containsKey(compTarget)) {
                         addedNodes.put(compTarget, new ArrayList<Node>());
                     }
-                    addedNodes.get(compTarget).add(node);
-                    target.addNode(node);
                     modifyIdentifiers(target, node);
+                    target.addNode(node);
+                    addedNodes.get(compTarget).add(node);
                 }
             }
             if (addedNodes.isEmpty()) {

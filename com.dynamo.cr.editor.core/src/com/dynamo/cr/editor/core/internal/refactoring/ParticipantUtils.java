@@ -114,7 +114,7 @@ public class ParticipantUtils {
         return createCompositeChange(refactoredFiles);
     }
 
-    static void deleteFile(Map<IFile, RefactoredFile> refactoredFiles, IFile file) throws CoreException, IOException {
+    static void deleteFile(Map<IFile, RefactoredFile> refactoredFiles, IFile file, List<IFile> allFiles) throws CoreException, IOException {
 
         final IResourceTypeRegistry registry = EditorCorePlugin.getDefault();
         String extension = file.getFileExtension();
@@ -129,7 +129,12 @@ public class ParticipantUtils {
         ResourceRefactorContext context = new ResourceRefactorContext(root);
 
         for (IFile candidateFile : candidateFiles) {
+            // Check that the file is the list of files to delete first
+            if (allFiles.contains(candidateFile))
+                continue;
+
             if (!refactoredFiles.containsKey(candidateFile)) {
+
                 InputStream inStream = candidateFile.getContents();
                 try {
                     ByteArrayOutputStream outStream = new ByteArrayOutputStream();
@@ -158,7 +163,7 @@ public class ParticipantUtils {
         pm.beginTask("Refactor resources", elements.size());
         for (IFile element : elements) {
             try {
-                deleteFile(refactoredFiles, element);
+                deleteFile(refactoredFiles, element, elements);
             } catch (IOException e) {
                 throw new CoreException(new Status(IStatus.ERROR, EditorCorePlugin.PLUGIN_ID, e.getMessage()));
             }

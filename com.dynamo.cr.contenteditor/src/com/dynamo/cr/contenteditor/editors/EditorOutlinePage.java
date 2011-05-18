@@ -1,7 +1,12 @@
 package com.dynamo.cr.contenteditor.editors;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -16,6 +21,7 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
@@ -144,7 +150,7 @@ class EditorOutlineLabelProvider extends ColumnLabelProvider {
         }
         else if (element instanceof ComponentNode)
         {
-            ComponentNode componentNode = (ComponentNode) element;
+            ComponentNode<?> componentNode = (ComponentNode<?>) element;
             String resource = componentNode.getResourceIdentifier();
             String ext = resource.substring(resource.lastIndexOf('.')+1);
             if (!extensionToImage.containsKey(ext)) {
@@ -190,6 +196,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
     private Node m_Root;
     private boolean m_Mac;
     private IContextActivation contextActivation;
+    private int nextSelectionOrder = 0;
+    private Map<Object, Integer> selectionOrder = new HashMap<Object, Integer>();
 
     public EditorOutlinePage(CollectionEditor editor)
     {
@@ -378,7 +386,51 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
         }
         else
         {
-            m_Editor.setSelection(selection);
+            if (selection.isEmpty()) {
+                nextSelectionOrder = 0;
+                selectionOrder.clear();
+            }
+            else {
+                /*
+                 * SWT Tree does't preserve selection order. We need to track it ourself...
+                 */
+
+                IStructuredSelection structuredSelection = (IStructuredSelection) selection;
+                @SuppressWarnings("unchecked")
+                List<Object> list = structuredSelection.toList();
+                for (Object object : list) {
+                    if (!selectionOrder.containsKey(object))
+                    {
+                        selectionOrder.put(object, nextSelectionOrder++);
+                    }
+                }
+
+                // Remove not selected object from selectionOrder
+                Set<Object> toRemove = new HashSet<Object>();
+                for (Object object : selectionOrder.keySet()) {
+                    if (!list.contains(object)) {
+                        toRemove.add(object);
+                    }
+                }
+                for (Object object : toRemove) {
+                    selectionOrder.remove(object);
+                }
+
+                // Sort selected
+                Collections.sort(list, new Comparator<Object>() {
+                    public int compare(Object o1, Object o2) {
+                        if (selectionOrder.containsKey(o1) && selectionOrder.containsKey(o2)) {
+                            int order1 = selectionOrder.get(o1);
+                            int order2 = selectionOrder.get(o2);
+                            return order1 - order2;
+                        }
+                        // Some random order. Should not happen...
+                        return o1.hashCode() - o2.hashCode();
+                    }
+                });
+
+                m_Editor.setSelection(new StructuredSelection(list));
+            }
         }
     }
 
@@ -397,7 +449,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
     }
 
     public void refresh(Node node) {
-        getTreeViewer().refresh(node);
+        if (!getTreeViewer().getTree().isDisposed())
+            getTreeViewer().refresh(node);
     }
 
     void activateContext() {

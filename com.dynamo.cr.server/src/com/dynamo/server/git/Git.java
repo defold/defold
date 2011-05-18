@@ -115,7 +115,7 @@ public class Git {
      * @throws IOException
      */
     public void cloneRepoBare(String repository, String directory, String group) throws IOException {
-        CommandUtil.Result r = execGitCommand(null, "git", "clone", "--bare", repository, directory);
+        CommandUtil.Result r = execGitCommand(null, "git", "clone", "--bare", "--no-hardlinks", repository, directory);
         checkResult(r);
 
         r = execGitCommand(directory, "git", "repo-config", "core.sharedRepository", "group");

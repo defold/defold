@@ -21,15 +21,8 @@ public class CollectionInstanceNode extends Node {
         }
     }
 
-    void andFlags(Node node, int flags) {
-        node.setFlags(node.getFlags() & flags);
-        for (Node n : node.getChildren()) {
-            andFlags(n, flags);
-        }
-    }
-
     public void nodeAdded(Node node) {
-        andFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
+        Node.andFlags(node, ~(Node.FLAG_EDITABLE | Node.FLAG_CAN_HAVE_CHILDREN | Node.FLAG_TRANSFORMABLE));
     }
 
     @Override

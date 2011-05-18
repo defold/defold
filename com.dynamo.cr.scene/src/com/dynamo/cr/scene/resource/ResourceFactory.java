@@ -25,6 +25,7 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
     private Map<IPath, Resource> resources = new HashMap<IPath, Resource>();
 
     Map<String, IResourceLoader> loaders = new HashMap<String, IResourceLoader>();
+    private boolean inSave;
 
     public boolean canLoad(String path) {
         String extension = path.substring(path.lastIndexOf('.') + 1);
@@ -80,7 +81,24 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
     }
 
     @Override
+    public Resource loadNoCache(NullProgressMonitor monitor, String path,
+            InputStream in) throws IOException, CreateException, CoreException {
+        // Normalize path by using the path-class
+        IFile file = getFile(path);
+        IResourceLoader loader = loaders.get(file.getFileExtension());
+        if (loader == null)
+            throw new CreateException("No support for loading " + path);
+
+        Resource resource = loader.load(monitor, path, in, this);
+        return resource;
+    }
+
+    @Override
     public void resourceChanged(IResourceChangeEvent event) {
+        // Resource factories are not shared. Return early here
+        // in order to avoid to reload ourself
+        if (inSave)
+            return;
 
         try {
             final IResourceFactory factory = this;
@@ -117,5 +135,9 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
         } catch (CoreException e) {
             e.printStackTrace();
         }
+    }
+
+    public void setInSave(boolean inSave) {
+        this.inSave = inSave;
     }
 }

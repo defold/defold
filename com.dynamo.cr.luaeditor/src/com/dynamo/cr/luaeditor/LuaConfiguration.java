@@ -1,6 +1,10 @@
 package com.dynamo.cr.luaeditor;
 
+import org.eclipse.jface.internal.text.html.HTMLTextPresenter;
+import org.eclipse.jface.text.DefaultInformationControl;
 import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.text.IInformationControl;
+import org.eclipse.jface.text.IInformationControlCreator;
 import org.eclipse.jface.text.ITextDoubleClickStrategy;
 import org.eclipse.jface.text.TextAttribute;
 import org.eclipse.jface.text.contentassist.ContentAssistant;
@@ -11,8 +15,7 @@ import org.eclipse.jface.text.rules.DefaultDamagerRepairer;
 import org.eclipse.jface.text.rules.Token;
 import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.jface.text.source.SourceViewerConfiguration;
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
 
 public class LuaConfiguration extends SourceViewerConfiguration {
 	private LuaDoubleClickStrategy doubleClickStrategy;
@@ -70,12 +73,15 @@ public class LuaConfiguration extends SourceViewerConfiguration {
 
 	    assistant.setDocumentPartitioning(getConfiguredDocumentPartitioning(sourceViewer));
 	    assistant.setContentAssistProcessor(new LuaContentAssistProcessor(), IDocument.DEFAULT_CONTENT_TYPE);
-
+	    assistant.setShowEmptyList(true);
 	    assistant.setAutoActivationDelay(500);
 	    assistant.enableAutoActivation(true);
 
-	    assistant.setProposalSelectorBackground(Display.getDefault().
-	    getSystemColor(SWT.COLOR_WHITE));
+        assistant.setInformationControlCreator(new IInformationControlCreator() {
+                    public IInformationControl createInformationControl(Shell parent) {
+                        return new DefaultInformationControl(parent, new HTMLTextPresenter());
+                    }
+                });
 
 	    return assistant;
 	}
