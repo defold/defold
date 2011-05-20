@@ -39,6 +39,7 @@ import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
@@ -652,12 +653,12 @@ public class Server {
         git.pull(p);
     }
 
-    public void commitBranch(EntityManager em, String project, String user, String branch, String message) throws IOException, ServerException {
+    public CommitDesc commitBranch(EntityManager em, String project, String user, String branch, String message) throws IOException, ServerException {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
         Git git = new Git();
-        git.commitAll(p, message);
+        return git.commitAll(p, message);
     }
 
     public void resolveResource(EntityManager em, String project, String user, String branch, String path,
@@ -686,13 +687,13 @@ public class Server {
         git.resolve(p, path.substring(1), git_stage);  // NOTE: Remove / from path
     }
 
-    public void commitMergeBranch(EntityManager em, String project, String user, String branch,
+    public CommitDesc commitMergeBranch(EntityManager em, String project, String user, String branch,
             String message) throws IOException, ServerException {
         ensureProjectBranch(em, project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
         Git git = new Git();
-        git.commit(p, message);
+        return git.commit(p, message);
     }
 
     public void publishBranch(EntityManager em, String project, String user, String branch) throws IOException, ServerException {

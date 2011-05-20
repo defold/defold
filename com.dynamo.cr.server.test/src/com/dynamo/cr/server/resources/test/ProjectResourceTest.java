@@ -30,6 +30,7 @@ import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
@@ -216,7 +217,9 @@ public class ProjectResourceTest {
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
-        branch_client.commit("message...");
+        CommitDesc commit = branch_client.commit("message...");
+        Log log = branch_client.log(1);
+        assertEquals(commit.getId(), log.getCommits(0).getId());
 
         branch_client.putResourceData("/content/foo/bar.txt", "bar2 data".getBytes());
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());

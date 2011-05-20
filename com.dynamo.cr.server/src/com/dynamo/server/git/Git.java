@@ -248,13 +248,15 @@ public class Git {
      * @param message Commit message
      * @throws IOException
      */
-    public void commitAll(String directory, String message) throws IOException {
+    public CommitDesc commitAll(String directory, String message) throws IOException {
         if (getState(directory) == GitState.MERGE) {
             throw new GitException("commitAll is not permited when repository is in merge state. Resolve conflicts and use commit() instead.");
         }
 
         CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-a", "-m", message);
         checkResult(r);
+        Log log = log(directory, 1);
+        return log.getCommits(0);
     }
 
     /**
@@ -263,9 +265,11 @@ public class Git {
      * @param message Commit message
      * @throws IOException
      */
-    public void commit(String directory, String message) throws IOException {
+    public CommitDesc commit(String directory, String message) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-m", message);
         checkResult(r);
+        Log log = log(directory, 1);
+        return log.getCommits(0);
     }
 
     /**
@@ -507,7 +511,7 @@ public class Git {
      * git log --pretty=oneline
      * @param directory Repository root
      * @param maxCount Maximum number of commits
-     * @return Array of CommitDesc
+     * @return Log containing commit messages
      */
     public Log log(String directory, int maxCount) throws IOException {
         Result r = execGitCommand(directory, "git", "log", "--pretty=oneline");

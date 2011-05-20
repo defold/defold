@@ -12,6 +12,7 @@ import java.io.IOException;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.server.git.CommandUtil;
 import com.dynamo.server.git.Git;
@@ -145,15 +146,22 @@ public class GitTest {
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
 
+        Log log = git.log(repo.getPath(), 5);
+        assertEquals(1, log.getCommitsCount());
+
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
         fw.close();
         state = git.getState(repo.getPath());
         assertEquals(GitState.DIRTY, state);
 
-        git.commitAll(repo.getPath(), "test commit");
+        CommitDesc commit = git.commitAll(repo.getPath(), "test commit");
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
+
+        log = git.log(repo.getPath(), 5);
+        assertEquals(2, log.getCommitsCount());
+        assertEquals(commit.getId(), log.getCommits(0).getId());
     }
 
     @Test(expected = GitException.class)
