@@ -40,6 +40,7 @@ import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
 import com.dynamo.cr.server.auth.SecurityFilter;
@@ -54,6 +55,7 @@ import com.dynamo.server.git.CommandUtil;
 import com.dynamo.server.git.CommandUtil.IListener;
 import com.dynamo.server.git.CommandUtil.Result;
 import com.dynamo.server.git.Git;
+import com.dynamo.server.git.GitResetMode;
 import com.dynamo.server.git.GitStage;
 import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
@@ -529,12 +531,12 @@ public class Server {
                 break;
             case 'R':
                 git.rm(branch_path, localPath, false, true);
-                git.reset(branch_path, entry.original);
+                git.reset(branch_path, GitResetMode.MIXED, entry.original, "HEAD");
                 git.checkout(branch_path, entry.original, false);
                 break;
             case 'D':
             case 'M':
-                git.reset(branch_path, localPath);
+                git.reset(branch_path, GitResetMode.MIXED, localPath, "HEAD");
             default:
                 git.checkout(branch_path, localPath, false);
                 break;
@@ -701,6 +703,33 @@ public class Server {
         git.push(p);
     }
 
+    public void reset(EntityManager em, String project, String user, String branch, String mode, String target) throws IOException, ServerException {
+        ensureProjectBranch(em, project, user, branch);
+        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+
+        Git git = new Git();
+        GitResetMode resetMode = GitResetMode.MIXED;
+        if (mode.equals("mixed")) {
+            resetMode = GitResetMode.MIXED;
+        } else if (mode.equals("soft")) {
+            resetMode = GitResetMode.SOFT;
+        } else if (mode.equals("hard")) {
+            resetMode = GitResetMode.HARD;
+        } else if (mode.equals("merge")) {
+            resetMode = GitResetMode.MERGE;
+        } else if (mode.equals("keep")) {
+            resetMode = GitResetMode.KEEP;
+        }
+        git.reset(p, resetMode, null, target);
+    }
+
+    public Log log(EntityManager em, String project, String user, String branch, int maxCount) throws IOException, ServerException {
+        ensureProjectBranch(em, project, user, branch);
+        String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
+
+        Git git = new Git();
+        return git.log(p, maxCount);
+    }
 
     static class RuntimeBuildDesc {
 
