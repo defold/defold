@@ -4,6 +4,8 @@ package com.dynamo.cr.client;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 
 public interface IBranchClient extends IClient {
@@ -27,9 +29,9 @@ public interface IBranchClient extends IClient {
 
     public BranchStatus update() throws RepositoryException;
 
-    public void commit(String message) throws RepositoryException;
+    public CommitDesc commit(String message) throws RepositoryException;
 
-    public void commitMerge(String message) throws RepositoryException;
+    public CommitDesc commitMerge(String message) throws RepositoryException;
 
     public void resolve(String path, String stage) throws RepositoryException;
 
@@ -40,4 +42,8 @@ public interface IBranchClient extends IClient {
     public BuildDesc getBuildStatus(int id) throws RepositoryException;
 
     public BuildLog getBuildLogs(int id) throws RepositoryException;
+
+    public Log log(int maxCount) throws RepositoryException;
+
+    public void reset(String mode, String target) throws RepositoryException;
 }
