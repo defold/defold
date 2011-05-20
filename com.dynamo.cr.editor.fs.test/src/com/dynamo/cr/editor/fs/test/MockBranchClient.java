@@ -22,6 +22,8 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
@@ -157,12 +159,12 @@ public class MockBranchClient implements IBranchClient {
     }
 
     @Override
-    public void commit(String message) throws RepositoryException {
+    public CommitDesc commit(String message) throws RepositoryException {
         throw new RuntimeException("Not impl.");
     }
 
     @Override
-    public void commitMerge(String message) throws RepositoryException {
+    public CommitDesc commitMerge(String message) throws RepositoryException {
         throw new RuntimeException("Not impl.");
     }
 
@@ -199,6 +201,16 @@ public class MockBranchClient implements IBranchClient {
 
     @Override
     public URI getURI() {
+        throw new RuntimeException("Not impl.");
+    }
+
+    @Override
+    public Log log(int maxCount) throws RepositoryException {
+        throw new RuntimeException("Not impl.");
+    }
+
+    @Override
+    public void reset(String mode, String target) throws RepositoryException {
         throw new RuntimeException("Not impl.");
     }
 

@@ -17,6 +17,8 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
 
@@ -135,13 +137,13 @@ public class CachingBranchClient implements IBranchClient {
     }
 
     @Override
-    public void commit(String message) throws RepositoryException {
-        client.commit(message);
+    public CommitDesc commit(String message) throws RepositoryException {
+        return client.commit(message);
     }
 
     @Override
-    public void commitMerge(String message) throws RepositoryException {
-        client.commitMerge(message);
+    public CommitDesc commitMerge(String message) throws RepositoryException {
+        return client.commitMerge(message);
     }
 
     @Override
@@ -181,4 +183,14 @@ public class CachingBranchClient implements IBranchClient {
         return client.getURI();
     }
 
+
+    @Override
+    public Log log(int maxCount) throws RepositoryException {
+        return client.log(maxCount);
+    }
+
+    @Override
+    public void reset(String mode, String target) throws RepositoryException {
+        client.reset(mode, target);
+    }
 }
