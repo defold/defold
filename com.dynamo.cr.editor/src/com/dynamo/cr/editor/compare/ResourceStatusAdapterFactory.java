@@ -3,8 +3,6 @@ package com.dynamo.cr.editor.compare;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IAdapterFactory;
 
-import com.dynamo.cr.editor.compare.ChangedFilesView.ResourceStatus;
-
 public class ResourceStatusAdapterFactory implements IAdapterFactory {
 
     @Override

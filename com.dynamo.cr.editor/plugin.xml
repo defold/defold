@@ -76,15 +76,9 @@
                   style="push">
             </command>
             <command
-                  commandId="com.dynamo.crepo.commands.update"
+                  commandId="com.dynamo.crepo.commands.synchronize"
                   icon="icons/database_refresh.png"
-                  label="Update"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.publish"
-                  icon="icons/database_go.png"
-                  label="Publish"
+                  label="Synchronize"
                   style="push">
             </command>
             <command
@@ -147,15 +141,9 @@
                style="push">
          </command>
          <command
-               commandId="com.dynamo.crepo.commands.update"
+               commandId="com.dynamo.crepo.commands.synchronize"
                icon="icons/database_refresh.png"
-               label="Update"
-               style="push">
-         </command>
-         <command
-               commandId="com.dynamo.crepo.commands.publish"
-               icon="icons/database_go.png"
-               label="Publish"
+               label="Synchronize"
                style="push">
          </command>
       </menuContribution>
@@ -218,24 +206,36 @@
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.editor.handlers.PublishHandler"
-            description="Publish changes"
-            id="com.dynamo.crepo.commands.publish"
-            name="Publish changes">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.editor.handlers.UpdateHandler"
-            description="Update resources"
-            id="com.dynamo.crepo.commands.update"
-            name="Update resources">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
             defaultHandler="com.dynamo.cr.editor.handlers.ReloadResourceHandler"
             description="Reload resource"
             id="com.dynamo.crepo.commands.reloadresource"
             name="Reload resource">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.SyncHandler"
+            description="Synchronize user branch and master repository"
+            id="com.dynamo.crepo.commands.synchronize"
+            name="Synchronize">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.ResolveHandler"
+            description="Resolve a conflicted resource"
+            id="com.dynamo.cr.editor.commands.resolve"
+            name="Resolve">
+         <commandParameter
+               id="com.dynamo.cr.editor.commands.resolve.type"
+               name="resolve"
+               optional="true">
+         </commandParameter>
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.DiffConflictHandler"
+            description="View the diff of a conflicted file"
+            id="com.dynamo.cr.editor.commands.diffConflict"
+            name="Diff Conflict">
       </command>
    </extension>
 
@@ -276,12 +276,7 @@
             sequence="M1+O">
       </key>
       <key
-            commandId="com.dynamo.crepo.commands.publish"
-            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="M1+Shift+P">
-      </key>
-      <key
-            commandId="com.dynamo.crepo.commands.update"
+            commandId="com.dynamo.crepo.commands.synchronize"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="M1+U">
       </key>
@@ -351,10 +346,10 @@
          point="org.eclipse.ui.decorators">
       <decorator
             adaptable="true"
-            icon="icons/overlay_error.png"
-            id="com.dynamo.cr.editor.decorators.unmergedStatus"
-            label="Unmerged status"
-            lightweight="false"
+            class="com.dynamo.cr.editor.decorators.BranchStatusDecorator"
+            id="com.dynamo.cr.editor.decorators.branchStatus"
+            label="Branch Status"
+            lightweight="true"
             location="BOTTOM_RIGHT"
             state="true">
          <enablement>
@@ -364,107 +359,7 @@
                </objectClass>
                <objectState
                      name="sessionProperty"
-                     value="com.dynamo.cr.editor.gitIndexStatus=U">
-               </objectState>
-            </and>
-         </enablement>
-      </decorator>
-      <decorator
-            adaptable="true"
-            icon="icons/overlay_edit.png"
-            id="com.dynamo.cr.editor.decorators.modifiedStatus"
-            label="Modified status"
-            lightweight="false"
-            location="BOTTOM_RIGHT"
-            state="true">
-         <enablement>
-            <and>
-               <objectClass
-                     name="org.eclipse.core.resources.IResource">
-               </objectClass>
-               <objectState
-                     name="sessionProperty"
-                     value="com.dynamo.cr.editor.gitIndexStatus=M">
-               </objectState>
-            </and>
-         </enablement>
-      </decorator>
-      <decorator
-            adaptable="true"
-            icon="icons/overlay_add.png"
-            id="com.dynamo.cr.editor.decorators.addedStatus"
-            label="Added status"
-            lightweight="false"
-            location="BOTTOM_RIGHT"
-            state="true">
-         <enablement>
-            <and>
-               <objectClass
-                     name="org.eclipse.core.resources.IResource">
-               </objectClass>
-               <objectState
-                     name="sessionProperty"
-                     value="com.dynamo.cr.editor.gitIndexStatus=A">
-               </objectState>
-            </and>
-         </enablement>
-      </decorator>
-      <decorator
-            adaptable="true"
-            icon="icons/overlay_delete.png"
-            id="com.dynamo.cr.editor.decorators.deletedStatus"
-            label="Deleted status"
-            lightweight="false"
-            location="BOTTOM_RIGHT"
-            state="true">
-         <enablement>
-            <and>
-               <objectClass
-                     name="org.eclipse.core.resources.IResource">
-               </objectClass>
-               <objectState
-                     name="sessionProperty"
-                     value="com.dynamo.cr.editor.gitIndexStatus=D">
-               </objectState>
-            </and>
-         </enablement>
-      </decorator>
-      <decorator
-            adaptable="true"
-            icon="icons/overlay_edit.png"
-            id="com.dynamo.cr.editor.decorators.renamedStatus"
-            label="Renamed status"
-            lightweight="false"
-            location="BOTTOM_RIGHT"
-            state="true">
-         <enablement>
-            <and>
-               <objectClass
-                     name="org.eclipse.core.resources.IResource">
-               </objectClass>
-               <objectState
-                     name="sessionProperty"
-                     value="com.dynamo.cr.editor.gitIndexStatus=R">
-               </objectState>
-            </and>
-         </enablement>
-      </decorator>
-      <decorator
-            adaptable="true"
-            icon="icons/overlay_add.png"
-            id="com.dynamo.cr.editor.decorators.copiedStatus"
-            label="Copied status"
-            lightweight="false"
-            location="BOTTOM_RIGHT"
-            state="true">
-         <enablement>
-            <and>
-               <objectClass
-                     name="org.eclipse.core.resources.IResource">
-               </objectClass>
-               <objectState
-                     name="sessionProperty"
-                     value="com.dynamo.cr.editor.gitIndexStatus=C">
+                     value="com.dynamo.cr.editor.branchStatus">
                </objectState>
             </and>
          </enablement>
@@ -473,7 +368,7 @@
    <extension
          point="org.eclipse.core.runtime.adapters">
       <factory
-            adaptableType="com.dynamo.cr.editor.compare.ChangedFilesView$ResourceStatus"
+            adaptableType="com.dynamo.cr.editor.compare.ResourceStatus"
             class="com.dynamo.cr.editor.compare.ResourceStatusAdapterFactory">
          <adapter
                type="org.eclipse.core.resources.IResource">
