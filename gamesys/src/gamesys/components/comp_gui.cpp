@@ -183,16 +183,15 @@ namespace dmGameSystem
             dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
             dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
 
-            dmGui::HNode n = dmGui::NewNode(scene, node_desc->m_Position,  node_desc->m_Extent, type);
+            Vector4 position = node_desc->m_Position;
+            Vector4 extents = node_desc->m_Size;
+            dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(extents.getXYZ()), type);
             if (n)
             {
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Rotation);
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
                 dmGui::SetNodeBlendMode(scene, n, blend_mode);
-                uint32_t property_count = node_desc->m_Properties.m_Count;
-                for (uint32_t j = 0; j < property_count; ++j)
-                {
-                    const dmGuiDDF::NodeDesc::Property* property = &node_desc->m_Properties[j];
-                    dmGui::SetNodeProperty(scene, n, (dmGui::Property) property->m_Type, property->m_Value);
-                }
             }
             else
             {

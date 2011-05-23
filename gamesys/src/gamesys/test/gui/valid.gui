@@ -13,15 +13,13 @@ textures
 }
 nodes
 {
-    position { x: 1 y: 2 z: 3 }
-    extent { x: 10 y: 20 z: 30 }
+    position { x: 1 y: 0 z: 0 w: 0 }
+    rotation { x: 1 y: 0 z: 0 w: 0 }
+    scale    { x: 1 y: 0 z: 0 w: 0 }
+    size     { x: 1 y: 0 z: 0 w: 0 }
+    color    { x: 1 y: 0 z: 0 w: 0 }
     type: TYPE_BOX
     blend_mode: BLEND_MODE_ALPHA
     texture: "test_texture"
     font: "test_font"
-    properties
-    {
-        type: PROPERTY_COLOR
-        value: { x: 1 y: 0 z: 0 w: 0 }
-    }
 }

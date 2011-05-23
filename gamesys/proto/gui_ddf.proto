@@ -16,22 +16,6 @@ message NodeDesc
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
-    enum PropertyType
-    {
-        PROPERTY_POSITION  = 0;
-        PROPERTY_ROTATION  = 1;
-        PROPERTY_SCALE     = 2;
-        PROPERTY_COLOR     = 3;
-        PROPERTY_EXTENTS   = 4;
-
-        PROPERTY_RESERVED1 = 5;
-        PROPERTY_RESERVED2 = 6;
-        PROPERTY_RESERVED3 = 7;
-
-        PROPERTY_COUNT     = 8;
-    }
-
-    // NOTE: Enum values must correspond to the enum values in dmGui
     enum BlendMode
     {
         BLEND_MODE_ALPHA     = 0;
@@ -40,20 +24,17 @@ message NodeDesc
         BLEND_MODE_MULT      = 3;
     }
 
-    message Property
-    {
-        required PropertyType type    = 1;
-        required dmMath.Vector4 value = 2;
-    }
-
-    required Type       type        = 1;
-    required dmMath.Point3 position = 2;
-    required dmMath.Vector3 extent  = 3;
-    required BlendMode  blend_mode  = 4;
-    optional string     text        = 5;
-    optional string     texture     = 6;
-    optional string     font        = 7;
-    repeated Property   properties  = 8;
+    required dmMath.Vector4 position = 1;
+    required dmMath.Vector4 rotation = 2;
+    required dmMath.Vector4 scale    = 3;
+    required dmMath.Vector4 size     = 4;
+    required dmMath.Vector4 color    = 5;
+    required Type       type         = 6;
+    optional BlendMode  blend_mode   = 7 [default = BLEND_MODE_ALPHA];
+    optional string     text         = 8;
+    optional string     texture      = 9;
+    optional string     font         = 10;
+    optional string     id           = 11;
 }
 
 message SceneDesc
