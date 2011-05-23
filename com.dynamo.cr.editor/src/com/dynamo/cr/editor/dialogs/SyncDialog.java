@@ -571,6 +571,7 @@ public class SyncDialog extends TitleAreaDialog {
                     try {
                         IBranchClient branchClient = Activator.getDefault().getBranchClient();
                         BranchStatus branchStatus = syncDialog.getBranchStatus();
+                        boolean done = false;
                         if (!cancelled && branchStatus.getCommitsBehind() > 0) {
                             if (syncDialog.getHardBaseRevision() == null) {
                                 Log log = branchClient.log(1);
@@ -586,6 +587,8 @@ public class SyncDialog extends TitleAreaDialog {
                                         syncDialog.setState(State.RESOLVE);
                                     }
                                 });
+                            } else {
+                                done = true;
                             }
                         } else if (!cancelled && branchStatus.getCommitsAhead() > 0) {
                             Display.getDefault().asyncExec(new Runnable() {
@@ -596,6 +599,9 @@ public class SyncDialog extends TitleAreaDialog {
                                 }
                             });
                         } else if (!cancelled && branchStatus.getCommitsAhead() == 0 && branchStatus.getCommitsBehind() == 0) {
+                            done = true;
+                        }
+                        if (done) {
                             Display.getDefault().asyncExec(new Runnable() {
 
                                 @Override
