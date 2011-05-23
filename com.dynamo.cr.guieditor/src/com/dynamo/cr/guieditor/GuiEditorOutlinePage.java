@@ -5,6 +5,7 @@ import java.util.List;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
+import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TreeViewer;
@@ -13,11 +14,14 @@ import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorRegistry;
+import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISharedImages;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.part.IPageSite;
+import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
 import com.dynamo.cr.guieditor.scene.BoxGuiNode;
@@ -27,9 +31,10 @@ import com.dynamo.cr.guieditor.scene.GuiNode;
 import com.dynamo.cr.guieditor.scene.GuiScene;
 import com.dynamo.cr.guieditor.scene.TextGuiNode;
 
-public class GuiEditorOutlinePage extends ContentOutlinePage {
+public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelectionListener {
 
     private IGuiEditor editor;
+    private Root root;
 
     public GuiEditorOutlinePage(IGuiEditor editor) {
         this.editor = editor;
@@ -43,6 +48,12 @@ public class GuiEditorOutlinePage extends ContentOutlinePage {
         String redoId = ActionFactory.REDO.getId();
         actionBars.setGlobalActionHandler(undoId, editor.getAction(undoId));
         actionBars.setGlobalActionHandler(redoId, editor.getAction(redoId));
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        getSite().getPage().removeSelectionListener(this);
     }
 
     static class Root {
@@ -89,6 +100,23 @@ public class GuiEditorOutlinePage extends ContentOutlinePage {
 
         @Override
         public Object getParent(Object element) {
+            if (element instanceof Root) {
+                return null;
+            } else if (element instanceof GuiScene) {
+                return root;
+            } else if (element instanceof EditorTextureDesc) {
+                return "Textures";
+            } else if (element instanceof EditorFontDesc) {
+                return "Fonts";
+            } else if (element instanceof GuiNode) {
+                return "Nodes";
+            } else if (element.equals("Fonts")) {
+                return editor.getScene();
+            } else if (element.equals("Textures")) {
+                return editor.getScene();
+            } else if (element.equals("Nodes")) {
+                return editor.getScene();
+            }
             return null;
         }
 
@@ -184,23 +212,34 @@ public class GuiEditorOutlinePage extends ContentOutlinePage {
     public void createControl(Composite parent) {
         super.createControl(parent);
 
+        root = new Root(editor.getScene());
         final TreeViewer viewer = getTreeViewer();
         ColumnViewerToolTipSupport.enableFor(viewer);
         viewer.getTree().setHeaderVisible(false);
         viewer.setContentProvider(new OutlineContentProvider());
         viewer.setLabelProvider(new LabelProvider());
         viewer.setLabelProvider(new OutlineColumnLabelProvider());
-        viewer.setInput(new Root(editor.getScene()));
+        viewer.setInput(root);
         viewer.expandToLevel(2);
 
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
         contextService
                 .activateContext("com.dynamo.cr.guieditor.contexts.GuiEditor");
+
+        getSite().getPage().addSelectionListener(this);
     }
 
     public void refresh() {
         getTreeViewer().refresh();
+    }
+
+    @Override
+    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
+        if (! (part instanceof ContentOutline)) {
+            TreeViewer viewer = getTreeViewer();
+            viewer.setSelection(selection);
+        }
     }
 
 }
