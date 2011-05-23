@@ -1,17 +1,9 @@
 package com.dynamo.cr.editor.compare;
 
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.Semaphore;
 
-import org.eclipse.compare.CompareConfiguration;
-import org.eclipse.compare.CompareEditorInput;
-import org.eclipse.compare.CompareUI;
-import org.eclipse.compare.structuremergeviewer.DiffNode;
-import org.eclipse.compare.structuremergeviewer.Differencer;
-import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
@@ -20,19 +12,13 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.jface.operation.IRunnableWithProgress;
-import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
-import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
-import org.eclipse.jface.viewers.TableViewer;
-import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
-import org.eclipse.swt.graphics.Color;
-import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
@@ -52,86 +38,67 @@ import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 public class ChangedFilesView extends ViewPart implements SelectionListener, IResourceChangeListener, ISelectionChangedListener, Listener {
 
     public final static String ID = "com.dynamo.crepo.changedfiles";
-    private TableViewer tableViewer;
+
+    private BranchStatusTableViewer tableViewer;
 	private Menu menu;
     private MenuItem diffItem;
     private MenuItem revertItem;
     private UpdateThread updateThread;
 
-	class UpdateThread extends Thread {
+    class UpdateThread extends Thread {
 
-	    private boolean quit = false;
+        private boolean quit = false;
         Semaphore semaphore = new Semaphore(0);
 
-        private synchronized void updateUI(java.util.List<Status> files) {
-            @SuppressWarnings("unchecked")
-            java.util.List<Status> currentItems = (java.util.List<Status>) tableViewer.getInput();
-            boolean changed = false;
-            if (files.size() == currentItems.size()) {
-                for (int i = 0; i < currentItems.size(); i++) {
-                    Status currentStatus = currentItems.get(i);
-                    Status status = files.get(i);
-                    if (!currentStatus.getName().equals(status.getName())
-                            || !currentStatus.getIndexStatus().equals(status.getIndexStatus())
-                            || !currentStatus.getWorkingTreeStatus().equals(status.getWorkingTreeStatus())) {
-                        changed = true;
-                        break;
-                    }
-                }
-            } else {
-                changed = true;
-            }
+        @Override
+        public void run() {
 
-            if (changed) {
-                tableViewer.setInput(files);
+            while (!quit) {
+                try {
+                    this.semaphore.acquire();
+                    this.semaphore.drainPermits();
+
+                    IBranchClient client = Activator.getDefault().getBranchClient();
+                    if (client != null) {
+                        try {
+                            BranchStatus status = client.getBranchStatus();
+
+                            final java.util.List<ResourceStatus> resources = new java.util.ArrayList<ResourceStatus>(status.getFileStatusCount());
+                            for (Status s : status.getFileStatusList()) {
+                                resources.add(new ResourceStatus(s));
+                            }
+
+                            synchronized(this) {
+                                Display.getDefault().asyncExec(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        tableViewer.setInput(resources);
+                                    }
+                                });
+                            }
+                        } catch (RepositoryException e) {
+                            Activator.getDefault().logger.warning(e.getMessage());
+                        }
+                    }
+                    Thread.sleep(2000); // Do not update too often
+                } catch (InterruptedException e) {
+                }
             }
         }
 
-        @Override
-	    public void run() {
-
-	        while (!quit) {
-	            try {
-	                this.semaphore.acquire();
-	                this.semaphore.drainPermits();
-
-	                IBranchClient client = Activator.getDefault().getBranchClient();
-	                if (client != null) {
-	                    try {
-	                        BranchStatus status = client.getBranchStatus();
-	                        final java.util.List<Status> files = status.getFileStatusList();
-
-	                        synchronized(this) {
-    	                        Display.getDefault().asyncExec(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        updateUI(files);
-                                    }
-                                });
-	                        }
-	                    } catch (RepositoryException e) {
-	                        Activator.getDefault().logger.warning(e.getMessage());
-	                    }
-	                }
-	                Thread.sleep(2000); // Do not update too often
-                } catch (InterruptedException e) {
-                }
-	        }
-	    }
-
-	    public void dispose() {
-	        this.quit  = true;
-	        this.interrupt();
-	        try {
+        public void dispose() {
+            this.quit  = true;
+            this.interrupt();
+            try {
                 this.join();
             } catch (InterruptedException e) {
             }
-	    }
+        }
 
         public void update() {
             this.semaphore.release();
         }
-	}
+    }
 
     public ChangedFilesView() {
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
@@ -141,59 +108,8 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 
     @Override
     public void createPartControl(Composite parent) {
-        tableViewer = new TableViewer(parent);
+        tableViewer = new BranchStatusTableViewer(parent, false);
         tableViewer.addSelectionChangedListener(this);
-        tableViewer.setContentProvider(new IStructuredContentProvider() {
-
-            @Override
-            public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {
-            }
-
-            @Override
-            public void dispose() {
-            }
-
-            @Override
-            public Object[] getElements(Object inputElement) {
-                @SuppressWarnings("unchecked")
-                java.util.List<Status> lst = (java.util.List<Status>) inputElement;
-                return lst.toArray(new Status[lst.size()]);
-            }
-        });
-
-        tableViewer.setLabelProvider(new ColumnLabelProvider() {
-            @Override
-            public String getText(Object element) {
-                Status s = (Status) element;
-                if (s.getWorkingTreeStatus().equals(" ")) {
-                    return String.format("[%s] %s", s.getIndexStatus(), s.getName().substring(1));
-                } else {
-                    return String.format("[%s%s] %s", s.getIndexStatus(), s.getWorkingTreeStatus(), s.getName().substring(1));
-                }
-            }
-
-            @Override
-            public Image getImage(Object element) {
-                if (element instanceof Status) {
-                    Status status = (Status) element;
-                    if (status.getName().lastIndexOf('.') != -1) {
-                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(status.getName().substring(status.getName().lastIndexOf('.'))).createImage();
-                    }
-                }
-                return super.getImage(element);
-            }
-
-            @Override
-            public Color getForeground(Object element) {
-                Status s = (Status) element;
-                if (s.getWorkingTreeStatus().equals(" ")) {
-                    return Display.getCurrent().getSystemColor(SWT.COLOR_BLACK);
-                } else {
-                    return Display.getCurrent().getSystemColor(SWT.COLOR_DARK_RED);
-                }
-            }
-        });
-        tableViewer.setInput(new ArrayList<Status>());
 
         menu = new Menu(parent.getShell(), SWT.POP_UP);
         diffItem = new MenuItem(menu, SWT.PUSH);
@@ -227,17 +143,6 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 	public void widgetDefaultSelected(SelectionEvent e) {
 	}
 
-	IResource findResourceFromURI(URI uri, String path) {
-	    IResource resource = null;
-	    for (IContainer c : ResourcesPlugin.getWorkspace().getRoot().findContainersForLocationURI(uri)) {
-	        resource = c.findMember(path);
-	        if (resource != null && resource.exists())
-	            return resource;
-
-	    }
-	    return null;
-	}
-
 	@Override
 	public void handleEvent(Event event) {
         final IBranchClient branch_client = Activator.getDefault().getBranchClient();
@@ -247,33 +152,11 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 
         final IStructuredSelection structSelection = (IStructuredSelection) selection;
         @SuppressWarnings("unchecked")
-        final
-        Iterator<Status> iterator = structSelection.iterator();
+        final Iterator<ResourceStatus> iterator = structSelection.iterator();
 
         if (event.widget == this.diffItem) {
-            final Status status = iterator.next();
-            final String path = status.getName();
-            final String originalPath = status.hasOriginal() ? status.getOriginal() : status.getName();
-            CompareConfiguration config = new CompareConfiguration();
-            config.setLeftEditable(false);
-            config.setLeftLabel(String.format("%s#master", originalPath));
-            config.setRightEditable(true);
-            config.setRightLabel(String.format("%s#yours", path));
-            CompareEditorInput input = new CompareEditorInput(config) {
-
-                @Override
-                protected Object prepareInput(IProgressMonitor monitor)
-                        throws InvocationTargetException, InterruptedException {
-                    CompareItem left = new CompareItem(branch_client, originalPath, "master");
-                    CompareItem right = null;
-                    if (!status.getIndexStatus().equals("D")) {
-                        right = new CompareItem(branch_client, path, "");
-                    }
-                    return new DiffNode(null, Differencer.CHANGE, null, left, right);
-                }
-
-            };
-            CompareUI.openCompareEditor(input);
+            ResourceStatus resourceStatus = iterator.next();
+            tableViewer.openDiff(resourceStatus);
         } else {
 
             IProgressService service = PlatformUI.getWorkbench().getProgressService();
@@ -287,7 +170,8 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
                     monitor.beginTask("Reverting", structSelection.size());
 
                     while (iterator.hasNext()) {
-                        final Status status = iterator.next();
+                        final ResourceStatus resourceStatus = iterator.next();
+                        final Status status = resourceStatus.getStatus();
                             SubProgressMonitor subMonitor = new SubProgressMonitor(monitor, 1);
                             subMonitor.subTask(status.getName());
                             subMonitor.beginTask(status.getName(), 1);

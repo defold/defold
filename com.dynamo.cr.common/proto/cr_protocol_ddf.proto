@@ -231,3 +231,8 @@ message NewBuild
 {
     optional int32 dummy = 99;
 }
+
+message Log
+{
+    repeated CommitDesc commits = 1;
+}

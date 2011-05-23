@@ -122,6 +122,7 @@ public class ConnectionWizardBranchPagePresenter {
                 return false;
             }
 
+            Activator.getDefault().disconnectFromBranch();
             Activator.getDefault().connectToBranch(client, display.getSelectedBranch());
         }
         catch (Throwable e) {

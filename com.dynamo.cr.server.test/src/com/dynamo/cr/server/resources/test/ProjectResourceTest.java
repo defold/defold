@@ -30,6 +30,8 @@ import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceType;
@@ -215,7 +217,9 @@ public class ProjectResourceTest {
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
-        branch_client.commit("message...");
+        CommitDesc commit = branch_client.commit("message...");
+        Log log = branch_client.log(1);
+        assertEquals(commit.getId(), log.getCommits(0).getId());
 
         branch_client.putResourceData("/content/foo/bar.txt", "bar2 data".getBytes());
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
@@ -596,6 +600,33 @@ public class ProjectResourceTest {
         catch (RepositoryException e) {
             assertEquals(400, e.getStatusCode());
         }
+    }
+
+    @Test
+    public void reset() throws IOException, RepositoryException {
+        // Create branch
+        project_client.createBranch("branch1");
+
+        // Check log
+        Log log = branch_client.log(5);
+        assertEquals(1, log.getCommitsCount());
+        String target = log.getCommits(0).getId();
+
+        // Update resource
+        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+
+        // Commit in this branch
+        branch_client.commit("my commit message");
+
+        // Check log
+        log = branch_client.log(5);
+        assertEquals(2, log.getCommitsCount());
+
+        branch_client.reset("hard", target);
+
+        // Check log
+        log = branch_client.log(5);
+        assertEquals(1, log.getCommitsCount());
     }
 
 }

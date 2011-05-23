@@ -6,6 +6,8 @@ import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
@@ -129,28 +131,40 @@ public class BranchClient extends BaseClient implements IBranchClient {
     }
 
     @Override
-    public void commit(String message) throws RepositoryException {
+    public CommitDesc commit(String message) throws RepositoryException {
         try {
-            ClientResponse resp = resource.path("commit").queryParam("all", "true").post(ClientResponse.class, message);
+            ClientResponse resp = resource.path("commit")
+            .queryParam("all", "true")
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ClientResponse.class, message);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
+                return null;
             }
+            return resp.getEntity(CommitDesc.class);
         }
         catch (ClientHandlerException e) {
             throwRespositoryException(e);
+            return null;
         }
     }
 
     @Override
-    public void commitMerge(String message) throws RepositoryException {
+    public CommitDesc commitMerge(String message) throws RepositoryException {
         try {
-            ClientResponse resp = resource.path("commit").queryParam("all", "false").post(ClientResponse.class, message);
+            ClientResponse resp = resource.path("commit")
+            .queryParam("all", "false")
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ClientResponse.class, message);
             if (resp.getStatus() != 200 && resp.getStatus() != 204) {
                 throwRespositoryException(resp);
+                return null;
             }
+            return resp.getEntity(CommitDesc.class);
         }
         catch (ClientHandlerException e) {
             throwRespositoryException(e);
+            return null;
         }
     }
 
@@ -227,4 +241,37 @@ public class BranchClient extends BaseClient implements IBranchClient {
 
     }
 
+    @Override
+    public Log log(int maxCount) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("log")
+                .queryParam("max_count", new Integer(maxCount).toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                throwRespositoryException(resp);
+            }
+            return resp.getEntity(Log.class);
+        }
+        catch (ClientHandlerException e) {
+            throwRespositoryException(e);
+            return null; // Never reached
+        }
+    }
+
+    @Override
+    public void reset(String mode, String target) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("reset")
+                    .queryParam("mode", mode)
+                    .queryParam("target", target)
+                    .post(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                throwRespositoryException(resp);
+            }
+        }
+        catch (ClientHandlerException e) {
+            throwRespositoryException(e);
+        }
+    }
 }

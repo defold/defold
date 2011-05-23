@@ -15,6 +15,8 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.server.git.CommandUtil.Result;
 import com.dynamo.server.git.GitStatus.Entry;
 
@@ -246,13 +248,15 @@ public class Git {
      * @param message Commit message
      * @throws IOException
      */
-    public void commitAll(String directory, String message) throws IOException {
+    public CommitDesc commitAll(String directory, String message) throws IOException {
         if (getState(directory) == GitState.MERGE) {
             throw new GitException("commitAll is not permited when repository is in merge state. Resolve conflicts and use commit() instead.");
         }
 
         CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-a", "-m", message);
         checkResult(r);
+        Log log = log(directory, 1);
+        return log.getCommits(0);
     }
 
     /**
@@ -261,9 +265,11 @@ public class Git {
      * @param message Commit message
      * @throws IOException
      */
-    public void commit(String directory, String message) throws IOException {
+    public CommitDesc commit(String directory, String message) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "commit", "-m", message);
         checkResult(r);
+        Log log = log(directory, 1);
+        return log.getCommits(0);
     }
 
     /**
@@ -429,14 +435,39 @@ public class Git {
     }
 
     /**
-     * Resets the index to the HEAD commit
+     * Resets the index to the specified target version.
      * @param directory Directory of the repository
-     * @param file Path of the resource to reset, relative repository
+     * @param file Path of the resource to reset, relative repository. null means the whole tree will be reset.
+     * @param target Target version to reset to
      * @throws IOException
      */
-    public void reset(String directory, String file) throws IOException {
+    public void reset(String directory, GitResetMode resetMode, String file, String target) throws IOException {
         CommandUtil.Result r;
-        r = execGitCommand(directory, "git", "reset", "-q", "HEAD", "--", file);
+        String reset;
+        switch (resetMode) {
+        case SOFT:
+            reset = "--soft";
+            break;
+        case MIXED:
+            reset = "--mixed";
+            break;
+        case HARD:
+            reset = "--hard";
+            break;
+        case MERGE:
+            reset = "--merge";
+            break;
+        case KEEP:
+            reset = "--keep";
+            break;
+        default:
+            throw new GitException("Reset mode " + resetMode + " not supported.");
+        }
+        if (file != null) {
+            r = execGitCommand(directory, "git", "reset", reset, "-q", target, "--", file);
+        } else {
+            r = execGitCommand(directory, "git", "reset", reset, "-q", target);
+        }
         checkResult(r);
     }
 
@@ -473,5 +504,30 @@ public class Git {
         Result r = execGitCommand(directory, "git", "show", String.format("%s:%s", revision, file));
         checkResult(r);
         return r.stdOut.toString().getBytes();
+    }
+
+    /**
+     * Returns an array of performed commits on the branch at the specified directory with a specified max count. The array is ordered from newest to oldest.
+     * git log --pretty=oneline
+     * @param directory Repository root
+     * @param maxCount Maximum number of commits
+     * @return Log containing commit messages
+     */
+    public Log log(String directory, int maxCount) throws IOException {
+        Result r = execGitCommand(directory, "git", "log", "--pretty=oneline");
+        checkResult(r);
+        Log.Builder logBuilder = Log.newBuilder();
+        BufferedReader reader = new BufferedReader(new StringReader(r.stdOut.toString()));
+        String line;
+        int index = 0;
+        while (index < maxCount && (line = reader.readLine()) != null) {
+            line = line.trim();
+            int sep = line.indexOf(' ');
+            String id = line.substring(0, sep);
+            String message = line.substring(sep + 1);
+            logBuilder.addCommits(CommitDesc.newBuilder().setId(id).setMessage(message).build());
+            ++index;
+        }
+        return logBuilder.build();
     }
 }

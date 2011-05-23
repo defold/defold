@@ -27,7 +27,9 @@ import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
@@ -310,18 +312,20 @@ public class ProjectResource extends BaseResource {
 
     @POST
     @Path("/branches/{branch}/commit")
-    public void commitBranch(@PathParam("project") String project,
+    public CommitDesc commitBranch(@PathParam("project") String project,
                              @PathParam("user") String user,
                              @PathParam("branch") String branch,
                              @QueryParam("all") boolean all,
                              String message) throws IOException, ServerException {
 
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
+        CommitDesc commit;
         if (all)
-            server.commitBranch(em, project, user, branch, message);
+            commit = server.commitBranch(em, project, user, branch, message);
         else
-            server.commitMergeBranch(em, project, user, branch, message);
+            commit = server.commitMergeBranch(em, project, user, branch, message);
         em.close();
+        return commit;
     }
 
     @POST
@@ -442,6 +446,28 @@ public class ProjectResource extends BaseResource {
             server.putResourceData(em, project, user, branch, path, data);
         }
         em.close();
+    }
+
+    @POST
+    @Path("/branches/{branch}/reset")
+    public void reset(@PathParam("project") String project,
+                                @PathParam("user") String user,
+                                @PathParam("branch") String branch,
+                                @DefaultValue("mixed") @QueryParam("mode") String mode,
+                                @QueryParam("target") String target) throws ServerException, IOException  {
+        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+        server.reset(em, project, user, branch, mode, target);
+        em.close();
+    }
+
+    @GET
+    @Path("/branches/{branch}/log")
+    public Log log(@PathParam("project") String project,
+                              @PathParam("user") String user,
+                              @PathParam("branch") String branch,
+                              @QueryParam("max_count") int maxCount) throws ServerException, IOException {
+        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+        return server.log(em, project, user, branch, maxCount);
     }
 
     /*

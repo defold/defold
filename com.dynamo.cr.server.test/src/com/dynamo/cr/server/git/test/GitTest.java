@@ -12,9 +12,12 @@ import java.io.IOException;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
+import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.server.git.CommandUtil;
 import com.dynamo.server.git.Git;
 import com.dynamo.server.git.GitException;
+import com.dynamo.server.git.GitResetMode;
 import com.dynamo.server.git.GitStage;
 import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
@@ -143,15 +146,22 @@ public class GitTest {
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
 
+        Log log = git.log(repo.getPath(), 5);
+        assertEquals(1, log.getCommitsCount());
+
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
         fw.close();
         state = git.getState(repo.getPath());
         assertEquals(GitState.DIRTY, state);
 
-        git.commitAll(repo.getPath(), "test commit");
+        CommitDesc commit = git.commitAll(repo.getPath(), "test commit");
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
+
+        log = git.log(repo.getPath(), 5);
+        assertEquals(2, log.getCommitsCount());
+        assertEquals(commit.getId(), log.getCommits(0).getId());
     }
 
     @Test(expected = GitException.class)
@@ -573,6 +583,66 @@ public class GitTest {
 
         git.commitAll(repo.getPath(), "test commit");
         git.push(repo.getPath());
+    }
+
+    @Test
+    public void reset() throws IOException {
+        File repo = cloneInitial();
+
+        GitStatus initStatus = git.getStatus(repo.getPath());
+        assertEquals(0, initStatus.files.size());
+
+        String file = "main.cpp";
+        assertEquals(-1, readEntireFile(new File("tmp/tmp_source_repo", file)).indexOf("testing"));
+
+        FileWriter fw = new FileWriter(new File(repo, file));
+        fw.write("testing\n");
+        fw.close();
+
+        git.add(repo.getPath(), file);
+
+        GitStatus preStatus = git.getStatus(repo.getPath());
+        assertEquals(1, preStatus.files.size());
+        assertEquals(file, preStatus.files.get(0).file);
+        assertEquals('M', preStatus.files.get(0).indexStatus);
+
+        Log preLog = git.log(repo.getPath(), 5);
+        assertEquals(1, preLog.getCommitsCount());
+        String preId = preLog.getCommits(0).getId();
+
+        git.commit(repo.getPath(), "test commit");
+
+        Log postLog = git.log(repo.getPath(), 5);
+        assertEquals(2, postLog.getCommitsCount());
+
+        GitStatus postStatus = git.getStatus(repo.getPath());
+        assertEquals(0, postStatus.files.size());
+
+        git.reset(repo.getPath(), GitResetMode.SOFT, null, preId);
+
+        preStatus = git.getStatus(repo.getPath());
+        assertEquals(1, preStatus.files.size());
+        assertEquals(file, preStatus.files.get(0).file);
+        assertEquals('M', preStatus.files.get(0).indexStatus);
+
+        preLog = git.log(repo.getPath(), 5);
+        assertEquals(1, preLog.getCommitsCount());
+
+        git.commit(repo.getPath(), "test commit");
+
+        postLog = git.log(repo.getPath(), 5);
+        assertEquals(2, postLog.getCommitsCount());
+
+        postStatus = git.getStatus(repo.getPath());
+        assertEquals(0, postStatus.files.size());
+
+        git.reset(repo.getPath(), GitResetMode.HARD, null, preId);
+
+        initStatus = git.getStatus(repo.getPath());
+        assertEquals(0, initStatus.files.size());
+
+        preLog = git.log(repo.getPath(), 5);
+        assertEquals(1, preLog.getCommitsCount());
     }
 
 }

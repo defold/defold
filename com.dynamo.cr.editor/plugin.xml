@@ -76,15 +76,9 @@
                   style="push">
             </command>
             <command
-                  commandId="com.dynamo.crepo.commands.update"
+                  commandId="com.dynamo.crepo.commands.synchronize"
                   icon="icons/database_refresh.png"
-                  label="Update"
-                  style="push">
-            </command>
-            <command
-                  commandId="com.dynamo.crepo.commands.publish"
-                  icon="icons/database_go.png"
-                  label="Publish"
+                  label="Synchronize"
                   style="push">
             </command>
             <command
@@ -147,15 +141,9 @@
                style="push">
          </command>
          <command
-               commandId="com.dynamo.crepo.commands.update"
+               commandId="com.dynamo.crepo.commands.synchronize"
                icon="icons/database_refresh.png"
-               label="Update"
-               style="push">
-         </command>
-         <command
-               commandId="com.dynamo.crepo.commands.publish"
-               icon="icons/database_go.png"
-               label="Publish"
+               label="Synchronize"
                style="push">
          </command>
       </menuContribution>
@@ -218,24 +206,36 @@
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.editor.handlers.PublishHandler"
-            description="Publish changes"
-            id="com.dynamo.crepo.commands.publish"
-            name="Publish changes">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
-            defaultHandler="com.dynamo.cr.editor.handlers.UpdateHandler"
-            description="Update resources"
-            id="com.dynamo.crepo.commands.update"
-            name="Update resources">
-      </command>
-      <command
-            categoryId="com.dynamo.crepo.category"
             defaultHandler="com.dynamo.cr.editor.handlers.ReloadResourceHandler"
             description="Reload resource"
             id="com.dynamo.crepo.commands.reloadresource"
             name="Reload resource">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.SyncHandler"
+            description="Synchronize user branch and master repository"
+            id="com.dynamo.crepo.commands.synchronize"
+            name="Synchronize">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.ResolveHandler"
+            description="Resolve a conflicted resource"
+            id="com.dynamo.cr.editor.commands.resolve"
+            name="Resolve">
+         <commandParameter
+               id="com.dynamo.cr.editor.commands.resolve.type"
+               name="resolve"
+               optional="true">
+         </commandParameter>
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.DiffConflictHandler"
+            description="View the diff of a conflicted file"
+            id="com.dynamo.cr.editor.commands.diffConflict"
+            name="Diff Conflict">
       </command>
    </extension>
 
@@ -276,12 +276,7 @@
             sequence="M1+O">
       </key>
       <key
-            commandId="com.dynamo.crepo.commands.publish"
-            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="M1+Shift+P">
-      </key>
-      <key
-            commandId="com.dynamo.crepo.commands.update"
+            commandId="com.dynamo.crepo.commands.synchronize"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="M1+U">
       </key>
@@ -346,6 +341,39 @@
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.editors\.wizards\.UntitledTextFileWizard">
       </activityPatternBinding>
+   </extension>
+   <extension
+         point="org.eclipse.ui.decorators">
+      <decorator
+            adaptable="true"
+            class="com.dynamo.cr.editor.decorators.BranchStatusDecorator"
+            id="com.dynamo.cr.editor.decorators.branchStatus"
+            label="Branch Status"
+            lightweight="true"
+            location="BOTTOM_RIGHT"
+            state="true">
+         <enablement>
+            <and>
+               <objectClass
+                     name="org.eclipse.core.resources.IResource">
+               </objectClass>
+               <objectState
+                     name="sessionProperty"
+                     value="com.dynamo.cr.editor.branchStatus">
+               </objectState>
+            </and>
+         </enablement>
+      </decorator>
+   </extension>
+   <extension
+         point="org.eclipse.core.runtime.adapters">
+      <factory
+            adaptableType="com.dynamo.cr.editor.compare.ResourceStatus"
+            class="com.dynamo.cr.editor.compare.ResourceStatusAdapterFactory">
+         <adapter
+               type="org.eclipse.core.resources.IResource">
+         </adapter>
+      </factory>
    </extension>
 
 </plugin>
