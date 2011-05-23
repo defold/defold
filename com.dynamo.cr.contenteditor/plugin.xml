@@ -380,75 +380,66 @@
       <handler
             class="com.dynamo.cr.contenteditor.commands.Delete"
             commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </activeWhen>
+            
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.Copy"
             commandId="org.eclipse.ui.edit.copy">
          <activeWhen>
-            <with
-                  variable="activePartId">
-               <or>
-                  <equals
-                        value="org.eclipse.ui.views.ContentOutline">
-                  </equals>
-                  <equals
-                        value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
-                  </equals>
-               </or>
-            </with>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.Paste"
             commandId="org.eclipse.ui.edit.paste">
          <activeWhen>
-            <with
-                  variable="activePartId">
-               <or>
-                  <equals
-                        value="org.eclipse.ui.views.ContentOutline">
-                  </equals>
-                  <equals
-                        value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
-                  </equals></or>
-            </with>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.Parent"
             commandId="com.dynamo.cr.contenteditor.commands.parent">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.Unparent"
             commandId="com.dynamo.cr.contenteditor.commands.unparent">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.AddGameObject"
             commandId="com.dynamo.cr.contenteditor.commands.addgameobject">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.AddSubCollection"
             commandId="com.dynamo.cr.contenteditor.commands.addsubcollection">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.ActivateTool"
@@ -481,36 +472,28 @@
             class="com.dynamo.cr.contenteditor.commands.Cut"
             commandId="org.eclipse.ui.edit.cut">
          <activeWhen>
-            <with
-                  variable="activePartId">
-               <or>
-                  <equals
-                        value="org.eclipse.ui.views.ContentOutline">
-                  </equals>
-                  <equals
-                        value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
-                  </equals>
-               </or>
-            </with>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
          </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.ResetCamera"
             commandId="com.dynamo.cr.contenteditor.commands.resetCamera">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.FrameObjects"
             commandId="com.dynamo.cr.contenteditor.commands.frameObjects">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
    </extension>
    <extension
