@@ -44,7 +44,9 @@ Bundle-NativeCode: lib/osx/libgluegen-rt.jnilib;
  lib/win32/x86-64/jogl_cg.dll;
  osname=Win32;
  processor=x86-64
-Export-Package: com.sun.opengl.util.texture,
+Export-Package: com.sun.opengl.util,
+ com.sun.opengl.util.j2d,
+ com.sun.opengl.util.texture,
  javax.media.opengl,
  javax.media.opengl.glu,
  javax.vecmath
