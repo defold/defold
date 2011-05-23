@@ -1,9 +1,7 @@
 package com.dynamo.cr.guieditor.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,6 +15,9 @@ import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.expressions.IEvaluationContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.ISelectionChangedListener;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.ui.ISources;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,6 +44,32 @@ public class GuiEditorTest {
     private DefaultOperationHistory history;
     private UndoContext undoContext;
 
+    public static abstract class Context implements IEvaluationContext, ISelectionChangedListener {
+
+        private ISelection selection;
+        private IGuiEditor editor;
+
+        public void init(IGuiEditor editor) {
+            this.editor = editor;
+            editor.getSelectionProvider().addSelectionChangedListener(this);
+        }
+
+        @Override
+        public Object getVariable(String name) {
+            if (name.equals(ISources.ACTIVE_EDITOR_NAME)) {
+                return editor;
+            } else if (name.equals(ISources.ACTIVE_CURRENT_SELECTION_NAME)) {
+                return selection;
+            }
+            return null;
+        }
+
+        @Override
+        public void selectionChanged(SelectionChangedEvent event) {
+            selection = event.getSelection();
+        }
+    }
+
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Before
     public void setUp() throws Exception {
@@ -54,9 +81,8 @@ public class GuiEditorTest {
         HashMap params = new HashMap();
         params.put(ISources.ACTIVE_EDITOR_NAME, editor);
 
-        IEvaluationContext context = mock(IEvaluationContext.class);
-        // Always return editor, this is for HandlerUtil.getActiveEditor(event)
-        when(context.getVariable(anyString())).thenReturn(editor);
+        Context context = mock(Context.class, Mockito.CALLS_REAL_METHODS);
+        context.init(editor);
 
         executionEvent = new ExecutionEvent(null, params, null, context);
     }
