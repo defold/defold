@@ -100,6 +100,8 @@
         <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.client</module>
         <module>../com.dynamo.cr.client.test</module>
+        <module>../com.dynamo.cr.guieditor</module>
+        <module>../com.dynamo.cr.guieditor.test</module>
         <module>../javax.media.opengl</module>
     </modules>
 
