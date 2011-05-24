@@ -4,6 +4,7 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.Path;
 
 public class EditorUtil {
@@ -13,7 +14,7 @@ public class EditorUtil {
      * @param file the file to the content root for
      * @return content-root container. null of game.project doesn't exists within the directory structure.
      */
-    public static IContainer findContentRoot(IFile file) {
+    public static IContainer findContentRoot(IResource file) {
         IContainer c = file.getParent();
         while (c != null) {
             if (c instanceof IContainer) {
