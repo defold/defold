@@ -68,6 +68,7 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 import org.eclipse.ui.views.properties.PropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.guieditor.operations.SelectOperation;
 import com.dynamo.cr.guieditor.render.GuiRenderer;
 import com.dynamo.cr.guieditor.render.SelectResult;
 import com.dynamo.cr.guieditor.render.SelectResult.Pair;
@@ -79,7 +80,9 @@ import com.dynamo.cr.guieditor.util.DrawUtil;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.google.protobuf.TextFormat;
 
-public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, MouseMoveListener, Listener, IOperationHistoryListener, IGuiSceneListener {
+public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
+        MouseMoveListener, Listener, IOperationHistoryListener,
+        IGuiSceneListener {
 
     private GLCanvas canvas;
     private GLContext context;
@@ -93,11 +96,11 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
     private SelectMoveTool selectMoveTool;
     private boolean refreshPropertySheetPosted;
     private IOperationHistory history;
-    private int cleanUndoStackDepth = 0;
     private boolean dirty = false;
     private IContainer contentRoot;
     private GuiRenderer renderer;
     private GuiEditorOutlinePage outlinePage;
+    private int undoRedoCounter = 0;
 
     public GuiEditor() {
         selectionProvider = new GuiSelectionProvider();
@@ -122,8 +125,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
     public void doSave(IProgressMonitor monitor) {
 
         IFileEditorInput i = (IFileEditorInput) getEditorInput();
-        try
-        {
+        try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
 
             SceneDesc sceneDesc = guiScene.buildSceneDesc();
@@ -131,14 +133,18 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
             OutputStreamWriter writer = new OutputStreamWriter(stream);
             TextFormat.print(sceneDesc, writer);
             writer.close();
-            i.getFile().setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, monitor);
-            cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
+            i.getFile().setContents(
+                    new ByteArrayInputStream(stream.toByteArray()), false,
+                    true, monitor);
+            undoRedoCounter = 0;
             dirty = false;
             firePropertyChange(PROP_DIRTY);
 
         } catch (Throwable e) {
-            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0, e.getMessage(), null);
-            ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
+                    e.getMessage(), null);
+            ErrorDialog.openError(Display.getCurrent().getActiveShell(),
+                    "Unable to save file", "Unable to save file", status);
         }
     }
 
@@ -150,8 +156,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySheetPage.class) {
             return propertySheetPage;
-        }
-        else if (adapter == IContentOutlinePage.class) {
+        } else if (adapter == IContentOutlinePage.class) {
             if (outlinePage == null)
                 outlinePage = new GuiEditorOutlinePage(this);
             return outlinePage;
@@ -174,7 +179,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
             final int totalWork = 5;
             monitor.beginTask("Loading Gui Scene...", totalWork);
             try {
-                InputStreamReader reader = new InputStreamReader(file.getContents());
+                InputStreamReader reader = new InputStreamReader(
+                        file.getContents());
                 SceneDesc.Builder builder = SceneDesc.newBuilder();
 
                 try {
@@ -182,8 +188,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
                     monitor.worked(1);
                     SceneDesc sceneDesc = builder.build();
                     guiScene = new GuiScene(GuiEditor.this, sceneDesc);
-                    SubMonitor subMonitor = SubMonitor.convert(monitor, totalWork - 1);
-                    guiScene.loadRenderResources(subMonitor, contentRoot, renderer);
+                    SubMonitor subMonitor = SubMonitor.convert(monitor,
+                            totalWork - 1);
+                    guiScene.loadRenderResources(subMonitor, contentRoot,
+                            renderer);
 
                 } finally {
                     reader.close();
@@ -205,15 +213,18 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
         IFile file = fileEditorInput.getFile();
         this.contentRoot = EditorUtil.findContentRoot(file);
         if (this.contentRoot == null) {
-            throw new PartInitException("Unable to locate content root for project");
+            throw new PartInitException(
+                    "Unable to locate content root for project");
         }
 
-        IProgressService service = PlatformUI.getWorkbench().getProgressService();
+        IProgressService service = PlatformUI.getWorkbench()
+                .getProgressService();
         Loader loader = new Loader(file);
         try {
             service.runInUI(service, loader, null);
             if (loader.exception != null) {
-                throw new PartInitException(loader.exception.getMessage(), loader.exception);
+                throw new PartInitException(loader.exception.getMessage(),
+                        loader.exception);
             }
         } catch (Throwable e) {
             throw new PartInitException(e.getMessage(), e);
@@ -228,7 +239,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
     }
 
     void updateDirtyState() {
-        dirty = history.getUndoHistory(undoContext).length != cleanUndoStackDepth;
+        dirty = undoRedoCounter != 0;
         firePropertyChange(PROP_DIRTY);
 
         if (outlinePage != null) {
@@ -261,11 +272,12 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
 
     @Override
     public void createPartControl(Composite parent) {
-        GLData data = new GLData ();
+        GLData data = new GLData();
         data.doubleBuffer = true;
         data.depthSize = 24;
 
-        canvas = new GLCanvas(parent, SWT.NO_REDRAW_RESIZE | SWT.H_SCROLL | SWT.V_SCROLL, data);
+        canvas = new GLCanvas(parent, SWT.NO_REDRAW_RESIZE | SWT.H_SCROLL
+                | SWT.V_SCROLL, data);
         GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
         gd.widthHint = SWT.DEFAULT;
         gd.heightHint = SWT.DEFAULT;
@@ -317,19 +329,25 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
         });
 
         undoContext = new UndoContext();
-        history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+        history = PlatformUI.getWorkbench().getOperationSupport()
+                .getOperationHistory();
         history.addOperationHistoryListener(this);
         history.setLimit(undoContext, 100);
 
-        IOperationApprover approver = new LinearUndoViolationUserApprover(undoContext, this);
+        IOperationApprover approver = new LinearUndoViolationUserApprover(
+                undoContext, this);
         history.addOperationApprover(approver);
 
-        actions.put(ActionFactory.UNDO.getId(), new UndoActionHandler(this.getEditorSite(), undoContext));
-        actions.put(ActionFactory.REDO.getId(), new RedoActionHandler(this.getEditorSite(), undoContext));
+        actions.put(ActionFactory.UNDO.getId(),
+                new UndoActionHandler(this.getEditorSite(), undoContext));
+        actions.put(ActionFactory.REDO.getId(),
+                new RedoActionHandler(this.getEditorSite(), undoContext));
         getSite().setSelectionProvider(selectionProvider);
 
-        IContextService context_service = (IContextService) getSite().getService(IContextService.class);
-        context_service.activateContext("com.dynamo.cr.guieditor.contexts.GuiEditor");
+        IContextService context_service = (IContextService) getSite()
+                .getService(IContextService.class);
+        context_service
+                .activateContext("com.dynamo.cr.guieditor.contexts.GuiEditor");
     }
 
     private void updateViewPort() {
@@ -344,20 +362,17 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
     public void handleEvent(Event event) {
         if (event.type == SWT.Resize) {
             updateViewPort();
-        }
-        else if (event.type == SWT.Paint) {
+        } else if (event.type == SWT.Paint) {
             paint();
         }
     }
 
-    private void paint()
-    {
+    private void paint() {
         canvas.setCurrent();
         context.makeCurrent();
         GL gl = context.getGL();
         GLU glu = new GLU();
-        try
-        {
+        try {
             gl.glDisable(GL.GL_LIGHTING);
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
             gl.glDisable(GL.GL_DEPTH_TEST);
@@ -373,11 +388,9 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
             gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
             doDraw(gl);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             e.printStackTrace();
-        }
-        finally {
+        } finally {
             canvas.swapBuffers();
             context.release();
         }
@@ -398,13 +411,15 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
         int refHeight = guiScene.getReferenceHeight();
 
         gl.glColor3f(0, 0, 1.0f / 200.0f);
-        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);;
+        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+        ;
 
         DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
 
         gl.glTranslatef(-horizontal.getSelection(), vertical.getSelection(), 0);
         renderer.begin(gl);
-        DrawContext drawContext = new DrawContext(renderer, selectionProvider.getSelectionList());
+        DrawContext drawContext = new DrawContext(renderer,
+                selectionProvider.getSelectionList());
         guiScene.draw(drawContext);
         renderer.end();
 
@@ -429,19 +444,19 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
 
         gl.glColor3f(1.0f, 1.0f, 1.0f);
         int size = 8;
-        for (double delta[] : new double [][] {{ 0, 0},
-                                        { selectionBounds.getWidth(), 0},
-                                        { selectionBounds.getWidth(), selectionBounds.getHeight()},
-                                        { 0, selectionBounds.getHeight()},
-                                        } ) {
+        for (double delta[] : new double[][] { { 0, 0 },
+                { selectionBounds.getWidth(), 0 },
+                { selectionBounds.getWidth(), selectionBounds.getHeight() },
+                { 0, selectionBounds.getHeight() }, }) {
 
             gl.glColor3f(0.0f, 0.0f, 0.0f);
-            DrawUtil.fillRectangle(gl, selectionBounds.x + delta[0] - size/2, selectionBounds.y + delta[1] - size/2,
-                    size, size);
+            DrawUtil.fillRectangle(gl, selectionBounds.x + delta[0] - size / 2,
+                    selectionBounds.y + delta[1] - size / 2, size, size);
 
             gl.glColor3f(1.0f, 1.0f, 1.0f);
-            DrawUtil.fillRectangle(gl, selectionBounds.x + delta[0] - size/2 + 1, selectionBounds.y + delta[1] - size/2 + 1,
-                    size - 2, size - 2);
+            DrawUtil.fillRectangle(gl, selectionBounds.x + delta[0] - size / 2
+                    + 1, selectionBounds.y + delta[1] - size / 2 + 1, size - 2,
+                    size - 2);
         }
     }
 
@@ -477,31 +492,28 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
         IActionBars action_bars = getEditorSite().getActionBars();
         action_bars.updateActionBars();
 
-        for (Entry<String, IAction> e : actions.entrySet())
-        {
+        for (Entry<String, IAction> e : actions.entrySet()) {
             action_bars.setGlobalActionHandler(e.getKey(), e.getValue());
         }
     }
 
     @Override
     public void executeOperation(final IUndoableOperation operation) {
-        IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
+        IOperationHistory history = PlatformUI.getWorkbench()
+                .getOperationSupport().getOperationHistory();
         operation.addContext(undoContext);
         IStatus status = null;
-        try
-        {
+        try {
             status = history.execute(operation, null, null);
 
         } catch (final ExecutionException e) {
             e.printStackTrace();
         }
 
-        if (status != Status.OK_STATUS)
-        {
+        if (status != Status.OK_STATUS) {
             System.err.println("Failed to execute operation: " + operation);
         }
     }
-
 
     @Override
     public List<GuiNode> rectangleSelect(int x, int y, int width, int height) {
@@ -510,19 +522,20 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
         if (width > 0 && height > 0) {
             context.makeCurrent();
             GL gl = context.getGL();
-            //renderer.begin(gl, viewPort);
 
             // x and y are center coordinates
-            renderer.beginSelect(gl, x + width/2, y + height/2, width, height, viewPort);
-            DrawContext drawContext = new DrawContext(renderer, selectionProvider.getSelectionList());
+            renderer.beginSelect(gl, x + width / 2, y + height / 2, width,
+                    height, viewPort);
+            DrawContext drawContext = new DrawContext(renderer,
+                    selectionProvider.getSelectionList());
 
             ScrollBar horizontal = canvas.getHorizontalBar();
             ScrollBar vertical = canvas.getVerticalBar();
-            gl.glTranslatef(-horizontal.getSelection(), vertical.getSelection(), 0);
+            gl.glTranslatef(-horizontal.getSelection(),
+                    vertical.getSelection(), 0);
 
             guiScene.drawSelect(drawContext);
             SelectResult result = renderer.endSelect();
-            //SelectResult result = SelectUtil.endSelect(gl);
 
             for (Pair pair : result.selected) {
                 GuiNode node = guiScene.getNode(pair.index);
@@ -589,6 +602,15 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener, 
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+        System.out.println(undoRedoCounter);
+        if (!(event.getOperation() instanceof SelectOperation)) {
+            if (event.getEventType() == OperationHistoryEvent.DONE || event.getEventType() == OperationHistoryEvent.REDONE) {
+                undoRedoCounter++;
+            } else if (event.getEventType() == OperationHistoryEvent.UNDONE) {
+                undoRedoCounter--;
+            }
+        }
+
         Display display = Display.getDefault();
         display.asyncExec(new Runnable() {
             @Override
