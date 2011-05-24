@@ -417,7 +417,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         gl.glDisable(GL.GL_BLEND);
         DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
 
-        gl.glTranslatef(-horizontal.getSelection(), vertical.getSelection(), 0);
+        gl.glTranslatef(-horizontal.getSelection(), -(refHeight - canvas.getClientArea().height) + vertical.getSelection(), 0);
         renderer.begin(gl);
         DrawContext drawContext = new DrawContext(renderer,
                 selectionProvider.getSelectionList());
@@ -532,8 +532,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
             ScrollBar horizontal = canvas.getHorizontalBar();
             ScrollBar vertical = canvas.getVerticalBar();
-            gl.glTranslatef(-horizontal.getSelection(),
-                    vertical.getSelection(), 0);
+            int refHeight = guiScene.getReferenceHeight();
+            gl.glTranslatef(-horizontal.getSelection(), -(refHeight - canvas.getClientArea().height) + vertical.getSelection(), 0);
 
             guiScene.drawSelect(drawContext);
             SelectResult result = renderer.endSelect();
