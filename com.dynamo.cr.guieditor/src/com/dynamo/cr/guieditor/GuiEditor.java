@@ -602,7 +602,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
-        System.out.println(undoRedoCounter);
         if (!(event.getOperation() instanceof SelectOperation)) {
             if (event.getEventType() == OperationHistoryEvent.DONE || event.getEventType() == OperationHistoryEvent.REDONE) {
                 undoRedoCounter++;

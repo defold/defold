@@ -1,6 +1,6 @@
 package com.dynamo.cr.guieditor;
 
-import java.util.List;
+import java.util.Collection;
 
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -80,10 +80,10 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
             } else if (inputElement instanceof GuiScene) {
                 return new String[] { "Fonts", "Textures", "Nodes" };
             } else if (inputElement.equals("Fonts")) {
-                List<EditorFontDesc> fonts = editor.getScene().getFonts();
+                Collection<EditorFontDesc> fonts = editor.getScene().getFonts();
                 return fonts.toArray(new EditorFontDesc[fonts.size()]);
             } else if (inputElement.equals("Textures")) {
-                List<EditorTextureDesc> textures = editor.getScene()
+                Collection<EditorTextureDesc> textures = editor.getScene()
                         .getTextures();
                 return textures.toArray(new EditorTextureDesc[textures.size()]);
             } else if (inputElement.equals("Nodes")) {
@@ -220,7 +220,7 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
         viewer.setLabelProvider(new LabelProvider());
         viewer.setLabelProvider(new OutlineColumnLabelProvider());
         viewer.setInput(root);
-        viewer.expandToLevel(2);
+        viewer.expandToLevel(3);
 
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);

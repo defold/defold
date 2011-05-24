@@ -1,6 +1,6 @@
 package com.dynamo.cr.guieditor.commands;
 
-import java.util.List;
+import java.util.Collection;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -26,10 +26,10 @@ public class AddGuiTextNode extends AbstractHandler {
             int x0 = 100;
             int y0 = 300;
 
-            List<EditorFontDesc> fonts = editor.getScene().getFonts();
+            Collection<EditorFontDesc> fonts = editor.getScene().getFonts();
             String font = "";
             if (fonts.size() > 0) {
-                font = fonts.get(0).getName();
+                font = fonts.iterator().next().getName();
             }
 
             String id = editor.getScene().getUniqueId();

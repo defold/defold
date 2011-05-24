@@ -6,8 +6,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.media.opengl.GLException;
 
@@ -43,8 +46,8 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     private SceneDesc sceneDesc;
     private ArrayList<GuiNode> nodes;
-    private ArrayList<EditorTextureDesc> textures;
-    private ArrayList<EditorFontDesc> fonts;
+    private Map<String, EditorTextureDesc> textures;
+    private Map<String, EditorFontDesc> fonts;
     private ArrayList<IGuiSceneListener> listeners = new ArrayList<IGuiSceneListener>();
     private IGuiEditor editor;
 
@@ -68,14 +71,14 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             }
         }
 
-        textures = new ArrayList<EditorTextureDesc>();
+        textures = new HashMap<String, EditorTextureDesc>();
         for (TextureDesc texture : sceneDesc.getTexturesList()) {
-            textures.add(new EditorTextureDesc(this, texture));
+            textures.put(texture.getName(), new EditorTextureDesc(this, texture));
         }
 
-        fonts = new ArrayList<EditorFontDesc>();
+        fonts = new HashMap<String, EditorFontDesc>();
         for (FontDesc font : sceneDesc.getFontsList()) {
-            fonts.add(new EditorFontDesc(this, font));
+            fonts.put(font.getName(), new EditorFontDesc(this, font));
         }
     }
 
@@ -121,7 +124,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     public void loadRenderResources(IProgressMonitor monitor, IContainer contentRoot, GuiRenderer renderer) throws CoreException, IOException, FontFormatException {
         monitor.beginTask("Loading resources...", fonts.size() + textures.size());
-        for (EditorFontDesc guiFont : fonts) {
+        for (EditorFontDesc guiFont : fonts.values()) {
             monitor.subTask(String.format("Loading %s", guiFont.getFont()));
             try {
                 loadFont(guiFont, contentRoot, renderer);
@@ -133,7 +136,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             monitor.worked(1);
         }
 
-        for (EditorTextureDesc textureDesc : textures) {
+        for (EditorTextureDesc textureDesc : textures.values()) {
             monitor.subTask(String.format("Loading %s", textureDesc.getTexture()));
             try {
                 loadTexture(textureDesc, contentRoot, renderer);
@@ -211,12 +214,12 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         }
 
         builder.clearTextures();
-        for (EditorTextureDesc texture : textures) {
+        for (EditorTextureDesc texture : textures.values()) {
             builder.addTextures(texture.buildDesc());
         }
 
         builder.clearFonts();
-        for (EditorFontDesc font : fonts) {
+        for (EditorFontDesc font : fonts.values()) {
             builder.addFonts(font.buildDesc());
         }
 
@@ -236,12 +239,12 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     }
 
-    public List<EditorFontDesc> getFonts() {
-        return Collections.unmodifiableList(this.fonts);
+    public Collection<EditorFontDesc> getFonts() {
+        return Collections.unmodifiableCollection(this.fonts.values());
     }
 
-    public List<EditorTextureDesc> getTextures() {
-        return Collections.unmodifiableList(this.textures);
+    public Collection<EditorTextureDesc> getTextures() {
+        return Collections.unmodifiableCollection(this.textures.values());
     }
 
     public int getNodeCount() {
@@ -276,13 +279,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             if (i == 0)
                 newName = name;
 
-            boolean found = false;
-            for (EditorTextureDesc texture : textures) {
-                if (newName.equals(texture.getName())) {
-                    found = true;
-                    break;
-                }
-            }
+            boolean found = textures.containsKey(newName);
             if (!found) {
                 return newName;
             }
@@ -297,13 +294,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             if (i == 0)
                 newName = name;
 
-            boolean found = false;
-            for (EditorFontDesc font : fonts) {
-                if (newName.equals(font.getName())) {
-                    found = true;
-                    break;
-                }
-            }
+            boolean found = fonts.containsKey(newName);
             if (!found) {
                 return newName;
             }
@@ -312,35 +303,27 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     }
 
     public void addTexture(String name, String texture) {
-        textures.add(new EditorTextureDesc(this, TextureDesc.newBuilder().setName(name).setTexture(texture).build()));
+        textures.put(name, new EditorTextureDesc(this, TextureDesc.newBuilder().setName(name).setTexture(texture).build()));
     }
 
     public void addFont(String name, String font) {
-        fonts.add(new EditorFontDesc(this, FontDesc.newBuilder().setName(name).setFont(font).build()));
+        fonts.put(name, new EditorFontDesc(this, FontDesc.newBuilder().setName(name).setFont(font).build()));
     }
 
     public void removeTexture(String name) {
-        for (EditorTextureDesc textureDesc : textures) {
-            if (textureDesc.getName().equals(name)) {
-                textures.remove(textureDesc);
-                return;
-            }
+        if (textures.remove(name) == null) {
+            throw new RuntimeException("Texture " + name + " not found");
         }
-        throw new RuntimeException("Texture " + name + " not found");
     }
 
     public void removeFont(String name) {
-        for (EditorFontDesc fontDesc : fonts) {
-            if (fontDesc.getName().equals(name)) {
-                fonts.remove(fontDesc);
-                return;
-            }
+        if (fonts.remove(name) == null) {
+            throw new RuntimeException("Font " + name + " not found");
         }
-        throw new RuntimeException("Font " + name + " not found");
     }
 
     public EditorTextureDesc getTextureFromPath(String relativePath) {
-        for (EditorTextureDesc textureDesc : textures) {
+        for (EditorTextureDesc textureDesc : textures.values()) {
             if (textureDesc.getTexture().equals(relativePath)) {
                 return textureDesc;
             }
@@ -349,7 +332,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     }
 
     public EditorFontDesc getFontFromPath(String relativePath) {
-        for (EditorFontDesc fontDesc : fonts) {
+        for (EditorFontDesc fontDesc : fonts.values()) {
             if (fontDesc.getFont().equals(relativePath)) {
                 return fontDesc;
             }
