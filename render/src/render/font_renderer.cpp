@@ -228,16 +228,16 @@ namespace dmRender
                     float ih_recip = 1.0f / font_map->m_TextureHeight;
 
                     v1.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v1.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
+                    v3.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
 
                     v2.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v2.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
+                    v4.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
 
                     v3.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v3.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
+                    v1.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
 
                     v4.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v4.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
+                    v2.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
                 }
                 x += g.m_Advance;
             }
