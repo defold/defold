@@ -193,6 +193,10 @@ namespace dmGameSystem
                     dmGui::SetNodeText(scene, n, node_desc->m_Text);
                     dmGui::SetNodeFont(scene, n, node_desc->m_Font);
                 }
+                if (node_desc->m_Id)
+                {
+                    dmGui::SetNodeId(scene, n, node_desc->m_Id);
+                }
 
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Rotation);
