@@ -19,7 +19,7 @@ function update(self)
 
     render.draw(self.sprite_pred)
 
-    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), render.get_window_height(), 0, -1, 1))
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
 
     render.draw(self.gui_pred)
     render.draw(self.text_pred)
