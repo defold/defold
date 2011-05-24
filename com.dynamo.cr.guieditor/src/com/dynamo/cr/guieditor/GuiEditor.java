@@ -344,9 +344,9 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                 new RedoActionHandler(this.getEditorSite(), undoContext));
         getSite().setSelectionProvider(selectionProvider);
 
-        IContextService context_service = (IContextService) getSite()
+        IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        context_service
+        contextService
                 .activateContext("com.dynamo.cr.guieditor.contexts.GuiEditor");
     }
 
@@ -412,7 +412,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
         gl.glColor3f(0, 0, 1.0f / 200.0f);
         gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
-        ;
 
         DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
 

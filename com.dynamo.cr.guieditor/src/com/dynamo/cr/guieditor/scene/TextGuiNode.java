@@ -1,10 +1,6 @@
 package com.dynamo.cr.guieditor.scene;
 
 import java.awt.geom.Rectangle2D;
-import java.util.List;
-
-import org.eclipse.jface.viewers.ComboBoxCellEditor;
-import org.eclipse.swt.widgets.Composite;
 
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.property.Property;

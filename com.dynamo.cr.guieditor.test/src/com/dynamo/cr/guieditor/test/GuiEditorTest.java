@@ -1,10 +1,15 @@
 package com.dynamo.cr.guieditor.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
 
 import javax.vecmath.Vector4d;
@@ -14,7 +19,15 @@ import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.expressions.IEvaluationContext;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
@@ -22,10 +35,14 @@ import org.eclipse.ui.ISources;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.osgi.framework.Bundle;
 
+import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.IGuiEditor;
+import com.dynamo.cr.guieditor.commands.AddFont;
 import com.dynamo.cr.guieditor.commands.AddGuiBoxNode;
 import com.dynamo.cr.guieditor.commands.AddGuiTextNode;
+import com.dynamo.cr.guieditor.commands.AddTexture;
 import com.dynamo.cr.guieditor.commands.Delete;
 import com.dynamo.cr.guieditor.operations.DeleteGuiNodesOperation;
 import com.dynamo.cr.guieditor.operations.SelectOperation;
@@ -43,6 +60,7 @@ public class GuiEditorTest {
     private ExecutionEvent executionEvent;
     private DefaultOperationHistory history;
     private UndoContext undoContext;
+    private IProject project;
 
     public static abstract class Context implements IEvaluationContext, ISelectionChangedListener {
 
@@ -70,6 +88,33 @@ public class GuiEditorTest {
         }
     }
 
+    void createProject() throws CoreException, IOException {
+        project = ResourcesPlugin.getWorkspace().getRoot().getProject("test");
+        NullProgressMonitor monitor = new NullProgressMonitor();
+        if (project.exists()) {
+            project.delete(true, monitor);
+        }
+        project.create(monitor);
+        project.open(monitor);
+
+        Bundle bundle = Platform.getBundle(Activator.PLUGIN_ID);
+        @SuppressWarnings("unchecked")
+        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
+        while (entries.hasMoreElements()) {
+            URL url = entries.nextElement();
+            IPath path = new Path(url.getPath()).removeFirstSegments(1);
+            // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
+            if (url.getFile().endsWith("/")) {
+                project.getFolder(path).create(true, true, monitor);
+            } else {
+                InputStream is = url.openStream();
+                IFile file = project.getFile(path);
+                file.create(is, true, monitor);
+                is.close();
+            }
+        }
+    }
+
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Before
     public void setUp() throws Exception {
@@ -85,6 +130,8 @@ public class GuiEditorTest {
         context.init(editor);
 
         executionEvent = new ExecutionEvent(null, params, null, context);
+
+        createProject();
     }
 
     int nodeCount() {
@@ -195,6 +242,36 @@ public class GuiEditorTest {
 
         history.undo(undoContext, new NullProgressMonitor(), null);
         assertEquals(node.getText(), "");
+    }
+
+    @Test
+    public void testAddFont() throws ExecutionException {
+        assertEquals(0, editor.getScene().getFonts().size());
+
+        IResource resource = project.getFile("/test/fonts/highscore.font");
+        assertNotNull(resource);
+
+        AddFont addFont = new AddFont();
+        addFont.doExecute(editor, resource);
+        assertEquals(1, editor.getScene().getFonts().size());
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(0, editor.getScene().getFonts().size());
+    }
+
+    @Test
+    public void testAddTexture() throws ExecutionException {
+        assertEquals(0, editor.getScene().getTextures().size());
+
+        IResource resource = project.getFile("/test/graphics/ball.png");
+        assertNotNull(resource);
+
+        AddTexture addTexture = new AddTexture();
+        addTexture.doExecute(editor, resource);
+        assertEquals(1, editor.getScene().getTextures().size());
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(0, editor.getScene().getTextures().size());
     }
 
 }

@@ -39,7 +39,7 @@ public class AddFontOperation extends AbstractOperation {
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        scene.removeTexture(name);
+        scene.removeFont(name);
         return Status.OK_STATUS;
     }
 
