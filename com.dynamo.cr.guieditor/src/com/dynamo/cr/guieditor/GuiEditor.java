@@ -1,5 +1,6 @@
 package com.dynamo.cr.guieditor;
 
+import java.awt.Font;
 import java.awt.geom.Rectangle2D;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -410,6 +411,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         int refWidth = guiScene.getReferenceWidth();
         int refHeight = guiScene.getReferenceHeight();
 
+        gl.glTranslatef(-horizontal.getSelection(), -(refHeight - canvas.getClientArea().height) + vertical.getSelection(), 0);
+
         gl.glColor3f(0.5f, 0.5f, 0.5f);
         gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
 
@@ -417,7 +420,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         gl.glDisable(GL.GL_BLEND);
         DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
 
-        gl.glTranslatef(-horizontal.getSelection(), -(refHeight - canvas.getClientArea().height) + vertical.getSelection(), 0);
         renderer.begin(gl);
         DrawContext drawContext = new DrawContext(renderer,
                 selectionProvider.getSelectionList());
