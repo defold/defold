@@ -84,7 +84,7 @@ namespace dmProfileRender
     {
         Context* c = (Context*) context;
 
-        float y = c->m_Y + sample->m_Scope->m_Index * (c->m_Spacing + c->m_BarHeight);
+        float y = c->m_Y - sample->m_Scope->m_Index * (c->m_Spacing + c->m_BarHeight);
 
         uint32_t frame_width = dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(c->m_RenderContext)) - c->m_FrameX;
         float frames_per_tick = 60.0f / c->m_TicksPerSecond;
@@ -123,7 +123,7 @@ namespace dmProfileRender
         Context* c = (Context*) context;
         dmProfile::Scope* scope = scope_data->m_Scope;
 
-        int y = c->m_Y + c->m_Index * g_Spacing;
+        int y = c->m_Y - c->m_Index * g_Spacing;
 
         float col[3];
         HslToRgb2( (scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
@@ -160,7 +160,7 @@ namespace dmProfileRender
 
         Context* c = (Context*) context;
 
-        int y = c->m_Y + c->m_Index * g_Spacing;
+        int y = c->m_Y - c->m_Index * g_Spacing;
 
         float col[3];
         HslToRgb2( 4/ 16.0f, 1.0f, 0.65f, col);
@@ -190,7 +190,7 @@ namespace dmProfileRender
         float e = stats->m_Elapsed / context->m_TicksPerSecond;
         if (e < 0.0001f)
             return;
-        int y = context->m_Y + context->m_Index * g_Spacing;
+        int y = context->m_Y - context->m_Index * g_Spacing;
 
         float col[3];
         HslToRgb2( (stats->m_Sample->m_Scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
@@ -225,7 +225,7 @@ namespace dmProfileRender
         uint32_t display_height = dmGraphics::GetWindowHeight(graphics_context);
         dmRender::Square2d(render_context, 0.0f, 0.0f, display_width, display_height, Vector4(0.1f, 0.1f, 0.1f, 0.4f));
 
-        int y0 = 50 - g_Spacing;
+        int y0 = display_height - g_Spacing;
 
         char buffer[256];
 
@@ -243,7 +243,7 @@ namespace dmProfileRender
             params.m_Y = y0;
             params.m_Text = "Out of scopes!";
             dmRender::DrawText(render_context, font_map, params);
-            y0 += g_Spacing;
+            y0 -= g_Spacing;
         }
         if (dmProfile::IsOutOfSamples())
         {
@@ -259,7 +259,7 @@ namespace dmProfileRender
             params.m_X = g_Scope_x0;
             dmRender::DrawText(render_context, font_map, params);
 
-            y0 += g_Spacing;
+            y0 -= g_Spacing;
             dmRender::Square2d(render_context, g_Frame_x0, y0, display_width, display_height, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
             params.m_Y = y0;
@@ -287,7 +287,7 @@ namespace dmProfileRender
             dmRender::DrawText(render_context, font_map, params);
 
             Context ctx;
-            ctx.m_Y = y0 + g_Spacing;
+            ctx.m_Y = y0 - g_Spacing;
             ctx.m_BarHeight = 16.0f;
             ctx.m_Spacing = 4.0f;
             ctx.m_Index = 0;
@@ -305,7 +305,7 @@ namespace dmProfileRender
             ctx.m_Index = 0;
             if (ctx.m_SampleStats.Size() > 0)
             {
-                ctx.m_Y = y0 + g_Spacing;
+                ctx.m_Y = y0 - g_Spacing;
                 ctx.m_SampleStats.Iterate<Context>(ProfileSampleStatsCallback, &ctx);
             }
 
@@ -323,7 +323,7 @@ namespace dmProfileRender
             dmRender::DrawText(render_context, font_map, params);
 
             Context ctx;
-            ctx.m_Y = y0 + g_Spacing;
+            ctx.m_Y = y0 - g_Spacing;
             ctx.m_BarHeight = 16.0f;
             ctx.m_Spacing = 4.0f;
             ctx.m_Index = 0;

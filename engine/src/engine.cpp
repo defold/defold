@@ -481,7 +481,7 @@ bail:
             {
                 dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
                 dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 0.0f, 1.0f, -1.0f));
+                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
                 dmRender::Draw(engine->m_RenderContext, 0x0);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
