@@ -168,7 +168,7 @@ namespace dmGui
         lua_pop(L, 1);
 
         const char* name = luaL_checkstring(L, 1);
-        HNode node = GetNodeByName(scene, name);
+        HNode node = GetNodeById(scene, name);
         if (node == 0)
         {
             luaL_error(L, "No such node: %s", name);

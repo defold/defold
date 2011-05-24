@@ -272,9 +272,9 @@ namespace dmGui
 
     HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type);
 
-    void SetNodeName(HScene scene, HNode node, const char* name);
+    void SetNodeId(HScene scene, HNode node, const char* name);
 
-    HNode GetNodeByName(HScene scene, const char* name);
+    HNode GetNodeById(HScene scene, const char* id);
 
     uint32_t GetNodeCount(HScene scene);
 

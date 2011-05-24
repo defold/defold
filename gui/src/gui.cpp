@@ -595,15 +595,15 @@ namespace dmGui
         }
     }
 
-    void SetNodeName(HScene scene, HNode node, const char* name)
+    void SetNodeId(HScene scene, HNode node, const char* id)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_NameHash = dmHashString64(name);
+        n->m_NameHash = dmHashString64(id);
     }
 
-    HNode GetNodeByName(HScene scene, const char* name)
+    HNode GetNodeById(HScene scene, const char* id)
     {
-        dmhash_t name_hash = dmHashString64(name);
+        dmhash_t name_hash = dmHashString64(id);
 
         uint32_t n = scene->m_Nodes.Size();
         for (uint32_t i = 0; i < n; ++i)

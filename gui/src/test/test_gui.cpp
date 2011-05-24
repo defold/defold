@@ -133,11 +133,11 @@ TEST_F(dmGuiTest, Name)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_NE((dmGui::HNode) 0, node);
 
-    dmGui::HNode get_node = dmGui::GetNodeByName(m_Scene, "my_node");
+    dmGui::HNode get_node = dmGui::GetNodeById(m_Scene, "my_node");
     ASSERT_EQ((dmGui::HNode) 0, get_node);
 
-    dmGui::SetNodeName(m_Scene, node, "my_node");
-    get_node = dmGui::GetNodeByName(m_Scene, "my_node");
+    dmGui::SetNodeId(m_Scene, node, "my_node");
+    get_node = dmGui::GetNodeById(m_Scene, "my_node");
     ASSERT_EQ(node, get_node);
 }
 
@@ -412,7 +412,7 @@ TEST_F(dmGuiTest, PingPong)
 TEST_F(dmGuiTest, ScriptAnimate)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
                     "    self.node = gui.get_node(\"n\")\n"
@@ -455,7 +455,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
 TEST_F(dmGuiTest, ScriptCounterAnimate)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
                     "    self.node = gui.get_node(\"n\")\n"
@@ -501,7 +501,7 @@ TEST_F(dmGuiTest, ScriptCounterAnimate)
 TEST_F(dmGuiTest, ScriptAnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function cb(node)\n"
                     "    gui.animate(node, gui.POSITION, vmath.vector4(2,0,0,0), gui.EASING_NONE, 0.5, 0)\n"
                     "end\n;"
@@ -541,8 +541,8 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
 {
     dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node1, "n1");
-    dmGui::SetNodeName(m_Scene, node2, "n2");
+    dmGui::SetNodeId(m_Scene, node1, "n1");
+    dmGui::SetNodeId(m_Scene, node2, "n2");
     const char* s = "function cb(node)\n"
                     "    gui.delete_node(node)\n"
                     "end\n;"
@@ -594,7 +594,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
 TEST_F(dmGuiTest, ScriptGetNode)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
 
     dmGui::Result r;
@@ -609,7 +609,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
 TEST_F(dmGuiTest, ScriptGetMissingNode)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"x\")\n print(n)\n end";
 
     dmGui::Result r;
@@ -624,7 +624,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
 TEST_F(dmGuiTest, ScriptGetDeletedNode)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
     dmGui::DeleteNode(m_Scene, node);
 
@@ -639,8 +639,8 @@ TEST_F(dmGuiTest, ScriptEqNode)
 {
     dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(1,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node1, "n");
-    dmGui::SetNodeName(m_Scene, node2, "m");
+    dmGui::SetNodeId(m_Scene, node1, "n");
+    dmGui::SetNodeId(m_Scene, node2, "m");
 
     const char* s = "function update(self)\n"
                     "local n1 = gui.get_node(\"n\")\n "
@@ -924,7 +924,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
 TEST_F(dmGuiTest, SaveNode)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
@@ -938,7 +938,7 @@ TEST_F(dmGuiTest, SaveNode)
 TEST_F(dmGuiTest, UseDeletedNode)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
@@ -958,7 +958,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
 TEST_F(dmGuiTest, NodeProperties)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeName(m_Scene, node, "n");
+    dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.n = gui.get_node(\"n\")\n"
                     "    gui.set_position(self.n, vmath.vector4(1,2,3,0))\n"
