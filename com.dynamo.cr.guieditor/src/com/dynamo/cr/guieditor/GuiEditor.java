@@ -384,7 +384,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
             gl.glMatrixMode(GL.GL_MODELVIEW);
             gl.glLoadIdentity();
-            gl.glClearColor(0.6f, 0.6f, 0.6f, 1);
+            gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
             gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
             doDraw(gl);
@@ -410,9 +410,11 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         int refWidth = guiScene.getReferenceWidth();
         int refHeight = guiScene.getReferenceHeight();
 
-        gl.glColor3f(0, 0, 1.0f / 200.0f);
+        gl.glColor3f(0.5f, 0.5f, 0.5f);
         gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
 
+        gl.glDisable(GL.GL_TEXTURE_2D);
+        gl.glDisable(GL.GL_BLEND);
         DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
 
         gl.glTranslatef(-horizontal.getSelection(), vertical.getSelection(), 0);
