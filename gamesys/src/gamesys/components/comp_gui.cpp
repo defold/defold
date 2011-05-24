@@ -87,10 +87,10 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         float ext = 0.5f;
-        float quad[] = { -ext,-ext, 0, 0, 0,
-                         ext, -ext, 0, 1, 0,
-                         ext, ext, 0, 1, 1,
-                         -ext, ext, 0, 0, 1 };
+        float quad[] = { -ext,-ext, 0, 0, 1,
+                         ext, -ext, 0, 1, 1,
+                         ext, ext, 0, 1,  0,
+                         -ext, ext, 0, 0, 0 };
 
         gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), sizeof(float) * 5 * 4, (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
