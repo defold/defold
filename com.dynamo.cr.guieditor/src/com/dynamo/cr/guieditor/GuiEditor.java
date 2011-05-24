@@ -1,6 +1,5 @@
 package com.dynamo.cr.guieditor;
 
-import java.awt.Font;
 import java.awt.geom.Rectangle2D;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -38,6 +37,8 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
+import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.KeyListener;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.MouseListener;
 import org.eclipse.swt.events.MouseMoveListener;
@@ -87,7 +88,7 @@ import com.google.protobuf.TextFormat;
 
 public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         MouseMoveListener, Listener, IOperationHistoryListener,
-        IGuiSceneListener, ISelectionListener {
+        IGuiSceneListener, ISelectionListener, KeyListener {
 
     private GLCanvas canvas;
     private GLContext context;
@@ -308,6 +309,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         canvas.addListener(SWT.Paint, this);
         canvas.addMouseListener(this);
         canvas.addMouseMoveListener(this);
+        canvas.addKeyListener(this);
 
         this.canvas.addControlListener(new ControlAdapter() {
             @Override
@@ -586,6 +588,23 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             postRefreshPropertySheet();
             postRedraw();
         }
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (selectMoveTool != null) {
+            return;
+        }
+
+        selectMoveTool = new SelectMoveTool(this, selectionProvider);
+        selectMoveTool.keyPressed(e);
+        selectMoveTool = null;
+        postRefreshPropertySheet();
+        postRedraw();
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
     }
 
     private void postRedraw() {

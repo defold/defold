@@ -6,6 +6,8 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.guieditor.GuiSelectionProvider;
@@ -130,6 +132,48 @@ public class SelectMoveTool {
             }
         }
         state = State.INITIAL;
+    }
+
+    public void keyPressed(KeyEvent e) {
+        int dx = 0;
+        int dy = 0;
+        if (e.keyCode == SWT.ARROW_DOWN) {
+            dy = -1;
+        } else if (e.keyCode == SWT.ARROW_UP) {
+            dy = 1;
+        } else if (e.keyCode == SWT.ARROW_LEFT) {
+            dx = -1;
+        } else if (e.keyCode == SWT.ARROW_RIGHT) {
+            dx = 1;
+        }
+
+        if ((e.stateMask & SWT.SHIFT) == SWT.SHIFT) {
+            dx *= 10;
+            dy *= 10;
+        }
+
+        if (dx != 0 || dy != 0) {
+            originalPositions = new ArrayList<Vector4d>();
+            List<Vector4d> newPositions = new ArrayList<Vector4d>();
+
+            for (GuiNode node : selectionProvider.getSelectionList()) {
+                Vector4d position = node.getPosition();
+                originalPositions.add(position);
+                position = node.getPosition();
+                position.add(new Vector4d(dx, dy, 0, 0));
+                newPositions.add(position);
+            }
+            IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
+            @SuppressWarnings("unchecked")
+            IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
+            SetPropertiesOperation<Vector4d> operation = new SetPropertiesOperation<Vector4d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
+            editor.executeOperation(operation);
+        }
+
+    }
+
+    public void keyReleased(KeyEvent e) {
+
     }
 
     private void addSelectionOperation(List<GuiNode> selection) {
