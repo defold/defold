@@ -188,6 +188,12 @@ namespace dmGameSystem
             dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(extents.getXYZ()), type);
             if (n)
             {
+                if (node_desc->m_Type == dmGuiDDF::NodeDesc::TYPE_TEXT)
+                {
+                    dmGui::SetNodeText(scene, n, node_desc->m_Text);
+                    dmGui::SetNodeFont(scene, n, node_desc->m_Font);
+                }
+
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
