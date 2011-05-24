@@ -33,6 +33,8 @@ import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
@@ -55,6 +57,8 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.ISelectionListener;
+import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
@@ -83,7 +87,7 @@ import com.google.protobuf.TextFormat;
 
 public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         MouseMoveListener, Listener, IOperationHistoryListener,
-        IGuiSceneListener {
+        IGuiSceneListener, ISelectionListener {
 
     private GLCanvas canvas;
     private GLContext context;
@@ -256,6 +260,9 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     @Override
     public void dispose() {
         super.dispose();
+
+        getSite().getWorkbenchWindow().getSelectionService().removeSelectionListener(this);
+
         if (history != null) {
             history.removeOperationHistoryListener(this);
             history.removeOperationHistoryListener(this);
@@ -343,7 +350,9 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                 new UndoActionHandler(this.getEditorSite(), undoContext));
         actions.put(ActionFactory.REDO.getId(),
                 new RedoActionHandler(this.getEditorSite(), undoContext));
+
         getSite().setSelectionProvider(selectionProvider);
+        getSite().getWorkbenchWindow().getSelectionService().addSelectionListener(this);
 
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
@@ -648,6 +657,32 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     @Override
     public GuiSelectionProvider getSelectionProvider() {
         return selectionProvider;
+    }
+
+    @Override
+    public void selectionChanged(IWorkbenchPart part, ISelection selection) {
+
+        if (part instanceof GuiEditor) {
+            return;
+        }
+
+        if (selection instanceof IStructuredSelection) {
+            IStructuredSelection structuredSelection = (IStructuredSelection) selection;
+            @SuppressWarnings("unchecked")
+            List<Object> selectionList = (List<Object>) structuredSelection.toList();
+            List<GuiNode> nodes = new ArrayList<GuiNode>();
+            for (Object object : selectionList) {
+                if (object instanceof GuiNode) {
+                    GuiNode node = (GuiNode) object;
+                    nodes.add(node);
+                }
+            }
+            if (nodes.size() > 0) {
+                // Only respond to selection if at least one node was selected
+                selectionProvider.setSelectionNoFireEvent(nodes);
+                postRedraw();
+            }
+        }
     }
 
 }

@@ -30,6 +30,12 @@ public class GuiSelectionProvider implements ISelectionProvider {
         }
     }
 
+    public void setSelectionNoFireEvent(List<GuiNode> selection) {
+        // Make sure to create a new list here. The list is returned in getSelectionList()
+        nodes = new ArrayList<GuiNode>();
+        nodes.addAll(selection);
+    }
+
     public List<GuiNode> getSelectionList() {
         return Collections.unmodifiableList(nodes);
     }
@@ -69,8 +75,6 @@ public class GuiSelectionProvider implements ISelectionProvider {
 
     @Override
     public void setSelection(ISelection selection) {
-        // TODO Auto-generated method stub
-
     }
 
     @Override
