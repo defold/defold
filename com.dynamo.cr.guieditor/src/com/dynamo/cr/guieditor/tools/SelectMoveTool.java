@@ -190,12 +190,26 @@ public class SelectMoveTool {
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc (GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
 
-            gl.glColor4d(0.6, 0.3, 0.3, 0.5);
+            int minX = Math.min(startX, prevX);
+            int minY = Math.min(startY, prevY);
+            int maxX = Math.max(startX, prevX);
+            int maxY = Math.max(startY, prevY);
+
+            gl.glColor4d(1.0, 1.0, 1.0, 0.2);
             gl.glBegin(GL.GL_QUADS);
-            gl.glVertex2d(startX, startY);
-            gl.glVertex2d(prevX, startY);
-            gl.glVertex2d(prevX, prevY);
-            gl.glVertex2d(startX, prevY);
+            gl.glVertex2d(minX, minY);
+            gl.glVertex2d(maxX, minY);
+            gl.glVertex2d(maxX, maxY);
+            gl.glVertex2d(minX, maxY);
+            gl.glEnd();
+
+            final int border = 1;
+            gl.glColor4d(1.0, 1.0, 1.0, 0.2);
+            gl.glBegin(GL.GL_QUADS);
+            gl.glVertex2d(minX + border, minY + border);
+            gl.glVertex2d(maxX - border, minY + border);
+            gl.glVertex2d(maxX - border, maxY - border);
+            gl.glVertex2d(minX + border, maxY - border);
             gl.glEnd();
 
             gl.glPopAttrib();
