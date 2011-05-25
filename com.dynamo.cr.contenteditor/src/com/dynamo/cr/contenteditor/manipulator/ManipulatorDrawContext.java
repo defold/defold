@@ -17,8 +17,6 @@ public class ManipulatorDrawContext
     public int orientation;
 
     private final boolean selectMode;
-    private int nextName = 0;
-
 
     /**
      * Constructor
@@ -47,10 +45,10 @@ public class ManipulatorDrawContext
     /**
      * Called before drawing a handle. Used for handle selection (picking).
      */
-    public void beginDrawHandle()
+    public void beginDrawHandle(int handle)
     {
         if (this.selectMode)
-            this.gl.glPushName(this.nextName++);
+            this.gl.glPushName(handle);
     }
 
     /**

@@ -27,7 +27,7 @@ public class RotateManipulator extends TransformManipulator {
 
         for (int i = 0; i < 3; ++i) {
             if (context.manipulatorHandle == i) {
-                gl.glColor3fv(Constants.SELECTED_AXIS_COLOR, 0);
+                gl.glColor3fv(Constants.SELECTED_HANDLE_COLOR, 0);
             } else {
                 gl.glColor3fv(Constants.AXIS_COLOR[i], 0);
             }
@@ -35,7 +35,7 @@ public class RotateManipulator extends TransformManipulator {
             GLUtil.multMatrix(gl, this.manipulatorTransformWS);
             GLUtil.multMatrix(gl, this.handleTransforms[i]);
 
-            context.beginDrawHandle();
+            context.beginDrawHandle(i);
             GLUtil.drawCircle(gl, r);
             context.endDrawHandle();
 

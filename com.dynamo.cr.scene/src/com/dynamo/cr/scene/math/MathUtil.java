@@ -136,6 +136,40 @@ public class MathUtil
         return closest0;
     }
 
+    /**
+     * This function finds the intersection point of a line and a plane by solving:
+     * (p - p0) * n = 0
+     * p = d*l + l0
+     * and finally:
+     * d = ((p0 - l0) dot n)/(l dot n)
+     * @param l0 a point along the line
+     * @param l line direction
+     * @param p0 a point on the plane
+     * @param n plane normal
+     * @return If the line intersects everywhere, return l0. If the line intersects nowhere, return (0, 0, 0, 0). Else, return the resulting intersection point.
+     */
+    public static Vector4d projectLineToPlane(Vector4d l0, Vector4d l, Vector4d p0, Vector4d n) {
+        final double epsilon = 0.00001;
+        Vector4d temp = new Vector4d(p0);
+        temp.sub(l0);
+        double numerator = temp.dot(n);
+        double denominator = l.dot(n);
+        if (Math.abs(denominator) < epsilon) {
+            if (Math.abs(numerator) < epsilon) {
+                // the line intersects everywhere
+                return new Vector4d(l0);
+            } else {
+                // the line intersects nowhere
+                return new Vector4d(0.0f, 0.0f, 0.0f, 0.0f);
+            }
+        } else {
+            temp.set(l);
+            temp.scale(numerator/denominator);
+            temp.add(l0);
+            return temp;
+        }
+    }
+
     public static void basisMatrix(Quat4d rotation, int axis)
     {
         Matrix4d t = new Matrix4d();

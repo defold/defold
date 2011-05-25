@@ -11,6 +11,12 @@ import com.dynamo.cr.scene.operations.TransformNodeOperation;
 
 // http://caad.arch.ethz.ch/info/maya/manual/UserGuide/Overview/TransformingObjects.fm.html
 public abstract class TransformManipulator implements IManipulator {
+
+    /**
+     * GL name to use to select view oriented handles.
+     */
+    public static final int VIEW_HANDLE_NAME = 3;
+
     /**
      * Axis of the selected manipulator handle in world (global) space.
      */
@@ -92,8 +98,10 @@ public abstract class TransformManipulator implements IManipulator {
             orientation = ManipulatorController.GLOBAL;
 
         this.originalManipulatorTransformWS.set(this.manipulatorTransformWS);
-        this.handleAxisMS.set(1.0, 0.0, 0.0, 0.0);
-        this.handleTransforms[context.manipulatorHandle].transform(handleAxisMS);
+        if (context.manipulatorHandle < 3) {
+            this.handleAxisMS.set(1.0, 0.0, 0.0, 0.0);
+            this.handleTransforms[context.manipulatorHandle].transform(handleAxisMS);
+        }
 
         Matrix4d invManipWS = new Matrix4d(this.manipulatorTransformWS);
         invManipWS.invert();
