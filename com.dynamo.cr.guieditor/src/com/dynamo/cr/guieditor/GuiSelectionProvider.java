@@ -20,28 +20,41 @@ public class GuiSelectionProvider implements ISelectionProvider {
     private ArrayList<GuiNode> nodes = new ArrayList<GuiNode>();
     private Rectangle2D.Double selectionBounds = new Rectangle2D.Double(0, 0, 0, 0);
     private boolean selectionChangedPosted = false;
+    private boolean enableSelectionThrottling = false;
 
     public void setSelection(List<GuiNode> selection) {
         // Make sure to create a new list here. The list is returned in getSelectionList()
         nodes = new ArrayList<GuiNode>(selection.size());
         nodes.addAll(selection);
 
-        if (!selectionChangedPosted) {
-            selectionChangedPosted = true;
-            Display.getDefault().timerExec(30 * 10, new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        SelectionChangedEvent event = new SelectionChangedEvent(GuiSelectionProvider.this, new StructuredSelection(nodes));
-                        for (ISelectionChangedListener listener : listeners) {
-                            listener.selectionChanged(event);
+        // NOTE: Throttling must be disable in unit-tests
+        if (enableSelectionThrottling) {
+            if (!selectionChangedPosted) {
+                selectionChangedPosted = true;
+                Display.getDefault().timerExec(30 * 2, new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            SelectionChangedEvent event = new SelectionChangedEvent(GuiSelectionProvider.this, new StructuredSelection(nodes));
+                            for (ISelectionChangedListener listener : listeners) {
+                                listener.selectionChanged(event);
+                            }
+                        } finally {
+                            selectionChangedPosted = false;
                         }
-                    } finally {
-                        selectionChangedPosted = false;
                     }
-                }
-            });
+                });
+            }
+        } else {
+            SelectionChangedEvent event = new SelectionChangedEvent(GuiSelectionProvider.this, new StructuredSelection(nodes));
+            for (ISelectionChangedListener listener : listeners) {
+                listener.selectionChanged(event);
+            }
         }
+    }
+
+    public void setEnableSelectionThrottling(boolean enableSelectionThrottling) {
+        this.enableSelectionThrottling = enableSelectionThrottling;
     }
 
     public void setSelectionNoFireEvent(List<GuiNode> selection) {

@@ -110,6 +110,9 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
     public GuiEditor() {
         selectionProvider = new GuiSelectionProvider();
+        // Only enable this when not running unit tests
+        selectionProvider.setEnableSelectionThrottling(true);
+
         renderer = new GuiRenderer();
         propertySheetPage = new PropertySheetPage() {
             public void setActionBars(IActionBars actionBars) {
