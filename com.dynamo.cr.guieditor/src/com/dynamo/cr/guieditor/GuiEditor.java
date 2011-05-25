@@ -682,6 +682,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
 
         if (part instanceof GuiEditor) {
+            postRedraw();
             return;
         }
 

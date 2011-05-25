@@ -10,6 +10,7 @@ import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.swt.widgets.Display;
 
 import com.dynamo.cr.guieditor.scene.GuiNode;
 
@@ -18,15 +19,28 @@ public class GuiSelectionProvider implements ISelectionProvider {
 
     private ArrayList<GuiNode> nodes = new ArrayList<GuiNode>();
     private Rectangle2D.Double selectionBounds = new Rectangle2D.Double(0, 0, 0, 0);
+    private boolean selectionChangedPosted = false;
 
     public void setSelection(List<GuiNode> selection) {
         // Make sure to create a new list here. The list is returned in getSelectionList()
-        nodes = new ArrayList<GuiNode>();
+        nodes = new ArrayList<GuiNode>(selection.size());
         nodes.addAll(selection);
 
-        SelectionChangedEvent event = new SelectionChangedEvent(this, new StructuredSelection(nodes));
-        for (ISelectionChangedListener listener : listeners) {
-            listener.selectionChanged(event);
+        if (!selectionChangedPosted) {
+            selectionChangedPosted = true;
+            Display.getDefault().timerExec(30 * 10, new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        SelectionChangedEvent event = new SelectionChangedEvent(GuiSelectionProvider.this, new StructuredSelection(nodes));
+                        for (ISelectionChangedListener listener : listeners) {
+                            listener.selectionChanged(event);
+                        }
+                    } finally {
+                        selectionChangedPosted = false;
+                    }
+                }
+            });
         }
     }
 
