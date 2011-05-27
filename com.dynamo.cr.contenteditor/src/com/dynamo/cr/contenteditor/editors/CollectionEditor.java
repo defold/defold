@@ -56,6 +56,7 @@ import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.ISelectionProvider;
@@ -106,6 +107,7 @@ import com.dynamo.cr.contenteditor.commands.ActivateOrientation;
 import com.dynamo.cr.contenteditor.commands.ActivateTool;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
+import com.dynamo.cr.contenteditor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.scene.graph.CameraNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
@@ -700,6 +702,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private static void drawGrid(DrawContext context, Camera camera) {
         GL gl = context.m_GL;
 
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        boolean autoGrid = store.getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_AUTO_VALUE);
+        int gridSize = store.getInt(PreferenceConstants.P_GRID_SIZE);
+
         gl.glDisable(GL.GL_LIGHTING);
         gl.glEnable(GL.GL_BLEND);
         gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
@@ -787,11 +793,21 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                     }
                 }
                 double e = Math.floor(exp);
-                for (int j = 0; j < 2; ++j) {
-                    double alpha = (1.0 - Math.abs(exp - e)) * (align - min_align)/(1.0 - min_align);
+                int gridSizes = 1;
+                if (autoGrid) {
+                    gridSizes = 2;
+                }
+                for (int j = 0; j < gridSizes; ++j) {
+                    double alpha = (align - min_align)/(1.0 - min_align);
+                    if (autoGrid) {
+                        alpha *= (1.0 - Math.abs(exp - e));
+                    }
                     gl.glColor4d(Constants.GRID_COLOR[0], Constants.GRID_COLOR[1], Constants.GRID_COLOR[2], alpha);
 
-                    double base = Math.pow(10.0, e);
+                    double base = (double)gridSize;
+                    if (autoGrid) {
+                        base = Math.pow(10.0, e);
+                    }
 
                     double[] minValues = new double[4];
                     aabbMin.get(minValues);
@@ -803,7 +819,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                         maxValues[k] = Math.ceil(maxValues[k]/base) * base;
                     }
 
-                    double step = Math.pow(10.0, e-1);
+                    double step = 0.1*gridSize;
+                    if (autoGrid) {
+                        step = Math.pow(10.0, e-1);
+                    }
                     double[] vertex = new double[3];
                     int axis1 = i;
                     int axis2 = (axis1 + 1) % 3;

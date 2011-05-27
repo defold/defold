@@ -605,5 +605,20 @@
          </with>
       </definition>
    </extension>
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            category="com.dynamo.rclient.preferences.PreferencePage"
+            class="com.dynamo.cr.contenteditor.preferences.PreferencePage"
+            id="com.dynamo.cr.contenteditor.preferences.preferencePage"
+            name="Collection Editor">
+      </page>
+   </extension>
+   <extension
+         point="org.eclipse.core.runtime.preferences">
+      <initializer
+            class="com.dynamo.cr.contenteditor.preferences.PreferenceInitializer">
+      </initializer>
+   </extension>
 
 </plugin>
