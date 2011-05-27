@@ -898,10 +898,29 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         gl.glEnable(GL.GL_LIGHT0);
         gl.glEnable(GL.GL_LIGHTING);
 
-        float[] bg = Constants.BACKGROUND_COLOR;
-        gl.glClearColor(bg[0], bg[1], bg[2], 1);
+        gl.glClearColor(0, 0, 0, 1);
 
         gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+
+        // Draw gradient background
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glLoadIdentity();
+        gl.glDisable(GL.GL_DEPTH_TEST);
+        gl.glDepthMask(false);
+        gl.glBegin(GL.GL_QUADS);
+        gl.glColor3fv(Constants.BACKGROUND_TOP_COLOR, 0);
+        gl.glVertex3f(1.0f, 1.0f, 0.0f);
+        gl.glColor3fv(Constants.BACKGROUND_TOP_COLOR, 0);
+        gl.glVertex3f(-1.0f, 1.0f, 0.0f);
+        gl.glColor3fv(Constants.BACKGROUND_BOTTOM_COLOR, 0);
+        gl.glVertex3f(-1.0f, -1.0f, 0.0f);
+        gl.glColor3fv(Constants.BACKGROUND_BOTTOM_COLOR, 0);
+        gl.glVertex3f(1.0f, -1.0f, 0.0f);
+        gl.glEnd();
+        gl.glDepthMask(true);
+        gl.glEnable(GL.GL_DEPTH_TEST);
 
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadMatrixd(m_ActiveCamera.getProjectionMatrixArray(), 0);

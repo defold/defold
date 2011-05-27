@@ -4,7 +4,8 @@ public class Constants {
 
     public static double FOV = 35.0;
 
-    public static float BACKGROUND_COLOR[] = new float[] { 71.0f/255, 71.0f/255, 71.0f/255 };
+    public static float BACKGROUND_TOP_COLOR[] = new float[] { 109.0f/255, 126.0f/255, 144.0f/255 };
+    public static float BACKGROUND_BOTTOM_COLOR[] = new float[] { 53.0f/255, 62.0f/255, 67.0f/255 };
 
     public static float PHYSICS_OBJECT_COLOR[] = new float[] { 255.0f/255, 30.0f/255, 30.0f/255 };
 
@@ -14,7 +15,7 @@ public class Constants {
 
     public static float GHOST_COLOR[] = new float[] { 150.0f/255, 150.0f/255, 150.0f/255 };
 
-    public static float GRID_COLOR[] = new float[] { 130.0f/255, 130.0f/255, 130.0f/255 };
+    public static float GRID_COLOR[] = new float[] { 114.0f/255, 123.0f/255, 130.0f/255 };
 
     public static float AXIS_COLOR[][] = new float[][] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
 
