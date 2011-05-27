@@ -3,6 +3,7 @@ package com.dynamo.cr.contenteditor.manipulator;
 import javax.media.opengl.GL;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
+import com.dynamo.cr.contenteditor.manipulator.ManipulatorContext.Pivot;
 import com.dynamo.cr.scene.graph.Node;
 
 public class ManipulatorDrawContext
@@ -15,6 +16,7 @@ public class ManipulatorDrawContext
     public Node[] nodes;
     public int manipulatorHandle;
     public int orientation;
+    public Pivot pivot;
 
     private final boolean selectMode;
 
@@ -23,7 +25,7 @@ public class ManipulatorDrawContext
      * @param gl GL handle
      * @param select_mode Select mode (OpenGL picking)
      */
-    public ManipulatorDrawContext(IEditor editor, GL gl, Node[] selected, int manipulatorHandle, int space, boolean select_mode)
+    public ManipulatorDrawContext(IEditor editor, GL gl, Node[] selected, int manipulatorHandle, int space, boolean select_mode, Pivot pivot)
     {
         this.editor = editor;
         this.gl = gl;
@@ -31,6 +33,7 @@ public class ManipulatorDrawContext
         this.manipulatorHandle = manipulatorHandle;
         this.orientation = space;
         this.selectMode = select_mode;
+        this.pivot = pivot;
     }
 
     /**

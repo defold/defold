@@ -1274,6 +1274,16 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     @Override
+    public void setManipulatorPivot(String manipulatorPivot) {
+        m_ManipulatorController.setManipulatorPivot(manipulatorPivot);
+    }
+
+    @Override
+    public String getManipulatorPivotName() {
+        return m_ManipulatorController.getManipulatorPivotName();
+    }
+
+    @Override
     public void setCamera(String cameraName) {
         Camera cam = null;
         if (cameraName.equals("orthographic")) {

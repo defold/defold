@@ -27,6 +27,10 @@ public interface IEditor {
 
     String getManipulatorOrientationName();
 
+    void setManipulatorPivot(String manipulatorPivot);
+
+    String getManipulatorPivotName();
+
     void setCamera(String cameraName);
 
     String getCameraName();

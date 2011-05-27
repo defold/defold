@@ -5,6 +5,8 @@ import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeUtil;
 import com.dynamo.cr.scene.math.MathUtil;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
@@ -30,7 +32,7 @@ public class MoveManipulator extends TransformManipulator {
         super.draw(context);
 
         GL gl = context.gl;
-        Vector4d position = getHandlePosition(context.nodes);
+        Vector4d position = getHandlePosition(context.nodes, context.pivot);
         double factor = ManipulatorUtil.getHandleScaleFactor(position, context.editor);
         // Draw arrows
         for (int i = 0; i < 3; ++i) {
@@ -81,7 +83,7 @@ public class MoveManipulator extends TransformManipulator {
     public void mouseDown(ManipulatorContext context) {
         super.mouseDown(context);
         Vector4d closest;
-        Vector4d pos = getHandlePosition(context.nodes);
+        Vector4d pos = getHandlePosition(context.nodes, context.pivot);
         switch (context.manipulatorHandle) {
         case VIEW_HANDLE_NAME:
             Matrix4d invView = new Matrix4d();
@@ -140,6 +142,16 @@ public class MoveManipulator extends TransformManipulator {
         position.add(delta);
         this.manipulatorTransformWS.setColumn(3, position);
 
-        super.mouseMove(context);
+        Matrix4d nodeTransformWS = new Matrix4d();
+        int i = 0;
+        for (Node n : context.nodes) {
+            Vector4d manipulatorTranslation = new Vector4d();
+            this.manipulatorTransformWS.getColumn(3, manipulatorTranslation);
+            nodeTransformWS.set(this.manipulatorTransformWS);
+            nodeTransformWS.mul(this.nodeTransformsMS[i]);
+            NodeUtil.setWorldTransform(n, nodeTransformWS);
+            this.manipulatorTransformWS.setColumn(3, manipulatorTranslation);
+            ++i;
+        }
     }
 }

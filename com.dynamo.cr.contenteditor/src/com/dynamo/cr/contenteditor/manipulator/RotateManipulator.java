@@ -3,7 +3,10 @@ package com.dynamo.cr.contenteditor.manipulator;
 import javax.media.opengl.GL;
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
+import javax.vecmath.Vector4d;
 
+import com.dynamo.cr.scene.graph.Node;
+import com.dynamo.cr.scene.graph.NodeUtil;
 import com.dynamo.cr.scene.util.Constants;
 import com.dynamo.cr.scene.util.GLUtil;
 
@@ -20,7 +23,7 @@ public class RotateManipulator extends TransformManipulator {
         super.draw(context);
 
         GL gl = context.gl;
-        double factor = ManipulatorUtil.getHandleScaleFactor(getHandlePosition(context.nodes), context.editor);
+        double factor = ManipulatorUtil.getHandleScaleFactor(getHandlePosition(context.nodes, context.pivot), context.editor);
         double r = this.radius / factor;
 
         gl.glLineWidth(3);
@@ -107,7 +110,33 @@ public class RotateManipulator extends TransformManipulator {
         m.set(aa);
         this.manipulatorTransformWS.mul(m);
 
-        super.mouseMove(context);
+        Matrix4d nodeTransformWS = new Matrix4d();
+        Vector4d manipulatorTranslation = new Vector4d();
+        Vector4d nodeTranslationWS = new Vector4d();
+        Matrix4d nodeTransformMS = new Matrix4d();
+        Vector4d origo = new Vector4d(0.0, 0.0, 0.0, 1.0);
+        int i = 0;
+        for (Node n : context.nodes) {
+            this.manipulatorTransformWS.getColumn(3, manipulatorTranslation);
+            switch (context.pivot) {
+                case LOCAL:
+                    n.getWorldTransform(nodeTransformWS);
+                    nodeTransformWS.getColumn(3, nodeTranslationWS);
+                    nodeTransformWS.set(this.manipulatorTransformWS);
+                    nodeTransformWS.setColumn(3, nodeTranslationWS);
+                    nodeTransformMS.set(this.nodeTransformsMS[i]);
+                    nodeTransformMS.setColumn(3, origo);
+                    nodeTransformWS.mul(nodeTransformMS);
+                    break;
+                default:
+                    nodeTransformWS.set(this.manipulatorTransformWS);
+                    nodeTransformWS.mul(this.nodeTransformsMS[i]);
+                    break;
+            }
+            NodeUtil.setWorldTransform(n, nodeTransformWS);
+            this.manipulatorTransformWS.setColumn(3, manipulatorTranslation);
+            ++i;
+        }
     }
 
     @Override
