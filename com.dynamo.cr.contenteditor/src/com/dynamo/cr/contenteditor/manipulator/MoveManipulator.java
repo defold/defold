@@ -18,6 +18,10 @@ public class MoveManipulator extends TransformManipulator {
 
     private final static double SNAP_LIMIT = 0.25;
 
+    public void setSnapValue(double snapValue) {
+        this.snapValue = snapValue;
+    }
+
     protected static Vector4d closestPoint(IEditor editor, int x, int y, Vector4d pos, Vector4d axis) {
         Vector4d click_pos = new Vector4d();
         Vector4d click_dir = new Vector4d();
@@ -94,7 +98,7 @@ public class MoveManipulator extends TransformManipulator {
             Vector4d clickPos = new Vector4d();
             Vector4d clickDir = new Vector4d();
             context.editor.viewToWorld(context.mouseX, context.mouseY, clickPos, clickDir);
-            closest = MathUtil.projectLineToPlane(clickPos, clickDir, this.startPoint, normal);
+            closest = MathUtil.projectLineToPlane(clickPos, clickDir, pos, normal);
             break;
         default:
             Vector4d handleAxisWS = new Vector4d(this.handleAxisMS);
@@ -102,6 +106,22 @@ public class MoveManipulator extends TransformManipulator {
             closest = closestPoint(context.editor, context.mouseX, context.mouseY, pos, handleAxisWS);
         }
         this.startPoint.set(closest);
+    }
+
+    private Vector4d snap(Vector4d delta, Vector4d originalPosition, Vector4d handleAxisWS) {
+        Vector4d snappedDelta = new Vector4d(delta);
+        snappedDelta.add(originalPosition);
+        double length = snappedDelta.dot(handleAxisWS);
+        double t = length / this.snapValue;
+        double t0 = Math.round(t);
+        if (Math.abs(t - t0) < SNAP_LIMIT) {
+            t = t0;
+        }
+        snappedDelta.scale(t * this.snapValue, handleAxisWS);
+        Vector4d projectedPosition = new Vector4d();
+        projectedPosition.scale(originalPosition.dot(handleAxisWS), handleAxisWS);
+        snappedDelta.sub(projectedPosition);
+        return snappedDelta;
     }
 
     @Override
@@ -120,22 +140,25 @@ public class MoveManipulator extends TransformManipulator {
             Vector4d clickPos = new Vector4d();
             Vector4d clickDir = new Vector4d();
             context.editor.viewToWorld(context.mouseX, context.mouseY, clickPos, clickDir);
-            delta = MathUtil.projectLineToPlane(clickPos, clickDir, this.startPoint, normal);
+            delta = MathUtil.projectLineToPlane(clickPos, clickDir, position, normal);
             delta.sub(this.startPoint);
+            if (context.snapActive && this.snapValue > 0.0f) {
+                Vector4d handleAxisWS = new Vector4d();
+                Vector4d snappedDelta = new Vector4d(0, 0, 0, 0);
+                for (int i = 0; i < 2; ++i) {
+                    invView.getColumn(i, handleAxisWS);
+                    snappedDelta.add(snap(delta, position, handleAxisWS));
+                }
+                delta.set(snappedDelta);
+            }
             break;
         default:
             Vector4d handleAxisWS = new Vector4d(this.handleAxisMS);
             this.originalManipulatorTransformWS.transform(handleAxisWS);
-            delta = closestPoint(context.editor, context.mouseX, context.mouseY, this.startPoint, handleAxisWS);
+            delta = closestPoint(context.editor, context.mouseX, context.mouseY, position, handleAxisWS);
             delta.sub(this.startPoint);
             if (context.snapActive && this.snapValue > 0.0f) {
-                double length = delta.dot(handleAxisWS);
-                double t = length / this.snapValue;
-                double t0 = Math.round(t);
-                if (Math.abs(t - t0) < SNAP_LIMIT) {
-                    t = t0;
-                }
-                delta.scale(t, handleAxisWS);
+                delta = snap(delta, position, handleAxisWS);
             }
             break;
         }

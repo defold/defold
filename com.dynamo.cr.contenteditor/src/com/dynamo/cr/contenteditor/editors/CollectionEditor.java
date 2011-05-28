@@ -107,6 +107,7 @@ import com.dynamo.cr.contenteditor.commands.ActivateOrientation;
 import com.dynamo.cr.contenteditor.commands.ActivateTool;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
+import com.dynamo.cr.contenteditor.manipulator.MoveManipulator;
 import com.dynamo.cr.contenteditor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.scene.graph.CameraNode;
@@ -699,12 +700,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         return next_name;
     }
 
-    private static void drawGrid(DrawContext context, Camera camera) {
+    private void drawGrid(DrawContext context, Camera camera) {
         GL gl = context.m_GL;
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         boolean autoGrid = store.getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_AUTO_VALUE);
-        int gridSize = store.getInt(PreferenceConstants.P_GRID_SIZE);
+        double gridSize = (double)store.getInt(PreferenceConstants.P_GRID_SIZE);
 
         gl.glDisable(GL.GL_LIGHTING);
         gl.glEnable(GL.GL_BLEND);
@@ -797,6 +798,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 if (autoGrid) {
                     gridSizes = 2;
                 }
+                double maxAlpha = 0.0;
                 for (int j = 0; j < gridSizes; ++j) {
                     double alpha = (align - min_align)/(1.0 - min_align);
                     if (autoGrid) {
@@ -804,9 +806,13 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                     }
                     gl.glColor4d(Constants.GRID_COLOR[0], Constants.GRID_COLOR[1], Constants.GRID_COLOR[2], alpha);
 
-                    double base = (double)gridSize;
+                    double base = gridSize;
                     if (autoGrid) {
                         base = Math.pow(10.0, e);
+                        if (alpha > maxAlpha) {
+                            gridSize = base * 0.1;
+                            maxAlpha = alpha;
+                        }
                     }
 
                     double[] minValues = new double[4];
@@ -849,6 +855,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         gl.glEnd();
 
         gl.glDisable(GL.GL_BLEND);
+
+        IManipulator manipulator = this.m_ManipulatorController.getManipulator();
+        if (manipulator instanceof MoveManipulator) {
+            MoveManipulator moveManipulator = (MoveManipulator)manipulator;
+            moveManipulator.setSnapValue(gridSize);
+        }
     }
 
     private static void drawViewTriad(DrawContext context, Camera camera) {
