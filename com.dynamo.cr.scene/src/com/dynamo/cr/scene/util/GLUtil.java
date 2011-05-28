@@ -103,6 +103,8 @@ public class GLUtil
         glu.gluCylinder(q, cone_radius, 0, cone_length, 10, 1);
 
         gl.glPopMatrix();
+
+        glu.gluDeleteQuadric(q);
     }
 
     public static void drawCircle(GL gl, double radius)
