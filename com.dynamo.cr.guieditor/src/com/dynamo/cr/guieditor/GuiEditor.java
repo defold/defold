@@ -409,7 +409,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     }
 
     private void doDraw(GL gl) {
-        this.redrawPosted = false;
 
         Display display = Display.getDefault();
         Transform transform = new Transform(display);
@@ -610,9 +609,15 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     private void postRedraw() {
         if (!redrawPosted) {
             redrawPosted = true;
-            if (!canvas.isDisposed()) {
-                canvas.redraw();
-            }
+            Display.getDefault().asyncExec(new Runnable() {
+
+                @Override
+                public void run() {
+                    paint();
+                    canvas.update();
+                    redrawPosted = false;
+                }
+            });
         }
     }
 
