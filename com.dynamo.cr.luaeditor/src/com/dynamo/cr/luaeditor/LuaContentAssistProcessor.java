@@ -36,6 +36,9 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             line = line.replaceAll("^\\s+", "");
 
             int index = line.length() - 2;
+            if (index < 1)
+                return new ICompletionProposal[0];
+
             while (index >= 1 && (Character.isLetter(line.charAt(index-1)) || line.charAt(index-1) == '.')) {
                 --index;
             }
