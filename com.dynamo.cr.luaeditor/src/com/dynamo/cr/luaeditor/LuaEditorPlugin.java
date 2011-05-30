@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import org.osgi.framework.BundleContext;
 import com.dynamo.scriptdoc.proto.ScriptDoc;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Document;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Document.Builder;
+import com.dynamo.scriptdoc.proto.ScriptDoc.Function;
 
 public class LuaEditorPlugin extends AbstractUIPlugin {
 
@@ -81,7 +84,15 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
             }
         }
 
-        return list.toArray(new ScriptDoc.Function[list.size()]);
+        Function[] ret = list.toArray(new ScriptDoc.Function[list.size()]);
+        Arrays.sort(ret, new Comparator<Function>() {
+            public int compare(Function o1, Function o2) {
+                return o1.getName().compareTo(o2.getName());
+            };
+        });
+
+        return ret;
+
     }
 
     public Image getLuaImage() {
