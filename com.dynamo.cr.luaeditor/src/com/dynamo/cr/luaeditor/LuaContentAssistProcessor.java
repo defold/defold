@@ -35,6 +35,12 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             String line = doc.get(line_offset, offset - line_offset);
             line = line.replaceAll("^\\s+", "");
 
+            int index = line.length() - 2;
+            while (index >= 1 && (Character.isLetter(line.charAt(index-1)) || line.charAt(index-1) == '.')) {
+                --index;
+            }
+            line = line.substring(index);
+
             ScriptDoc.Function[] functions = LuaEditorPlugin.getDefault().getDocumentation(line);
             for (ScriptDoc.Function function : functions) {
                 StringBuffer additionalInfo = new StringBuffer();
