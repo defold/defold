@@ -154,9 +154,39 @@ namespace dmRender
     }
 
     /*#
+     * @name render.STATE_DEPTH_TEST
+     * @variable
+     */
+
+    /*#
+     * @name render.STATE_BLEND
+     * @variable
+     */
+
+    /*#
+     * @name render.STATE_CULL_FACE
+     * @variable
+     */
+
+    /*#
+     * @name render.STATE_POLYGON_OFFSET_FILL
+     * @variable
+     */
+
+    /*#
+     * @name render.STATE_POLYGON_OFFSET_LINE
+     * @variable
+     */
+
+    /*#
+     * @name render.STATE_POLYGON_OFFSET_POINT
+     * @variable
+     */
+
+    /*#
      * Enable render state
      * @name render.enable_state
-     * @param state state to enable, render.STATE_DEPTH_TEST
+     * @param state state to enable, eg render.STATE_DEPTH_TEST
      */
     int RenderScript_EnableState(lua_State* L)
     {
@@ -453,6 +483,21 @@ namespace dmRender
     }
 
     /*#
+     * @name render.BUFFER_TYPE_COLOR_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_TYPE_DEPTH_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_TYPE_STENCIL_BIT
+     * @variable
+     */
+
+    /*#
      * Clear active render target <br>
      * Example: <br>
      * render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1}) <br>
@@ -594,6 +639,81 @@ namespace dmRender
     }
 
     /*#
+     * @name render.BLEND_FACTOR_ZERO
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_ONE
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_SRC_COLOR
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_ONE_MINUS_SRC_COLOR
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_DST_COLOR
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_ONE_MINUS_DST_COLOR
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_SRC_ALPHA
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_DST_ALPHA
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_ONE_MINUS_DST_ALPHA
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_SRC_ALPHA_SATURATE
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_CONSTANT_COLOR
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR
+     * @variable
+     */
+
+     /*#
+      * @name render.BLEND_FACTOR_CONSTANT_ALPHA
+      * @variable
+      */
+
+     /*#
+      * @name render.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA
+      * @variable
+      */
+
+     /*#
      * Set blending function.<br>
      * Avaliable factors:<br>
         BLEND_FACTOR_ZERO <br>
@@ -719,6 +839,21 @@ namespace dmRender
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+
+    /*#
+     * @name render.FACE_TYPE_FRONT
+     * @variable
+     */
+
+    /*#
+     * @name render.FACE_TYPE_BACK
+     * @variable
+     */
+
+    /*#
+     * @name render.FACE_TYPE_FRONT_AND_BACK
+     * @variable
+     */
 
     /*#
      * Set cull face

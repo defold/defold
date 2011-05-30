@@ -9,15 +9,22 @@ message Parameter
     required string doc = 2;
 }
 
-message Function
+enum Type
 {
-    required string name = 1;
-    required string description = 2;
-    required string return_ = 3;
-    repeated Parameter parameters = 4;
+    FUNCTION = 0;
+    VARIABLE = 1;
+}
+
+message Element
+{
+    required Type type = 1;
+    required string name = 2;
+    required string description = 3;
+    required string return_ = 4;
+    repeated Parameter parameters = 5;
 }
 
 message Document
 {
-    repeated Function functions = 1;
+    repeated Element elements = 1;
 }

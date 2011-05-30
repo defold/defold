@@ -226,6 +226,30 @@ namespace dmGui
     }
 
     /*#
+     * No easing interpolation
+     * @name gui.EASING_NONE
+     * @variable
+     */
+
+    /*#
+     * In easing interpolation
+     * @name gui.EASING_IN
+     * @variable
+     */
+
+    /*#
+     * Out easing interpolation
+     * @name gui.EASING_OUT
+     * @variable
+     */
+
+    /*#
+     * In and out easing interpolation
+     * @name gui.EASING_INOUT
+     * @variable
+     */
+
+    /*#
      * Animate node property
      * @name gui.animate
      * @param node node to animate
