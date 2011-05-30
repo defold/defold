@@ -113,6 +113,8 @@ namespace dmRender
     {
         DrawTextParams();
 
+        /// Transform from font space to world (origo in font space is the base line of the first glyph)
+        Vectormath::Aos::Matrix4 m_WorldTransform;
         /// Color of the font face
         Vectormath::Aos::Vector4 m_FaceColor;
         /// Color of the outline
@@ -121,10 +123,6 @@ namespace dmRender
         Vectormath::Aos::Vector4 m_ShadowColor;
         /// Text to draw
         const char* m_Text;
-        /// X of the baseline
-        uint16_t m_X;
-        /// Y of the baseline
-        uint16_t m_Y;
     };
 
     /**

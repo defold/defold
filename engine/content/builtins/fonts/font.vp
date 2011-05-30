@@ -1,9 +1,11 @@
 uniform float4x4 ViewProj   : (c0);
+uniform float4x4 World      : (c4);
 
 void main(float4 vertex : ATTR0,
           out float4 oPosition : POSITION,
           out float2 oTexcoord0 : TEXCOORD0)
 {
-    oPosition = mul(float4(vertex.x, vertex.y, 0, 1), ViewProj);
+    float4x4 wvp = mul(World, ViewProj);
+    oPosition = mul(float4(vertex.x, vertex.y, 0, 1), wvp);
     oTexcoord0 = vertex.zw;
 }

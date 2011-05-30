@@ -134,20 +134,20 @@ namespace dmProfileRender
 
         dmRender::DrawTextParams params;
         params.m_Text = buf;
-        params.m_Y = y;
+        params.m_WorldTransform.setElem(3, 1, y);
         params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         DM_SNPRINTF(buf, sizeof(buf), "%s", scope->m_Name);
-        params.m_X = g_Scope_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
         dmRender::DrawText(c->m_RenderContext, c->m_FontMap, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000);
-        params.m_X = g_Scope_Time_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Scope_Time_x0);
         dmRender::DrawText(c->m_RenderContext, c->m_FontMap, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%d", scope_data->m_Count);
-        params.m_X = g_Scope_Count_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Scope_Count_x0);
         dmRender::DrawText(c->m_RenderContext, c->m_FontMap, params);
 
         c->m_Index++;
@@ -170,16 +170,16 @@ namespace dmProfileRender
 
         dmRender::DrawTextParams params;
         params.m_Text = buf;
-        params.m_Y = y;
+        params.m_WorldTransform.setElem(3, 1, y);
         params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         DM_SNPRINTF(buf, sizeof(buf), "%s", counter_data->m_Counter->m_Name);
-        params.m_X = g_Counter_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Counter_x0);
         dmRender::DrawText(c->m_RenderContext, c->m_FontMap, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%u", counter_data->m_Value);
-        params.m_X = g_Counter_Amount_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Counter_Amount_x0);
         dmRender::DrawText(c->m_RenderContext, c->m_FontMap, params);
 
         c->m_Index++;
@@ -199,20 +199,20 @@ namespace dmProfileRender
 
         dmRender::DrawTextParams params;
         params.m_Text = buf;
-        params.m_Y = y;
+        params.m_WorldTransform.setElem(3, 1, y);
         params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         DM_SNPRINTF(buf, sizeof(buf), "%s.%s", stats->m_Sample->m_Scope->m_Name, stats->m_Sample->m_Name);
-        params.m_X = g_Sample_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Sample_x0);
         dmRender::DrawText(context->m_RenderContext, context->m_FontMap, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000.0f);
-        params.m_X = g_Sample_Time_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Sample_Time_x0);
         dmRender::DrawText(context->m_RenderContext, context->m_FontMap, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%d", stats->m_Count);
-        params.m_X = g_Sample_Count_x0;
+        params.m_WorldTransform.setElem(3, 0, g_Sample_Count_x0);
         dmRender::DrawText(context->m_RenderContext, context->m_FontMap, params);
 
         context->m_Index++;
@@ -231,7 +231,7 @@ namespace dmProfileRender
 
         dmRender::DrawTextParams params;
         params.m_Text = buffer;
-        params.m_Y = y0;
+        params.m_WorldTransform.setElem(3, 1, y0);
         params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -239,8 +239,8 @@ namespace dmProfileRender
         if (dmProfile::IsOutOfScopes())
         {
             profile_valid = false;
-            params.m_X = g_Scope_x0;
-            params.m_Y = y0;
+            params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
+            params.m_WorldTransform.setElem(3, 1, y0);
             params.m_Text = "Out of scopes!";
             dmRender::DrawText(render_context, font_map, params);
             y0 -= g_Spacing;
@@ -248,42 +248,42 @@ namespace dmProfileRender
         if (dmProfile::IsOutOfSamples())
         {
             profile_valid = false;
-            params.m_X = g_Scope_x0;
-            params.m_Y = y0;
+            params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
+            params.m_WorldTransform.setElem(3, 1, y0);
             params.m_Text = "Out of samples!";
             dmRender::DrawText(render_context, font_map, params);
         }
         if (profile_valid)
         {
             DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
-            params.m_X = g_Scope_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
             dmRender::DrawText(render_context, font_map, params);
 
             y0 -= g_Spacing;
             dmRender::Square2d(render_context, g_Frame_x0, y0, display_width, display_height, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
 
-            params.m_Y = y0;
+            params.m_WorldTransform.setElem(3, 1, y0);
 
             params.m_Text = "Scopes:";
-            params.m_X = g_Scope_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "ms";
-            params.m_X = g_Scope_Time_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Scope_Time_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "#";
-            params.m_X = g_Scope_Count_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Scope_Count_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "Samples:";
-            params.m_X = g_Sample_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Sample_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "ms";
-            params.m_X = g_Sample_Time_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Sample_Time_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "#";
-            params.m_X = g_Sample_Count_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Sample_Count_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "Frame:";
-            params.m_X = g_Frame_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Frame_x0);
             dmRender::DrawText(render_context, font_map, params);
 
             Context ctx;
@@ -313,13 +313,13 @@ namespace dmProfileRender
         {
             y0 = 300;
 
-            params.m_Y = y0;
+            params.m_WorldTransform.setElem(3, 1, y0);
 
             params.m_Text = "Counters:";
-            params.m_X = g_Counter_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Counter_x0);
             dmRender::DrawText(render_context, font_map, params);
             params.m_Text = "#";
-            params.m_X = g_Counter_Amount_x0;
+            params.m_WorldTransform.setElem(3, 0, g_Counter_Amount_x0);
             dmRender::DrawText(render_context, font_map, params);
 
             Context ctx;

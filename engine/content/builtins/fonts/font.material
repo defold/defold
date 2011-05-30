@@ -5,10 +5,8 @@ fragment_program: "builtins/fonts/font.fp"
 vertex_constants {
   register: 0
   type: CONSTANT_TYPE_VIEWPROJ
-  value {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0
-  }
+}
+vertex_constants {
+  register: 4
+  type: CONSTANT_TYPE_WORLD
 }

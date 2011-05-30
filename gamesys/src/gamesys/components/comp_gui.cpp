@@ -333,15 +333,14 @@ namespace dmGameSystem
             else
                 ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
+            const float deg_to_rad = 3.1415926f / 180.0f;
+            Matrix4 m = Matrix4::translation(position.getXYZ()) *
+                        Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
+                        Matrix4::rotationY(rotation.getY() * deg_to_rad) *
+                        Matrix4::rotationX(rotation.getX() * deg_to_rad) *
+                        Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
             if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
             {
-                const float deg_to_rad = 3.1415926f / 180.0f;
-                Matrix4 m = Matrix4::translation(position.getXYZ()) *
-                            Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
-                            Matrix4::rotationY(rotation.getY() * deg_to_rad) *
-                            Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                            Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
-
                 ro.m_WorldTransform = m;
                 dmRender::EnableRenderObjectFragmentConstant(&ro, 0, color);
                 gui_world->m_GuiRenderObjects.Push(ro);
@@ -352,8 +351,7 @@ namespace dmGameSystem
                 dmRender::DrawTextParams params;
                 params.m_FaceColor = color;
                 params.m_Text = n->m_Text;
-                params.m_X = position.getX();
-                params.m_Y = position.getY();
+                params.m_WorldTransform = m;
                 dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) n->m_Font, params);
             }
         }

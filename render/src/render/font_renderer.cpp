@@ -148,13 +148,14 @@ namespace dmRender
     }
 
     DrawTextParams::DrawTextParams()
-    : m_FaceColor(0.0f, 0.0f, 0.0f, -1.0f)
+    : m_WorldTransform()
+    , m_FaceColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
-    , m_X(0)
-    , m_Y(0)
-    {}
+    {
+        m_WorldTransform.identity();
+    }
 
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params)
     {
@@ -182,12 +183,11 @@ namespace dmRender
 
         for (int i = 2; i >= 0; --i)
         {
-            uint16_t x = params.m_X;
-            uint16_t y = params.m_Y;
             RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
             ro->m_Material = font_map->m_Material;
             ro->m_Textures[0] = font_map->m_Texture;
             ro->m_VertexStart = text_context.m_VertexIndex;
+            ro->m_WorldTransform = params.m_WorldTransform;
             for (int j = 0; j < 3; ++j)
             {
                 if (i == j)
@@ -198,6 +198,8 @@ namespace dmRender
                 else
                     EnableRenderObjectFragmentConstant(ro, j, clear_color);
             }
+            int16_t x = 0;
+            int16_t y = 0;
             for (int j = 0; j < n; ++j)
             {
                 char c = params.m_Text[j];
@@ -212,34 +214,38 @@ namespace dmRender
                     TextVertex& v4 = *(&v1 + 3);
                     text_context.m_VertexIndex += 4;
 
+                    int16_t width = (int16_t)g.m_Width;
+                    int16_t descent = (int16_t)g.m_Descent;
+                    int16_t ascent = (int16_t)g.m_Ascent;
+
                     v1.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
-                    v1.m_Position[1] = y - g.m_Descent + y_offsets[i];
+                    v1.m_Position[1] = y - descent + y_offsets[i];
 
-                    v2.m_Position[0] = x + g.m_LeftBearing + g.m_Width + x_offsets[i];
-                    v2.m_Position[1] = y - g.m_Descent + y_offsets[i];
+                    v2.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
+                    v2.m_Position[1] = y - descent + y_offsets[i];
 
-                    v3.m_Position[0] = x + g.m_LeftBearing + g.m_Width + x_offsets[i];
-                    v3.m_Position[1] = y + g.m_Ascent + y_offsets[i];
+                    v3.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
+                    v3.m_Position[1] = y + ascent + y_offsets[i];
 
                     v4.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
-                    v4.m_Position[1] = y + g.m_Ascent + y_offsets[i];
+                    v4.m_Position[1] = y + ascent + y_offsets[i];
 
                     float im_recip = 1.0f / font_map->m_TextureWidth;
                     float ih_recip = 1.0f / font_map->m_TextureHeight;
 
                     v1.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v3.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
+                    v3.m_UV[1] = (g.m_Y - ascent) * ih_recip;
 
                     v2.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v4.m_UV[1] = (g.m_Y - g.m_Ascent) * ih_recip;
+                    v4.m_UV[1] = (g.m_Y - ascent) * ih_recip;
 
                     v3.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v1.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
+                    v1.m_UV[1] = (g.m_Y + descent) * ih_recip;
 
                     v4.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v2.m_UV[1] = (g.m_Y + g.m_Descent) * ih_recip;
+                    v2.m_UV[1] = (g.m_Y + descent) * ih_recip;
                 }
-                x += g.m_Advance;
+                x += (int16_t)g.m_Advance;
             }
             ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
             AddToRender(render_context, ro);
