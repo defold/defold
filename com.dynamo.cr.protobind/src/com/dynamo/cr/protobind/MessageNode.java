@@ -139,7 +139,9 @@ public class MessageNode extends Node {
                 value = repeatedNode.build();
             }
             if (value != null) {
-                if (fd.isOptional() && value.equals(originalMessage.getField(fd))) {
+                boolean isOptional = fd.isOptional();
+                Object defaultValue = builder.getField(fd);
+                if (isOptional && value.equals(defaultValue)) {
                     // Skip value if optional and equal, ie do not "create" the value
                 }
                 else {

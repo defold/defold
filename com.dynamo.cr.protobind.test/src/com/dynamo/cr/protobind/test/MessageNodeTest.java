@@ -17,8 +17,14 @@ import com.dynamo.cr.protobind.RepeatedNode;
 import com.dynamo.cr.protobind.proto.ProtoBind.ListMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedMessage;
 import com.dynamo.cr.protobind.proto.ProtoBind.NestedNestedMessage;
+import com.dynamo.cr.protobind.proto.ProtoBind.NodeDesc;
+import com.dynamo.cr.protobind.proto.ProtoBind.NodeDesc.BlendMode;
+import com.dynamo.cr.protobind.proto.ProtoBind.NodeDesc.Type;
 import com.dynamo.cr.protobind.proto.ProtoBind.OptionalAndDefaultValueMessage;
+import com.dynamo.cr.protobind.proto.ProtoBind.SceneDesc;
+import com.dynamo.cr.protobind.proto.ProtoBind.SceneDesc.Builder;
 import com.dynamo.cr.protobind.proto.ProtoBind.SimpleMessage;
+import com.dynamo.proto.DdfMath.Vector4;
 
 public class MessageNodeTest {
 
@@ -335,6 +341,29 @@ public class MessageNodeTest {
         // It's currently by design. It seems to be somewhat difficult to implement and the current
         // behavior seems sufficient in practice
         assertEquals(true, msg2.hasMsg());
+    }
+
+    @Test
+    public void testGuiSceneBug() throws Exception {
+        Builder sceneBuilder = SceneDesc.newBuilder();
+        sceneBuilder.setReferenceWidth(100);
+        sceneBuilder.setReferenceHeight(200);
+
+        NodeDesc guiNode = NodeDesc.newBuilder()
+            .setPosition(Vector4.newBuilder().setX(123))
+            .setType(Type.TYPE_TEXT)
+            .setBlendMode(BlendMode.BLEND_MODE_MULT).build();
+
+        sceneBuilder.addNodes(guiNode);
+
+        SceneDesc scene = sceneBuilder.build();
+
+        MessageNode node = new MessageNode(scene);
+        SceneDesc scene2 = (SceneDesc) node.build();
+        assertEquals(scene.getReferenceWidth(), scene2.getReferenceWidth());
+        assertEquals(scene.getReferenceHeight(), scene2.getReferenceHeight());
+        assertEquals(scene.getNodesCount(), scene2.getNodesCount());
+        assertEquals(123, scene2.getNodes(0).getPosition().getX(), 0.001);
     }
 
 }

@@ -35,3 +35,32 @@ message OptionalAndDefaultValueMessage
     optional int32 y = 2 [default = 123];
     optional SimpleMessage msg = 3;
 }
+
+message NodeDesc
+{
+    enum Type
+    {
+        TYPE_BOX  = 0;
+        TYPE_TEXT = 1;
+    }
+
+    enum BlendMode
+    {
+        BLEND_MODE_ALPHA     = 0;
+        BLEND_MODE_ADD       = 1;
+        BLEND_MODE_ADD_ALPHA = 2;
+        BLEND_MODE_MULT      = 3;
+    }
+
+    required dmMath.Vector4 position = 1;
+    required Type       type         = 2;
+    optional BlendMode  blend_mode   = 3 [default = BLEND_MODE_ALPHA];
+    optional string     text         = 4;
+}
+
+message SceneDesc
+{
+    optional uint32      reference_width         = 1 [default = 960];
+    optional uint32      reference_height        = 2 [default = 640];
+    repeated NodeDesc    nodes                   = 3;
+}
