@@ -29,9 +29,7 @@ public class DeleteTexturesOperation extends AbstractOperation {
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (EditorTextureDesc textureDesc : textures) {
-            scene.removeTexture(textureDesc.getName());
-        }
+        scene.removeTextures(textures);
         return Status.OK_STATUS;
     }
 
@@ -39,9 +37,7 @@ public class DeleteTexturesOperation extends AbstractOperation {
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (EditorTextureDesc textureDesc : textures) {
-            scene.removeTexture(textureDesc.getName());
-        }
+        scene.removeTextures(textures);
         return Status.OK_STATUS;
     }
 
@@ -49,9 +45,7 @@ public class DeleteTexturesOperation extends AbstractOperation {
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (EditorTextureDesc textureDesc : textures) {
-            scene.addTexture(textureDesc.getName(), textureDesc.getTexture());
-        }
+        scene.addTextures(textures);
         return Status.OK_STATUS;
     }
 

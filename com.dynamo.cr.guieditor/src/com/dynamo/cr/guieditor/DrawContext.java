@@ -2,19 +2,22 @@ package com.dynamo.cr.guieditor;
 
 import java.util.List;
 
-import com.dynamo.cr.guieditor.render.GuiRenderer;
+import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.guieditor.scene.GuiNode;
+import com.dynamo.cr.guieditor.scene.RenderResourceCollection;
 
 public class DrawContext {
-    private GuiRenderer renderer;
+    private IGuiRenderer renderer;
+    private RenderResourceCollection renderResourceCollection;
     private List<GuiNode> selectedNodes;
 
-    public DrawContext(GuiRenderer renderer, List<GuiNode> list) {
+    public DrawContext(IGuiRenderer renderer, RenderResourceCollection renderResourceCollection, List<GuiNode> list) {
         this.renderer = renderer;
+        this.renderResourceCollection = renderResourceCollection;
         this.selectedNodes = list;
     }
 
-    public GuiRenderer getRenderer() {
+    public IGuiRenderer getRenderer() {
         return renderer;
     }
 
@@ -24,5 +27,9 @@ public class DrawContext {
                 return true;
         }
         return false;
+    }
+
+    public RenderResourceCollection getRenderResourceCollection() {
+        return renderResourceCollection;
     }
 }

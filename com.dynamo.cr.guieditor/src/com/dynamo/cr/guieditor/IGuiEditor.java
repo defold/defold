@@ -3,8 +3,10 @@ package com.dynamo.cr.guieditor;
 import java.util.List;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
+import org.eclipse.core.resources.IContainer;
 import org.eclipse.jface.action.IAction;
 
+import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.guieditor.scene.GuiNode;
 import com.dynamo.cr.guieditor.scene.GuiScene;
 
@@ -20,4 +22,8 @@ public interface IGuiEditor {
     public GuiSelectionProvider getSelectionProvider();
 
     public IAction getAction(String id);
+
+    public IGuiRenderer getRenderer();
+
+    public IContainer getContentRoot();
 }

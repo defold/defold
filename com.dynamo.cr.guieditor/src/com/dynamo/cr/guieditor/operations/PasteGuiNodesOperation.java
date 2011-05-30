@@ -1,5 +1,6 @@
 package com.dynamo.cr.guieditor.operations;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -30,7 +31,7 @@ public class PasteGuiNodesOperation extends AbstractOperation {
             throws ExecutionException {
         GuiScene scene = editor.getScene();
         for (GuiNode node : nodes) {
-            scene.addNode(node);
+            scene.addNodes(Arrays.asList(node));
         }
 
         return Status.OK_STATUS;
@@ -41,7 +42,7 @@ public class PasteGuiNodesOperation extends AbstractOperation {
             throws ExecutionException {
         GuiScene scene = editor.getScene();
         for (GuiNode node : nodes) {
-            scene.addNode(node);
+            scene.addNodes(Arrays.asList(node));
         }
 
         return Status.OK_STATUS;
@@ -52,7 +53,7 @@ public class PasteGuiNodesOperation extends AbstractOperation {
             throws ExecutionException {
         GuiScene scene = editor.getScene();
         for (GuiNode node : nodes) {
-            scene.removeNode(node);
+            scene.removeNodes(Arrays.asList(node));
         }
 
         return Status.OK_STATUS;

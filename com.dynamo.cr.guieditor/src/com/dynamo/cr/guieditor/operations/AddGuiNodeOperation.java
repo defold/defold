@@ -1,5 +1,7 @@
 package com.dynamo.cr.guieditor.operations;
 
+import java.util.Arrays;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -25,21 +27,21 @@ public class AddGuiNodeOperation extends AbstractOperation {
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        editor.getScene().addNode(node);
+        editor.getScene().addNodes(Arrays.asList(node));
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        editor.getScene().addNode(node);
+        editor.getScene().addNodes(Arrays.asList(node));
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        editor.getScene().removeNode(node);
+        editor.getScene().removeNodes(Arrays.asList(node));
         return Status.OK_STATUS;
     }
 

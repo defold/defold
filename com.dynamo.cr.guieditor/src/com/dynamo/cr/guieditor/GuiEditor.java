@@ -76,6 +76,7 @@ import org.eclipse.ui.views.properties.PropertySheetPage;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.guieditor.operations.SelectOperation;
 import com.dynamo.cr.guieditor.render.GuiRenderer;
+import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.guieditor.render.SelectResult;
 import com.dynamo.cr.guieditor.render.SelectResult.Pair;
 import com.dynamo.cr.guieditor.scene.GuiNode;
@@ -128,6 +129,11 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     @Override
     public IAction getAction(String id) {
         return actions.get(id);
+    }
+
+    @Override
+    public IGuiRenderer getRenderer() {
+        return renderer;
     }
 
     @Override
@@ -240,6 +246,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         }
 
         guiScene.addPropertyChangeListener(this);
+    }
+
+    public IContainer getContentRoot() {
+        return contentRoot;
     }
 
     @Override
@@ -413,7 +423,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
     private void doDraw(GL gl) {
         this.redrawPosted = false;
-
         Display display = Display.getDefault();
         Transform transform = new Transform(display);
         transform.translate(0, 0);
@@ -435,8 +444,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
 
         renderer.begin(gl);
-        DrawContext drawContext = new DrawContext(renderer,
-                selectionProvider.getSelectionList());
+        DrawContext drawContext = new DrawContext(renderer, guiScene.getRenderResourceCollection(), selectionProvider.getSelectionList());
         guiScene.draw(drawContext);
         renderer.end();
 
@@ -543,8 +551,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             // x and y are center coordinates
             renderer.beginSelect(gl, x + width / 2, y + height / 2, width,
                     height, viewPort);
-            DrawContext drawContext = new DrawContext(renderer,
-                    selectionProvider.getSelectionList());
+            DrawContext drawContext = new DrawContext(renderer, guiScene.getRenderResourceCollection(), selectionProvider.getSelectionList());
 
             ScrollBar horizontal = canvas.getHorizontalBar();
             ScrollBar vertical = canvas.getVerticalBar();

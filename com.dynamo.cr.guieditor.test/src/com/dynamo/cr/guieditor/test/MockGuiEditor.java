@@ -10,12 +10,15 @@ import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 
 import com.dynamo.cr.guieditor.GuiSelectionProvider;
 import com.dynamo.cr.guieditor.IGuiEditor;
+import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.guieditor.scene.GuiNode;
 import com.dynamo.cr.guieditor.scene.GuiScene;
 import com.dynamo.gui.proto.Gui.SceneDesc;
@@ -26,12 +29,15 @@ public abstract class MockGuiEditor implements IGuiEditor, IOperationHistoryList
     DefaultOperationHistory history;
     GuiScene scene;
     private GuiSelectionProvider selectionProvider;
+    private IGuiRenderer renderer;
+    private IProject project;
 
     public MockGuiEditor() {
     }
 
-    public void init() {
+    public void init(IProject project, IGuiRenderer renderer) {
         scene = new GuiScene(this, SceneDesc.newBuilder().setScript("").build());
+        this.project = project;
 
         undoContext = new UndoContext();
         history = new DefaultOperationHistory();
@@ -42,6 +48,17 @@ public abstract class MockGuiEditor implements IGuiEditor, IOperationHistoryList
         history.addOperationApprover(approver);
 
         selectionProvider = new GuiSelectionProvider();
+        this.renderer = renderer;
+    }
+
+    @Override
+    public IGuiRenderer getRenderer() {
+        return renderer;
+    }
+
+    @Override
+    public IContainer getContentRoot() {
+        return project;
     }
 
     @Override

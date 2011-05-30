@@ -1,40 +1,24 @@
 package com.dynamo.cr.guieditor.render;
 
 import java.awt.Font;
-import java.awt.FontFormatException;
 import java.awt.geom.Rectangle2D;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.media.opengl.GL;
-import javax.media.opengl.GLException;
 import javax.media.opengl.glu.GLU;
 
-import org.apache.commons.io.IOUtils;
-import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.CoreException;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.sun.opengl.util.j2d.TextRenderer;
 import com.sun.opengl.util.texture.Texture;
-import com.sun.opengl.util.texture.TextureIO;
 
-public class GuiRenderer implements IDisposable {
-
-    private Map<String, FontInfo> fonts = new HashMap<String, FontInfo>();
-    private Map<String, TextureInfo> textures = new HashMap<String, TextureInfo>();
-    private FontInfo currentFont;
+public class GuiRenderer implements IDisposable, IGuiRenderer {
     private ArrayList<RenderCommmand> renderCommands = new ArrayList<GuiRenderer.RenderCommmand>();
     private GL gl;
     private int currentName;
@@ -44,47 +28,19 @@ public class GuiRenderer implements IDisposable {
     private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * MAX_NODES).order(ByteOrder.nativeOrder()).asIntBuffer();
 
     public GuiRenderer() {
-        String fontName = Font.SANS_SERIF;
-        Font debugFont = new Font(fontName, Font.BOLD, 28);
-        fonts.put(getDebugFontName(), new FontInfo(getDebugFontName(), null, debugFont, 24));
-    }
-
-    private static class FontInfo {
-        public FontInfo(String name, IFile file, Font font, int size) {
-            this.name = name;
-            this.file = file;
-            this.size = size;
-            this.textRenderer = new TextRenderer(font, true, true);
-        }
-        String name;
-        IFile file;
-        int size;
-        TextRenderer textRenderer;
-    }
-
-    private static class TextureInfo {
-        public TextureInfo(String name, IFile file, byte[] textureData) {
-            this.name = name;
-            this.file = file;
-            this.textureData = textureData;
-        }
-        String name;
-        IFile file;
-        byte[] textureData;
-        Texture texture;
     }
 
     private abstract class RenderCommmand {
 
         private BlendMode blendMode;
-        private String textureName;
-        public RenderCommmand(double r, double g, double b, double a, BlendMode blendMode, String textureName) {
+        private Texture texture;
+        public RenderCommmand(double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
             this.r = r;
             this.g = g;
             this.b = b;
             this.a = a;
             this.blendMode = blendMode;
-            this.textureName = textureName;
+            this.texture = texture;
         }
         double r, g, b, a;
         int name = -1;
@@ -117,14 +73,6 @@ public class GuiRenderer implements IDisposable {
         }
 
         public void setupTexture() {
-            Texture texture = null;
-            if (textureName != null && textureName.length() > 0) {
-                TextureInfo textureInfo = textures.get(textureName);
-                if (textureInfo != null && textureInfo.texture != null) {
-                    texture = textureInfo.texture;
-                }
-            }
-
             if (texture != null) {
                 gl.glEnable(GL.GL_TEXTURE_2D);
                 gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_MODULATE);
@@ -141,11 +89,11 @@ public class GuiRenderer implements IDisposable {
     private class TextRenderCommmand extends RenderCommmand {
         private String text;
         private double x0, y0;
-        private String font;
+        private TextRenderer textRenderer;
 
-        public TextRenderCommmand(String font, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, String texture) {
+        public TextRenderCommmand(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
             super(r, g, b, a, blendMode, texture);
-            this.font = font;
+            this.textRenderer = textRenderer;
             this.text = text;
             this.x0 = x0;
             this.y0 = y0;
@@ -153,34 +101,18 @@ public class GuiRenderer implements IDisposable {
 
         @Override
         public void draw(GL gl) {
-
-            if (currentFont != null && currentFont.name.equals(name))  {
-                // Use current font
-            }
-            else {
-                if (currentFont != null) {
-                    // End current rendering for font
-                    currentFont.textRenderer.end3DRendering();
-                }
-                currentFont = fonts.get(font);
-                if (currentFont != null) {
-                    currentFont.textRenderer.begin3DRendering();
-                }
-
-            }
-
-            if (currentFont != null) {
-                gl.glColor4d(r, g, b, a);
-                setupBlendMode();
-                currentFont.textRenderer.draw3D(text, (float) x0, (float) y0, 0, 1);
-            }
+            textRenderer.begin3DRendering();
+            gl.glColor4d(r, g, b, a);
+            setupBlendMode();
+            textRenderer.draw3D(text, (float) x0, (float) y0, 0, 1);
+            textRenderer.end3DRendering();
         }
     }
 
     private class QuadRenderCommand extends RenderCommmand {
         private double x0, y0, x1, y1;
 
-        public QuadRenderCommand(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, String texture) {
+        public QuadRenderCommand(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
             super(r, g, b, a, blendMode, texture);
             this.x0 = x0;
             this.y0 = y0;
@@ -190,12 +122,6 @@ public class GuiRenderer implements IDisposable {
 
         @Override
         public void draw(GL gl) {
-            if (currentFont != null) {
-                // End current font rendering
-                currentFont.textRenderer.end3DRendering();
-                currentFont = null;
-            }
-
             if (name != -1)
                 gl.glPushName(name);
 
@@ -228,42 +154,47 @@ public class GuiRenderer implements IDisposable {
     public void dispose() {
     }
 
+    long prevTime = 0;
+    private TextRenderer debugTextRenderer;
+
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#begin(javax.media.opengl.GL)
+     */
+    @Override
     public void begin(GL gl) {
-        this.currentFont = null;
         this.renderCommands.clear();
         this.renderCommands.ensureCapacity(1024);
         this.gl = gl;
         this.currentName = -1;
-        loadDeferredTextures();
-    }
 
-    private void loadDeferredTextures() {
-        for (TextureInfo textureInfo : textures.values()) {
-            if (textureInfo.textureData != null) {
-                try {
-                    Texture texture = TextureIO.newTexture(new ByteArrayInputStream(textureInfo.textureData), true, textureInfo.file.getFileExtension());
-                    textureInfo.texture = texture;
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                } finally {
-                    textureInfo.textureData = null;
-                }
-            }
+        if (debugTextRenderer == null) {
+            String fontName = Font.SANS_SERIF;
+            Font debugFont = new Font(fontName, Font.BOLD, 28);
+            debugTextRenderer = new TextRenderer(debugFont, true, true);
         }
+
+        double delta =  System.currentTimeMillis() - prevTime;
+        delta /= 1000;
+        drawString(null, String.format("%.1f fps", 1.0 / delta), 100, 100, 1, 1, 1, 1, BlendMode.BLEND_MODE_ADD_ALPHA, null);
+
+        prevTime = System.currentTimeMillis();
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#end()
+     */
+    @Override
     public void end() {
         for (RenderCommmand command : renderCommands) {
             command.draw(gl);
         }
-        if (currentFont != null) {
-            // End current font rendering
-            currentFont.textRenderer.end3DRendering();
-            currentFont = null;
-        }
     }
 
-    public void drawQuad(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, String texture) {
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawQuad(double, double, double, double, double, double, double, double, com.dynamo.gui.proto.Gui.NodeDesc.BlendMode, java.lang.String)
+     */
+    @Override
+    public void drawQuad(double x0, double y0, double x1, double y1, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
         QuadRenderCommand command = new QuadRenderCommand(x0, y0, x1, y1, r, g, b, a, blendMode, texture);
         if (currentName != -1) {
             command.name = currentName;
@@ -271,106 +202,72 @@ public class GuiRenderer implements IDisposable {
         this.renderCommands.add(command);
     }
 
-    public void drawString(String font, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, String texture) {
-        TextRenderCommmand command = new TextRenderCommmand(font, text, x0, y0, r, g, b, a, blendMode, texture);
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawString(java.lang.String, java.lang.String, double, double, double, double, double, double, com.dynamo.gui.proto.Gui.NodeDesc.BlendMode, java.lang.String)
+     */
+    @Override
+    public void drawString(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture) {
+        if (textRenderer == null)
+            textRenderer = debugTextRenderer;
+
+        TextRenderCommmand command = new TextRenderCommmand(textRenderer, text, x0, y0, r, g, b, a, blendMode, texture);
         if (currentName != -1) {
             command.name = currentName;
         }
         this.renderCommands.add(command);
     }
 
-    public String getDebugFontName() {
-        return "__debug__";
-    }
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawStringBounds(java.lang.String, java.lang.String, double, double, double, double, double, double)
+     */
+    @Override
+    public void drawStringBounds(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a) {
+        if (textRenderer == null)
+            textRenderer = debugTextRenderer;
 
-    public void drawStringBounds(String font, String text, double x0, double y0, double r, double g, double b, double a) {
-        FontInfo fontInfo = fonts.get(font);
-        if (fontInfo != null) {
-            Rectangle2D bounds = fontInfo.textRenderer.getBounds(text);
-            double x = x0 + bounds.getX();
-            double y = y0 - (bounds.getHeight() + bounds.getY());
-            double w = bounds.getWidth();
-            double h = bounds.getHeight();
-            QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y + h, r, g, b, a, null, null);
-            if (currentName != -1) {
-                command.name = currentName;
-            }
-            this.renderCommands.add(command);
+        Rectangle2D bounds = textRenderer.getBounds(text);
+        double x = x0 + bounds.getX();
+        double y = y0 - (bounds.getHeight() + bounds.getY());
+        double w = bounds.getWidth();
+        double h = bounds.getHeight();
+        QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y + h, r, g, b, a, null, null);
+        if (currentName != -1) {
+            command.name = currentName;
         }
+        this.renderCommands.add(command);
     }
 
-    public Rectangle2D getStringBounds(String font, String text) {
-        FontInfo fontInfo = fonts.get(font);
-        if (fontInfo != null) {
-            return fontInfo.textRenderer.getBounds(text);
-        }
-        return null;
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#getStringBounds(java.lang.String, java.lang.String)
+     */
+    @Override
+    public Rectangle2D getStringBounds(TextRenderer textRenderer, String text) {
+        if (textRenderer == null)
+            textRenderer = debugTextRenderer;
+
+        return textRenderer.getBounds(text);
     }
 
-
-    public boolean isFontLoaded(String alias, IFile fontFile, int size) {
-        FontInfo fontInfo = fonts.get(alias);
-        if (fontInfo != null) {
-            return fontInfo.file.equals(fontFile) && fontInfo.size == size;
-        }
-        return false;
-    }
-
-    public boolean isTextureLoaded(String alias, IFile textureFile) {
-        TextureInfo textureInfo = textures.get(alias);
-        if (textureInfo != null) {
-            return textureInfo.file.equals(textureFile);
-        }
-        return false;
-    }
-
-    public void loadFont(String alias, IFile fontFile, int size) throws CoreException, IOException, FontFormatException {
-        if (isFontLoaded(alias, fontFile, size))
-            return;
-
-        InputStream fontStream = fontFile.getContents();
-        try {
-            ByteArrayOutputStream fontOut = new ByteArrayOutputStream();
-            IOUtils.copy(fontStream, fontOut);
-            byte[] fontData = fontOut.toByteArray();
-            Font font = Font.createFont(Font.TRUETYPE_FONT, new ByteArrayInputStream(fontData));
-
-            font = font.deriveFont(Font.PLAIN, size);
-            fonts.put(alias, new FontInfo(alias, fontFile, font, size));
-        }
-        finally {
-            fontStream.close();
-        }
-    }
-
-    public void loadTexture(String alias, IFile textureFile) throws GLException, IOException, CoreException {
-        if (isTextureLoaded(alias, textureFile))
-            return;
-
-        ByteArrayOutputStream output = new ByteArrayOutputStream(1024 * 128);
-        IOUtils.copy(textureFile.getContents(), output);
-        TextureInfo textureInfo = new TextureInfo(alias, textureFile, output.toByteArray());
-        textures.put(alias, textureInfo);
-    }
-
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#setName(int)
+     */
+    @Override
     public void setName(int name) {
         this.currentName = name;
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#clearName()
+     */
+    @Override
     public void clearName() {
         this.currentName = -1;
     }
 
-    /**
-     * Start GL select
-     * @note x and y are specify center of selection
-     * @param gl GL context
-     * @param x center x coordinate
-     * @param y center y coordinate
-     * @param w selection width
-     * @param h selection height
-     * @param viewPort view-port
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#beginSelect(javax.media.opengl.GL, int, int, int, int, int[])
      */
+    @Override
     public void beginSelect(GL gl, int x, int y, int w, int h, int viewPort[]) {
         begin(gl);
         gl.glSelectBuffer(MAX_NODES, selectBuffer);
@@ -395,6 +292,10 @@ public class GuiRenderer implements IDisposable {
         return ( tmp << 32 ) >>> 32;
     }
 
+    /* (non-Javadoc)
+     * @see com.dynamo.cr.guieditor.render.IGuiRenderer#endSelect()
+     */
+    @Override
     public SelectResult endSelect()
     {
         end();
@@ -435,9 +336,4 @@ public class GuiRenderer implements IDisposable {
             return new SelectResult(selected, minz);
         }
     }
-
-    public boolean hasFont(String font) {
-        return fonts.containsKey(font);
-    }
-
 }

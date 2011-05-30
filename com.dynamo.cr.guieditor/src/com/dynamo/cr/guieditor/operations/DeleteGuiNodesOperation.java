@@ -29,9 +29,7 @@ public class DeleteGuiNodesOperation extends AbstractOperation {
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (GuiNode node : nodes) {
-            scene.removeNode(node);
-        }
+        scene.removeNodes(nodes);
         return Status.OK_STATUS;
     }
 
@@ -39,9 +37,7 @@ public class DeleteGuiNodesOperation extends AbstractOperation {
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (GuiNode node : nodes) {
-            scene.removeNode(node);
-        }
+        scene.removeNodes(nodes);
         return Status.OK_STATUS;
     }
 
@@ -49,9 +45,7 @@ public class DeleteGuiNodesOperation extends AbstractOperation {
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (GuiNode node : nodes) {
-            scene.addNode(node);
-        }
+        scene.addNodes(nodes);
         return Status.OK_STATUS;
     }
 

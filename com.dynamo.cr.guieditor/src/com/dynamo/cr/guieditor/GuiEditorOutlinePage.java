@@ -1,6 +1,8 @@
 package com.dynamo.cr.guieditor;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -133,6 +135,8 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
         private IEditorRegistry registry;
         private Image boxNodeImage;
         private Image textNodeImage;
+        private Map<String, Image> imageCache = new HashMap<String, Image>();
+
 
         public OutlineColumnLabelProvider() {
             registry = PlatformUI.getWorkbench().getEditorRegistry();
@@ -145,42 +149,51 @@ public class GuiEditorOutlinePage extends ContentOutlinePage implements ISelecti
                     Activator.TEXTNODE_IMAGE_ID).createImage();
         }
 
+        Image getImageFromFilename(String name) {
+            if (name.lastIndexOf('.') != -1) {
+                String ext = name.substring(name.lastIndexOf('.'));
+                Image image = imageCache.get(ext);
+                if (image != null)
+                    return image;
+
+                image = registry.getImageDescriptor(ext).createImage();
+                imageCache.put(ext, image);
+                return image;
+            }
+            return null;
+        }
+
         @Override
         public Image getImage(Object element) {
+            ISharedImages sharedImages = PlatformUI.getWorkbench().getSharedImages();
+            Image image = null;
 
-            ISharedImages sharedImages = PlatformUI.getWorkbench()
-                    .getSharedImages();
             if (element instanceof GuiScene) {
-                return registry.getImageDescriptor(".gui").createImage();
+                image = registry.getImageDescriptor(".gui").createImage();
             } else if (element.equals("Fonts")) {
-                return sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
+                image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element.equals("Textures")) {
-                return sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
+                image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element.equals("Nodes")) {
-                return sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
+                image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
             } else if (element instanceof EditorFontDesc) {
                 EditorFontDesc fontDesc = (EditorFontDesc) element;
                 String name = fontDesc.getFont();
-                if (name.lastIndexOf('.') != -1) {
-                    return registry.getImageDescriptor(
-                            name.substring(name.lastIndexOf('.')))
-                            .createImage();
-                }
+                image = getImageFromFilename(name);
             } else if (element instanceof EditorTextureDesc) {
                 EditorTextureDesc textureDesc = (EditorTextureDesc) element;
                 String name = textureDesc.getTexture();
-                if (name.lastIndexOf('.') != -1) {
-                    return registry.getImageDescriptor(
-                            name.substring(name.lastIndexOf('.')))
-                            .createImage();
-                }
+                image = getImageFromFilename(name);
             } else if (element instanceof BoxGuiNode) {
-                return boxNodeImage;
+                image = boxNodeImage;
             } else if (element instanceof TextGuiNode) {
-                return textNodeImage;
+                image = textNodeImage;
             }
 
-            return super.getImage(element);
+            if (image != null)
+                return image;
+            else
+                return super.getImage(element);
         }
 
         @Override

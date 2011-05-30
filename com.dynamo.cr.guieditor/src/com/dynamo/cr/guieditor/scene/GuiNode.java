@@ -189,4 +189,17 @@ public abstract class GuiNode implements IAdaptable {
 
     public abstract void doBuildNodeDesc(NodeDesc.Builder builder);
 
+    @Override
+    public final int hashCode() {
+        // NOTE: Do not override this method. We have data-structures that rely on referential equivalence, eg nodeToIndex in GuiScene
+        return super.hashCode();
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        // NOTE: Do not override this method. We have data-structures that rely on referential equivalence, eg nodeToIndex in GuiScene
+        return super.equals(obj);
+    }
+
+
 }

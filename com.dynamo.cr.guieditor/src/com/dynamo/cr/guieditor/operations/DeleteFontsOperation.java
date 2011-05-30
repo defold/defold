@@ -29,9 +29,7 @@ public class DeleteFontsOperation extends AbstractOperation {
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (EditorFontDesc fontDesc : fonts) {
-            scene.removeFont(fontDesc.getName());
-        }
+        scene.removeFonts(fonts);
         return Status.OK_STATUS;
     }
 
@@ -39,9 +37,7 @@ public class DeleteFontsOperation extends AbstractOperation {
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (EditorFontDesc fontDesc : fonts) {
-            scene.removeFont(fontDesc.getName());
-        }
+        scene.removeFonts(fonts);
         return Status.OK_STATUS;
     }
 
@@ -49,9 +45,7 @@ public class DeleteFontsOperation extends AbstractOperation {
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
-        for (EditorFontDesc fontDesc : fonts) {
-            scene.addFont(fontDesc.getName(), fontDesc.getFont());
-        }
+        scene.addFonts(fonts);
         return Status.OK_STATUS;
     }
 

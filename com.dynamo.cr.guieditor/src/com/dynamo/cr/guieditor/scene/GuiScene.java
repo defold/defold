@@ -1,6 +1,7 @@
 package com.dynamo.cr.guieditor.scene;
 
 import java.awt.FontFormatException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -8,16 +9,20 @@ import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.media.opengl.GLException;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.ui.views.properties.IPropertySource;
 
@@ -26,7 +31,9 @@ import com.dynamo.cr.guieditor.IGuiEditor;
 import com.dynamo.cr.guieditor.property.IPropertyObjectWorld;
 import com.dynamo.cr.guieditor.property.Property;
 import com.dynamo.cr.guieditor.property.PropertyIntrospectorSource;
-import com.dynamo.cr.guieditor.render.GuiRenderer;
+import com.dynamo.cr.guieditor.render.GuiFontResource;
+import com.dynamo.cr.guieditor.render.GuiTextureResource;
+import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
 import com.dynamo.gui.proto.Gui.SceneDesc;
@@ -45,12 +52,24 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     private SceneDesc sceneDesc;
     private ArrayList<GuiNode> nodes;
-    private Map<String, EditorTextureDesc> textures;
-    private Map<String, EditorFontDesc> fonts;
+    // Use to preserve node order, eg when delete/undo
+    private Map<GuiNode, Integer> nodeToIndex = new HashMap<GuiNode, Integer>();
+
+    private List<EditorTextureDesc> textures;
+    // Use to preserve node order, eg when delete/undo
+    private Map<EditorTextureDesc, Integer> textureToIndex = new HashMap<EditorTextureDesc, Integer>();
+
+    private List<EditorFontDesc> fonts;
+    // Use to preserve node order, eg when delete/undo
+    private Map<EditorFontDesc, Integer> fontToIndex = new HashMap<EditorFontDesc, Integer>();
+
     private ArrayList<IGuiSceneListener> listeners = new ArrayList<IGuiSceneListener>();
     private IGuiEditor editor;
 
     private PropertyIntrospectorSource<GuiScene, GuiScene> propertySource;
+
+
+    private RenderResourceCollection renderResourceCollection = new RenderResourceCollection();
 
     public GuiScene(IGuiEditor editor, SceneDesc sceneDesc) {
         this.editor = editor;
@@ -70,14 +89,14 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             }
         }
 
-        textures = new HashMap<String, EditorTextureDesc>();
+        textures = new ArrayList<EditorTextureDesc>();
         for (TextureDesc texture : sceneDesc.getTexturesList()) {
-            textures.put(texture.getName(), new EditorTextureDesc(this, texture));
+            textures.add(new EditorTextureDesc(this, texture));
         }
 
-        fonts = new HashMap<String, EditorFontDesc>();
+        fonts = new ArrayList<EditorFontDesc>();
         for (FontDesc font : sceneDesc.getFontsList()) {
-            fonts.put(font.getName(), new EditorFontDesc(this, font));
+            fonts.add(new EditorFontDesc(this, font));
         }
     }
 
@@ -92,13 +111,17 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         return null;
     }
 
-    private void loadTTF(String alias, Font.FontDesc fontDesc, IContainer contentRoot, GuiRenderer renderer) throws CoreException, IOException, FontFormatException {
+    private GuiFontResource loadTTF(String alias, Font.FontDesc fontDesc, IContainer contentRoot, IGuiRenderer renderer) throws CoreException, IOException, FontFormatException {
         String ttfFileName = fontDesc.getFont();
         IFile ttfFile = contentRoot.getFile(new Path(ttfFileName));
-        renderer.loadFont(alias, ttfFile, fontDesc.getSize());
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream(1024 * 128);
+        IOUtils.copy(ttfFile.getContents(), output);
+
+        return new GuiFontResource(output.toByteArray(), fontDesc.getSize());
     }
 
-    private void loadFont(EditorFontDesc guiFont, IContainer contentRoot, GuiRenderer renderer) throws CoreException, IOException, FontFormatException {
+    private void loadFont(EditorFontDesc guiFont, IContainer contentRoot, IGuiRenderer renderer) throws CoreException, IOException, FontFormatException {
         String fontFileName = guiFont.getFont();
         IFile fontFile = contentRoot.getFile(new Path(fontFileName));
 
@@ -108,7 +131,8 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             Reader reader = new InputStreamReader(is);
             TextFormat.merge(reader, fontDescBuilder);
             Font.FontDesc fontDesc = fontDescBuilder.build();
-            loadTTF(guiFont.getName(), fontDesc, contentRoot, renderer);
+            GuiFontResource fontResource = loadTTF(guiFont.getName(), fontDesc, contentRoot, renderer);
+            guiFont.setFontResource(fontResource);
 
         } finally {
             is.close();
@@ -116,14 +140,32 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     }
 
     private void loadTexture(EditorTextureDesc textureDesc, IContainer contentRoot,
-            GuiRenderer renderer) throws GLException, IOException, CoreException {
+            IGuiRenderer renderer) throws GLException, IOException, CoreException {
         IFile textureFile = contentRoot.getFile(new Path(textureDesc.getTexture()));
-        renderer.loadTexture(textureDesc.getName(), textureFile);
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream(1024 * 128);
+        IOUtils.copy(textureFile.getContents(), output);
+
+        GuiTextureResource textureResource = new GuiTextureResource(output.toByteArray(), textureFile.getFileExtension());
+        textureDesc.setTextureResource(textureResource);
     }
 
-    public void loadRenderResources(IProgressMonitor monitor, IContainer contentRoot, GuiRenderer renderer) throws CoreException, IOException, FontFormatException {
+    public RenderResourceCollection getRenderResourceCollection() {
+        renderResourceCollection = new RenderResourceCollection();
+        for (EditorFontDesc guiFont : fonts) {
+            renderResourceCollection.addFontResource(guiFont.getName(), guiFont.getFontResource());
+        }
+
+        for (EditorTextureDesc textureDesc : textures) {
+            renderResourceCollection.addTextureResource(textureDesc.getName(), textureDesc.getTextureResource());
+        }
+
+        return renderResourceCollection;
+    }
+
+    public void loadRenderResources(IProgressMonitor monitor, IContainer contentRoot, IGuiRenderer renderer) throws CoreException, IOException, FontFormatException {
         monitor.beginTask("Loading resources...", fonts.size() + textures.size());
-        for (EditorFontDesc guiFont : fonts.values()) {
+        for (EditorFontDesc guiFont : fonts) {
             monitor.subTask(String.format("Loading %s", guiFont.getFont()));
             try {
                 loadFont(guiFont, contentRoot, renderer);
@@ -135,7 +177,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             monitor.worked(1);
         }
 
-        for (EditorTextureDesc textureDesc : textures.values()) {
+        for (EditorTextureDesc textureDesc : textures) {
             monitor.subTask(String.format("Loading %s", textureDesc.getTexture()));
             try {
                 loadTexture(textureDesc, contentRoot, renderer);
@@ -182,7 +224,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     public void drawSelect(DrawContext drawContext) {
         int nextName = 0;
-        GuiRenderer renderer = drawContext.getRenderer();
+        IGuiRenderer renderer = drawContext.getRenderer();
         for (GuiNode node : nodes) {
             renderer.setName(nextName++);
             node.drawSelect(drawContext);
@@ -213,37 +255,82 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         }
 
         builder.clearTextures();
-        for (EditorTextureDesc texture : textures.values()) {
+        for (EditorTextureDesc texture : textures) {
             builder.addTextures(texture.buildDesc());
         }
 
         builder.clearFonts();
-        for (EditorFontDesc font : fonts.values()) {
+        for (EditorFontDesc font : fonts) {
             builder.addFonts(font.buildDesc());
         }
 
         return builder.build();
     }
 
-    public void addNode(GuiNode node) {
-        nodes.add(node);
+    public void removeNodes(List<GuiNode> nodesToRemove) {
+        removeGeneric(nodes, nodeToIndex, nodesToRemove);
     }
 
-    public void removeNode(GuiNode node) {
-        boolean found = nodes.remove(node);
-        assert found;
-        for (IGuiSceneListener listener : listeners) {
-            listener.nodeRemoved(node);
-        }
+    private static <T> void addGeneric(List<T> collection, final Map<T, Integer> toIndex, List<T> toAdd) {
+        ArrayList<T> tmp = new ArrayList<T>(toAdd);
+        Collections.sort(tmp, new Comparator<T>() {
+            @Override
+            public int compare(T o1, T o2) {
+                Integer index1 = toIndex.get(o1);
+                Integer index2 = toIndex.get(o2);
+                int i1 = 0, i2 = 0;
+                if (index1 != null)
+                    i1 = index1;
 
+                if (index2 != null)
+                    i2 = index2;
+
+                return i1 - i2;
+            }
+        });
+
+        for (T o : tmp) {
+            Integer index = toIndex.get(o);
+            if (index != null && index < collection.size()) {
+                // Try to preserve node order.
+                collection.add(index, o);
+
+            } else {
+                collection.add(o);
+            }
+        }
+    }
+
+    private static <T> void removeGeneric(final List<T> collection, final Map<T, Integer> toIndex, List<T> toRemove) {
+        ArrayList<T> tmp = new ArrayList<T>(toRemove);
+        Collections.sort(tmp, new Comparator<T>() {
+            @Override
+            public int compare(T o1, T o2) {
+                int i1 = collection.indexOf(o1);
+                int i2 = collection.indexOf(o2);
+                return i2 - i1;
+            }
+        });
+
+        for (T o : tmp) {
+
+            int index = collection.indexOf(o);
+            assert index != -1;
+            toIndex.put(o, index);
+            collection.remove(index);
+        }
+    }
+
+    public void addNodes(List<GuiNode> nodesToAdd) {
+        addGeneric(nodes, nodeToIndex, nodesToAdd);
     }
 
     public Collection<EditorFontDesc> getFonts() {
-        return Collections.unmodifiableCollection(this.fonts.values());
+        return Collections.unmodifiableCollection(this.fonts);
     }
 
     public Collection<EditorTextureDesc> getTextures() {
-        return Collections.unmodifiableCollection(this.textures.values());
+        return Collections.unmodifiableCollection(this.textures);
     }
 
     public int getNodeCount() {
@@ -278,7 +365,13 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             if (i == 0)
                 newName = name;
 
-            boolean found = textures.containsKey(newName);
+            boolean found = false;
+            for (EditorTextureDesc textureDesc : textures) {
+                if (textureDesc.getName().equals(newName)) {
+                    found = true;
+                    break;
+                }
+            }
             if (!found) {
                 return newName;
             }
@@ -293,7 +386,13 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
             if (i == 0)
                 newName = name;
 
-            boolean found = fonts.containsKey(newName);
+            boolean found = false;
+            for (EditorFontDesc fontDesc : fonts) {
+                if (fontDesc.getName().equals(newName)) {
+                    found = true;
+                    break;
+                }
+            }
             if (!found) {
                 return newName;
             }
@@ -301,28 +400,46 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         }
     }
 
-    public void addTexture(String name, String texture) {
-        textures.put(name, new EditorTextureDesc(this, TextureDesc.newBuilder().setName(name).setTexture(texture).build()));
-    }
-
-    public void addFont(String name, String font) {
-        fonts.put(name, new EditorFontDesc(this, FontDesc.newBuilder().setName(name).setFont(font).build()));
-    }
-
-    public void removeTexture(String name) {
-        if (textures.remove(name) == null) {
-            throw new RuntimeException("Texture " + name + " not found");
+    public EditorTextureDesc addTexture(String name, String texture) {
+        EditorTextureDesc textureDesc = new EditorTextureDesc(this, TextureDesc.newBuilder().setName(name).setTexture(texture).build());
+        textures.add(textureDesc);
+        try {
+            loadRenderResources(new NullProgressMonitor(), editor.getContentRoot(), editor.getRenderer());
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
+        return textureDesc;
     }
 
-    public void removeFont(String name) {
-        if (fonts.remove(name) == null) {
-            throw new RuntimeException("Font " + name + " not found");
+    public EditorFontDesc addFont(String name, String font) {
+        EditorFontDesc fontDesc = new EditorFontDesc(this, FontDesc.newBuilder().setName(name).setFont(font).build());
+        fonts.add(fontDesc);
+        try {
+            loadRenderResources(new NullProgressMonitor(), editor.getContentRoot(), editor.getRenderer());
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
+        return fontDesc;
+    }
+
+    public void addFonts(List<EditorFontDesc> fontsToAdd) {
+        addGeneric(fonts, fontToIndex, fontsToAdd);
+    }
+
+    public void removeFonts(List<EditorFontDesc> fontsToRemove) {
+        removeGeneric(fonts, fontToIndex, fontsToRemove);
+    }
+
+    public void addTextures(List<EditorTextureDesc> texturesToAdd) {
+        addGeneric(textures, textureToIndex, texturesToAdd);
+    }
+
+    public void removeTextures(List<EditorTextureDesc> texturesToRemove) {
+        removeGeneric(textures, textureToIndex, texturesToRemove);
     }
 
     public EditorTextureDesc getTextureFromPath(String relativePath) {
-        for (EditorTextureDesc textureDesc : textures.values()) {
+        for (EditorTextureDesc textureDesc : textures) {
             if (textureDesc.getTexture().equals(relativePath)) {
                 return textureDesc;
             }
@@ -331,12 +448,11 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     }
 
     public EditorFontDesc getFontFromPath(String relativePath) {
-        for (EditorFontDesc fontDesc : fonts.values()) {
+        for (EditorFontDesc fontDesc : fonts) {
             if (fontDesc.getFont().equals(relativePath)) {
                 return fontDesc;
             }
         }
         return null;
     }
-
 }

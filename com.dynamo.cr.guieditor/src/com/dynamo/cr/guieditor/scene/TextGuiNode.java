@@ -4,9 +4,10 @@ import java.awt.geom.Rectangle2D;
 
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.property.Property;
-import com.dynamo.cr.guieditor.render.GuiRenderer;
+import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.Builder;
+import com.sun.opengl.util.j2d.TextRenderer;
 
 public class TextGuiNode extends GuiNode {
 
@@ -46,32 +47,37 @@ public class TextGuiNode extends GuiNode {
     }
 
     public void draw(DrawContext context) {
-        GuiRenderer renderer = context.getRenderer();
+        IGuiRenderer renderer = context.getRenderer();
         double x0 = position.x;
         double y0 = position.y;
-        if (renderer.hasFont(font)) {
+
+        TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
+        if (textRenderer != null) {
             if (textBounds == null)
-                textBounds = renderer.getStringBounds(font, text);
-            renderer.drawString(font, text, x0, y0, color.x, color.y, color.z, color.w, getBlendMode(), getTexture());
+                textBounds = renderer.getStringBounds(textRenderer, text);
+            renderer.drawString(textRenderer, text, x0, y0, color.x, color.y, color.z, color.w, getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
         }
         else {
             String errorText = getErrorText();
             if (textBounds == null)
-                textBounds = renderer.getStringBounds(renderer.getDebugFontName(), errorText);
-            renderer.drawString(renderer.getDebugFontName(), errorText, x0, y0, 1, 0, 0, 1, null, null);
+                textBounds = renderer.getStringBounds(null, errorText);
+            renderer.drawString(null, errorText, x0, y0, 1, 0, 0, 1, null, null);
         }
     }
 
     public void drawSelect(DrawContext context) {
-        GuiRenderer renderer = context.getRenderer();
+        IGuiRenderer renderer = context.getRenderer();
         double x0 = position.x;
         double y0 = position.y;
-        if (renderer.hasFont(font)) {
-            renderer.drawStringBounds(font, text, x0, y0, color.x, color.y, color.z, color.w);
+
+        TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
+
+        if (textRenderer != null) {
+            renderer.drawStringBounds(textRenderer, text, x0, y0, color.x, color.y, color.z, color.w);
         }
         else {
             String errorText = getErrorText();
-            renderer.drawStringBounds(renderer.getDebugFontName(), errorText, x0, y0, 1, 0, 0, 1);
+            renderer.drawStringBounds(null, errorText, x0, y0, 1, 0, 0, 1);
         }
     }
 
