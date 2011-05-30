@@ -12,7 +12,7 @@ public class EditorFontDesc implements IAdaptable {
     @Property(commandFactory = UndoableCommandFactory.class)
     private String name;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     private String font;
 
     private GuiScene scene;
@@ -31,7 +31,7 @@ public class EditorFontDesc implements IAdaptable {
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySource.class) {
             if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<EditorFontDesc, GuiScene>(this, scene);
+                this.propertySource = new PropertyIntrospectorSource<EditorFontDesc, GuiScene>(this, scene, scene.getContentRoot());
             }
             return this.propertySource;
         }

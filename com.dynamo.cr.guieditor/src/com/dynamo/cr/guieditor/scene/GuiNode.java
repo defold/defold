@@ -144,7 +144,7 @@ public abstract class GuiNode implements IAdaptable {
     public Object getAdapter(Class adapter) {
         if (adapter == IPropertySource.class) {
             if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource(this, getScene());
+                this.propertySource = new PropertyIntrospectorSource(this, getScene(), getScene().getContentRoot());
             }
             return this.propertySource;
         }

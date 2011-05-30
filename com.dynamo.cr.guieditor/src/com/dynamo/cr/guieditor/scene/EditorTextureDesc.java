@@ -12,7 +12,7 @@ public class EditorTextureDesc implements IAdaptable {
     @Property(commandFactory = UndoableCommandFactory.class)
     private String name;
 
-    @Property(commandFactory = UndoableCommandFactory.class)
+    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     private String texture;
 
     private PropertyIntrospectorSource<EditorTextureDesc, GuiScene> propertySource;
@@ -31,7 +31,7 @@ public class EditorTextureDesc implements IAdaptable {
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySource.class) {
             if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<EditorTextureDesc, GuiScene>(this, scene);
+                this.propertySource = new PropertyIntrospectorSource<EditorTextureDesc, GuiScene>(this, scene, scene.getContentRoot());
             }
             return this.propertySource;
         }

@@ -50,6 +50,9 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     @Property(commandFactory = UndoableCommandFactory.class)
     private int referenceHeight;
 
+    @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
+    private String script;
+
     private SceneDesc sceneDesc;
     private ArrayList<GuiNode> nodes;
     // Use to preserve node order, eg when delete/undo
@@ -76,6 +79,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         this.sceneDesc = sceneDesc;
         this.referenceWidth = sceneDesc.getReferenceWidth();
         this.referenceHeight = sceneDesc.getReferenceHeight();
+        this.script = sceneDesc.getScript();
 
         nodes = new ArrayList<GuiNode>();
         for (NodeDesc nodeDesc : sceneDesc.getNodesList()) {
@@ -100,11 +104,15 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         }
     }
 
+    public IContainer getContentRoot() {
+        return editor.getContentRoot();
+    }
+
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySource.class) {
             if (this.propertySource == null) {
-                this.propertySource = new PropertyIntrospectorSource<GuiScene, GuiScene>(this, this);
+                this.propertySource = new PropertyIntrospectorSource<GuiScene, GuiScene>(this, this, getContentRoot());
             }
             return this.propertySource;
         }
@@ -222,6 +230,14 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         this.referenceHeight = referenceHeight;
     }
 
+    public String getScript() {
+        return script;
+    }
+
+    public void setScript(String script) {
+        this.script = script;
+    }
+
     public void drawSelect(DrawContext drawContext) {
         int nextName = 0;
         IGuiRenderer renderer = drawContext.getRenderer();
@@ -263,6 +279,10 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         for (EditorFontDesc font : fonts) {
             builder.addFonts(font.buildDesc());
         }
+
+        builder.setReferenceWidth(referenceWidth);
+        builder.setReferenceHeight(referenceHeight);
+        builder.setScript(script);
 
         return builder.build();
     }
