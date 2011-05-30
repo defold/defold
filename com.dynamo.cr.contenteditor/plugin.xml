@@ -153,6 +153,31 @@
             id="com.dynamo.cr.contenteditor.commands.frameObjects"
             name="Frame Object">
       </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            description="Activate Pivot"
+            id="com.dynamo.cr.contenteditor.commands.activatePivot"
+            name="Activate Pivot">
+         <commandParameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               name="pivot"
+               optional="false">
+         </commandParameter>
+         <state
+               id="org.eclipse.ui.commands.radioState">
+            <class
+                  class="org.eclipse.ui.handlers.RadioState">
+               <parameter
+                     name="default"
+                     value="manipulator">
+               </parameter>
+               <parameter
+                     name="persisted"
+                     value="false">
+               </parameter>
+            </class>
+         </state>
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -283,6 +308,30 @@
                </parameter>
             </command>
          </toolbar>
+         <toolbar
+               id="com.dynamo.cr.contenteditor.toolbars.pivot"
+               label="Pivot">
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
+                  icon="icons/pivot_unique.png"
+                  label="Local Pivot"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="local">
+               </parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
+                  icon="icons/pivot_common.png"
+                  label="Global Pivot"
+                  style="radio">
+               <parameter
+                     name="org.eclipse.ui.commands.radioStateParameter"
+                     value="manipulator">
+               </parameter>
+            </command>
+         </toolbar>
       </menuContribution>
    </extension>
    <extension
@@ -366,6 +415,16 @@
             contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="F">
+      </key>
+      <key
+            commandId="com.dynamo.cr.contenteditor.commands.activatePivot"
+            contextId="com.dynamo.cr.contenteditor.contexts.collectioneditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence=".">
+         <parameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               value="next">
+         </parameter>
       </key>
    </extension>
    <extension
@@ -495,6 +554,15 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.contenteditor.commands.ActivatePivot"
+            commandId="com.dynamo.cr.contenteditor.commands.activatePivot">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.views">
@@ -536,6 +604,21 @@
             </iterate>
          </with>
       </definition>
+   </extension>
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            category="com.dynamo.rclient.preferences.PreferencePage"
+            class="com.dynamo.cr.contenteditor.preferences.PreferencePage"
+            id="com.dynamo.cr.contenteditor.preferences.preferencePage"
+            name="Collection Editor">
+      </page>
+   </extension>
+   <extension
+         point="org.eclipse.core.runtime.preferences">
+      <initializer
+            class="com.dynamo.cr.contenteditor.preferences.PreferenceInitializer">
+      </initializer>
    </extension>
 
 </plugin>

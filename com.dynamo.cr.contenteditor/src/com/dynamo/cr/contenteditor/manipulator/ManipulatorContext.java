@@ -8,6 +8,8 @@ import com.dynamo.cr.scene.graph.Node;
 
 public class ManipulatorContext
 {
+    public enum Pivot { LOCAL, MANIPULATOR };
+
     public IEditor editor;
     public int mouseX;
     public int mouseY;
@@ -15,9 +17,10 @@ public class ManipulatorContext
     public int manipulatorHandle;
     public boolean snapActive;
     public int orientation;
+    public Pivot pivot;
 
     public ManipulatorContext(IEditor editor, MouseEvent event, Node[] nodes,
-            int manipulator_handle, int space)
+            int manipulator_handle, int space, Pivot pivot)
     {
         this.editor = editor;
         this.mouseX = event.x;
@@ -26,6 +29,7 @@ public class ManipulatorContext
         this.manipulatorHandle = manipulator_handle;
         this.snapActive = (event.stateMask & SWT.SHIFT) != 0;
         this.orientation = space;
+        this.pivot = pivot;
     }
 
 }

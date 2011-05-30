@@ -56,6 +56,7 @@ import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.ISelectionProvider;
@@ -106,6 +107,8 @@ import com.dynamo.cr.contenteditor.commands.ActivateOrientation;
 import com.dynamo.cr.contenteditor.commands.ActivateTool;
 import com.dynamo.cr.contenteditor.manipulator.IManipulator;
 import com.dynamo.cr.contenteditor.manipulator.ManipulatorController;
+import com.dynamo.cr.contenteditor.manipulator.MoveManipulator;
+import com.dynamo.cr.contenteditor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.scene.graph.CameraNode;
 import com.dynamo.cr.scene.graph.CollectionNode;
@@ -697,8 +700,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         return next_name;
     }
 
-    private static void drawGrid(DrawContext context, Camera camera) {
+    private void drawGrid(DrawContext context, Camera camera) {
         GL gl = context.m_GL;
+
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        boolean autoGrid = store.getString(PreferenceConstants.P_GRID).equals(PreferenceConstants.P_GRID_AUTO_VALUE);
+        double gridSize = (double)store.getInt(PreferenceConstants.P_GRID_SIZE);
 
         gl.glDisable(GL.GL_LIGHTING);
         gl.glEnable(GL.GL_BLEND);
@@ -787,11 +794,26 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                     }
                 }
                 double e = Math.floor(exp);
-                for (int j = 0; j < 2; ++j) {
-                    double alpha = (1.0 - Math.abs(exp - e)) * (align - min_align)/(1.0 - min_align);
+                int gridSizes = 1;
+                if (autoGrid) {
+                    gridSizes = 2;
+                }
+                double maxAlpha = 0.0;
+                for (int j = 0; j < gridSizes; ++j) {
+                    double alpha = (align - min_align)/(1.0 - min_align);
+                    if (autoGrid) {
+                        alpha *= (1.0 - Math.abs(exp - e));
+                    }
                     gl.glColor4d(Constants.GRID_COLOR[0], Constants.GRID_COLOR[1], Constants.GRID_COLOR[2], alpha);
 
-                    double base = Math.pow(10.0, e);
+                    double base = gridSize;
+                    if (autoGrid) {
+                        base = Math.pow(10.0, e);
+                        if (alpha > maxAlpha) {
+                            gridSize = base * 0.1;
+                            maxAlpha = alpha;
+                        }
+                    }
 
                     double[] minValues = new double[4];
                     aabbMin.get(minValues);
@@ -803,7 +825,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                         maxValues[k] = Math.ceil(maxValues[k]/base) * base;
                     }
 
-                    double step = Math.pow(10.0, e-1);
+                    double step = 0.1*gridSize;
+                    if (autoGrid) {
+                        step = Math.pow(10.0, e-1);
+                    }
                     double[] vertex = new double[3];
                     int axis1 = i;
                     int axis2 = (axis1 + 1) % 3;
@@ -830,6 +855,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         gl.glEnd();
 
         gl.glDisable(GL.GL_BLEND);
+
+        IManipulator manipulator = this.m_ManipulatorController.getManipulator();
+        if (manipulator instanceof MoveManipulator) {
+            MoveManipulator moveManipulator = (MoveManipulator)manipulator;
+            moveManipulator.setSnapValue(gridSize);
+        }
     }
 
     private static void drawViewTriad(DrawContext context, Camera camera) {
@@ -876,6 +907,23 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     private void draw(GL gl) {
+        // Draw gradient background
+        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glLoadIdentity();
+        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glLoadIdentity();
+        gl.glDisable(GL.GL_DEPTH_TEST);
+        gl.glDepthMask(false);
+        gl.glBegin(GL.GL_QUADS);
+        gl.glColor3fv(Constants.BACKGROUND_TOP_COLOR, 0);
+        gl.glVertex3f(1.0f, 1.0f, 0.0f);
+        gl.glVertex3f(-1.0f, 1.0f, 0.0f);
+        gl.glColor3fv(Constants.BACKGROUND_BOTTOM_COLOR, 0);
+        gl.glVertex3f(-1.0f, -1.0f, 0.0f);
+        gl.glVertex3f(1.0f, -1.0f, 0.0f);
+        gl.glEnd();
+        gl.glDepthMask(true);
+
         // Setup
         gl.glShadeModel(GL.GL_SMOOTH);
         gl.glEnable(GL.GL_DEPTH_TEST);
@@ -898,10 +946,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         gl.glEnable(GL.GL_LIGHT0);
         gl.glEnable(GL.GL_LIGHTING);
 
-        float[] bg = Constants.BACKGROUND_COLOR;
-        gl.glClearColor(bg[0], bg[1], bg[2], 1);
-
-        gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+        gl.glClear(GL.GL_DEPTH_BUFFER_BIT);
 
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadMatrixd(m_ActiveCamera.getProjectionMatrixArray(), 0);
@@ -1271,6 +1316,16 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public
     String getManipulatorOrientationName() {
         return m_ManipulatorController.getManipulatorOrientationName();
+    }
+
+    @Override
+    public void setManipulatorPivot(String manipulatorPivot) {
+        m_ManipulatorController.setManipulatorPivot(manipulatorPivot);
+    }
+
+    @Override
+    public String getManipulatorPivotName() {
+        return m_ManipulatorController.getManipulatorPivotName();
     }
 
     @Override

@@ -3,14 +3,20 @@ package com.dynamo.cr.contenteditor.manipulator;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4d;
 
+import com.dynamo.cr.contenteditor.manipulator.ManipulatorContext.Pivot;
 import com.dynamo.cr.scene.graph.Node;
-import com.dynamo.cr.scene.graph.NodeUtil;
 import com.dynamo.cr.scene.math.MathUtil;
 import com.dynamo.cr.scene.math.Transform;
 import com.dynamo.cr.scene.operations.TransformNodeOperation;
 
 // http://caad.arch.ethz.ch/info/maya/manual/UserGuide/Overview/TransformingObjects.fm.html
 public abstract class TransformManipulator implements IManipulator {
+
+    /**
+     * GL name to use to select view oriented handles.
+     */
+    public static final int VIEW_HANDLE_NAME = 3;
+
     /**
      * Axis of the selected manipulator handle in world (global) space.
      */
@@ -52,16 +58,25 @@ public abstract class TransformManipulator implements IManipulator {
         }
     }
 
-    Vector4d getHandlePosition(Node[] nodes) {
+    Vector4d getHandlePosition(Node[] nodes, Pivot pivot) {
         Vector4d position = new Vector4d();
-        Matrix4d nodeTransform = new Matrix4d();
-        Vector4d nodePosition = new Vector4d();
-        for (Node n : nodes) {
-            n.getWorldTransform(nodeTransform);
-            nodeTransform.getColumn(3, nodePosition);
-            position.add(nodePosition);
+        switch (pivot) {
+        case LOCAL:
+            Matrix4d nodeWS = new Matrix4d();
+            nodes[0].getWorldTransform(nodeWS);
+            nodeWS.getColumn(3, position);
+            break;
+        default:
+            Matrix4d nodeTransform = new Matrix4d();
+            Vector4d nodePosition = new Vector4d();
+            for (Node n : nodes) {
+                n.getWorldTransform(nodeTransform);
+                nodeTransform.getColumn(3, nodePosition);
+                position.add(nodePosition);
+            }
+            position.scale(1.0 / nodes.length);
+            break;
         }
-        position.scale(1.0 / nodes.length);
 
         return position;
     }
@@ -74,7 +89,7 @@ public abstract class TransformManipulator implements IManipulator {
                 orientation = ManipulatorController.GLOBAL;
 
             if (orientation == ManipulatorController.GLOBAL) {
-                Vector4d translation = getHandlePosition(context.nodes);
+                Vector4d translation = getHandlePosition(context.nodes, context.pivot);
                 this.manipulatorTransformWS.setIdentity();
                 this.manipulatorTransformWS.setColumn(3, translation);
             } else {
@@ -92,8 +107,10 @@ public abstract class TransformManipulator implements IManipulator {
             orientation = ManipulatorController.GLOBAL;
 
         this.originalManipulatorTransformWS.set(this.manipulatorTransformWS);
-        this.handleAxisMS.set(1.0, 0.0, 0.0, 0.0);
-        this.handleTransforms[context.manipulatorHandle].transform(handleAxisMS);
+        if (context.manipulatorHandle < 3) {
+            this.handleAxisMS.set(1.0, 0.0, 0.0, 0.0);
+            this.handleTransforms[context.manipulatorHandle].transform(handleAxisMS);
+        }
 
         Matrix4d invManipWS = new Matrix4d(this.manipulatorTransformWS);
         invManipWS.invert();
@@ -112,17 +129,7 @@ public abstract class TransformManipulator implements IManipulator {
     }
 
     @Override
-    public void mouseMove(ManipulatorContext context)
-    {
-        Matrix4d nodeTransformWS = new Matrix4d();
-        int i = 0;
-        for (Node n : context.nodes) {
-            nodeTransformWS.set(this.manipulatorTransformWS);
-            nodeTransformWS.mul(this.nodeTransformsMS[i]);
-            NodeUtil.setWorldTransform(n, nodeTransformWS);
-            ++i;
-        }
-    }
+    public abstract void mouseMove(ManipulatorContext context);
 
     @Override
     public void mouseUp(ManipulatorContext context) {

@@ -8,6 +8,7 @@ import javax.media.opengl.GL;
 import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
+import com.dynamo.cr.contenteditor.manipulator.ManipulatorContext.Pivot;
 import com.dynamo.cr.scene.graph.Node;
 
 public class ManipulatorController
@@ -29,6 +30,10 @@ public class ManipulatorController
      * The space space in which the manipulation takes place.
      */
     private int orientation = LOCAL;
+    /**
+     * The pivot of the manipulation.
+     */
+    private ManipulatorContext.Pivot pivot = ManipulatorContext.Pivot.MANIPULATOR;
 
     Map<String, IManipulator> manipulators = new HashMap<String, IManipulator>();
 
@@ -80,6 +85,33 @@ public class ManipulatorController
         }
     }
 
+    public void setManipulatorPivot(String pivotName) {
+        if (this.manipulator == null || !this.manipulator.isActive()) {
+            if (pivotName.equals("local")) {
+                this.pivot = Pivot.LOCAL;
+            } else if (pivotName.equals("manipulator")) {
+                this.pivot = Pivot.MANIPULATOR;
+            } else if (pivotName.equals("next")) {
+                if (this.pivot == Pivot.LOCAL) {
+                    this.pivot = Pivot.MANIPULATOR;
+                } else {
+                    this.pivot = Pivot.LOCAL;
+                }
+            }
+        }
+    }
+
+    public String getManipulatorPivotName() {
+        switch (this.pivot) {
+        case LOCAL:
+            return "local";
+        case MANIPULATOR:
+            return "manipulator";
+        default:
+            return null;
+        }
+    }
+
     public void setSelected(Node[] selected_nodes)
     {
         this.selected = selected_nodes;
@@ -94,7 +126,7 @@ public class ManipulatorController
     {
         if (this.manipulatorHandle != -1 && this.selected.length > 0)
         {
-            ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation);
+            ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation, this.pivot);
             this.manipulator.mouseDown(ctx);
         }
     }
@@ -103,7 +135,7 @@ public class ManipulatorController
     {
         if (this.manipulatorHandle != -1 && this.selected.length > 0)
         {
-            ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation);
+            ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation, this.pivot);
             this.manipulator.mouseUp(ctx);
         }
     }
@@ -111,7 +143,7 @@ public class ManipulatorController
     public void mouseMove(MouseEvent e)
     {
         if (this.manipulatorHandle != -1 && this.selected.length > 0 && this.manipulator.isActive()) {
-            ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation);
+            ManipulatorContext ctx = new ManipulatorContext(this.editor, e, this.selected, this.manipulatorHandle, this.orientation, this.pivot);
             this.manipulator.mouseMove(ctx);
         }
     }
@@ -120,7 +152,7 @@ public class ManipulatorController
     {
         if (this.manipulator != null && this.selected.length > 0)
         {
-            ManipulatorDrawContext ctx = new ManipulatorDrawContext(this.editor, gl, this.selected, this.manipulatorHandle, this.orientation, select);
+            ManipulatorDrawContext ctx = new ManipulatorDrawContext(this.editor, gl, this.selected, this.manipulatorHandle, this.orientation, select, this.pivot);
             this.manipulator.draw(ctx);
         }
     }
