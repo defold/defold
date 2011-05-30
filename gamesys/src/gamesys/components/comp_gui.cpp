@@ -1,5 +1,3 @@
-#include "comp_gui.h"
-
 #include <string.h>
 
 #include <dlib/array.h>
@@ -10,6 +8,8 @@
 #include <dlib/dstrings.h>
 
 #include <graphics/graphics.h>
+
+#include "comp_gui.h"
 
 #include <render/material.h>
 #include <render/font_renderer.h>
