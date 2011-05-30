@@ -264,11 +264,21 @@ namespace dmGui
     /**
      * Run the update-function of the scene script.
      * @param scene Scene for which to run the script
+     * @param dt Time step during which to simulate
      * @return RESULT_OK on success
      */
     Result UpdateScene(HScene scene, float dt);
 
+    /**
+     * Run the on_reload-function of the scene script.
+     * @param scene Scene for which to run the script
+     * @return RESULT_OK on success
+     */
+    Result ReloadScene(HScene scene);
+
     Result SetSceneScript(HScene scene, HScript script);
+
+    HScript GetSceneScript(HScene scene);
 
     HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type);
 

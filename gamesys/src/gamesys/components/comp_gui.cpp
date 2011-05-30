@@ -9,8 +9,6 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 
-#include <gui/gui.h>
-
 #include <graphics/graphics.h>
 
 #include <render/material.h>
@@ -29,14 +27,6 @@ namespace dmGameSystem
 {
     dmRender::HRenderType g_GuiRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
 
-    struct Component
-    {
-        dmGui::HScene           m_Scene;
-        dmGameObject::HInstance m_Instance;
-        uint8_t                 m_ComponentIndex;
-        uint8_t                 m_Enabled : 1;
-    };
-
     struct GuiWorld;
     struct GuiRenderNode
     {
@@ -45,29 +35,25 @@ namespace dmGameSystem
         GuiRenderNode(const dmGui::Node& node, GuiWorld* gui_world) : m_GuiNode(node), m_GuiWorld(gui_world) {}
     };
 
-    struct GuiWorld
-    {
-        dmArray<Component*>              m_Components;
-        dmRender::HMaterial              m_Material;
-        dmGraphics::HVertexProgram       m_VertexProgram;
-        dmGraphics::HFragmentProgram     m_FragmentProgram;
-        dmGraphics::HVertexDeclaration   m_VertexDeclaration;
-        dmGraphics::HVertexBuffer        m_QuadVertexBuffer;
-        dmGraphics::HTexture             m_WhiteTexture;
-        dmArray<dmRender::RenderObject>  m_GuiRenderObjects;
-    };
-
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        GuiRenderContext* gui_render_context = (GuiRenderContext*)params.m_Context;
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
         GuiWorld* gui_world = new GuiWorld();
+        if (!gui_context->m_Worlds.Full())
+        {
+            gui_context->m_Worlds.Push(gui_world);
+        }
+        else
+        {
+            dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
+        }
 
         gui_world->m_Components.SetCapacity(16);
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
-        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), GUI_VPC, GUI_VPC_SIZE);
-        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), GUI_FPC, GUI_FPC_SIZE);
+        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_VPC, GUI_VPC_SIZE);
+        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_FPC, GUI_FPC_SIZE);
 
         gui_world->m_Material = dmRender::NewMaterial();
         SetMaterialVertexProgramConstantType(gui_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
@@ -84,7 +70,7 @@ namespace dmGameSystem
                 {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
         };
 
-        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         float ext = 0.5f;
         float quad[] = { -ext,-ext, 0, 0, 1,
@@ -92,7 +78,7 @@ namespace dmGameSystem
                          ext, ext, 0, 1,  0,
                          -ext, ext, 0, 0, 0 };
 
-        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), sizeof(float) * 5 * 4, (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), sizeof(float) * 5 * 4, (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -105,7 +91,7 @@ namespace dmGameSystem
         tex_params.m_DataSize = sizeof(white_texture);
         tex_params.m_Width = 2;
         tex_params.m_Height = 2;
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_render_context->m_RenderContext), tex_params);
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_params);
 
         // TODO: Configurable
         gui_world->m_GuiRenderObjects.SetCapacity(32);
@@ -117,6 +103,14 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
+        for (uint32_t i = 0; i < gui_context->m_Worlds.Size(); ++i)
+        {
+            if (gui_world == gui_context->m_Worlds[i])
+            {
+                gui_context->m_Worlds.EraseSwap(i);
+            }
+        }
         if (0 < gui_world->m_Components.Size())
         {
             dmLogWarning("%d gui component(s) were not destroyed at gui context destruction.", gui_world->m_Components.Size());
@@ -139,8 +133,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiRenderContext* gui_render_context = (GuiRenderContext*)params.m_Context;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_render_context->m_RenderContext);
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
 
@@ -368,7 +362,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiRenderContext* gui_render_context = (GuiRenderContext*)params.m_Context;
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
 
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
@@ -378,7 +372,7 @@ namespace dmGameSystem
         }
 
         RenderGuiContext render_gui_context;
-        render_gui_context.m_RenderContext = gui_render_context->m_RenderContext;
+        render_gui_context.m_RenderContext = gui_context->m_RenderContext;
         render_gui_context.m_GuiWorld = gui_world;
 
         gui_world->m_GuiRenderObjects.SetSize(0);

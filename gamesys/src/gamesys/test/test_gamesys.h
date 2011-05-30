@@ -31,7 +31,7 @@ protected:
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::EmitterContext m_EmitterContext;
-    dmGameSystem::GuiRenderContext m_GuiRenderContext;
+    dmGameSystem::GuiContext m_GuiContext;
     dmInput::HContext m_InputContext;
     dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
     dmGameSystem::SpriteContext m_SpriteContext;
@@ -89,13 +89,13 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxInstances = 1000;
     render_params.m_MaxRenderTargets = 10;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
-    m_GuiRenderContext.m_RenderContext = m_RenderContext;
+    m_GuiContext.m_RenderContext = m_RenderContext;
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-    m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
+    m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
     m_InputContext = dmInput::NewContext(0.3f, 0.1f);
 
@@ -109,13 +109,13 @@ void GamesysTest<T>::SetUp()
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
 
-    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_GuiRenderContext.m_GuiContext, m_InputContext, &m_PhysicsContext));
+    assert(dmResource::FACTORY_RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext));
 
     dmResource::Get(m_Factory, "input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiRenderContext, &m_SpriteContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_EmitterContext, &m_GuiContext, &m_SpriteContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }
@@ -125,7 +125,7 @@ void GamesysTest<T>::TearDown()
 {
     dmGameObject::DeleteCollection(m_Collection);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
-    dmGui::DeleteContext(m_GuiRenderContext.m_GuiContext);
+    dmGui::DeleteContext(m_GuiContext.m_GuiContext);
     dmRender::DeleteRenderContext(m_RenderContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
     dmResource::DeleteFactory(m_Factory);

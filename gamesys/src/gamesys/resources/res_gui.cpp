@@ -1,8 +1,9 @@
 #include <string.h>
 #include "res_gui.h"
 #include "../proto/gui_ddf.h"
+#include "../components/comp_gui.h"
+#include "gamesys.h"
 
-// TODO: Namespace. dmGui is the namespace for the gui-library...
 namespace dmGameSystem
 {
     dmResource::CreateResult ResCreateGuiScript(dmResource::HFactory factory,
@@ -11,8 +12,8 @@ namespace dmGameSystem
                                              dmResource::SResourceDescriptor* resource,
                                              const char* filename)
     {
-        dmGui::HContext gui_context = (dmGui::HContext)context;
-        dmGui::HScript script = dmGui::NewScript(gui_context);
+        GuiContext* gui_context = (GuiContext*)context;
+        dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
         dmGui::Result result = dmGui::SetScript(script, (const char*)buffer, buffer_size, filename);
         if (result == dmGui::RESULT_OK)
         {
@@ -43,9 +44,26 @@ namespace dmGameSystem
         dmGui::HScript script = (dmGui::HScript)resource->m_Resource;
         dmGui::Result result = dmGui::SetScript(script, (const char*)buffer, buffer_size, filename);
         if (result == dmGui::RESULT_OK)
+        {
+            GuiContext* gui_context = (GuiContext*)context;
+            for (uint32_t i = 0; i < gui_context->m_Worlds.Size(); ++i)
+            {
+                GuiWorld* world = (GuiWorld*)gui_context->m_Worlds[i];
+                for (uint32_t j = 0; j < world->m_Components.Size(); ++j)
+                {
+                    Component* component = world->m_Components[j];
+                    if (script == dmGui::GetSceneScript(component->m_Scene))
+                    {
+                        dmGui::ReloadScene(component->m_Scene);
+                    }
+                }
+            }
             return dmResource::CREATE_RESULT_OK;
+        }
         else
+        {
             return dmResource::CREATE_RESULT_UNKNOWN;
+        }
     }
 
     bool AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
@@ -116,7 +134,7 @@ namespace dmGameSystem
     {
         GuiSceneResource* scene_resource = new GuiSceneResource();
         memset(scene_resource, 0, sizeof(GuiSceneResource));
-        if (AcquireResources(factory, (dmGui::HContext)context, buffer, buffer_size, scene_resource, filename))
+        if (AcquireResources(factory, ((GuiContext*)context)->m_GuiContext, buffer, buffer_size, scene_resource, filename))
         {
             resource->m_Resource = (void*)scene_resource;
             return dmResource::CREATE_RESULT_OK;
@@ -149,7 +167,7 @@ namespace dmGameSystem
     {
         GuiSceneResource tmp_scene_resource;
         memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));
-        if (AcquireResources(factory, (dmGui::HContext)context, buffer, buffer_size, &tmp_scene_resource, filename))
+        if (AcquireResources(factory, ((GuiContext*)context)->m_GuiContext, buffer, buffer_size, &tmp_scene_resource, filename))
         {
             GuiSceneResource* scene_resource = (GuiSceneResource*) resource->m_Resource;
             ReleaseResources(factory, scene_resource);

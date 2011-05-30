@@ -2,12 +2,34 @@
 #define DM_GAMESYS_COMP_GUI_H
 
 #include <stdint.h>
+
+#include <gui/gui.h>
 #include <gameobject/gameobject.h>
 #include <render/render.h>
 
 namespace dmGameSystem
 {
     extern dmRender::HRenderType g_GuiRenderType;
+
+    struct Component
+    {
+        dmGui::HScene           m_Scene;
+        dmGameObject::HInstance m_Instance;
+        uint8_t                 m_ComponentIndex;
+        uint8_t                 m_Enabled : 1;
+    };
+
+    struct GuiWorld
+    {
+        dmArray<Component*>              m_Components;
+        dmRender::HMaterial              m_Material;
+        dmGraphics::HVertexProgram       m_VertexProgram;
+        dmGraphics::HFragmentProgram     m_FragmentProgram;
+        dmGraphics::HVertexDeclaration   m_VertexDeclaration;
+        dmGraphics::HVertexBuffer        m_QuadVertexBuffer;
+        dmGraphics::HTexture             m_WhiteTexture;
+        dmArray<dmRender::RenderObject>  m_GuiRenderObjects;
+    };
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 

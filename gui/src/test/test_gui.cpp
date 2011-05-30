@@ -126,6 +126,7 @@ TEST_F(dmGuiTest, Basic)
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_EQ((dmGui::HNode) 0, node);
+    ASSERT_EQ(m_Script, dmGui::GetSceneScript(m_Scene));
 }
 
 TEST_F(dmGuiTest, Name)
@@ -1058,8 +1059,19 @@ TEST_F(dmGuiTest, Self)
 
 TEST_F(dmGuiTest, Reload)
 {
-    const char* s1 = "function init(self) self.x = 1122 end\n function update(self) assert(self.x==1122)\n self.x = self.x + 1 end";
-    const char* s2 = "function update(self) assert(self.x==1123) end";
+    const char* s1 = "function init(self)\n"
+                     "    self.x = 1122\n"
+                     "end\n"
+                     "function update(self)\n"
+                     "    assert(self.x==1122)\n"
+                     "    self.x = self.x + 1\n"
+                     "end";
+    const char* s2 = "function update(self)\n"
+                     "    assert(self.x==1124)\n"
+                     "end\n"
+                     "function on_reload(self)\n"
+                     "    self.x = self.x + 1\n"
+                     "end";
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s1, strlen(s1), "file");
@@ -1077,6 +1089,12 @@ TEST_F(dmGuiTest, Reload)
 
     // Reload
     r = dmGui::SetScript(m_Script, s2, strlen(s2), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    // Should fail since on_reload has not been called
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
+
+    r = dmGui::ReloadScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);

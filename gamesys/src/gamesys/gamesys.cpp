@@ -43,6 +43,14 @@
 
 namespace dmGameSystem
 {
+    GuiContext::GuiContext()
+    : m_Worlds()
+    , m_RenderContext(0)
+    , m_GuiContext(0)
+    {
+        m_Worlds.SetCapacity(8);
+    }
+
     void RegisterDDFTypes(dmScript::HContext script_context)
     {
         dmScript::RegisterDDFType(script_context, dmGamesysDDF::AddCameraTarget::m_DDFDescriptor);
@@ -60,7 +68,7 @@ namespace dmGameSystem
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
     }
 
-    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmGui::HContext gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::FactoryResult e;
 
@@ -107,7 +115,7 @@ namespace dmGameSystem
                                                 dmRender::RenderContext* render_context,
                                                 PhysicsContext* physics_context,
                                                 EmitterContext* emitter_context,
-                                                GuiRenderContext* gui_render_context,
+                                                GuiContext* gui_context,
                                                 SpriteContext* sprite_context)
     {
         uint32_t type;
@@ -155,7 +163,7 @@ namespace dmGameSystem
 
         // Priority 200 is reserved for script
 
-        REGISTER_COMPONENT_TYPE("guic", 300, gui_render_context,
+        REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal,
                 CompGuiUpdate, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload);
