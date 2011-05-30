@@ -1,5 +1,6 @@
 import unittest
 import script_doc
+import script_doc_ddf_pb2
 
 class TestParse(unittest.TestCase):
 
@@ -9,15 +10,15 @@ class TestParse(unittest.TestCase):
 
  */
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(0, len(functions))
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(0, len(elements))
 
     def test_empty2(self):
         doc= """
 foobar
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(0, len(functions))
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(0, len(elements))
 
     def test_missing_name(self):
         doc= """
@@ -25,8 +26,8 @@ foobar
 
  */
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(0, len(functions))
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(0, len(elements))
 
     def test_simple(self):
         doc= """
@@ -34,10 +35,26 @@ foobar
  * @name MY_NAME
  */
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(1, len(functions))
-        self.assertEqual('MY_DESC', functions[0].description)
-        self.assertEqual('MY_NAME', functions[0].name)
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual(script_doc_ddf_pb2.FUNCTION, elements[0].type)
+
+    def test_simple_variable(self):
+        doc= """
+/*# MY_DESC
+ * @name MY_NAME
+ * @variable
+ */
+"""
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual(script_doc_ddf_pb2.VARIABLE, elements[0].type)
 
     def test_description(self):
         doc= """
@@ -46,10 +63,10 @@ foobar
  * @name MY_NAME
  */
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(1, len(functions))
-        self.assertEqual('MY_DESC', functions[0].description)
-        self.assertEqual('MY_NAME', functions[0].name)
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_NAME', elements[0].name)
 
     def test_multiple(self):
         doc= """
@@ -62,12 +79,12 @@ foobar
  */
 
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(2, len(functions))
-        self.assertEqual('MY_DESC1', functions[0].description)
-        self.assertEqual('MY_NAME1', functions[0].name)
-        self.assertEqual('MY_DESC2', functions[1].description)
-        self.assertEqual('MY_NAME2', functions[1].name)
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(2, len(elements))
+        self.assertEqual('MY_DESC1', elements[0].description)
+        self.assertEqual('MY_NAME1', elements[0].name)
+        self.assertEqual('MY_DESC2', elements[1].description)
+        self.assertEqual('MY_NAME2', elements[1].name)
 
     def test_param(self):
         doc= """
@@ -78,14 +95,14 @@ foobar
  * @return 123
  */
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(1, len(functions))
-        self.assertEqual('MY_DESC', functions[0].description)
-        self.assertEqual('MY_NAME', functions[0].name)
-        self.assertEqual('123', functions[0].return_)
-        self.assertEqual(2, len(functions[0].parameters))
-        p1 = functions[0].parameters[0]
-        p2 = functions[0].parameters[1]
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual('123', elements[0].return_)
+        self.assertEqual(2, len(elements[0].parameters))
+        p1 = elements[0].parameters[0]
+        p2 = elements[0].parameters[1]
         self.assertEqual('param_x', p1.name)
         self.assertEqual('DOC X', p1.doc)
         self.assertEqual('param_y', p2.name)
@@ -99,13 +116,13 @@ foobar
  * @param [param_y] DOCY
  */
 """
-        functions = script_doc.parseDocument(doc).functions
-        self.assertEquals(1, len(functions))
-        self.assertEqual('MY_DESC', functions[0].description)
-        self.assertEqual('MY_NAME', functions[0].name)
-        self.assertEqual(2, len(functions[0].parameters))
-        p1 = functions[0].parameters[0]
-        p2 = functions[0].parameters[1]
+        elements = script_doc.parseDocument(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual(2, len(elements[0].parameters))
+        p1 = elements[0].parameters[0]
+        p2 = elements[0].parameters[1]
         self.assertEqual('param_x', p1.name)
         self.assertEqual('DOCX', p1.doc)
         self.assertEqual('[param_y]', p2.name)
@@ -131,8 +148,8 @@ foobar
      * @return a new URI
      */
 """
-        functions = script_doc.parseDocument(doc).functions
-        print functions
+        elements = script_doc.parseDocument(doc).elements
+        print elements
 
 
 if __name__ == '__main__':

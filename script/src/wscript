@@ -43,6 +43,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'script_doc', chmod=493)
     bld.install_files('${PREFIX}/bin', 'script_doc.bat')
+    bld.install_files('${PREFIX}/lib/python', 'script_doc.py')
     bld.install_files('${PREFIX}/include/script', 'script.h')
 
     bld.add_subdirs('test')
