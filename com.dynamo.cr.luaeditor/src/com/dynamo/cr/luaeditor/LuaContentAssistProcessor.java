@@ -15,6 +15,7 @@ import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.scriptdoc.proto.ScriptDoc;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Parameter;
+import com.dynamo.scriptdoc.proto.ScriptDoc.Type;
 
 public class LuaContentAssistProcessor implements IContentAssistProcessor {
 
@@ -44,35 +45,38 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             }
             line = line.substring(index);
 
-            ScriptDoc.Function[] functions = LuaEditorPlugin.getDefault().getDocumentation(line);
-            for (ScriptDoc.Function function : functions) {
+            ScriptDoc.Element[] elements = LuaEditorPlugin.getDefault().getDocumentation(line);
+            for (ScriptDoc.Element element : elements) {
                 StringBuffer additionalInfo = new StringBuffer();
-                additionalInfo.append(function.getDescription());
-                additionalInfo.append("<br><br>");
-                additionalInfo.append("<b>Parameters:</b>");
-                additionalInfo.append("<br>");
-
-                String s = function.getName() + "(";
-                int i = 0;
-                for (Parameter parameter : function.getParametersList()) {
-                    additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
-                    additionalInfo.append(parameter.getName());
-                    additionalInfo.append("</b> ");
-                    additionalInfo.append(parameter.getDoc());
+                additionalInfo.append(element.getDescription());
+                String s = element.getName();
+                if (element.getType() == Type.FUNCTION) {
+                    s += "(";
+                    additionalInfo.append("<br><br>");
+                    additionalInfo.append("<b>Parameters:</b>");
                     additionalInfo.append("<br>");
 
-                    s = s + parameter.getName();
-                    if (i < function.getParametersCount()-1)
-                        s = s + ", ";
-                    ++i;
-                }
-                s = s + ")";
+                    int i = 0;
+                    for (Parameter parameter : element.getParametersList()) {
+                        additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
+                        additionalInfo.append(parameter.getName());
+                        additionalInfo.append("</b> ");
+                        additionalInfo.append(parameter.getDoc());
+                        additionalInfo.append("<br>");
 
-                if (function.getReturn().length() > 0) {
-                    additionalInfo.append("<br>");
-                    additionalInfo.append("<b>Returns:</b><br>");
-                    additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
-                    additionalInfo.append(function.getReturn());
+                        s = s + parameter.getName();
+                        if (i < element.getParametersCount()-1)
+                            s = s + ", ";
+                        ++i;
+                    }
+                    s = s + ")";
+
+                    if (element.getReturn().length() > 0) {
+                        additionalInfo.append("<br>");
+                        additionalInfo.append("<b>Returns:</b><br>");
+                        additionalInfo.append("&#160;&#160;&#160;&#160;<b>");
+                        additionalInfo.append(element.getReturn());
+                    }
                 }
 
                 int cursorPosition = s.length() - line.length();

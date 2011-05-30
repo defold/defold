@@ -18,14 +18,13 @@ import org.osgi.framework.BundleContext;
 import com.dynamo.scriptdoc.proto.ScriptDoc;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Document;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Document.Builder;
-import com.dynamo.scriptdoc.proto.ScriptDoc.Function;
 
 public class LuaEditorPlugin extends AbstractUIPlugin {
 
     public static final String PLUGIN_ID = "com.dynamo.cr.luaeditor"; //$NON-NLS-1$
 
     private static LuaEditorPlugin plugin;
-    private Map<String, List<ScriptDoc.Function>> nameSpaceToFunctionList = new HashMap<String, List<ScriptDoc.Function>>();
+    private Map<String, List<ScriptDoc.Element>> nameSpaceToElementList = new HashMap<String, List<ScriptDoc.Element>>();
 
     private Image luaImage;
 
@@ -41,17 +40,17 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
             Document doc = b.build();
             in.close();
 
-            List<ScriptDoc.Function> functions = doc.getFunctionsList();
-            for (ScriptDoc.Function function : functions) {
-                String qualName = function.getName();
+            List<ScriptDoc.Element> elements = doc.getElementsList();
+            for (ScriptDoc.Element element : elements) {
+                String qualName = element.getName();
                 int index = qualName.indexOf('.');
                 if (index != -1) {
                     String ns = qualName.substring(0, index);
-                    if (!nameSpaceToFunctionList.containsKey(ns)) {
-                        nameSpaceToFunctionList.put(ns, new ArrayList<ScriptDoc.Function>());
+                    if (!nameSpaceToElementList.containsKey(ns)) {
+                        nameSpaceToElementList.put(ns, new ArrayList<ScriptDoc.Element>());
                     }
-                    List<ScriptDoc.Function> list = nameSpaceToFunctionList.get(ns);
-                    list.add(function);
+                    List<ScriptDoc.Element> list = nameSpaceToElementList.get(ns);
+                    list.add(element);
                 }
             }
 
@@ -67,26 +66,27 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         loadDocumentation("DYNAMO_HOME/share/doc/gui_doc.sdoc");
     }
 
-    public ScriptDoc.Function[] getDocumentation(String prefix) {
+    public ScriptDoc.Element[] getDocumentation(String prefix) {
 
-        ArrayList<ScriptDoc.Function> list = new ArrayList<ScriptDoc.Function>(64);
+        prefix = prefix.toLowerCase();
+        ArrayList<ScriptDoc.Element> list = new ArrayList<ScriptDoc.Element>(64);
         int index = prefix.indexOf('.');
         if (index != -1) {
             String ns = prefix.substring(0, index);
 
-            if (nameSpaceToFunctionList.containsKey(ns)) {
-                List<ScriptDoc.Function> functions = nameSpaceToFunctionList.get(ns);
-                for (ScriptDoc.Function function : functions) {
-                    if (function.getName().startsWith(prefix)) {
-                        list.add(function);
+            if (nameSpaceToElementList.containsKey(ns)) {
+                List<ScriptDoc.Element> elements = nameSpaceToElementList.get(ns);
+                for (ScriptDoc.Element element : elements) {
+                    if (element.getName().toLowerCase().startsWith(prefix)) {
+                        list.add(element);
                     }
                 }
             }
         }
 
-        Function[] ret = list.toArray(new ScriptDoc.Function[list.size()]);
-        Arrays.sort(ret, new Comparator<Function>() {
-            public int compare(Function o1, Function o2) {
+        ScriptDoc.Element[] ret = list.toArray(new ScriptDoc.Element[list.size()]);
+        Arrays.sort(ret, new Comparator<ScriptDoc.Element>() {
+            public int compare(ScriptDoc.Element o1, ScriptDoc.Element o2) {
                 return o1.getName().compareTo(o2.getName());
             };
         });
