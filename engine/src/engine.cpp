@@ -120,8 +120,8 @@ namespace dmEngine
         m_PhysicsContext.m_Debug = false;
         m_PhysicsContext.m_3D = true;
         m_EmitterContext.m_Debug = false;
-        m_GuiRenderContext.m_GuiContext = 0x0;
-        m_GuiRenderContext.m_RenderContext = 0x0;
+        m_GuiContext.m_GuiContext = 0x0;
+        m_GuiContext.m_RenderContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
     }
@@ -158,8 +158,8 @@ namespace dmEngine
         if (engine->m_GraphicsContext)
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
 
-        if (engine->m_GuiRenderContext.m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiRenderContext.m_GuiContext);
+        if (engine->m_GuiContext.m_GuiContext)
+            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext);
         if (engine->m_SystemSocket)
             dmMessage::DeleteSocket(engine->m_SystemSocket);
 
@@ -295,8 +295,8 @@ namespace dmEngine
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-        engine->m_GuiRenderContext.m_GuiContext = dmGui::NewContext(&gui_params);
-        engine->m_GuiRenderContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
+        engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
@@ -334,14 +334,14 @@ namespace dmEngine
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_GuiRenderContext.m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
+        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;
 
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiRenderContext, &engine->m_SpriteContext);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_EmitterContext, &engine->m_GuiContext, &engine->m_SpriteContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 

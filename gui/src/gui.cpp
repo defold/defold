@@ -554,10 +554,56 @@ namespace dmGui
         return result;
     }
 
+    Result ReloadScene(HScene scene)
+    {
+        lua_State* L = scene->m_Context->m_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+
+        Result result = RESULT_OK;
+        if (scene->m_Script == 0x0)
+            return result;
+
+        lua_getglobal(L, "gui");
+        lua_pushnumber(L, (lua_Number) scene->m_ReferenceWidth);
+        lua_setfield(L, -2, "width");
+        lua_pushnumber(L, (lua_Number) scene->m_ReferenceHeight);
+        lua_setfield(L, -2, "height");
+        lua_pop(L, 1);
+
+        lua_pushlightuserdata(L, (void*) scene);
+        lua_setglobal(L, "__scene__");
+
+        if (scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONRELOAD] != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONRELOAD]);
+
+            assert(lua_isfunction(L, -1));
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+            int ret = lua_pcall(L, 1, 0, 0);
+
+            if (ret != 0)
+            {
+                dmLogError("Error running script: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+                result = RESULT_SCRIPT_ERROR;
+            }
+        }
+
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
     Result SetSceneScript(HScene scene, HScript script)
     {
         scene->m_Script = script;
         return RESULT_OK;
+    }
+
+    HScript GetSceneScript(HScene scene)
+    {
+        return scene->m_Script;
     }
 
     HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type)

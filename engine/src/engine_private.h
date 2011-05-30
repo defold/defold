@@ -53,7 +53,7 @@ namespace dmEngine
         dmGameSystem::EmitterContext                m_EmitterContext;
         dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
-        dmGameSystem::GuiRenderContext              m_GuiRenderContext;
+        dmGameSystem::GuiContext                    m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
         dmGameSystem::SpriteContext                 m_SpriteContext;
 

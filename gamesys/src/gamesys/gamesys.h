@@ -44,8 +44,11 @@ namespace dmGameSystem
         dmRender::HRenderScript         m_Script;
     };
 
-    struct GuiRenderContext
+    struct GuiContext
     {
+        GuiContext();
+
+        dmArray<void*>              m_Worlds;
         dmRender::HRenderContext    m_RenderContext;
         dmGui::HContext             m_GuiContext;
     };
@@ -60,7 +63,7 @@ namespace dmGameSystem
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
-        dmGui::HContext gui_context,
+        GuiContext* gui_context,
         dmInput::HContext input_context,
         PhysicsContext* physics_context);
 
@@ -69,7 +72,7 @@ namespace dmGameSystem
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   EmitterContext* emitter_context,
-                                                  GuiRenderContext* gui_render_context,
+                                                  GuiContext* gui_context,
                                                   SpriteContext* sprite_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
