@@ -825,14 +825,14 @@ namespace dmGui
                 animation.m_BezierControlPoints[3] = 1.0f;
                 break;
 
-            case EASING_IN:
+            case EASING_OUT:
                 animation.m_BezierControlPoints[0] = 0.0f;
                 animation.m_BezierControlPoints[1] = 1.0f;
                 animation.m_BezierControlPoints[2] = 1.0f;
                 animation.m_BezierControlPoints[3] = 1.0f;
                 break;
 
-            case EASING_OUT:
+            case EASING_IN:
                 animation.m_BezierControlPoints[0] = 0.0f;
                 animation.m_BezierControlPoints[1] = 0.0f;
                 animation.m_BezierControlPoints[2] = 0.0f;
