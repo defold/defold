@@ -387,9 +387,17 @@ public class Fontc {
             String ttfFileName = basedir + File.separator + fontDesc.getFont();
             File ttfFile = new File(ttfFileName);
             if (!ttfFile.exists()) {
-                System.err.println("The ttf file " + ttfFileName + " specified in " + args[0] + " does not exist.");
+                System.err.println(String.format("%s:0 error: is missing the dependent ttf-file '%s'", args[0], fontDesc.getFont()));
                 System.exit(1);
             }
+
+            String materialFileName = basedir + File.separator + fontDesc.getMaterial();
+            File materialFile = new File(materialFileName);
+            if (!materialFile.isFile()) {
+                System.err.println(String.format("%s:0 error: is missing the dependent material-file '%s'", args[0], fontDesc.getMaterial()));
+                System.exit(1);
+            }
+
             Fontc fontc = new Fontc();
             String fontFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontStream = new BufferedInputStream(new FileInputStream(fontFile));
