@@ -6,6 +6,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -565,6 +567,17 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                 toSelect.add(node);
             }
         }
+
+        // Sort node according to "depth"
+        Collections.sort(toSelect, new Comparator<GuiNode>() {
+            @Override
+            public int compare(GuiNode o1, GuiNode o2) {
+                int i1 = guiScene.getNodeIndex(o1);
+                int i2 = guiScene.getNodeIndex(o2);
+                return i2 - i1;
+            }
+        });
+
         return toSelect;
     }
 

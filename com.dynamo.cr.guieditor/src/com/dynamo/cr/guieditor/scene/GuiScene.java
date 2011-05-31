@@ -530,4 +530,8 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
         return movedNodes;
     }
+
+    public int getNodeIndex(GuiNode node) {
+        return nodes.indexOf(node);
+    }
 }

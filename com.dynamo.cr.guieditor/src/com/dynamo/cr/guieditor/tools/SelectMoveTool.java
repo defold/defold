@@ -53,28 +53,41 @@ public class SelectMoveTool {
 
         List<GuiNode> selectedNodes = editor.rectangleSelect(e.x, e.y, 5, 5);
         if (selectedNodes.size() > 0) {
+            System.out.println(selectedNodes);
 
             ArrayList<GuiNode> tmp = new ArrayList<GuiNode>();
             tmp.add(selectedNodes.get(0));
             selectedNodes = tmp;
 
             List<GuiNode> toMoveSelection;
-            if (selectionProvider.getSelectionList().contains(selectedNodes.get(0))) {
-                // Current selection is part of click selection. Keep selection.
-                state = State.MOVING;
-                toMoveSelection = selectionProvider.getSelectionList();
-            }
-            else {
-                // Something new is selected
-                state = State.MOVING;
-                addSelectionOperation(selectedNodes);
-                selectionProvider.setSelection(selectedNodes);
-                toMoveSelection = selectedNodes;
-            }
 
-            originalPositions = new ArrayList<Vector4d>();
-            for (GuiNode node : toMoveSelection) {
-                originalPositions.add(node.getPosition());
+            boolean newSelectionPartOfCurrent = selectionProvider.getSelectionList().contains(selectedNodes.get(0));
+
+            if ((e.stateMask & SWT.SHIFT) == SWT.SHIFT) {
+                state = State.SELECTING;
+                toMoveSelection = new ArrayList<GuiNode>(selectionProvider.getSelectionList());
+                if (newSelectionPartOfCurrent) {
+                    toMoveSelection.removeAll(selectedNodes);
+                } else {
+                    toMoveSelection.addAll(selectedNodes);
+                }
+                addSelectionOperation(toMoveSelection);
+            } else {
+                state = State.MOVING;
+                if (newSelectionPartOfCurrent) {
+                    // Current selection is part of click selection. Keep selection.
+                    toMoveSelection = selectionProvider.getSelectionList();
+                } else {
+                    // Something new is selected
+                    addSelectionOperation(selectedNodes);
+                    selectionProvider.setSelection(selectedNodes);
+                    toMoveSelection = selectedNodes;
+                }
+
+                originalPositions = new ArrayList<Vector4d>();
+                for (GuiNode node : toMoveSelection) {
+                    originalPositions.add(node.getPosition());
+                }
             }
         }
         else {
