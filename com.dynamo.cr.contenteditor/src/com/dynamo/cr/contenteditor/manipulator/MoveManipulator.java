@@ -73,7 +73,11 @@ public class MoveManipulator extends TransformManipulator {
         scale.setElement(3, 3, 1.0);
         GLUtil.multMatrix(gl, scale);
         context.beginDrawHandle(VIEW_HANDLE_NAME);
-        gl.glBegin(GL.GL_LINE_LOOP);
+        if (context.selectMode()) {
+            gl.glBegin(GL.GL_QUADS);
+        } else {
+            gl.glBegin(GL.GL_LINE_LOOP);
+        }
         gl.glVertex3i(1, 1, 0);
         gl.glVertex3i(1, -1, 0);
         gl.glVertex3i(-1, -1, 0);
