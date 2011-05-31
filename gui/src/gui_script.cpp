@@ -90,7 +90,18 @@ namespace dmGui
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
         Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
-        lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
+        switch (n->m_Node.m_NodeType)
+        {
+            case NODE_TYPE_BOX:
+                lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                break;
+            case NODE_TYPE_TEXT:
+                lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
+                break;
+            default:
+                lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                break;
+        }
         return 1;
     }
 
@@ -557,6 +568,29 @@ namespace dmGui
         return 0;
     }
 
+    /*#
+     * Retrieve scene width
+     * @name gui.get_width
+     */
+    static int LuaGetWidth(lua_State* L)
+    {
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*)lua_touserdata(L, -1);
+        lua_pushnumber(L, scene->m_ReferenceWidth);
+        return 1;
+    }
+
+    /*#
+     * Retrieve scene height
+     * @name gui.get_height
+     */
+    static int LuaGetHeight(lua_State* L)
+    {
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*)lua_touserdata(L, -1);
+        lua_pushnumber(L, scene->m_ReferenceHeight);
+        return 1;
+    }
 
 #define LUAGETSET(name, property) \
     int LuaGet##name(lua_State* L)\
@@ -610,6 +644,8 @@ namespace dmGui
         {"set_font",        LuaSetFont},
         {"set_xanchor",     LuaSetXAnchor},
         {"set_yanchor",     LuaSetYAnchor},
+        {"get_width",       LuaGetWidth},
+        {"get_height",      LuaGetHeight},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)

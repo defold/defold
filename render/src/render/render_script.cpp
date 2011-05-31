@@ -1584,8 +1584,7 @@ bail:
                 {
                     DrawTextParams params;
                     params.m_Text = text;
-                    params.m_X = dt->m_Position.getX();
-                    params.m_Y = dt->m_Position.getY();
+                    params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
                     params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
                     DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, params);
                 }
