@@ -43,7 +43,9 @@ import com.dynamo.cr.guieditor.commands.AddFont;
 import com.dynamo.cr.guieditor.commands.AddGuiBoxNode;
 import com.dynamo.cr.guieditor.commands.AddGuiTextNode;
 import com.dynamo.cr.guieditor.commands.AddTexture;
+import com.dynamo.cr.guieditor.commands.BringForward;
 import com.dynamo.cr.guieditor.commands.Delete;
+import com.dynamo.cr.guieditor.commands.SendBackward;
 import com.dynamo.cr.guieditor.operations.DeleteGuiNodesOperation;
 import com.dynamo.cr.guieditor.operations.SelectOperation;
 import com.dynamo.cr.guieditor.operations.SetPropertiesOperation;
@@ -297,6 +299,126 @@ public class GuiEditorTest {
 
         history.undo(undoContext, new NullProgressMonitor(), null);
         assertEquals(0, editor.getScene().getTextures().size());
+    }
+
+    GuiNode[] setupForwardBackwardTest() throws Exception {
+        AddGuiBoxNode command;
+
+        command = new AddGuiBoxNode();
+        command.execute(executionEvent);
+
+        command = new AddGuiBoxNode();
+        command.execute(executionEvent);
+
+        command = new AddGuiBoxNode();
+        command.execute(executionEvent);
+
+        return new GuiNode[] { editor.getScene().getNode(0), editor.getScene().getNode(1), editor.getScene().getNode(2) };
+    }
+
+    void checkNodeOrder(GuiNode[] nodes, int i1, int i2, int i3) throws Exception {
+        assertEquals(nodes[i1], editor.getScene().getNode(0));
+        assertEquals(nodes[i2], editor.getScene().getNode(1));
+        assertEquals(nodes[i3], editor.getScene().getNode(2));
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(nodes[0], editor.getScene().getNode(0));
+        assertEquals(nodes[1], editor.getScene().getNode(1));
+        assertEquals(nodes[2], editor.getScene().getNode(2));
+
+        history.redo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(nodes[i1], editor.getScene().getNode(0));
+        assertEquals(nodes[i2], editor.getScene().getNode(1));
+        assertEquals(nodes[i3], editor.getScene().getNode(2));
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(nodes[0], editor.getScene().getNode(0));
+        assertEquals(nodes[1], editor.getScene().getNode(1));
+        assertEquals(nodes[2], editor.getScene().getNode(2));
+    }
+
+    @Test
+    public void testBringForward1() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[1]));
+        editor.executeOperation(operation);
+
+        BringForward bringForward = new BringForward();
+        bringForward.execute(executionEvent);
+        checkNodeOrder(nodes, 0, 2, 1);
+    }
+
+    @Test
+    public void testBringForward2() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[0], nodes[2]));
+        editor.executeOperation(operation);
+
+        BringForward bringForward = new BringForward();
+        bringForward.execute(executionEvent);
+        checkNodeOrder(nodes, 1, 0, 2);
+    }
+
+    @Test
+    public void testBringForward3() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[0], nodes[1]));
+        editor.executeOperation(operation);
+
+        BringForward bringForward = new BringForward();
+        bringForward.execute(executionEvent);
+        checkNodeOrder(nodes, 2, 0, 1);
+    }
+
+    @Test
+    public void testBringForwardAll() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[1], nodes[2], nodes[0]));
+        editor.executeOperation(operation);
+
+        BringForward bringForward = new BringForward();
+        bringForward.execute(executionEvent);
+        checkNodeOrder(nodes, 0, 1, 2);
+    }
+
+    @Test
+    public void testSendBackward1() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[1]));
+        editor.executeOperation(operation);
+
+        SendBackward sendBackward = new SendBackward();
+        sendBackward.execute(executionEvent);
+        checkNodeOrder(nodes, 1, 0, 2);
+    }
+
+    @Test
+    public void testSendBackward2() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[0], nodes[2]));
+        editor.executeOperation(operation);
+
+        SendBackward sendBackward = new SendBackward();
+        sendBackward.execute(executionEvent);
+        checkNodeOrder(nodes, 0, 2, 1);
+    }
+
+    @Test
+    public void testSendBackwardAll() throws Exception {
+        GuiNode[] nodes = setupForwardBackwardTest();
+
+        SelectOperation operation = new SelectOperation(editor.getSelectionProvider(), new ArrayList<GuiNode>(), Arrays.asList(nodes[0], nodes[1], nodes[2]));
+        editor.executeOperation(operation);
+
+        SendBackward sendBackward = new SendBackward();
+        sendBackward.execute(executionEvent);
+        checkNodeOrder(nodes, 0, 1, 2);
     }
 
 }

@@ -475,4 +475,59 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         }
         return null;
     }
+
+    public List<GuiNode> bringForward(List<GuiNode> nodesForward) {
+        ArrayList<GuiNode> sortedNodesForward = new ArrayList<GuiNode>(nodesForward);
+        Collections.sort(sortedNodesForward, new Comparator<GuiNode>() {
+            @Override
+            public int compare(GuiNode o1, GuiNode o2) {
+                int i1 = nodes.indexOf(o1);
+                int i2 = nodes.indexOf(o2);
+                return i2 - i1;
+            }
+        });
+
+        ArrayList<GuiNode> movedNodes = new ArrayList<GuiNode>(nodesForward.size());
+        int roof = nodes.size() - 1;
+        for (GuiNode node : sortedNodesForward) {
+            int i = nodes.indexOf(node);
+            if (i != roof) {
+                nodes.remove(i);
+                nodes.add(i + 1, node);
+                movedNodes.add(node);
+            }
+            else {
+                --roof;
+            }
+        }
+
+        return movedNodes;
+    }
+
+    public ArrayList<GuiNode> sendBackward(List<GuiNode> nodesBackward) {
+        ArrayList<GuiNode> sortedNodesBackward = new ArrayList<GuiNode>(nodesBackward);
+        Collections.sort(sortedNodesBackward, new Comparator<GuiNode>() {
+            @Override
+            public int compare(GuiNode o1, GuiNode o2) {
+                int i1 = nodes.indexOf(o1);
+                int i2 = nodes.indexOf(o2);
+                return i1 - i2;
+            }
+        });
+
+        ArrayList<GuiNode> movedNodes = new ArrayList<GuiNode>(nodesBackward.size());
+        int floor = 0;
+        for (GuiNode node : sortedNodesBackward) {
+            int i = nodes.indexOf(node);
+            if (i != floor) {
+                nodes.remove(i);
+                nodes.add(i - 1, node);
+                movedNodes.add(node);
+            } else {
+                ++floor;
+            }
+        }
+
+        return movedNodes;
+    }
 }

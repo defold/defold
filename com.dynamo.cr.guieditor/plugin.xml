@@ -86,6 +86,24 @@
             </reference>
          </enabledWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.guieditor.commands.BringForward"
+            commandId="com.dynamo.cr.guieditor.commands.bringForward">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.guieditor.definitions.guiEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guieditor.commands.SendBackward"
+            commandId="com.dynamo.cr.guieditor.commands.sendBackward">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.guieditor.definitions.guiEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.contexts">
@@ -150,6 +168,16 @@
             id="com.dynamo.cr.guieditor.commands.AddFont"
             name="Add Font">
       </command>
+      <command
+            description="Bring Forward"
+            id="com.dynamo.cr.guieditor.commands.bringForward"
+            name="Bring Forward">
+      </command>
+      <command
+            description="Send Backward"
+            id="com.dynamo.cr.guieditor.commands.sendBackward"
+            name="Send Backward">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -180,6 +208,16 @@
                label="Add Font"
                style="push">
          </command>
+         <command
+               commandId="com.dynamo.cr.guieditor.commands.bringForward"
+               label="Bring Forward"
+               style="push">
+         </command>
+         <command
+               commandId="com.dynamo.cr.guieditor.commands.sendBackward"
+               label="Send Backward"
+               style="push">
+         </command>
          </menu>
       </menuContribution>
    </extension>
@@ -196,6 +234,18 @@
             contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="O">
+      </key>
+      <key
+            commandId="com.dynamo.cr.guieditor.commands.bringForward"
+            contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+SHIFT+F">
+      </key>
+      <key
+            commandId="com.dynamo.cr.guieditor.commands.sendBackward"
+            contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+SHIFT+B">
       </key>
    </extension>
 </plugin>
