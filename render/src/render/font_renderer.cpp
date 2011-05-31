@@ -148,13 +148,12 @@ namespace dmRender
     }
 
     DrawTextParams::DrawTextParams()
-    : m_WorldTransform()
+    : m_WorldTransform(Matrix4::identity())
     , m_FaceColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
     {
-        m_WorldTransform.identity();
     }
 
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params)
