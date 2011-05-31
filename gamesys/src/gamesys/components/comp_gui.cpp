@@ -193,7 +193,7 @@ namespace dmGameSystem
                 }
 
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Rotation);
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
                 dmGui::SetNodeBlendMode(scene, n, blend_mode);
             }
@@ -287,6 +287,7 @@ namespace dmGameSystem
             const Vector4& position = n->m_Properties[dmGui::PROPERTY_POSITION];
             const Vector4& rotation = n->m_Properties[dmGui::PROPERTY_ROTATION];
             const Vector4& extents = n->m_Properties[dmGui::PROPERTY_EXTENTS];
+            const Vector4& scale = n->m_Properties[dmGui::PROPERTY_SCALE];
             const Vector4& color = n->m_Properties[dmGui::PROPERTY_COLOR];
 
             dmRender::RenderObject ro;
@@ -338,9 +339,10 @@ namespace dmGameSystem
                         Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
                         Matrix4::rotationY(rotation.getY() * deg_to_rad) *
                         Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                        Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
+                        Matrix4::scale(scale.getXYZ());
             if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
             {
+                m *= Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
                 ro.m_WorldTransform = m;
                 dmRender::EnableRenderObjectFragmentConstant(&ro, 0, color);
                 gui_world->m_GuiRenderObjects.Push(ro);
