@@ -181,23 +181,9 @@ namespace dmGui
 
     void SetPhysicalResolution(HScene scene, uint32_t width, uint32_t height);
 
-    /**
-     * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
-     * message should be a serialized lua-table, see dmScript::CheckTable()
-     * Otherwise message should point to a valid ddf-message buffer.
-     * @param scene scene
-     * @param message_id message-id
-     * @param message message payload
-     * @param descriptor DDF-descriptor. NULL for lua-table. See comment above.
-     * @return RESULT_OK on success
-     */
-    Result DispatchMessage(HScene scene, dmMessage::Message* message);
-
     void SetSceneUserData(HScene scene, void* user_data);
 
     void* GetSceneUserData(HScene scene);
-
-    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
 
     /**
      * Adds a texture with the specified name to the scene.
@@ -268,6 +254,27 @@ namespace dmGui
      * @return RESULT_OK on success
      */
     Result UpdateScene(HScene scene, float dt);
+
+    /**
+     * Dispatch DDF or lua-table message to gui script. If the descriptor is NULL
+     * message should be a serialized lua-table, see dmScript::CheckTable()
+     * Otherwise message should point to a valid ddf-message buffer.
+     * @param scene scene
+     * @param message_id message-id
+     * @param message message payload
+     * @param descriptor DDF-descriptor. NULL for lua-table. See comment above.
+     * @return RESULT_OK on success
+     */
+    Result DispatchMessage(HScene scene, dmMessage::Message* message);
+
+    /**
+     * Dispatch input to gui script.
+     * @param scene scene
+     * @param input_actions an array of input actions
+     * @param input_action_count the number of input actions in the array
+     * @return RESULT_OK on success
+     */
+    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
 
     /**
      * Run the on_reload-function of the scene script.

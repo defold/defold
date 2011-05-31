@@ -420,7 +420,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
                     "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5 + 0.001)\n"
                     "end\n"
                     "function final(self)\n"
-                    "    gui.delete(self.node)\n"
+                    "    gui.delete_node(self.node)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -450,7 +450,10 @@ TEST_F(dmGuiTest, ScriptAnimate)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
 
-    dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
 }
 
 TEST_F(dmGuiTest, ScriptCounterAnimate)
@@ -466,7 +469,7 @@ TEST_F(dmGuiTest, ScriptCounterAnimate)
                     "    gui.set_position(self.node, vmath.vector3(0,0,0))\n"
                     "end\n"
                     "function final(self)\n"
-                    "    gui.delete(gui.get_node(\"n\"))\n"
+                    "    gui.delete_node(gui.get_node(\"n\"))\n"
                     "end\n";
 
     dmGui::Result r;
@@ -496,7 +499,8 @@ TEST_F(dmGuiTest, ScriptCounterAnimate)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
 
-    dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 TEST_F(dmGuiTest, ScriptAnimateComplete)
@@ -579,7 +583,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
 {
     const char* s = "function init(self)\n"
                     "    for i=1,10000 do\n"
-                    "        gui.new_box_node({0,0,0}, {1,1,1})\n"
+                    "        gui.new_box_node(vmath.vector3(0,0,0), vmath.vector3(1,1,1))\n"
                     "    end\n"
                     "end\n"
                     "function update(self)\n"
@@ -817,6 +821,7 @@ TEST_F(dmGuiTest, PostMessage3)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::NewSceneParams params;
+    params.m_UserData = (void*)this;
     dmGui::HScene scene2 = dmGui::NewScene(m_Context, &params);
     ASSERT_NE((void*)scene2, (void*)0x0);
     dmGui::HScript script2 = dmGui::NewScript(m_Context);
@@ -926,10 +931,17 @@ TEST_F(dmGuiTest, SaveNode)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, node, "n");
-    const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
+    const char* s = "function init(self)\n"
+                    "    self.n = gui.get_node(\"n\")\n"
+                    "end\n"
+                    "function update(self)\n"
+                    "    assert(self.n, \"Node could not be saved!\")\n"
+                    "end";
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1105,7 +1117,7 @@ TEST_F(dmGuiTest, ScriptNamespace)
     // Test that "local" per file works, default lua behavior
     // The test demonstrates how to create file local variables by using the local keyword at top scope
     const char* s1 = "local x = 123\n local function f() return x end\n function update(self) assert(f()==123)\n end\n";
-    const char* s2 = "local x = 456\n local function f() return x end\n function update(self) assert(f()==456)\n return x\n end\n";
+    const char* s2 = "local x = 456\n local function f() return x end\n function update(self) assert(f()==456)\n end\n";
 
     dmGui::NewSceneParams params;
     dmGui::HScene scene2 = dmGui::NewScene(m_Context, &params);
@@ -1254,12 +1266,12 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
 
     const char* s = "function init(self)\n"
-                    "    assert (1024 == gui.width)\n"
-                    "    assert (768 == gui.height)\n"
+                    "    assert (1024 == gui.get_width())\n"
+                    "    assert (768 == gui.get_height())\n"
                     "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
                     "    gui.set_xanchor(self.n1, gui.LEFT)\n"
                     "    gui.set_yanchor(self.n1, gui.TOP)\n"
-                    "    self.n2 = gui.new_text_node(vmath.vector3(gui.width - 10, gui.height-10, 0), \"n2\")"
+                    "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")"
                     "    gui.set_xanchor(self.n2, gui.RIGHT)\n"
                     "    gui.set_yanchor(self.n2, gui.BOTTOM)\n"
                     "end\n"
@@ -1285,6 +1297,60 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     Vector4 pos2 = m_NodeTextToRenderedPosition["n2"];
     ASSERT_EQ(physical_width - 10 * scale, pos2.getX());
     ASSERT_EQ(physical_height - 10 * scale, pos2.getY());
+}
+
+TEST_F(dmGuiTest, ScriptErroneousReturnValues)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    "    return true\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    return true\n"
+                    "end\n"
+                    "function update(self, dt)\n"
+                    "    return true\n"
+                    "end\n"
+                    "function on_message(self, message_id, message, sender)\n"
+                    "    return true\n"
+                    "end\n"
+                    "function on_input(self, action_id, action)\n"
+                    "    return true\n"
+                    "end\n"
+                    "function on_reload(self)\n"
+                    "    return true\n"
+                    "end";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_NE(dmGui::RESULT_OK, r);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NE(dmGui::RESULT_OK, r);
+    char buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
+    dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Id = 1;
+    message->m_DataSize = 0;
+    message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
+    message->m_Next = 0;
+    dmTestGuiDDF::AMessage* data = (dmTestGuiDDF::AMessage*)message->m_Data;
+    data->m_A = 0;
+    data->m_B = 0;
+    r = dmGui::DispatchMessage(m_Scene, message);
+    ASSERT_NE(dmGui::RESULT_OK, r);
+    dmGui::InputAction action;
+    action.m_ActionId = 1;
+    action.m_Value = 1.0f;
+    action.m_Pressed = 0;
+    action.m_Released = 0;
+    action.m_Repeated = 0;
+    r = dmGui::DispatchInput(m_Scene, &action, 1);
+    ASSERT_NE(dmGui::RESULT_OK, r);
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_NE(dmGui::RESULT_OK, r);
+    dmGui::DeleteNode(m_Scene, node);
 }
 
 int main(int argc, char **argv)
