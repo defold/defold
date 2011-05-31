@@ -16,10 +16,12 @@ import org.eclipse.jface.viewers.ComboBoxCellEditor;
 import org.eclipse.jface.viewers.DialogCellEditor;
 import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.ui.dialogs.ListDialog;
 import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
+import org.eclipse.ui.views.properties.ColorPropertyDescriptor;
 import org.eclipse.ui.views.properties.IPropertyDescriptor;
 import org.eclipse.ui.views.properties.IPropertySource;
 import org.eclipse.ui.views.properties.PropertyDescriptor;
@@ -117,6 +119,25 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
         }
     }
 
+    class DoubleCellEditor extends TextCellEditor {
+
+        public DoubleCellEditor(Composite parent) {
+            super(parent);
+        }
+
+        @Override
+        protected void doSetValue(Object value) {
+            Double integerValue = (Double) value;
+            super.doSetValue(integerValue.toString());
+        }
+
+        @Override
+        protected Object doGetValue() {
+            String textValue = (String) super.doGetValue();
+            return Double.parseDouble(textValue);
+        }
+    }
+
     class IntegerPropertyDescriptor extends PropertyDescriptor {
 
         public IntegerPropertyDescriptor(Object id, String displayName) {
@@ -126,6 +147,18 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
         @Override
         public CellEditor createPropertyEditor(Composite parent) {
             return new IntegerCellEditor(parent);
+        }
+    }
+
+    class DoublePropertyDescriptor extends PropertyDescriptor {
+
+        public DoublePropertyDescriptor(Object id, String displayName) {
+            super(id, displayName);
+        }
+
+        @Override
+        public CellEditor createPropertyEditor(Composite parent) {
+            return new DoubleCellEditor(parent);
         }
     }
 
@@ -184,8 +217,12 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
                                 descriptor = new ResourcePropertyDescriptor(field.getName(), field.getName());
                              else
                                 descriptor = new TextPropertyDescriptor(field.getName(), field.getName());
+                        } else if (field.getType() == RGB.class) {
+                            descriptor = new ColorPropertyDescriptor(field.getName(), field.getName());
                         } else if (field.getType() == Integer.TYPE) {
                             descriptor = new IntegerPropertyDescriptor(field.getName(), field.getName());
+                        } else if (field.getType() == Double.TYPE) {
+                            descriptor = new DoublePropertyDescriptor(field.getName(), field.getName());
                         } else if (ProtocolMessageEnum.class.isAssignableFrom(field.getType())) {
                             descriptor = new ProtoEnumDescriptor((Class<? extends ProtocolMessageEnum>) field.getType(), field.getName(), field.getName());
                         } else {

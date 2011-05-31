@@ -55,7 +55,7 @@ public class TextGuiNode extends GuiNode {
         if (textRenderer != null) {
             if (textBounds == null)
                 textBounds = renderer.getStringBounds(textRenderer, text);
-            renderer.drawString(textRenderer, text, x0, y0, color.x, color.y, color.z, color.w, getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
+            renderer.drawString(textRenderer, text, x0, y0, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha(), getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
         }
         else {
             String errorText = getErrorText();
@@ -73,7 +73,7 @@ public class TextGuiNode extends GuiNode {
         TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
 
         if (textRenderer != null) {
-            renderer.drawStringBounds(textRenderer, text, x0, y0, color.x, color.y, color.z, color.w);
+            renderer.drawStringBounds(textRenderer, text, x0, y0, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha());
         }
         else {
             String errorText = getErrorText();

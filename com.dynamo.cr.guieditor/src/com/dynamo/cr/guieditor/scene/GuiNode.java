@@ -5,6 +5,7 @@ import java.awt.geom.Rectangle2D;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.DrawContext;
@@ -32,8 +33,11 @@ public abstract class GuiNode implements IAdaptable {
     @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
     protected Vector4d size;
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
-    protected Vector4d color;
+    @Property(commandFactory = UndoableCommandFactory.class)
+    protected RGB color;
+
+    @Property(commandFactory = UndoableCommandFactory.class)
+    private double alpha;
 
     @Property(commandFactory = UndoableCommandFactory.class)
     private String texture;
@@ -70,12 +74,22 @@ public abstract class GuiNode implements IAdaptable {
         this.size.set(size);
     }
 
-    public Vector4d getColor() {
-        return new Vector4d(color);
+    public RGB getColor() {
+        return new RGB(color.red, color.green, color.blue);
     }
 
-    public void setColor(Vector4d color) {
-        this.color.set(color);
+    public void setColor(RGB color) {
+        this.color.red = color.red;
+        this.color.green = color.green;
+        this.color.blue = color.blue;
+    }
+
+    public double getAlpha() {
+        return alpha;
+    }
+
+    public void setAlpha(double alpha) {
+        this.alpha = alpha;
     }
 
     public String getTexture() {
@@ -122,7 +136,10 @@ public abstract class GuiNode implements IAdaptable {
         this.rotation = toVector4d(nodeDesc.getRotation());
         this.scale = toVector4d(nodeDesc.getScale());
         this.size = toVector4d(nodeDesc.getSize());
-        this.color = toVector4d(nodeDesc.getColor());
+        this.color = new RGB((int) (nodeDesc.getColor().getX() * 255),
+                             (int) (nodeDesc.getColor().getY() * 255),
+                             (int) (nodeDesc.getColor().getZ() * 255));
+        this.alpha = nodeDesc.getColor().getW();
         this.texture = nodeDesc.getTexture();
         this.blendMode = nodeDesc.getBlendMode();
         this.id = nodeDesc.getId();
@@ -174,12 +191,17 @@ public abstract class GuiNode implements IAdaptable {
     }
 
     public final NodeDesc buildNodeDesc() {
+        Vector4 color4 = Vector4.newBuilder()
+            .setX(color.red / 255.0f )
+            .setY(color.green / 255.0f )
+            .setZ(color.blue / 255.0f)
+            .setW((float) alpha).build();
         NodeDesc.Builder builder = NodeDesc.newBuilder().mergeFrom(nodeDesc);
         builder.setPosition(buildVector4(position));
         builder.setRotation(buildVector4(rotation));
         builder.setScale(buildVector4(scale));
         builder.setSize(buildVector4(size));
-        builder.setColor(buildVector4(color));
+        builder.setColor(color4);
         builder.setTexture(texture);
         builder.setBlendMode(blendMode);
         builder.setId(id);

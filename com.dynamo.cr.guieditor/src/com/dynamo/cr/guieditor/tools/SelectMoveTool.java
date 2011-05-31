@@ -53,8 +53,6 @@ public class SelectMoveTool {
 
         List<GuiNode> selectedNodes = editor.rectangleSelect(e.x, e.y, 5, 5);
         if (selectedNodes.size() > 0) {
-            System.out.println(selectedNodes);
-
             ArrayList<GuiNode> tmp = new ArrayList<GuiNode>();
             tmp.add(selectedNodes.get(0));
             selectedNodes = tmp;

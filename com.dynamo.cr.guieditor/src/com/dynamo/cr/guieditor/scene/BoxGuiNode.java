@@ -19,7 +19,7 @@ public class BoxGuiNode extends GuiNode {
         double x1 = x0 + size.x;
         double y1 = y0 + size.y;
 
-        renderer.drawQuad(x0, y0, x1, y1, color.x, color.y, color.z, color.w, getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
+        renderer.drawQuad(x0, y0, x1, y1, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha(), getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
     }
 
     public void drawSelect(DrawContext context) {
@@ -28,7 +28,7 @@ public class BoxGuiNode extends GuiNode {
         double y0 = position.y - size.y / 2;
         double x1 = x0 + size.x;
         double y1 = y0 + size.y;
-        renderer.drawQuad(x0, y0, x1, y1, color.x, color.y, color.z, color.w, null, null);
+        renderer.drawQuad(x0, y0, x1, y1, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha(), null, null);
     }
 
     public Rectangle2D getBounds() {
