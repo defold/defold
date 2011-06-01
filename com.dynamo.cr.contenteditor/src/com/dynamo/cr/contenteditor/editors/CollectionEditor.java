@@ -152,6 +152,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     private GLCanvas m_Canvas;
     private GLContext m_Context;
+    private boolean redrawPosted = false;
     private final int[] m_ViewPort = new int[4];
     private Camera m_PerspCamera = new Camera(Camera.Type.PERSPECTIVE);
     private Camera m_OrthoCamera = new Camera(Camera.Type.ORTHOGRAPHIC);
@@ -565,30 +566,24 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_Canvas.addListener(SWT.Paint, new Listener() {
             @Override
             public void handleEvent(Event event) {
-                if (!isRendering) {
-                    isRendering = true;
-                    m_Canvas.setCurrent();
-                    startRenderLoop();
-                }
+                doPaint();
             }
         });
     }
 
-    public void startRenderLoop() {
-        m_Canvas.getDisplay().asyncExec(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if (m_Canvas.isDisposed()) return;
-                if (m_Canvas.isVisible()) {
+    private void postRedraw() {
+        if (!redrawPosted) {
+            redrawPosted = true;
+            Display.getDefault().asyncExec(new Runnable() {
+
+                @Override
+                public void run() {
                     doPaint();
-                    m_Canvas.getDisplay().asyncExec(this);
-                } else {
-                    isRendering = false;
+                    m_Canvas.update();
+                    redrawPosted = false;
                 }
-            }
-        });
+            });
+        }
     }
 
     public UndoContext getUndoContext() {
@@ -638,6 +633,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public void handleEvent(Event event) {
         if (event.type == SWT.Resize) {
             updateViewPort();
+            postRedraw();
         }
     }
 
@@ -1217,6 +1213,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 m_RectangleSelectController.mouseDown(e, this);
         }
         m_ManipulatorController.mouseDown(e);
+        postRedraw();
     }
 
     @Override
@@ -1227,6 +1224,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         // A little more snappy experience... (the little dirty * in editor)
         updateDirtyState();
+        postRedraw();
     }
 
     @Override
@@ -1237,6 +1235,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_RectangleSelectController.mouseMove(e, this);
 
         m_ManipulatorController.mouseMove(e);
+        postRedraw();
     }
 
     public Node getRoot() {
@@ -1299,6 +1298,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public void setManipulator(String manipulator)
     {
         m_ManipulatorController.setManipulator(manipulator);
+        postRedraw();
     }
 
     @Override
@@ -1310,6 +1310,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     public
     void setManipulatorOrientation(String orientationName) {
         m_ManipulatorController.setManipulatorOrientation(orientationName);
+        postRedraw();
     }
 
     @Override
@@ -1321,6 +1322,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public void setManipulatorPivot(String manipulatorPivot) {
         m_ManipulatorController.setManipulatorPivot(manipulatorPivot);
+        postRedraw();
     }
 
     @Override
@@ -1439,6 +1441,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 m_ActiveCamera = m_PerspCamera;
             }
         }
+        postRedraw();
     }
 
     @Override
@@ -1578,6 +1581,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 updateDirtyState();
             }
         });
+        postRedraw();
     }
 
     @Override
