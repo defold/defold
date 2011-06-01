@@ -2,7 +2,6 @@ package com.dynamo.cr.editor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.util.concurrent.Semaphore;
 import java.util.logging.Logger;
 
 import javax.ws.rs.core.UriBuilder;
@@ -31,6 +30,7 @@ import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.util.IPropertyChangeListener;
 import org.eclipse.jface.util.PropertyChangeEvent;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
@@ -41,23 +41,24 @@ import org.eclipse.ui.progress.IProgressService;
 import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 
+import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.ClientFactory;
 import com.dynamo.cr.client.ClientUtils;
 import com.dynamo.cr.client.DelegatingClientFactory;
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IBranchListener;
 import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
-import com.dynamo.cr.editor.compare.ResourceStatus;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.decorators.BranchStatusDecorator;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
-import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
+import com.dynamo.cr.editor.services.IBranchService;
+import com.dynamo.cr.markers.BranchStatusMarker;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
@@ -65,7 +66,7 @@ import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
-public class Activator extends AbstractUIPlugin implements IPropertyChangeListener, IResourceChangeListener {
+public class Activator extends AbstractUIPlugin implements IPropertyChangeListener, IResourceChangeListener, IBranchListener {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
@@ -131,8 +132,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     private IProject project;
 
-    private BranchStatusUpdateThread branchStatusUpdateThread;
-
     public IProxyService getProxyService() {
         return (IProxyService) proxyTracker.getService();
     }
@@ -184,9 +183,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.POST_CHANGE);
-
-        branchStatusUpdateThread = new BranchStatusUpdateThread();
-        branchStatusUpdateThread.start();
     }
 
 	private void updateSocksProxy() {
@@ -261,21 +257,23 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	}
 
 	void setProjectExplorerInput(Object container) {
-        IWorkbenchWindow[] workbenchs = PlatformUI.getWorkbench().getWorkbenchWindows();
+        ProjectExplorer view = findProjectExplorer();
+        if (view != null) {
+            view.getCommonViewer().setInput(container);
+        }
+	}
 
+	public ProjectExplorer findProjectExplorer() {
         ProjectExplorer view = null;
-        for (IWorkbenchWindow workbench : workbenchs) {
+        IWorkbenchWindow[] workbenches = PlatformUI.getWorkbench().getWorkbenchWindows();
+        for (IWorkbenchWindow workbench : workbenches) {
             for (IWorkbenchPage page : workbench.getPages()) {
                 view = (ProjectExplorer) page
                         .findView("org.eclipse.ui.navigator.ProjectExplorer");
                 break;
             }
         }
-
-        if (view != null)
-        {
-            view.getCommonViewer().setInput(container);
-        }
+        return view;
 	}
 
 	public void disconnectFromBranch() throws RepositoryException {
@@ -285,11 +283,15 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             if (cr_project.exists())
             {
                 try {
-                    cr_project.delete(true, new NullProgressMonitor());
                     this.project = null;
+                    cr_project.delete(true, new NullProgressMonitor());
                     setProjectExplorerInput(ResourcesPlugin.getWorkspace().getRoot());
                 } catch (CoreException e) {
                     e.printStackTrace();
+                }
+                IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+                if (branchService != null) {
+                    branchService.updateBranchStatus();
                 }
             }
 	    }
@@ -348,7 +350,10 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
 
         setProjectExplorerInput(p.getFolder("content"));
-        this.branchStatusUpdateThread.update();
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.updateBranchStatus();
+        }
     }
 
     public URI getBranchURI() {
@@ -369,7 +374,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 		Activator.context = null;
         IPreferenceStore store = getPreferenceStore();
         store.removePropertyChangeListener(this);
-        this.branchStatusUpdateThread.dispose();
 	}
 
     @Override
@@ -414,9 +418,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        this.branchStatusUpdateThread.update();
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.updateBranchStatus();
+        }
     }
-
 
     @Override
     protected void initializeImageRegistry(ImageRegistry reg) {
@@ -436,97 +442,20 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         reg.put(THEIRS_IMAGE_ID, getImageDescriptor("icons/group.png"));
     }
 
-    class BranchStatusUpdateThread extends Thread {
+    @Override
+    public void branchStatusChanged(BranchStatusChangedEvent event) {
+        final Object[] resources = event.getResources();
+        if (resources.length > 0) {
+            final ProjectExplorer projectExplorer = Activator.getDefault().findProjectExplorer();
+            if (projectExplorer != null) {
+                Display.getDefault().asyncExec(new Runnable() {
 
-        private boolean quit;
-        Semaphore semaphore;
-        java.util.List<ResourceStatus> resourceStatuses;
-
-        public BranchStatusUpdateThread() {
-            super();
-            this.quit = false;
-            this.semaphore = new Semaphore(0);
-            this.resourceStatuses = new java.util.ArrayList<ResourceStatus>();
-        }
-
-        @Override
-        public void run() {
-
-            while (!quit) {
-                try {
-                    this.semaphore.acquire();
-                    this.semaphore.drainPermits();
-
-                    IBranchClient client = Activator.getDefault().getBranchClient();
-                    if (client != null) {
-                        try {
-                            BranchStatus branchStatus = client.getBranchStatus();
-
-                            final java.util.List<ResourceStatus> newResourceStatuses = new java.util.ArrayList<ResourceStatus>(branchStatus.getFileStatusCount());
-                            for (com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status s : branchStatus.getFileStatusList()) {
-                                newResourceStatuses.add(new ResourceStatus(s));
-                            }
-
-                            boolean changed = false;
-                            if (newResourceStatuses.size() == resourceStatuses.size()) {
-                                for (int i = 0; i < resourceStatuses.size(); i++) {
-                                    com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status currentStatus = resourceStatuses.get(i).getStatus();
-                                    com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status status = newResourceStatuses.get(i).getStatus();
-                                    if (!currentStatus.getName().equals(status.getName())
-                                            || !currentStatus.getIndexStatus().equals(status.getIndexStatus())
-                                            || !currentStatus.getWorkingTreeStatus().equals(status.getWorkingTreeStatus())) {
-                                        changed = true;
-                                        break;
-                                    }
-                                }
-                            } else {
-                                changed = true;
-                            }
-
-                            try {
-                                if (changed) {
-                                    for (ResourceStatus s : resourceStatuses) {
-                                        IResource resource = s.getResource();
-                                        if (resource != null) {
-                                            resource.setSessionProperty(BranchStatusDecorator.BRANCH_STATUS_PROPERTY, null);
-                                        }
-                                    }
-                                    for (ResourceStatus s : newResourceStatuses) {
-                                        IResource resource = s.getResource();
-                                        if (resource != null) {
-                                            String status = s.getStatus().getIndexStatus();
-                                            if (!s.getStatus().getWorkingTreeStatus().equals(" ")) {
-                                                status += s.getStatus().getWorkingTreeStatus();
-                                            }
-                                            resource.setSessionProperty(BranchStatusDecorator.BRANCH_STATUS_PROPERTY, status);
-                                            // TODO: This should make the projectexplorer refresh, not sure how yet
-                                        }
-                                    }
-                                }
-                            } catch (CoreException e) {
-                                e.printStackTrace();
-                            }
-                        } catch (RepositoryException e) {
-                            Activator.getDefault().logger.warning(e.getMessage());
-                        }
+                    @Override
+                    public void run() {
+                        projectExplorer.getCommonViewer().update(resources, new String[] {BranchStatusMarker.MARKER_ID});
                     }
-                    Thread.sleep(2000); // Do not update too often
-                } catch (InterruptedException e) {
-                }
+                });
             }
-        }
-
-        public void dispose() {
-            this.quit  = true;
-            this.interrupt();
-            try {
-                this.join();
-            } catch (InterruptedException e) {
-            }
-        }
-
-        public void update() {
-            this.semaphore.release();
         }
     }
 }
