@@ -26,6 +26,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
     // Picking
     private static final int MAX_NODES = 4096;
     private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * MAX_NODES).order(ByteOrder.nativeOrder()).asIntBuffer();
+    private TextRenderer debugTextRenderer;
 
     public GuiRenderer() {
     }
@@ -154,9 +155,6 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
     public void dispose() {
     }
 
-    long prevTime = 0;
-    private TextRenderer debugTextRenderer;
-
     /* (non-Javadoc)
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#begin(javax.media.opengl.GL)
      */
@@ -172,12 +170,6 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
             Font debugFont = new Font(fontName, Font.BOLD, 28);
             debugTextRenderer = new TextRenderer(debugFont, true, true);
         }
-
-        double delta =  System.currentTimeMillis() - prevTime;
-        delta /= 1000;
-        drawString(null, String.format("%.1f fps", 1.0 / delta), 100, 100, 1, 1, 1, 1, BlendMode.BLEND_MODE_ADD_ALPHA, null);
-
-        prevTime = System.currentTimeMillis();
     }
 
     /* (non-Javadoc)
