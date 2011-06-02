@@ -612,7 +612,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public void setFocus() {
         m_Canvas.setFocus();
-        updateActions();
     }
 
     private void updateViewPort() {

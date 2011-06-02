@@ -5,6 +5,7 @@
          point="org.eclipse.ui.editors">
       <editor
             class="com.dynamo.cr.contenteditor.editors.CollectionEditor"
+            contributorClass="com.dynamo.cr.contenteditor.editors.CollectionEditorActionBarContributor"
             default="false"
             extensions="collection"
             icon="icons/bricks.png"

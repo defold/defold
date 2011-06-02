@@ -5,6 +5,7 @@
          point="org.eclipse.ui.editors">
       <editor
             class="com.dynamo.cr.guieditor.GuiEditor"
+            contributorClass="com.dynamo.cr.guieditor.GuiEditorActionBarContributor"
             extensions="gui"
             icon="icons/text_allcaps.png"
             id="com.dynamo.cr.guieditor.GuiEditor"

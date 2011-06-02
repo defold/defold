@@ -225,7 +225,9 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     @Override
     public void setFocus() {
         this.form.getBody().setFocus();
+    }
 
+    public void updateActions() {
         IActionBars action_bars = getEditorSite().getActionBars();
         action_bars.updateActionBars();
 

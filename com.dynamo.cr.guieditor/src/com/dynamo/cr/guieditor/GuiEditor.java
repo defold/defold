@@ -511,7 +511,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     @Override
     public void setFocus() {
         canvas.setFocus();
-        updateActions();
     }
 
     public void updateActions() {
