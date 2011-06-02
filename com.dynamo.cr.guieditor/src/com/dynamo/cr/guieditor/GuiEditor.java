@@ -728,7 +728,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             for (Object object : selectionList) {
                 if (object instanceof GuiNode) {
                     GuiNode node = (GuiNode) object;
-                    nodes.add(node);
+                    // Only add nodes that belongs to "this" scene.
+                    if (node.getScene() == guiScene) {
+                        nodes.add(node);
+                    }
                 }
             }
             if (nodes.size() > 0) {
