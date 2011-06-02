@@ -237,6 +237,11 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+        if (!event.getOperation().hasContext(this.undoContext)) {
+            // Only handle operations related to this editor
+            return;
+        }
+
         final int type = event.getEventType();
         Display display = Display.getDefault();
         display.asyncExec(new Runnable() {
