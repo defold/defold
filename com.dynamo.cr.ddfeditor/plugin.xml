@@ -5,6 +5,7 @@
          point="org.eclipse.ui.editors">
       <editor
             class="com.dynamo.cr.ddfeditor.ModelEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="model"
             icon="icons/16-cube-green_16x16.png"
@@ -13,6 +14,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.GameObjectEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="go"
             icon="icons/brick.png"
@@ -21,6 +23,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.CameraEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="camera"
             icon="icons/camera.png"
@@ -29,6 +32,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.LightEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="light"
             icon="icons/lightbulb.png"
@@ -37,6 +41,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.SpawnPointEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="spawnpoint"
             icon="icons/table_multiple.png"
@@ -45,6 +50,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.CollisionObjectEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="collisionobject"
             icon="icons/weight.png"
@@ -53,6 +59,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.GuiEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="gui"
             icon="icons/text_allcaps.png"
@@ -61,6 +68,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.FontEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="font"
             icon="icons/font.png"
@@ -69,6 +77,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.MaterialEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="material"
             icon="icons/large_tiles.png"
@@ -77,6 +86,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.RenderEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="render"
             icon="icons/paintcan.png"
@@ -85,6 +95,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.InputBindingEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="input_binding"
             icon="icons/keyboard.png"
@@ -93,6 +104,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.GamepadMapEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="gamepads"
             icon="icons/controller.png"
@@ -101,6 +113,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.EmitterEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="emitter"
             icon="icons/dynamite.png"
@@ -109,6 +122,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.SpriteEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="sprite"
             icon="icons/penguin.png"
@@ -117,6 +131,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.ConvexShapeEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="convexshape"
             icon="icons/contrast_high.png"

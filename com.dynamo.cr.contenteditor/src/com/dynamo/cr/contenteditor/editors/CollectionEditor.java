@@ -612,7 +612,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public void setFocus() {
         m_Canvas.setFocus();
-        updateActions();
     }
 
     private void updateViewPort() {
@@ -1574,6 +1573,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+
+        if (!event.getOperation().hasContext(this.m_UndoContext)) {
+            // Only handle operations related to this editor
+            return;
+        }
+
         Display display = Display.getDefault();
         display.asyncExec(new Runnable() {
             @Override
@@ -1750,6 +1755,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             Vector4d position = m_ActiveCamera.getPosition();
             position.sub(dir);
             m_ActiveCamera.setPosition(position.x, position.y, position.z);
+
+            postRedraw();
         }
     }
 

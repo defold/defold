@@ -511,7 +511,6 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     @Override
     public void setFocus() {
         canvas.setFocus();
-        updateActions();
     }
 
     public void updateActions() {
@@ -661,6 +660,12 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+
+        if (!event.getOperation().hasContext(this.undoContext)) {
+            // Only handle operations related to this editor
+            return;
+        }
+
         if (!(event.getOperation() instanceof SelectOperation)) {
             if (event.getEventType() == OperationHistoryEvent.DONE || event.getEventType() == OperationHistoryEvent.REDONE) {
                 undoRedoCounter++;
@@ -722,7 +727,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             for (Object object : selectionList) {
                 if (object instanceof GuiNode) {
                     GuiNode node = (GuiNode) object;
-                    nodes.add(node);
+                    // Only add nodes that belongs to "this" scene.
+                    if (node.getScene() == guiScene) {
+                        nodes.add(node);
+                    }
                 }
             }
             if (nodes.size() > 0) {
