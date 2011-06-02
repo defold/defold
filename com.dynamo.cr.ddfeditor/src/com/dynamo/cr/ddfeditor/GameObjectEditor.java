@@ -822,6 +822,9 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
     @Override
     public void setFocus() {
         this.form.getBody().setFocus();
+    }
+
+    public void updateActions() {
         IActionBars actionBars = getEditorSite().getActionBars();
         actionBars.updateActionBars();
 

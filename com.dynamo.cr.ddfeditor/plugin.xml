@@ -14,7 +14,7 @@
       </editor>
       <editor
             class="com.dynamo.cr.ddfeditor.GameObjectEditor"
-            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            contributorClass="com.dynamo.cr.ddfeditor.GameObjectEditorActionBarContributor"
             default="false"
             extensions="go"
             icon="icons/brick.png"
