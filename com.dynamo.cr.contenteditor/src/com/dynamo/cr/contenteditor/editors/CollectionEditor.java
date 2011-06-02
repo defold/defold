@@ -1574,6 +1574,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
     @Override
     public void historyNotification(OperationHistoryEvent event) {
+
+        if (!event.getOperation().hasContext(this.m_UndoContext)) {
+            // Only handle operations related to this editor
+            return;
+        }
+
         Display display = Display.getDefault();
         display.asyncExec(new Runnable() {
             @Override
