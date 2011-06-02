@@ -115,8 +115,9 @@ public class CachingBranchClient implements IBranchClient {
     @Override
     public void renameResource(String source, String destination)
             throws RepositoryException {
-        Path sp = new Path(source);
-        Path dp = new Path(destination);
+        IPath sp = new Path(source);
+        IPath dp = new Path(destination);
+        dp = dp.removeLastSegments(1);
         flushPathAndChildren(sp);
         flushPathAndChildren(dp);
 
