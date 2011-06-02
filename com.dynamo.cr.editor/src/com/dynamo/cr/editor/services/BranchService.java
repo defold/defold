@@ -57,7 +57,6 @@ public class BranchService implements IBranchService {
         Semaphore semaphore;
         java.util.List<ResourceStatus> resourceStatuses;
         java.util.List<IBranchListener> branchListeners;
-        Semaphore listenerSemaphore;
 
         public BranchStatusUpdater() {
             super();
@@ -65,7 +64,6 @@ public class BranchService implements IBranchService {
             this.semaphore = new Semaphore(1);
             this.resourceStatuses = new java.util.ArrayList<ResourceStatus>();
             this.branchListeners = new ArrayList<IBranchListener>();
-            this.listenerSemaphore = new Semaphore(1);
         }
 
         @Override
@@ -147,7 +145,7 @@ public class BranchService implements IBranchService {
             }
         }
 
-        public void dispose() {
+        public synchronized void dispose() {
             this.branchListeners.clear();
             this.resourceStatuses.clear();
             this.quit  = true;
@@ -162,38 +160,17 @@ public class BranchService implements IBranchService {
             this.semaphore.release();
         }
 
-        public void addBranchListener(IBranchListener branchListener) {
-            try {
-                this.listenerSemaphore.acquire();
-                this.listenerSemaphore.drainPermits();
-                this.branchListeners.add(branchListener);
-                this.listenerSemaphore.release();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        public synchronized void addBranchListener(IBranchListener branchListener) {
+            this.branchListeners.add(branchListener);
         }
 
-        public void removeBranchListener(IBranchListener branchListener) {
-            try {
-                this.listenerSemaphore.acquire();
-                this.listenerSemaphore.drainPermits();
-                this.branchListeners.remove(branchListener);
-                this.listenerSemaphore.release();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        public synchronized void removeBranchListener(IBranchListener branchListener) {
+            this.branchListeners.remove(branchListener);
         }
 
-        private void fireBranchStatusChangedEvent(BranchStatusChangedEvent event) {
-            try {
-                this.listenerSemaphore.acquire();
-                this.listenerSemaphore.drainPermits();
-                for (IBranchListener branchListener : this.branchListeners) {
-                    branchListener.branchStatusChanged(event);
-                }
-                this.listenerSemaphore.release();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        private synchronized void fireBranchStatusChangedEvent(BranchStatusChangedEvent event) {
+            for (IBranchListener branchListener : this.branchListeners) {
+                branchListener.branchStatusChanged(event);
             }
         }
     }
