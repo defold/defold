@@ -637,6 +637,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     }
 
     private void doPaint() {
+        m_Canvas.setCurrent();
         m_Context.makeCurrent();
         GL gl = m_Context.getGL();
 
