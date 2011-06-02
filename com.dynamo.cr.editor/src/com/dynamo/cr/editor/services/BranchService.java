@@ -82,16 +82,22 @@ public class BranchService implements IBranchService {
                             final java.util.List<ResourceStatus> newResourceStatuses = new java.util.ArrayList<ResourceStatus>(branchStatus.getFileStatusCount());
                             for (com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status s : branchStatus.getFileStatusList()) {
                                 ResourceStatus resourceStatus = new ResourceStatus(s);
-                                if (resourceStatus.getResource() != null) {
-                                    newResourceStatuses.add(resourceStatus);
-                                }
+                                newResourceStatuses.add(resourceStatus);
                             }
 
                             boolean changed = false;
                             if (newResourceStatuses.size() == resourceStatuses.size()) {
                                 for (int i = 0; i < resourceStatuses.size(); i++) {
-                                    com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status currentStatus = resourceStatuses.get(i).getStatus();
-                                    com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status status = newResourceStatuses.get(i).getStatus();
+                                    ResourceStatus resourceStatus = resourceStatuses.get(i);
+                                    ResourceStatus newResourceStatus = newResourceStatuses.get(i);
+                                    if (resourceStatus.getResource() != newResourceStatus.getResource()) {
+                                        if (resourceStatus.getResource() == null || !resourceStatus.getStatus().getName().equals(newResourceStatus.getStatus().getName())) {
+                                            changed = true;
+                                            break;
+                                        }
+                                    }
+                                    com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status currentStatus = resourceStatus.getStatus();
+                                    com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status status = newResourceStatus.getStatus();
                                     if (!currentStatus.getName().equals(status.getName())
                                             || !currentStatus.getIndexStatus().equals(status.getIndexStatus())
                                             || !currentStatus.getWorkingTreeStatus().equals(status.getWorkingTreeStatus())) {
@@ -108,7 +114,7 @@ public class BranchService implements IBranchService {
                                     final Set<IResource> resources = new HashSet<IResource>();
                                     for (ResourceStatus s : resourceStatuses) {
                                         IResource resource = s.getResource();
-                                        if (resource != null) {
+                                        if (resource != null && resource.isAccessible()) {
                                             resource.deleteMarkers(BranchStatusMarker.MARKER_ID, true, 0);
                                             resources.add(resource);
                                         }

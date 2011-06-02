@@ -353,21 +353,16 @@
             location="BOTTOM_RIGHT"
             state="true">
          <enablement>
-            <objectClass
-                  name="org.eclipse.core.resources.IResource">
-            </objectClass>
+            <or>
+               <objectClass
+                     name="org.eclipse.core.resources.IResource">
+               </objectClass>
+               <objectClass
+                     name="com.dynamo.cr.editor.compare.ResourceStatus">
+               </objectClass>
+            </or>
          </enablement>
       </decorator>
-   </extension>
-   <extension
-         point="org.eclipse.core.runtime.adapters">
-      <factory
-            adaptableType="com.dynamo.cr.editor.compare.ResourceStatus"
-            class="com.dynamo.cr.editor.compare.ResourceStatusAdapterFactory">
-         <adapter
-               type="org.eclipse.core.resources.IResource">
-         </adapter>
-      </factory>
    </extension>
    <extension
          id="com.dynamo.cr.editor.markers.branchStatus"
