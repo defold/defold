@@ -1755,9 +1755,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             Vector4d position = m_ActiveCamera.getPosition();
             position.sub(dir);
             m_ActiveCamera.setPosition(position.x, position.y, position.z);
-
-            postRedraw();
         }
+        postRedraw();
     }
 
 }
