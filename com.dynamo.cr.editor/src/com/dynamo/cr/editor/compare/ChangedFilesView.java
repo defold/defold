@@ -2,11 +2,8 @@ package com.dynamo.cr.editor.compare;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
-import java.util.concurrent.Semaphore;
 
 import org.eclipse.core.resources.IResource;
-import org.eclipse.core.resources.IResourceChangeEvent;
-import org.eclipse.core.resources.IResourceChangeListener;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -29,13 +26,16 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.progress.IProgressService;
 
+import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.IBranchClient;
+import com.dynamo.cr.client.IBranchListener;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.services.IBranchService;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
 
-public class ChangedFilesView extends ViewPart implements SelectionListener, IResourceChangeListener, ISelectionChangedListener, Listener {
+public class ChangedFilesView extends ViewPart implements SelectionListener, IBranchListener, ISelectionChangedListener, Listener {
 
     public final static String ID = "com.dynamo.crepo.changedfiles";
 
@@ -43,67 +43,12 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
 	private Menu menu;
     private MenuItem diffItem;
     private MenuItem revertItem;
-    private UpdateThread updateThread;
-
-    class UpdateThread extends Thread {
-
-        private boolean quit = false;
-        Semaphore semaphore = new Semaphore(0);
-
-        @Override
-        public void run() {
-
-            while (!quit) {
-                try {
-                    this.semaphore.acquire();
-                    this.semaphore.drainPermits();
-
-                    IBranchClient client = Activator.getDefault().getBranchClient();
-                    if (client != null) {
-                        try {
-                            BranchStatus status = client.getBranchStatus();
-
-                            final java.util.List<ResourceStatus> resources = new java.util.ArrayList<ResourceStatus>(status.getFileStatusCount());
-                            for (Status s : status.getFileStatusList()) {
-                                resources.add(new ResourceStatus(s));
-                            }
-
-                            synchronized(this) {
-                                Display.getDefault().asyncExec(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        tableViewer.setInput(resources);
-                                    }
-                                });
-                            }
-                        } catch (RepositoryException e) {
-                            Activator.getDefault().logger.warning(e.getMessage());
-                        }
-                    }
-                    Thread.sleep(2000); // Do not update too often
-                } catch (InterruptedException e) {
-                }
-            }
-        }
-
-        public void dispose() {
-            this.quit  = true;
-            this.interrupt();
-            try {
-                this.join();
-            } catch (InterruptedException e) {
-            }
-        }
-
-        public void update() {
-            this.semaphore.release();
-        }
-    }
 
     public ChangedFilesView() {
-        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
-        this.updateThread = new UpdateThread();
-        this.updateThread.start();
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.addBranchListener(this);
+        }
     }
 
     @Override
@@ -121,14 +66,25 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
         revertItem.setEnabled(false);
         revertItem.addListener(SWT.Selection, this);
         tableViewer.getTable().setMenu(menu);
-        this.updateThread.update();
+
+        IBranchClient branchClient = Activator.getDefault().getBranchClient();
+        if (branchClient != null) {
+            try {
+                BranchStatus branchStatus = branchClient.getBranchStatus();
+                updateTable(branchStatus);
+            } catch (RepositoryException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
     public void dispose() {
         super.dispose();
-        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
-        this.updateThread.dispose();
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.removeBranchListener(this);
+        }
     }
 
     @Override
@@ -159,50 +115,53 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
             tableViewer.openDiff(resourceStatus);
         } else {
 
-            IProgressService service = PlatformUI.getWorkbench().getProgressService();
-            try {
-                service.runInUI(service, new IRunnableWithProgress() {
+            if (iterator.hasNext()) {
+                IProgressService service = PlatformUI.getWorkbench().getProgressService();
+                try {
+                    service.runInUI(service, new IRunnableWithProgress() {
 
-                @Override
-                public void run(IProgressMonitor monitor)
-                        throws InvocationTargetException,
-                        InterruptedException {
-                    monitor.beginTask("Reverting", structSelection.size());
+                    @Override
+                    public void run(IProgressMonitor monitor)
+                            throws InvocationTargetException,
+                            InterruptedException {
+                        monitor.beginTask("Reverting", structSelection.size());
 
-                    while (iterator.hasNext()) {
-                        final ResourceStatus resourceStatus = iterator.next();
-                        final Status status = resourceStatus.getStatus();
-                            SubProgressMonitor subMonitor = new SubProgressMonitor(monitor, 1);
-                            subMonitor.subTask(status.getName());
-                            subMonitor.beginTask(status.getName(), 1);
-                            String path = status.getName();
+                        while (iterator.hasNext()) {
+                            final ResourceStatus resourceStatus = iterator.next();
+                            final Status status = resourceStatus.getStatus();
+                                SubProgressMonitor subMonitor = new SubProgressMonitor(monitor, 1);
+                                subMonitor.subTask(status.getName());
+                                subMonitor.beginTask(status.getName(), 1);
+                                String path = status.getName();
 
-                            try {
-                                branch_client.revertResource(path);
-                                subMonitor.worked(1);
+                                try {
+                                    branch_client.revertResource(path);
+                                    subMonitor.worked(1);
+                                }
+                                catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                                subMonitor.done();
                             }
-                            catch (Exception e) {
+                            try {
+                                ResourcesPlugin.getWorkspace().getRoot().refreshLocal(IResource.DEPTH_INFINITE, monitor);
+                            } catch (CoreException e) {
                                 e.printStackTrace();
                             }
-                            subMonitor.done();
+                            monitor.done();
                         }
-                        try {
-                            ResourcesPlugin.getWorkspace().getRoot().refreshLocal(IResource.DEPTH_INFINITE, monitor);
-                        } catch (CoreException e) {
-                            e.printStackTrace();
+                        {
+                            IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+                            if (branchService != null) {
+                                branchService.updateBranchStatus();
+                            }
                         }
-                        monitor.done();
-                    }
-                }, null);
-            } catch (Throwable e) {
-                e.printStackTrace();
+                    }, null);
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                }
             }
         }
-    }
-
-    @Override
-    public void resourceChanged(IResourceChangeEvent event) {
-        this.updateThread.update();
     }
 
     @Override
@@ -217,5 +176,26 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IRe
         boolean revertEnabled = !tableViewer.getSelection().isEmpty();
         if (revertItem.isEnabled() != revertEnabled)
             revertItem.setEnabled(revertEnabled);
+    }
+
+    @Override
+    public void branchStatusChanged(BranchStatusChangedEvent event) {
+        updateTable((BranchStatus)event.getSource());
+    }
+
+    private void updateTable(BranchStatus branchStatus) {
+        final java.util.List<ResourceStatus> resources = new java.util.ArrayList<ResourceStatus>(branchStatus.getFileStatusCount());
+        for (Status s : branchStatus.getFileStatusList()) {
+            resources.add(new ResourceStatus(s));
+        }
+
+        synchronized(this) {
+            Display.getDefault().asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    tableViewer.setInput(resources);
+                }
+            });
+        }
     }
 }

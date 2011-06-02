@@ -79,6 +79,7 @@ import com.dynamo.cr.editor.compare.ConflictedResourceStatus.IResolveListener;
 import com.dynamo.cr.editor.compare.ConflictedResourceStatus.Resolve;
 import com.dynamo.cr.editor.compare.ResourceStatus;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
+import com.dynamo.cr.editor.services.IBranchService;
 import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
@@ -602,6 +603,10 @@ public class SyncDialog extends TitleAreaDialog {
                             done = true;
                         }
                         if (done) {
+                            IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+                            if (branchService != null) {
+                                branchService.updateBranchStatus();
+                            }
                             Display.getDefault().asyncExec(new Runnable() {
 
                                 @Override
@@ -656,6 +661,10 @@ public class SyncDialog extends TitleAreaDialog {
                     try {
                         IBranchClient branchClient = Activator.getDefault().getBranchClient();
                         branchClient.publish();
+                        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+                        if (branchService != null) {
+                            branchService.updateBranchStatus();
+                        }
                         Display.getDefault().asyncExec(new Runnable() {
 
                             @Override
