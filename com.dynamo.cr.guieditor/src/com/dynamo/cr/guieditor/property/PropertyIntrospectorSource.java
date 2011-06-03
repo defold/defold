@@ -34,7 +34,7 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
     private T object;
     private U world;
     private IPropertyDescriptor[] descriptors;
-    private Map<Object, Class<? extends IPropertyAccessor<T, U>>> idToSetter = new HashMap<Object, Class<? extends IPropertyAccessor<T, U>>>();
+    private Map<Object, Class<? extends IPropertyAccessor<T, U>>> idToAccessor = new HashMap<Object, Class<? extends IPropertyAccessor<T, U>>>();
     private Map<Object, ICommandFactory<T, U>> idToCommandFactory = new HashMap<Object, ICommandFactory<T, U>>();
     private Map<Object, IEmbeddedPropertySource<?>> idToEmeddedPropertySource = new HashMap<Object, IEmbeddedPropertySource<?>>();
     private IContainer contentRoot;
@@ -230,7 +230,7 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
                         }
 
                         descriptors.add(descriptor);
-                        idToSetter.put(field.getName(), (Class<? extends IPropertyAccessor<T, U>>) property.setter());
+                        idToAccessor.put(field.getName(), (Class<? extends IPropertyAccessor<T, U>>) property.accessor());
                         Class<? extends ICommandFactory<?, ?>> commandFactoryClass =  property.commandFactory();
                         ICommandFactory<T, U> commandFactory = (ICommandFactory<T, U>) commandFactoryClass.newInstance();
                         idToCommandFactory.put(field.getName(), commandFactory);
@@ -261,7 +261,7 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     public Object getPropertyValue(Object id) {
-        Class<? extends IPropertyAccessor> accessorClass = idToSetter.get(id);
+        Class<? extends IPropertyAccessor> accessorClass = idToAccessor.get(id);
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             Object value = accessor.getValue(object, (String) id, world);
@@ -292,7 +292,7 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     public void setPropertyValue(Object id, Object value) {
-        Class<? extends IPropertyAccessor> accessorClass = idToSetter.get(id);
+        Class<? extends IPropertyAccessor> accessorClass = idToAccessor.get(id);
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             Object oldValue = accessor.getValue(object, (String) id, world);
