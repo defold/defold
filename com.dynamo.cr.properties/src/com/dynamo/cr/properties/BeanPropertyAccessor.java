@@ -1,4 +1,4 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties;
 
 import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
@@ -44,6 +44,9 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
             throws IllegalArgumentException, IllegalAccessException,
             InvocationTargetException {
         init(obj, property);
+        if (propertyDescriptor == null) {
+            throw new RuntimeException(String.format("Missing getter for %s#%s", obj.getClass().getName(), property));
+        }
         return propertyDescriptor.getReadMethod().invoke(obj);
     }
 }

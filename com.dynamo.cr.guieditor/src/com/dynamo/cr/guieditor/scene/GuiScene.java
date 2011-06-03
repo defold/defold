@@ -28,12 +28,12 @@ import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.IGuiEditor;
-import com.dynamo.cr.guieditor.property.IPropertyObjectWorld;
-import com.dynamo.cr.guieditor.property.Property;
-import com.dynamo.cr.guieditor.property.PropertyIntrospectorSource;
 import com.dynamo.cr.guieditor.render.GuiFontResource;
 import com.dynamo.cr.guieditor.render.GuiTextureResource;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
+import com.dynamo.cr.properties.IPropertyObjectWorld;
+import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
 import com.dynamo.gui.proto.Gui.SceneDesc;

@@ -1,4 +1,4 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties;
 
 public class DummyCommandFactory implements ICommandFactory<Object, IPropertyObjectWorld> {
 

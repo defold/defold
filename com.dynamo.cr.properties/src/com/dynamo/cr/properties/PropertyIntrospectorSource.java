@@ -1,9 +1,8 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,9 +11,7 @@ import java.util.Map;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.jface.viewers.CellEditor;
-import org.eclipse.jface.viewers.ComboBoxCellEditor;
 import org.eclipse.jface.viewers.DialogCellEditor;
-import org.eclipse.jface.viewers.TextCellEditor;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Composite;
@@ -27,6 +24,10 @@ import org.eclipse.ui.views.properties.IPropertySource;
 import org.eclipse.ui.views.properties.PropertyDescriptor;
 import org.eclipse.ui.views.properties.TextPropertyDescriptor;
 
+import com.dynamo.cr.properties.internal.DoublePropertyDescriptor;
+import com.dynamo.cr.properties.internal.EmbeddedPropertySourceProxy;
+import com.dynamo.cr.properties.internal.IntegerPropertyDescriptor;
+import com.dynamo.cr.properties.internal.ProtoEnumDescriptor;
 import com.google.protobuf.ProtocolMessageEnum;
 
 public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> implements IPropertySource {
@@ -47,118 +48,6 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
             introspect();
         } catch (Throwable e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    class ProtoEnumCellEditor extends ComboBoxCellEditor {
-        private Enum<?>[] enumItems;
-
-        public ProtoEnumCellEditor(Composite parent, Enum<?>[] enumItems) {
-            super(parent, new String[] {});
-            List<String> itemList = new ArrayList<String>(enumItems.length);
-            for (Enum<?> e : enumItems) {
-                itemList.add(e.toString());
-            }
-            setItems(itemList.toArray(new String[itemList.size()]));
-            this.enumItems = enumItems;
-        }
-
-        @Override
-        protected void doSetValue(Object value) {
-            ProtocolMessageEnum enumValue = (ProtocolMessageEnum) value;
-            super.doSetValue(enumValue.getNumber());
-        }
-
-        @Override
-        protected Object doGetValue() {
-            Object value = super.doGetValue();
-            Integer integerValue = (Integer) value;
-            Object ret = enumItems[integerValue];
-            return ret;
-        }
-    }
-
-    class ProtoEnumDescriptor extends PropertyDescriptor {
-        private Enum<?>[] enumValues;
-
-        public ProtoEnumDescriptor(Class<? extends ProtocolMessageEnum> type, String id, String displayName) {
-            super(id, displayName);
-
-            try {
-                Method values = type.getMethod("values");
-                this.enumValues = (Enum<?>[]) values.invoke(null);
-
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public CellEditor createPropertyEditor(Composite parent) {
-            ProtoEnumCellEditor editor = new ProtoEnumCellEditor(parent, enumValues);
-            return editor;
-        }
-    }
-
-    class IntegerCellEditor extends TextCellEditor {
-
-        public IntegerCellEditor(Composite parent) {
-            super(parent);
-        }
-
-        @Override
-        protected void doSetValue(Object value) {
-            Integer integerValue = (Integer) value;
-            super.doSetValue(integerValue.toString());
-        }
-
-        @Override
-        protected Object doGetValue() {
-            String textValue = (String) super.doGetValue();
-            return Integer.parseInt(textValue);
-        }
-    }
-
-    class DoubleCellEditor extends TextCellEditor {
-
-        public DoubleCellEditor(Composite parent) {
-            super(parent);
-        }
-
-        @Override
-        protected void doSetValue(Object value) {
-            Double integerValue = (Double) value;
-            super.doSetValue(integerValue.toString());
-        }
-
-        @Override
-        protected Object doGetValue() {
-            String textValue = (String) super.doGetValue();
-            return Double.parseDouble(textValue);
-        }
-    }
-
-    class IntegerPropertyDescriptor extends PropertyDescriptor {
-
-        public IntegerPropertyDescriptor(Object id, String displayName) {
-            super(id, displayName);
-        }
-
-        @Override
-        public CellEditor createPropertyEditor(Composite parent) {
-            return new IntegerCellEditor(parent);
-        }
-    }
-
-    class DoublePropertyDescriptor extends PropertyDescriptor {
-
-        public DoublePropertyDescriptor(Object id, String displayName) {
-            super(id, displayName);
-        }
-
-        @Override
-        public CellEditor createPropertyEditor(Composite parent) {
-            return new DoubleCellEditor(parent);
         }
     }
 
@@ -262,6 +151,10 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
     @Override
     public Object getPropertyValue(Object id) {
         Class<? extends IPropertyAccessor> accessorClass = idToAccessor.get(id);
+        if (accessorClass == null) {
+            return null;
+        }
+
         try {
             IPropertyAccessor<T, U> accessor = accessorClass.newInstance();
             Object value = accessor.getValue(object, (String) id, world);
@@ -274,7 +167,16 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
 
             return value;
 
-        } catch (Throwable e) {
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+            return null;
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+            return null;
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+            return null;
+        } catch (InstantiationException e) {
             e.printStackTrace();
             return null;
         }
@@ -300,7 +202,13 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
             ICommandFactory<T, U> commandFactory = idToCommandFactory.get(id);
             commandFactory.createCommand(object, (String) id, accessor, oldValue, value, world);
 
-        } catch (Throwable e) {
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
             e.printStackTrace();
         }
     }

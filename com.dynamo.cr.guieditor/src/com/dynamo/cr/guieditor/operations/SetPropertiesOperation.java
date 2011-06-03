@@ -10,8 +10,8 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
-import com.dynamo.cr.guieditor.property.IPropertyAccessor;
 import com.dynamo.cr.guieditor.scene.GuiScene;
+import com.dynamo.cr.properties.IPropertyAccessor;
 
 public class SetPropertiesOperation<T> extends AbstractOperation {
 

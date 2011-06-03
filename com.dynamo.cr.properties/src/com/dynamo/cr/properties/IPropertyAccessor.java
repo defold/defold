@@ -1,4 +1,4 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties;
 
 import java.lang.reflect.InvocationTargetException;
 

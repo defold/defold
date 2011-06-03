@@ -1,7 +1,12 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties.internal;
 
 import org.eclipse.ui.views.properties.IPropertyDescriptor;
 import org.eclipse.ui.views.properties.IPropertySource;
+
+import com.dynamo.cr.properties.ICommandFactory;
+import com.dynamo.cr.properties.IEmbeddedPropertySource;
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class EmbeddedPropertySourceProxy<T, U extends IPropertyObjectWorld, V> implements IPropertySource {
     private IEmbeddedPropertySource<V> embeddedPropertySource;
@@ -70,7 +75,7 @@ public class EmbeddedPropertySourceProxy<T, U extends IPropertyObjectWorld, V> i
             this.commandFactory.createCommand(parent, property, this.accessor, oldValue, newValue, world);
 
         } catch (Throwable e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 

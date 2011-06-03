@@ -3,8 +3,8 @@ package com.dynamo.cr.guieditor.scene;
 import java.awt.geom.Rectangle2D;
 
 import com.dynamo.cr.guieditor.DrawContext;
-import com.dynamo.cr.guieditor.property.Property;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
+import com.dynamo.cr.properties.Property;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.Builder;
 import com.sun.opengl.util.j2d.TextRenderer;

@@ -14,11 +14,11 @@ import com.dynamo.cr.guieditor.GuiSelectionProvider;
 import com.dynamo.cr.guieditor.IGuiEditor;
 import com.dynamo.cr.guieditor.operations.SelectOperation;
 import com.dynamo.cr.guieditor.operations.SetPropertiesOperation;
-import com.dynamo.cr.guieditor.property.BeanPropertyAccessor;
-import com.dynamo.cr.guieditor.property.IPropertyAccessor;
-import com.dynamo.cr.guieditor.property.IPropertyObjectWorld;
 import com.dynamo.cr.guieditor.scene.GuiNode;
 import com.dynamo.cr.guieditor.scene.GuiScene;
+import com.dynamo.cr.properties.BeanPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyObjectWorld;
 
 public class SelectMoveTool {
 

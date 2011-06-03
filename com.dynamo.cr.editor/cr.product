@@ -26,6 +26,7 @@
       <plugin id="com.dynamo.cr.editor.fs"/>
       <plugin id="com.dynamo.cr.guieditor"/>
       <plugin id="com.dynamo.cr.luaeditor"/>
+      <plugin id="com.dynamo.cr.properties"/>
       <plugin id="com.dynamo.cr.protobind"/>
       <plugin id="com.dynamo.cr.scene"/>
       <plugin id="com.google.common"/>

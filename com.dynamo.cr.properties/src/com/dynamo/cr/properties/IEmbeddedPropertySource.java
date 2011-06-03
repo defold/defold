@@ -1,4 +1,4 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties;
 
 import org.eclipse.ui.views.properties.IPropertyDescriptor;
 

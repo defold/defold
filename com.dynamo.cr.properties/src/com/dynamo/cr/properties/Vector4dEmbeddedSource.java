@@ -1,10 +1,11 @@
-package com.dynamo.cr.guieditor.property;
+package com.dynamo.cr.properties;
 
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.ui.views.properties.IPropertyDescriptor;
-import org.eclipse.ui.views.properties.TextPropertyDescriptor;
+
+import com.dynamo.cr.properties.internal.DoublePropertyDescriptor;
 
 public class Vector4dEmbeddedSource implements IEmbeddedPropertySource<Vector4d> {
 
@@ -14,10 +15,10 @@ public class Vector4dEmbeddedSource implements IEmbeddedPropertySource<Vector4d>
     public IPropertyDescriptor[] getPropertyDescriptors() {
         if (propertyDescriptors == null) {
             propertyDescriptors = new IPropertyDescriptor[4];
-            propertyDescriptors[0] = new TextPropertyDescriptor("x", "x");
-            propertyDescriptors[1] = new TextPropertyDescriptor("y", "y");
-            propertyDescriptors[2] = new TextPropertyDescriptor("z", "z");
-            propertyDescriptors[3] = new TextPropertyDescriptor("w", "w");
+            propertyDescriptors[0] = new DoublePropertyDescriptor("x", "x");
+            propertyDescriptors[1] = new DoublePropertyDescriptor("y", "y");
+            propertyDescriptors[2] = new DoublePropertyDescriptor("z", "z");
+            propertyDescriptors[3] = new DoublePropertyDescriptor("w", "w");
         }
         return propertyDescriptors;
     }
@@ -41,13 +42,12 @@ public class Vector4dEmbeddedSource implements IEmbeddedPropertySource<Vector4d>
         else if (component == 'w') {
             componentValue = tuple.getW();
         }
-        return Double.toString(componentValue);
+        return new Double(componentValue);
     }
 
     @Override
     public void setPropertyValue(Vector4d object, Object id, Object value) {
-        String stringValue = (String) value;
-        double doubleValue = Double.parseDouble(stringValue);
+        Double doubleValue = (Double) value;
         char component = ((String) id).charAt(0);
 
         if (component == 'x') {

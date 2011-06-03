@@ -3,9 +3,9 @@ package com.dynamo.cr.guieditor.scene;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.ui.views.properties.IPropertySource;
 
-import com.dynamo.cr.guieditor.property.Property;
-import com.dynamo.cr.guieditor.property.PropertyIntrospectorSource;
 import com.dynamo.cr.guieditor.render.GuiTextureResource;
+import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 
 public class EditorTextureDesc implements IAdaptable {

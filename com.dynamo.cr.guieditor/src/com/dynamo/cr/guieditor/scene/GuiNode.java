@@ -9,9 +9,9 @@ import org.eclipse.swt.graphics.RGB;
 import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.DrawContext;
-import com.dynamo.cr.guieditor.property.Property;
-import com.dynamo.cr.guieditor.property.PropertyIntrospectorSource;
-import com.dynamo.cr.guieditor.property.Vector4dEmbeddedSource;
+import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.Vector4dEmbeddedSource;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.proto.DdfMath.Vector4;

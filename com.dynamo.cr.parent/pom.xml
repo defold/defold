@@ -102,6 +102,8 @@
         <module>../com.dynamo.cr.client.test</module>
         <module>../com.dynamo.cr.guieditor</module>
         <module>../com.dynamo.cr.guieditor.test</module>
+        <module>../com.dynamo.cr.properties</module>
+        <module>../com.dynamo.cr.properties.test</module>
         <module>../javax.media.opengl</module>
     </modules>
 
