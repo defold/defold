@@ -6,8 +6,7 @@ Bundle-Version: 1.1.1.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: .,
  lib/gluegen-rt.jar,
- lib/jogl.jar,
- lib/vecmath.jar
+ lib/jogl.jar
 Bundle-NativeCode: lib/osx/libgluegen-rt.jnilib;
  lib/osx/libjogl.jnilib;
  lib/osx/libjogl_awt.jnilib;
@@ -48,5 +47,4 @@ Export-Package: com.sun.opengl.util,
  com.sun.opengl.util.j2d,
  com.sun.opengl.util.texture,
  javax.media.opengl,
- javax.media.opengl.glu,
- javax.vecmath
+ javax.media.opengl.glu
