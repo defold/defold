@@ -214,8 +214,7 @@ public class GuiEditorTest {
         Delete deleteCommand = new Delete();
         deleteCommand.execute(executionEvent);
         assertEquals(0, nodeCount());
-        // TODO: Shoule be zero but mockeditor doesn't listen on scene events... Move selection functionality from GuiEditor to Scene?
-        //assertEquals(0, selectCount());
+        assertEquals(0, selectCount());
 
         history.undo(undoContext, new NullProgressMonitor(), null);
         assertEquals(1, nodeCount());

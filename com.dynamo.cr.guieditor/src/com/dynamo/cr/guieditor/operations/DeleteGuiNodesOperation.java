@@ -1,5 +1,6 @@
 package com.dynamo.cr.guieditor.operations;
 
+import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -29,6 +30,7 @@ public class DeleteGuiNodesOperation extends AbstractOperation {
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
+        editor.getSelectionProvider().setSelection(Collections.<GuiNode>emptyList());
         scene.removeNodes(nodes);
         return Status.OK_STATUS;
     }
@@ -37,6 +39,7 @@ public class DeleteGuiNodesOperation extends AbstractOperation {
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         GuiScene scene = editor.getScene();
+        editor.getSelectionProvider().setSelection(Collections.<GuiNode>emptyList());
         scene.removeNodes(nodes);
         return Status.OK_STATUS;
     }
@@ -46,6 +49,7 @@ public class DeleteGuiNodesOperation extends AbstractOperation {
             throws ExecutionException {
         GuiScene scene = editor.getScene();
         scene.addNodes(nodes);
+        editor.getSelectionProvider().setSelection(nodes);
         return Status.OK_STATUS;
     }
 
