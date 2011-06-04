@@ -156,7 +156,10 @@ namespace dmEngine
             dmScript::DeleteContext(engine->m_ScriptContext);
 
         if (engine->m_GraphicsContext)
+        {
+            dmGraphics::CloseWindow(engine->m_GraphicsContext);
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+        }
 
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext);

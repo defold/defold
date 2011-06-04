@@ -50,6 +50,7 @@ protected:
 
     virtual void TearDown()
     {
+        dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
     }
 };
