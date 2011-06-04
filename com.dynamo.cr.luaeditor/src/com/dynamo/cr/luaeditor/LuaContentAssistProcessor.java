@@ -2,6 +2,8 @@ package com.dynamo.cr.luaeditor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
@@ -22,6 +24,16 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
     public LuaContentAssistProcessor() {
     }
 
+    public static LuaParseResult parseLine(String line) {
+        Pattern pattern = Pattern.compile("([a-zA-Z0-9_]+)\\.([a-zA-Z0-9_]*)([\\(]?)");
+        Matcher matcher = pattern.matcher(line);
+        if (matcher.find()) {
+            return new LuaParseResult(matcher.group(1), matcher.group(2), matcher.group(3).length() > 0);
+        } else {
+            return null;
+        }
+    }
+
     @Override
     public ICompletionProposal[] computeCompletionProposals(ITextViewer viewer,
             int offset) {
@@ -34,18 +46,12 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
             int line_offset = doc.getLineOffset(line_nr);
 
             String line = doc.get(line_offset, offset - line_offset);
-            line = line.replaceAll("^\\s+", "");
 
-            int index = line.length() - 2;
-            if (index < 1)
+            LuaParseResult parseResult = parseLine(line);
+            if (parseResult == null)
                 return new ICompletionProposal[0];
 
-            while (index >= 1 && (Character.isLetter(line.charAt(index-1)) || line.charAt(index-1) == '.')) {
-                --index;
-            }
-            line = line.substring(index);
-
-            ScriptDoc.Element[] elements = LuaEditorPlugin.getDefault().getDocumentation(line);
+            ScriptDoc.Element[] elements = LuaEditorPlugin.getDefault().getDocumentation(parseResult);
             for (ScriptDoc.Element element : elements) {
                 StringBuffer additionalInfo = new StringBuffer();
                 additionalInfo.append(element.getDescription());
@@ -79,8 +85,17 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                     }
                 }
 
-                int cursorPosition = s.length() - line.length();
-                proposals.add(new CompletionProposal(s.substring(line.length()), offset, 0, cursorPosition, luaImage, s, null, additionalInfo.toString()));
+                int completeLength = parseResult.getNamespace().length() + parseResult.getFunction().length() + 1;
+
+                int cursorPosition = s.length() - completeLength;
+                if (parseResult.inFunction()) {
+                    // If we are in a function, eg gui.animate(... only show the list of items and do not insert
+                    proposals.add(new CompletionProposal("", offset, 0, 0, luaImage, s, null, additionalInfo.toString()));
+                } else {
+                    // Default case, do actual completion
+                    proposals.add(new CompletionProposal(s.substring(completeLength), offset, 0, cursorPosition, luaImage, s, null, additionalInfo.toString()));
+                }
+
             }
         } catch (BadLocationException e) {
             e.printStackTrace();
