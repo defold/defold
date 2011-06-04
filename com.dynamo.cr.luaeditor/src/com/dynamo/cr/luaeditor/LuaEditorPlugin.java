@@ -28,6 +28,8 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
 
     private Image luaImage;
 
+    private ImageDescriptor luaImageDesc;
+
     public LuaEditorPlugin() {
     }
 
@@ -66,20 +68,18 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         loadDocumentation("DYNAMO_HOME/share/doc/gui_doc.sdoc");
     }
 
-    public ScriptDoc.Element[] getDocumentation(String prefix) {
+    public ScriptDoc.Element[] getDocumentation(LuaParseResult parseResult) {
 
-        prefix = prefix.toLowerCase();
         ArrayList<ScriptDoc.Element> list = new ArrayList<ScriptDoc.Element>(64);
-        int index = prefix.indexOf('.');
-        if (index != -1) {
-            String ns = prefix.substring(0, index);
+        String ns = parseResult.getNamespace().toLowerCase();
+        String function = parseResult.getFunction().toLowerCase();
+        String qualified = String.format("%s.%s", ns, function);
 
-            if (nameSpaceToElementList.containsKey(ns)) {
-                List<ScriptDoc.Element> elements = nameSpaceToElementList.get(ns);
-                for (ScriptDoc.Element element : elements) {
-                    if (element.getName().toLowerCase().startsWith(prefix)) {
-                        list.add(element);
-                    }
+        if (nameSpaceToElementList.containsKey(ns)) {
+            List<ScriptDoc.Element> elements = nameSpaceToElementList.get(ns);
+            for (ScriptDoc.Element element : elements) {
+                if (element.getName().toLowerCase().startsWith(qualified)) {
+                    list.add(element);
                 }
             }
         }
@@ -96,6 +96,9 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
     }
 
     public Image getLuaImage() {
+        if (luaImage == null && luaImageDesc != null)
+            this.luaImage = luaImageDesc.createImage();
+
         return luaImage;
     }
 
@@ -104,9 +107,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         LuaEditorPlugin.plugin = this;
         super.start(context);
         loadDocumentation();
-        ImageDescriptor desc = imageDescriptorFromPlugin(PLUGIN_ID, "icons/lua.gif");
-        if (desc != null)
-            this.luaImage = desc.createImage();
+        luaImageDesc = imageDescriptorFromPlugin(PLUGIN_ID, "icons/lua.gif");
     }
 
     @Override
