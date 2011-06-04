@@ -50,6 +50,7 @@ protected:
 
     virtual void TearDown()
     {
+        dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
     }
 };
@@ -64,12 +65,6 @@ TEST_F(dmGraphicsTest, DoubleNewContext)
 {
     ASSERT_NE((void*)0, m_Context);
     ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext());
-}
-
-TEST_F(dmGraphicsTest, DoubleDeleteContext)
-{
-    ASSERT_NE((void*)0, m_Context);
-    dmGraphics::DeleteContext(m_Context);
 }
 
 TEST_F(dmGraphicsTest, DoubleOpenWindow)

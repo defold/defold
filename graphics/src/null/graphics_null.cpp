@@ -58,7 +58,6 @@ namespace dmGraphics
         assert(context);
         if (g_ContextCreated)
         {
-            CloseWindow(context);
             delete context;
             g_ContextCreated = false;
         }
