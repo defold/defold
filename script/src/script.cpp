@@ -57,6 +57,16 @@ namespace dmScript
         lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
     }
 
+    void Finalize(lua_State* L)
+    {
+        FinalizeSys(L);
+    }
+
+    void UpdateSys(lua_State*L, float dt)
+    {
+        dmScript::UpdateSys(L, dt);
+    }
+
     bool RegisterDDFType(HContext context, const dmDDF::Descriptor* descriptor)
     {
         if (context->m_Descriptors.Full())

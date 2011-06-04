@@ -463,6 +463,7 @@ namespace dmGui
 
     Result UpdateScene(HScene scene, float dt)
     {
+        dmScript::Update(scene->m_Context->m_LuaState, dt);
         UpdateAnimations(scene, dt);
 
         Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, (void*)&dt);

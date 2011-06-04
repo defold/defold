@@ -26,6 +26,7 @@ protected:
 
     virtual void TearDown()
     {
+        dmScript::Finalize(L);
         lua_close(L);
     }
 
@@ -78,6 +79,79 @@ TEST_F(ScriptSysTest, TestSys)
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptSysTest, Timer)
+{
+    int top = lua_gettop(L);
+
+    const char* s = "g_self = {}\n"
+                    "g_callback_called = false\n"
+                    "function init()\n"
+                    "    g_self.my_value = 123\n"
+                    "    sys.timer(g_self, call_back, 1)\n"
+                    "end\n"
+                    "function update()\n"
+                    "end\n"
+                    "function call_back(self)\n"
+                    "    assert (self.my_value == 123)\n"
+                    "    g_callback_called = true\n"
+                    "end\n"
+                    "\n";
+
+    int ret = luaL_loadbuffer(L, s, strlen(s), "test");
+    ASSERT_EQ(0, ret);
+    ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+    ASSERT_EQ(0, ret);
+
+    lua_getglobal(L, "init");
+    int init_ref = lua_ref(L, LUA_REGISTRYINDEX);
+    ASSERT_NE(LUA_NOREF, init_ref);
+
+    lua_getglobal(L, "update");
+    int update_ref = lua_ref(L, LUA_REGISTRYINDEX);
+    ASSERT_NE(LUA_NOREF, update_ref);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, init_ref);
+    ret = lua_pcall(L, 0, 0, 0);
+    ASSERT_EQ(0, ret);
+
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        lua_getglobal(L, "g_callback_called");
+        ASSERT_TRUE(lua_isboolean(L, 1));
+        ASSERT_EQ(false, lua_toboolean(L, 1));
+        lua_pop(L, 1);
+
+        dmScript::Update(L, 1.0f / 60.0f);
+    }
+
+    lua_getglobal(L, "g_callback_called");
+    ASSERT_TRUE(lua_isboolean(L, 1));
+    ASSERT_EQ(true, lua_toboolean(L, 1));
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptSysTest, Stress)
+{
+    // Stress
+    const char* s =
+                    "function call_back(self)\n"
+                    "    assert (self.my_value == 123)\n"
+                    "    g_callback_called = true\n"
+                    "end\n"
+                    "for i=1,1000000 do\n"
+                    "    local ret = sys.timer(123, call_back, 1000)\n"
+                    "    if ret == false then\n"
+                    "        return\n"
+                    "    end\n"
+                    "end\n"
+                    "assert (false)\n"
+                    "\n";
+
+    ASSERT_TRUE(RunString(L, s));
 }
 
 int main(int argc, char **argv)

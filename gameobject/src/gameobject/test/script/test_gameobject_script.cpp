@@ -175,7 +175,7 @@ TEST_F(ScriptTest, TestFailingScript05)
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_FALSE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmGameObject::Delete(m_Collection, go);
 }
 
@@ -219,7 +219,7 @@ TEST_F(ScriptTest, TestReload)
     go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
 
-    dmGameObject::Update(m_Collection, 0);
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
     Point3 p1 = dmGameObject::GetPosition(go);
     ASSERT_EQ(1, p1.getX());
     ASSERT_EQ(2, p1.getY());
@@ -235,7 +235,7 @@ TEST_F(ScriptTest, TestReload)
     dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
 
-    dmGameObject::Update(m_Collection, 0);
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
     Point3 p2 = dmGameObject::GetPosition(go);
     ASSERT_EQ(10, p2.getX());
     ASSERT_EQ(20, p2.getY());
@@ -267,7 +267,7 @@ TEST_F(ScriptTest, Null)
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go);

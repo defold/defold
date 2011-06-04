@@ -44,6 +44,7 @@ TEST(LuaTableToDDF, Transform)
 
     delete[] buf;
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -87,6 +88,7 @@ TEST(DDFToLuaTable, Transform)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -167,6 +169,7 @@ TEST(LuaTableToDDF, MessageInMessage)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -227,6 +230,7 @@ TEST(DDFToLuaTable, MessageInMessage)
 
     delete g;
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -263,6 +267,7 @@ TEST(LuaTableToDDF, DefaultValue)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 
@@ -318,6 +323,7 @@ TEST(LuaTableToDDF, LuaDDFBufferOverflow)
 
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmScript::Finalize(L);
     lua_close(L);
 }
 

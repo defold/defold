@@ -463,7 +463,7 @@ bail:
 
                 if (engine->m_RenderScriptPrototype)
                 {
-                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, fixed_dt);
                 }
                 else
                 {

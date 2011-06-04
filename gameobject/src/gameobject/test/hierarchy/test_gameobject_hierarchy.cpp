@@ -83,7 +83,7 @@ TEST_F(HierarchyTest, TestHierarchy1)
         ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
 
         bool ret;
-        ret = dmGameObject::Update(m_Collection, 0);
+        ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
         ASSERT_TRUE(ret);
         ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);
@@ -158,7 +158,7 @@ TEST_F(HierarchyTest, TestHierarchy2)
     ASSERT_EQ(2U, dmGameObject::GetDepth(child_child));
 
     bool ret;
-    ret = dmGameObject::Update(m_Collection, 0);
+    ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
     Point3 expected_child_pos = Point3((parent_m * child_pos).getXYZ());
@@ -209,7 +209,7 @@ TEST_F(HierarchyTest, TestHierarchy3)
         ASSERT_EQ(0U, dmGameObject::GetDepth(parent));
 
         bool ret;
-        ret = dmGameObject::Update(m_Collection, 0);
+        ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
         ASSERT_TRUE(ret);
         ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);
@@ -415,7 +415,7 @@ TEST_F(HierarchyTest, TestHierarchy8)
         ASSERT_EQ(b2, dmGameObject::GetParent(d3));
 
         bool ret;
-        ret = dmGameObject::Update(m_Collection, 0);
+        ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
         ASSERT_TRUE(ret);
         ret = dmGameObject::PostUpdate(m_Collection);
         ASSERT_TRUE(ret);

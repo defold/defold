@@ -164,7 +164,7 @@ TEST_F(DeleteTest, DeleteSelf)
                 int index = *(m_DeleteSelfIndices.end() - i - 1);
                 m_SelfInstancesToDelete.push_back(m_DeleteSelfIndexToInstance[index]);
             }
-            bool ret = dmGameObject::Update(m_Collection, 0);
+            bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
             ASSERT_TRUE(ret);
             ret = dmGameObject::PostUpdate(m_Collection);
             ASSERT_TRUE(ret);
@@ -183,7 +183,7 @@ TEST_F(DeleteTest, TestScriptDelete)
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "delete.goc");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
 }

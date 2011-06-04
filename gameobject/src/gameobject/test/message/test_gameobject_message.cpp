@@ -230,14 +230,14 @@ TEST_F(MessageTest, TestComponentMessage)
     receiver.m_Fragment = dmHashString64("mt");
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(1U, m_MessageTargetCounter);
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     dmGameObject::Delete(m_Collection, go);
 }
@@ -258,7 +258,7 @@ TEST_F(MessageTest, TestComponentMessageFail)
     receiver.m_Fragment = dmHashString64("apa");
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0));
-    ASSERT_FALSE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     dmGameObject::Delete(m_Collection, go);
 }
@@ -272,7 +272,7 @@ TEST_F(MessageTest, TestBroadcastDDFMessage)
     ASSERT_EQ(0U, m_MessageTargetCounter);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
     dmGameObject::Delete(m_Collection, go);
@@ -291,7 +291,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
     dmGameObject::Delete(m_Collection, go);
@@ -311,7 +311,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_EQ(1u, m_Collection->m_InputFocusStack.Size());
 
@@ -319,7 +319,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor, 0x0, 0));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
 
@@ -375,7 +375,7 @@ TEST_F(MessageTest, TestGameObjectTransform)
     receiver.m_Path = dmGameObject::GetIdentifier(go);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor, 0x0, 0));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     GameObjectTransformContext context;
     memset(&context, 0, sizeof(GameObjectTransformContext));
@@ -430,14 +430,14 @@ TEST_F(MessageTest, TestSetParent)
 
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     // twice to make sure UpdateTransform has run
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
@@ -447,7 +447,7 @@ TEST_F(MessageTest, TestSetParent)
     ddf.m_KeepWorldTransform = 1;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
@@ -455,7 +455,7 @@ TEST_F(MessageTest, TestSetParent)
 
     // twice to make sure UpdateTransform has run
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(2.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
@@ -468,14 +468,14 @@ TEST_F(MessageTest, TestSetParent)
     ddf.m_KeepWorldTransform = 1;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(1.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     // twice to make sure UpdateTransform has run
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NE((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(1.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(sq_2_half, dmGameObject::GetWorldRotation(go).getX(), epsilon);
@@ -485,14 +485,14 @@ TEST_F(MessageTest, TestSetParent)
     ddf.m_KeepWorldTransform = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent)));
 
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(0.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
     // twice to make sure UpdateTransform has run
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, 0x0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, (void*)dmGameObject::GetParent(go));
     ASSERT_EQ(0.0f, dmGameObject::GetWorldPosition(go).getX());
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);

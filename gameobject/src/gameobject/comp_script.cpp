@@ -166,6 +166,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(g_LuaState);
         (void)top;
+        dmScript::Update(g_LuaState, params.m_UpdateContext->m_DT);
         UpdateResult result = UPDATE_RESULT_OK;
         ScriptWorld* script_world = (ScriptWorld*)params.m_World;
         uint32_t size = script_world->m_Instances.Size();
