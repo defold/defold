@@ -73,9 +73,12 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
             return false;
 
-        dmResource::FactoryResult fr = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
-        if (fr != dmResource::FACTORY_RESULT_OK)
-            return false;
+        if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
+        {
+            dmResource::FactoryResult fr = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
+            if (fr != dmResource::FACTORY_RESULT_OK)
+                return false;
+        }
 
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
         resource->m_FontMaps.SetSize(0);
