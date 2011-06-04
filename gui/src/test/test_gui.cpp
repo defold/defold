@@ -507,10 +507,12 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, node, "n");
-    const char* s = "function cb(node)\n"
+    const char* s = "function cb(self, node)\n"
+                    "    assert(self.foobar == 123)\n"
                     "    gui.animate(node, gui.POSITION, vmath.vector4(2,0,0,0), gui.EASING_NONE, 0.5, 0)\n"
                     "end\n;"
                     "function init(self)\n"
+                    "    self.foobar = 123\n"
                     "    gui.animate(gui.get_node(\"n\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
                     "end\n";
 
@@ -548,7 +550,7 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, node1, "n1");
     dmGui::SetNodeId(m_Scene, node2, "n2");
-    const char* s = "function cb(node)\n"
+    const char* s = "function cb(self, node)\n"
                     "    gui.delete_node(node)\n"
                     "end\n;"
                     "function init(self)\n"

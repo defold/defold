@@ -223,9 +223,10 @@ namespace dmGui
         int ref = (int) userdata1;
         int node_ref = (int) userdata2;
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
 
-        int ret = lua_pcall(L, 1, 0, 0);
+        int ret = lua_pcall(L, 2, 0, 0);
         if (ret != 0)
         {
             dmLogError("Error running animation callback: %s", lua_tostring(L,-1));
