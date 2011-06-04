@@ -350,6 +350,12 @@ namespace dmGui
         return 0;
     }
 
+    /*#
+     * Cancel animation
+     * @name gui.cancel_animation
+     * @param node node to cancel property for
+     * @param property property to cancel
+     */
     int LuaCancelAnimation(lua_State* L)
     {
         int top = lua_gettop(L);
