@@ -28,6 +28,8 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
 
     private Image luaImage;
 
+    private ImageDescriptor luaImageDesc;
+
     public LuaEditorPlugin() {
     }
 
@@ -94,6 +96,9 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
     }
 
     public Image getLuaImage() {
+        if (luaImage == null && luaImageDesc != null)
+            this.luaImage = luaImageDesc.createImage();
+
         return luaImage;
     }
 
@@ -102,9 +107,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
         LuaEditorPlugin.plugin = this;
         super.start(context);
         loadDocumentation();
-        ImageDescriptor desc = imageDescriptorFromPlugin(PLUGIN_ID, "icons/lua.gif");
-        if (desc != null)
-            this.luaImage = desc.createImage();
+        luaImageDesc = imageDescriptorFromPlugin(PLUGIN_ID, "icons/lua.gif");
     }
 
     @Override
