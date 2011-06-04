@@ -261,7 +261,7 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed >= anim->m_Duration)
+            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
             {
                 continue;
             }
@@ -315,7 +315,7 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed >= anim->m_Duration)
+            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
             {
                 animations->EraseSwap(i);
                 i--;
@@ -775,6 +775,7 @@ namespace dmGui
         animation.m_Userdata2 = userdata2;
         animation.m_FirstUpdate = 1;
         animation.m_AnimationCompleteCalled = 0;
+        animation.m_Cancelled = 0;
 
         switch (easing)
         {
@@ -811,6 +812,25 @@ namespace dmGui
         }
 
         scene->m_Animations[animation_index] = animation;
+    }
+
+    void CancelAnimation(HScene scene, HNode node, Property property)
+    {
+        dmArray<Animation>* animations = &scene->m_Animations;
+        uint32_t n_animations = animations->Size();
+
+        InternalNode* n = GetNode(scene, node);
+
+        for (uint32_t i = 0; i < n_animations; ++i)
+        {
+            Animation* anim = &(*animations)[i];
+            Vector4* value = &n->m_Node.m_Properties[property];
+            if (anim->m_Node == node && anim->m_Value == value)
+            {
+                anim->m_Cancelled = 1;
+                return;
+            }
+        }
     }
 
     HScript NewScript(HContext context)

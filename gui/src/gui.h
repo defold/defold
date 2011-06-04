@@ -326,6 +326,8 @@ namespace dmGui
                      void* userdata1,
                      void* userdata2);
 
+    void CancelAnimation(HScene scene, HNode node, Property property);
+
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
     Result SetScript(HScript script, const char* source, uint32_t source_length, const char* filename);

@@ -350,6 +350,32 @@ namespace dmGui
         return 0;
     }
 
+    int LuaCancelAnimation(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        HNode hnode;
+        InternalNode* node = LuaCheckNode(L, 1, &hnode);
+        (void) node;
+
+        int property = (int) luaL_checknumber(L, 2);
+
+        if (property >= PROPERTY_COUNT)
+        {
+            luaL_error(L, "Invalid property index: %d", property);
+        }
+
+        CancelAnimation(scene, hnode, (Property) property);
+
+        assert(top== lua_gettop(L));
+        return 0;
+    }
+
     static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 ext, NodeType node_type, const char* text)
     {
         int top = lua_gettop(L);
@@ -635,6 +661,7 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
+        {"cancel_animation",LuaCancelAnimation},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
         {"get_text",        LuaGetText},

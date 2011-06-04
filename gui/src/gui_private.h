@@ -65,6 +65,7 @@ namespace dmGui
         void*    m_Userdata2;
         uint16_t m_FirstUpdate : 1;
         uint16_t m_AnimationCompleteCalled : 1;
+        uint16_t m_Cancelled : 1;
     };
 
     struct Script

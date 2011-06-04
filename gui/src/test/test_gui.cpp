@@ -581,6 +581,85 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
     ASSERT_EQ(0U, node_count);
 }
 
+TEST_F(dmGuiTest, ScriptAnimateCancel1)
+{
+    // Immediate cancel
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.animate(self.node, gui.COLOR, vmath.vector4(1,0,0,0), gui.EASING_NONE, 0.2)\n"
+                    "    gui.cancel_animation(self.node, gui.COLOR)\n"
+                    "end\n"
+                    "function update(self, dt)\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(gui.get_node(\"n\"))\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 1.0f, 0.001f);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+
+TEST_F(dmGuiTest, ScriptAnimateCancel2)
+{
+    // Cancel after 50% has elapsed
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(10,0,0,0), gui.EASING_NONE, 1)\n"
+                    "    self.nframes = 0\n"
+                    "end\n"
+                    "function update(self, dt)\n"
+                    "    self.nframes = self.nframes + 1\n"
+                    "    if self.nframes >= 30 then\n"
+                    "        gui.cancel_animation(self.node, gui.POSITION)\n"
+                    "    end\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(gui.get_node(\"n\"))\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 5.0f, 0.001f);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 TEST_F(dmGuiTest, ScriptOutOfNodes)
 {
     const char* s = "function init(self)\n"
