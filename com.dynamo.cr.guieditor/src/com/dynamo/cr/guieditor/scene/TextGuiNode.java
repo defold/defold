@@ -17,13 +17,11 @@ public class TextGuiNode extends GuiNode {
     private String font;
 
     private Rectangle2D textBounds;
-    private String textBoundsFont;
 
     public TextGuiNode(GuiScene scene, NodeDesc nodeDesc) {
         super(scene, nodeDesc);
         this.font = nodeDesc.getFont();
         this.text = nodeDesc.getText();
-        textBoundsFont = font;
     }
 
     public String getText() {
@@ -32,7 +30,6 @@ public class TextGuiNode extends GuiNode {
 
     public void setText(String text) {
         this.text = text;
-        this.textBounds = null;
     }
 
     public String getFont() {
@@ -41,7 +38,6 @@ public class TextGuiNode extends GuiNode {
 
     public void setFont(String font) {
         this.font = font;
-        this.textBounds = null;
     }
 
     private String getErrorText() {
@@ -55,18 +51,12 @@ public class TextGuiNode extends GuiNode {
 
         TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
         if (textRenderer != null) {
-            if (textBounds == null || !font.equals(textBoundsFont)) {
-                textBounds = renderer.getStringBounds(textRenderer, text);
-                textBoundsFont = font;
-            }
+            textBounds = renderer.getStringBounds(textRenderer, text);
             renderer.drawString(textRenderer, text, x0, y0, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha(), getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
         }
         else {
             String errorText = getErrorText();
-            if (textBounds == null || !"__debug__".equals(textBoundsFont)) {
-                textBounds = renderer.getStringBounds(null, errorText);
-                textBoundsFont = "__debug__";
-            }
+            textBounds = renderer.getStringBounds(null, errorText);
             renderer.drawString(null, errorText, x0, y0, 1, 0, 0, 1, null, null);
         }
     }
