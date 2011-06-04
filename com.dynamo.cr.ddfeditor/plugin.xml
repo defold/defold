@@ -58,15 +58,6 @@
             name="Collision Object Editor">
       </editor>
       <editor
-            class="com.dynamo.cr.ddfeditor.GuiEditor"
-            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
-            default="false"
-            extensions="gui"
-            icon="icons/text_allcaps.png"
-            id="com.dynamo.cr.ddfeditor.guieditor"
-            name="Gui Editor">
-      </editor>
-      <editor
             class="com.dynamo.cr.ddfeditor.FontEditor"
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
