@@ -30,6 +30,10 @@ public class GuiFontResource {
         }
     }
 
+    public int getSize() {
+        return size;
+    }
+
     public TextRenderer getTextRenderer() {
         if (fontData != null) {
             createDeferred();

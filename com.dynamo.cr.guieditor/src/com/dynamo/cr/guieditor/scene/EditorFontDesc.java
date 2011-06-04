@@ -1,5 +1,6 @@
 package com.dynamo.cr.guieditor.scene;
 
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.ui.views.properties.IPropertySource;
 
@@ -20,6 +21,8 @@ public class EditorFontDesc implements IAdaptable {
     private PropertyIntrospectorSource<EditorFontDesc, GuiScene> propertySource;
 
     private GuiFontResource fontResource;
+
+    private long lastModified = IResource.NULL_STAMP;
 
     public EditorFontDesc(GuiScene scene, FontDesc fontDesc) {
         this.scene = scene;
@@ -60,6 +63,14 @@ public class EditorFontDesc implements IAdaptable {
 
     public GuiFontResource getFontResource() {
         return fontResource;
+    }
+
+    public long getLastModified() {
+        return lastModified;
+    }
+
+    public void setLastModified(long lastModified) {
+        this.lastModified = lastModified;
     }
 
     public FontDesc buildDesc() {

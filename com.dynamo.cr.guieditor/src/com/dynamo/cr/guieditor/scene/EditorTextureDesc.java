@@ -1,5 +1,6 @@
 package com.dynamo.cr.guieditor.scene;
 
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.ui.views.properties.IPropertySource;
 
@@ -20,6 +21,8 @@ public class EditorTextureDesc implements IAdaptable {
     private GuiScene scene;
 
     private GuiTextureResource textureResource;
+
+    private long lastModified = IResource.NULL_STAMP;
 
     public EditorTextureDesc(GuiScene scene, TextureDesc textureDesc) {
         this.scene = scene;
@@ -60,6 +63,14 @@ public class EditorTextureDesc implements IAdaptable {
 
     public GuiTextureResource getTextureResource() {
         return textureResource;
+    }
+
+    public long getLastModified() {
+        return lastModified;
+    }
+
+    public void setLastModified(long lastModified) {
+        this.lastModified = lastModified;
     }
 
     public TextureDesc buildDesc() {

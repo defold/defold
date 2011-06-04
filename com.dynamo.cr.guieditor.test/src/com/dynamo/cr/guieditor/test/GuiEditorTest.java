@@ -3,10 +3,14 @@ package com.dynamo.cr.guieditor.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +19,7 @@ import java.util.HashMap;
 
 import javax.vecmath.Vector4d;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
@@ -22,6 +27,7 @@ import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.expressions.IEvaluationContext;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
@@ -49,15 +55,19 @@ import com.dynamo.cr.guieditor.commands.SendBackward;
 import com.dynamo.cr.guieditor.operations.DeleteGuiNodesOperation;
 import com.dynamo.cr.guieditor.operations.SelectOperation;
 import com.dynamo.cr.guieditor.operations.SetPropertiesOperation;
+import com.dynamo.cr.guieditor.render.GuiFontResource;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.guieditor.scene.EditorFontDesc;
 import com.dynamo.cr.guieditor.scene.EditorTextureDesc;
 import com.dynamo.cr.guieditor.scene.GuiNode;
 import com.dynamo.cr.guieditor.scene.GuiScene;
+import com.dynamo.cr.guieditor.scene.IGuiSceneListener;
 import com.dynamo.cr.guieditor.scene.TextGuiNode;
 import com.dynamo.cr.properties.BeanPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyAccessor;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.google.protobuf.TextFormat;
 
 public class GuiEditorTest {
 
@@ -299,6 +309,77 @@ public class GuiEditorTest {
         history.undo(undoContext, new NullProgressMonitor(), null);
         assertEquals(0, editor.getScene().getTextures().size());
     }
+
+    @Test
+    public void testReloadFont() throws Throwable {
+        assertEquals(0, editor.getScene().getFonts().size());
+
+        IGuiSceneListener listener = mock(IGuiSceneListener.class);
+        editor.getScene().addGuiSceneListener(listener);
+
+        IFile resource = project.getFile("/fonts/highscore.font");
+        assertNotNull(resource);
+
+        FontDesc.Builder fontDescBuilder = FontDesc.newBuilder();
+        Reader reader = new InputStreamReader(resource.getContents());
+        TextFormat.merge(reader, fontDescBuilder);
+        reader.close();
+        int preFontSize = fontDescBuilder.getSize();
+
+        AddFont addFont = new AddFont();
+        addFont.doExecute(editor, resource);
+        assertEquals(1, editor.getScene().getFonts().size());
+
+        EditorFontDesc fontDesc = editor.getScene().getFonts().get(0);
+        assertTrue(editor.getScene().getRenderResourceCollection().hasTextRenderer(fontDesc.getName()));
+
+        // Double font size
+        fontDescBuilder.setSize(preFontSize * 2);
+        resource.setContents(new ByteArrayInputStream(fontDescBuilder.build().toString().getBytes()), IResource.FORCE, new NullProgressMonitor());
+
+        // Check that the size is doubled
+        GuiFontResource fontResource = editor.getScene().getFonts().get(0).getFontResource();
+        assertEquals(preFontSize * 2, fontResource.getSize());
+
+        verify(listener, times(1)).resourcesChanged();
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(0, editor.getScene().getFonts().size());
+
+        editor.getScene().removeGuiSceneListener(listener);
+    }
+
+    @Test
+    public void testReloadTexture() throws Throwable {
+        assertEquals(0, editor.getScene().getTextures().size());
+
+        IGuiSceneListener listener = mock(IGuiSceneListener.class);
+        editor.getScene().addGuiSceneListener(listener);
+
+        IFile resource = project.getFile("/graphics/ball.png");
+        assertNotNull(resource);
+
+        AddTexture addTexture = new AddTexture();
+        addTexture.doExecute(editor, resource);
+        assertEquals(1, editor.getScene().getTextures().size());
+
+        EditorTextureDesc textureDesc = editor.getScene().getTextures().iterator().next();
+        assertTrue(editor.getScene().getRenderResourceCollection().hasTexture(textureDesc.getName()));
+
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        IOUtils.copy(resource.getContents(), byteOut);
+
+        // Rewrite texture
+        resource.setContents(new ByteArrayInputStream(byteOut.toByteArray()), IResource.FORCE, new NullProgressMonitor());
+
+        verify(listener, times(1)).resourcesChanged();
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(0, editor.getScene().getTextures().size());
+
+        editor.getScene().removeGuiSceneListener(listener);
+    }
+
 
     GuiNode[] setupForwardBackwardTest() throws Exception {
         AddGuiBoxNode command;
