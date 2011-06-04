@@ -889,6 +889,35 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
+{
+    const char* s = "local a = 0\n"
+                    "function update(self)\n"
+                    "   assert(a == 1)\n"
+                    "end\n"
+                    "function on_message(self, message_id, message)\n"
+                    "   assert(message_id == hash(\"amessage\"))\n"
+                    "   a = 1\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    char buffer[256 + sizeof(dmMessage::Message)];
+    dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Id = dmHashString64("amessage");
+    message->m_Descriptor = 0;
+
+    message->m_DataSize = 0;
+
+    r = dmGui::DispatchMessage(m_Scene, message);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
 {
     const char* s = "local a = 0\n"

@@ -364,9 +364,13 @@ namespace dmGui
                     {
                         dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data);
                     }
-                    else
+                    else if (message->m_DataSize > 0)
                     {
                         dmScript::PushTable(L, (const char*) message->m_Data);
+                    }
+                    else
+                    {
+                        lua_newtable(L);
                     }
 
                     dmScript::PushURL(L, message->m_Sender);
