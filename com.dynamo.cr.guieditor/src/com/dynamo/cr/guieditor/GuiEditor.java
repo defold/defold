@@ -247,7 +247,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             throw new PartInitException(e.getMessage(), e);
         }
 
-        guiScene.addPropertyChangeListener(this);
+        guiScene.addGuiSceneListener(this);
     }
 
     public IContainer getContentRoot() {
@@ -279,6 +279,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
         getSite().getWorkbenchWindow().getSelectionService().removeSelectionListener(this);
 
+        guiScene.dispose();
+
         if (history != null) {
             history.removeOperationHistoryListener(this);
             history.removeOperationHistoryListener(this);
@@ -290,7 +292,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             canvas.dispose();
         }
         if (guiScene != null) {
-            guiScene.removePropertyChangeListener(this);
+            guiScene.removeGuiSceneListener(this);
         }
     }
 
@@ -683,6 +685,11 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                 postRedraw();
             }
         });
+    }
+
+    @Override
+    public void resourcesChanged() {
+        postRedraw();
     }
 
     @Override

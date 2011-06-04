@@ -7,23 +7,31 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.media.opengl.GLException;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.ui.services.IDisposable;
 import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.guieditor.DrawContext;
@@ -42,7 +50,7 @@ import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.render.proto.Font;
 import com.google.protobuf.TextFormat;
 
-public class GuiScene implements IPropertyObjectWorld, IAdaptable {
+public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChangeListener, IDisposable {
 
     @Property(commandFactory = UndoableCommandFactory.class)
     private int referenceWidth;
@@ -71,8 +79,12 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     private PropertyIntrospectorSource<GuiScene, GuiScene> propertySource;
 
+    // NOTE: This can contain removed items. It used for reloading. Better be safe than sorry. :-)
+    private Set<IResource> referredResources = new HashSet<IResource>();
 
     private RenderResourceCollection renderResourceCollection = new RenderResourceCollection();
+
+    private boolean isDisposed;
 
     public GuiScene(IGuiEditor editor, SceneDesc sceneDesc) {
         this.editor = editor;
@@ -102,6 +114,22 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         for (FontDesc font : sceneDesc.getFontsList()) {
             fonts.add(new EditorFontDesc(this, font));
         }
+
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        if (!isDisposed) {
+            System.err.println("ERROR: GuiScene not explicitly disposed.");
+        }
+    }
+
+    @Override
+    public void dispose() {
+        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
+        isDisposed = true;
     }
 
     public IContainer getContentRoot() {
@@ -132,6 +160,12 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     private void loadFont(EditorFontDesc guiFont, IContainer contentRoot, IGuiRenderer renderer) throws CoreException, IOException, FontFormatException {
         String fontFileName = guiFont.getFont();
         IFile fontFile = contentRoot.getFile(new Path(fontFileName));
+        long lastModified = fontFile.getModificationStamp();
+        if (lastModified == guiFont.getLastModified())
+            return;
+        guiFont.setLastModified(lastModified);
+
+        referredResources.add(fontFile);
 
         Font.FontDesc.Builder fontDescBuilder = Font.FontDesc.newBuilder();
         InputStream is = fontFile.getContents();
@@ -150,6 +184,13 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
     private void loadTexture(EditorTextureDesc textureDesc, IContainer contentRoot,
             IGuiRenderer renderer) throws GLException, IOException, CoreException {
         IFile textureFile = contentRoot.getFile(new Path(textureDesc.getTexture()));
+
+        long lastModified = textureFile.getModificationStamp();
+        if (lastModified == textureDesc.getLastModified())
+            return;
+        textureDesc.setLastModified(lastModified);
+
+        referredResources.add(textureFile);
 
         ByteArrayOutputStream output = new ByteArrayOutputStream(1024 * 128);
         IOUtils.copy(textureFile.getContents(), output);
@@ -198,13 +239,13 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         }
     }
 
-    public void addPropertyChangeListener(IGuiSceneListener listener) {
+    public void addGuiSceneListener(IGuiSceneListener listener) {
         if (!listeners.contains(listener)) {
             listeners.add(listener);
         }
     }
 
-    public void removePropertyChangeListener(IGuiSceneListener listener) {
+    public void removeGuiSceneListener(IGuiSceneListener listener) {
         listeners.remove(listener);
     }
 
@@ -345,12 +386,12 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
         addGeneric(nodes, nodeToIndex, nodesToAdd);
     }
 
-    public Collection<EditorFontDesc> getFonts() {
-        return Collections.unmodifiableCollection(this.fonts);
+    public List<EditorFontDesc> getFonts() {
+        return Collections.unmodifiableList(this.fonts);
     }
 
-    public Collection<EditorTextureDesc> getTextures() {
-        return Collections.unmodifiableCollection(this.textures);
+    public List<EditorTextureDesc> getTextures() {
+        return Collections.unmodifiableList(this.textures);
     }
 
     public int getNodeCount() {
@@ -533,5 +574,43 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable {
 
     public int getNodeIndex(GuiNode node) {
         return nodes.indexOf(node);
+    }
+
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+        final boolean doReload[] = new boolean[] { false };
+        try {
+            IResourceDelta delta = event.getDelta();
+            if (delta == null)
+                return;
+            delta.accept(new IResourceDeltaVisitor() {
+
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    IResource resource = delta.getResource();
+                    if (resource != null) {
+                        if (referredResources.contains(resource)) {
+                            doReload[0] = true;
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            });
+        } catch (CoreException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            if (doReload[0]) {
+                loadRenderResources(new NullProgressMonitor(), editor.getContentRoot(), editor.getRenderer());
+
+                for (IGuiSceneListener listener : listeners) {
+                    listener.resourcesChanged();
+                }
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
     }
 }
