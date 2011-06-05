@@ -1019,8 +1019,10 @@ namespace dmGameObject
                 context->m_Success = false;
                 return;
             }
-            ComponentType* component_type = prototype->m_Components[component_index].m_Type;
+            Prototype::Component* component = &prototype->m_Components[component_index];
+            ComponentType* component_type = component->m_Type;
             assert(component_type);
+            uint32_t component_type_index = component->m_TypeIndex;
 
             if (component_type->m_OnMessageFunction)
             {
@@ -1045,6 +1047,7 @@ namespace dmGameObject
                     DM_PROFILE(GameObject, "OnMessageFunction");
                     ComponentOnMessageParams params;
                     params.m_Instance = instance;
+                    params.m_World = context->m_Collection->m_ComponentWorlds[component_type_index];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
                     params.m_Message = message;
@@ -1064,8 +1067,10 @@ namespace dmGameObject
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
-                ComponentType* component_type = prototype->m_Components[i].m_Type;
+                Prototype::Component* component = &prototype->m_Components[i];
+                ComponentType* component_type = component->m_Type;
                 assert(component_type);
+                uint32_t component_type_index = component->m_TypeIndex;
 
                 if (component_type->m_OnMessageFunction)
                 {
@@ -1078,6 +1083,7 @@ namespace dmGameObject
                         DM_PROFILE(GameObject, "OnMessageFunction");
                         ComponentOnMessageParams params;
                         params.m_Instance = instance;
+                        params.m_World = context->m_Collection->m_ComponentWorlds[component_type_index];
                         params.m_Context = component_type->m_Context;
                         params.m_UserData = component_instance_data;
                         params.m_Message = message;

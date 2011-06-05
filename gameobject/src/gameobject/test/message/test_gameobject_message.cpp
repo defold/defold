@@ -33,7 +33,6 @@ protected:
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
         assert(dmMessage::NewSocket("@system", &m_Socket) == dmMessage::RESULT_OK);
 
         m_MessageTargetCounter = 0;
@@ -49,6 +48,8 @@ protected:
         mt_type.m_Name = "mt";
         mt_type.m_ResourceType = resource_type;
         mt_type.m_Context = this;
+        mt_type.m_NewWorldFunction = CompMessageTargetNewWorld;
+        mt_type.m_DeleteWorldFunction = CompMessageTargetDeleteWorld;
         mt_type.m_CreateFunction = CompMessageTargetCreate;
         mt_type.m_DestroyFunction = CompMessageTargetDestroy;
         mt_type.m_OnMessageFunction = CompMessageTargetOnMessage;
@@ -56,6 +57,8 @@ protected:
 
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, mt_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
+
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     }
 
 
@@ -77,6 +80,8 @@ protected:
     static dmResource::CreateResult ResMessageTargetDestroy(dmResource::HFactory factory,
                                             void* context,
                                             dmResource::SResourceDescriptor* resource);
+    static dmGameObject::CreateResult CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
+    static dmGameObject::CreateResult CompMessageTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params);
     static dmGameObject::CreateResult CompMessageTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
     static dmGameObject::UpdateResult CompMessageTargetOnMessage(const dmGameObject::ComponentOnMessageParams& params);
@@ -119,6 +124,17 @@ dmResource::CreateResult MessageTest::ResMessageTargetDestroy(dmResource::HFacto
     return dmResource::CREATE_RESULT_OK;
 }
 
+dmGameObject::CreateResult MessageTest::CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params)
+{
+    *params.m_World = params.m_Context;
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmGameObject::CreateResult MessageTest::CompMessageTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
+{
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
 dmGameObject::CreateResult MessageTest::CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params)
 {
     return dmGameObject::CREATE_RESULT_OK;
@@ -132,6 +148,7 @@ dmGameObject::CreateResult MessageTest::CompMessageTargetDestroy(const dmGameObj
 dmGameObject::UpdateResult MessageTest::CompMessageTargetOnMessage(const dmGameObject::ComponentOnMessageParams& params)
 {
     MessageTest* self = (MessageTest*) params.m_Context;
+    assert(params.m_Context == params.m_World);
 
     if (params.m_Message->m_Id == dmHashString64("inc"))
     {

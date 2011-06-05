@@ -272,7 +272,7 @@ namespace dmGameObject
     {
         /// Collection handle
         HCollection m_Collection;
-        /// Update context
+        /// Component world
         void* m_World;
         /// User context
         void* m_Context;
@@ -292,6 +292,8 @@ namespace dmGameObject
     {
         /// Instance handle
         HInstance m_Instance;
+        /// World
+        void* m_World;
         /// User context
         void* m_Context;
         /// User data storage pointer
