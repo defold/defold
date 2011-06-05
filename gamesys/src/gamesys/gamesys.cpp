@@ -5,10 +5,6 @@
 #include <dlib/log.h>
 #include <dlib/message.h>
 
-#ifdef PlaySound
-#undef PlaySound
-#endif
-
 #include "resources/res_collection_proxy.h"
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
@@ -44,6 +40,10 @@
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
+
+#ifdef PlaySound
+#undef PlaySound
+#endif
 
 namespace dmGameSystem
 {
