@@ -327,7 +327,7 @@ namespace dmGui
                 lua_pushvalue(L, 1);
                 node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
             }
-        } else if (!lua_isnil(L, 6)) {
+        } else if (!lua_isnone(L, 6)) {
             // If argument 6 is specified is has to be a number
             luaL_typerror(L, 6, "number");
         }
