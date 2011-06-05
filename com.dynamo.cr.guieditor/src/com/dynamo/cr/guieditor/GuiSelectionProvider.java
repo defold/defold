@@ -73,7 +73,7 @@ public class GuiSelectionProvider implements ISelectionProvider {
         double xmax = -Double.MAX_VALUE;
         double ymax = -Double.MAX_VALUE;
         for (GuiNode node : nodes) {
-            Rectangle2D nodeBounds = node.getBounds();
+            Rectangle2D nodeBounds = node.getVisualBounds();
 
             xmin = Math.min(xmin, nodeBounds.getX());
             ymin = Math.min(ymin, nodeBounds.getY());

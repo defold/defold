@@ -1,7 +1,11 @@
 package com.dynamo.cr.guieditor.render;
 
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
@@ -27,8 +31,13 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
     private static final int MAX_NODES = 4096;
     private static IntBuffer selectBuffer = ByteBuffer.allocateDirect(4 * MAX_NODES).order(ByteOrder.nativeOrder()).asIntBuffer();
     private TextRenderer debugTextRenderer;
+    private Graphics2D graphics;
 
     public GuiRenderer() {
+        BufferedImage image = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
+        graphics = (Graphics2D) image.getGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
     }
 
     private abstract class RenderCommmand {
@@ -327,5 +336,15 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         {
             return new SelectResult(selected, minz);
         }
+    }
+
+    @Override
+    public FontMetrics getFontMetrics(Font font) {
+        return graphics.getFontMetrics(font);
+    }
+
+    @Override
+    public TextRenderer getDebugTextRenderer() {
+        return debugTextRenderer;
     }
 }

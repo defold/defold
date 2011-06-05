@@ -14,6 +14,9 @@ import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.cr.properties.Vector4dEmbeddedSource;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
+import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
+import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
+import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
 import com.dynamo.proto.DdfMath.Vector4;
 
 public abstract class GuiNode implements IAdaptable {
@@ -47,6 +50,15 @@ public abstract class GuiNode implements IAdaptable {
 
     @Property(commandFactory = UndoableCommandFactory.class)
     private String id;
+
+    @Property(commandFactory = UndoableCommandFactory.class)
+    private Pivot pivot;
+
+    @Property(commandFactory = UndoableCommandFactory.class)
+    private XAnchor xanchor;
+
+    @Property(commandFactory = UndoableCommandFactory.class)
+    private YAnchor yanchor;
 
     private PropertyIntrospectorSource<GuiNode, GuiScene> propertySource;
 
@@ -116,6 +128,30 @@ public abstract class GuiNode implements IAdaptable {
         this.id = id;
     }
 
+    public Pivot getPivot() {
+        return pivot;
+    }
+
+    public void setPivot(Pivot pivot) {
+        this.pivot = pivot;
+    }
+
+    public XAnchor getXanchor() {
+        return xanchor;
+    }
+
+    public void setXanchor(XAnchor xanchor) {
+        this.xanchor = xanchor;
+    }
+
+    public YAnchor getYanchor() {
+        return yanchor;
+    }
+
+    public void setYanchor(YAnchor yanchor) {
+        this.yanchor = yanchor;
+    }
+
     public void setScene(GuiScene scene) {
         this.scene = scene;
     }
@@ -143,9 +179,12 @@ public abstract class GuiNode implements IAdaptable {
         this.texture = nodeDesc.getTexture();
         this.blendMode = nodeDesc.getBlendMode();
         this.id = nodeDesc.getId();
+        this.pivot = nodeDesc.getPivot();
+        this.xanchor = nodeDesc.getXanchor();
+        this.yanchor = nodeDesc.getYanchor();
     }
 
-    public abstract Rectangle2D getBounds();
+    public abstract Rectangle2D getVisualBounds();
 
     public abstract void draw(DrawContext context);
     public abstract void drawSelect(DrawContext context);
@@ -197,14 +236,17 @@ public abstract class GuiNode implements IAdaptable {
             .setZ(color.blue / 255.0f)
             .setW((float) alpha).build();
         NodeDesc.Builder builder = NodeDesc.newBuilder().mergeFrom(nodeDesc);
-        builder.setPosition(buildVector4(position));
-        builder.setRotation(buildVector4(rotation));
-        builder.setScale(buildVector4(scale));
-        builder.setSize(buildVector4(size));
-        builder.setColor(color4);
-        builder.setTexture(texture);
-        builder.setBlendMode(blendMode);
-        builder.setId(id);
+        builder.setPosition(buildVector4(position))
+        .setRotation(buildVector4(rotation))
+        .setScale(buildVector4(scale))
+        .setSize(buildVector4(size))
+        .setColor(color4)
+        .setTexture(texture)
+        .setBlendMode(blendMode)
+        .setId(id)
+        .setPivot(pivot)
+        .setXanchor(xanchor)
+        .setYanchor(yanchor);
         doBuildNodeDesc(builder);
         return builder.build();
     }
