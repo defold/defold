@@ -10,7 +10,13 @@ components
 }
 embedded_components
 {
-    id: "test_attacker_target_proxy"
+    id: "loading_proxy"
     type: "collectionproxy"
-    data: "collection: \"test_attacker_target.collection\""
+    data: "collection: \"loading/test_loading.collection\""
+}
+embedded_components
+{
+    id: "attacker_target_proxy"
+    type: "collectionproxy"
+    data: "collection: \"attacker_target/test_attacker_target.collection\""
 }

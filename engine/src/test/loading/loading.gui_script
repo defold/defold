@@ -1,0 +1,36 @@
+local function on_fade_in(self, n)
+    msg.post("main:main#attacker_target_proxy", "load")
+end
+
+local function on_fade_out(self, n)
+    msg.post("main:main#loading_proxy", "disable")
+    msg.post("main:main#loading_proxy", "final")
+end
+
+local function start(self)
+    self.loading_node = gui.get_node("loading")
+    local color = gui.get_color(self.loading_node)
+    gui.set_color(self.loading_node, vmath.vector4(color.x, color.y, color.z, 0))
+    gui.animate(self.loading_node, gui.COLOR, color, gui.EASING_OUT, 0.5, 0.0, on_fade_in)
+end
+
+function init(self)
+    start(self)
+end
+
+function final(self)
+    msg.post("main:main#loading_proxy", "unload")
+    msg.post("main:main#attacker_target_proxy", "init")
+    msg.post("main:main#attacker_target_proxy", "enable")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        gui.animate(self.loading_node, gui.COLOR, vmath.vector4(1, 1, 1, 0), gui.EASING_OUT, 0.5, 0.0, on_fade_out)
+    end
+end
+
+function on_reload(self)
+    msg.post("main:main#attacker_target_proxy", "unload")
+    start(self)
+end

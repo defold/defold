@@ -409,12 +409,13 @@ namespace dmGui
 
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
 
+            Result result = RESULT_OK;
             if (ret != 0)
             {
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
                 lua_pop(L, 1);
                 assert(top == lua_gettop(L));
-                return RESULT_SCRIPT_ERROR;
+                result = RESULT_SCRIPT_ERROR;
             }
             else
             {
@@ -424,11 +425,14 @@ namespace dmGui
                     if (lua_gettop(L) - top != (int32_t)ret_count)
                     {
                         dmLogError("The function %s must have exactly %d return values.", SCRIPT_FUNCTION_NAMES[script_function], ret_count);
-                        return RESULT_SCRIPT_ERROR;
+                        result = RESULT_SCRIPT_ERROR;
                     }
                     break;
                 }
             }
+            lua_pushlightuserdata(L, (void*) 0x0);
+            lua_setglobal(L, "__scene__");
+            return result;
         }
         assert(top == lua_gettop(L));
         return RESULT_OK;
@@ -464,6 +468,7 @@ namespace dmGui
     Result UpdateScene(HScene scene, float dt)
     {
         dmScript::Update(scene->m_Context->m_LuaState, dt);
+
         UpdateAnimations(scene, dt);
 
         Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, (void*)&dt);

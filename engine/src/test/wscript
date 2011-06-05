@@ -1,6 +1,6 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
-import os, sys
+import os, sys, shutil
 import waf_gamesys
 
 def build(bld):
@@ -14,5 +14,11 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'test_engine')
-    obj.find_sources_in_dirs('.', exts = ['.cpp', '.project', '.font', '.vp', '.fp', '.gamepads', '.input_binding', '.collection', '.script', '.go', '.collisionobject', '.convexshape', '.material', '.collectionproxy', '.gui', '.gui_script', '.wav'])
+    builtins_src = "content/builtins"
+    builtins_dst = "src/test/builtins"
+    if os.path.isdir(builtins_dst):
+        shutil.rmtree(builtins_dst)
+    shutil.copytree(builtins_src, builtins_dst)
+    dirs = ['.', 'attacker_target', 'loading', 'builtins/fonts', 'builtins/input', 'builtins/render']
+    obj.find_sources_in_dirs(' '.join([dir for dir in dirs]))
     obj.install_path = None

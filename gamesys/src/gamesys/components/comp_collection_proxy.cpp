@@ -195,6 +195,14 @@ namespace dmGameSystem
                     dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
                     return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                 }
+                if (dmMessage::IsSocketValid(params.m_Message->m_Sender.m_Socket))
+                {
+                    dmMessage::Result msg_result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, dmHashString64("proxy_loaded"), 0, 0, 0, 0);
+                    if (msg_result != dmMessage::RESULT_OK)
+                    {
+                        dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
+                    }
+                }
             }
             else
             {
@@ -206,6 +214,14 @@ namespace dmGameSystem
             if (proxy->m_Collection != 0)
             {
                 proxy->m_Unload = 1;
+                if (dmMessage::IsSocketValid(params.m_Message->m_Sender.m_Socket))
+                {
+                    dmMessage::Result msg_result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, dmHashString64("proxy_unloaded"), 0, 0, 0, 0);
+                    if (msg_result != dmMessage::RESULT_OK)
+                    {
+                        dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
+                    }
+                }
             }
             else
             {

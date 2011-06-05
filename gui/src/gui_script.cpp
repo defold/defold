@@ -220,6 +220,9 @@ namespace dmGui
     {
         lua_State* L = scene->m_Context->m_LuaState;
 
+        lua_pushlightuserdata(L, (void*) scene);
+        lua_setglobal(L, "__scene__");
+
         int ref = (int) userdata1;
         int node_ref = (int) userdata2;
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
@@ -235,6 +238,9 @@ namespace dmGui
 
         lua_unref(L, ref);
         lua_unref(L, node_ref);
+
+        lua_pushlightuserdata(L, (void*) 0x0);
+        lua_setglobal(L, "__scene__");
     }
 
     /*#
