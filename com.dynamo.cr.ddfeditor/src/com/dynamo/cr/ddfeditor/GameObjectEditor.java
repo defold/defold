@@ -6,8 +6,10 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
@@ -29,6 +31,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.CellEditor;
@@ -116,6 +119,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
     private HashSet<String> idSet = new HashSet<String>();
     private IContextActivation contextActivation;
     private boolean mac;
+    private Map<ImageDescriptor, Image> imageDescToImage = new HashMap<ImageDescriptor, Image>();
 
     class AddComponentOperation extends AbstractOperation {
         private Component component;
@@ -266,10 +270,11 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         public static final String ID_PROPERTY = "id";
         public static final String COMPONENT_PROPERTY = "component";
 
-        public Component(GameObjectEditor editor, String id, IResourceType resourceType) {
+        public Component(GameObjectEditor editor, String id, String ext) {
             this.editor = editor;
             this.id = id;
-            this.resourceType = resourceType;
+            if (ext != null)
+                this.resourceType = EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(ext);
         }
 
         public String getId() {
@@ -302,9 +307,22 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         public abstract Message getSavableMessage();
         public abstract String getLabel();
 
+        public Image getImage() {
+            String ext = getExtension();
+            if (ext != null) {
+                return editor.getImageFromFilename(ext);
+            } else {
+                ImageRegistry imageRegistry = Activator.getDefault().getImageRegistry();
+                return imageRegistry.get("exclamation");
+            }
+        }
+
         protected static String getExtension(String resource) {
             int index = resource.lastIndexOf(".");
-            return resource.substring(index);
+            if (index != -1)
+                return resource.substring(index);
+            else
+                return null;
         }
     }
 
@@ -312,7 +330,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         private MessageNode messageNode;
 
         public ResourceComponent(GameObjectEditor editor, ComponentDesc desc) {
-            super(editor, desc.getId(), EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(getExtension(desc.getComponent())));
+            super(editor, desc.getId(), getExtension(desc.getComponent()));
             this.messageNode = new MessageNode(desc);
         }
 
@@ -347,7 +365,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         private MessageNode messageNode;
 
         public EmbeddedComponent(GameObjectEditor editor, EmbeddedComponentDesc desc) {
-            super(editor, desc.getId(), EditorCorePlugin.getDefault().getResourceTypeRegistry().getResourceTypeFromExtension(desc.getType()));
+            super(editor, desc.getId(), desc.getType());
             this.type = desc.getType();
 
             Descriptor protoDescriptor = getResourceType().getMessageDescriptor();
@@ -409,6 +427,26 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
 
     public GameObjectEditor() {
         this.mac = System.getProperty("os.name").toLowerCase().indexOf( "mac" ) >= 0;
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+
+        for (Image image : imageDescToImage.values()) {
+            image.dispose();
+        }
+    }
+
+    public Image getImageFromFilename(String filename) {
+        ImageDescriptor imageDesc = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(filename);
+
+        if (!imageDescToImage.containsKey(imageDesc)) {
+            Image image = imageDesc.createImage();
+            imageDescToImage.put(imageDesc, image);
+        }
+
+        return imageDescToImage.get(imageDesc);
     }
 
     @Override
@@ -591,7 +629,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     @Override
                     public Image getImage(Object element) {
                         IResourceType resourceType = (IResourceType) element;
-                        return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("dummy." + resourceType.getFileExtension()).createImage();
+                        return getImageFromFilename("dummy." + resourceType.getFileExtension());
                     }
 
                     @Override
@@ -682,7 +720,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             public Image getImage(Object element) {
                 if (element instanceof Component) {
                     Component component = (Component) element;
-                    return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(component.getExtension()).createImage();
+                    return component.getImage();
                 }
                 return super.getImage(element);
             }
@@ -789,7 +827,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         form = toolkit.createForm(parent);
 
         IFileEditorInput input = (IFileEditorInput) getEditorInput();
-        Image image = PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor(input.getName()).createImage();
+        Image image = getImageFromFilename(input.getName());
         form.setImage(image);
 
         form.setText("Game Object Prototype");

@@ -35,6 +35,7 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, "link_add", "icons/link_add.png");
         registerImage(reg, "page_add", "icons/page_add.png");
         registerImage(reg, "delete", "icons/delete.png");
+        registerImage(reg, "exclamation", "icons/exclamation.png");
     }
 
     private void registerImage(ImageRegistry registry, String key,

@@ -21,21 +21,34 @@ public class LuaContentAssistProcessorTest {
         assertEquals("gui", result.getNamespace());
         assertEquals("", result.getFunction());
         assertTrue(!result.inFunction());
+        assertEquals(0, result.getMatchStart());
+        assertEquals(4, result.getMatchEnd());
 
         result = LuaContentAssistProcessor.parseLine("gui.animate");
         assertEquals("gui", result.getNamespace());
         assertEquals("animate", result.getFunction());
         assertTrue(!result.inFunction());
+        assertEquals(0, result.getMatchStart());
+        assertEquals("gui.animate".length(), result.getMatchEnd());
 
         result = LuaContentAssistProcessor.parseLine("gui.animate(node, property,");
         assertEquals("gui", result.getNamespace());
         assertEquals("animate", result.getFunction());
         assertTrue(result.inFunction());
+        assertEquals(0, result.getMatchStart());
+        assertEquals("gui.animate".length(), result.getMatchEnd());
 
         result = LuaContentAssistProcessor.parseLine("gui.EASING_IN");
         assertEquals("gui", result.getNamespace());
         assertEquals("EASING_IN", result.getFunction());
         assertTrue(!result.inFunction());
+        assertEquals(0, result.getMatchStart());
+
+        result = LuaContentAssistProcessor.parseLine("gui.animate(node, gui.COL,");
+        assertEquals("gui", result.getNamespace());
+        assertEquals("COL", result.getFunction());
+        assertTrue(!result.inFunction());
+        assertEquals(18, result.getMatchStart());
 
     }
 }
