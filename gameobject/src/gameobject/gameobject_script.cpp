@@ -318,10 +318,7 @@ namespace dmGameObject
     void FinalizeScript()
     {
         if (g_LuaState)
-        {
-            dmScript::Finalize(g_LuaState);
             lua_close(g_LuaState);
-        }
         g_LuaState = 0;
     }
 
