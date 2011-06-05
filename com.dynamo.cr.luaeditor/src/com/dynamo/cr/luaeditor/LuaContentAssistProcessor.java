@@ -27,11 +27,17 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
     public static LuaParseResult parseLine(String line) {
         Pattern pattern = Pattern.compile("([a-zA-Z0-9_]+)\\.([a-zA-Z0-9_]*)([\\(]?)");
         Matcher matcher = pattern.matcher(line);
-        if (matcher.find()) {
-            return new LuaParseResult(matcher.group(1), matcher.group(2), matcher.group(3).length() > 0);
-        } else {
-            return null;
+        LuaParseResult result = null;
+
+        while (matcher.find()) {
+            int start = matcher.start();
+            int end = matcher.end();
+            boolean inFunction = matcher.group(3).length() > 0;
+            if (inFunction)
+                --end;
+            result = new LuaParseResult(matcher.group(1), matcher.group(2), inFunction, start, end);
         }
+        return result;
     }
 
     @Override
@@ -93,7 +99,12 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
                     proposals.add(new CompletionProposal("", offset, 0, 0, luaImage, s, null, additionalInfo.toString()));
                 } else {
                     // Default case, do actual completion
-                    proposals.add(new CompletionProposal(s.substring(completeLength), offset, 0, cursorPosition, luaImage, s, null, additionalInfo.toString()));
+                    int matchLen = parseResult.getMatchEnd() - parseResult.getMatchStart();
+                    int replacementOffset = offset - matchLen + parseResult.getNamespace().length() + 1;
+                    int replacementLength = matchLen - parseResult.getNamespace().length() - 1;
+                    String replacementString = s.substring(parseResult.getNamespace().length() + 1);
+                    int newCursorPosition = cursorPosition + parseResult.getFunction().length();
+                    proposals.add(new CompletionProposal(replacementString, replacementOffset, replacementLength, newCursorPosition, luaImage, s, null, additionalInfo.toString()));
                 }
 
             }
