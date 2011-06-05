@@ -593,6 +593,12 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                         IResourceType resourceType = (IResourceType) element;
                         return PlatformUI.getWorkbench().getEditorRegistry().getImageDescriptor("dummy." + resourceType.getFileExtension()).createImage();
                     }
+
+                    @Override
+                    public String getText(Object element) {
+                        IResourceType resourceType = (IResourceType) element;
+                        return resourceType.getName();
+                    }
                 });
 
                 int ret = dialog.open();
