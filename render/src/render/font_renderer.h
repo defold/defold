@@ -59,6 +59,23 @@ namespace dmRender
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
         float m_ShadowY;
+        /// Max ascent of font
+        float m_MaxAscent;
+        /// Max descent of font, positive value
+        float m_MaxDescent;
+    };
+
+    /**
+     * Font metrics about a text string
+     */
+    struct TextMetrics
+    {
+        /// Total string width
+        float m_Width;
+        /// Max ascent of font
+        float m_MaxAscent;
+        /// Max descent of font, positive value
+        float m_MaxDescent;
     };
 
     /**
@@ -132,6 +149,14 @@ namespace dmRender
      * @param params Parameters to use when rendering
      */
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params);
+
+    /**
+     * Get text metrics for string
+     * @param font_map Font map handle
+     * @param text Text to get metrics for
+     * @param metrics Metrics, out-value
+     */
+    void GetTextMetrics(HFontMap font_map, const char* text, TextMetrics* metrics);
 }
 
 #endif // FONTRENDERER_H
