@@ -625,6 +625,76 @@ namespace dmGui
         return 1;
     }
 
+    /*#
+     * Get node position
+     * @name gui.get_position
+     * @param node node to get position for
+     * @return node position
+     */
+
+    /*#
+     * Set node position
+     * @name gui.set_position
+     * @param node node to set position for
+     * @param position new position
+     */
+
+    /*#
+     * Get node rotation
+     * @name gui.get_rotation
+     * @param node node to get rotation for
+     * @return node rotation
+     */
+
+    /*#
+     * Set node rotation
+     * @name gui.set_rotation
+     * @param node node to set rotation for
+     * @param rotation new rotation
+     */
+
+    /*#
+     * Get node scale
+     * @name gui.get_scale
+     * @param node node to get scale for
+     * @return node scale
+     */
+
+    /*#
+     * Set node scale
+     * @name gui.set_scale
+     * @param node node to set scale for
+     * @param scale new scale
+     */
+
+    /*#
+     * Get node color
+     * @name gui.get_color
+     * @param node node to get color for
+     * @return node color
+     */
+
+    /*#
+     * Set node color
+     * @name gui.set_color
+     * @param node node to set color for
+     * @param color new color
+     */
+
+    /*#
+     * Get node extents
+     * @name gui.get_extents
+     * @param node node to get extents for
+     * @return node extents
+     */
+
+    /*#
+     * Set node extents
+     * @name gui.set_extents
+     * @param node node to set extents for
+     * @param extents new extents
+     */
+
 #define LUAGETSET(name, property) \
     int LuaGet##name(lua_State* L)\
     {\
@@ -713,6 +783,36 @@ namespace dmGui
         lua_pop(L, 1);
         return scene->m_Context->m_GetUserDataCallback(scene);
     }
+
+    /*#
+     * Position property
+     * @name gui.POSITION
+     * @variable
+     */
+
+    /*#
+     * Rotation property
+     * @name gui.ROTATION
+     * @variable
+     */
+
+    /*#
+     * Scale property
+     * @name gui.SCALE
+     * @variable
+     */
+
+    /*#
+     * Color property
+     * @name gui.COLOR
+     * @variable
+     */
+
+    /*#
+     * Extents property
+     * @name gui.EXTENTS
+     * @variable
+     */
 
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
