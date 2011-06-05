@@ -39,6 +39,15 @@ TEST(dmMessage, Name)
     ASSERT_EQ((void*)0x0, (void*)dmMessage::GetSocketName(socket));
 }
 
+TEST(dmMessage, Validity)
+{
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test", &socket));
+    ASSERT_TRUE(dmMessage::IsSocketValid(socket));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+    ASSERT_FALSE(dmMessage::IsSocketValid(socket));
+}
+
 TEST(dmMessage, Post)
 {
     const uint32_t max_message_count = 16;

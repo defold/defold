@@ -243,6 +243,24 @@ namespace dmMessage
         }
     }
 
+    bool IsSocketValid(HSocket socket)
+    {
+        if (socket != 0)
+        {
+            uint16_t version = socket >> 16;
+            assert(version != 0);
+
+            uint16_t id = socket & 0xffff;
+
+            if (id < g_Sockets.Size())
+            {
+                MessageSocket* s = &g_Sockets[id];
+                return s->m_Version == version;
+            }
+        }
+        return false;
+    }
+
     uint32_t g_MessagesHash = dmHashString32("Messages");
 
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size)

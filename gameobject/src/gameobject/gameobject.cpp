@@ -961,10 +961,13 @@ namespace dmGameObject
                 dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name);
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResponse);
-                dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
-                if (message_result != dmMessage::RESULT_OK)
+                if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
                 {
-                    dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name, message_result);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
+                    if (message_result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name, message_result);
+                    }
                 }
                 return;
             }
