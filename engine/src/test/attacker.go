@@ -8,6 +8,11 @@ components
     id: "co"
     component: "attacker.collisionobject"
 }
+components
+{
+    id: "shot"
+    component: "shot.wav"
+}
 embedded_components
 {
     id: "bullet_spawner"

@@ -67,3 +67,8 @@ message SetViewProjection
     required dmMath.Matrix4 view        = 2;
     required dmMath.Matrix4 projection  = 3;
 }
+
+message PlaySound
+{
+    optional float delay = 1 [default=0.0];
+}
