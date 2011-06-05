@@ -41,4 +41,6 @@ message FontMap
     required bytes image_data = 5;
     optional float shadow_x = 6;
     optional float shadow_y = 7;
+    required float max_ascent = 8;
+    required float max_descent = 9;
 }

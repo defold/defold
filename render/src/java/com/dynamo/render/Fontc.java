@@ -6,6 +6,7 @@ import java.awt.Composite;
 import java.awt.CompositeContext;
 import java.awt.Font;
 import java.awt.FontFormatException;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -134,6 +135,10 @@ public class Fontc {
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
 
+        FontMetrics fontMetrics = g.getFontMetrics(font);
+        int maxAscent = fontMetrics.getMaxAscent();
+        int maxDescent = fontMetrics.getMaxDescent();
+
         ArrayList<Glyph> glyphs = new ArrayList<Glyph>();
         for (int i = 0; i < this.characters.length(); ++i) {
             String s = this.characters.substring(i, i+1);
@@ -230,7 +235,9 @@ public class Fontc {
             .setImageWidth(this.imageWidth)
             .setImageHeight(newHeight)
             .setShadowX(this.fontDesc.getShadowX())
-            .setShadowY(this.fontDesc.getShadowY());
+            .setShadowY(this.fontDesc.getShadowY())
+            .setMaxAscent(maxAscent)
+            .setMaxDescent(maxDescent);
 
         // Add 32 dummy characters
         for (int j = 0; j < 32; ++j) {
