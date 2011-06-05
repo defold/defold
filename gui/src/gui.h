@@ -120,7 +120,8 @@ namespace dmGui
         uint32_t    m_NodeType : 4;
         uint32_t    m_XAnchor : 2;
         uint32_t    m_YAnchor : 2;
-        uint32_t    m_Reserved : 20;
+        uint32_t    m_Pivot : 4;
+        uint32_t    m_Reserved : 16;
         const char* m_Text;
         uint64_t    m_TextureHash;
         void*       m_Texture;
@@ -128,6 +129,8 @@ namespace dmGui
         void*       m_Font;
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum XAnchor
     {
         XANCHOR_NONE  = 0,
@@ -135,11 +138,28 @@ namespace dmGui
         XANCHOR_RIGHT = 2,
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum YAnchor
     {
         YANCHOR_NONE   = 0,
         YANCHOR_TOP    = 1,
         YANCHOR_BOTTOM = 2,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    enum Pivot
+    {
+        PIVOT_CENTER = 0,
+        PIVOT_N      = 1,
+        PIVOT_NE     = 2,
+        PIVOT_E      = 3,
+        PIVOT_SE     = 4,
+        PIVOT_S      = 5,
+        PIVOT_SW     = 6,
+        PIVOT_W      = 7,
+        PIVOT_NW     = 8,
     };
 
     /**
@@ -315,6 +335,7 @@ namespace dmGui
 
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
+    void SetNodePivot(HScene scene, HNode node, Pivot pivot);
 
     void AnimateNode(HScene scene, HNode node,
                      Property property,

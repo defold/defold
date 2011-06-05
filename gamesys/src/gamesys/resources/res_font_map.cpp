@@ -50,6 +50,8 @@ namespace dmGameSystem
         params.m_TextureDataSize = ddf->m_ImageData.m_Count;
         params.m_ShadowX = ddf->m_ShadowX;
         params.m_ShadowY = ddf->m_ShadowY;
+        params.m_MaxAscent = ddf->m_MaxAscent;
+        params.m_MaxDescent = ddf->m_MaxDescent;
 
         if (font_map == 0)
             font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);
