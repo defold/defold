@@ -1288,10 +1288,7 @@ namespace dmRender
     void FinalizeRenderScriptContext(RenderScriptContext& context)
     {
         if (context.m_LuaState)
-        {
-            dmScript::Finalize(context.m_LuaState);
             lua_close(context.m_LuaState);
-        }
         context.m_LuaState = 0;
     }
 
@@ -1544,11 +1541,6 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            else if (script_function == RENDER_SCRIPT_FUNCTION_UPDATE)
-            {
-                dmScript::Update(L, 0);
-            }
-
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
             if (ret != 0)
             {
@@ -1613,7 +1605,7 @@ bail:
         context->m_Result = RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 
-    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
+    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
         DispatchContext context;
@@ -1621,7 +1613,7 @@ bail:
         context.m_Result = RENDER_SCRIPT_RESULT_OK;
         dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)&context);
         instance->m_CommandBuffer.SetSize(0);
-        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, &dt);
+        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         if (instance->m_CommandBuffer.Size() > 0)
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());

@@ -80,19 +80,6 @@ namespace dmScript
     void Initialize(lua_State* L, const ScriptParams& params);
 
     /**
-     * Finalize the script libraries.
-     * @param L Lua state
-     */
-    void Finalize(lua_State* L);
-
-    /**
-     * Update
-     * @param L Lua state
-     * @param dt Delta time
-     */
-    void Update(lua_State*L, float dt);
-
-    /**
      * Retrieve a ddf structure from a lua state.
      * @param L Lua state
      * @param descriptor DDF descriptor
