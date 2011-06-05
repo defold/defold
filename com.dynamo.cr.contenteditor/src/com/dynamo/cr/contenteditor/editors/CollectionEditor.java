@@ -1539,6 +1539,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 list.toArray(nodes);
                 setSelectedNodes(nodes);
             }
+            postRedraw();
         }
     }
 
