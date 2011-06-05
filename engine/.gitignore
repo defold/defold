@@ -5,10 +5,5 @@ build
 .project
 .cproject
 .pydevproject
-
-
-
-
-
-
+src/test/builtins
 

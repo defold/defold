@@ -89,6 +89,13 @@ namespace dmMessage
     const char* GetSocketName(HSocket socket);
 
     /**
+     * Tests if a socket is valid (not deleted).
+     * @param socket Socket
+     * @return if the socket is valid or not
+     */
+    bool IsSocketValid(HSocket socket);
+
+    /**
      * Post an message to a socket
      * @note Message data is copied by value
      * @param sender The sender URL if the receiver wants to respond. 0x0 is accepted

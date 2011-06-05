@@ -238,17 +238,25 @@ namespace dmGameSystem
                             message.m_CurrentFrame = component->m_CurrentFrame;
                             dmMessage::URL receiver;
                             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
-                            receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
-                            receiver.m_Fragment = component->m_ListenerComponent;
-                            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
-                            uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &message, data_size);
-                            component->m_ListenerInstance = 0x0;
-                            component->m_ListenerComponent = 0xff;
-                            if (result != dmMessage::RESULT_OK)
+                            if (dmMessage::IsSocketValid(receiver.m_Socket))
                             {
-                                dmLogError("Could not send animation_done to listener.");
-                                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                                receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
+                                receiver.m_Fragment = component->m_ListenerComponent;
+                                uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
+                                uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
+                                dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &message, data_size);
+                                component->m_ListenerInstance = 0x0;
+                                component->m_ListenerComponent = 0xff;
+                                if (result != dmMessage::RESULT_OK)
+                                {
+                                    dmLogError("Could not send animation_done to listener.");
+                                    return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                                }
+                            }
+                            else
+                            {
+                                component->m_ListenerInstance = 0x0;
+                                component->m_ListenerComponent = 0xff;
                             }
                         }
                     }

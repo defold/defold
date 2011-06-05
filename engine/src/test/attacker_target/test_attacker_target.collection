@@ -1,14 +1,14 @@
-name: "test"
+name: "test_attacker_target"
 instances
 {
-    prototype: "attacker.go"
+    prototype: "attacker_target/attacker.go"
     id: "attacker"
     position { x: 0 y: 0 z: 0 }
     rotation { x: 0.0 y: 0.0 z: 0.0 z: 1.0 }
 }
 instances
 {
-    prototype: "target.go"
+    prototype: "attacker_target/target.go"
     id: "target"
     position { x: 0 y: 0 z: 0 }
     rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }

@@ -66,6 +66,7 @@ namespace dmGameSystem
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::SetTimeStep::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGameSystemDDF::AnimationDone::m_DDFDescriptor);
+        dmScript::RegisterDDFType(script_context, dmGameSystemDDF::PlaySound::m_DDFDescriptor);
     }
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)

@@ -205,7 +205,6 @@ namespace dmGameObject
 
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
-        regist->m_ComponentInstanceCount[regist->m_ComponentTypeCount] = 0;
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -362,7 +361,7 @@ namespace dmGameObject
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
-                collection->m_Register->m_ComponentInstanceCount[component->m_TypeIndex]++;
+                collection->m_ComponentInstanceCount[component->m_TypeIndex]++;
                 components_created++;
             }
             else
@@ -387,7 +386,7 @@ namespace dmGameObject
                 }
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-                collection->m_Register->m_ComponentInstanceCount[component->m_TypeIndex]--;
+                collection->m_ComponentInstanceCount[component->m_TypeIndex]--;
                 ComponentDestroyParams params;
                 params.m_Collection = collection;
                 params.m_Instance = instance;
@@ -720,7 +719,7 @@ namespace dmGameObject
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            collection->m_Register->m_ComponentInstanceCount[component->m_TypeIndex]--;
+            collection->m_ComponentInstanceCount[component->m_TypeIndex]--;
             ComponentDestroyParams params;
             params.m_Collection = collection;
             params.m_Instance = instance;
@@ -961,10 +960,13 @@ namespace dmGameObject
                 dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name);
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResponse);
-                dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
-                if (message_result != dmMessage::RESULT_OK)
+                if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
                 {
-                    dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name, message_result);
+                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
+                    if (message_result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name, message_result);
+                    }
                 }
                 return;
             }
@@ -1017,8 +1019,10 @@ namespace dmGameObject
                 context->m_Success = false;
                 return;
             }
-            ComponentType* component_type = prototype->m_Components[component_index].m_Type;
+            Prototype::Component* component = &prototype->m_Components[component_index];
+            ComponentType* component_type = component->m_Type;
             assert(component_type);
+            uint32_t component_type_index = component->m_TypeIndex;
 
             if (component_type->m_OnMessageFunction)
             {
@@ -1043,6 +1047,7 @@ namespace dmGameObject
                     DM_PROFILE(GameObject, "OnMessageFunction");
                     ComponentOnMessageParams params;
                     params.m_Instance = instance;
+                    params.m_World = context->m_Collection->m_ComponentWorlds[component_type_index];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
                     params.m_Message = message;
@@ -1062,8 +1067,10 @@ namespace dmGameObject
             uint32_t next_component_instance_data = 0;
             for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
             {
-                ComponentType* component_type = prototype->m_Components[i].m_Type;
+                Prototype::Component* component = &prototype->m_Components[i];
+                ComponentType* component_type = component->m_Type;
                 assert(component_type);
+                uint32_t component_type_index = component->m_TypeIndex;
 
                 if (component_type->m_OnMessageFunction)
                 {
@@ -1076,6 +1083,7 @@ namespace dmGameObject
                         DM_PROFILE(GameObject, "OnMessageFunction");
                         ComponentOnMessageParams params;
                         params.m_Instance = instance;
+                        params.m_World = context->m_Collection->m_ComponentWorlds[component_type_index];
                         params.m_Context = component_type->m_Context;
                         params.m_UserData = component_instance_data;
                         params.m_Message = message;
@@ -1185,7 +1193,7 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER(component_type->m_Name, collection->m_Register->m_ComponentInstanceCount[i]);
+            DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
 
             if (component_type->m_UpdateFunction)
             {
