@@ -72,11 +72,10 @@ namespace dmGameSystem
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
-        float ext = 0.5f;
-        float quad[] = { -ext,-ext, 0, 0, 1,
-                         ext, -ext, 0, 1, 1,
-                         ext, ext, 0, 1,  0,
-                         -ext, ext, 0, 0, 0 };
+        float quad[] = { 0, 0, 0, 0, 1,
+                         1, 0, 0, 1, 1,
+                         1, 1, 0, 1, 0,
+                         0, 1, 0, 0, 0 };
 
         gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), sizeof(float) * 5 * 4, (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
@@ -196,6 +195,9 @@ namespace dmGameSystem
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
                 dmGui::SetNodeBlendMode(scene, n, blend_mode);
+                dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
+                dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
+                dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
             }
             else
             {
@@ -284,11 +286,12 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::Node* n = &nodes[i];
-            const Vector4& position = n->m_Properties[dmGui::PROPERTY_POSITION];
+            Vector4 position = n->m_Properties[dmGui::PROPERTY_POSITION];
             const Vector4& rotation = n->m_Properties[dmGui::PROPERTY_ROTATION];
             const Vector4& extents = n->m_Properties[dmGui::PROPERTY_EXTENTS];
             const Vector4& scale = n->m_Properties[dmGui::PROPERTY_SCALE];
             const Vector4& color = n->m_Properties[dmGui::PROPERTY_COLOR];
+            const dmGui::Pivot pivot = (dmGui::Pivot) n->m_Pivot;
 
             dmRender::RenderObject ro;
 
@@ -334,12 +337,106 @@ namespace dmGameSystem
             else
                 ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
+            float dx = 0;
+            float dy = 0;
+            if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
+            {
+                switch (pivot)
+                {
+                    case dmGui::PIVOT_CENTER:
+                    case dmGui::PIVOT_S:
+                    case dmGui::PIVOT_N:
+                        dx = extents.getX() * 0.5;
+                        break;
+
+                    case dmGui::PIVOT_NE:
+                    case dmGui::PIVOT_E:
+                    case dmGui::PIVOT_SE:
+                        dx = extents.getX();
+                        break;
+
+                    case dmGui::PIVOT_SW:
+                    case dmGui::PIVOT_W:
+                    case dmGui::PIVOT_NW:
+                        break;
+                }
+
+                switch (pivot) {
+                    case dmGui::PIVOT_CENTER:
+                    case dmGui::PIVOT_E:
+                    case dmGui::PIVOT_W:
+                        dy = extents.getY() * 0.5;
+                        break;
+
+                    case dmGui::PIVOT_N:
+                    case dmGui::PIVOT_NE:
+                    case dmGui::PIVOT_NW:
+                        dy = extents.getY();
+                        break;
+
+                    case dmGui::PIVOT_S:
+                    case dmGui::PIVOT_SW:
+                    case dmGui::PIVOT_SE:
+                        break;
+                }
+            }
+            else if (n->m_NodeType == dmGui::NODE_TYPE_TEXT)
+            {
+                dmRender::TextMetrics metrics;
+                dmRender::GetTextMetrics((dmRender::HFontMap) n->m_Font, n->m_Text, &metrics);
+
+                switch (pivot)
+                {
+                    case dmGui::PIVOT_CENTER:
+                    case dmGui::PIVOT_S:
+                    case dmGui::PIVOT_N:
+                        dx = metrics.m_Width * 0.5;
+                        break;
+
+                    case dmGui::PIVOT_NE:
+                    case dmGui::PIVOT_E:
+                    case dmGui::PIVOT_SE:
+                        dx = metrics.m_Width;
+                        break;
+
+                    case dmGui::PIVOT_SW:
+                    case dmGui::PIVOT_W:
+                    case dmGui::PIVOT_NW:
+                        break;
+                }
+
+                switch (pivot) {
+                    case dmGui::PIVOT_CENTER:
+                    case dmGui::PIVOT_E:
+                    case dmGui::PIVOT_W:
+                        dy = -metrics.m_MaxDescent * 0.5 + metrics.m_MaxAscent * 0.5;
+                        break;
+
+                    case dmGui::PIVOT_N:
+                    case dmGui::PIVOT_NE:
+                    case dmGui::PIVOT_NW:
+                        dy = metrics.m_MaxAscent;
+                        break;
+
+                    case dmGui::PIVOT_S:
+                    case dmGui::PIVOT_SW:
+                    case dmGui::PIVOT_SE:
+                        dy = -metrics.m_MaxDescent;
+                        break;
+                }
+
+            }
+            Vector4 delta_pivot = Vector4(dx, dy, 0, 0);
+            position -= delta_pivot;
+
             const float deg_to_rad = 3.1415926f / 180.0f;
             Matrix4 m = Matrix4::translation(position.getXYZ()) *
                         Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
                         Matrix4::rotationY(rotation.getY() * deg_to_rad) *
                         Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                        Matrix4::scale(scale.getXYZ());
+                        Matrix4::translation(delta_pivot.getXYZ()) *
+                        Matrix4::scale(scale.getXYZ()) *
+                        Matrix4::translation(-delta_pivot.getXYZ());
             if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
             {
                 m *= Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));

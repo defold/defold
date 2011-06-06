@@ -54,6 +54,8 @@ namespace dmRender
         uint32_t                m_TextureHeight;
         float                   m_ShadowX;
         float                   m_ShadowY;
+        float                   m_MaxAscent;
+        float                   m_MaxDescent;
     };
 
     HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
@@ -66,6 +68,8 @@ namespace dmRender
         font_map->m_TextureHeight = params.m_TextureHeight;
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
+        font_map->m_MaxAscent = params.m_MaxAscent;
+        font_map->m_MaxDescent = params.m_MaxDescent;
         dmGraphics::TextureParams tex_params;
         tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
         tex_params.m_Data = params.m_TextureData;
@@ -89,6 +93,8 @@ namespace dmRender
         font_map->m_TextureHeight = params.m_TextureHeight;
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
+        font_map->m_MaxAscent = params.m_MaxAscent;
+        font_map->m_MaxDescent = params.m_MaxDescent;
         dmGraphics::TextureParams tex_params;
         tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
         tex_params.m_Data = params.m_TextureData;
@@ -251,4 +257,21 @@ namespace dmRender
         }
         dmGraphics::UnmapVertexBuffer(text_context.m_VertexBuffer);
     }
+
+    void GetTextMetrics(HFontMap font_map, const char* text, TextMetrics* metrics)
+    {
+        metrics->m_MaxAscent = font_map->m_MaxAscent;
+        metrics->m_MaxDescent = font_map->m_MaxDescent;
+        int n = strlen(text);
+        float width = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            char c = text[i];
+            const Glyph& g = font_map->m_Glyphs[c];
+            // NOTE: We round advance here just as above in DrawText
+            width += (int16_t) g.m_Advance;
+        }
+        metrics->m_Width = width;
+    }
+
 }

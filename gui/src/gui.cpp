@@ -700,6 +700,12 @@ namespace dmGui
         n->m_Node.m_YAnchor = (uint32_t) y_anchor;
     }
 
+    void SetNodePivot(HScene scene, HNode node, Pivot pivot)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Pivot = (uint32_t) pivot;
+    }
+
     void AnimateNode(HScene scene,
                      HNode node,
                      Property property,
