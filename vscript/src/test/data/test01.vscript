@@ -1,20 +1,20 @@
 nodes {
     statements {
-	    type: STATEMENT_TYPE_PRINT
-		expression {
+        type: STATEMENT_TYPE_PRINT
+        expression {
             type: EXPRESSION_TYPE_ADD
-			expressions {
+            expressions {
                 type: EXPRESSION_TYPE_CONSTANT
-				constant {
-					  float_value: 10
-				}
-			}
-			expressions {
+                constant {
+                      float_value: 10
+                }
+            }
+            expressions {
                 type: EXPRESSION_TYPE_CONSTANT
-				constant {
-					  float_value: 20
-				}
-			}
+                constant {
+                      float_value: 20
+                }
+            }
         }
     }
 }
