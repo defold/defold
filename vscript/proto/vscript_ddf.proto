@@ -1,0 +1,86 @@
+package dmVScriptDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.vscript.proto";
+option java_outer_classname = "VScript";
+
+enum BasicType
+{
+    BASIC_TYPE_NUMBER  = 0;
+    BASIC_TYPE_STRING  = 1;
+    BASIC_TYPE_LIST    = 2;
+    BASIC_TYPE_MESSAGE = 3;
+}
+
+message Type
+{
+    required BasicType basic_type = 1;
+    // Set if type_class == BASIC_TYPE_LIST
+    optional BasicType type_of    = 2;
+    // Set if type_of == BASIC_TYPE_MESSAGE
+    optional string type_name     = 3;
+}
+
+enum StatementType
+{
+    STATEMENT_TYPE_IF           = 0;
+    STATEMENT_TYPE_IF_ELSE      = 1;
+    STATEMENT_TYPE_SET_VARIABLE = 2;
+    // NOTE: Invokation can both be a statment and expression
+    STATEMENT_TYPE_INVOKATION   = 3; 
+    STATEMENT_TYPE_PRINT        = 4; 
+}
+
+enum ExpressionType
+{
+    EXPRESSION_TYPE_ADD    = 1;
+    EXPRESSION_TYPE_SUB    = 2;
+    EXPRESSION_TYPE_MUL    = 3;
+    EXPRESSION_TYPE_DIV    = 4;
+    // NOTE: Invokation can both be a statment and expression
+    EXPRESSION_TYPE_INVOKE = 5;
+
+    EXPRESSION_TYPE_CONSTANT = 6;
+    // ...
+}
+
+message Value
+{
+    required Type type           = 1;
+    optional float float_value   = 2;
+    optional string string_value = 3;
+}
+
+message Expression
+{
+    required ExpressionType type    = 1;
+    repeated Expression expressions = 2;
+	optional Value constant         = 3;
+}
+
+message Statement
+{
+    required StatementType type    = 1;
+    repeated Statement statements  = 2;
+    optional Expression expression = 3;
+}
+
+message Node
+{
+    repeated Statement statements = 1;
+}
+
+message GlobalVariable
+{
+    required string name         = 1;
+    required Type type           = 2;
+    required Value initial_value = 3;
+}
+
+message VisualScript
+{
+    repeated Node nodes                      = 1;
+    repeated GlobalVariable global_variables = 2;
+}
