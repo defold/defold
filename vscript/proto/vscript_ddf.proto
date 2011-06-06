@@ -8,42 +8,47 @@ option java_outer_classname = "VScript";
 
 enum BasicType
 {
-    BASIC_TYPE_NUMBER  = 0;
-    BASIC_TYPE_STRING  = 1;
-    BASIC_TYPE_LIST    = 2;
-    BASIC_TYPE_MESSAGE = 3;
+    NUMBER  = 0;
+    STRING  = 1;
+    LIST    = 2;
+    MESSAGE = 3;
 }
 
 message Type
 {
     required BasicType basic_type = 1;
-    // Set if type_class == BASIC_TYPE_LIST
+    // Set if type_class == LIST
     optional BasicType type_of    = 2;
-    // Set if type_of == BASIC_TYPE_MESSAGE
+    // Set if type_of == MESSAGE
     optional string type_name     = 3;
 }
 
 enum StatementType
 {
-    STATEMENT_TYPE_IF           = 0;
-    STATEMENT_TYPE_IF_ELSE      = 1;
-    STATEMENT_TYPE_SET_VARIABLE = 2;
+    IF           = 0;
+    IF_ELSE      = 1;
+    SET_VARIABLE = 2;
     // NOTE: Invokation can both be a statment and expression
-    STATEMENT_TYPE_INVOKATION   = 3; 
-    STATEMENT_TYPE_PRINT        = 4; 
+    INVOKATION   = 3;
+    PRINT        = 4;
 }
 
 enum ExpressionType
 {
-    EXPRESSION_TYPE_ADD    = 1;
-    EXPRESSION_TYPE_SUB    = 2;
-    EXPRESSION_TYPE_MUL    = 3;
-    EXPRESSION_TYPE_DIV    = 4;
+    ADD      = 1;
+    SUB      = 2;
+    MUL      = 3;
+    DIV      = 4;
     // NOTE: Invokation can both be a statment and expression
-    EXPRESSION_TYPE_INVOKE = 5;
+    INVOKE   = 5;
+    CONSTANT = 6;
+    LT       = 7;
+    LE       = 8;
+    EQ       = 9;
+    GE       = 10;
+    GT       = 11;
 
-    EXPRESSION_TYPE_CONSTANT = 6;
-    // ...
+    LOAD_VARIABLE = 12;
 }
 
 message Value
@@ -58,13 +63,17 @@ message Expression
     required ExpressionType type    = 1;
     repeated Expression expressions = 2;
 	optional Value constant         = 3;
+    optional string variable        = 4;
 }
 
 message Statement
 {
     required StatementType type    = 1;
     repeated Statement statements  = 2;
-    optional Expression expression = 3;
+    repeated Statement else_statements  = 3;
+    optional Expression expression = 4;
+    // Used for SET_VARIABLE
+    optional string variable       = 5;
 }
 
 message Node

@@ -1,15 +1,14 @@
 nodes {
     statements {
-        type: PRINT
+        type: IF
         expression {
-            type: ADD
+            type: LT
             expressions {
                 type: CONSTANT
                 constant {
                     type: {
                         basic_type: NUMBER
                     }
-
                     float_value: 10
                 }
             }
@@ -20,6 +19,19 @@ nodes {
                         basic_type: NUMBER
                     }
                     float_value: 20
+                }
+            }
+        }
+        statements {
+            type: SET_VARIABLE
+            variable: "x"
+            expression {
+                type: CONSTANT
+                constant {
+                    type: {
+                        basic_type: NUMBER
+                    }
+                    float_value: 1010
                 }
             }
         }
