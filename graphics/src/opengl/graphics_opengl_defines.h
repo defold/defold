@@ -13,7 +13,7 @@
 
 #elif defined (_WIN32)
 
-#include <windows.h>
+#include <dlib/safe_windows.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <win32/glut.h>

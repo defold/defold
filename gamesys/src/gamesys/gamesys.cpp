@@ -41,10 +41,6 @@
 #include "camera_ddf.h"
 #include "physics_ddf.h"
 
-#ifdef PlaySound
-#undef PlaySound
-#endif
-
 namespace dmGameSystem
 {
     GuiContext::GuiContext()

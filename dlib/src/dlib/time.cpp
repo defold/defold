@@ -1,7 +1,7 @@
 #include "time.h"
 
 #ifdef _WIN32
-#include <windows.h>
+#include "safe_windows.h"
 #include <time.h>
 #else
 #include <sys/time.h>

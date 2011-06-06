@@ -14,8 +14,6 @@
 
 #include <render/material.h>
 
-// Windows defines DrawText
-#undef DrawText
 #include <render/render_ddf.h>
 
 #include <particle/particle.h>

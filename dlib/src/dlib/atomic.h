@@ -12,7 +12,7 @@
 #elif defined(XENON)
 #include <xtl.h>
 #elif defined(_MSC_VER)
-#include <windows.h>
+#include "safe_windows.h"
 #endif
 
 //! Type definitions of atomic types

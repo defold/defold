@@ -12,7 +12,7 @@ namespace dmThread
 }
 
 #elif defined(_WIN32)
-#include <windows.h>
+#include "safe_windows.h"
 namespace dmThread
 {
     typedef HANDLE Thread;

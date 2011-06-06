@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #if defined(_WIN32)
-#include <windows.h>
+#include "safe_windows.h"
 #else
 #include <sys/time.h>
 #endif

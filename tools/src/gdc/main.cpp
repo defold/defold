@@ -1,5 +1,5 @@
 #if defined(_MSC_VER)
-#include <windows.h>
+#include <dlib/safe_windows.h>
 #endif
 
 #include <stdio.h>
