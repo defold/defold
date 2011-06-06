@@ -29,7 +29,7 @@ enum StatementType
     IF_ELSE      = 1;
     SET_VARIABLE = 2;
     // NOTE: Invokation can both be a statment and expression
-    INVOKATION   = 3;
+    INVOKE       = 3;
     PRINT        = 4;
 }
 
@@ -40,7 +40,7 @@ enum ExpressionType
     MUL      = 3;
     DIV      = 4;
     // NOTE: Invokation can both be a statment and expression
-    INVOKE   = 5;
+    CALL     = 5;
     CONSTANT = 6;
     LT       = 7;
     LE       = 8;
@@ -79,6 +79,7 @@ message Statement
 message Node
 {
     repeated Statement statements = 1;
+    optional string id = 2;
 }
 
 message GlobalVariable

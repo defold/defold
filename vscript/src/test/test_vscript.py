@@ -26,7 +26,6 @@ class TestVScript(unittest.TestCase):
         interpreter.run()
         self.assertEquals(interpreter.get_global('x'), 10000)
 
-
     def test_constants(self):
         interpreter = self.parse('test_constants')
         interpreter.run()
@@ -42,6 +41,16 @@ class TestVScript(unittest.TestCase):
         interpreter = self.parse('test_if_else1')
         interpreter.run()
         self.assertEquals(interpreter.get_global('x'), 2)
+
+    def test_invoke_statement(self):
+        interpreter = self.parse('test_invoke_statement')
+        interpreter.run()
+        self.assertEquals(interpreter.get_global('x'), 123)
+
+    def test_call_expression(self):
+        interpreter = self.parse('test_call_expression')
+        interpreter.run()
+        self.assertEquals(interpreter.get_global('x'), 16)
 
 if __name__ == '__main__':
     unittest.main()

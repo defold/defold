@@ -7,6 +7,10 @@ class Visitor(object):
     def __init__(self, source):
         self.script = VisualScript()
         text_format.Merge(source, self.script)
+        self.nodes = {}
+        for node in self.script.nodes:
+            if node.id:
+                self.nodes[node.id] = node
 
     def visit_node(self, node):
         for stmt in node.statements:
@@ -27,6 +31,11 @@ class Visitor(object):
         method(expr)
 
 class Interpreter(Visitor):
+
+    def function_pow(self):
+        v2, v1 = self.pop(), self.pop()
+        value = v1 ** v2
+        self.push(value)
 
     def __init__(self, source):
         Visitor.__init__(self, source)
@@ -119,9 +128,20 @@ class Interpreter(Visitor):
         value = self.globals[expr.variable]
         self.push(value)
 
+    def visit_invoke(self, stmt):
+        node = self.nodes[stmt.variable]
+        self.visit_node(node)
+
+    def visit_call(self, expr):
+        for e in expr.expressions:
+            self.visit_expression(e)
+
+        func = getattr(self, 'function_%s' % expr.variable)
+        func()
+
     def run(self):
-        for node in self.script.nodes:
-            self.visit_node(node)
+        # NOTE: We assume that the entry point is the first node
+        self.visit_node(self.script.nodes[0])
 
 if __name__ == '__main__':
     source = open(sys.argv[1], 'r').read()

@@ -1,0 +1,38 @@
+nodes {
+    statements {
+        type: INVOKE
+        variable: "set_var"
+    }
+}
+
+nodes {
+    id: "set_var"
+    statements {
+        type: SET_VARIABLE
+        variable: "x"
+        expression {
+            type: CALL
+            variable: "pow"
+
+            expressions {
+                type: CONSTANT
+                constant {
+                    type: {
+                        basic_type: NUMBER
+                    }
+                    float_value: 2
+                }
+            }
+
+            expressions {
+                type: CONSTANT
+                constant {
+                    type: {
+                        basic_type: NUMBER
+                    }
+                    float_value: 4
+                }
+            }
+        }
+    }
+}
