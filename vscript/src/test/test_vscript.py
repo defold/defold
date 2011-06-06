@@ -11,8 +11,8 @@ class TestVScript(unittest.TestCase):
         script_source = open('src/test/data/%s.vscript' % name, 'r').read()
         return Interpreter(script_source)
 
-    def test01(self):
-        interpreter = self.parse('test01')
+    def test_print(self):
+        interpreter = self.parse('test_print')
         interpreter.run()
 
     def test_set_variable(self):
