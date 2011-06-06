@@ -28,26 +28,23 @@ enum StatementType
     IF           = 0;
     IF_ELSE      = 1;
     SET_VARIABLE = 2;
-    // NOTE: Invokation can both be a statment and expression
     INVOKE       = 3;
     PRINT        = 4;
 }
 
 enum ExpressionType
 {
-    ADD      = 1;
-    SUB      = 2;
-    MUL      = 3;
-    DIV      = 4;
-    // NOTE: Invokation can both be a statment and expression
-    CALL     = 5;
-    CONSTANT = 6;
-    LT       = 7;
-    LE       = 8;
-    EQ       = 9;
-    GE       = 10;
-    GT       = 11;
-
+    ADD           = 1;
+    SUB           = 2;
+    MUL           = 3;
+    DIV           = 4;
+    INVOKE_EXPR   = 5;
+    CONSTANT      = 6;
+    LT            = 7;
+    LE            = 8;
+    EQ            = 9;
+    GE            = 10;
+    GT            = 11;
     LOAD_VARIABLE = 12;
 }
 
@@ -61,22 +58,38 @@ message Value
 message Expression
 {
     required ExpressionType type    = 1;
+
+    // left/right for binary expression, arguments, ets
     repeated Expression expressions = 2;
+
+    // For CONSTANT expression
 	optional Value constant         = 3;
+
+	// For LOAD_VARIABLE and INVOKE_EXPR
     optional string name            = 4;
 }
 
 message Statement
 {
-    required StatementType type    = 1;
-    repeated Statement statements  = 2;
-    repeated Statement else_statements  = 3;
-    optional Expression expression = 4;
+    required StatementType type        = 1;
+
+    // if-true-path, etc
+    repeated Statement statements      = 2;
+
+    // else-path
+    repeated Statement else_statements = 3;
+
+    // For conditional expression, assign expression etc
+    optional Expression expression     = 4;
+
+    // For INVOKE
+    repeated Expression arguments      = 5;
+
     // Used for SET_VARIABLE
-    optional string name           = 5;
+    optional string name               = 6;
 }
 
-message Node
+message Block
 {
     repeated Statement statements = 1;
     optional string id = 2;
@@ -89,8 +102,19 @@ message GlobalVariable
     required Value initial_value = 3;
 }
 
-message VisualScript
+message VisualScriptFile
 {
-    repeated Node nodes                      = 1;
+    repeated Block blocks                    = 1;
     repeated GlobalVariable global_variables = 2;
+}
+
+message Prototype
+{
+    required string name = 1;
+    repeated Type arguments = 2;
+}
+
+message PrototypeFile
+{
+    repeated Prototype prototypes = 1;
 }

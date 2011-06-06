@@ -1,4 +1,4 @@
-nodes {
+blocks {
     statements {
         type: PRINT
         expression {

@@ -1,5 +1,4 @@
 import unittest
-from vscript_ddf_pb2 import VisualScript
 from google.protobuf import text_format
 
 from interpreter import Interpreter
@@ -47,8 +46,8 @@ class TestVScript(unittest.TestCase):
         interpreter.run()
         self.assertEquals(interpreter.get_global('x'), 123)
 
-    def test_call_expression(self):
-        interpreter = self.parse('test_call_expression')
+    def test_invoke_expression(self):
+        interpreter = self.parse('test_invoke_expression')
         interpreter.run()
         self.assertEquals(interpreter.get_global('x'), 16)
 

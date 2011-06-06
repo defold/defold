@@ -1,11 +1,11 @@
-nodes {
+blocks {
     statements {
         type: INVOKE
         name: "set_var"
     }
 }
 
-nodes {
+blocks {
     id: "set_var"
     statements {
         type: SET_VARIABLE

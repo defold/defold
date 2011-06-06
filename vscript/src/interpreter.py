@@ -1,19 +1,19 @@
 import sys
 import vscript_ddf_pb2
-from vscript_ddf_pb2 import VisualScript
+from vscript_ddf_pb2 import VisualScriptFile
 from google.protobuf import text_format
 
 class Visitor(object):
     def __init__(self, source):
-        self.script = VisualScript()
+        self.script = VisualScriptFile()
         text_format.Merge(source, self.script)
-        self.nodes = {}
-        for node in self.script.nodes:
-            if node.id:
-                self.nodes[node.id] = node
+        self.blocks = {}
+        for block in self.script.blocks:
+            if block.id:
+                self.blocks[block.id] = block
 
-    def visit_node(self, node):
-        for stmt in node.statements:
+    def visit_block(self, block):
+        for stmt in block.statements:
             self.visit_statement(stmt)
 
     # Generic statement dispatch
@@ -129,10 +129,10 @@ class Interpreter(Visitor):
         self.push(value)
 
     def visit_invoke(self, stmt):
-        node = self.nodes[stmt.name]
-        self.visit_node(node)
+        block = self.blocks[stmt.name]
+        self.visit_block(block)
 
-    def visit_call(self, expr):
+    def visit_invoke_expr(self, expr):
         for e in expr.expressions:
             self.visit_expression(e)
 
@@ -140,8 +140,8 @@ class Interpreter(Visitor):
         func()
 
     def run(self):
-        # NOTE: We assume that the entry point is the first node
-        self.visit_node(self.script.nodes[0])
+        # NOTE: We assume that the entry point is the first block
+        self.visit_block(self.script.blocks[0])
 
 if __name__ == '__main__':
     source = open(sys.argv[1], 'r').read()
