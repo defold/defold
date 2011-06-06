@@ -1,7 +1,7 @@
 nodes {
     statements {
         type: INVOKE
-        variable: "set_var"
+        name: "set_var"
     }
 }
 
@@ -9,10 +9,10 @@ nodes {
     id: "set_var"
     statements {
         type: SET_VARIABLE
-        variable: "x"
+        name: "x"
         expression {
             type: CALL
-            variable: "pow"
+            name: "pow"
 
             expressions {
                 type: CONSTANT

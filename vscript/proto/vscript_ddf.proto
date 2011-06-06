@@ -63,7 +63,7 @@ message Expression
     required ExpressionType type    = 1;
     repeated Expression expressions = 2;
 	optional Value constant         = 3;
-    optional string variable        = 4;
+    optional string name            = 4;
 }
 
 message Statement
@@ -73,7 +73,7 @@ message Statement
     repeated Statement else_statements  = 3;
     optional Expression expression = 4;
     // Used for SET_VARIABLE
-    optional string variable       = 5;
+    optional string name           = 5;
 }
 
 message Node

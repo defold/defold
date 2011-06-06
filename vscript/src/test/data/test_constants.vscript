@@ -1,7 +1,7 @@
 nodes {
     statements {
         type: SET_VARIABLE
-        variable: "number"
+        name: "number"
         expression {
             type: CONSTANT
             constant {
@@ -14,7 +14,7 @@ nodes {
     }
     statements {
         type: SET_VARIABLE
-        variable: "string"
+        name: "string"
         expression {
             type: CONSTANT
             constant {

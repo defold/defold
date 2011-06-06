@@ -1,10 +1,10 @@
 nodes {
     statements {
         type: SET_VARIABLE
-        variable: "x"
+        name: "x"
         expression {
             type: LOAD_VARIABLE
-            variable: "a_constant"
+            name: "a_constant"
             constant {
                 type: {
                     basic_type: NUMBER

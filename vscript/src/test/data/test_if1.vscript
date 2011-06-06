@@ -24,7 +24,7 @@ nodes {
         }
         statements {
             type: SET_VARIABLE
-            variable: "x"
+            name: "x"
             expression {
                 type: CONSTANT
                 constant {

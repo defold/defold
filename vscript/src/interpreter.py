@@ -76,7 +76,7 @@ class Interpreter(Visitor):
 
     def visit_set_variable(self, stmt):
         self.visit_expression(stmt.expression)
-        self.globals[stmt.variable] = self.pop()
+        self.globals[stmt.name] = self.pop()
 
     def visit_print(self, stmt):
         self.visit_expression(stmt.expression)
@@ -125,18 +125,18 @@ class Interpreter(Visitor):
             assert False
 
     def visit_load_variable(self, expr):
-        value = self.globals[expr.variable]
+        value = self.globals[expr.name]
         self.push(value)
 
     def visit_invoke(self, stmt):
-        node = self.nodes[stmt.variable]
+        node = self.nodes[stmt.name]
         self.visit_node(node)
 
     def visit_call(self, expr):
         for e in expr.expressions:
             self.visit_expression(e)
 
-        func = getattr(self, 'function_%s' % expr.variable)
+        func = getattr(self, 'function_%s' % expr.name)
         func()
 
     def run(self):
