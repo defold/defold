@@ -9,7 +9,7 @@ namespace dmMutex
 }
 
 #elif defined(_WIN32)
-#include <windows.h>
+#include "safe_windows.h"
 namespace dmMutex
 {
     typedef HANDLE Mutex;

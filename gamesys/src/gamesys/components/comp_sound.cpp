@@ -8,10 +8,6 @@
 #include <dlib/hash.h>
 #include <sound/sound.h>
 
-#ifdef PlaySound
-#undef PlaySound
-#endif
-
 #include "gamesys_ddf.h"
 
 namespace dmGameSystem

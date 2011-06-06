@@ -11,9 +11,6 @@
 
 #include "render.h"
 
-// Windows defines DrawText
-#undef DrawText
-
 namespace dmRender
 {
     /**

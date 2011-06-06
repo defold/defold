@@ -49,7 +49,7 @@ namespace dmSpinlock
     }
 }
 #elif defined(_MSC_VER) && defined(_M_IX86)
-#include <windows.h>
+#include "safe_windows.h"
 namespace dmSpinlock
 {
     typedef volatile long lock_t;
