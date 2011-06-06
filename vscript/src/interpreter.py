@@ -3,11 +3,33 @@ import vscript_ddf_pb2
 from vscript_ddf_pb2 import VisualScript
 from google.protobuf import text_format
 
-class Interpreter(object):
-
+class Visitor(object):
     def __init__(self, source):
         self.script = VisualScript()
         text_format.Merge(source, self.script)
+
+    def visit_node(self, node):
+        for stmt in node.statements:
+            self.visit_statement(stmt)
+
+    # Generic statement dispatch
+    def visit_statement(self, stmt):
+        name = vscript_ddf_pb2._STATEMENTTYPE.values_by_number[stmt.type].name
+        name = name.lower()
+        method = getattr(self, 'visit_%s' % name)
+        method(stmt)
+
+    # Generic expression dispatch
+    def visit_expression(self, expr):
+        name = vscript_ddf_pb2._EXPRESSIONTYPE.values_by_number[expr.type].name
+        name = name.lower()
+        method = getattr(self, 'visit_%s' % name)
+        method(expr)
+
+class Interpreter(Visitor):
+
+    def __init__(self, source):
+        Visitor.__init__(self, source)
         self.script.SerializeToString()
         self.stack = []
         self.globals = {}
@@ -23,17 +45,6 @@ class Interpreter(object):
 
     def pop(self):
         return self.stack.pop(0)
-
-    def visit_node(self, node):
-        for stmt in node.statements:
-            self.visit_statement(stmt)
-
-    # Generic statement dispatch
-    def visit_statement(self, stmt):
-        name = vscript_ddf_pb2._STATEMENTTYPE.values_by_number[stmt.type].name
-        name = name.lower()
-        method = getattr(self, 'visit_%s' % name)
-        method(stmt)
 
     # Statements
     def visit_if(self, stmt):
@@ -61,13 +72,6 @@ class Interpreter(object):
     def visit_print(self, stmt):
         self.visit_expression(stmt.expression)
         print self.pop()
-
-    # Generic expression dispatch
-    def visit_expression(self, expr):
-        name = vscript_ddf_pb2._EXPRESSIONTYPE.values_by_number[expr.type].name
-        name = name.lower()
-        method = getattr(self, 'visit_%s' % name)
-        method(expr)
 
     # Expressions
     def do_binary(self, expr, func):
