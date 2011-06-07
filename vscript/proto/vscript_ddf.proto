@@ -10,8 +10,9 @@ enum BasicType
 {
     NUMBER  = 0;
     STRING  = 1;
-    LIST    = 2;
-    MESSAGE = 3;
+    BOOL    = 2;
+    LIST    = 3;
+    MESSAGE = 4;
 }
 
 message Type
@@ -137,8 +138,9 @@ message VisualScriptFile
 
 message Prototype
 {
-    required string name = 1;
-    repeated Type arguments = 2;
+    required string name      = 1;
+    required Type return_type = 2;
+    repeated Type arguments   = 3;
 }
 
 message PrototypeFile
