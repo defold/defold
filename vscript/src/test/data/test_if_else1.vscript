@@ -1,4 +1,5 @@
 blocks {
+    block_type: PROCEDURE
     statements {
         type: IF_ELSE
         expression {

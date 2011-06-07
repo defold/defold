@@ -59,7 +59,7 @@ message Expression
 {
     required ExpressionType type    = 1;
 
-    // left/right for binary expression, arguments, ets
+    // left/right for binary expression, arguments, etc
     repeated Expression expressions = 2;
 
     // For CONSTANT expression
@@ -89,10 +89,20 @@ message Statement
     optional string name               = 6;
 }
 
+enum BlockType
+{
+    // Procedure declaration
+    PROCEDURE = 0;
+
+    // Message handling, eg messages and input
+    HANDLER   = 1;
+}
+
 message Block
 {
-    repeated Statement statements = 1;
-    optional string id = 2;
+    required BlockType  block_type = 1;
+    repeated Statement  statements = 2;
+    optional string     id = 3;
 }
 
 message GlobalVariable
