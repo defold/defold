@@ -8,45 +8,56 @@ option java_outer_classname = "VScript";
 
 enum BasicType
 {
-    BASIC_TYPE_NUMBER  = 0;
-    BASIC_TYPE_STRING  = 1;
-    BASIC_TYPE_LIST    = 2;
-    BASIC_TYPE_MESSAGE = 3;
+    NUMBER  = 0;
+    STRING  = 1;
+    BOOL    = 2;
+    LIST    = 3;
+    MESSAGE = 4;
 }
 
 message Type
 {
     required BasicType basic_type = 1;
-    // Set if type_class == BASIC_TYPE_LIST
+    // Set if type_class == LIST
     optional BasicType type_of    = 2;
-    // Set if type_of == BASIC_TYPE_MESSAGE
+    // Set if type_of == MESSAGE
     optional string type_name     = 3;
 }
 
 enum StatementType
 {
-    STATEMENT_TYPE_IF           = 0;
-    STATEMENT_TYPE_IF_ELSE      = 1;
-    STATEMENT_TYPE_SET_VARIABLE = 2;
-    // NOTE: Invokation can both be a statment and expression
-    STATEMENT_TYPE_INVOKATION   = 3; 
-    STATEMENT_TYPE_PRINT        = 4; 
+    IF           = 0;
+    IF_ELSE      = 1;
+    SET_VARIABLE = 2;
+    INVOKE       = 3;
+    PRINT        = 4;
 }
 
 enum ExpressionType
 {
-    EXPRESSION_TYPE_ADD    = 1;
-    EXPRESSION_TYPE_SUB    = 2;
-    EXPRESSION_TYPE_MUL    = 3;
-    EXPRESSION_TYPE_DIV    = 4;
-    // NOTE: Invokation can both be a statment and expression
-    EXPRESSION_TYPE_INVOKE = 5;
-
-    EXPRESSION_TYPE_CONSTANT = 6;
-    // ...
+    ADD           = 1;
+    SUB           = 2;
+    MUL           = 3;
+    DIV           = 4;
+    INVOKE_EXPR   = 5;
+    CONSTANT      = 6;
+    LT            = 7;
+    LE            = 8;
+    EQ            = 9;
+    GE            = 10;
+    GT            = 11;
+    LOAD_VARIABLE = 12;
 }
 
+// Used when the type, in a given, is known, e.g. global variable values
 message Value
+{
+    optional float float_value   = 1;
+    optional string string_value = 2;
+}
+
+// Used then type is not easily inferable in a given context, e.g. constants
+message Constant
 {
     required Type type           = 1;
     optional float float_value   = 2;
@@ -56,20 +67,60 @@ message Value
 message Expression
 {
     required ExpressionType type    = 1;
+
+    // left/right for binary expression, arguments, etc
     repeated Expression expressions = 2;
-	optional Value constant         = 3;
+
+    // For CONSTANT expression
+	optional Constant constant         = 3;
+
+	// For LOAD_VARIABLE and INVOKE_EXPR
+    optional string name            = 4;
 }
 
 message Statement
 {
-    required StatementType type    = 1;
-    repeated Statement statements  = 2;
-    optional Expression expression = 3;
+    required StatementType type        = 1;
+
+    // if-true-path, etc
+    repeated Statement statements      = 2;
+
+    // else-path
+    repeated Statement else_statements = 3;
+
+    // For conditional expression, assign expression etc
+    optional Expression expression     = 4;
+
+    // For INVOKE
+    repeated Expression arguments      = 5;
+
+    // Used for SET_VARIABLE
+    optional string name               = 6;
 }
 
-message Node
+enum BlockType
 {
-    repeated Statement statements = 1;
+    // Procedure declaration
+    PROCEDURE = 0;
+
+    // Message handling, e.g. messages and input
+    HANDLER   = 1;
+}
+
+message Block
+{
+    required BlockType  block_type = 1;
+    repeated Statement  statements = 2;
+
+    // Must be unique (or not set). Used for block identification. Represents procedure
+    // name for PROCEDURE block-types.
+    optional string     id         = 3;
+
+    // Event-name. Represent the event-name for handler block-types, e.g. or input or message.
+    optional string     event_name = 4;
+
+    // Represents the event id/action id, e.g down, fire, jump, etc
+    optional string     event_id   = 5;
 }
 
 message GlobalVariable
@@ -79,8 +130,20 @@ message GlobalVariable
     required Value initial_value = 3;
 }
 
-message VisualScript
+message VisualScriptFile
 {
-    repeated Node nodes                      = 1;
-    repeated GlobalVariable global_variables = 2;
+    repeated Block blocks           = 1;
+    repeated GlobalVariable globals = 2;
+}
+
+message Prototype
+{
+    required string name      = 1;
+    required Type return_type = 2;
+    repeated Type arguments   = 3;
+}
+
+message PrototypeFile
+{
+    repeated Prototype prototypes = 1;
 }
