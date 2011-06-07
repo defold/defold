@@ -430,11 +430,11 @@ namespace dmGameSystem
             position -= delta_pivot;
 
             const float deg_to_rad = 3.1415926f / 180.0f;
-            Matrix4 m = Matrix4::translation(position.getXYZ()) *
+            Matrix4 m = Matrix4::translation(delta_pivot.getXYZ()) *
+                        Matrix4::translation(position.getXYZ()) *
                         Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
                         Matrix4::rotationY(rotation.getY() * deg_to_rad) *
                         Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                        Matrix4::translation(delta_pivot.getXYZ()) *
                         Matrix4::scale(scale.getXYZ()) *
                         Matrix4::translation(-delta_pivot.getXYZ());
             if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
