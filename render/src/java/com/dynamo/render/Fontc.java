@@ -155,9 +155,13 @@ public class Fontc {
 
             glyph.c = s.charAt(0);
             glyph.index = i;
-            glyph.advance = (int)metrics.getAdvance();
-            glyph.leftBearing = (int)metrics.getLSB();
+            glyph.advance = Math.round(metrics.getAdvance());
+            float leftBearing = metrics.getLSB();
+            glyph.leftBearing = (int)Math.floor(leftBearing);
             glyph.width = visualBounds.width;
+            if (leftBearing != 0.0f) {
+                glyph.width += 1;
+            }
 
             glyph.vector = glyphVector;
 
@@ -167,7 +171,8 @@ public class Fontc {
 
         int i = 0;
         float totalY = 0.0f;
-        int margin = 0;
+        // TODO: This is a workaround since the current implementation gives "garbage" pixels in the edges from neighbouring glyphs in the font map
+        int margin = 1;
         int padding = 0;
         if (this.fontDesc.getAntialias() != 0)
             padding = Math.min(4, this.fontDesc.getShadowBlur()) + (int)Math.ceil(this.fontDesc.getOutlineWidth() * 0.5f);
