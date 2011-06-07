@@ -86,12 +86,20 @@ namespace dmVScript
     void DeleteScriptInstance(HScriptInstance instance);
 
     /**
-     * Invoke a procedure on an instnace
+     * Invoke a procedure on an instance
      * @param instance Instance handle
      * @param name_hash Name hash of the procedure
      * @param name Name of the function, used for debugging/logging purposes
      */
     void Invoke(HScriptInstance instance, dmhash_t name_hash, const char* name);
+
+    /**
+     * Dispatch a handler(s) on an instance
+     * @param instance Instance handle
+     * @param event_name_hash Name hash of the event
+     * @param event_id_hash Event id
+     */
+    void Dispatch(HScriptInstance instance, dmhash_t event_name_hash, dmhash_t event_id_hash);
 
     /**
      * Get global variable in instance

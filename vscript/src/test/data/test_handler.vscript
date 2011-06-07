@@ -1,9 +1,10 @@
 blocks {
-    block_type: PROCEDURE
-    id: "main"
+    block_type: HANDLER
+    event_name: "input"
+    event_id: "jump"
     statements {
         type: SET_VARIABLE
-        name: "number"
+        name: "x"
         expression {
             type: CONSTANT
             constant {
@@ -14,16 +15,22 @@ blocks {
             }
         }
     }
+}
+
+blocks {
+    block_type: HANDLER
+    event_name: "input"
+    event_id: "run"
     statements {
         type: SET_VARIABLE
-        name: "string"
+        name: "x"
         expression {
             type: CONSTANT
             constant {
-                  type: {
-                      basic_type: STRING
-                  }
-                  string_value: "hello"
+                type: {
+                    basic_type: NUMBER
+                }
+                float_value: 456
             }
         }
     }

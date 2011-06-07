@@ -139,9 +139,14 @@ class Interpreter(Visitor):
         func = getattr(self, 'function_%s' % expr.name)
         func()
 
-    def run(self):
-        # NOTE: We assume that the entry point is the first block
-        self.visit_block(self.script.blocks[0])
+    def invoke(self, procedure_name):
+        block = self.blocks[procedure_name]
+        self.visit_block(block)
+
+    def dispatch(self, event_name, event_id):
+        for block in self.script.blocks:
+            if block.event_name == event_name and block.event_id == event_id:
+                self.visit_block(block)
 
 if __name__ == '__main__':
     source = open(sys.argv[1], 'r').read()

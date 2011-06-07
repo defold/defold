@@ -12,44 +12,53 @@ class TestVScript(unittest.TestCase):
 
     def test_print(self):
         interpreter = self.parse('test_print')
-        interpreter.run()
+        interpreter.invoke('main')
 
     def test_set_variable(self):
         interpreter = self.parse('test_set_variable')
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('x'), 123)
 
     def test_get_variable(self):
         interpreter = self.parse('test_get_variable')
         interpreter.set_global('a_constant', 10000)
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('x'), 10000)
 
     def test_constants(self):
         interpreter = self.parse('test_constants')
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('number'), 123)
         self.assertEquals(interpreter.get_global('string'), 'hello')
 
     def test_if1(self):
         interpreter = self.parse('test_if1')
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('x'), 1010)
 
     def test_if_else1(self):
         interpreter = self.parse('test_if_else1')
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('x'), 2)
 
     def test_invoke_statement(self):
         interpreter = self.parse('test_invoke_statement')
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('x'), 123)
 
     def test_invoke_expression(self):
         interpreter = self.parse('test_invoke_expression')
-        interpreter.run()
+        interpreter.invoke('main')
         self.assertEquals(interpreter.get_global('x'), 16)
+
+    def test_handler(self):
+        interpreter = self.parse('test_handler')
+        interpreter.dispatch('input', 'jump')
+        self.assertEquals(interpreter.get_global('x'), 123)
+
+        interpreter.dispatch('input', 'run')
+        self.assertEquals(interpreter.get_global('x'), 456)
+
 
 if __name__ == '__main__':
     unittest.main()

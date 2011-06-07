@@ -1,5 +1,6 @@
 blocks {
     block_type: PROCEDURE
+    id: "main"
     statements {
         type: SET_VARIABLE
         name: "x"
