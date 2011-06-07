@@ -4,10 +4,10 @@ from google.protobuf import text_format
 from interpreter import Interpreter
 import sys, os
 
-class TestVScript(unittest.TestCase):
+class TestVScriptPositive(unittest.TestCase):
 
     def parse(self, name):
-        script_source = open('src/test/data/%s.vscript' % name, 'r').read()
+        script_source = open('src/test/data/positive/%s.vscript' % name, 'r').read()
         return Interpreter(script_source)
 
     def test_print(self):
@@ -58,7 +58,6 @@ class TestVScript(unittest.TestCase):
 
         interpreter.dispatch('input', 'run')
         self.assertEquals(interpreter.get_global('x'), 456)
-
 
 if __name__ == '__main__':
     unittest.main()
