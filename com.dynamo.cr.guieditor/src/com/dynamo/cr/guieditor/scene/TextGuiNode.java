@@ -1,13 +1,20 @@
 package com.dynamo.cr.guieditor.scene;
 
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.gui.proto.Gui.NodeDesc;
+import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Builder;
+import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.sun.opengl.util.j2d.TextRenderer;
+import com.sun.opengl.util.texture.Texture;
 
 public class TextGuiNode extends GuiNode {
 
@@ -16,7 +23,9 @@ public class TextGuiNode extends GuiNode {
     @Property(commandFactory = UndoableCommandFactory.class)
     private String font;
 
-    private Rectangle2D textBounds;
+    private Rectangle2D textBounds = new Rectangle2D.Double(0, 0, 1, 1);
+    private double pivotOffsetX;
+    private double pivotOffsetY;
 
     public TextGuiNode(GuiScene scene, NodeDesc nodeDesc) {
         super(scene, nodeDesc);
@@ -44,21 +53,102 @@ public class TextGuiNode extends GuiNode {
         return String.format("Error: Font '%s' not found", font);
     }
 
+    private double pivotOffsetX(double width) {
+        Pivot p = getPivot();
+
+        switch (p) {
+        case PIVOT_CENTER:
+        case PIVOT_S:
+        case PIVOT_N:
+            return width * 0.5;
+
+        case PIVOT_NE:
+        case PIVOT_E:
+        case PIVOT_SE:
+            return width;
+
+        case PIVOT_SW:
+        case PIVOT_W:
+        case PIVOT_NW:
+            return 0;
+        }
+
+        assert false;
+        return Double.MAX_VALUE;
+    }
+
+    private double pivotOffsetY(double ascent, double descent) {
+        Pivot p = getPivot();
+
+        switch (p) {
+        case PIVOT_CENTER:
+        case PIVOT_E:
+        case PIVOT_W:
+            return -descent * 0.5 + ascent * 0.5;
+
+        case PIVOT_N:
+        case PIVOT_NE:
+        case PIVOT_NW:
+            return ascent;
+
+        case PIVOT_S:
+        case PIVOT_SW:
+        case PIVOT_SE:
+            return -descent;
+        }
+
+        assert false;
+        return Double.MAX_VALUE;
+    }
+
     public void draw(DrawContext context) {
         IGuiRenderer renderer = context.getRenderer();
         double x0 = position.x;
         double y0 = position.y;
 
         TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
-        if (textRenderer != null) {
-            textBounds = renderer.getStringBounds(textRenderer, text);
-            renderer.drawString(textRenderer, text, x0, y0, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha(), getBlendMode(), context.getRenderResourceCollection().getTexture(getTexture()));
+
+        String actualText = text;
+
+        double r = color.red / 255.0;
+        double g = color.green / 255.0;
+        double b = color.blue / 255.0;
+        double alpha = getAlpha();
+        BlendMode blendMode = getBlendMode();
+        Texture texture = context.getRenderResourceCollection().getTexture(getTexture());
+
+        if (textRenderer == null) {
+            textRenderer = renderer.getDebugTextRenderer();
+            actualText = getErrorText();
+            r = alpha = 1;
+            g = b = 0;
+            blendMode = null;
+            texture = null;
         }
-        else {
-            String errorText = getErrorText();
-            textBounds = renderer.getStringBounds(null, errorText);
-            renderer.drawString(null, errorText, x0, y0, 1, 0, 0, 1, null, null);
-        }
+
+        textBounds = renderer.getStringBounds(textRenderer, actualText);
+
+        FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
+        int ascent = metrics.getMaxAscent();
+        int descent = metrics.getMaxDescent();
+
+
+        BufferedImage image = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = (Graphics2D) image.getGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        textBounds = metrics.getStringBounds(actualText, graphics);
+
+
+
+        int width = metrics.stringWidth(actualText);
+        pivotOffsetX = pivotOffsetX(width);
+        pivotOffsetY = pivotOffsetY(ascent, descent);
+
+        x0 -= pivotOffsetX;
+        y0 -= pivotOffsetY;
+
+        renderer.drawString(textRenderer, actualText, x0, y0, r, g, b, alpha, blendMode, texture);
     }
 
     public void drawSelect(DrawContext context) {
@@ -68,20 +158,36 @@ public class TextGuiNode extends GuiNode {
 
         TextRenderer textRenderer = context.getRenderResourceCollection().getTextRenderer(font);
 
-        if (textRenderer != null) {
-            renderer.drawStringBounds(textRenderer, text, x0, y0, color.red / 255.0, color.green / 255.0, color.blue / 255.0, getAlpha());
+        String actualText = text;
+
+        if (textRenderer == null) {
+            textRenderer = renderer.getDebugTextRenderer();
+            actualText = getErrorText();
         }
-        else {
-            String errorText = getErrorText();
-            renderer.drawStringBounds(null, errorText, x0, y0, 1, 0, 0, 1);
-        }
+
+        FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
+        int ascent = metrics.getMaxAscent();
+        int descent = metrics.getMaxDescent();
+
+        int width = metrics.stringWidth(actualText);
+        pivotOffsetX = pivotOffsetX(width);
+        pivotOffsetY = pivotOffsetY(ascent, descent);
+
+        x0 -= pivotOffsetX;
+        y0 -= pivotOffsetY;
+
+        renderer.drawStringBounds(textRenderer, actualText, x0, y0, 1, 1, 1, 1);
     }
 
-    public Rectangle2D getBounds() {
+    public Rectangle2D getVisualBounds() {
         if (textBounds != null) {
             // Return cached text bounds
             double x = position.x + textBounds.getX();
             double y = position.y - (textBounds.getHeight() + textBounds.getY());
+
+            x -= pivotOffsetX;
+            y -= pivotOffsetY;
+
             Rectangle2D ret = new Rectangle2D.Double(x, y, textBounds.getWidth(), textBounds.getHeight());
             return ret;
         }

@@ -1,5 +1,7 @@
 package com.dynamo.cr.guieditor.render;
 
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
 
 import javax.media.opengl.GL;
@@ -30,6 +32,8 @@ public interface IGuiRenderer {
 
     public void clearName();
 
+    public FontMetrics getFontMetrics(Font font);
+
     /**
      * Start GL select
      * @note x and y are specify center of selection
@@ -43,5 +47,7 @@ public interface IGuiRenderer {
     public void beginSelect(GL gl, int x, int y, int w, int h, int viewPort[]);
 
     public SelectResult endSelect();
+
+    public TextRenderer getDebugTextRenderer();
 
 }

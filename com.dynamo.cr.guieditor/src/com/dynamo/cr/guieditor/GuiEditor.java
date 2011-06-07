@@ -455,6 +455,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             drawSelectionBounds(gl);
         }
 
+        renderer.begin(gl);
+        guiScene.drawPivot(drawContext);
+        renderer.end();
+
         gl.glPopMatrix();
 
         if (selectMoveTool != null) {

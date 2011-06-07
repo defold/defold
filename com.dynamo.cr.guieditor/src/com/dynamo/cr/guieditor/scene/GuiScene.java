@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.media.opengl.GLException;
+import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
@@ -43,6 +44,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.gui.proto.Gui.NodeDesc;
+import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Type;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
@@ -252,6 +254,22 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
     public void draw(DrawContext drawContext) {
         for (GuiNode node : nodes) {
             node.draw(drawContext);
+        }
+    }
+
+    public void drawPivot(DrawContext drawContext) {
+        IGuiRenderer renderer = drawContext.getRenderer();
+        final double s = 3;
+        double s2 = 4;
+
+        for (GuiNode node : nodes) {
+            if (drawContext.isSelected(node)) {
+                Vector4d position = node.getPosition();
+                double x = position.getX();
+                double y = position.getY();
+                renderer.drawQuad(x - s2, y - s2, x + s2, y + s2, 0.3, 0.3, 0.3, 1, BlendMode.BLEND_MODE_ALPHA, null);
+                renderer.drawQuad(x - s, y - s, x + s, y + s, 99/255.0, 116/255.0, 220/255.0, 1, BlendMode.BLEND_MODE_ALPHA, null);
+            }
         }
     }
 
