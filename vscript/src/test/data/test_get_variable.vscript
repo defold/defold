@@ -16,3 +16,25 @@ blocks {
         }
     }
 }
+
+globals {
+    name: "x"
+    type {
+        basic_type: NUMBER
+    }
+
+    initial_value {
+        float_value: 0
+    }
+}
+
+globals {
+    name: "a_constant"
+    type {
+        basic_type: NUMBER
+    }
+
+    initial_value {
+        float_value: 0
+    }
+}

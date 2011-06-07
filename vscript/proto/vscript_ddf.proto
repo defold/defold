@@ -48,7 +48,15 @@ enum ExpressionType
     LOAD_VARIABLE = 12;
 }
 
+// Used when the type, in a given, is known, e.g. global variable values
 message Value
+{
+    optional float float_value   = 1;
+    optional string string_value = 2;
+}
+
+// Used then type is not easily inferable in a given context, e.g. constants
+message Constant
 {
     required Type type           = 1;
     optional float float_value   = 2;
@@ -63,7 +71,7 @@ message Expression
     repeated Expression expressions = 2;
 
     // For CONSTANT expression
-	optional Value constant         = 3;
+	optional Constant constant         = 3;
 
 	// For LOAD_VARIABLE and INVOKE_EXPR
     optional string name            = 4;
@@ -123,8 +131,8 @@ message GlobalVariable
 
 message VisualScriptFile
 {
-    repeated Block blocks                    = 1;
-    repeated GlobalVariable global_variables = 2;
+    repeated Block blocks           = 1;
+    repeated GlobalVariable globals = 2;
 }
 
 message Prototype

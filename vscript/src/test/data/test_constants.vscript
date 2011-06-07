@@ -28,3 +28,25 @@ blocks {
         }
     }
 }
+
+globals {
+    name: "number"
+    type {
+        basic_type: NUMBER
+    }
+
+    initial_value {
+        float_value: 0
+    }
+}
+
+globals {
+    name: "string"
+    type {
+        basic_type: STRING
+    }
+
+    initial_value {
+        string_value: ""
+    }
+}

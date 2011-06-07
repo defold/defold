@@ -30,6 +30,19 @@ class Visitor(object):
         method = getattr(self, 'visit_%s' % name)
         method(expr)
 
+class Value(object):
+    def __init__(self, type, value):
+        self.type = type
+        self.value = value
+
+def to_python_value(type, value):
+    if type.basic_type == vscript_ddf_pb2.NUMBER:
+        return value.float_value
+    elif type.basic_type == vscript_ddf_pb2.STRING:
+        return value.string_value
+    else:
+        assert False
+
 class Interpreter(Visitor):
 
     def function_pow(self):
@@ -39,15 +52,24 @@ class Interpreter(Visitor):
 
     def __init__(self, source):
         Visitor.__init__(self, source)
+
+        # Run this to check that the message is complete. Better way?
         self.script.SerializeToString()
-        self.stack = []
+
         self.globals = {}
+        for var in self.script.globals:
+            self.globals[var.name] = Value(var.type, to_python_value(var.type, var.initial_value))
+
+        self.stack = []
 
     def get_global(self, name):
-        return self.globals[name]
+        return self.globals[name].value
 
     def set_global(self, name, value):
-        self.globals[name] = value
+        if not self.globals.has_key(name):
+            raise Exception('Global %s not declared' % name)
+
+        self.globals[name].value = value
 
     def push(self, value):
         self.stack.insert(0, value)
@@ -76,7 +98,7 @@ class Interpreter(Visitor):
 
     def visit_set_variable(self, stmt):
         self.visit_expression(stmt.expression)
-        self.globals[stmt.name] = self.pop()
+        self.set_global(stmt.name, self.pop())
 
     def visit_print(self, stmt):
         self.visit_expression(stmt.expression)
@@ -125,7 +147,7 @@ class Interpreter(Visitor):
             assert False
 
     def visit_load_variable(self, expr):
-        value = self.globals[expr.name]
+        value = self.get_global(expr.name)
         self.push(value)
 
     def visit_invoke(self, stmt):
