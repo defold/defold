@@ -16,7 +16,9 @@ namespace dmProfileRender
 
     struct SampleStats
     {
-        const dmProfile::Sample* m_Sample;
+        // Used to determine whether two samples are overlapping or not
+        // It is also used to get the scope related to this sample
+        const dmProfile::Sample* m_LastSample;
         uint32_t m_Elapsed;
         uint16_t m_Count;
     };
@@ -96,17 +98,34 @@ namespace dmProfileRender
 
         dmRender::Square2d(c->m_RenderContext, x, y, x + w, y + c->m_BarHeight, Vector4(col[0], col[1], col[2], 1));
 
-        uint64_t hash = dmHashString64(sample->m_Name);
+        HashState64 hash_state;
+        dmHashInit64(&hash_state);
+        dmHashUpdateBuffer64(&hash_state, sample->m_Scope->m_Name, strlen(sample->m_Scope->m_Name));
+        dmHashUpdateBuffer64(&hash_state, sample->m_Name, strlen(sample->m_Name));
+        uint64_t hash = dmHashFinal64(&hash_state);
+
         SampleStats* stats = c->m_SampleStats.Get(hash);
         if (stats != 0x0)
         {
-            ++stats->m_Count;
-            stats->m_Elapsed += sample->m_Elapsed;
+
+            const dmProfile::Sample* last_sample = stats->m_LastSample;
+            uint32_t end_last = last_sample->m_Start + last_sample->m_Elapsed;
+            if (sample->m_Start >= last_sample->m_Start && sample->m_Start < end_last)
+            {
+                // Probably recursion. The sample is overlapping the previous.
+                // Ignore this sample.
+            }
+            else
+            {
+                ++stats->m_Count;
+                stats->m_Elapsed += sample->m_Elapsed;
+                stats->m_LastSample = sample;
+            }
         }
         else
         {
             SampleStats stats;
-            stats.m_Sample = sample;
+            stats.m_LastSample = sample;
             stats.m_Elapsed = sample->m_Elapsed;
             stats.m_Count = 1;
             if (c->m_SampleStats.Full())
@@ -193,7 +212,7 @@ namespace dmProfileRender
         int y = context->m_Y - context->m_Index * g_Spacing;
 
         float col[3];
-        HslToRgb2( (stats->m_Sample->m_Scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
+        HslToRgb2( (stats->m_LastSample->m_Scope->m_Index % 16) / 16.0f, 1.0f, 0.65f, col);
 
         char buf[256];
 
@@ -203,7 +222,7 @@ namespace dmProfileRender
         params.m_FaceColor = Vectormath::Aos::Vector4(col[0], col[1], col[2], 1.0f);
         params.m_ShadowColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
-        DM_SNPRINTF(buf, sizeof(buf), "%s.%s", stats->m_Sample->m_Scope->m_Name, stats->m_Sample->m_Name);
+        DM_SNPRINTF(buf, sizeof(buf), "%s.%s", stats->m_LastSample->m_Scope->m_Name, stats->m_LastSample->m_Name);
         params.m_WorldTransform.setElem(3, 0, g_Sample_x0);
         dmRender::DrawText(context->m_RenderContext, context->m_FontMap, params);
 
