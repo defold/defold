@@ -171,7 +171,7 @@ public class Fontc {
 
         int i = 0;
         float totalY = 0.0f;
-        // TODO: This is a workaround since the current implementation gives "garbage" pixels in the edges from neighbouring glyphs in the font map
+        // Margin is set to 1 since the font map is an atlas, this removes sampling artifacts (neighbouring texels outside the sample-area being used)
         int margin = 1;
         int padding = 0;
         if (this.fontDesc.getAntialias() != 0)
