@@ -705,12 +705,22 @@
                 var sum = {}
                 for (var i in frame.samples) {
                     var s = frame.samples[i];
+
                     if (sum[s.name] == undefined) {
-                        sum[s.name] = [0.0, 0.0, s.scope_name];
+                        // First sample
+                        sum[s.name] = [s.elapsed, 1, s.scope_name, s];
+                    } else {
+                        var tmp = sum[s.name];
+                        var last_sample = tmp[3];
+                        var end_last = last_sample.start + last_sample.elapsed;
+                        if (s.start >= last_sample.start && s.start < end_last) {
+                            // Probably recursion. The sample is overlapping the previous.
+                            // Ignore this sample.
+                        } else {
+                            tmp = [tmp[0] + s.elapsed, tmp[1] + 1, tmp[2], s];
+                            sum[s.name] = tmp;
+                        }
                     }
-                    var tmp = sum[s.name];
-                    tmp = [tmp[0] + s.elapsed, tmp[1] + 1, tmp[2]];
-                    sum[s.name] = tmp;
                 }
 
                 var template = '<td class="prof-table %eo first"><div class="square" style="background-color: %color"></div>%name</td><td class="prof-table %eo second">%e</td></td><td class="prof-table %eo second"> %count</td><td class="prof-table %eo"><input %checked onchange="onSamplesCheckbox(this);" id="%name" type="checkbox"/></td><tr/>';

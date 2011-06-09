@@ -271,6 +271,17 @@ namespace dmRender
             // NOTE: We round advance here just as above in DrawText
             width += (int16_t) g.m_Advance;
         }
+        if (n > 0)
+        {
+            const Glyph& first = font_map->m_Glyphs[0];
+            const Glyph& last = font_map->m_Glyphs[n-1];
+            width = width - first.m_LeftBearing - (last.m_Advance - last.m_Advance - last.m_Width);
+            if (last.m_Width == 0.0f)
+            {
+                width += last.m_Advance;
+            }
+        }
+
         metrics->m_Width = width;
     }
 
