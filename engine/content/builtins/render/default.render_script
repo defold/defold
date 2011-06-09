@@ -18,11 +18,13 @@ function update(self)
     render.disable_state(render.STATE_CULL_FACE)
 
     render.draw(self.sprite_pred)
-
-    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
+    render.draw_debug3d()
 
     render.draw(self.gui_pred)
     render.draw(self.text_pred)
+
+    render.set_depth_mask(false)
+    render.draw_debug2d()
 end
 
 function on_message(self, message_id, message)
