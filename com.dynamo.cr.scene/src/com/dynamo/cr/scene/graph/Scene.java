@@ -3,12 +3,18 @@ package com.dynamo.cr.scene.graph;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Scene
+import org.eclipse.core.commands.operations.IUndoableOperation;
+
+import com.dynamo.cr.properties.IPropertyObjectWorld;
+
+public class Scene implements IPropertyObjectWorld
 {
     private final List<ISceneListener> m_Listeners = new ArrayList<ISceneListener>();
+    private IExecuteOperationDelegate executeOperationDelegate;
 
-    public Scene()
+    public Scene(IExecuteOperationDelegate executeOperationDelegate)
     {
+        this.executeOperationDelegate = executeOperationDelegate;
     }
 
     void fireSceneEvent(SceneEvent e) {
@@ -21,16 +27,6 @@ public class Scene
         }
     }
 
-    void fireScenePropertyChangedEvent(ScenePropertyChangedEvent e) {
-        // Make a copy of listeners. We could get concurrent modification problems
-        // if a listener would respond by added/removing a listener.
-        ArrayList<ISceneListener> listeners = new ArrayList<ISceneListener>(m_Listeners);
-        for (ISceneListener l : listeners)
-        {
-            l.propertyChanged(e);
-        }
-    }
-
     public void addSceneListener(ISceneListener listener)
     {
         m_Listeners.add(listener);
@@ -39,18 +35,6 @@ public class Scene
     public void removeSceneListener(ISceneListener listener)
     {
         m_Listeners.remove(listener);
-    }
-
-    public void nodeTransformChanged(Node node)
-    {
-        SceneEvent e = new SceneEvent(SceneEvent.PROPERTY_CHANGED, node);
-        fireSceneEvent(e);
-    }
-
-    public void propertyChanged(Node node, IProperty property)
-    {
-        ScenePropertyChangedEvent e = new ScenePropertyChangedEvent(node, property);
-        fireScenePropertyChangedEvent(e);
     }
 
     public void nodeAdded(Node node)
@@ -69,6 +53,10 @@ public class Scene
 
     public void nodeChanged(Node node) {
         fireSceneEvent(new SceneEvent(SceneEvent.NODE_CHANGED, node));
+    }
+
+    public void executeOperation(IUndoableOperation operation) {
+        this.executeOperationDelegate.executeOperation(operation);
     }
 }
 

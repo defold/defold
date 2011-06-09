@@ -7,11 +7,16 @@ import javax.vecmath.Matrix4d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
+import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.ui.views.properties.IPropertySource;
+
+import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.Vector4dEmbeddedSource;
 import com.dynamo.cr.scene.math.AABB;
-import com.dynamo.cr.scene.math.MathUtil;
 import com.dynamo.cr.scene.math.Transform;
 
-public abstract class Node
+public abstract class Node implements IAdaptable
 {
     public static final int FLAG_EDITABLE = (1 << 0);
     public static final int FLAG_CAN_HAVE_CHILDREN = (1 << 1);
@@ -25,15 +30,14 @@ public abstract class Node
     public static final int ERROR_FLAG_CHILD_ERROR = (1 << 3);
     public static final int ERROR_FLAG_COUNT = 4;
 
-    protected Vector4d m_Translation = new Vector4d();
-    protected Quat4d m_Rotation = new Quat4d();
-    protected Vector4d m_Euler = new Vector4d();
+    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
+    protected Vector4d localTranslation = new Vector4d();
+
+    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
+    protected Quat4d localRotation = new Quat4d();
+
     protected Node m_Parent;
     protected Scene m_Scene;
-    protected IProperty[] m_Properties;
-    private Vector4Property m_TranslationProperty;
-    private Vector4Property m_RotationProperty;
-    private Vector4Property m_EulerProperty;
     private int m_Flags = 0;
     protected AABB m_AABB = new AABB();
     protected AABB m_WorldAABB = new AABB();
@@ -43,52 +47,45 @@ public abstract class Node
     private String identifier;
 
     // Psuedo states
-    private Vector4d m_WorldTranslation = new Vector4d();
-    private Vector4Property m_WorldTranslationProperty;
+    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
+    private Vector4d worldTranslation = new Vector4d();
+
+    private PropertyIntrospectorSource<Node, Scene> propertySource;
 
     public Node(String identifier, Scene scene, int flags)
     {
         m_AABB.setIdentity();
         this.identifier = identifier;
-        m_Translation.set(0, 0, 0, 0);
-        m_Rotation.set(0, 0, 0, 1);
+        localTranslation.set(0, 0, 0, 0);
+        localRotation.set(0, 0, 0, 1);
         m_Parent = null;
         m_Scene = scene;
         m_Flags = flags;
         errorFlags = 0;
         errorMessages = new String[ERROR_FLAG_COUNT];
-
-        List<IProperty> properties = new ArrayList<IProperty>();
-        addProperties(properties);
-        m_Properties = new IProperty[properties.size()];
-        properties.toArray(m_Properties);
     }
 
-    /**
-     * Internal method for adding properties in sub-classes.
-     * Inherited classes must call addProperties in super-class first in method
-     * @param properties Property list to add to
-     */
-    protected void addProperties(List<IProperty> properties)
-    {
-        m_TranslationProperty = new Vector4Property(null, "Translation", "m_Translation", true, true);
-        m_RotationProperty = new Vector4Property(null, "Rotation", "m_Rotation", false, false);
-        m_EulerProperty = new Vector4Property(null, "Euler", "m_Euler", true, false);
-        properties.add(m_TranslationProperty);
-        properties.add(m_RotationProperty);
-        properties.add(m_EulerProperty);
-
-        m_WorldTranslationProperty = new Vector4Property(null, "WorldTranslation", "m_WorldTranslation", true, true);
-        m_WorldTranslationProperty.setUpdater(new IPropertyUpdater() {
-
-            @Override
-            public void update(IProperty property) {
-                Transform transform = new Transform();
-                getWorldTransform(transform);
-                transform.getTranslation(m_WorldTranslation);
+    @SuppressWarnings({ "rawtypes" })
+    @Override
+    public Object getAdapter(Class adapter) {
+        if (adapter == IPropertySource.class) {
+            if (this.propertySource == null) {
+                this.propertySource = new PropertyIntrospectorSource<Node, Scene>(this, getScene(), null);
             }
-        }, true);
-        properties.add(m_WorldTranslationProperty);
+            return this.propertySource;
+        }
+        return null;
+    }
+
+    public Vector4d getWorldTranslation() {
+        return new Vector4d(worldTranslation);
+    }
+
+    public void setWorldTranslation(Vector4d worldTranslation) {
+        Transform t = new Transform();
+        getWorldTransform(t);
+        t.setTranslation(worldTranslation);
+        NodeUtil.setWorldTransform(this, t);
     }
 
     public final String getIdentifier()
@@ -200,49 +197,12 @@ public abstract class Node
         }
     }
 
-    public IProperty[] getProperties()
-    {
-        return m_Properties;
-    }
-
-
-    public void propertyChanged(IProperty property)
-    {
-        if (PropertyUtil.isPropertyOf(property, m_RotationProperty))
-        {
-            //m_Rotation.x =0.5;
-            m_Rotation.normalize();
-            MathUtil.quatToEuler(m_Rotation, m_Euler);
-            m_Scene.propertyChanged(this, m_RotationProperty); // Could be changed to due normalize() above
-            m_Scene.propertyChanged(this, m_EulerProperty);
-        }
-        else if (PropertyUtil.isPropertyOf(property, m_EulerProperty))
-        {
-            MathUtil.eulerToQuat(m_Euler, m_Rotation);
-            m_Scene.propertyChanged(this, m_RotationProperty);
-        }
-        else if (PropertyUtil.isPropertyOf(property, m_WorldTranslationProperty))
-        {
-            Transform t = new Transform();
-            getWorldTransform(t);
-            t.setTranslation(m_WorldTranslation);
-            NodeUtil.setWorldTransform(this, t);
-        }
-        else if (PropertyUtil.isPropertyOf(property, m_TranslationProperty))
-        {
-            updateWorldTranslationProperty();
-        }
-    }
-
     private void updateWorldTranslationProperty()
     {
         Transform t = new Transform();
         getWorldTransform(t);
-        t.getTranslation(m_WorldTranslation);
-        if (m_Scene != null)
-        {
-            m_Scene.propertyChanged(this, m_WorldTranslationProperty);
-        }
+        t.getTranslation(worldTranslation);
+
         for (Node n : getChildren()) {
             n.updateWorldTranslationProperty();
         }
@@ -399,17 +359,18 @@ public abstract class Node
 
     public void getLocalTranslation(Vector4d translation)
     {
-        translation.set(m_Translation);
+        translation.set(this.localTranslation);
+    }
+
+    // Bean accessor
+    public Vector4d getLocalTranslation() {
+        return new Vector4d(localTranslation);
     }
 
     public void setLocalTranslation(Vector4d translation)
     {
-        m_Translation.set(translation);
-        m_Translation.w = 0;
-        if (m_Scene != null) {
-            m_Scene.nodeTransformChanged(this);
-            m_Scene.propertyChanged(this, m_TranslationProperty);
-        }
+        this.localTranslation.set(translation);
+        this.localTranslation.w = 0;
         setDirty();
 
         updateWorldTranslationProperty();
@@ -417,98 +378,62 @@ public abstract class Node
 
     public void setLocalRotation(Quat4d rotation)
     {
-        m_Rotation.set(rotation);
-        m_Rotation.normalize();
+        this.localRotation.set(rotation);
+        this.localRotation.normalize();
         update();
-        if (m_Scene != null) {
-            m_Scene.nodeTransformChanged(this);
-            m_Scene.propertyChanged(this, m_RotationProperty);
-            m_Scene.propertyChanged(this, m_EulerProperty);
-        }
         setDirty();
 
         updateWorldTranslationProperty();
+    }
+
+    public Quat4d getLocalRotation() {
+        return new Quat4d(localRotation);
     }
 
     public void getLocalTransform(Matrix4d transform)
     {
         transform.setIdentity();
-        transform.setColumn(3, m_Translation);
+        transform.setColumn(3, localTranslation);
         transform.m33 = 1;
-        transform.setRotation(m_Rotation);
+        transform.setRotation(localRotation);
     }
 
     public void getLocalTransform(Transform transform)
     {
-        transform.setTranslation(m_Translation);
-        transform.setRotation(m_Rotation);
+        transform.setTranslation(localTranslation);
+        transform.setRotation(localRotation);
     }
 
     private void update()
     {
-        MathUtil.quatToEuler(m_Rotation, m_Euler);
-
         Transform t = new Transform();
         getWorldTransform(t);
-        t.getTranslation(m_WorldTranslation);
+        t.getTranslation(worldTranslation);
     }
 
     public void setLocalTransform(Matrix4d transform)
     {
-        Vector4d last_posision = new Vector4d(m_Translation);
-        Vector4d last_rotation = new Vector4d(m_Rotation);
-
-        transform.getColumn(3, m_Translation);
-        m_Translation.w = 0;
-        m_Rotation.set(transform);
+        transform.getColumn(3, localTranslation);
+        localTranslation.w = 0;
+        localRotation.set(transform);
         //System.out.println(last_rotation + ", " + m_Rotation);
-        m_Rotation.normalize();
+        localRotation.normalize();
 
         //System.out.println(transform);
 
         update();
         setDirty();
-
-        if (m_Scene != null)
-        {
-            m_Scene.nodeTransformChanged(this);
-
-            last_posision.sub(m_Translation);
-            if (last_posision.lengthSquared() > 0.0001)
-            {
-                m_Scene.propertyChanged(this, m_TranslationProperty);
-            }
-
-            last_rotation.sub(m_Rotation);
-            if (last_rotation.lengthSquared() > 0.0001)
-            {
-                m_Scene.propertyChanged(this, m_RotationProperty);
-                m_Scene.propertyChanged(this, m_EulerProperty);
-            }
-        }
-        else
-        {
-            System.err.println("ERROR: No scene for node: " + this);
-        }
-
         updateWorldTranslationProperty();
     }
 
     public void setLocalTransform(Transform transform)
     {
-        transform.getTranslation(m_Translation);
-        transform.getRotation(m_Rotation);
-        m_Rotation.normalize();
+        transform.getTranslation(localTranslation);
+        transform.getRotation(localRotation);
+        localRotation.normalize();
 
         update();
         setDirty();
-
-        if (m_Scene != null) {
-            m_Scene.nodeTransformChanged(this);
-            m_Scene.propertyChanged(this, m_TranslationProperty);
-            m_Scene.propertyChanged(this, m_RotationProperty);
-            m_Scene.propertyChanged(this, m_EulerProperty);
-        }
 
         updateWorldTranslationProperty();
     }
