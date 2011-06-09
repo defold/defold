@@ -95,6 +95,6 @@ public class SceneContext {
         nodeFactory.addCreator("light", LightNode.getCreator());
         nodeFactory.addCreator("sprite", SpriteNode.getCreator());
         nodeFactory.addCreator("collisionobject", CollisionNode.getCreator());
-        scene = new Scene();
+        scene = new Scene(null);
     }
 }

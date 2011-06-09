@@ -94,7 +94,7 @@ public class ReloadNodeTest {
         nodeFactory = new NodeFactory();
         nodeFactory.addCreator("go", PrototypeNode.getCreator());
         nodeFactory.addCreator("collection", CollectionNode.getCreator());
-        scene = new Scene();
+        scene = new Scene(null);
     }
 
     @Test
