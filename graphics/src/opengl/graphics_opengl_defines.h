@@ -70,7 +70,6 @@
 #define DMGRAPHICS_TEXTURE_FILTER_NEAREST                   (GL_NEAREST)
 
 // Texture wrap
-#define DMGRAPHICS_TEXTURE_WRAP_CLAMP                       (GL_CLAMP)
 #define DMGRAPHICS_TEXTURE_WRAP_REPEAT                      (GL_REPEAT)
 #ifndef GL_ARB_multitexture
 #define DMGRAPHICS_TEXTURE_WRAP_CLAMP_TO_BORDER             (0x812D)

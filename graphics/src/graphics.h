@@ -92,7 +92,6 @@ namespace dmGraphics
     // Texture format
     enum TextureWrap
     {
-        TEXTURE_WRAP_CLAMP              = DMGRAPHICS_TEXTURE_WRAP_CLAMP,
         TEXTURE_WRAP_CLAMP_TO_BORDER    = DMGRAPHICS_TEXTURE_WRAP_CLAMP_TO_BORDER,
         TEXTURE_WRAP_CLAMP_TO_EDGE      = DMGRAPHICS_TEXTURE_WRAP_CLAMP_TO_EDGE,
         TEXTURE_WRAP_MIRRORED_REPEAT    = DMGRAPHICS_TEXTURE_WRAP_MIRRORED_REPEAT,
@@ -197,8 +196,8 @@ namespace dmGraphics
         : m_Format(TEXTURE_FORMAT_RGBA)
         , m_MinFilter(TEXTURE_FILTER_LINEAR)
         , m_MagFilter(TEXTURE_FILTER_LINEAR)
-        , m_UWrap(TEXTURE_WRAP_CLAMP)
-        , m_VWrap(TEXTURE_WRAP_CLAMP)
+        , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
+        , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_Data(0x0)
         , m_DataSize(0)
         , m_MipMap(0)
