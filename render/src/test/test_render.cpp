@@ -155,9 +155,9 @@ TEST_F(dmRenderTest, TestLine3d)
 TEST_F(dmRenderTest, TestDraw)
 {
     dmRender::RenderObject ro_neg_z;
-    ro_neg_z.m_WorldTransform.setTranslation(Vector3(0.0f, 0.0f, -1.0f));
+    ro_neg_z.m_RenderKey.m_Depth = 1;
     dmRender::RenderObject ro_pos_z;
-    ro_neg_z.m_WorldTransform.setTranslation(Vector3(0.0f, 0.0f, 1.0f));
+    ro_pos_z.m_RenderKey.m_Depth = 0;
 
     ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
 
@@ -167,15 +167,14 @@ TEST_F(dmRenderTest, TestDraw)
     ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[0]);
     ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[1]);
 
-    dmRender::SetProjectionMatrix(m_Context, Matrix4::perspective(3.14*0.5f, 1.0f, 0.1f, 100.0f));
-    dmRender::SetViewMatrix(m_Context, Matrix4::lookAt(Point3(0.0f, 0.0f, 10.0f), Point3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f)));
-
     dmRender::Draw(m_Context, 0x0);
 
     ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[0]);
     ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[1]);
 
-    dmRender::SetViewMatrix(m_Context, Matrix4::lookAt(Point3(0.0f, 0.0f, -10.0f), Point3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f)));
+    // Change draw-order
+    ro_neg_z.m_RenderKey.m_Depth = 0;
+    ro_pos_z.m_RenderKey.m_Depth = 1;
 
     dmRender::Draw(m_Context, 0x0);
 
