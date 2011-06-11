@@ -159,6 +159,7 @@ namespace dmRender
     , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
+    , m_Depth(0)
     {
     }
 
@@ -189,6 +190,8 @@ namespace dmRender
         for (int i = 2; i >= 0; --i)
         {
             RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
+            ro->m_RenderKey.m_Depth = params.m_Depth;
+            ro->m_RenderKey.m_Order = 2 - i;
             ro->m_Material = font_map->m_Material;
             ro->m_Textures[0] = font_map->m_Texture;
             ro->m_VertexStart = text_context.m_VertexIndex;

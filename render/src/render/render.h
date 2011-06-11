@@ -59,8 +59,9 @@ namespace dmRender
             struct
             {
                 uint64_t    m_Depth:32;
+                uint64_t    m_Order:3;
                 uint64_t    m_Translucency:1;
-                uint64_t    m_MaterialId:31;
+                uint64_t    m_MaterialId:28;
             };
             uint64_t        m_Key;
         };

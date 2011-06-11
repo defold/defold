@@ -267,6 +267,7 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext m_RenderContext;
         GuiWorld*                m_GuiWorld;
+        uint32_t                 m_NextZ;
     };
 
     void RenderNode(dmGui::HScene scene,
@@ -441,8 +442,10 @@ namespace dmGameSystem
             {
                 m *= Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
                 ro.m_WorldTransform = m;
+                ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
                 dmRender::EnableRenderObjectFragmentConstant(&ro, 0, color);
                 gui_world->m_GuiRenderObjects.Push(ro);
+
                 dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);
             }
             else if (n->m_NodeType == dmGui::NODE_TYPE_TEXT)
@@ -451,8 +454,10 @@ namespace dmGameSystem
                 params.m_FaceColor = color;
                 params.m_Text = n->m_Text;
                 params.m_WorldTransform = m;
+                params.m_Depth = gui_context->m_NextZ;
                 dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) n->m_Font, params);
             }
+            gui_context->m_NextZ++;
         }
     }
 
@@ -471,6 +476,7 @@ namespace dmGameSystem
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_context->m_RenderContext;
         render_gui_context.m_GuiWorld = gui_world;
+        render_gui_context.m_NextZ = 0;
 
         gui_world->m_GuiRenderObjects.SetSize(0);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)

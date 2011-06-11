@@ -111,11 +111,15 @@ namespace dmRender
             context->m_DebugRenderer.m_RenderObject2d[i].m_VertexCount = 0;
         }
         context->m_DebugRenderer.m_VertexIndex = 0;
+        context->m_DebugRenderer.m_NextZ = 0;
     }
 
 #define ADD_TO_RENDER(object)\
     if (object.m_VertexCount == 0)\
-        dmRender::AddToRender(context, &object);
+    {\
+        dmRender::AddToRender(context, &object);\
+        ro.m_RenderKey.m_Depth = context->m_DebugRenderer.m_NextZ++;\
+    }\
 
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color)
     {

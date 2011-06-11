@@ -584,7 +584,7 @@ namespace dmParticle
                 Emitter* emitter = context->m_Emitters[i];
                 if (!emitter || emitter->m_VertexCount == 0) continue;
 
-                render_emitter_callback(usercontext, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
+                render_emitter_callback(usercontext, emitter->m_Position, emitter->m_Prototype->m_Material, emitter->m_Prototype->m_Texture, emitter->m_VertexIndex, emitter->m_VertexCount);
             }
         }
     }

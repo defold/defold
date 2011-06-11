@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <algorithm>
 
 #include <dlib/hash.h>
 #include <dlib/profile.h>
@@ -178,35 +179,9 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result GenerateKey(HRenderContext render_context, const Matrix4& view_proj)
+    static bool SortPred(const RenderObject* a, const RenderObject* b)
     {
-        DM_PROFILE(Render, "GenerateKey");
-
-        if (render_context == 0x0)
-            return RESULT_INVALID_CONTEXT;
-
-        // start by calculating depth (z of object in clip space) as part of the key
-        for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
-        {
-            RenderObject* ro = render_context->m_RenderObjects[i];
-            Vector4 pos_clip_space(ro->m_WorldTransform.getTranslation(), 1.0f);
-            pos_clip_space = view_proj * pos_clip_space;
-            float depth = 1.0f - pos_clip_space.getZ()/pos_clip_space.getW();
-            ro->m_RenderKey.m_Depth = *((uint64_t*)&depth);
-        }
-
-        return RESULT_OK;
-    }
-
-    static int SortFunction(const void *a, const void* b)
-    {
-        uintptr_t __a = *(uintptr_t*)a;
-        uintptr_t __b = *(uintptr_t*)b;
-        RenderObject* _a = (RenderObject*)(__a);
-        RenderObject* _b = (RenderObject*)(__b);
-        int64_t diff = _a->m_RenderKey.m_Key - _b->m_RenderKey.m_Key;
-
-        return diff;
+        return a->m_RenderKey.m_Key < b->m_RenderKey.m_Key;
     }
 
     Result Draw(HRenderContext render_context, Predicate* predicate)
@@ -220,13 +195,11 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
-        GenerateKey(render_context, GetViewProjectionMatrix(render_context));
         if (render_context->m_RenderObjects.Size() > 0)
         {
-            qsort( &render_context->m_RenderObjects.Front(),
-                   render_context->m_RenderObjects.Size(),
-                   sizeof(RenderObject*),
-                   SortFunction);
+            std::sort(&render_context->m_RenderObjects[0],
+                      &render_context->m_RenderObjects[0] + render_context->m_RenderObjects.Size(),
+                      &SortPred);
         }
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)

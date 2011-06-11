@@ -41,6 +41,7 @@ namespace dmRender
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_VertexIndex;
+        uint32_t                        m_NextZ;
     };
 
     struct TextContext

@@ -1,9 +1,11 @@
 #include "comp_model.h"
 
+#include <float.h>
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 #include <render/render.h>
 
@@ -95,12 +97,30 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
         ModelWorld* model_world = (ModelWorld*)params.m_World;
+
+        float min_z = FLT_MAX;
+        float max_z = -FLT_MAX;
+        for (uint32_t i = 0; i < model_world->m_Components.Size(); ++i)
+        {
+            ModelComponent& component = model_world->m_Components[i];
+            if (component.m_Model != 0)
+            {
+                Point3 position = dmGameObject::GetWorldPosition(component.m_Instance);
+                min_z = dmMath::Min(min_z, position.getZ());
+                max_z = dmMath::Max(max_z, position.getZ());
+            }
+        }
+        float z_range_recip = 1.0f / (max_z - min_z);
+
         for (uint32_t i = 0; i < model_world->m_Components.Size(); ++i)
         {
             ModelComponent& component = model_world->m_Components[i];
             if (component.m_Model != 0)
             {
                 dmRender::RenderObject& ro = component.m_RenderObject;
+                Point3 position = dmGameObject::GetWorldPosition(component.m_Instance);
+                ro.m_RenderKey.m_Depth = 0xffffffff * dmMath::Clamp((position.getZ() - min_z) * z_range_recip, 0.0f, 1.0f);
+
                 ro.m_Material = component.m_Model->m_Material;
                 for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
                     ro.m_Textures[i] = component.m_Model->m_Textures[i];
@@ -110,7 +130,7 @@ namespace dmGameSystem
                 ro.m_VertexStart = 0;
                 ro.m_VertexCount = component.m_Model->m_Mesh->m_VertexCount;
                 ro.m_TextureTransform = Matrix4::identity();
-                Matrix4 world(dmGameObject::GetWorldRotation(component.m_Instance), Vector3(dmGameObject::GetWorldPosition(component.m_Instance)));
+                Matrix4 world(dmGameObject::GetWorldRotation(component.m_Instance), Vector3(position));
                 ro.m_WorldTransform = world;
                 dmRender::AddToRender(render_context, &component.m_RenderObject);
             }

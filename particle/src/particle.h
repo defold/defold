@@ -39,7 +39,7 @@ namespace dmParticle
     /**
      * Callback to handle rendering of emitters
      */
-    typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
+    typedef void (*RenderEmitterCallback)(void* usercontext, const Vectormath::Aos::Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     /**
      * Callback to handle rendering of lines for debug purposes
      */

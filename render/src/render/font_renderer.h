@@ -137,6 +137,8 @@ namespace dmRender
         Vectormath::Aos::Vector4 m_ShadowColor;
         /// Text to draw
         const char* m_Text;
+        /// Render depth value. Passed to the render-key depth
+        uint32_t    m_Depth;
     };
 
     /**

@@ -1,6 +1,7 @@
 #include "comp_sprite.h"
 
 #include <string.h>
+#include <float.h>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
@@ -9,6 +10,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/index_pool.h>
+#include <dlib/math.h>
 
 #include <graphics/graphics.h>
 
@@ -177,6 +179,21 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
+        float min_z = FLT_MAX;
+        float max_z = -FLT_MAX;
+        for (uint32_t i = 0; i < sprite_world->m_Components.Size(); ++i)
+        {
+            Component* component = &sprite_world->m_Components[i];
+            if (component->m_Enabled)
+            {
+                Point3 position = dmGameObject::GetWorldPosition(component->m_Instance);
+                min_z = dmMath::Min(min_z, position.getZ());
+                max_z = dmMath::Max(max_z, position.getZ());
+            }
+        }
+
+        float z_range_recip = 1.0f / (max_z - min_z);
+
         uint32_t vertex_index = 0;
         sprite_world->m_RenderObjects.SetSize(0);
         for (uint32_t i = 0; i < sprite_world->m_Components.Size(); ++i)
@@ -191,10 +208,12 @@ namespace dmGameSystem
                 // Generate vertex data
                 Matrix4 world = Matrix4::scale(Vector3(ddf->m_Width, ddf->m_Height, 1.0f));
                 world *= Matrix4::rotation(dmGameObject::GetWorldRotation(component->m_Instance));
-                world.setCol3(Vector4(dmGameObject::GetWorldPosition(component->m_Instance)));
+                Point3 position = dmGameObject::GetWorldPosition(component->m_Instance);
+                world.setCol3(Vector4(position));
 
                 // Render object
                 dmRender::RenderObject ro;
+                ro.m_RenderKey.m_Depth = 0xffffffff * dmMath::Clamp((position.getZ() - min_z) * z_range_recip, 0.0f, 1.0f);
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
                 ro.m_VertexDeclaration = sprite_world->m_VertexDeclaration;

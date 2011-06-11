@@ -1,9 +1,11 @@
 #include "comp_emitter.h"
 
+#include <float.h>
 #include <assert.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 #include <particle/particle.h>
 
@@ -35,6 +37,8 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         uint32_t m_VertexCount;
+        float    m_ZRangeRecip;
+        float    m_MinZ;
     };
 
     struct ParticleVertex
@@ -122,7 +126,7 @@ namespace dmGameSystem
         uint32_t                m_VertexCount;
     };
 
-    void RenderEmitterCallback(void* render_context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
+    void RenderEmitterCallback(void* render_context, const Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
 
     dmGameObject::UpdateResult CompEmitterUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -132,14 +136,24 @@ namespace dmGameSystem
         if (w->m_Emitters.Size() == 0)
             return dmGameObject::UPDATE_RESULT_OK;
 
+        float min_z = FLT_MAX;
+        float max_z = -FLT_MAX;
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             Emitter& emitter = w->m_Emitters[i];
-            dmParticle::SetPosition(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldPosition(emitter.m_Instance));
+            Point3 position = dmGameObject::GetWorldPosition(emitter.m_Instance);
+            min_z = dmMath::Min(min_z, position.getZ());
+            max_z = dmMath::Max(max_z, position.getZ());
+            dmParticle::SetPosition(w->m_ParticleContext, emitter.m_Emitter, position);
             dmParticle::SetRotation(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
         }
         EmitterContext* ctx = (EmitterContext*)params.m_Context;
 
+        float z_range_recip = 1.0f / (max_z - min_z);
+        w->m_MinZ = min_z;
+        w->m_ZRangeRecip = z_range_recip;
+
+        // NOTE: Objects are added in RenderEmitterCallback
         w->m_RenderObjects.SetSize(0);
 
         float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(w->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
@@ -147,9 +161,12 @@ namespace dmGameSystem
         dmParticle::Update(w->m_ParticleContext, params.m_UpdateContext->m_DT, vertex_buffer, vertex_buffer_size);
         dmGraphics::UnmapVertexBuffer(w->m_VertexBuffer);
         dmParticle::Render(w->m_ParticleContext, w, RenderEmitterCallback);
-        for (uint32_t i = 0; i < w->m_RenderObjects.Size(); ++i)
+        uint32_t n = w->m_RenderObjects.Size();
+        dmArray<dmRender::RenderObject>& render_objects = w->m_RenderObjects;
+
+        for (uint32_t i = 0; i < n; ++i)
         {
-            dmRender::AddToRender(ctx->m_RenderContext, &w->m_RenderObjects[i]);
+            dmRender::AddToRender(ctx->m_RenderContext, &render_objects[i]);
         }
 
         if (ctx->m_Debug)
@@ -184,11 +201,12 @@ namespace dmGameSystem
         dmParticle::RestartEmitter(emitter->m_World->m_ParticleContext, emitter->m_Emitter);
     }
 
-    void RenderEmitterCallback(void* context, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
+    void RenderEmitterCallback(void* context, const Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
         EmitterWorld* world = (EmitterWorld*)context;
 
         dmRender::RenderObject ro;
+        ro.m_RenderKey.m_Depth = 0xffffffff * dmMath::Clamp((position.getZ() - world->m_MinZ) * world->m_ZRangeRecip, 0.0f, 1.0f);
         ro.m_Material = (dmRender::HMaterial)material;
         ro.m_Textures[0] = (dmGraphics::HTexture)texture;
         ro.m_VertexStart = vertex_index;
