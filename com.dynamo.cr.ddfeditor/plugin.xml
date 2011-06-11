@@ -307,7 +307,7 @@
       </commonWizard>
       <commonWizard
             type="new"
-            wizardId="com.dynamo.cr.ddfeditor.wizards.ConvextShapeNewWizard">
+            wizardId="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>

@@ -385,7 +385,7 @@ public class SceneTest {
         output.close();
         tmpFile.create(new ByteArrayInputStream(output.toString().getBytes()), 0, new NullProgressMonitor());
         assertTrue(tmpFile.exists());
-        Scene tmpScene = new Scene();
+        Scene tmpScene = new Scene(null);
         Resource tmpResource = resourceFactory.load(new NullProgressMonitor(), tmpName);
         Node tmpRoot = nodeFactory.create(tmpName, tmpResource, null, tmpScene);
         assertTrue(tmpRoot != null);

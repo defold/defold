@@ -41,7 +41,7 @@ public class Paste extends AbstractHandler {
             TextTransfer transfer = TextTransfer.getInstance();
             String data = (String) cb.getContents(transfer);
             ByteArrayInputStream stream = new ByteArrayInputStream(data.getBytes());
-            Scene scene = new Scene();
+            Scene scene = new Scene(null);
             try {
                 String name = "clipboard.collection";
                 Resource resource = ((IEditor)editor).getResourceFactory().loadNoCache(new NullProgressMonitor(), name, stream);

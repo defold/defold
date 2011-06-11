@@ -132,15 +132,6 @@ public class TextGuiNode extends GuiNode {
         int ascent = metrics.getMaxAscent();
         int descent = metrics.getMaxDescent();
 
-
-        BufferedImage image = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = (Graphics2D) image.getGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        textBounds = metrics.getStringBounds(actualText, graphics);
-
-
-
         int width = metrics.stringWidth(actualText);
         pivotOffsetX = pivotOffsetX(width);
         pivotOffsetY = pivotOffsetY(ascent, descent);

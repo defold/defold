@@ -99,6 +99,8 @@ import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
+import org.eclipse.ui.views.properties.IPropertySheetPage;
+import org.eclipse.ui.views.properties.PropertySheetPage;
 import org.osgi.service.prefs.Preferences;
 
 import com.dynamo.cr.contenteditor.Activator;
@@ -115,6 +117,7 @@ import com.dynamo.cr.scene.graph.CollectionNode;
 import com.dynamo.cr.scene.graph.CollectionProxyNode;
 import com.dynamo.cr.scene.graph.CollisionNode;
 import com.dynamo.cr.scene.graph.DrawContext;
+import com.dynamo.cr.scene.graph.IExecuteOperationDelegate;
 import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.ISceneListener;
 import com.dynamo.cr.scene.graph.LightNode;
@@ -124,7 +127,6 @@ import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.graph.SceneEvent;
-import com.dynamo.cr.scene.graph.ScenePropertyChangedEvent;
 import com.dynamo.cr.scene.graph.SpriteNode;
 import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.resource.CameraLoader;
@@ -148,7 +150,7 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import com.google.protobuf.TextFormat;
 
-public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, ISceneListener, ISelectionProvider, IOperationHistoryListener, IResourceChangeListener {
+public class CollectionEditor extends EditorPart implements IEditor, Listener, MouseListener, MouseMoveListener, SelectionListener, ISceneListener, ISelectionProvider, IOperationHistoryListener, IResourceChangeListener, IExecuteOperationDelegate {
 
     private GLCanvas m_Canvas;
     private GLContext m_Context;
@@ -177,16 +179,27 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     private List<ISelectionChangedListener> m_Listeners = new ArrayList<ISelectionChangedListener>();
     private Node pasteTarget = null;
 
-    private boolean isRendering;
     private IContainer contentRoot;
     private ResourceFactory resourceFactory;
 
     // TODO: Part of a hack described in the end of init()
     private IPartListener partListener;
     private Preferences preferences;
+    private PropertySheetPage propertySheetPage;
+    private boolean refreshPropertySheetPosted;
 
     public CollectionEditor() {
         m_SelectBuffer = ByteBuffer.allocateDirect(4 * MAX_MODELS).order(ByteOrder.nativeOrder()).asIntBuffer();
+
+        propertySheetPage = new PropertySheetPage() {
+            public void setActionBars(IActionBars actionBars) {
+                super.setActionBars(actionBars);
+                String undoId = ActionFactory.UNDO.getId();
+                String redoId = ActionFactory.REDO.getId();
+                actionBars.setGlobalActionHandler(undoId, m_Actions.get(undoId));
+                actionBars.setGlobalActionHandler(redoId, m_Actions.get(redoId));
+            }
+        };
     }
 
     @Override
@@ -207,11 +220,12 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
     @Override
     public Object getAdapter(Class adapter)
     {
-        if (adapter == IContentOutlinePage.class && m_Root != null)
-        {
+        if (adapter == IContentOutlinePage.class && m_Root != null) {
             if (m_OutlinePage == null)
                 m_OutlinePage = new EditorOutlinePage(this);
             return m_OutlinePage;
+        } else if (adapter == IPropertySheetPage.class) {
+            return propertySheetPage;
         }
         else
         {
@@ -394,7 +408,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             if (root != null) {
                 factory.setContentRoot(root);
 
-                m_Scene = new Scene();
+                m_Scene = new Scene(this);
                 IProgressService service = PlatformUI.getWorkbench().getProgressService();
                 IContainer content_root = this.factory.getContentRoot();
                 String name = i.getFile().getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
@@ -562,7 +576,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         IContextService context_service = (IContextService) getSite().getService(IContextService.class);
         context_service.activateContext("com.dynamo.cr.contenteditor.contexts.collectioneditor");
 
-        isRendering = false;
         m_Canvas.addListener(SWT.Paint, new Listener() {
             @Override
             public void handleEvent(Event event) {
@@ -581,6 +594,22 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                     doPaint();
                     m_Canvas.update();
                     redrawPosted = false;
+                }
+            });
+        }
+        postRefreshPropertySheet();
+    }
+
+    private void postRefreshPropertySheet() {
+        if (!refreshPropertySheetPosted) {
+            refreshPropertySheetPosted = true;
+
+            Display.getDefault().timerExec(60 * 2, new Runnable() {
+
+                @Override
+                public void run() {
+                    refreshPropertySheetPosted = false;
+                    propertySheetPage.refresh();
                 }
             });
         }
@@ -1491,10 +1520,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 });
             }
         }
-    }
-
-    @Override
-    public void propertyChanged(ScenePropertyChangedEvent event) {
     }
 
     // SelectionProvider
