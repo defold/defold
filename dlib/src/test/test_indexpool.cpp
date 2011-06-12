@@ -93,6 +93,7 @@ TEST(dmIndexPool32, Clear)
     }
 
     ASSERT_EQ(0u, pool.Remaining());
+    pool.Push(val_array[pool_size/2]);
     pool.Clear();
     ASSERT_EQ(pool_size, pool.Remaining());
 

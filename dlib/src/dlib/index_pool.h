@@ -106,6 +106,8 @@ public:
     void Clear()
     {
         m_Size = 0;
+        for (T i=0; i < m_Capacity; i++)
+            m_Pool[i] = i;
     }
 
     /**
