@@ -76,6 +76,8 @@ public class Server {
     private Configuration configuration;
     private EntityManagerFactory emf;
     private org.eclipse.jetty.server.Server jettyServer;
+    private ETagCache etagCache = new ETagCache(10000);
+
     public Server(String configuration_file) throws IOException {
         loadConfig(configuration_file);
 
@@ -143,8 +145,8 @@ public class Server {
                     if (resource != null && resource.exists()) {
                         File file = resource.getFile();
                         if (file != null) {
-                            String thisEtag = String.format("\"%d\"", file.lastModified());
-                            if (ifNoneMatch.equals(thisEtag)) {
+                            String thisEtag = etagCache.getETag(file);
+                            if (thisEtag != null && ifNoneMatch.equals(thisEtag)) {
                                 baseRequest.setHandled(true);
                                 response.setHeader(HttpHeaders.ETAG, thisEtag);
                                 response.setStatus(HttpStatus.NOT_MODIFIED_304);
@@ -165,7 +167,10 @@ public class Server {
                 try {
                     File file = resource.getFile();
                     if (file != null) {
-                        response.setHeader(HttpHeaders.ETAG, String.format("\"%d\"", file.lastModified()));
+                        String etag = etagCache.getETag(file);
+                        if (etag != null) {
+                            response.setHeader(HttpHeaders.ETAG, etag);
+                        }
                     }
                 }
                 catch(IOException e) {
