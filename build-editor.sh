@@ -5,6 +5,6 @@ set -e
 
 prebuild
 gitclone
-build build_editor.xml editor.properties
+build build_editor.xml editor.properties editor
 postbuild
 

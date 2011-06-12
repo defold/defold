@@ -33,7 +33,8 @@ function build {
      -buildfile $1\
      -DbaseLocation=$BASE_LOCATION\
      -DbuildDirectory=$BUILD_DIRECTORY\
-     -DbuildProperties=`pwd`/$2
+     -DbuildProperties=`pwd`/$2\
+     -data /tmp/workspace_$3
 }
 
 function postbuild {

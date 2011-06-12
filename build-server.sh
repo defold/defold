@@ -6,5 +6,5 @@ rm -rf build
 
 prebuild
 gitclone
-build build_server.xml server.properties
+build build_server.xml server.properties server
 postbuild
