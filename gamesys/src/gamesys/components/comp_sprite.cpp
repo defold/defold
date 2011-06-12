@@ -213,7 +213,8 @@ namespace dmGameSystem
 
                 // Render object
                 dmRender::RenderObject ro;
-                ro.m_RenderKey.m_Depth = 0xffffffff * dmMath::Clamp((position.getZ() - min_z) * z_range_recip, 0.0f, 1.0f);
+                // NOTE: 0xffffffff can not be represented precisely in a float
+                ro.m_RenderKey.m_Depth = 0xffffff00 * dmMath::Clamp((position.getZ() - min_z) * z_range_recip, 0.0f, 1.0f);
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
                 ro.m_VertexDeclaration = sprite_world->m_VertexDeclaration;

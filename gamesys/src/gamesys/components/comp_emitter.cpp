@@ -206,7 +206,8 @@ namespace dmGameSystem
         EmitterWorld* world = (EmitterWorld*)context;
 
         dmRender::RenderObject ro;
-        ro.m_RenderKey.m_Depth = 0xffffffff * dmMath::Clamp((position.getZ() - world->m_MinZ) * world->m_ZRangeRecip, 0.0f, 1.0f);
+        // NOTE: 0xffffffff can not be represented precisely in a float
+        ro.m_RenderKey.m_Depth = 0xffffff00 * dmMath::Clamp((position.getZ() - world->m_MinZ) * world->m_ZRangeRecip, 0.0f, 1.0f);
         ro.m_Material = (dmRender::HMaterial)material;
         ro.m_Textures[0] = (dmGraphics::HTexture)texture;
         ro.m_VertexStart = vertex_index;

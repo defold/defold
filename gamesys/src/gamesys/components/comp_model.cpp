@@ -119,7 +119,8 @@ namespace dmGameSystem
             {
                 dmRender::RenderObject& ro = component.m_RenderObject;
                 Point3 position = dmGameObject::GetWorldPosition(component.m_Instance);
-                ro.m_RenderKey.m_Depth = 0xffffffff * dmMath::Clamp((position.getZ() - min_z) * z_range_recip, 0.0f, 1.0f);
+                // NOTE: 0xffffffff can not be represented precisely in a float
+                ro.m_RenderKey.m_Depth = 0xffffff00 * dmMath::Clamp((position.getZ() - min_z) * z_range_recip, 0.0f, 1.0f);
 
                 ro.m_Material = component.m_Model->m_Material;
                 for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
