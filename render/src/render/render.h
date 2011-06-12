@@ -91,6 +91,8 @@ namespace dmRender
         uint8_t                         m_VertexConstantMask;
         uint8_t                         m_FragmentConstantMask;
         uint8_t                         m_SetBlendFactors : 1;
+        // Set to true if RenderKey.m_Depth should be filled in
+        uint8_t                         m_CalculateDepthKey : 1;
     };
 
     struct RenderContextParams

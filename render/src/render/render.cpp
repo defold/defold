@@ -179,6 +179,29 @@ namespace dmRender
         return RESULT_OK;
     }
 
+    Result GenerateKey(HRenderContext render_context, const Matrix4& view_proj)
+    {
+        DM_PROFILE(Render, "GenerateKey");
+
+        if (render_context == 0x0)
+            return RESULT_INVALID_CONTEXT;
+
+        // start by calculating depth (z of object in clip space) as part of the key
+        for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
+        {
+            RenderObject* ro = render_context->m_RenderObjects[i];
+            if (ro->m_CalculateDepthKey)
+            {
+                Vector4 pos_clip_space(ro->m_WorldTransform.getTranslation(), 1.0f);
+                pos_clip_space = view_proj * pos_clip_space;
+                float depth = 1.0f - pos_clip_space.getZ() / pos_clip_space.getW();
+                ro->m_RenderKey.m_Depth = *((uint64_t*) &depth);
+            }
+        }
+
+        return RESULT_OK;
+    }
+
     static bool SortPred(const RenderObject* a, const RenderObject* b)
     {
         return a->m_RenderKey.m_Key < b->m_RenderKey.m_Key;
@@ -194,6 +217,7 @@ namespace dmRender
             tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+        GenerateKey(render_context, GetViewProjectionMatrix(render_context));
 
         if (render_context->m_RenderObjects.Size() > 0)
         {
