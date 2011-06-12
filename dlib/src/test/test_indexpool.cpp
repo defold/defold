@@ -77,6 +77,32 @@ TEST(dmIndexPool32, SimpleTest)
     EXPECT_EQ((uint32_t) 0, pool.Remaining());
 }
 
+TEST(dmIndexPool32, Clear)
+{
+    assert(pool_size > 16);
+
+    dmIndexPool32 pool;
+    pool.SetCapacity(pool_size);
+
+    uint32_t val_array[pool_size];
+    memset(&val_array[0], 0xffffffff, sizeof(uint32_t)*pool_size);
+    for(uint32_t i = 0; i < pool_size; i++)
+    {
+        val_array[i] = pool.Pop();
+        ASSERT_EQ(i, val_array[i]);
+    }
+
+    ASSERT_EQ(0u, pool.Remaining());
+    pool.Clear();
+    ASSERT_EQ(pool_size, pool.Remaining());
+
+    for(uint32_t i = 0; i < pool_size; i++)
+    {
+        val_array[i] = pool.Pop();
+        ASSERT_EQ(i, val_array[i]);
+    }
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

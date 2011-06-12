@@ -244,6 +244,25 @@ TEST_F(dmGuiTest, NewDeleteNode)
     }
 }
 
+TEST_F(dmGuiTest, ClearNodes)
+{
+    for (uint32_t i = 0; i < MAX_NODES; ++i)
+    {
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+        ASSERT_NE((dmGui::HNode) 0, node);
+    }
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_EQ((dmGui::HNode) 0, node);
+
+    dmGui::ClearNodes(m_Scene);
+    for (uint32_t i = 0; i < MAX_NODES; ++i)
+    {
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
+        ASSERT_NE((dmGui::HNode) 0, node);
+    }
+}
+
 TEST_F(dmGuiTest, AnimateNode)
 {
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)

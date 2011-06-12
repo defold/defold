@@ -129,33 +129,13 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
+    bool SetupGuiScene(dmGui::HScene scene, GuiSceneResource* scene_resource)
     {
-        GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
-
-        GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
-
-        Component* gui_component = new Component();
-        gui_component->m_Instance = params.m_Instance;
-        gui_component->m_ComponentIndex = params.m_ComponentIndex;
-        gui_component->m_Enabled = 1;
-
-        dmGui::NewSceneParams scene_params;
-        scene_params.m_MaxNodes = 256;
-        scene_params.m_MaxAnimations = 1024;
-        scene_params.m_UserData = gui_component;
-        gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
-        dmGui::HScene scene = gui_component->m_Scene;
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
-
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
         dmGui::SetReferenceResolution(scene, scene_desc->m_ReferenceWidth, scene_desc->m_ReferenceHeight);
 
-        uint32_t physical_width = dmGraphics::GetWindowWidth(graphics_context);
-        uint32_t physical_height = dmGraphics::GetWindowHeight(graphics_context);
-        dmGui::SetPhysicalResolution(scene, physical_width, physical_height);
+        bool result = true;
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
@@ -167,7 +147,6 @@ namespace dmGameSystem
             dmGui::AddTexture(scene, scene_desc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
         }
 
-        bool error = false;
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
             const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
@@ -192,11 +171,11 @@ namespace dmGameSystem
                 }
                 if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
                 {
-                    dmGui::Result result = dmGui::SetNodeTexture(scene, n, node_desc->m_Texture);
-                    if (result != dmGui::RESULT_OK)
+                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, node_desc->m_Texture);
+                    if (gui_result != dmGui::RESULT_OK)
                     {
-                        dmLogError("The texture '%s' could not be set for the '%s', result: %d.", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", result);
-                        error = true;
+                        dmLogError("The texture '%s' could not be set for the '%s', result: %d.", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        result = false;
                     }
                 }
 
@@ -210,12 +189,37 @@ namespace dmGameSystem
             }
             else
             {
-                error = true;
-                break;
+                result = false;
             }
         }
+        return result;
+    }
 
-        if (error)
+    dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
+    {
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
+
+        GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
+
+        Component* gui_component = new Component();
+        gui_component->m_Instance = params.m_Instance;
+        gui_component->m_ComponentIndex = params.m_ComponentIndex;
+        gui_component->m_Enabled = 1;
+
+        dmGui::NewSceneParams scene_params;
+        scene_params.m_MaxNodes = 256;
+        scene_params.m_MaxAnimations = 1024;
+        scene_params.m_UserData = gui_component;
+        gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
+        dmGui::HScene scene = gui_component->m_Scene;
+
+        uint32_t physical_width = dmGraphics::GetWindowWidth(graphics_context);
+        uint32_t physical_height = dmGraphics::GetWindowHeight(graphics_context);
+        dmGui::SetPhysicalResolution(scene, physical_width, physical_height);
+
+        if (!SetupGuiScene(scene, scene_resource))
         {
             dmGui::DeleteScene(gui_component->m_Scene);
             delete gui_component;
@@ -538,16 +542,27 @@ namespace dmGameSystem
     {
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         Component* gui_component = (Component*)*params.m_UserData;
+        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
+        if (result != dmGui::RESULT_OK)
+        {
+            // TODO: Translate result
+            dmLogError("Error when finalizing gui component: %d.", result);
+        }
         dmGui::ClearTextures(gui_component->m_Scene);
         dmGui::ClearFonts(gui_component->m_Scene);
-        dmGui::SetSceneScript(gui_component->m_Scene, scene_resource->m_Script);
-        for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
+        dmGui::ClearNodes(gui_component->m_Scene);
+        if (SetupGuiScene(gui_component->m_Scene, scene_resource))
         {
-            dmGui::AddFont(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
+            result = dmGui::InitScene(gui_component->m_Scene);
+            if (result != dmGui::RESULT_OK)
+            {
+                // TODO: Translate result
+                dmLogError("Error when initializing gui component: %d.", result);
+            }
         }
-        for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
+        else
         {
-            dmGui::AddTexture(gui_component->m_Scene, scene_resource->m_SceneDesc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
+            dmLogError("Could not reload scene '%s' because of errors in the resource.", scene_resource->m_Path);
         }
     }
 

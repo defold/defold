@@ -610,6 +610,18 @@ namespace dmGui
         n->m_NameHash = 0;
     }
 
+    void ClearNodes(HScene scene)
+    {
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            InternalNode* n = &scene->m_Nodes[i];
+            memset(n, 0, sizeof(*n));
+            n->m_Index = 0xffff;
+        }
+        scene->m_NodePool.Clear();
+        scene->m_Animations.SetSize(0);
+    }
+
     Point3 GetNodePosition(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);

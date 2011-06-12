@@ -312,6 +312,8 @@ namespace dmGui
 
     void DeleteNode(HScene scene, HNode node);
 
+    void ClearNodes(HScene scene);
+
     Point3 GetNodePosition(HScene scene, HNode node);
 
     void SetNodePosition(HScene scene, HNode node, const Point3& position);

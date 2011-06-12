@@ -101,6 +101,14 @@ public:
     }
 
     /**
+     * Clear the index pool.
+     */
+    void Clear()
+    {
+        m_Size = 0;
+    }
+
+    /**
      * Push a node into pool.
      * @note Index must have been retreived using Pop!
      * @param unique index to push back into pool.
