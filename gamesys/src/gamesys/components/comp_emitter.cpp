@@ -37,8 +37,6 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer m_VertexBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         uint32_t m_VertexCount;
-        float    m_ZRangeRecip;
-        float    m_MinZ;
     };
 
     struct ParticleVertex
@@ -136,22 +134,14 @@ namespace dmGameSystem
         if (w->m_Emitters.Size() == 0)
             return dmGameObject::UPDATE_RESULT_OK;
 
-        float min_z = FLT_MAX;
-        float max_z = -FLT_MAX;
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             Emitter& emitter = w->m_Emitters[i];
             Point3 position = dmGameObject::GetWorldPosition(emitter.m_Instance);
-            min_z = dmMath::Min(min_z, position.getZ());
-            max_z = dmMath::Max(max_z, position.getZ());
             dmParticle::SetPosition(w->m_ParticleContext, emitter.m_Emitter, position);
             dmParticle::SetRotation(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
         }
         EmitterContext* ctx = (EmitterContext*)params.m_Context;
-
-        float z_range_recip = 1.0f / (max_z - min_z);
-        w->m_MinZ = min_z;
-        w->m_ZRangeRecip = z_range_recip;
 
         // NOTE: Objects are added in RenderEmitterCallback
         w->m_RenderObjects.SetSize(0);
@@ -204,10 +194,7 @@ namespace dmGameSystem
     void RenderEmitterCallback(void* context, const Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count)
     {
         EmitterWorld* world = (EmitterWorld*)context;
-
         dmRender::RenderObject ro;
-        // NOTE: 0xffffffff can not be represented precisely in a float
-        ro.m_RenderKey.m_Depth = 0xffffff00 * dmMath::Clamp((position.getZ() - world->m_MinZ) * world->m_ZRangeRecip, 0.0f, 1.0f);
         ro.m_Material = (dmRender::HMaterial)material;
         ro.m_Textures[0] = (dmGraphics::HTexture)texture;
         ro.m_VertexStart = vertex_index;
@@ -215,6 +202,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = world->m_VertexBuffer;
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+        ro.m_CalculateDepthKey = 1;
         world->m_RenderObjects.Push(ro);
     }
 
