@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +15,8 @@ import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.servlet.ServletException;
@@ -67,7 +70,7 @@ import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.container.grizzly.GrizzlyWebContainerFactory;
 import com.sun.jersey.api.core.ResourceConfig;
 
-public class Server {
+public class Server implements ServerMBean {
 
     private SelectorThread threadSelector;
     private String baseUri;
@@ -77,6 +80,10 @@ public class Server {
     private EntityManagerFactory emf;
     private org.eclipse.jetty.server.Server jettyServer;
     private ETagCache etagCache = new ETagCache(10000);
+
+    // Stats
+    private int resourceDataRequests;
+    private int resourceInfoRequests;
 
     public Server(String configuration_file) throws IOException {
         loadConfig(configuration_file);
@@ -187,6 +194,35 @@ public class Server {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        ObjectName name;
+        try {
+            name = new ObjectName("com.dynamo:type=Server");
+            mbs.registerMBean(this, name);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public int getETagCacheHits() {
+        return etagCache.getCacheHits();
+    }
+
+    @Override
+    public int getETagCacheMisses() {
+        return etagCache.getCacheMisses();
+    }
+
+    @Override
+    public int getResourceDataRequests() {
+        return resourceDataRequests;
+    }
+
+    @Override
+    public int getResourceInfoRequests() {
+        return resourceInfoRequests;
     }
 
     private void bootStrapUsers() {
@@ -379,6 +415,8 @@ public class Server {
         if (path == null)
             throw new ServerException("null path");
 
+        resourceInfoRequests++;
+
         User u = getUser(em, user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
         File f = new File(p);
@@ -433,6 +471,8 @@ public class Server {
         ensureProjectBranch(em, project, user, branch);
         if (path == null)
             throw new ServerException("null path");
+
+        resourceDataRequests++;
 
         User u = getUser(em, user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
