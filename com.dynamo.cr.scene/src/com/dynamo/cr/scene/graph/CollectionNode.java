@@ -50,6 +50,8 @@ public class CollectionNode extends Node implements IResourceListener {
     }
 
     private void setup() throws CreateException {
+        this.collectionInstanceIdToNode.clear();
+        this.instanceIdToNode.clear();
         try {
             CollectionDesc desc = this.resource.getCollectionDesc();
             if (desc != null) {
