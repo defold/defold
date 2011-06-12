@@ -190,6 +190,15 @@ namespace dmGameSystem
                 {
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
                 }
+                if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
+                {
+                    dmGui::Result result = dmGui::SetNodeTexture(scene, n, node_desc->m_Texture);
+                    if (result != dmGui::RESULT_OK)
+                    {
+                        dmLogError("The texture '%s' could not be set for the '%s', result: %d.", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", result);
+                        error = true;
+                    }
+                }
 
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
