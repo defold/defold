@@ -280,7 +280,9 @@ namespace dmGui
                 // NOTE: We add dt to elapsed before we calculate t.
                 // Example: 60 updates with dt=1/60.0 should result in a complete animation
                 anim->m_Elapsed += dt;
+                // Clamp elapsed to duration if we are closer than half a time step
                 anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
+                // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
                 float t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
 
                 float x = (1-t) * (1-t) * (1-t) * anim->m_BezierControlPoints[0] +
@@ -290,7 +292,8 @@ namespace dmGui
 
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
 
-                if (t == 1.0f)
+                // Animation complete, see above
+                if (t >= 1.0f)
                 {
                     if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                     {
