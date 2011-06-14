@@ -48,6 +48,8 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene);
 
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
 
+static const float EPSILON = 0.000001f;
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -268,16 +270,15 @@ TEST_F(dmGuiTest, AnimateNode)
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-        // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
-        dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f + 0.001f, 0, 0, 0);
+        dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f, 0, 0, 0);
 
-        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
         // Delay
         for (int i = 0; i < 30; ++i)
             dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
 
-        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
         // Animation
         for (int i = 0; i < 60; ++i)
@@ -285,7 +286,7 @@ TEST_F(dmGuiTest, AnimateNode)
             dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
         }
 
-        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
         dmGui::DeleteNode(m_Scene, node);
     }
 }
@@ -295,7 +296,7 @@ TEST_F(dmGuiTest, AnimateNode2)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     // Animation
     for (int i = 0; i < 200; ++i)
@@ -303,7 +304,7 @@ TEST_F(dmGuiTest, AnimateNode2)
         dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     }
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
     dmGui::DeleteNode(m_Scene, node);
 }
 
@@ -312,17 +313,18 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     dmGui::UpdateScene(m_Scene, 0.5f * (1.0f / 60.0f));
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     dmGui::UpdateScene(m_Scene, 1.0f * (1.0f / 60.0f));
-    // With underflow compensation and dt: (0.5 / 60.) + dt = 1.5 / 60
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.75f, 0.001f);
+    // With underflow compensation: -(0.5 / 60.) + dt = 0.5 / 60
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.25f, EPSILON);
 
-    dmGui::UpdateScene(m_Scene, 1.0f * (1.0f / 60.0f));
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
+    // Animation done
+    dmGui::UpdateScene(m_Scene, 1.5f * (1.0f / 60.0f));
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
 
     dmGui::DeleteNode(m_Scene, node);
 }
@@ -332,7 +334,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::HNode node2 = 0;
 
     // Animation
@@ -347,7 +349,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
         dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     }
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node2).getX(), 2.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node2).getX(), 2.0f, EPSILON);
     dmGui::DeleteNode(m_Scene, node2);
 }
 
@@ -359,28 +361,34 @@ void MyAnimationComplete(dmGui::HScene scene,
 {
     MyAnimationCompleteCount++;
     dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(2,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    // Check that we reached target position
+    *(Point3*)userdata2 = dmGui::GetNodePosition(scene, node);
 }
 
 TEST_F(dmGuiTest, AnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyAnimationComplete, (void*) node, 0);
+    Point3 completed_position;
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+
+    // Animation
+    float dt = 1.0f / 60.0f;
+    for (int i = 0; i < 60; ++i)
+    {
+        dmGui::UpdateScene(m_Scene, dt);
+    }
+    Point3 position = dmGui::GetNodePosition(m_Scene, node);
+    ASSERT_NEAR(position.getX(), 1.0f, EPSILON);
+    ASSERT_EQ(1.0f, completed_position.getX());
 
     // Animation
     for (int i = 0; i < 60; ++i)
     {
         dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     }
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
-
-    // Animation
-    for (int i = 0; i < 60; ++i)
-    {
-        dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-    }
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, EPSILON);
 
     dmGui::DeleteNode(m_Scene, node);
 }
@@ -414,7 +422,7 @@ TEST_F(dmGuiTest, PingPong)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     for (int j = 0; j < 10; ++j)
     {
@@ -434,9 +442,8 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
-                    // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
                     "    self.node = gui.get_node(\"n\")\n"
-                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5 + 0.001)\n"
+                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5)\n"
                     "end\n"
                     "function final(self)\n"
                     "    gui.delete_node(self.node)\n"
@@ -449,7 +456,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     // Delay
     for (int i = 0; i < 30; ++i)
@@ -458,7 +465,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
         ASSERT_EQ(dmGui::RESULT_OK, r);
     }
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     // Animation
     for (int i = 0; i < 60; ++i)
@@ -467,59 +474,12 @@ TEST_F(dmGuiTest, ScriptAnimate)
         ASSERT_EQ(dmGui::RESULT_OK, r);
     }
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
 
     r = dmGui::FinalScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
-}
-
-TEST_F(dmGuiTest, ScriptCounterAnimate)
-{
-    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::SetNodeId(m_Scene, node, "n");
-    const char* s = "function init(self)\n"
-                    // NOTE: We need to add 0.001f or order to ensure that the delay will take exactly 30 frames
-                    "    self.node = gui.get_node(\"n\")\n"
-                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5 + 0.001)\n"
-                    "end\n"
-                    "function update(self, dt)\n"
-                    "    gui.set_position(self.node, vmath.vector3(0,0,0))\n"
-                    "end\n"
-                    "function final(self)\n"
-                    "    gui.delete_node(gui.get_node(\"n\"))\n"
-                    "end\n";
-
-    dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
-    ASSERT_EQ(dmGui::RESULT_OK, r);
-
-    r = dmGui::InitScene(m_Scene);
-    ASSERT_EQ(dmGui::RESULT_OK, r);
-
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
-
-    // Delay
-    for (int i = 0; i < 30; ++i)
-    {
-        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-        ASSERT_EQ(dmGui::RESULT_OK, r);
-    }
-
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
-
-    // Animation
-    for (int i = 0; i < 60; ++i)
-    {
-        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-        ASSERT_EQ(dmGui::RESULT_OK, r);
-    }
-
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
-
-    r = dmGui::FinalScene(m_Scene);
-    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 TEST_F(dmGuiTest, ScriptAnimateComplete)
@@ -542,7 +502,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     // Animation
     for (int i = 0; i < 60; ++i)
@@ -550,7 +510,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
         r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
         ASSERT_EQ(dmGui::RESULT_OK, r);
     }
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
 
     // Animation
     for (int i = 0; i < 30; ++i)
@@ -558,7 +518,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
         r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
         ASSERT_EQ(dmGui::RESULT_OK, r);
     }
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, EPSILON);
 
     dmGui::DeleteNode(m_Scene, node);
 }
@@ -587,8 +547,8 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
     uint32_t node_count = dmGui::GetNodeCount(m_Scene);
     ASSERT_EQ(2U, node_count);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node1).getX(), 0.0f, 0.001f);
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node2).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node1).getX(), 0.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node2).getX(), 0.0f, EPSILON);
     // Animation
     for (int i = 0; i < 60; ++i)
     {
@@ -630,7 +590,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
         ASSERT_EQ(dmGui::RESULT_OK, r);
     }
 
-    ASSERT_NEAR(dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 1.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 1.0f, EPSILON);
 
     r = dmGui::FinalScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -649,7 +609,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
                     "end\n"
                     "function update(self, dt)\n"
                     "    self.nframes = self.nframes + 1\n"
-                    "    if self.nframes >= 30 then\n"
+                    "    if self.nframes > 30 then\n"
                     "        gui.cancel_animation(self.node, gui.POSITION)\n"
                     "    end\n"
                     "end\n"
@@ -664,7 +624,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
     // Animation
     for (int i = 0; i < 60; ++i)
@@ -673,7 +633,8 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
         ASSERT_EQ(dmGui::RESULT_OK, r);
     }
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 5.0f, 0.001f);
+    // We can't use epsilon here because of precision errors when the animation is canceled, so half precision (= twice the error)
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 5.0f, 2*EPSILON);
 
     r = dmGui::FinalScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1144,7 +1105,7 @@ TEST_F(dmGuiTest, ReplaceAnimation)
         dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     }
 
-    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node1).getX(), 10.0f, 0.001f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node1).getX(), 10.0f, EPSILON);
 
     dmGui::DeleteNode(m_Scene, node1);
     dmGui::DeleteNode(m_Scene, node2);

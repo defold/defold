@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/math.h>
 #include <dlib/message.h>
 
 #include <script/script.h>
@@ -266,12 +267,7 @@ namespace dmGui
                 continue;
             }
 
-            if (anim->m_Delay > 0)
-            {
-                anim->m_Delay -= dt;
-            }
-
-            if (anim->m_Delay <= 0)
+            if (anim->m_Delay < dt)
             {
                 if (anim->m_FirstUpdate)
                 {
@@ -284,10 +280,8 @@ namespace dmGui
                 // NOTE: We add dt to elapsed before we calculate t.
                 // Example: 60 updates with dt=1/60.0 should result in a complete animation
                 anim->m_Elapsed += dt;
-                float t = anim->m_Elapsed / anim->m_Duration;
-
-                if (t > 1)
-                    t = 1;
+                anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
+                float t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
 
                 float x = (1-t) * (1-t) * (1-t) * anim->m_BezierControlPoints[0] +
                           3 * (1-t) * (1-t) * t * anim->m_BezierControlPoints[1] +
@@ -296,7 +290,7 @@ namespace dmGui
 
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
 
-                if (anim->m_Elapsed + dt >= anim->m_Duration)
+                if (t == 1.0f)
                 {
                     if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                     {
@@ -307,6 +301,10 @@ namespace dmGui
                         anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
                     }
                 }
+            }
+            else
+            {
+                anim->m_Delay -= dt;
             }
         }
 
@@ -467,9 +465,9 @@ namespace dmGui
 
     Result UpdateScene(HScene scene, float dt)
     {
-        UpdateAnimations(scene, dt);
-
         Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+
+        UpdateAnimations(scene, dt);
 
         // Deferred deletion of nodes
         uint32_t n = scene->m_Nodes.Size();
