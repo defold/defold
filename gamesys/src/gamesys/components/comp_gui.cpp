@@ -513,9 +513,11 @@ namespace dmGameSystem
         {
             gui_component->m_Enabled = 0;
         }
-        else
+        dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
+        if (result != dmGui::RESULT_OK)
         {
-            dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
+            // TODO: Proper error message
+            dmLogError("Error when dispatching message to gui scene: %d", result);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

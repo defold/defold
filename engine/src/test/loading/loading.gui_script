@@ -1,10 +1,13 @@
 local function on_fade_in(self, n)
-    msg.post("main:main#attacker_target_proxy", "load")
+    for k,v in pairs(self.proxies) do
+        msg.post("main:main" .. v, "load")
+    end
 end
 
 local function on_fade_out(self, n)
     msg.post("main:main#loading_proxy", "disable")
     msg.post("main:main#loading_proxy", "final")
+    msg.post("main:main#script", "start")
 end
 
 local function start(self)
@@ -15,22 +18,21 @@ local function start(self)
 end
 
 function init(self)
-    start(self)
+    self.loaded_proxies = 0
 end
 
 function final(self)
     msg.post("main:main#loading_proxy", "unload")
-    msg.post("main:main#attacker_target_proxy", "init")
-    msg.post("main:main#attacker_target_proxy", "enable")
 end
 
 function on_message(self, message_id, message, sender)
-    if message_id == hash("proxy_loaded") then
-        gui.animate(self.loading_node, gui.COLOR, vmath.vector4(1, 1, 1, 0), gui.EASING_OUT, 0.5, 0.0, on_fade_out)
+    if message_id == hash("start") then
+        self.proxies = message.proxies
+        start(self)
+    elseif message_id == hash("proxy_loaded") then
+        self.loaded_proxies = self.loaded_proxies + 1
+        if self.loaded_proxies == #self.proxies then
+            gui.animate(self.loading_node, gui.COLOR, vmath.vector4(1, 1, 1, 0), gui.EASING_OUT, 0.5, 0.0, on_fade_out)
+        end
     end
-end
-
-function on_reload(self)
-    msg.post("main:main#attacker_target_proxy", "unload")
-    start(self)
 end

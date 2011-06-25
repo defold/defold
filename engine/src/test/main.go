@@ -16,6 +16,12 @@ embedded_components
 }
 embedded_components
 {
+    id: "gui_proxy"
+    type: "collectionproxy"
+    data: "collection: \"gui/test_gui.collection\""
+}
+embedded_components
+{
     id: "attacker_target_proxy"
     type: "collectionproxy"
     data: "collection: \"attacker_target/test_attacker_target.collection\""

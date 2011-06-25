@@ -13,6 +13,6 @@ function on_message(self, message_id, message, sender)
         assert(sender.path == go.get_id("target"), "invalid id in game object transform response")
         self.target_pos = message.position
     elseif message_id == hash("target_dead") then
-        msg.post("main:main#script", "end")
+        msg.post("main:main#script", "done")
     end
 end
