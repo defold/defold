@@ -287,9 +287,10 @@ namespace dmGui
      * @param scene scene
      * @param input_actions an array of input actions
      * @param input_action_count the number of input actions in the array
+     * @param input_consumed an array of out-parameters signaling if the input was consumed or not
      * @return RESULT_OK on success
      */
-    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count);
+    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count, bool* input_consumed);
 
     /**
      * Run the on_reload-function of the scene script.

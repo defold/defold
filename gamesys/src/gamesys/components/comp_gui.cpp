@@ -534,8 +534,16 @@ namespace dmGameSystem
             gui_input_action.m_Pressed = params.m_InputAction->m_Pressed;
             gui_input_action.m_Released = params.m_InputAction->m_Released;
             gui_input_action.m_Repeated = params.m_InputAction->m_Repeated;
-
-            dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1);
+            bool consumed;
+            dmGui::Result gui_result = dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1, &consumed);
+            if (gui_result != dmGui::RESULT_OK)
+            {
+                return dmGameObject::INPUT_RESULT_UNKNOWN_ERROR;
+            }
+            else if (consumed)
+            {
+                return dmGameObject::INPUT_RESULT_CONSUMED;
+            }
         }
         return dmGameObject::INPUT_RESULT_IGNORED;
     }

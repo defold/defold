@@ -326,6 +326,12 @@ namespace dmGui
         }
     }
 
+    struct InputArgs
+    {
+        const InputAction* m_Action;
+        bool m_Consumed;
+    };
+
     Result RunScript(HScene scene, ScriptFunction script_function, void* args)
     {
         if (scene->m_Script == 0x0)
@@ -380,7 +386,8 @@ namespace dmGui
                 break;
             case SCRIPT_FUNCTION_ONINPUT:
                 {
-                    const InputAction* ia = (const InputAction*)args;
+                    InputArgs* input_args = (InputArgs*)args;
+                    const InputAction* ia = input_args->m_Action;
                     dmScript::PushHash(L, ia->m_ActionId);
 
                     lua_newtable(L);
@@ -422,6 +429,21 @@ namespace dmGui
             {
                 switch (script_function)
                 {
+                case SCRIPT_FUNCTION_ONINPUT:
+                    {
+                        InputArgs* input_args = (InputArgs*)args;
+                        int ret_count = lua_gettop(L) - top;
+                        if (ret_count == 1 && lua_isboolean(L, -1))
+                        {
+                            input_args->m_Consumed = lua_toboolean(L, -1);
+                        }
+                        else if (ret_count != 0)
+                        {
+                            dmLogError("The function %s must either return true/false, or no value at all.", SCRIPT_FUNCTION_NAMES[script_function]);
+                            result = RESULT_SCRIPT_ERROR;
+                        }
+                    }
+                    break;
                 default:
                     if (lua_gettop(L) - top != (int32_t)ret_count)
                     {
@@ -495,14 +517,21 @@ namespace dmGui
         return RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, (void*)message);
     }
 
-    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count)
+    Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count, bool* input_consumed)
     {
+        InputArgs args;
+        args.m_Consumed = false;
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
-            Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, (void*)&input_actions[i]);
+            args.m_Action = &input_actions[i];
+            Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, (void*)&args);
             if (result != RESULT_OK)
             {
                 return result;
+            }
+            else
+            {
+                input_consumed[i] = args.m_Consumed;
             }
         }
 

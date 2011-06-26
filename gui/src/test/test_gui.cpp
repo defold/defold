@@ -763,7 +763,37 @@ TEST_F(dmGuiTest, ScriptInput)
     dmGui::InputAction input_action;
     memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
-    dmGui::DispatchInput(m_Scene, &input_action, 1);
+    bool consumed;
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    ASSERT_FALSE(consumed);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, ScriptInputConsume)
+{
+    const char* s = "function update(self)\n"
+                    "   assert(g_value == 123)\n"
+                    "end\n"
+                    "function on_input(self, action_id, action)\n"
+                    "   if(action_id == hash(\"SPACE\")) then\n"
+                    "       g_value = 123\n"
+                    "   end\n"
+                    "   return true\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::InputAction input_action;
+    memset(&input_action, 0, sizeof(input_action));
+    input_action.m_ActionId = dmHashString64("SPACE");
+    bool consumed;
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    ASSERT_TRUE(consumed);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
@@ -816,7 +846,8 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
     dmGui::InputAction input_action;
     memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
-    r = dmGui::DispatchInput(m_Scene, &input_action, 1);
+    bool consumed;
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -1406,7 +1437,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
                     "    return true\n"
                     "end\n"
                     "function on_input(self, action_id, action)\n"
-                    "    return true\n"
+                    "    return 1\n"
                     "end\n"
                     "function on_reload(self)\n"
                     "    return true\n"
@@ -1436,7 +1467,8 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     action.m_Pressed = 0;
     action.m_Released = 0;
     action.m_Repeated = 0;
-    r = dmGui::DispatchInput(m_Scene, &action, 1);
+    bool consumed;
+    r = dmGui::DispatchInput(m_Scene, &action, 1, &consumed);
     ASSERT_NE(dmGui::RESULT_OK, r);
     r = dmGui::FinalScene(m_Scene);
     ASSERT_NE(dmGui::RESULT_OK, r);

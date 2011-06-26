@@ -118,7 +118,8 @@ void OnKey(int key, int state)
             input_action.m_Pressed = 0;
             input_action.m_Released = 1;
         }
-        dmGui::DispatchInput(g_Scene, &input_action, 1);
+        bool consumed;
+        dmGui::DispatchInput(g_Scene, &input_action, 1, &consumed);
     }
 }
 
