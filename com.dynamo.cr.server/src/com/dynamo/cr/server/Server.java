@@ -123,7 +123,7 @@ public class Server implements ServerMBean {
                        "com.dynamo.cr.server.ResourceConfig");
 
         initParams.put(ResourceConfig.PROPERTY_CONTAINER_REQUEST_FILTERS,
-                SecurityFilter.class.getName());
+                SecurityFilter.class.getName() + ";" + JsonpRequestFilter.class.getName());
         initParams.put(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
                 RolesAllowedResourceFilterFactory.class.getName());
 
