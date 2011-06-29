@@ -190,6 +190,27 @@ public class ProjectsResourceTest {
     }
 
     @Test
+    public void testProjectInfoJsonp() throws Exception {
+        NewProject newProject = NewProject.newBuilder()
+                .setName("test project")
+                .setDescription("New test project").build();
+
+        ProjectInfo projectInfo = joeProjectsWebResource
+            .path(joeUser.getId().toString())
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ProjectInfo.class, newProject);
+
+
+
+        ClientResponse response;
+        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", bobUser.getId(), projectInfo.getId())).queryParam("callback", "foo").accept(MediaType.APPLICATION_JSON_TYPE).get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+        String projectInfoJsonp = response.getEntity(String.class);
+        assertEquals("foo(", projectInfoJsonp.substring(0, 4));
+    }
+
+    @Test
     public void testProjectInfoForbidden() throws Exception {
         NewProject newProject = NewProject.newBuilder()
                 .setName("test project123456789")

@@ -36,7 +36,7 @@ import com.google.protobuf.Message;
 public class JsonProviders {
 
     @Provider
-    @Consumes("application/json")
+    @Consumes({"application/json", "text/javascript"})
     public static class ProtobufMessageBodyReader implements MessageBodyReader<Message> {
 
         @Override
@@ -133,7 +133,7 @@ public class JsonProviders {
     }
 
     @Provider
-    @Produces("application/json")
+    @Produces({"application/json", "text/javascript"})
     public static class ProtobufMessageBodyWriter implements MessageBodyWriter<Message> {
         public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
             return Message.class.isAssignableFrom(type);

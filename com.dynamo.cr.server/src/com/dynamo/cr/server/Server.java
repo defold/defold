@@ -65,6 +65,7 @@ import com.dynamo.server.git.GitState;
 import com.dynamo.server.git.GitStatus;
 import com.google.protobuf.TextFormat;
 import com.sun.grizzly.http.SelectorThread;
+import com.sun.grizzly.http.servlet.ServletAdapter;
 import com.sun.jersey.api.NotFoundException;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.container.grizzly.GrizzlyWebContainerFactory;
@@ -127,6 +128,10 @@ public class Server implements ServerMBean {
                 RolesAllowedResourceFilterFactory.class.getName());
 
         threadSelector = GrizzlyWebContainerFactory.create(baseUri, initParams);
+        ServletAdapter adapter = (ServletAdapter) threadSelector.getAdapter();
+        // We could perhaps use a ContainerResponseWriter instead?
+        // http://jersey.576304.n2.nabble.com/JSONP-Callback-support-td2260544.html
+        adapter.addFilter(new JsonpFilter(), "jsonp", null);
 
         if (!Git.checkGitVersion()) {
             // TODO: Hmm, exception...
