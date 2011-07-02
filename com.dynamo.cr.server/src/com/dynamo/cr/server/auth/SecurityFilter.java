@@ -1,5 +1,7 @@
 package com.dynamo.cr.server.auth;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.security.Principal;
 
 import javax.persistence.EntityManager;
@@ -32,12 +34,45 @@ public class SecurityFilter implements ContainerRequestFilter {
     private EntityManagerFactory emf;
 
     public ContainerRequest filter(ContainerRequest request) {
-        User user = authenticate(request);
-        request.setSecurityContext(new Authorizer(user));
+        if (!request.getAbsolutePath().getPath().equals("/login")) {
+            // Only authenticate users for paths != /login
+            User user = authenticate(request);
+            request.setSecurityContext(new Authorizer(user));
+        }
         return request;
     }
 
     private User authenticate(ContainerRequest request) {
+        String authCookie = request.getHeaderValue("X-Auth");
+        String email = request.getHeaderValue("X-Email");
+        System.out.println(authCookie);
+
+        if (request.getMethod().equals("OPTIONS")) {
+            // Skip authentication for method OPTION
+            // Returning that HTTP Basic Auth. is required will confuse
+            // some web browser when performing cross-site requests
+            // HTTP Basic Auth. is only intended for the editor (for now at least)
+            return null;
+        }
+
+        EntityManager em = emf.createEntityManager();
+
+        if (authCookie != null && email != null) {
+            try {
+                email = URLDecoder.decode(email, "UTF-8");
+                User user = ModelUtil.findUserByEmail(em, email);
+                if (user != null && AuthCookie.auth(email, authCookie)) {
+                    System.out.println("DET FUNKAR!!!");
+                    return user;
+                } else {
+                    throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
+                }
+
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         // Extract authentication credentials
         String authentication = request
                 .getHeaderValue(ContainerRequest.AUTHORIZATION);
@@ -65,7 +100,6 @@ public class SecurityFilter implements ContainerRequestFilter {
         }
 
         // Validate the extracted credentials
-        EntityManager em = emf.createEntityManager();
         User user = ModelUtil.findUserByEmail(em, username);
         if (user != null && user.authenticate(password)) {
             return user;

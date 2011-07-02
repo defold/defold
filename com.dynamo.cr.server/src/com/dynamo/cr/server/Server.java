@@ -126,6 +126,8 @@ public class Server implements ServerMBean {
                 SecurityFilter.class.getName() + ";" + JsonpRequestFilter.class.getName());
         initParams.put(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
                 RolesAllowedResourceFilterFactory.class.getName());
+        initParams.put(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
+                CrossSiteHeaderResponseFilter.class.getName());
 
         threadSelector = GrizzlyWebContainerFactory.create(baseUri, initParams);
         ServletAdapter adapter = (ServletAdapter) threadSelector.getAdapter();
