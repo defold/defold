@@ -45,7 +45,6 @@ public class SecurityFilter implements ContainerRequestFilter {
     private User authenticate(ContainerRequest request) {
         String authCookie = request.getHeaderValue("X-Auth");
         String email = request.getHeaderValue("X-Email");
-        System.out.println(authCookie);
 
         if (request.getMethod().equals("OPTIONS")) {
             // Skip authentication for method OPTION
@@ -62,7 +61,6 @@ public class SecurityFilter implements ContainerRequestFilter {
                 email = URLDecoder.decode(email, "UTF-8");
                 User user = ModelUtil.findUserByEmail(em, email);
                 if (user != null && AuthCookie.auth(email, authCookie)) {
-                    System.out.println("DET FUNKAR!!!");
                     return user;
                 } else {
                     throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
