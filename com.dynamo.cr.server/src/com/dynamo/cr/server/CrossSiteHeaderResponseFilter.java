@@ -22,7 +22,7 @@ public class CrossSiteHeaderResponseFilter implements ContainerResponseFilter {
 
         MultivaluedMap<String, Object> httpHeaders = response.getHttpHeaders();
         httpHeaders.remove("Access-Control-Allow-Methods");
-        httpHeaders.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD");
+        httpHeaders.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD, DELETE, POST");
 
         httpHeaders.add("Access-Control-Allow-Headers",
                 "X-Email, X-Password, X-Auth, Content-Type");
