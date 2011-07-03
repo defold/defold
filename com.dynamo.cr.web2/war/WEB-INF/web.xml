@@ -6,15 +6,6 @@
 <web-app>
 
   <!-- Servlets -->
-  <servlet>
-    <servlet-name>greetServlet</servlet-name>
-    <servlet-class>com.dynamo.cr.web2.server.GreetingServiceImpl</servlet-class>
-  </servlet>
-
-  <servlet-mapping>
-    <servlet-name>greetServlet</servlet-name>
-    <url-pattern>/defold/greet</url-pattern>
-  </servlet-mapping>
 
   <!-- Default page to serve -->
   <welcome-file-list>
