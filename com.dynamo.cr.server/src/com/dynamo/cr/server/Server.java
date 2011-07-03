@@ -333,7 +333,7 @@ public class Server implements ServerMBean {
     public User getUser(EntityManager em, String userId) throws ServerException {
         User user = em.find(User.class, Long.parseLong(userId));
         if (user == null)
-            throw new ServerException(String.format("No such user %d", userId));
+            throw new ServerException(String.format("No such user %s", userId));
 
         return user;
     }
