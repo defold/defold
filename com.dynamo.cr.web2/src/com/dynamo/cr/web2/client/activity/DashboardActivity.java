@@ -6,6 +6,7 @@ import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
 import com.dynamo.cr.web2.client.ResourceCallback;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
+import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.google.gwt.activity.shared.AbstractActivity;
@@ -46,5 +47,10 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
     @Override
     public void showProject(ProjectInfo projectInfo) {
         clientFactory.getPlaceController().goTo(new ProjectPlace(Integer.toString(projectInfo.getId())));
+    }
+
+    @Override
+    public void onNewProject() {
+        clientFactory.getPlaceController().goTo(new NewProjectPlace());
     }
 }

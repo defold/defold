@@ -2,6 +2,7 @@ package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.dynamo.cr.web2.client.ui.LoginView;
+import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
 import com.google.gwt.event.shared.EventBus;
@@ -17,4 +18,5 @@ public interface ClientFactory
     ProductInfoView getProductInfoView();
     DashboardView getDashboardView();
     ProjectView getProjectView();
+    NewProjectView getNewProjectView();
 }

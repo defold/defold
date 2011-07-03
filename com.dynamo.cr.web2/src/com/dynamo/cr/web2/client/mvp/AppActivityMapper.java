@@ -3,10 +3,12 @@ package com.dynamo.cr.web2.client.mvp;
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.activity.DashboardActivity;
 import com.dynamo.cr.web2.client.activity.LoginActivity;
+import com.dynamo.cr.web2.client.activity.NewProjectActivity;
 import com.dynamo.cr.web2.client.activity.ProductInfoActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
+import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
 import com.google.gwt.activity.shared.Activity;
@@ -45,6 +47,8 @@ public class AppActivityMapper implements ActivityMapper {
             return new DashboardActivity((DashboardPlace) place, clientFactory);
         else if (place instanceof ProjectPlace)
             return new ProjectActivity((ProjectPlace) place, clientFactory);
+        else if (place instanceof NewProjectPlace)
+            return new NewProjectActivity((NewProjectPlace) place, clientFactory);
 
 		return null;
 	}

@@ -76,10 +76,10 @@ public class Defold implements EntryPoint {
             }
         };
 
-        sendRequest(resource, RequestBuilder.GET, "", interceptCallback);
+        sendRequest(resource, RequestBuilder.GET, "", interceptCallback, null);
     }
 
-    private void sendRequest(String resource, RequestBuilder.Method method, String requestData, final ResourceCallback<String> callback) {
+    private void sendRequest(String resource, RequestBuilder.Method method, String requestData, final ResourceCallback<String> callback, String contentType) {
         String url = getUrl() + resource;
         RequestBuilder requestBuilder = new RequestBuilder(method, url);
         String email = Cookies.getCookie("email");
@@ -91,6 +91,9 @@ public class Defold implements EntryPoint {
         requestBuilder.setHeader("X-Email", email);
         requestBuilder.setHeader("X-Auth", auth);
         requestBuilder.setHeader("Accept", "application/json");
+        if (contentType != null) {
+            requestBuilder.setHeader("Content-Type", contentType);
+        }
 
         try {
             requestBuilder.sendRequest(requestData, new RequestCallback() {
@@ -123,11 +126,11 @@ public class Defold implements EntryPoint {
     }
 
     public void deleteResource(String resource, final ResourceCallback<String> callback) {
-        sendRequest(resource, RequestBuilder.DELETE, "", callback);
+        sendRequest(resource, RequestBuilder.DELETE, "", callback, null);
     }
 
     public void postResource(String resource, String data, final ResourceCallback<String> callback) {
-        sendRequest(resource, RequestBuilder.POST, data, callback);
+        sendRequest(resource, RequestBuilder.POST, data, callback, "application/json");
     }
 
     @Override
