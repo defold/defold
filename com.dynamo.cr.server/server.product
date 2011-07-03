@@ -3,7 +3,6 @@
 
 <product name="Content Repository Server" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.server.product" application="com.dynamo.cr.server.application" version="1.0.0" useFeatures="false" includeLaunchers="true">
 
-
    <configIni use="default">
    </configIni>
 
@@ -15,7 +14,6 @@
 
    <windowImages/>
 
-
    <launcher name="server">
       <solaris/>
       <win useIco="false">
@@ -23,10 +21,8 @@
       </win>
    </launcher>
 
-
    <vm>
    </vm>
-
 
    <plugins>
       <plugin id="com.dynamo.cr.common"/>
@@ -46,6 +42,7 @@
    </plugins>
 
    <configurations>
+      <plugin id="com.dynamo.cr.server" autoStart="true" startLevel="3" />
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="0" />
       <plugin id="org.eclipse.equinox.common" autoStart="true" startLevel="2" />
       <plugin id="org.eclipse.osgi" autoStart="true" startLevel="-1" />
