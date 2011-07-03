@@ -1,8 +1,6 @@
 package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.ui.DashboardView;
-import com.dynamo.cr.web2.client.ui.GoodbyeView;
-import com.dynamo.cr.web2.client.ui.HelloView;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
@@ -15,8 +13,6 @@ public interface ClientFactory
     Defold getDefold();
 	EventBus getEventBus();
 	PlaceController getPlaceController();
-	HelloView getHelloView();
-	GoodbyeView getGoodbyeView();
     LoginView getLoginView();
     ProductInfoView getProductInfoView();
     DashboardView getDashboardView();

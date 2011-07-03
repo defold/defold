@@ -2,14 +2,10 @@ package com.dynamo.cr.web2.client.mvp;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.activity.DashboardActivity;
-import com.dynamo.cr.web2.client.activity.GoodbyeActivity;
-import com.dynamo.cr.web2.client.activity.HelloActivity;
 import com.dynamo.cr.web2.client.activity.LoginActivity;
 import com.dynamo.cr.web2.client.activity.ProductInfoActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
-import com.dynamo.cr.web2.client.place.GoodbyePlace;
-import com.dynamo.cr.web2.client.place.HelloPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
@@ -41,11 +37,7 @@ public class AppActivityMapper implements ActivityMapper {
 	public Activity getActivity(Place place) {
 		// This is begging for GIN
 
-		if (place instanceof HelloPlace)
-			return new HelloActivity((HelloPlace) place, clientFactory);
-		else if (place instanceof GoodbyePlace)
-			return new GoodbyeActivity((GoodbyePlace) place, clientFactory);
-        else if (place instanceof LoginPlace)
+        if (place instanceof LoginPlace)
             return new LoginActivity((LoginPlace) place, clientFactory);
         else if (place instanceof ProductInfoPlace)
             return new ProductInfoActivity((ProductInfoPlace) place, clientFactory);

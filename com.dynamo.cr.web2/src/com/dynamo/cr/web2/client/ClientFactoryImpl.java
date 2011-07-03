@@ -1,10 +1,6 @@
 package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.ui.DashboardView;
-import com.dynamo.cr.web2.client.ui.GoodbyeView;
-import com.dynamo.cr.web2.client.ui.GoodbyeViewImpl;
-import com.dynamo.cr.web2.client.ui.HelloView;
-import com.dynamo.cr.web2.client.ui.HelloViewImpl;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
@@ -16,8 +12,6 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final EventBus eventBus = new SimpleEventBus();
     private static final PlaceController placeController = new PlaceController(
             eventBus);
-    private static final HelloView helloView = new HelloViewImpl();
-    private static final GoodbyeView goodbyeView = new GoodbyeViewImpl();
     private static final LoginView loginView = new LoginView();
     private static final ProductInfoView productInfoView = new ProductInfoView();
     private static final DashboardView dashboardView = new DashboardView();
@@ -40,18 +34,8 @@ public class ClientFactoryImpl implements ClientFactory {
     }
 
     @Override
-    public HelloView getHelloView() {
-        return helloView;
-    }
-
-    @Override
     public PlaceController getPlaceController() {
         return placeController;
-    }
-
-    @Override
-    public GoodbyeView getGoodbyeView() {
-        return goodbyeView;
     }
 
     @Override
