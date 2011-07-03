@@ -1,4 +1,5 @@
-#Sun Jul 03 12:44:21 CEST 2011
+#Sun Jul 03 18:58:44 CEST 2011
 eclipse.preferences.version=1
-encoding//src/com/dynamo/cr/web2/client/LoginPanel.ui.xml=UTF-8
 encoding//src/com/dynamo/cr/web2/client/MessageNotification.ui.xml=UTF-8
+encoding//src/com/dynamo/cr/web2/client/ui/LoginView.ui.xml=UTF-8
+encoding//src/com/dynamo/cr/web2/client/ui/ProductInfoView.ui.xml=UTF-8

@@ -3,28 +3,32 @@
  */
 package com.dynamo.cr.web2.client;
 
+import com.dynamo.cr.web2.client.mvp.AppActivityMapper;
+import com.dynamo.cr.web2.client.mvp.AppPlaceHistoryMapper;
+import com.dynamo.cr.web2.client.place.DashboardPlace;
+import com.dynamo.cr.web2.client.place.LoginPlace;
+import com.dynamo.cr.web2.client.place.ProductInfoPlace;
+import com.google.gwt.activity.shared.ActivityManager;
+import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
-import com.google.gwt.event.logical.shared.SelectionEvent;
-import com.google.gwt.event.logical.shared.SelectionHandler;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.RequestBuilder;
 import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
+import com.google.gwt.place.shared.Place;
+import com.google.gwt.place.shared.PlaceController;
+import com.google.gwt.place.shared.PlaceHistoryHandler;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.Anchor;
-import com.google.gwt.user.client.ui.DeckPanel;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
-import com.google.gwt.user.client.ui.TabLayoutPanel;
-import com.google.gwt.user.client.ui.Widget;
-import com.google.web.bindery.event.shared.EventBus;
-import com.google.web.bindery.event.shared.SimpleEventBus;
+import com.google.gwt.user.client.ui.SimplePanel;
 
 /**
  * @author chmu
@@ -33,28 +37,26 @@ import com.google.web.bindery.event.shared.SimpleEventBus;
 public class Defold implements EntryPoint {
 
     private static DefoldUiBinder uiBinder = GWT.create(DefoldUiBinder.class);
-    private EventBus eventBus = new SimpleEventBus();
 
-    @UiField Dashboard dashboardTab;
-    @UiField TabLayoutPanel tabPanel;
-    @UiField DeckPanel deckPanel;
-    @UiField LoginPanel loginPanel;
+    private Place defaultPlace = new ProductInfoPlace();
+
     @UiField Anchor logout;
-    private int userId;
+    @UiField SimplePanel panel;
+    @UiField Anchor dashBoard;
+    @UiField Anchor productInfo;
     private MessageNotification messageNotification;
+
+    private com.google.gwt.event.shared.EventBus eventBus;
+
+    private ClientFactory clientFactory;
 
     interface DefoldUiBinder extends UiBinder<DockLayoutPanel, Defold> {
     }
 
     public Defold() {
-        new ShowLoginOnAuthenticationFailure().register(this, eventBus);
-        messageNotification = new MessageNotification();
-        messageNotification.setPopupPosition(300, 30);
-        messageNotification.setSize("120px", "30px");
-        messageNotification.setAnimationEnabled(true);
     }
 
-    void showErrorMessage(String message) {
+    public void showErrorMessage(String message) {
         messageNotification.show(message);
     }
 
@@ -99,8 +101,9 @@ public class Defold implements EntryPoint {
                     if (statusCode == 401) {
                         eventBus.fireEvent(new AuthenticationFailureEvent());
                     } else if (statusCode == 0) {
-                        showErrorMessage("Network error");
-                        callback.onFailure(request, response);
+                        eventBus.fireEvent(new AuthenticationFailureEvent());
+                        //showErrorMessage("Network error");
+                        //callback.onFailure(request, response);
                     }
                     else {
                         callback.onSuccess(response.getText(), request, response);
@@ -129,67 +132,66 @@ public class Defold implements EntryPoint {
 
     @Override
     public void onModuleLoad() {
+
         DockLayoutPanel outer = uiBinder.createAndBindUi(this);
+
+        clientFactory = GWT.create(ClientFactory.class);
+        clientFactory.setDefold(this);
+        eventBus = clientFactory.getEventBus();
+        PlaceController placeController = clientFactory.getPlaceController();
+
+        // Start ActivityManager for the main widget with our ActivityMapper
+        ActivityMapper activityMapper = new AppActivityMapper(clientFactory);
+        ActivityManager activityManager = new ActivityManager(activityMapper, eventBus);
+        activityManager.setDisplay(panel);
+
+        // Start PlaceHistoryHandler with our PlaceHistoryMapper
+        AppPlaceHistoryMapper historyMapper= GWT.create(AppPlaceHistoryMapper.class);
+        PlaceHistoryHandler historyHandler = new PlaceHistoryHandler(historyMapper);
+        historyHandler.register(placeController, eventBus, defaultPlace);
+
+        //
+
+
 
         RootLayoutPanel root = RootLayoutPanel.get();
         root.add(outer);
+        //root.add(outer);
+        historyHandler.handleCurrentHistory();
 
-        logout.setVisible(false);
+        logout.setVisible(Cookies.getCookie("auth") != null);
 
-        tabPanel.addSelectionHandler(new SelectionHandler<Integer>() {
-
-            @Override
-            public void onSelection(SelectionEvent<Integer> event) {
-                Widget widget = tabPanel.getWidget(event.getSelectedItem());
-                if (widget instanceof Dashboard) {
-                    ((Dashboard) widget).load();
-                }
-            }
-        });
-
-        loginPanel.setDefold(this);
-        dashboardTab.setDefold(this);
-
-        final String email = Cookies.getCookie("email");
-        if (email != null) {
-            getResource("/users/" + email, new ResourceCallback<UserInfo>() {
-                @Override
-                public void onSuccess(UserInfo result, Request request,
-                        Response response) {
-                    loginOk(email, result.getId());
-                }
-
-                @Override
-                public void onFailure(Request request, Response response) {
-                    deckPanel.showWidget(0);
-                }
-            });
-        } else {
-            deckPanel.showWidget(0);
-        }
-//        deckPanel.showWidget(1);
+        new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
+        messageNotification = new MessageNotification();
+        messageNotification.setPopupPosition(300, 30);
+        messageNotification.setSize("120px", "30px");
+        messageNotification.setAnimationEnabled(true);
     }
 
     public void loginOk(String email, int userId) {
-        this.userId = userId;
-        this.logout.setText("Logout " + email);
+        Cookies.setCookie("user_id", Integer.toString(userId));
         logout.setVisible(true);
-        deckPanel.showWidget(1);
     }
 
     public int getUserId() {
-        return userId;
+        String userId = Cookies.getCookie("user_id");
+        if (userId == null) {
+            clientFactory.getPlaceController().goTo(new LoginPlace());
+            return -1;
+        } else {
+            return Integer.parseInt(userId);
+        }
     }
 
     @UiHandler("logout")
     void onLogoutClick(ClickEvent event) {
         Cookies.removeCookie("auth");
-        deckPanel.showWidget(0);
         logout.setVisible(false);
+        clientFactory.getPlaceController().goTo(new ProductInfoPlace());
     }
 
     public void showLogin() {
-        deckPanel.showWidget(0);
+        //deckPanel.showWidget(0);
     }
 
     public String getUrl() {
@@ -197,4 +199,13 @@ public class Defold implements EntryPoint {
         //return "http://127.0.0.1:9998";
     }
 
+    @UiHandler("productInfo")
+    void onProductInfoClick(ClickEvent event) {
+        clientFactory.getPlaceController().goTo(new ProductInfoPlace());
+    }
+
+    @UiHandler("dashBoard")
+    void onDashBoardClick(ClickEvent event) {
+        clientFactory.getPlaceController().goTo(new DashboardPlace());
+    }
 }

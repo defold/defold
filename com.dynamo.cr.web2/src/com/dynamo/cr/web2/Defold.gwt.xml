@@ -13,9 +13,16 @@
   <!-- <inherits name='com.google.gwt.user.theme.dark.Dark'/>     -->
 
   <!-- Other module inherits                                      -->
+  <inherits name="com.google.gwt.activity.Activity"/>
+  <inherits name="com.google.gwt.place.Place"/>
 
   <!-- Specify the app entry point class.                         -->
   <entry-point class='com.dynamo.cr.web2.client.Defold'/>
+
+  <!-- Use ClientFactoryImpl by default -->
+  <replace-with class="com.dynamo.cr.web2.client.ClientFactoryImpl">
+    <when-type-is class="com.dynamo.cr.web2.client.ClientFactory"/>
+  </replace-with>
 
   <!-- Specify the paths for translatable code                    -->
   <source path='client'/>

@@ -1,0 +1,14 @@
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+			 xmlns:g="urn:import:com.google.gwt.user.client.ui">
+	<ui:style>
+		.important {
+			font-weight: bold;
+		}
+	</ui:style>
+	<g:HTMLPanel>
+		Hello,
+		<span class="{style.important}" ui:field="nameSpan" />
+		<g:Anchor ui:field="goodbyeLink" text="Say good-bye"></g:Anchor>
+	</g:HTMLPanel>
+</ui:UiBinder>
