@@ -59,4 +59,9 @@ public class NewProjectView extends Composite {
     public void setError(String message) {
         errorLabel.setText(message);
     }
+
+    public void init() {
+        templatesCombo.clear();
+        errorLabel.setText("");
+    }
 }

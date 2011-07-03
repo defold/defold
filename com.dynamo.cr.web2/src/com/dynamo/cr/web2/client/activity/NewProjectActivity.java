@@ -26,6 +26,7 @@ public class NewProjectActivity extends AbstractActivity implements NewProjectVi
 	public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
 		final NewProjectView newProjectView = clientFactory.getNewProjectView();
 		newProjectView.setPresenter(this);
+		newProjectView.init();
 
 		Defold defold = clientFactory.getDefold();
 		defold.getResource("/repository/project_templates", new ResourceCallback<ProjectTemplateInfoList>() {
