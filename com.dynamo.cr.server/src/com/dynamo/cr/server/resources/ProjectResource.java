@@ -221,10 +221,17 @@ public class ProjectResource extends BaseResource {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
 
         // Ensure user is valid
-        server.getUser(em, userId);
+        User user = server.getUser(em, userId);
         User member = server.getUser(em, memberId);
 
         Project project = server.getProject(em, projectId);
+
+        if (project.getOwner().getId() != user.getId()) {
+            // Only the owner can remove members.
+            // In the future it might be possible to remove yourself from project
+            throw new WebApplicationException(403);
+        }
+
         if (member.getId() == project.getOwner().getId()) {
             // Can't remove owner from members list
             throw new WebApplicationException(400);

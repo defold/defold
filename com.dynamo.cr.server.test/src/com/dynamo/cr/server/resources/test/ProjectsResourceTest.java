@@ -287,6 +287,15 @@ public class ProjectsResourceTest {
         assertEquals(nprojects + 1, query.getResultList().size());
         assertEquals(2, list.getProjects(0).getMembersCount());
 
+        // Remove joe as bob as member
+        ClientResponse response = bobProjectsWebResource
+            .path(String.format("/%d/%d/members/%d", bobUser.getId(), projectInfo.getId(), joeUser.getId()))
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .delete(ClientResponse.class);
+
+        assertEquals(ClientResponse.Status.FORBIDDEN.getStatusCode(), response.getStatus());
+
         // Remove bob as member
         joeProjectsWebResource
             .path(String.format("/%d/%d/members/%d", joeUser.getId(), projectInfo.getId(), bobUser.getId()))
