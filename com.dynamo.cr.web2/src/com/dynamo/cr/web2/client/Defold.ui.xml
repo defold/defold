@@ -1,7 +1,7 @@
 <!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
 <ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
     xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
-    xmlns:d="urn:import:com.dynamo.cr.web2.client">
+    xmlns:d="urn:import:com.dynamo.cr.web2.client" xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
     <ui:style>
         /* Add CSS here. See the GWT docs on UI Binder for more details */
         .important {
@@ -20,7 +20,7 @@
 
     <g:DockLayoutPanel styleName="{style.dock}" unit='EM'
         width="800px" height="600px">
-        <g:north size="5">
+        <g:north size="6">
             <g:VerticalPanel>
                 <g:HTML>
                     <span style="font-size: 24px; margin-bottom: 16px">
@@ -35,6 +35,7 @@
                     <g:Anchor styleName="{style.navigationLink}"
                         ui:field="logout">Logout</g:Anchor>
                 </g:HorizontalPanel>
+                <p2:EditableLabel value="http://example.com" ui:field="editableLabel" />
             </g:VerticalPanel>
         </g:north>
 

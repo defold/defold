@@ -29,6 +29,8 @@ import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.SimplePanel;
+import com.dynamo.cr.web2.client.ui.EditableLabel;
+import com.google.gwt.event.logical.shared.ValueChangeEvent;
 
 /**
  * @author chmu
@@ -44,9 +46,12 @@ public class Defold implements EntryPoint {
     @UiField SimplePanel panel;
     @UiField Anchor dashBoard;
     @UiField Anchor productInfo;
+    @UiField EditableLabel editableLabel;
     private MessageNotification messageNotification;
 
     private com.google.gwt.event.shared.EventBus eventBus;
+
+    private String url = "http://overrated.dyndns.org:9998";
 
     private ClientFactory clientFactory;
 
@@ -153,9 +158,11 @@ public class Defold implements EntryPoint {
         PlaceHistoryHandler historyHandler = new PlaceHistoryHandler(historyMapper);
         historyHandler.register(placeController, eventBus, defaultPlace);
 
-        //
-
-
+        String url = Cookies.getCookie("url");
+        if (url != null) {
+            this.url = url;
+        }
+        editableLabel.setValue(this.url);
 
         RootLayoutPanel root = RootLayoutPanel.get();
         root.add(outer);
@@ -198,8 +205,7 @@ public class Defold implements EntryPoint {
     }
 
     public String getUrl() {
-        return "http://overrated.dyndns.org:9998";
-        //return "http://127.0.0.1:9998";
+        return url;
     }
 
     @UiHandler("productInfo")
@@ -210,5 +216,11 @@ public class Defold implements EntryPoint {
     @UiHandler("dashBoard")
     void onDashBoardClick(ClickEvent event) {
         clientFactory.getPlaceController().goTo(new DashboardPlace());
+    }
+
+    @UiHandler("editableLabel")
+    void onEditableLabelValueChange(ValueChangeEvent<String> event) {
+        this.url = event.getValue();
+        Cookies.setCookie("url", url);
     }
 }
