@@ -48,9 +48,6 @@ public class NewProjectActivity extends AbstractActivity implements NewProjectVi
     @Override
     public void createProject(String name, String description,
             String templateId) {
-        System.out.println(name);
-        System.out.println(description);
-        System.out.println(templateId);
         final NewProjectView newProjectView = clientFactory.getNewProjectView();
 
         JSONObject newProject = new JSONObject();
@@ -66,7 +63,6 @@ public class NewProjectActivity extends AbstractActivity implements NewProjectVi
                     Response response) {
 
                 int statusCode = response.getStatusCode();
-                System.out.println(statusCode);
                 if (statusCode >= 300) {
                     newProjectView.setError(response.getText());
                 } else {
