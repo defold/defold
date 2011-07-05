@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
-<ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder' xmlns:g='urn:import:com.google.gwt.user.client.ui'>
-	<ui:style>
-		.panel {
-		}
-        .error {
-            color: red;
-            padding-top: 8px;
-            padding-bottom: 8px;
+<ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
+    xmlns:g='urn:import:com.google.gwt.user.client.ui'>
+    <ui:style>
+        .panel {
+
         }
-	</ui:style>
+
+        .error {
+        	color: red;
+        	padding-top: 8px;
+        	padding-bottom: 8px;
+        }
+    </ui:style>
 
     <g:FlowPanel styleName="{style.panel}">
 
@@ -17,31 +20,34 @@
             <h2>New Project</h2>
         </g:HTMLPanel>
 
-        <g:Grid>
-            <g:row>
-                <g:customCell>
-                    <g:Label text="Name:"/>
-                </g:customCell>
-                <g:customCell>
-                    <g:TextBox width="200px" ui:field="nameTextBox"/>
-                </g:customCell>
-            </g:row>
-            <g:row>
-                <g:customCell>
-                    <g:Label text="Description:"/>
-                </g:customCell>
-                <g:customCell>
-                    <g:TextBox width="200px" ui:field="descriptionTextBox"/>
-                </g:customCell>
-            </g:row>
-        </g:Grid>
-        <g:VerticalPanel>
-            <g:Label text="Project Template"></g:Label>
-            <g:ListBox ui:field="templatesCombo"/>
-        </g:VerticalPanel>
+        <g:HTMLPanel>
+            <div class="form">
+                <div class="formRow">
+                    <div class="formLabel">Name</div>
+                    <div>
+                        <g:TextBox ui:field="nameTextBox" />
+                    </div>
+                        <g:Label styleName="formError" ui:field="nameError">Name is required.</g:Label>
+                </div>
+                <div class="formRow">
+                    <div class="formLabel">Description</div>
+                    <div>
+                        <g:TextBox ui:field="descriptionTextBox" />
+                    </div>
+                </div>
+                <div class="formRow">
+                    <div class="formLabel">Project Template</div>
+                    <div>
+                        <g:ListBox ui:field="templatesCombo" />
+                    </div>
+                </div>
 
-        <g:Label styleName="{style.error}" text=" " horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel"/>
-        <g:Button ui:field='createButton'>Create Project</g:Button>
+                <g:Label styleName="{style.error}" text=" "
+                    horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel" />
+                <g:Button ui:field='createButton'>Create Project</g:Button>
+            </div>
+        </g:HTMLPanel>
+
     </g:FlowPanel>
 
 </ui:UiBinder>

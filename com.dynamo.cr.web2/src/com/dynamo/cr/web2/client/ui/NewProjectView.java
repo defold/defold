@@ -29,6 +29,7 @@ public class NewProjectView extends Composite {
     @UiField TextBox nameTextBox;
     @UiField TextBox descriptionTextBox;
     @UiField Label errorLabel;
+    @UiField Label nameError;
 
     interface Binder extends UiBinder<Widget, NewProjectView> {
     }
@@ -53,7 +54,12 @@ public class NewProjectView extends Composite {
 
     @UiHandler("createButton")
     void onCreateButtonClick(ClickEvent event) {
-        listener.createProject(nameTextBox.getText(), descriptionTextBox.getText(), templatesCombo.getValue(templatesCombo.getSelectedIndex()));
+        String name = nameTextBox.getName();
+        if (name.length() == 0) {
+            nameError.setVisible(true);
+        } else {
+            listener.createProject(name, descriptionTextBox.getText(), templatesCombo.getValue(templatesCombo.getSelectedIndex()));
+        }
     }
 
     public void setError(String message) {
@@ -63,5 +69,6 @@ public class NewProjectView extends Composite {
     public void init() {
         templatesCombo.clear();
         errorLabel.setText("");
+        nameError.setVisible(false);
     }
 }
