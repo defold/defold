@@ -116,7 +116,6 @@ public class Server implements ServerMBean {
         }
         else {
             bootStrapUsers();
-            bootStrapProjects();
         }
 
         EntityManagerFactoryProvider.emf = emf;
@@ -260,18 +259,11 @@ public class Server implements ServerMBean {
     }
 
     private void bootStrapUsers() {
-        // TODO: TEMPORARY SOLUTION!!!
         EntityManager em = emf.createEntityManager();
         em.getTransaction().begin();
         String[][] users = new String[][] {
-                { "cgmurray@gmail.com", "chmu", "Christian", "Murray"},
-                { "ragnar.svensson@gmail.com", "rasv", "Ragnar", "Svensson"},
-                { "egeberg.fredrik@gmail.com", "freg", "Fredrik", "Egeberg"},
-                { "gustafberg80@gmail.com", "gube", "Gustaf", "Berg"},
-                { "dynamogameengine@gmail.com", "admin", "Mr", "Admin" }
-                };
+                { "dynamogameengine@gmail.com", "admin", "Mr", "Admin" } };
 
-        List<User> createdUsers = new ArrayList<User>();
         for (String[] entry : users) {
             if (ModelUtil.findUserByEmail(em, entry[0]) == null) {
                 User u = new User();
@@ -285,35 +277,8 @@ public class Server implements ServerMBean {
                     u.setPassword(entry[1]);
                 }
                 em.persist(u);
-                createdUsers.add(u);
             }
         }
-        em.getTransaction().commit();
-
-        em.getTransaction().begin();
-        for (User user : createdUsers) {
-            for (User connectTo : createdUsers) {
-                if (user != connectTo) {
-                    ModelUtil.connect(user, connectTo);
-                    em.persist(user);
-                    em.persist(connectTo);
-                }
-            }
-        }
-        em.getTransaction().commit();
-        em.close();
-    }
-
-    private void bootStrapProjects() {
-        // TODO: TEMPORARY SOLUTION!!!
-        EntityManager em = emf.createEntityManager();
-        Project p = em.find(Project.class, 1L);
-        if (p != null)
-            return;
-
-        em.getTransaction().begin();
-        User u = ModelUtil.findUserByEmail(em, "cgmurray@gmail.com");
-        p = ModelUtil.newProject(em, u, "demos", "Cool demos");
         em.getTransaction().commit();
         em.close();
     }
