@@ -2,11 +2,15 @@ package com.dynamo.cr.server;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.logging.Level;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.sun.jersey.api.core.DefaultResourceConfig;
 
 public class ResourceConfig extends DefaultResourceConfig {
+
+    protected static Logger logger = LoggerFactory.getLogger(ResourceConfig.class);
 
     @Override
     public Set<Class<?>> getClasses() {
@@ -36,7 +40,7 @@ public class ResourceConfig extends DefaultResourceConfig {
             classes.add(cl.loadClass("com.dynamo.cr.common.providers.JsonProviders$ProtobufMessageBodyReader"));
 
         } catch (ClassNotFoundException e) {
-            Activator.getLogger().log(Level.SEVERE, e.getMessage(), e);
+            logger.error(e.getMessage(), e);
             return null;
         }
         return classes;

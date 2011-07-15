@@ -11,6 +11,9 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response.Status;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.ProjectTemplate;
 import com.dynamo.cr.protocol.proto.Protocol.NewProject;
@@ -26,6 +29,8 @@ import com.dynamo.server.git.Git;
 @Path("/projects/{user}")
 @RolesAllowed(value = { "user" })
 public class ProjectsResource extends BaseResource {
+
+    protected static Logger logger = LoggerFactory.getLogger(ProjectsResource.class);
 
     ProjectTemplate findProjectTemplate(String id) throws ServerException {
         List<ProjectTemplate> lst = server.getConfiguration().getProjectTemplatesList();
@@ -69,7 +74,7 @@ public class ProjectsResource extends BaseResource {
             }
         }
         catch (Throwable e) {
-            e.printStackTrace();
+            logger.error(e.getMessage(), e);
             em.getTransaction().begin();
             ModelUtil.deleteProject(em, project);
             em.getTransaction().commit();

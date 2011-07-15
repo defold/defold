@@ -223,11 +223,4 @@ public class OpenID {
         this.associator = associator;
     }
 
-    public static void main(String[] args) throws IOException, OpenIDException {
-        OpenID openID = new OpenID();
-        String url = openID.getAuthenticationUrl("google", "http://localhost:9998", "http://localhost:9998/foo");
-        System.out.println(url);
-        System.out.println(UriBuilder.fromUri("http://foo.com").queryParam("foo", "http://example.com/a b/").build());
-    }
-
 }

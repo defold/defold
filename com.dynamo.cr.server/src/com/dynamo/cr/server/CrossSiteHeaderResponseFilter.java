@@ -6,11 +6,15 @@ import java.util.List;
 
 import javax.ws.rs.core.MultivaluedMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.sun.jersey.spi.container.ContainerRequest;
 import com.sun.jersey.spi.container.ContainerResponse;
 import com.sun.jersey.spi.container.ContainerResponseFilter;
 
 public class CrossSiteHeaderResponseFilter implements ContainerResponseFilter {
+    protected static Logger logger = LoggerFactory.getLogger(CrossSiteHeaderResponseFilter.class);
 
     @Override
     public ContainerResponse filter(ContainerRequest request,
@@ -45,7 +49,7 @@ public class CrossSiteHeaderResponseFilter implements ContainerResponseFilter {
                             "http", url.getHost(), url.getPort(), ""));
 
                 } catch (MalformedURLException e) {
-                    e.printStackTrace();
+                    logger.error(e.getMessage(), e);
                 }
             }
         }

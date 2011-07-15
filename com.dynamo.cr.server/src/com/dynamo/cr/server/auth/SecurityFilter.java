@@ -6,10 +6,15 @@ import java.security.Principal;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.core.UriInfo;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
@@ -26,20 +31,28 @@ public class SecurityFilter implements ContainerRequestFilter {
     //@Context
     //protected IResourceRepository repository;
 
+    protected static Logger logger = LoggerFactory.getLogger(SecurityFilter.class);
+
     @Context
     UriInfo uriInfo;
+
     private static final String REALM = "HTTPS Example authentication";
 
     @Context
     private EntityManagerFactory emf;
 
     public ContainerRequest filter(ContainerRequest request) {
+        MDC.put("userId", Long.toString(-1));
         if (!request.getAbsolutePath().getPath().equals("/login") && !request.getAbsolutePath().getPath().startsWith("/login/openid/google")
                 && !request.getAbsolutePath().getPath().startsWith("/login/openid/exchange") && !request.getAbsolutePath().getPath().startsWith("/login/openid/register")) {
             // Only authenticate users for paths != /login or != /login/openid
             User user = authenticate(request);
             request.setSecurityContext(new Authorizer(user));
+            if (user != null) {
+                MDC.put("userId", Long.toString(user.getId()));
+            }
         }
+
         return request;
     }
 
@@ -104,7 +117,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             return user;
         }
         else {
-            System.out.println("USER NOT AUTHENTICATED");
+            logger.warn("User authentication failed");
             throw new MappableContainerException(new AuthenticationException(
                     "Invalid username or password", REALM));
         }

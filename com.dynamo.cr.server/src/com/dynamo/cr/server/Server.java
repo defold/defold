@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +35,8 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.proto.Config;
 import com.dynamo.cr.proto.Config.Configuration;
@@ -77,6 +78,8 @@ import com.sun.jersey.api.core.ResourceConfig;
 
 public class Server implements ServerMBean {
 
+    protected static Logger logger = LoggerFactory.getLogger(Server.class);
+
     private SelectorThread threadSelector;
     private String baseUri;
     private String branchRoot;
@@ -112,7 +115,7 @@ public class Server implements ServerMBean {
         emf = new PersistenceProvider().createEntityManagerFactory(configuration.getPersistenceUnitName(), props);
         if (emf == null) {
             // TODO: We should not continue...
-            Activator.getLogger().log(Level.SEVERE, String.format("Persistant unit '%s' not found", configuration.getPersistenceUnitName()));
+            logger.error("Persistant unit '{}' not found", configuration.getPersistenceUnitName());
         }
         else {
             bootStrapUsers();
@@ -137,11 +140,11 @@ public class Server implements ServerMBean {
                        "com.dynamo.cr.server.ResourceConfig");
 
         initParams.put(ResourceConfig.PROPERTY_CONTAINER_REQUEST_FILTERS,
-                SecurityFilter.class.getName() + ";" + JsonpRequestFilter.class.getName());
+                PreLoggingRequestFilter.class.getName() +  ";" + SecurityFilter.class.getName() + ";" + JsonpRequestFilter.class.getName());
         initParams.put(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
                 RolesAllowedResourceFilterFactory.class.getName());
         initParams.put(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
-                CrossSiteHeaderResponseFilter.class.getName());
+                CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
 
         threadSelector = GrizzlyWebContainerFactory.create(baseUri, initParams);
         ServletAdapter adapter = (ServletAdapter) threadSelector.getAdapter();
@@ -222,7 +225,7 @@ public class Server implements ServerMBean {
             name = new ObjectName("com.dynamo:type=Server");
             mbs.registerMBean(this, name);
         } catch (Throwable e) {
-            e.printStackTrace();
+            logger.error(e.getMessage(), e);
         }
     }
 
@@ -309,7 +312,7 @@ public class Server implements ServerMBean {
         try {
             jettyServer.stop();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error(e.getMessage(), e);
         }
         emf.close();
     }
@@ -375,7 +378,7 @@ public class Server implements ServerMBean {
             // Create symbolic link to builtins. See deleteBranch()
             Result r = CommandUtil.execCommand(null, null, new String[] {"ln", "-s", builtins, dest});
             if (r.exitValue != 0) {
-                Activator.getLogger().log(Level.SEVERE, r.stdErr.toString());
+                logger.error(r.stdErr.toString());
                 FileUtils.deleteDirectory(new File(p));
                 throw new ServerException(String.format("Unable to create branch. Internal server error"));
             }
@@ -850,7 +853,7 @@ public class Server implements ServerMBean {
 
                 this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.OK, r.stdOut.toString(), r.stdErr.toString());
             } catch (IOException e) {
-                Activator.getLogger().log(Level.WARNING, e.getMessage(), e);
+                logger.warn(e.getMessage(), e);
             }
         }
 
