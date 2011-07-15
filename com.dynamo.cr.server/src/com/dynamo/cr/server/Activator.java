@@ -1,22 +1,22 @@
 package com.dynamo.cr.server;
 
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Activator implements BundleActivator {
 
     private Server server;
-    private static Logger logger;
+    protected static Logger logger = LoggerFactory.getLogger(Activator.class);
 
     @Override
     public void start(BundleContext context) throws Exception {
         final String server_config = System.getProperty("server.config");
         if (server_config == null) {
-            logger.warning("Property server.config not set. Server is not started");
+            logger.warn("Property server.config not set. Server is not started");
             return;
         }
 
@@ -27,7 +27,7 @@ public class Activator implements BundleActivator {
                 try {
                     server = new Server(server_config);
                 } catch (IOException e) {
-                    logger.log(Level.SEVERE, e.getMessage(), e);
+                    logger.error(e.getMessage(), e);
                 }
             }
         });
