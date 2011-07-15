@@ -3,6 +3,7 @@ package com.dynamo.cr.web2.client;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.NewProjectView;
+import com.dynamo.cr.web2.client.ui.OpenIDView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
 import com.google.gwt.event.shared.EventBus;
@@ -18,6 +19,8 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final DashboardView dashboardView = new DashboardView();
     private static final ProjectView projectView = new ProjectView();
     private static final NewProjectView newProjectView = new NewProjectView();
+    private static final OpenIDView openIDView = new OpenIDView();
+
     private Defold defold;
 
     @Override
@@ -63,6 +66,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public NewProjectView getNewProjectView() {
         return newProjectView;
+    }
+
+    @Override
+    public OpenIDView getOpenIDView() {
+        return openIDView;
     }
 
 }

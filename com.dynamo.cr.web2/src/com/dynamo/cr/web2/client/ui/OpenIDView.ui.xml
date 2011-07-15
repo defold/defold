@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
+    xmlns:g='urn:import:com.google.gwt.user.client.ui'>
+
+    <ui:style>
+    </ui:style>
+
+    <g:HTMLPanel>
+        <g:Label text=" " horizontalAlignment="ALIGN_LEFT"
+            ui:field="errorLabel" />
+        <g:DeckPanel ui:field="deckPanel">
+
+            <g:HTMLPanel>
+                <h2>Confirm Registration</h2>
+
+                <div class="paragraph">
+                Welcome <g:InlineLabel ui:field="firstNameLabel" text="FIRST"></g:InlineLabel> <g:InlineLabel ui:field="lastNameLabel" text="LAST"></g:InlineLabel> (<i><g:InlineLabel ui:field="emailLabel" text="test@example.com"></g:InlineLabel></i>)
+                </div>
+
+                <div class="paragraph">
+                Your OpenID is not yet registered here. Do you want to register a new account?
+                </div>
+                <div>
+                    <g:TextArea ui:field="eula" width="400px" height="100px" text="EULA HERE!" readOnly="true"/>
+                </div>
+                <g:Button ui:field="registerButton">Register and Accept Agreement</g:Button>
+            </g:HTMLPanel>
+            <g:HTMLPanel>
+                <h2>Login successful</h2>
+            </g:HTMLPanel>
+        </g:DeckPanel>
+
+    </g:HTMLPanel>
+</ui:UiBinder>

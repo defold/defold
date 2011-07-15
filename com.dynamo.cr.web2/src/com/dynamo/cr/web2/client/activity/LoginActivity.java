@@ -1,7 +1,5 @@
 package com.dynamo.cr.web2.client.activity;
 
-import java.util.Date;
-
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.Defold;
 import com.dynamo.cr.web2.client.place.LoginPlace;
@@ -14,9 +12,10 @@ import com.google.gwt.http.client.RequestBuilder;
 import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
+import com.google.gwt.http.client.URL;
 import com.google.gwt.json.client.JSONObject;
 import com.google.gwt.json.client.JSONParser;
-import com.google.gwt.user.client.Cookies;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class LoginActivity extends AbstractActivity implements LoginView.Presenter {
@@ -33,6 +32,10 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
 		loginView.setPresenter(this);
 	}
 
+	/*
+	 * NOTE: Old login-scheme using username/password. This is obsolete and currently not supported.
+	 * Only OpenID is supported.
+	 */
     public void login(final String email, String password) {
         final Defold defold = clientFactory.getDefold();
         final LoginView loginView = clientFactory.getLoginView();
@@ -49,16 +52,8 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
                         Response response) {
                     int status = response.getStatusCode();
                     if (status == 200) {
-                        Date now = new Date();
-                        long nowLong = now.getTime();
-                        nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
-                        now.setTime(nowLong);
-
                         JSONObject loginInfo = JSONParser.parseStrict(response.getText()).isObject();
-
-                        Cookies.setCookie("email", email, now);
-                        Cookies.setCookie("auth", loginInfo.get("auth").isString().stringValue(), now);
-                        defold.loginOk(email, (int) loginInfo.get("user_id").isNumber().doubleValue());
+                        defold.loginOk(email, loginInfo.get("auth_cookie").isString().stringValue(), (int) loginInfo.get("user_id").isNumber().doubleValue());
                         loginView.setError(null);
                         clientFactory.getPlaceController().goTo(new ProductInfoPlace());
                     } else {
@@ -73,5 +68,17 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
         } catch (RequestException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void loginGoogle() {
+        String url = clientFactory.getDefold().getUrl();
+        String redirectToUrl = Window.Location.createUrlBuilder().buildString();
+        if (redirectToUrl.lastIndexOf('#') != -1) {
+            redirectToUrl = redirectToUrl.substring(0, redirectToUrl.lastIndexOf('#'));
+        }
+        redirectToUrl += "#OpenIDPlace:{token}_{action}";
+        String openAuthUrl = url + "/login/openid/google?redirect_to=" + URL.encodeQueryString(redirectToUrl);
+        Window.Location.replace(openAuthUrl);
     }
 }

@@ -18,9 +18,7 @@ import com.google.gwt.user.client.ui.Label;
 public class NewProjectView extends Composite {
 
     public interface Presenter {
-
         void createProject(String name, String description, String templateId);
-
     }
 
     private static final Binder binder = GWT.create(Binder.class);
@@ -54,7 +52,7 @@ public class NewProjectView extends Composite {
 
     @UiHandler("createButton")
     void onCreateButtonClick(ClickEvent event) {
-        String name = nameTextBox.getName();
+        String name = nameTextBox.getText();
         if (name.length() == 0) {
             nameError.setVisible(true);
         } else {

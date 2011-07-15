@@ -4,7 +4,7 @@ h1 {
 	font-size: 2em;
 	font-weight: bold;
 	color: #777777;
-	margin: 40px 0px 70px;
+	margin: 10px 0px 20px;
 	text-align: left;
 }
 
@@ -38,6 +38,20 @@ table.userInfo {
 tr.userInfo {
 	background-color: #F1F5EC;
 	color: #063;
+}
+
+/* General stuff */
+div.paragraph {
+    margin: 10px 0px 10px;
+}
+
+/* OpenID buttons */
+
+button.openIDGoogle {
+    background: url("/images/google_openid.png") no-repeat;
+    background-position: center;
+    width: 100px;
+    height: 42px;
 }
 
 /* Form stuff */

@@ -12,28 +12,19 @@
 
 	<g:FlowPanel>
         <g:HTMLPanel>
-            <h2>Login</h2>
         </g:HTMLPanel>
 
-        <g:Grid>
-            <g:row>
-                <g:customCell>
-                    <g:Label text="Email:"/>
-                </g:customCell>
-                <g:customCell>
-                    <g:TextBox width="200px" ui:field="emailTextBox"/>
-                </g:customCell>
-            </g:row>
-            <g:row>
-                <g:customCell>
-                    <g:Label text="Password:"/>
-                </g:customCell>
-                <g:customCell>
-                    <g:PasswordTextBox width="200px" ui:field="passwordTextBox"/>
-                </g:customCell>
-            </g:row>
-        </g:Grid>
+        <g:HTMLPanel>
+            <h2>Login or Register New Account </h2>
+            <div class="paragraph">
+                Select a site where you already have an account registered:
+            </div>
+
+            <g:Button ui:field="loginGoogleButton" text="" styleName="gwt-Button openIDGoogle"></g:Button>
+
+        </g:HTMLPanel>
+
         <g:Label styleName="{style.error}" text=" " horizontalAlignment="ALIGN_LEFT" ui:field="errorLabel"/>
-        <g:Button ui:field='loginButton'>Login</g:Button>
+
     </g:FlowPanel>
 </ui:UiBinder>

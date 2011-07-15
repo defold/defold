@@ -3,6 +3,8 @@
  */
 package com.dynamo.cr.web2.client;
 
+import java.util.Date;
+
 import com.dynamo.cr.web2.client.mvp.AppActivityMapper;
 import com.dynamo.cr.web2.client.mvp.AppPlaceHistoryMapper;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
@@ -93,6 +95,7 @@ public class Defold implements EntryPoint {
             eventBus.fireEvent(new AuthenticationFailureEvent());
             return;
         }
+
         requestBuilder.setHeader("X-Email", email);
         requestBuilder.setHeader("X-Auth", auth);
         requestBuilder.setHeader("Accept", "application/json");
@@ -138,6 +141,10 @@ public class Defold implements EntryPoint {
         sendRequest(resource, RequestBuilder.POST, data, callback, "application/json");
     }
 
+    public void putResource(String resource, String data, final ResourceCallback<String> callback) {
+        sendRequest(resource, RequestBuilder.PUT, data, callback, "application/json");
+    }
+
     @Override
     public void onModuleLoad() {
 
@@ -178,8 +185,16 @@ public class Defold implements EntryPoint {
         messageNotification.setAnimationEnabled(true);
     }
 
-    public void loginOk(String email, int userId) {
-        Cookies.setCookie("user_id", Integer.toString(userId));
+    public void loginOk(String email, String authCookie, int userId) {
+        Date expires = new Date();
+        long nowLong = expires.getTime();
+        nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
+        expires.setTime(nowLong);
+
+        Cookies.setCookie("user_id", Integer.toString(userId), expires);
+        Cookies.setCookie("email", email, expires);
+        Cookies.setCookie("auth", authCookie, expires);
+
         logout.setVisible(true);
     }
 
@@ -221,6 +236,11 @@ public class Defold implements EntryPoint {
     @UiHandler("editableLabel")
     void onEditableLabelValueChange(ValueChangeEvent<String> event) {
         this.url = event.getValue();
-        Cookies.setCookie("url", url);
+        Date expires = new Date();
+        long nowLong = expires.getTime();
+        nowLong = nowLong + (1000 * 60 * 60 * 24 * 100);
+        expires.setTime(nowLong);
+
+        Cookies.setCookie("url", url, expires);
     }
 }
