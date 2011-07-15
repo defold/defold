@@ -24,11 +24,8 @@ Require-Bundle: org.eclipse.ui,
  com.dynamo.cr.editor.fs;bundle-version="1.0.0",
  org.eclipse.ui.forms;bundle-version="3.5.2",
  org.eclipse.core.expressions;bundle-version="3.4.200",
- org.eclipse.jetty.server;bundle-version="7.1.6",
- org.eclipse.jetty.http;bundle-version="7.1.6",
- org.eclipse.jetty.util;bundle-version="7.1.6",
- javax.servlet;bundle-version="2.5.0",
- org.eclipse.jetty.io;bundle-version="7.1.6",
- org.eclipse.jetty.continuation;bundle-version="7.1.6"
+ javax.servlet;bundle-version="2.5.0"
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ClassPath: lib/jetty-all-7.0.2.v20100331.jar,
+ .
