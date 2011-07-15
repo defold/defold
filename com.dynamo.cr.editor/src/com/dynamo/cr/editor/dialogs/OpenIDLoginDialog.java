@@ -1,6 +1,7 @@
 package com.dynamo.cr.editor.dialogs;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -34,6 +35,7 @@ import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo.Type;
 import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
@@ -45,6 +47,12 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
     private String crServerUri;
     private String email;
     private String authCookie;
+
+    private void writeResponse(PrintWriter writer, String response) {
+        writer.println("<body>");
+        writer.println(response);
+        writer.println("<body>");
+    }
 
     public OpenIDLoginDialog(Shell parentShell, final String crServerUri) {
         super(parentShell);
@@ -60,6 +68,16 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
                     HttpServletResponse response) throws IOException, ServletException {
                 response.setContentType("text/html");
                 response.setStatus(HttpServletResponse.SC_OK);
+
+                PrintWriter writer = response.getWriter();
+                writer.println("<head>");
+                writer.println("<style type=\"text/css\">");
+                writer.println("body {");
+                writer.println("font-family: Arial Unicode MS, Arial, sans-serif;");
+                writer.println("font-size: small;");
+                writer.println("</style>");
+                writer.println("</head>");
+
                 ((Request)request).setHandled(true);
 
                 ClientConfig cc = new DefaultClientConfig();
@@ -71,7 +89,7 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
                 Pattern re = Pattern.compile("/(.*?)/(.*?)");
                 Matcher matcher = re.matcher(request.getRequestURI());
                 if (!matcher.matches()) {
-                    response.getWriter().println("Internal error");
+                    writeResponse(writer, "Internal error");
                     ((Request)request).setHandled(true);
                     return;
                 }
@@ -92,10 +110,16 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
                 Client client = Client.create(cc);
                 URI uri = UriBuilder.fromUri(crServerUri).port(9998).build();
                 WebResource webResource = client.resource(uri);
-                TokenExchangeInfo exchangeInfo = webResource.path("/login/openid/exchange").path(loginToken).accept(ProtobufProviders.APPLICATION_XPROTOBUF_TYPE).get(TokenExchangeInfo.class);
+                TokenExchangeInfo exchangeInfo;
+                try {
+                    exchangeInfo = webResource.path("/login/openid/exchange").path(loginToken).accept(ProtobufProviders.APPLICATION_XPROTOBUF_TYPE).get(TokenExchangeInfo.class);
+                } catch (ClientHandlerException e) {
+                    writeResponse(writer, e.getMessage());
+                    return;
+                }
 
                 if (exchangeInfo.getType() == Type.SIGNUP) {
-                    response.getWriter().println("This account is not associated with defold.se yet. Please go to defold.se to signup");
+                    writeResponse(writer, "This account is not associated with defold.se yet. Please go to defold.se to signup");
                     return;
                 }
 
