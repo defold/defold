@@ -52,6 +52,27 @@ enum Status
     FAILURE = -1;
 }
 
+message TokenExchangeInfo {
+    enum Type {
+        LOGIN = 1;
+        SIGNUP = 2;
+    }
+    required string first_name = 1;
+    required string last_name = 2;
+    required string email = 3;
+    required string login_token = 4;
+    required Type type = 5;
+    // Only set if type == LOGIN
+    optional string auth_cookie = 6;
+    optional int64 user_id = 7;
+}
+
+message LoginInfo {
+    required string email = 1;
+    required int64 user_id = 2;
+    required string auth_cookie = 3;
+}
+
 message UserInfo {
     required int64 id = 1;
     required string email = 2;

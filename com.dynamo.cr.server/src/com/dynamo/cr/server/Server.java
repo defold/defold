@@ -7,6 +7,8 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,11 +49,13 @@ import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo.Builder;
+import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
+import com.dynamo.cr.server.openid.OpenID;
 import com.dynamo.cr.server.resources.EntityManagerFactoryProvider;
 import com.dynamo.cr.server.resources.ServerProvider;
 import com.dynamo.cr.server.util.FileUtil;
@@ -81,12 +85,22 @@ public class Server implements ServerMBean {
     private EntityManagerFactory emf;
     private org.eclipse.jetty.server.Server jettyServer;
     private ETagCache etagCache = new ETagCache(10000);
+    private static final int MAX_ACTIVE_LOGINS = 1024;
+    private OpenID openID = new OpenID();
+    private OpenIDAuthenticator openIDAuthentication = new OpenIDAuthenticator(MAX_ACTIVE_LOGINS);
+    private SecureRandom secureRandom;
 
     // Stats
     private int resourceDataRequests;
     private int resourceInfoRequests;
 
     public Server(String configuration_file) throws IOException {
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e1) {
+            throw new RuntimeException(e1);
+        }
+
         loadConfig(configuration_file);
 
         assert ServerProvider.server == null;
@@ -97,6 +111,7 @@ public class Server implements ServerMBean {
         // NOTE: JPA-PersistenceUnits: in plug-in MANIFEST.MF has to be set. Otherwise the persistence unit is not found.
         emf = new PersistenceProvider().createEntityManagerFactory(configuration.getPersistenceUnitName(), props);
         if (emf == null) {
+            // TODO: We should not continue...
             Activator.getLogger().log(Level.SEVERE, String.format("Persistant unit '%s' not found", configuration.getPersistenceUnitName()));
         }
         else {
@@ -210,6 +225,18 @@ public class Server implements ServerMBean {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    public SecureRandom getSecureRandom() {
+        return secureRandom;
+    }
+
+    public OpenID getOpenID() {
+        return openID;
+    }
+
+    public OpenIDAuthenticator getOpenIDAuthentication() {
+        return openIDAuthentication;
     }
 
     @Override

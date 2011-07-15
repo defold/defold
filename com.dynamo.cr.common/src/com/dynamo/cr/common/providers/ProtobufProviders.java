@@ -25,6 +25,7 @@ import com.google.protobuf.Message;
 public class ProtobufProviders {
 
     public static final String APPLICATION_XPROTOBUF = "application/x-protobuf";
+    public static final MediaType APPLICATION_XPROTOBUF_TYPE = MediaType.valueOf(APPLICATION_XPROTOBUF);
 
     @Provider
     @Consumes("application/x-protobuf")

@@ -9,7 +9,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
-import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response.Status;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.ProjectTemplate;
@@ -74,7 +74,7 @@ public class ProjectsResource extends BaseResource {
             ModelUtil.deleteProject(em, project);
             em.getTransaction().commit();
             em.close();
-            throw new WebApplicationException(e, 400);
+            throw new ServerException("Unable to create project. Internal error.", Status.INTERNAL_SERVER_ERROR);
         }
         em.close();
 

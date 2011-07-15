@@ -1,7 +1,11 @@
 package com.dynamo.cr.server;
 
+import javax.ws.rs.core.Response.Status;
+
 
 public class ServerException extends Exception {
+
+    private Status status = Status.BAD_REQUEST;
 
     public ServerException(String msg) {
         super(msg);
@@ -9,6 +13,20 @@ public class ServerException extends Exception {
 
     public ServerException(String msg, Throwable e) {
         super(msg, e);
+    }
+
+    public ServerException(String msg, Status status) {
+        super(msg);
+        this.status = status;
+    }
+
+    public ServerException(String msg, Throwable e, Status status) {
+        super(msg, e);
+        this.status = status;
+    }
+
+    public Status getStatus() {
+        return status;
     }
 
     /**

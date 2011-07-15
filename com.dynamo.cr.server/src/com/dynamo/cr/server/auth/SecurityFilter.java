@@ -34,8 +34,9 @@ public class SecurityFilter implements ContainerRequestFilter {
     private EntityManagerFactory emf;
 
     public ContainerRequest filter(ContainerRequest request) {
-        if (!request.getAbsolutePath().getPath().equals("/login")) {
-            // Only authenticate users for paths != /login
+        if (!request.getAbsolutePath().getPath().equals("/login") && !request.getAbsolutePath().getPath().startsWith("/login/openid/google")
+                && !request.getAbsolutePath().getPath().startsWith("/login/openid/exchange") && !request.getAbsolutePath().getPath().startsWith("/login/openid/register")) {
+            // Only authenticate users for paths != /login or != /login/openid
             User user = authenticate(request);
             request.setSecurityContext(new Authorizer(user));
         }
@@ -48,9 +49,9 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         if (request.getMethod().equals("OPTIONS")) {
             // Skip authentication for method OPTION
-            // Returning that HTTP Basic Auth. is required will confuse
+            // Returning "HTTP Basic Authentication is required" will confuse
             // some web browser when performing cross-site requests
-            // HTTP Basic Auth. is only intended for the editor (for now at least)
+            // HTTP Basic Authentication is only intended for the editor (for now at least)
             return null;
         }
 

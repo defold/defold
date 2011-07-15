@@ -18,7 +18,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.JsonProviders;
+import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.User;
@@ -27,6 +30,7 @@ import com.dynamo.cr.server.test.Util;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import com.sun.jersey.api.client.ClientResponse.Status;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
@@ -48,6 +52,7 @@ public class UsersResourceTest {
     private WebResource adminUsersWebResource;
     private WebResource joeUsersWebResource;
     private WebResource bobUsersWebResource;
+    private WebResource joeDefoldAuthUsersWebResource;
 
     @Before
     public void setUp() throws Exception {
@@ -94,6 +99,8 @@ public class UsersResourceTest {
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(JsonProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(JsonProviders.ProtobufMessageBodyWriter.class);
+        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
+        cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
         Client client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
@@ -103,9 +110,13 @@ public class UsersResourceTest {
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
-
         uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
         joeUsersWebResource = client.resource(uri);
+
+        client = Client.create(cc);
+        client.addFilter(new DefoldAuthFilter(joeEmail, null, joePasswd));
+        uri = UriBuilder.fromUri(String.format("http://localhost")).port(port).build();
+        joeDefoldAuthUsersWebResource = client.resource(uri);
 
         client = Client.create(cc);
         client.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
@@ -233,6 +244,44 @@ public class UsersResourceTest {
             .type(MediaType.APPLICATION_JSON_TYPE)
             .post(ClientResponse.class, user.toString());
         assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    public void testDefoldAuthenticationNotLoggedIn() throws Exception {
+        ClientResponse response = joeDefoldAuthUsersWebResource
+            .path("users").path(joeEmail)
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .get(ClientResponse.class);
+
+        assertEquals(Status.UNAUTHORIZED, response.getClientResponseStatus());
+    }
+
+    @Test
+    public void testDefoldAuthentication() throws Exception {
+        LoginInfo loginInfo = joeDefoldAuthUsersWebResource
+            .path("/login")
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .get(LoginInfo.class);
+
+        assertEquals(joeEmail, loginInfo.getEmail());
+
+        // json
+        UserInfo userInfo = joeDefoldAuthUsersWebResource
+            .path("users").path(joeEmail)
+            .accept(MediaType.APPLICATION_JSON_TYPE)
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .get(UserInfo.class);
+        assertEquals(joeEmail, userInfo.getEmail());
+
+        // protobuf
+        userInfo = joeDefoldAuthUsersWebResource
+            .path("users").path(joeEmail)
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF_TYPE)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF_TYPE)
+            .get(UserInfo.class);
+        assertEquals(joeEmail, userInfo.getEmail());
     }
 
 }

@@ -35,29 +35,32 @@
  * holder.
  */
 
-package com.dynamo.cr.server.auth;
+package com.dynamo.cr.server.resources;
 
 import java.util.logging.Level;
 
+import javax.persistence.RollbackException;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import com.dynamo.cr.server.Activator;
-import com.dynamo.cr.server.ServerException;
+
 
 /**
- * <p>Map an server exception to an custom HTTP response.</p>
+ * <p>Map an rollback exception to an HTTP 500 response.</p>
  */
 @Provider
-public class ServerExceptionMapper implements ExceptionMapper<ServerException> {
+public class RollbackExceptionMapper implements ExceptionMapper<RollbackException> {
 
-    public Response toResponse(ServerException e) {
-        Activator.getLogger().log(Level.WARNING, e.getMessage(), e);
+    public Response toResponse(RollbackException e) {
+        Activator.getLogger().log(Level.SEVERE, e.getMessage(), e);
         return Response.
-                status(e.getStatus()).
+                status(Status.INTERNAL_SERVER_ERROR).
                 type("text/plain").
-                entity(e.getMessage()).
+                // NOTE: We don't want to expose the actual error to the user
+                entity("Internal server error").
                 build();
     }
 

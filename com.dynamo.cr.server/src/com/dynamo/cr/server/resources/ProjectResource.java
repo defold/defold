@@ -18,6 +18,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response.Status;
 
 import com.dynamo.cr.proto.Config.Application;
 import com.dynamo.cr.proto.Config.Configuration;
@@ -196,7 +197,7 @@ public class ProjectResource extends BaseResource {
         User user = server.getUser(em, userId);
         User member = ModelUtil.findUserByEmail(em, memberEmail);
         if (member == null) {
-            throw new WebApplicationException(404);
+            throw new ServerException("User not found", Status.NOT_FOUND);
         }
 
         // Connect users sharing the same project

@@ -6,6 +6,7 @@
     <persistence-unit name="production" transaction-type="RESOURCE_LOCAL">
 
         <class>com.dynamo.cr.server.model.User</class>
+        <class>com.dynamo.cr.server.model.NewUser</class>
         <class>com.dynamo.cr.server.model.Project</class>
         <properties>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
