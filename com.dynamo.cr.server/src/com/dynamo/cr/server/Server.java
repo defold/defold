@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,6 +24,7 @@ import javax.persistence.EntityManagerFactory;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.Response.Status;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -94,8 +96,8 @@ public class Server implements ServerMBean {
     private SecureRandom secureRandom;
 
     // Stats
-    private int resourceDataRequests;
-    private int resourceInfoRequests;
+    private AtomicInteger resourceDataRequests = new AtomicInteger();
+    private AtomicInteger resourceInfoRequests = new AtomicInteger();
 
     public Server(String configuration_file) throws IOException {
         try {
@@ -253,12 +255,12 @@ public class Server implements ServerMBean {
 
     @Override
     public int getResourceDataRequests() {
-        return resourceDataRequests;
+        return resourceDataRequests.get();
     }
 
     @Override
     public int getResourceInfoRequests() {
-        return resourceInfoRequests;
+        return resourceInfoRequests.get();
     }
 
     private void bootStrapUsers() {
@@ -417,7 +419,11 @@ public class Server implements ServerMBean {
         if (path == null)
             throw new ServerException("null path");
 
-        resourceInfoRequests++;
+        if (path.indexOf("..") != -1) {
+            throw new ServerException("Relative paths are not permitted", Status.NOT_FOUND);
+        }
+
+        resourceInfoRequests.addAndGet(1);
 
         User u = getUser(em, user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
@@ -474,7 +480,11 @@ public class Server implements ServerMBean {
         if (path == null)
             throw new ServerException("null path");
 
-        resourceDataRequests++;
+        if (path.indexOf("..") != -1) {
+            throw new ServerException("Relative paths are not permitted", Status.NOT_FOUND);
+        }
+
+        resourceDataRequests.addAndGet(1);
 
         User u = getUser(em, user);
         String p = String.format("%s/%s/%d/%s%s", branchRoot, project, u.getId(), branch, path);
