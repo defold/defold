@@ -375,7 +375,7 @@ public class ProjectsResourceTest {
             .type(MediaType.APPLICATION_JSON_TYPE)
             .post(ClientResponse.class, project.toString());
 
-        assertEquals(400, response.getStatus());
+        assertEquals(500, response.getStatus());
         // Make sure that no project is left in the database
         assertEquals(nprojects, query.getResultList().size());
         em.close();
