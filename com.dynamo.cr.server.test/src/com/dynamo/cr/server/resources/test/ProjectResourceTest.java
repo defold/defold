@@ -496,14 +496,14 @@ public class ProjectResourceTest {
 
     @Test(expected=RepositoryException.class)
     public void getResourceInfoWithRelativePath() throws Exception {
-        project_client.createBranch("branch1");
-        branch_client.getResourceInfo("/content/../content/file1.txt");
+        ownerProjectClient.createBranch("branch1");
+        ownerBranchClient.getResourceInfo("/content/../content/file1.txt");
     }
 
     @Test(expected=RepositoryException.class)
     public void getResourceDataWithRelativePath() throws Exception {
-        project_client.createBranch("branch1");
-        branch_client.getResourceData("/content/../content/file1.txt", "");
+        ownerProjectClient.createBranch("branch1");
+        ownerBranchClient.getResourceData("/content/../content/file1.txt", "");
     }
 
     /*
