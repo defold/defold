@@ -44,6 +44,8 @@ import com.dynamo.cr.server.test.Util;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.git.CommandUtil;
 import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
@@ -51,16 +53,30 @@ import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 public class ProjectResourceTest {
 
     private Server server;
-    private IBranchClient branch_client;
-    private IProjectClient project_client;
-
     int port = 6500;
-    String userEmail = "mrtest@foo.com";
-    String passwd = "secret";
-    private IClientFactory factory;
+
+    String ownerEmail = "owner@foo.com";
+    String ownerPassword = "secret";
+    private User owner;
+    private UserInfo ownerInfo;
+    private IBranchClient ownerBranchClient;
+    private IProjectClient ownerProjectClient;
+    private IClientFactory ownerFactory;
+    private WebResource ownerProjectsWebResource;
+
     private Project proj1;
-    private User user;
-    private UserInfo userInfo;
+
+    String memberEmail = "member@foo.com";
+    String memberPassword = "secret";
+    private User member;
+    private UserInfo memberInfo;
+    private WebResource memberProjectsWebResource;
+
+    String nonMemberEmail = "nonmember@foo.com";
+    String nonMemberPassword = "secret";
+    private User nonMember;
+    private UserInfo nonMemberInfo;
+    private WebResource nonMemberProjectsWebResource;
 
     void execCommand(String command) throws IOException {
         CommandUtil.Result r = CommandUtil.execCommand(new String[] {"sh", command});
@@ -96,33 +112,66 @@ public class ProjectResourceTest {
         EntityManager em = emf.createEntityManager();
 
         em.getTransaction().begin();
-        user = new User();
-        user.setEmail(userEmail);
-        user.setFirstName("undefined");
-        user.setLastName("undefined");
-        user.setPassword(passwd);
-        em.persist(user);
 
-        proj1 = ModelUtil.newProject(em, user, "proj1", "proj1 description");
+        owner = new User();
+        owner.setEmail(ownerEmail);
+        owner.setFirstName("undefined");
+        owner.setLastName("undefined");
+        owner.setPassword(ownerPassword);
+        em.persist(owner);
+
+        member = new User();
+        member.setEmail(memberEmail);
+        member.setFirstName("undefined");
+        member.setLastName("undefined");
+        member.setPassword(memberPassword);
+        em.persist(member);
+
+        nonMember = new User();
+        nonMember.setEmail(nonMemberEmail);
+        nonMember.setFirstName("undefined");
+        nonMember.setLastName("undefined");
+        nonMember.setPassword(nonMemberPassword);
+        em.persist(nonMember);
+
+        proj1 = ModelUtil.newProject(em, owner, "proj1", "proj1 description");
         em.getTransaction().commit();
 
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
-        Client client = Client.create(cc);
-        client.addFilter(new HTTPBasicAuthFilter(userEmail, passwd));
-        factory = new ClientFactory(client);
-
         URI uri;
+        Client client;
+        IUsersClient usersClient;
 
         uri = UriBuilder.fromUri(String.format("http://localhost/users")).port(port).build();
-        IUsersClient usersClient = factory.getUsersClient(uri);
-        userInfo = usersClient.getUserInfo(userEmail);
 
-        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", userInfo.getId(), proj1.getId())).port(port).build();
-        project_client = factory.getProjectClient(uri);
-        branch_client = factory.getBranchClient(ClientUtils.getBranchUri(project_client, "branch1"));
+        client = Client.create(cc);
+        client.addFilter(new HTTPBasicAuthFilter(ownerEmail, ownerPassword));
+        ownerFactory = new ClientFactory(client);
+        usersClient = ownerFactory.getUsersClient(uri);
+        ownerInfo = usersClient.getUserInfo(ownerEmail);
+
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(port).build();
+        ownerProjectClient = ownerFactory.getProjectClient(uri);
+        ownerBranchClient = ownerFactory.getBranchClient(ClientUtils.getBranchUri(ownerProjectClient, "branch1"));
+        ownerProjectsWebResource = client.resource(uri);
+
+        client = Client.create(cc);
+        client.addFilter(new HTTPBasicAuthFilter(memberEmail, memberPassword));
+        memberInfo = usersClient.getUserInfo(memberEmail);
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", memberInfo.getId(), proj1.getId())).port(port).build();
+        memberProjectsWebResource = client.resource(uri);
+
+        // Add member
+        ownerProjectsWebResource.path("/members").post(memberEmail);
+
+        client = Client.create(cc);
+        client.addFilter(new HTTPBasicAuthFilter(nonMemberEmail, nonMemberPassword));
+        nonMemberInfo = usersClient.getUserInfo(nonMemberEmail);
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", nonMemberInfo.getId(), proj1.getId())).port(port).build();
+        nonMemberProjectsWebResource = client.resource(uri);
 
         FileUtil.removeDir(new File(server.getBranchRoot()));
 
@@ -140,25 +189,108 @@ public class ProjectResourceTest {
 
     @Test
     public void launchInfo() throws Exception {
-        project_client.getLaunchInfo();
+        ownerProjectClient.getLaunchInfo();
+
+        ClientResponse response = memberProjectsWebResource.path("/launch_info").get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = nonMemberProjectsWebResource.path("/launch_info").get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    public void applicationData() throws Exception {
+        ClientResponse response = ownerProjectsWebResource.path("/application_data").queryParam("platform", "linux").get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = memberProjectsWebResource.path("/application_data").queryParam("platform", "linux").get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = ownerProjectsWebResource.path("/application_data").queryParam("platform", "wii").get(ClientResponse.class);
+        assertEquals(404, response.getStatus());
+
+        response = nonMemberProjectsWebResource.path("/application_data").queryParam("platform", "linux").get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    public void applicationInfo() throws Exception {
+        ClientResponse response = ownerProjectsWebResource.path("/application_info").queryParam("platform", "linux").get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = memberProjectsWebResource.path("/application_info").queryParam("platform", "linux").get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = ownerProjectsWebResource.path("/application_info").queryParam("platform", "wii").get(ClientResponse.class);
+        assertEquals(404, response.getStatus());
+
+        response = nonMemberProjectsWebResource.path("/application_info").queryParam("platform", "linux").get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    public void addMember() throws Exception {
+        ClientResponse response = nonMemberProjectsWebResource.path("/members").post(ClientResponse.class, nonMemberEmail);
+        assertEquals(403, response.getStatus());
+
+        response = memberProjectsWebResource.path("/members").post(ClientResponse.class, nonMemberEmail);
+        assertEquals(403, response.getStatus());
+
+        response = ownerProjectsWebResource.path("/members").post(ClientResponse.class, nonMemberEmail);
+        assertEquals(204, response.getStatus());
+
+        // Add again, verify the list is not increased
+        int membersCount = ownerProjectClient.getProjectInfo().getMembersCount();
+        assertEquals(3, membersCount);
+        ownerProjectsWebResource.path("/members").post(nonMemberEmail);
+        assertEquals(membersCount, ownerProjectClient.getProjectInfo().getMembersCount());
+
+        response = ownerProjectsWebResource.path("/members").post(ClientResponse.class, "nonexisting@foo.com");
+        assertEquals(404, response.getStatus());
+    }
+
+    @Test
+    public void deleteMember() throws Exception {
+        ClientResponse response = nonMemberProjectsWebResource.path(String.format("/members/%d", ownerInfo.getId())).delete(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        response = memberProjectsWebResource.path(String.format("/members/%d", ownerInfo.getId())).delete(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        assertEquals(2, ownerProjectClient.getProjectInfo().getMembersCount());
+        response = ownerProjectsWebResource.path(String.format("/members/%d", memberInfo.getId())).delete(ClientResponse.class);
+        assertEquals(204, response.getStatus());
+        assertEquals(1, ownerProjectClient.getProjectInfo().getMembersCount());
+
+        response = ownerProjectsWebResource.path(String.format("/members/%d", memberInfo.getId())).delete(ClientResponse.class);
+        assertEquals(404, response.getStatus());
+
+        response = ownerProjectsWebResource.path("/members/9999").delete(ClientResponse.class);
+        assertEquals(404, response.getStatus());
     }
 
     @Test
     public void projectInfo() throws Exception {
-        ProjectInfo projectInfo = project_client.getProjectInfo();
+        ProjectInfo projectInfo = ownerProjectClient.getProjectInfo();
         assertEquals("proj1", projectInfo.getName());
+
+        ClientResponse response = memberProjectsWebResource.path("/project_info").get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = nonMemberProjectsWebResource.path("/project_info").get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
     }
 
     @Test
     public void simpleBenchMark() throws Exception {
         // Warm up the jit
         for (int i = 0; i < 2000; ++i) {
-            project_client.getLaunchInfo();
+            ownerProjectClient.getLaunchInfo();
         }
         long start = System.currentTimeMillis();
         final int iterations = 1000;
         for (int i = 0; i < iterations; ++i) {
-            project_client.getLaunchInfo();
+            ownerProjectClient.getLaunchInfo();
         }
         long end = System.currentTimeMillis();
 
@@ -169,85 +301,85 @@ public class ProjectResourceTest {
     @Test(expected = RepositoryException.class)
     public void createBranchInvalidProject() throws Exception {
         URI uri = UriBuilder.fromUri("http://localhost/99999").port(port).build();
-        project_client = factory.getProjectClient(uri);
-        project_client.createBranch("branch1");
+        ownerProjectClient = ownerFactory.getProjectClient(uri);
+        ownerProjectClient.createBranch("branch1");
     }
 
     @Test
     public void createBranch() throws Exception {
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
         BranchStatus branch_status;
 
-        branch_status = project_client.getBranchStatus("branch1");
+        branch_status = ownerProjectClient.getBranchStatus("branch1");
         assertEquals("branch1", branch_status.getName());
-        branch_status = branch_client.getBranchStatus();
+        branch_status = ownerBranchClient.getBranchStatus();
         assertEquals("branch1", branch_status.getName());
 
-        BranchList list = project_client.getBranchList();
+        BranchList list = ownerProjectClient.getBranchList();
         assertEquals("branch1", list.getBranchesList().get(0));
 
-        project_client.deleteBranch("branch1");
-        list = project_client.getBranchList();
+        ownerProjectClient.deleteBranch("branch1");
+        list = ownerProjectClient.getBranchList();
         assertEquals(0, list.getBranchesCount());
     }
 
     @Test(expected = RepositoryException.class)
     public void createBranchTwice() throws Exception {
-        project_client.createBranch("branch1");
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
     }
 
     @Test(expected = RepositoryException.class)
-    public void deleteNonExistant() throws Exception {
-        project_client.deleteBranch("branch1");
+    public void deleteNonExistantBranch() throws Exception {
+        ownerProjectClient.deleteBranch("branch1");
     }
 
     @Test
     public void makeDirAddCommitUpdateRevertRemove() throws Exception {
-        project_client.createBranch("branch1");
-        branch_client.mkdir("/content/foo");
-        branch_client.mkdir("/content/foo");
+        ownerProjectClient.createBranch("branch1");
+        ownerBranchClient.mkdir("/content/foo");
+        ownerBranchClient.mkdir("/content/foo");
 
-        BranchStatus branch = branch_client.getBranchStatus();
+        BranchStatus branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
-        branch_client.putResourceData("/content/foo/bar.txt", "bar data".getBytes());
+        ownerBranchClient.putResourceData("/content/foo/bar.txt", "bar data".getBytes());
 
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
-        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
-        CommitDesc commit = branch_client.commit("message...");
-        Log log = branch_client.log(1);
+        assertEquals("bar data", new String(ownerBranchClient.getResourceData("/content/foo/bar.txt", "")));
+        CommitDesc commit = ownerBranchClient.commit("message...");
+        Log log = ownerBranchClient.log(1);
         assertEquals(commit.getId(), log.getCommits(0).getId());
 
-        branch_client.putResourceData("/content/foo/bar.txt", "bar2 data".getBytes());
+        ownerBranchClient.putResourceData("/content/foo/bar.txt", "bar2 data".getBytes());
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
-        assertEquals("bar2 data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
-        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "master")));
+        assertEquals("bar2 data", new String(ownerBranchClient.getResourceData("/content/foo/bar.txt", "")));
+        assertEquals("bar data", new String(ownerBranchClient.getResourceData("/content/foo/bar.txt", "master")));
 
-        branch_client.revertResource("/content/foo/bar.txt");
-        assertEquals("bar data", new String(branch_client.getResourceData("/content/foo/bar.txt", "")));
+        ownerBranchClient.revertResource("/content/foo/bar.txt");
+        assertEquals("bar data", new String(ownerBranchClient.getResourceData("/content/foo/bar.txt", "")));
 
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
-        branch_client.deleteResource("/content/foo/bar.txt");
-        branch = branch_client.getBranchStatus();
+        ownerBranchClient.deleteResource("/content/foo/bar.txt");
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
-        branch_client.commit("message...");
+        ownerBranchClient.commit("message...");
 
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
     }
 
     @Test
     public void getResourceNotFound() throws RepositoryException {
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
         try {
-            branch_client.getResourceInfo("/content/does_not_exists");
+            ownerBranchClient.getResourceInfo("/content/does_not_exists");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
@@ -255,7 +387,7 @@ public class ProjectResourceTest {
         }
 
         try {
-            branch_client.getResourceData("/content/does_not_exists", "");
+            ownerBranchClient.getResourceData("/content/does_not_exists", "");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
@@ -263,29 +395,29 @@ public class ProjectResourceTest {
         }
 
         try {
-            branch_client.getResourceData("/content/does_not_exists", "does_not_exist");
+            ownerBranchClient.getResourceData("/content/does_not_exists", "does_not_exist");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
             e.printStackTrace();
         }
 
-        branch_client.putResourceData("/content/foo.txt", "foo".getBytes());
-        assertEquals(Protocol.BranchStatus.State.DIRTY, branch_client.getBranchStatus().getBranchState());
-        assertEquals("foo", new String(branch_client.getResourceData("/content/foo.txt", "")));
+        ownerBranchClient.putResourceData("/content/foo.txt", "foo".getBytes());
+        assertEquals(Protocol.BranchStatus.State.DIRTY, ownerBranchClient.getBranchStatus().getBranchState());
+        assertEquals("foo", new String(ownerBranchClient.getResourceData("/content/foo.txt", "")));
         try {
-            branch_client.getResourceData("/content/foo.txt", "does_not_exist");
+            ownerBranchClient.getResourceData("/content/foo.txt", "does_not_exist");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
             e.printStackTrace();
         } finally {
-            branch_client.deleteResource("/content/foo.txt");
-            assertEquals(Protocol.BranchStatus.State.CLEAN, branch_client.getBranchStatus().getBranchState());
+            ownerBranchClient.deleteResource("/content/foo.txt");
+            assertEquals(Protocol.BranchStatus.State.CLEAN, ownerBranchClient.getBranchStatus().getBranchState());
         }
 
         try {
-            branch_client.getResourceData("/content/content", "");
+            ownerBranchClient.getResourceData("/content/content", "");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
@@ -293,7 +425,7 @@ public class ProjectResourceTest {
         }
 
         try {
-            branch_client.getResourceData("/content/content", "does_not_exist");
+            ownerBranchClient.getResourceData("/content/content", "does_not_exist");
             assertTrue(false);
         } catch (RepositoryException e) {
             assertEquals(404, e.getStatusCode());
@@ -303,14 +435,14 @@ public class ProjectResourceTest {
 
     @Test
     public void getResource() throws Exception {
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         {
-            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), userInfo.getId());
+            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), ownerInfo.getId());
             long expected_size = new File(local_path).length();
             long expected_last_mod = new File(local_path).lastModified();
 
-            ResourceInfo info = branch_client.getResourceInfo("/content/file1.txt");
+            ResourceInfo info = ownerBranchClient.getResourceInfo("/content/file1.txt");
             assertEquals(ResourceType.FILE, info.getType());
             assertEquals("file1.txt", info.getName());
             assertEquals("/content/file1.txt", info.getPath());
@@ -319,10 +451,10 @@ public class ProjectResourceTest {
         }
 
         {
-            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), userInfo.getId());
+            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content/file1.txt", proj1.getId(), ownerInfo.getId());
             long expected_size = new File(local_path).length();
 
-            byte[] data = branch_client.getResourceData("/content/file1.txt", "");
+            byte[] data = ownerBranchClient.getResourceData("/content/file1.txt", "");
             String content = new String(data);
             assertEquals(expected_size, data.length);
             assertEquals("file1 data\n", content);
@@ -330,7 +462,7 @@ public class ProjectResourceTest {
 
         {
             try {
-                branch_client.getResourceData("/content", "");
+                ownerBranchClient.getResourceData("/content", "");
             } catch (RepositoryException e) {
                 assertEquals(400, e.getStatusCode());
                 e.printStackTrace();
@@ -338,10 +470,10 @@ public class ProjectResourceTest {
         }
 
         {
-            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content", proj1.getId(), userInfo.getId());
+            String local_path = String.format("tmp/branch_root/%d/%d/branch1/content", proj1.getId(), ownerInfo.getId());
             long expected_last_mod = new File(local_path).lastModified();
 
-            ResourceInfo info = branch_client.getResourceInfo("/content");
+            ResourceInfo info = ownerBranchClient.getResourceInfo("/content");
             assertEquals(ResourceType.DIRECTORY, info.getType());
             assertEquals("content", info.getName());
             assertEquals("/content", info.getPath());
@@ -355,23 +487,23 @@ public class ProjectResourceTest {
 
     @Test
     public void getResourceWithSpace() throws Exception {
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         {
-            branch_client.getResourceInfo("/content/test space.txt");
+            ownerBranchClient.getResourceInfo("/content/test space.txt");
         }
     }
 
     @Test(expected=RepositoryException.class)
     public void getResourceInfoWithRelativePath() throws Exception {
-        project_client.createBranch("branch1");
-        branch_client.getResourceInfo("/content/../content/file1.txt");
+        ownerProjectClient.createBranch("branch1");
+        ownerBranchClient.getResourceInfo("/content/../content/file1.txt");
     }
 
     @Test(expected=RepositoryException.class)
     public void getResourceDataWithRelativePath() throws Exception {
-        project_client.createBranch("branch1");
-        branch_client.getResourceData("/content/../content/file1.txt", "");
+        ownerProjectClient.createBranch("branch1");
+        ownerBranchClient.getResourceData("/content/../content/file1.txt", "");
     }
 
     /*
@@ -380,88 +512,88 @@ public class ProjectResourceTest {
 
     @Test
     public void dirtyBranch() throws RepositoryException {
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         // Check that branch is clean
-        BranchStatus branch = branch_client.getBranchStatus();
+        BranchStatus branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
-        byte[] old_data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] old_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
 
         // Update resource
-        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+        ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Check that branch is dirty
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Update resource again with original data
-        branch_client.putResourceData("/content/file1.txt", old_data);
+        ownerBranchClient.putResourceData("/content/file1.txt", old_data);
 
         // Assert clean state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Update resource again
-        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+        ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
         // Revert changes
-        branch_client.revertResource("/content/file1.txt");
+        ownerBranchClient.revertResource("/content/file1.txt");
         // Assert clean state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Create a new resource, delete later
-        branch_client.putResourceData("/content/new_file.txt", "new file data".getBytes());
+        ownerBranchClient.putResourceData("/content/new_file.txt", "new file data".getBytes());
 
         // Check that branch is dirty
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Delete new resource
-        branch_client.deleteResource("/content/new_file.txt");
+        ownerBranchClient.deleteResource("/content/new_file.txt");
         // Assert clean state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Create a new resource, revert later
-        branch_client.putResourceData("/content/new_file.txt", "new file data".getBytes());
+        ownerBranchClient.putResourceData("/content/new_file.txt", "new file data".getBytes());
 
         // Check that branch is dirty
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Rename file
-        branch_client.renameResource("/content/new_file.txt", "/content/new_file2.txt");
-        assertEquals(1, branch_client.getBranchStatus().getFileStatusList().size());
+        ownerBranchClient.renameResource("/content/new_file.txt", "/content/new_file2.txt");
+        assertEquals(1, ownerBranchClient.getBranchStatus().getFileStatusList().size());
 
         // Revert new resource
-        branch_client.revertResource("/content/new_file2.txt");
+        ownerBranchClient.revertResource("/content/new_file2.txt");
         // Assert clean state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Create a new resource, revert later
-        branch_client.putResourceData("/content/new_file.txt", "new file data".getBytes());
+        ownerBranchClient.putResourceData("/content/new_file.txt", "new file data".getBytes());
 
         // Check that branch is dirty
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Rename file
-        branch_client.renameResource("/content", "/content2");
+        ownerBranchClient.renameResource("/content", "/content2");
         // Check that branch is dirty
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
         // 4 files under /content
-        assertEquals(4, branch_client.getBranchStatus().getFileStatusList().size());
+        assertEquals(4, ownerBranchClient.getBranchStatus().getFileStatusList().size());
 
         // Rename back
-        branch_client.renameResource("/content2", "/content");
+        ownerBranchClient.renameResource("/content2", "/content");
         // Revert new resource
-        branch_client.revertResource("/content/new_file.txt");
+        ownerBranchClient.revertResource("/content/new_file.txt");
         // Assert clean state
-        branch = branch_client.getBranchStatus();
-        for (Status s : branch_client.getBranchStatus().getFileStatusList()) {
+        branch = ownerBranchClient.getBranchStatus();
+        for (Status s : ownerBranchClient.getBranchStatus().getFileStatusList()) {
             System.out.println(String.format("%s %s", s.getIndexStatus(), s.getName()));
         }
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
@@ -470,63 +602,63 @@ public class ProjectResourceTest {
     @Test
     public void updateBranch() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
-        byte[] old_data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] old_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(old_data).indexOf("testing") == -1);
 
         // Add commit
         execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Update branch
-        BranchStatus branch = branch_client.update();
+        BranchStatus branch = ownerBranchClient.update();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Check clean
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("testing") != -1);
     }
 
     @Test
     public void updateBranchMergeResolveYours() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         // Update resource
-        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+        ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Add commit in main branch
         execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Commit in this branch
-        branch_client.commit("test message");
+        ownerBranchClient.commit("test message");
 
         // Update branch
-        BranchStatus branch = branch_client.update();
+        BranchStatus branch = ownerBranchClient.update();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
         assertEquals("/content/file1.txt", branch.getFileStatus(0).getName());
         assertEquals("U", branch.getFileStatus(0).getIndexStatus());
 
         // Check merge state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("<<<<<<< HEAD") != -1);
 
-        branch_client.resolve("/content/file1.txt", "yours");
+        ownerBranchClient.resolve("/content/file1.txt", "yours");
 
-        byte[] data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(data).indexOf("<<<<<<< HEAD") == -1);
 
         // Commit in this branch
-        branch_client.commitMerge("test message");
+        ownerBranchClient.commitMerge("test message");
 
         // Publish this branch
-        branch_client.publish();
+        ownerBranchClient.publish();
 
         // Make changes visible (in file system)
         execCommand("scripts/reset_testdata_proj1.sh", Long.toString(proj1.getId()));
@@ -538,40 +670,40 @@ public class ProjectResourceTest {
     @Test
     public void updateBranchMergeResolveTheirs() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         // Update resource
-        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+        ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Add commit in main branch
         execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Commit in this branch
-        branch_client.commit("test message");
+        ownerBranchClient.commit("test message");
 
         // Update branch
-        BranchStatus branch = branch_client.update();
+        BranchStatus branch = ownerBranchClient.update();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
         assertEquals("/content/file1.txt", branch.getFileStatus(0).getName());
         assertEquals("U", branch.getFileStatus(0).getIndexStatus());
 
         // Check merge state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("<<<<<<< HEAD") != -1);
 
-        branch_client.resolve("/content/file1.txt", "theirs");
+        ownerBranchClient.resolve("/content/file1.txt", "theirs");
 
-        byte[] data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(data).indexOf("<<<<<<< HEAD") == -1);
 
         // Commit in this branch
-        branch_client.commitMerge("test message");
+        ownerBranchClient.commitMerge("test message");
 
         // Publish this branch
-        branch_client.publish();
+        ownerBranchClient.publish();
 
         // Make changes visible (in file system)
         execCommand("scripts/reset_testdata_proj1.sh", Long.toString(proj1.getId()));
@@ -583,31 +715,31 @@ public class ProjectResourceTest {
     @Test
     public void publishUnmerged() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         // Update resource
-        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+        ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Add commit in main branch
         execCommand("scripts/add_testdata_proj1_commit.sh", Long.toString(proj1.getId()));
 
         // Commit in this branch
-        branch_client.commit("my commit message");
+        ownerBranchClient.commit("my commit message");
 
         // Update branch
-        BranchStatus branch = branch_client.update();
+        BranchStatus branch = ownerBranchClient.update();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
         // Check merge state
-        branch = branch_client.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus();
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
-        byte[] new_data = branch_client.getResourceData("/content/file1.txt", "");
+        byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
         assertTrue(new String(new_data).indexOf("<<<<<<< HEAD") != -1);
 
         // Publish this branch
         try {
-            branch_client.publish();
+            ownerBranchClient.publish();
         }
         catch (RepositoryException e) {
             assertEquals(400, e.getStatusCode());
@@ -617,27 +749,27 @@ public class ProjectResourceTest {
     @Test
     public void reset() throws IOException, RepositoryException {
         // Create branch
-        project_client.createBranch("branch1");
+        ownerProjectClient.createBranch("branch1");
 
         // Check log
-        Log log = branch_client.log(5);
+        Log log = ownerBranchClient.log(5);
         assertEquals(1, log.getCommitsCount());
         String target = log.getCommits(0).getId();
 
         // Update resource
-        branch_client.putResourceData("/content/file1.txt", "new file1 data".getBytes());
+        ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Commit in this branch
-        branch_client.commit("my commit message");
+        ownerBranchClient.commit("my commit message");
 
         // Check log
-        log = branch_client.log(5);
+        log = ownerBranchClient.log(5);
         assertEquals(2, log.getCommitsCount());
 
-        branch_client.reset("hard", target);
+        ownerBranchClient.reset("hard", target);
 
         // Check log
-        log = branch_client.log(5);
+        log = ownerBranchClient.log(5);
         assertEquals(1, log.getCommitsCount());
     }
 

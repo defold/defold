@@ -189,6 +189,7 @@ public class ProjectResource extends BaseResource {
 
     @POST
     @Path("/members")
+    @RolesAllowed(value = { "owner" })
     public void addMember(@PathParam("project") String projectId,
                           @PathParam("user") String userId,
                           String memberEmail) throws ServerException {
@@ -200,9 +201,8 @@ public class ProjectResource extends BaseResource {
             throw new ServerException("User not found", Status.NOT_FOUND);
         }
 
-        // Connect users sharing the same project
+        // Connect new member to owner (used in e.g. auto-completion)
         user.getConnections().add(member);
-        member.getConnections().add(user);
 
         Project project = server.getProject(em, projectId);
         em.getTransaction().begin();
@@ -227,15 +227,14 @@ public class ProjectResource extends BaseResource {
 
         Project project = server.getProject(em, projectId);
 
-        if (project.getOwner().getId() != user.getId()) {
-            // Only the owner can remove members.
-            // In the future it might be possible to remove yourself from project
-            throw new WebApplicationException(403);
+        if (!project.getMembers().contains(member)) {
+            throw new NotFoundException(String.format("User %s is not a member of project %s", userId, projectId));
         }
-
-        if (member.getId() == project.getOwner().getId()) {
-            // Can't remove owner from members list
-            throw new WebApplicationException(400);
+        // Only owners can remove other users and only non-owners can remove themselves
+        boolean isOwner = user.getId() == project.getOwner().getId();
+        boolean removeSelf = user.getId() == member.getId();
+        if ((isOwner && removeSelf) || (!isOwner && !removeSelf)) {
+            throw new WebApplicationException(403);
         }
 
         em.getTransaction().begin();
@@ -246,12 +245,12 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/project_info")
-    public ProjectInfo getProjectInfo(@PathParam("user") String userEmail,
+    public ProjectInfo getProjectInfo(@PathParam("user") String user,
                               @PathParam("project") String projectId) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
 
         // Ensure user is valid
-        server.getUser(em, userEmail);
+        server.getUser(em, user);
         Project project = server.getProject(em, projectId);
         return ResourceUtil.createProjectInfo(project);
     }

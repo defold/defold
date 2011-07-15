@@ -184,7 +184,7 @@ public class ProjectsResourceTest {
             .post(ProjectInfo.class, newProject);
 
         ClientResponse response;
-        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", bobUser.getId(), projectInfo.getId())).get(ClientResponse.class);
+        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", joeUser.getId(), projectInfo.getId())).get(ClientResponse.class);
         assertEquals(200, response.getStatus());
         response.getEntity(ProjectInfo.class);
     }
@@ -204,7 +204,7 @@ public class ProjectsResourceTest {
 
 
         ClientResponse response;
-        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", bobUser.getId(), projectInfo.getId())).queryParam("callback", "foo").accept(MediaType.APPLICATION_JSON_TYPE).get(ClientResponse.class);
+        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", joeUser.getId(), projectInfo.getId())).queryParam("callback", "foo").accept(MediaType.APPLICATION_JSON_TYPE).get(ClientResponse.class);
         assertEquals(200, response.getStatus());
         String projectInfoJsonp = response.getEntity(String.class);
         assertEquals("foo(", projectInfoJsonp.substring(0, 4));
@@ -261,9 +261,8 @@ public class ProjectsResourceTest {
                     .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
                     .get(UserInfoList.class);
 
-        // Check that bob now is connected to joe
-        assertEquals(1, bobsConnections.getUsersCount());
-        assertEquals(joeEmail, bobsConnections.getUsers(0).getEmail());
+        // Check that bob is still not connected to joe
+        assertEquals(0, bobsConnections.getUsersCount());
 
         assertEquals("test project", projectInfo.getName());
         assertEquals(joeUser.getId().longValue(), projectInfo.getOwner().getId());
@@ -380,4 +379,29 @@ public class ProjectsResourceTest {
         assertEquals(nprojects, query.getResultList().size());
         em.close();
     }
+
+    @Test
+    public void testListProjects() throws Exception {
+        NewProject newProject = NewProject.newBuilder()
+                .setName("test project123456789")
+                .setDescription("New test project").build();
+
+        joeProjectsWebResource
+            .path(joeUser.getId().toString())
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .post(ProjectInfo.class, newProject);
+
+        ClientResponse response;
+
+        response = joeProjectsWebResource.path(String.format("/%d", joeUser.getId())).get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = bobProjectsWebResource.path(String.format("/%d", bobUser.getId())).get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+
+        response = bobProjectsWebResource.path(String.format("/%d", joeUser.getId())).get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+    }
+
 }
