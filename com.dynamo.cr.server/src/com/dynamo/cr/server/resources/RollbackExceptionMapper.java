@@ -37,15 +37,14 @@
 
 package com.dynamo.cr.server.resources;
 
-import java.util.logging.Level;
-
 import javax.persistence.RollbackException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
-import com.dynamo.cr.server.Activator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -54,8 +53,10 @@ import com.dynamo.cr.server.Activator;
 @Provider
 public class RollbackExceptionMapper implements ExceptionMapper<RollbackException> {
 
+    protected static Logger logger = LoggerFactory.getLogger(RollbackExceptionMapper.class);
+
     public Response toResponse(RollbackException e) {
-        Activator.getLogger().log(Level.SEVERE, e.getMessage(), e);
+        logger.error(e.getMessage(), e);
         return Response.
                 status(Status.INTERNAL_SERVER_ERROR).
                 type("text/plain").

@@ -77,7 +77,7 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
         if (redirectToUrl.lastIndexOf('#') != -1) {
             redirectToUrl = redirectToUrl.substring(0, redirectToUrl.lastIndexOf('#'));
         }
-        redirectToUrl += "#OpenIDPlace:{token}_{action}";
+        redirectToUrl += "#openid:{token}_{action}";
         String openAuthUrl = url + "/login/openid/google?redirect_to=" + URL.encodeQueryString(redirectToUrl);
         Window.Location.replace(openAuthUrl);
     }

@@ -37,13 +37,13 @@
 
 package com.dynamo.cr.server.auth;
 
-import java.util.logging.Level;
-
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
-import com.dynamo.cr.server.Activator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.dynamo.cr.server.ServerException;
 
 /**
@@ -52,8 +52,10 @@ import com.dynamo.cr.server.ServerException;
 @Provider
 public class ServerExceptionMapper implements ExceptionMapper<ServerException> {
 
+    protected static Logger logger = LoggerFactory.getLogger(ServerExceptionMapper.class);
+
     public Response toResponse(ServerException e) {
-        Activator.getLogger().log(Level.WARNING, e.getMessage(), e);
+        logger.warn(e.getMessage(), e);
         return Response.
                 status(e.getStatus()).
                 type("text/plain").

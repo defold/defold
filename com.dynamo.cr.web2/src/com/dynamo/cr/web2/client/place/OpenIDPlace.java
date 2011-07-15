@@ -2,6 +2,7 @@ package com.dynamo.cr.web2.client.place;
 
 import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
+import com.google.gwt.place.shared.Prefix;
 
 public class OpenIDPlace extends Place {
     private String loginToken;
@@ -20,6 +21,7 @@ public class OpenIDPlace extends Place {
         return mode;
     }
 
+    @Prefix("openid")
     public static class Tokenizer implements PlaceTokenizer<OpenIDPlace> {
         @Override
         public String getToken(OpenIDPlace place) {
