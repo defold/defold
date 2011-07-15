@@ -23,6 +23,7 @@ import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
+import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
@@ -132,7 +133,7 @@ public class UsersResourceTest {
     @Test
     public void testGetUserInfoAsAdmin() throws Exception {
         UserInfo userInfo = adminUsersWebResource
-            .path("joe@foo.com")
+            .path(joeEmail)
             .accept(MediaType.APPLICATION_JSON_TYPE)
             .type(MediaType.APPLICATION_JSON_TYPE)
             .get(UserInfo.class);
@@ -153,10 +154,6 @@ public class UsersResourceTest {
 
     @Test
     public void testGetUserInfoAsJoe() throws Exception {
-        // First connect joe and bob
-        adminUsersWebResource
-            .path(String.format("/connect/%d/%d", bobUser.getId(), joeUser.getId())).put();
-
         UserInfo userInfo = joeUsersWebResource
             .path(bobEmail)
             .accept(MediaType.APPLICATION_JSON_TYPE)
@@ -164,18 +161,6 @@ public class UsersResourceTest {
             .get(UserInfo.class);
 
         assertEquals(bobEmail, userInfo.getEmail());
-    }
-
-
-    @Test
-    public void testGetUserInfoForbidden() throws Exception {
-        ClientResponse response = bobUsersWebResource
-            .path(joeEmail)
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .get(ClientResponse.class);
-
-        assertEquals(403, response.getStatus());
     }
 
     @Test
@@ -187,6 +172,51 @@ public class UsersResourceTest {
             .get(ClientResponse.class);
 
         assertEquals(404, response.getStatus());
+    }
+
+    @Test
+    public void testConnections() throws Exception {
+
+        UserInfoList joesConnections = joeUsersWebResource
+            .path(String.format("/%d/connections", joeUser.getId()))
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .get(UserInfoList.class);
+        assertEquals(0, joesConnections.getUsersCount());
+
+        // First connect joe and bob
+        joeUsersWebResource.path(String.format("/%d/connections/%d", joeUser.getId(), bobUser.getId())).put();
+
+        joesConnections = joeUsersWebResource
+            .path(String.format("/%d/connections", joeUser.getId()))
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .get(UserInfoList.class);
+        assertEquals(1, joesConnections.getUsersCount());
+
+        joeUsersWebResource.path(String.format("/%d/connections/%d", joeUser.getId(), bobUser.getId())).put();
+
+        joesConnections = joeUsersWebResource
+            .path(String.format("/%d/connections", joeUser.getId()))
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .get(UserInfoList.class);
+        assertEquals(1, joesConnections.getUsersCount());
+
+        UserInfoList bobsConnections = bobUsersWebResource
+            .path(String.format("/%d/connections", bobUser.getId()))
+            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+            .get(UserInfoList.class);
+        assertEquals(0, bobsConnections.getUsersCount());
+
+        // Joe adding joe to bob (forbidden)
+        ClientResponse response = joeUsersWebResource.path(String.format("/%d/connections/%d", bobUser.getId(), joeUser.getId())).put(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        // Joe adding joe to himself (forbidden)
+        response = joeUsersWebResource.path(String.format("/%d/connections/%d", joeUser.getId(), joeUser.getId())).put(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        // List other users connections (forbidden)
+        response = joeUsersWebResource.path(String.format("/%d/connections", bobUser.getId())).get(ClientResponse.class);
+        assertEquals(403, response.getStatus());
     }
 
     @Test

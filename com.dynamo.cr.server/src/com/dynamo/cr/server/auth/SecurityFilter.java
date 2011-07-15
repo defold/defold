@@ -3,6 +3,7 @@ package com.dynamo.cr.server.auth;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.security.Principal;
+import java.util.List;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
@@ -129,23 +130,41 @@ public class SecurityFilter implements ContainerRequestFilter {
             return this.principal;
         }
 
+        private boolean affectsOtherUser() {
+            List<String> userParams = uriInfo.getPathParameters().get("user");
+            if (userParams != null && !userParams.isEmpty()) {
+                if (!userParams.get(0).equals(user.getId().toString())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public boolean isUserInRole(String role) {
-            // NOTE: We will add "dynamic" roles based on the actual project, ie owner-role.
-            // The owner-role implicit if the user owns the project in question
             if (role.equals("admin")) {
                 return user.getRole() == Role.ADMIN;
             }
-            else if (role.equals("user")) {
-                return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
-            }
-            else if (role.equals("self")) {
-                return uriInfo.getPathParameters().get("user").get(0).equals(user.getId().toString());
+            else if (role.equals("owner")) {
+                if (!affectsOtherUser()) {
+                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                    for (Project p : user.getProjects()) {
+                        if (p.getId().longValue() == projectId && p.getOwner().getId() == user.getId())
+                            return true;
+                    }
+                }
             }
             else if (role.equals("member")) {
-                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                for (Project p : user.getProjects()) {
-                    if (p.getId().longValue() == projectId)
-                        return true;
+                if (!affectsOtherUser()) {
+                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                    for (Project p : user.getProjects()) {
+                        if (p.getId().longValue() == projectId)
+                            return true;
+                    }
+                }
+            }
+            else if (role.equals("user")) {
+                if (!affectsOtherUser()) {
+                    return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
                 }
             }
             return false;

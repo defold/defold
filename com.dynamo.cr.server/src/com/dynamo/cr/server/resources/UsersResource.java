@@ -18,7 +18,6 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.User;
-import com.dynamo.cr.server.model.User.Role;
 
 @Path("/users")
 @RolesAllowed(value = { "user" })
@@ -34,30 +33,13 @@ public class UsersResource extends BaseResource {
     }
 
     @GET
-    @Path("/{user}")
-    public UserInfo getUserInfo(@PathParam("user") String user) throws ServerException {
+    @Path("/{email}")
+    public UserInfo getUserInfo(@PathParam("email") String email) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         try {
-            User me = ModelUtil.findUserByEmail(em, securityContext.getUserPrincipal().getName());
-            if (me == null) {
-                throw new WebApplicationException(Response.Status.NOT_FOUND);
-            }
-
-            User u = ModelUtil.findUserByEmail(em, user);
+            User u = ModelUtil.findUserByEmail(em, email);
             if (u == null) {
                 throw new WebApplicationException(Response.Status.NOT_FOUND);
-            }
-
-            // Make sure the user is connected to me. Otherwise forbidden operation
-            // We don't have a role an explicit role for this authorization
-            // Admin is ok
-            if (me.getRole() != Role.ADMIN) {
-                // My user info is ok
-                if (!u.equals(me)) {
-                    if (!u.getConnections().contains(me)) {
-                        throw new WebApplicationException(Response.Status.FORBIDDEN);
-                    }
-                }
             }
 
             return createUserInfo(u);
@@ -68,19 +50,19 @@ public class UsersResource extends BaseResource {
     }
 
     @PUT
-    @Path("/connect/{user1}/{user2}")
-    @RolesAllowed(value = { "admin" })
-    public void connect(@PathParam("user1") String user1, @PathParam("user2") String user2) throws ServerException {
+    @Path("/{user}/connections/{user2}")
+    public void connect(@PathParam("user") String user, @PathParam("user2") String user2) throws ServerException {
+        if (user.equals(user2)) {
+            throw new ServerException("A user can not be connected to him/herself.", Response.Status.FORBIDDEN);
+        }
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         try {
-            User u1 = server.getUser(em, user1);
+            User u = server.getUser(em, user);
             User u2 = server.getUser(em, user2);
 
             em.getTransaction().begin();
-            u1.getConnections().add(u2);
-            u2.getConnections().add(u1);
-            em.persist(u1);
-            em.persist(u2);
+            u.getConnections().add(u2);
+            em.persist(u);
             em.getTransaction().commit();
         }
         finally {
@@ -90,7 +72,6 @@ public class UsersResource extends BaseResource {
 
     @GET
     @Path("/{user}/connections")
-    @RolesAllowed(value = { "self" })
     public UserInfoList getConnections(@PathParam("user") String user) throws ServerException {
         EntityManager em = server.getEntityManagerFactory().createEntityManager();
         try
