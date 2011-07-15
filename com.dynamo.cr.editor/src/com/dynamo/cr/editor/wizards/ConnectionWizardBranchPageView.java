@@ -35,7 +35,7 @@ public class ConnectionWizardBranchPageView extends WizardPage implements Listen
      */
     public ConnectionWizardBranchPageView(String pageName) {
         super(pageName);
-        setTitle("Connect to resource server");
+        setTitle("Connect to Resource Server");
         setDescription("Select branch to connect to");
         setImageDescriptor(Activator.getImageDescriptor("/icons/newconnect_wizban.gif"));
     }

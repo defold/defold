@@ -30,11 +30,6 @@ public class PreferencePage
         addField(new StringFieldEditor(PreferenceConstants.P_SOCKSPROXY, "Socks proxy:", getFieldEditorParent()));
         addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKSPROXYPORT, "Socks proxy port:", getFieldEditorParent()));
 
-        addField(new StringFieldEditor(PreferenceConstants.P_USERNAME, "Username:", getFieldEditorParent()));
-        StringFieldEditor password_editor = new StringFieldEditor(PreferenceConstants.P_PASSWORD, "Password:", getFieldEditorParent());
-        password_editor.getTextControl(getFieldEditorParent()).setEchoChar('*');
-        addField(password_editor);
-
         downloadApplicationField = new BooleanFieldEditor(PreferenceConstants.P_DOWNLOADAPPLICATION, "Download application:", getFieldEditorParent());
         addField(downloadApplicationField);
         applicationField = new FileFieldEditor(PreferenceConstants.P_APPLICATION, "Application:", getFieldEditorParent());

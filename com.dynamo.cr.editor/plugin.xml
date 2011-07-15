@@ -146,6 +146,12 @@
                label="Synchronize"
                style="push">
          </command>
+         <command
+               commandId="com.dynamo.crepo.commands.switchOpenID"
+               icon="icons/openid-16x16.png"
+               label="Switch OpenID Account"
+               style="push">
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -236,6 +242,13 @@
             description="View the diff of a conflicted file"
             id="com.dynamo.cr.editor.commands.diffConflict"
             name="Diff Conflict">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.SwitchOpenIDHandler"
+            description="Switch OpenID Account"
+            id="com.dynamo.crepo.commands.switchOpenID"
+            name="Switch OpenID Account">
       </command>
    </extension>
 

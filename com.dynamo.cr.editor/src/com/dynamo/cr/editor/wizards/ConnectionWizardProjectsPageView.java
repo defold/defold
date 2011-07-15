@@ -34,7 +34,7 @@ public class ConnectionWizardProjectsPageView extends WizardPage implements Conn
      */
     public ConnectionWizardProjectsPageView(String pageName) {
         super(pageName);
-        setTitle("Connect to resource server");
+        setTitle("Connect to Resource Server");
         setDescription("Select project");
         setImageDescriptor(Activator.getImageDescriptor("/icons/newconnect_wizban.gif"));
     }

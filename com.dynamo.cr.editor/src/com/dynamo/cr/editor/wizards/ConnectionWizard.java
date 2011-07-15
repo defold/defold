@@ -17,7 +17,7 @@ public class ConnectionWizard extends Wizard {
 
     public ConnectionWizard(IWorkbenchPage page) {
         this.page = page;
-        setWindowTitle("Connect to resource server");
+        setWindowTitle("Connect to Resource Server");
     }
 
     @Override

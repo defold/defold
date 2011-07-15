@@ -23,6 +23,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -52,9 +53,11 @@ import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
+import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.DialogUtil;
+import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.services.IBranchService;
@@ -64,7 +67,6 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
-import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 
 public class Activator extends AbstractUIPlugin implements IPropertyChangeListener, IResourceChangeListener, IBranchListener {
 
@@ -166,7 +168,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
         plugin = this;
 		Activator.context = bundleContext;
-		connectProjectClient();
+		//connectProjectClient();
         IPreferenceStore store = getPreferenceStore();
         store.addPropertyChangeListener(this);
         updateSocksProxy();
@@ -223,29 +225,61 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	    return factory;
 	}
 
-	private void connectProjectClient() {
+	public boolean connectProjectClient() {
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
         IPreferenceStore store = getPreferenceStore();
-        String user = store.getString(PreferenceConstants.P_USERNAME);
-        String passwd = store.getString(PreferenceConstants.P_PASSWORD);
+        String email = store.getString(PreferenceConstants.P_EMAIL);
+        String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
         String baseUriString = store.getString(PreferenceConstants.P_SERVER_URI);
         String usersUriString = String.format("%s/users", baseUriString);
 
+        DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authCookie, null);
         Client client = Client.create(cc);
+        client.addFilter(authFilter);
         factory = new DelegatingClientFactory(new ClientFactory(client));
         RepositoryFileSystemPlugin.setClientFactory(factory);
-        client.addFilter(new HTTPBasicAuthFilter(user, passwd));
+
+        boolean validAuthCookie = false;
+        if (email != null && authCookie != null) {
+            // Try to validate auth-cookie
+            IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
+
+            try {
+                @SuppressWarnings("unused")
+                UserInfo userInfo = usersClient.getUserInfo(email);
+                validAuthCookie = true;
+            } catch (RepositoryException e) {
+                validAuthCookie = false;
+            }
+        }
+
+        Shell shell = Display.getDefault().getActiveShell();
+        if (!validAuthCookie) {
+            OpenIDLoginDialog openIDdialog = new OpenIDLoginDialog(shell, baseUriString);
+            int ret = openIDdialog.open();
+            if (ret == Dialog.CANCEL) {
+                return false;
+            }
+            email = openIDdialog.getEmail();
+
+            authFilter.setEmail(email);
+            authFilter.setAuthCookie(openIDdialog.getAuthCookie());
+            store.setValue(PreferenceConstants.P_EMAIL, email);
+            store.setValue(PreferenceConstants.P_AUTH_COOKIE, openIDdialog.getAuthCookie());
+        }
 
         IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
         UserInfo userInfo;
         try {
-            userInfo = usersClient.getUserInfo(user);
+            userInfo = usersClient.getUserInfo(email);
         } catch (RepositoryException e) {
-            e.printStackTrace();
-            return;
+            final String message = "Error signing in";
+            ErrorDialog.openError(shell, message, message,
+                    new Status(IStatus.ERROR, Activator.PLUGIN_ID, message));
+            return false;
         }
         this.userInfo = userInfo;
         String projectsUriString = String.format("%s/projects/%d", baseUriString, userInfo.getId());
@@ -254,6 +288,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         projectsUri = UriBuilder.fromUri(projectsUriString).build();
 
         projectsClient = factory.getProjectsClient(projectsUri);
+
+        return true;
 	}
 
 	void setProjectExplorerInput(Object container) {
@@ -382,13 +418,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         if (p.equals(PreferenceConstants.P_SERVER_URI)) {
             connectProjectClient();
         }
-        else if (p.equals(PreferenceConstants.P_USERNAME)) {
-            connectProjectClient();
-        }
-        else if (p.equals(PreferenceConstants.P_PASSWORD)) {
-            connectProjectClient();
-        }
-
         else if (p.equals(PreferenceConstants.P_SOCKSPROXY) ||
         		 p.equals(PreferenceConstants.P_SOCKSPROXYPORT)) {
             updateSocksProxy();
