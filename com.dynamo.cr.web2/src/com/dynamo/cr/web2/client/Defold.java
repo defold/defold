@@ -53,7 +53,7 @@ public class Defold implements EntryPoint {
 
     private com.google.gwt.event.shared.EventBus eventBus;
 
-    private String url = "http://overrated.dyndns.org:9998";
+    private String url = "http://cr.defold.se:9998";
 
     private ClientFactory clientFactory;
 
