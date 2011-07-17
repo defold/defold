@@ -189,13 +189,44 @@ public class ProjectsResourceTest {
         response.getEntity(ProjectInfo.class);
     }
 
+    class StressRunnable implements Runnable {
+
+        private long projectId;
+        public Throwable exception;
+
+        public StressRunnable(long projectId) {
+            this.projectId = projectId;
+        }
+
+        @Override
+        public void run() {
+            try {
+                for (int i = 0; i < 1000; ++i) {
+                    ClientResponse response;
+                    response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", joeUser.getId(), projectId)).get(ClientResponse.class);
+                    assertEquals(200, response.getStatus());
+                    response.getEntity(ProjectInfo.class);
+
+                    @SuppressWarnings("unused")
+                    UserInfoList joesConnections = joeUsersWebResource
+                        .path(String.format("/%d/connections", joeUser.getId()))
+                        .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                        .get(UserInfoList.class);
+                }
+            } catch (Throwable e) {
+                this.exception = e;
+            }
+        }
+
+    }
+
     @Test
-    public void testProjectInfoJsonp() throws Exception {
+    public void testStress() throws Exception {
         NewProject newProject = NewProject.newBuilder()
                 .setName("test project")
                 .setDescription("New test project").build();
 
-        ProjectInfo projectInfo = joeProjectsWebResource
+        final ProjectInfo projectInfo = joeProjectsWebResource
             .path(joeUser.getId().toString())
             .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
             .type(ProtobufProviders.APPLICATION_XPROTOBUF)
@@ -203,11 +234,18 @@ public class ProjectsResourceTest {
 
 
 
-        ClientResponse response;
-        response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", joeUser.getId(), projectInfo.getId())).queryParam("callback", "foo").accept(MediaType.APPLICATION_JSON_TYPE).get(ClientResponse.class);
-        assertEquals(200, response.getStatus());
-        String projectInfoJsonp = response.getEntity(String.class);
-        assertEquals("foo(", projectInfoJsonp.substring(0, 4));
+        StressRunnable runnable1 = new StressRunnable(projectInfo.getId());
+        StressRunnable runnable2 = new StressRunnable(projectInfo.getId());
+
+        Thread t1 = new Thread(runnable1);
+        Thread t2 = new Thread(runnable2);
+        t1.start();
+        t2.start();
+        t1.join(100000);
+        t2.join(100000);
+
+        assertEquals(null, runnable1.exception);
+        assertEquals(null, runnable2.exception);
     }
 
     @Test

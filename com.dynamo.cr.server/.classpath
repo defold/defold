@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/grizzly-servlet-webserver-1.9.18-i.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jersey-grizzly-1.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jersey-client-1.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jersey-server-1.8.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/janino.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/logback-classic-0.9.29.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/logback-core-0.9.29.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/slf4j-api-1.6.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.5.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/grizzly-servlet-webserver-1.9.18-k.jar" sourcepath="/Users/chmu/Downloads/grizzly-servlet-webserver-1.9.18-k-sources.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jetty-all-7.0.2.v20100331.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/postgresql-9.0-801.jdbc4.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/derby.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/asm-3.1.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/jersey-client-1.3-sources.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/jersey-client-1.3.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.3.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/jersey-server-1.3.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jsr250-api-1.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/jsr311-api-1.1.1.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
