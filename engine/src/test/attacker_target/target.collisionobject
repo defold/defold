@@ -1,4 +1,4 @@
-collision_shape: "box.convexshape"
+collision_shape: "/box.convexshape"
 type: COLLISION_OBJECT_TYPE_KINEMATIC
 mass: 0.0
 friction: 0.0

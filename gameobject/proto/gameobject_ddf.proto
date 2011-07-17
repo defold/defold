@@ -21,7 +21,7 @@ message EmbeddedComponentDesc
 
 message PrototypeDesc
 {
-    repeated ComponentDesc components = 1 [(resource) = true];
+    repeated ComponentDesc components = 1;
     repeated EmbeddedComponentDesc embedded_components = 2;
 }
 
@@ -45,8 +45,8 @@ message CollectionInstanceDesc
 message CollectionDesc
 {
     required string                 name                    = 1;
-    repeated InstanceDesc           instances               = 2 [(resource) = true];
-    repeated CollectionInstanceDesc collection_instances    = 3 [(resource) = true];
+    repeated InstanceDesc           instances               = 2;
+    repeated CollectionInstanceDesc collection_instances    = 3;
 }
 
 message AcquireInputFocus {}

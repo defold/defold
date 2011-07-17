@@ -1,7 +1,7 @@
 name: "font"
 tags: "text"
-vertex_program: "builtins/fonts/font.vp"
-fragment_program: "builtins/fonts/font.fp"
+vertex_program: "/builtins/fonts/font.vp"
+fragment_program: "/builtins/fonts/font.fp"
 vertex_constants {
   register: 0
   type: CONSTANT_TYPE_VIEWPROJ

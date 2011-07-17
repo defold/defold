@@ -1,4 +1,4 @@
 components {
   id: "gui"
-  component: "loading/loading.gui"
+  component: "/loading/loading.gui"
 }

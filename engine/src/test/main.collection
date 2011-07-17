@@ -1,8 +1,16 @@
 name: "main"
-instances
-{
-    prototype: "main.go"
-    id: "main"
-    position { x: 0 y: 0 z: 0 }
-    rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+instances {
+  id: "main"
+  prototype: "/main.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }

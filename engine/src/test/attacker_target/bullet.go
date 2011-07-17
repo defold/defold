@@ -1,5 +1,4 @@
-components
-{
-    id: "script"
-    component: "attacker_target/bullet.script"
+components {
+  id: "script"
+  component: "/attacker_target/bullet.script"
 }

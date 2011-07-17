@@ -1,8 +1,15 @@
 name: "test_loading"
-instances
-{
-    prototype: "loading/loading.go"
-    id: "loading"
-    position { x: 0 y: 0 z: 0 }
-    rotation { x: 0.0 y: 0.0 z: 0.0 z: 1.0 }
+instances {
+  id: "loading"
+  prototype: "/loading/loading.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
 }

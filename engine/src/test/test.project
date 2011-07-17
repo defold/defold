@@ -1,9 +1,9 @@
 [project]
 title = test
 [bootstrap]
-main_collection = main.collectionc
+main_collection = /main.collectionc
 [input]
-gamepads = default.gamepadsc
-game_binding = default.input_bindingc
+gamepads = /default.gamepadsc
+game_binding = /default.input_bindingc
 [resource]
 uri = build/default/src/test

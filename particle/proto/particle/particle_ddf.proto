@@ -108,7 +108,7 @@ message Emitter
     required EmissionSpace  space               = 3;
     required dmMath.Quat    rotation            = 4;
 
-    required Texture_t      texture             = 5 [(resource)=true];
+    required Texture_t      texture             = 5;
     required string         material            = 6 [(resource)=true];
 
     required uint32         max_particle_count    = 7;

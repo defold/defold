@@ -1,1 +1,1 @@
-script: "gui/test_gui.gui_script"
+script: "/gui/test_gui.gui_script"

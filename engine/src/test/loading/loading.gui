@@ -1,7 +1,7 @@
-script: "loading/loading.gui_script"
+script: "/loading/loading.gui_script"
 fonts {
   name: "loading"
-  font: "builtins/fonts/system_font.font"
+  font: "/builtins/fonts/system_font.font"
 }
 reference_width: 640
 reference_height: 960

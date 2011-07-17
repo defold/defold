@@ -563,7 +563,7 @@ bail:
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
-        const char* system_font_map = "builtins/fonts/system_font.fontc";
+        const char* system_font_map = "/builtins/fonts/system_font.fontc";
         dmResource::FactoryResult fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
         {
@@ -572,7 +572,7 @@ bail:
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
 
-        const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "builtins/input/default.gamepadsc");
+        const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
         fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
@@ -585,7 +585,7 @@ bail:
         if (fact_error != dmResource::FACTORY_RESULT_OK)
             return false;
 
-        const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", "builtins/render/default.renderc");
+        const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", "/builtins/render/default.renderc");
         fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
         if (fact_error != dmResource::FACTORY_RESULT_OK)
             return false;

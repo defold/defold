@@ -560,6 +560,18 @@ FactoryResult Get(HFactory factory, const char* name, void** resource)
 
     *resource = 0;
 
+    if (name[0] == '0')
+    {
+        dmLogError("Empty resource name");
+        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    if (name[0] != '/')
+    {
+        dmLogError("Resource path is not absolute (%s)", name);
+        return FACTORY_RESULT_RESOURCE_NOT_FOUND;
+    }
+
 #if 1
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);

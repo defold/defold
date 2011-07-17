@@ -83,7 +83,7 @@ TEST_F(ResourceTest, NotFound)
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
     void* resource = (void*) 0xdeadbeef;
-    e = dmResource::Get(factory, "DOES_NOT_EXISTS.foo", &resource);
+    e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_RESOURCE_NOT_FOUND, e);
     ASSERT_EQ((void*) 0, resource);
 }
@@ -93,7 +93,7 @@ TEST_F(ResourceTest, UnknownResourceType)
     dmResource::FactoryResult e;
 
     void* resource = (void*) 0;
-    e = dmResource::Get(factory, "build/default/src/test/test.testresourcecont", &resource);
+    e = dmResource::Get(factory, "/build/default/src/test/test.testresourcecont", &resource);
     ASSERT_EQ(dmResource::FACTORY_RESULT_UNKNOWN_RESOURCE_TYPE, e);
     ASSERT_EQ((void*) 0, resource);
 }
@@ -135,7 +135,7 @@ protected:
         params.m_MaxResources = 16;
         m_Factory = dmResource::NewFactory(&params, GetParam());
         ASSERT_NE((void*) 0, m_Factory);
-        m_ResourceName = "test.cont";
+        m_ResourceName = "/test.cont";
 
         dmResource::FactoryResult e;
         e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
@@ -440,7 +440,7 @@ TEST(dmResource, Builtins)
     dmResource::RegisterType(factory, "adc", 0, AdResourceCreate, AdResourceDestroy, 0);
 
     void* resource;
-    const char* names[] = { "archive_data/file4.adc", "archive_data/file1.adc", "archive_data/file3.adc", "archive_data/file2.adc" };
+    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
     const char* data[] = { "file4_data", "file1_data", "file3_data", "file2_data" };
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
@@ -476,7 +476,7 @@ TEST(RecreateTest, RecreateTest)
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-    const char* resource_name = "__testrecreate__.foo";
+    const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
     DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
@@ -542,7 +542,7 @@ TEST(RecreateTest, RecreateTestHttp)
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-    const char* resource_name = "__testrecreate__.foo";
+    const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
     DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
@@ -648,7 +648,7 @@ TEST(FilenameTest, FilenameTest)
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-    const char* resource_name = "__testfilename__.foo";
+    const char* resource_name = "/__testfilename__.foo";
     DM_SNPRINTF(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
@@ -713,7 +713,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, e);
 
-    const char* resource_name = "__testrecreate__.foo";
+    const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
     DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 

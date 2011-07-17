@@ -10,7 +10,7 @@ class Entry(object):
 
         size = os.stat(filename)[stat.ST_SIZE]
         f = open(filename, 'rb')
-        self.filename = rel_name
+        self.filename = '/' + rel_name
         self.resource = f.read()
         self.size = size
         f.close()
