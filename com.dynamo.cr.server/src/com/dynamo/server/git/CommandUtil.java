@@ -3,10 +3,13 @@ package com.dynamo.server.git;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CommandUtil {
+
+    protected static Logger logger = LoggerFactory.getLogger(CommandUtil.class);
 
     public static class Result {
         public StringBuffer stdOut = new StringBuffer();
@@ -39,7 +42,7 @@ public class CommandUtil {
                 try {
                     Thread.sleep(2);
                 } catch (InterruptedException e1) {
-                    Logger.getLogger(Logger.GLOBAL_LOGGER_NAME).log(Level.SEVERE, e.getMessage(), e);
+                    logger.error(e.getMessage(), e);
                 }
             }
 
@@ -68,7 +71,7 @@ public class CommandUtil {
         try {
             p.waitFor();
         } catch (InterruptedException e) {
-            Logger.getLogger(Logger.GLOBAL_LOGGER_NAME).log(Level.SEVERE, e.getMessage(), e);
+            logger.error(e.getMessage(), e);
         }
 
         return res;

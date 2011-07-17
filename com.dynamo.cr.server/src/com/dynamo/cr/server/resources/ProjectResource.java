@@ -486,7 +486,7 @@ public class ProjectResource extends BaseResource {
     public BuildDesc build(@PathParam("project") String project,
                            @PathParam("user") String user,
                            @PathParam("branch") String branch,
-                           @DefaultValue("false") @QueryParam("rebuild") boolean rebuild) {
+                           @DefaultValue("false") @QueryParam("rebuild") boolean rebuild) throws ServerException {
 
         return server.build(project, user, branch, rebuild);
     }
@@ -496,9 +496,19 @@ public class ProjectResource extends BaseResource {
     public BuildDesc buildsStatus(@PathParam("project") String project,
                                   @PathParam("user") String user,
                                   @PathParam("branch") String branch,
-                                  @QueryParam("id") int id) {
+                                  @QueryParam("id") int id) throws ServerException {
 
         return server.buildStatus(project, user, branch, id);
+    }
+
+    @DELETE
+    @Path("/branches/{branch}/builds")
+    public void cancelBuild(@PathParam("project") String project,
+                                 @PathParam("user") String user,
+                                 @PathParam("branch") String branch,
+                                 @QueryParam("id") int id) throws ServerException {
+
+        server.cancelBuild(project, user, branch, id);
     }
 
     @GET

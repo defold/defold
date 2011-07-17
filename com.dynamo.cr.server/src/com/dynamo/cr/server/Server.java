@@ -6,13 +6,16 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -63,7 +66,6 @@ import com.dynamo.cr.server.resources.EntityManagerFactoryProvider;
 import com.dynamo.cr.server.resources.ServerProvider;
 import com.dynamo.cr.server.util.FileUtil;
 import com.dynamo.server.git.CommandUtil;
-import com.dynamo.server.git.CommandUtil.IListener;
 import com.dynamo.server.git.CommandUtil.Result;
 import com.dynamo.server.git.Git;
 import com.dynamo.server.git.GitResetMode;
@@ -98,12 +100,75 @@ public class Server implements ServerMBean {
     private AtomicInteger resourceDataRequests = new AtomicInteger();
     private AtomicInteger resourceInfoRequests = new AtomicInteger();
 
+    private int cleanupBuildsInterval = 10 * 1000; // 10 seconds
+    private int keepBuildDescFor = 100 * 1000; // 100 seconds
+    private int nextBuildNumber = 0;
+    private Map<Integer, RuntimeBuildDesc> builds = new HashMap<Integer, RuntimeBuildDesc>();
+
+    private CleanBuildsThread cleanupThread;
+
+    class CleanBuildsThread extends Thread {
+        private boolean quit = false;
+
+        public CleanBuildsThread() {
+            setName("Cleanup builds thread");
+        }
+
+        public void run() {
+            while (!quit) {
+                try {
+                    Thread.sleep(cleanupBuildsInterval);
+
+                    Set<Integer> toRemove = new HashSet<Integer>();
+                    synchronized (builds) {
+                        for (Integer id : builds.keySet()) {
+                            RuntimeBuildDesc buildDesc = builds.get(id);
+                            long time = System.currentTimeMillis();
+                            if (buildDesc.activity == Activity.IDLE && time > (buildDesc.buildCompleted + keepBuildDescFor)) {
+                                toRemove.add(id);
+                            }
+                        }
+                        for (Integer id : toRemove) {
+                            logger.info("Removing build {}", id);
+                            builds.remove(id);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                }
+            }
+        }
+
+        public void quit() {
+            this.quit = true;
+        }
+    }
+
+    /**
+     * Clean up for old builds thread wake-up interval
+     * @param cleanupBuildsInterval interval in ms
+     */
+    public void setCleanupBuildsInterval(int cleanupBuildsInterval) {
+        this.cleanupBuildsInterval = cleanupBuildsInterval;
+        this.cleanupThread.interrupt();
+    }
+
+    /**
+     * Set time to keep old builds
+     * @param keepBuildDescFor time to keep completed builds for in ms
+     */
+    public void setKeepBuildDescFor(int keepBuildDescFor) {
+        this.keepBuildDescFor = keepBuildDescFor;
+    }
+
     public Server(String configuration_file) throws IOException {
         try {
             secureRandom = SecureRandom.getInstance("SHA1PRNG");
         } catch (NoSuchAlgorithmException e1) {
             throw new RuntimeException(e1);
         }
+
+        this.cleanupThread = new CleanBuildsThread();
+        this.cleanupThread.start();
 
         loadConfig(configuration_file);
 
@@ -304,6 +369,16 @@ public class Server implements ServerMBean {
     public void stop() {
         assert ServerProvider.server != null;
         ServerProvider.server = null;
+
+        if (this.cleanupThread != null) {
+            this.cleanupThread.interrupt();
+            this.cleanupThread.quit();
+            try {
+                this.cleanupThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
 
         threadSelector.stopEndpoint();
         try {
@@ -784,28 +859,8 @@ public class Server implements ServerMBean {
         return git.log(p, maxCount);
     }
 
-    static class RuntimeBuildDesc {
 
-        public RuntimeBuildDesc() {
-            id = -1;
-            progress = -1;
-            workAmount = -1;
-        }
-        public int id;
-        public Activity activity;
-        public BuildDesc.Result buildResult;
-        public int progress;
-        public int workAmount;
-        public String stdOut = "";
-        public String stdErr = "";
-
-    }
-
-    int nextBuildNumber = 0;
-    // TODO: We must remove old builds somehow...!
-    Map<Integer, RuntimeBuildDesc> builds = new HashMap<Integer, RuntimeBuildDesc>();
-
-    static class BuildRunnable implements Runnable, IListener {
+    static class BuildRunnable implements IBuildRunnable {
 
         private int id;
         private Server server;
@@ -816,6 +871,9 @@ public class Server implements ServerMBean {
         private Pattern workPattern;
 		private boolean rebuild;
         private Configuration configuration;
+        private StringBuffer stdOut;
+        private StringBuffer stdErr;
+        private boolean cancel = false;
 
         public BuildRunnable(Server server, int id, String branch_root, String project, String user, String branch, boolean rebuild) {
             this.id = id;
@@ -826,45 +884,124 @@ public class Server implements ServerMBean {
             this.branch = branch;
             this.rebuild = rebuild;
             this.configuration = server.configuration;
-
             workPattern = Pattern.compile(server.configuration.getProgressRe());
+        }
+
+        private void substitute(String[] args) {
+            String cwd = System.getProperty("user.dir");
+            for (int i = 0; i < args.length; ++i) {
+                args[i] = args[i].replace("{cwd}", cwd);
+            }
+        }
+
+        private int execCommand(String working_dir, String[] command) throws IOException {
+            this.stdOut = new StringBuffer();
+            this.stdErr = new StringBuffer();
+
+            ProcessBuilder pb = new ProcessBuilder(command);
+            if (working_dir != null)
+                pb.directory(new File(working_dir));
+
+            Process process = pb.start();
+            InputStream std = process.getInputStream();
+            InputStream err = process.getErrorStream();
+
+            int exitValue = 0;
+
+            boolean done = false;
+            while (!done) {
+                if (cancel) {
+                    process.destroy();
+                    return 1;
+                }
+
+                try {
+                    exitValue = process.exitValue();
+                    done = true;
+                } catch (IllegalThreadStateException e) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e1) {
+                        logger.error(e.getMessage(), e);
+                    }
+                }
+
+                while (std.available() > 0) {
+                    byte[] tmp = new byte[std.available()];
+                    std.read(tmp);
+                    stdOut.append(new String(tmp));
+                }
+
+                while (err.available() > 0) {
+                    byte[] tmp = new byte[err.available()];
+                    err.read(tmp);
+                    stdErr.append(new String(tmp));
+                    updateProgressStatus();
+                }
+            }
+
+            std.close();
+            err.close();
+            try {
+                exitValue = process.waitFor();
+            } catch (InterruptedException e) {
+                logger.error(e.getMessage(), e);
+            }
+
+            return exitValue;
+        }
+
+        public void cancel() {
+            this.cancel = true;
         }
 
         @Override
         public void run() {
+            try {
+                doRun();
+            } catch (Throwable e) {
+                this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, "", "Internal error");
+                logger.error("Unexpected excetion caught", e);
+            }
+        }
+
+        public void doRun() {
             String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
             try {
-                Result r;
                 String[] args = new String[configuration.getConfigureCommand().getArgsCount()];
+
                 configuration.getConfigureCommand().getArgsList().toArray(args);
-                r = CommandUtil.execCommand(p, null, args);
-                if (r.exitValue != 0) {
-                    this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, r.stdOut.toString(), r.stdErr.toString());
+                substitute(args);
+
+                int exitValue = execCommand(p, args);
+                if (exitValue != 0) {
+                    this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, stdOut.toString(), stdErr.toString());
                     return;
                 }
 
                 if (rebuild) {
                     args = new String[configuration.getRebuildCommand().getArgsCount()];
                     configuration.getRebuildCommand().getArgsList().toArray(args);
+                    substitute(args);
                 } else {
                     args = new String[configuration.getBuildCommand().getArgsCount()];
                     configuration.getBuildCommand().getArgsList().toArray(args);
+                    substitute(args);
                 }
-                r = CommandUtil.execCommand(p, this, args);
-                if (r.exitValue != 0) {
-                    this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, r.stdOut.toString(), r.stdErr.toString());
+                exitValue = execCommand(p, args);
+                if (exitValue != 0) {
+                    this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, stdOut.toString(), stdErr.toString());
                     return;
                 }
 
-                this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.OK, r.stdOut.toString(), r.stdErr.toString());
+                this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.OK, stdOut.toString(), stdErr.toString());
             } catch (IOException e) {
                 logger.warn(e.getMessage(), e);
             }
         }
 
-        @Override
-        public void onStdErr(StringBuffer buffer) {
-            Matcher m = workPattern.matcher(buffer.toString());
+        public void updateProgressStatus() {
+            Matcher m = workPattern.matcher(stdErr.toString());
 
             int progress = -1;
             int workAmount = -1;
@@ -877,17 +1014,20 @@ public class Server implements ServerMBean {
                 server.updateBuildProgress(id, progress, workAmount);
             }
         }
-
-        @Override
-        public void onStdOut(StringBuffer buffer) {
-            // TODO Auto-generated method stub
-
-        }
     }
 
-    public BuildDesc build(String project, String user, String branch, boolean rebuild) {
+    public BuildDesc build(String project, String user, String branch, boolean rebuild) throws ServerException {
         int build_number;
         synchronized(this) {
+
+            for (Integer id : builds.keySet()) {
+                RuntimeBuildDesc rtbd = builds.get(id);
+                if (rtbd.project.equals(project) && rtbd.user.equals(user) && rtbd.branch.equals(branch) && rtbd.activity == Activity.BUILDING) {
+                    // Build in progress
+                    throw new ServerException("Build already in progress", Status.CONFLICT);
+                }
+            }
+
             build_number = nextBuildNumber++;
         }
 
@@ -901,32 +1041,60 @@ public class Server implements ServerMBean {
 
         RuntimeBuildDesc rtbd = new RuntimeBuildDesc();
         rtbd.id = build_number;
+        rtbd.project = project;
+        rtbd.user = user;
+        rtbd.branch = branch;
+
         rtbd.activity = Activity.BUILDING;
         rtbd.buildResult = BuildDesc.Result.OK;
-        builds.put(build_number, rtbd);
+        synchronized (builds) {
+            builds.put(build_number, rtbd);
+        }
 
-        Thread thread = new Thread(new BuildRunnable(this, build_number, branchRoot, project, user, branch, rebuild));
-        thread.start();
+        rtbd.buildRunnable = new BuildRunnable(this, build_number, branchRoot, project, user, branch, rebuild);
+        rtbd.buildThread = new Thread(rtbd.buildRunnable);
+        rtbd.buildThread.start();
 
         return bd;
     }
 
     public synchronized void updateBuild(int id, Activity activity, BuildDesc.Result result, String std_out, String std_err) {
-        RuntimeBuildDesc rtbd = builds.get(id);
+        RuntimeBuildDesc rtbd;
+        synchronized (builds) {
+             rtbd = builds.get(id);
+        }
+
+        if (activity == Activity.BUILDING && rtbd.activity == Activity.IDLE) {
+            throw new RuntimeException("Invalid transiation, IDLE to BUILDING");
+        }
+
         rtbd.activity = activity;
         rtbd.buildResult = result;
         rtbd.stdOut = std_out;
         rtbd.stdErr = std_err;
+        if (activity == Activity.IDLE) {
+            rtbd.buildCompleted = System.currentTimeMillis();
+        }
     }
 
     private synchronized void updateBuildProgress(int id, int progress, int workAmount) {
-        RuntimeBuildDesc rtbd = builds.get(id);
+        RuntimeBuildDesc rtbd;
+        synchronized (builds) {
+            rtbd = builds.get(id);
+        }
         rtbd.progress = progress;
         rtbd.workAmount = workAmount;
     }
 
-    public BuildDesc buildStatus(String project, String user, String branch, int id) {
-        RuntimeBuildDesc rtbd = builds.get(id);
+    public BuildDesc buildStatus(String project, String user, String branch, int id) throws ServerException {
+        RuntimeBuildDesc rtbd;
+        synchronized (builds) {
+            rtbd = builds.get(id);
+        }
+
+        if (rtbd == null) {
+            throw new ServerException(String.format("Build %d not found", id), Status.NOT_FOUND);
+        }
 
         BuildDesc bd = BuildDesc.newBuilder()
             .setId(rtbd.id)
@@ -939,13 +1107,33 @@ public class Server implements ServerMBean {
         return bd;
     }
 
+    public void cancelBuild(String project, String user, String branch, int id) throws ServerException {
+        RuntimeBuildDesc rtbd;
+        synchronized (builds) {
+            rtbd = builds.get(id);
+        }
+
+        if (rtbd == null) {
+            throw new ServerException(String.format("Build %d not found", id), Status.NOT_FOUND);
+        } else {
+            rtbd.buildRunnable.cancel();
+            try {
+                rtbd.buildThread.join(5000);
+            } catch (InterruptedException e) {
+                logger.error("Unexpected interrupted exception", e);
+            }
+        }
+    }
+
     public BuildLog buildLog(String project, String user, String branch, int id) {
-        RuntimeBuildDesc rtbd = builds.get(id);
+        RuntimeBuildDesc rtbd;
+        synchronized (builds) {
+            rtbd = builds.get(id);
+        }
         return BuildLog.newBuilder()
             .setStdOut(rtbd.stdOut)
             .setStdErr(rtbd.stdErr).build();
     }
-
 
     public LaunchInfo getLaunchInfo(EntityManager em, String project) throws ServerException {
         // We check that the project really exists here
@@ -966,5 +1154,6 @@ public class Server implements ServerMBean {
     public Configuration getConfiguration() {
         return configuration;
     }
+
 
 }

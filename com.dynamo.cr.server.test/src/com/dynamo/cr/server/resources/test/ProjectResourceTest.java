@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -12,6 +13,7 @@ import java.util.Set;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import org.junit.After;
@@ -30,6 +32,8 @@ import com.dynamo.cr.protocol.proto.Protocol;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
+import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
+import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
@@ -772,5 +776,122 @@ public class ProjectResourceTest {
         log = ownerBranchClient.log(5);
         assertEquals(1, log.getCommitsCount());
     }
+
+    @Test
+    public void build() throws Exception {
+        PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
+        writer.println("sleep 0.3");
+        writer.println("echo HELLO");
+        writer.close();
+        Runtime.getRuntime().exec("chmod +x tmp/build.sh");
+
+        ownerProjectClient.createBranch("branch1");
+        BuildDesc buildDesc = ownerBranchClient.build(true);
+        BuildDesc status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.BUILDING, status.getBuildActivity());
+        Thread.sleep(700);
+        status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.IDLE, status.getBuildActivity());
+
+        assertEquals(BuildDesc.Result.OK, status.getBuildResult());
+        BuildLog logs = ownerBranchClient.getBuildLogs(buildDesc.getId());
+        System.out.println(logs.getStdOut());
+        assertTrue("HELLO not found", logs.getStdOut().indexOf("HELLO") != -1);
+    }
+
+    @Test
+    public void failingBuild() throws Exception {
+        PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
+        writer.println("exit 5");
+        writer.close();
+        Runtime.getRuntime().exec("chmod +x tmp/build.sh");
+
+        ownerProjectClient.createBranch("branch1");
+        BuildDesc buildDesc = ownerBranchClient.build(true);
+        BuildDesc status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.BUILDING, status.getBuildActivity());
+        Thread.sleep(1000);
+        status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.IDLE, status.getBuildActivity());
+        assertEquals(BuildDesc.Result.ERROR, status.getBuildResult());
+    }
+
+    @Test
+    public void cleanupBuilds() throws Exception {
+        server.setCleanupBuildsInterval(50);
+        server.setKeepBuildDescFor(700);
+
+        PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
+        writer.close();
+        Runtime.getRuntime().exec("chmod +x tmp/build.sh");
+
+        ownerProjectClient.createBranch("branch1");
+        BuildDesc buildDesc = ownerBranchClient.build(true);
+        BuildDesc status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        Thread.sleep(500);
+        status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.IDLE, status.getBuildActivity());
+        assertEquals(BuildDesc.Result.OK, status.getBuildResult());
+
+        Thread.sleep(700);
+        try {
+            status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+            assertTrue("Expected exception", false);
+        }
+        catch (RepositoryException e) {
+            assertEquals(404, e.getStatusCode());
+            return;
+        }
+    }
+
+    @Test
+    public void cancelBuild() throws Exception {
+        PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
+        writer.println("echo HELLO");
+        writer.println("sleep 1000");
+        writer.println("echo DONE");
+        writer.close();
+        Runtime.getRuntime().exec("chmod +x tmp/build.sh");
+
+        ownerProjectClient.createBranch("branch1");
+        BuildDesc buildDesc = ownerBranchClient.build(true);
+        BuildDesc status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        Thread.sleep(1200);
+        status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.BUILDING, status.getBuildActivity());
+
+        ownerBranchClient.cancelBuild(buildDesc.getId());
+
+        status = ownerBranchClient.getBuildStatus(buildDesc.getId());
+        assertEquals(BuildDesc.Activity.IDLE, status.getBuildActivity());
+
+        BuildLog logs = ownerBranchClient.getBuildLogs(buildDesc.getId());
+        assertTrue("HELLO not found", logs.getStdOut().indexOf("HELLO") != -1);
+        assertTrue("DONE *found*", logs.getStdOut().indexOf("DONE") == -1);
+    }
+
+    @Test
+    public void concurrentBuilds() throws Exception {
+        PrintWriter writer = new PrintWriter(new File("tmp/build.sh"));
+        writer.println("echo HELLO");
+        writer.println("sleep 1000");
+        writer.println("echo DONE");
+        writer.close();
+        Runtime.getRuntime().exec("chmod +x tmp/build.sh");
+
+        ownerProjectClient.createBranch("branch1");
+        @SuppressWarnings("unused")
+        BuildDesc buildDesc1 = ownerBranchClient.build(true);
+
+        try {
+            @SuppressWarnings("unused")
+            BuildDesc buildDesc2 = ownerBranchClient.build(true);
+            assertTrue("Expected exception", false);
+        }
+        catch (RepositoryException e) {
+            assertEquals(Response.Status.CONFLICT.getStatusCode(), e.getStatusCode());
+            return;
+        }
+   }
 
 }
