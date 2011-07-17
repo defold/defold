@@ -71,7 +71,7 @@ public class ParticipantUtils {
 
         ResourceRefactorContext context = new ResourceRefactorContext(root);
         IPath newPath = element.toFile.getFullPath().makeRelativeTo(root.getFullPath());
-        String newPathString = newPath.toPortableString();
+        String newPathString = "/" + newPath.toPortableString();
 
         for (IFile candidateFile : candidateFiles) {
             if (!refactoredFiles.containsKey(candidateFile)) {

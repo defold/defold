@@ -42,12 +42,7 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
 
     protected IFile getFile(String name) throws IOException, CoreException {
         IFile f;
-        if (name.startsWith("/")) {
-            f = contentRoot.getWorkspace().getRoot().getFile(new Path(name));
-        }
-        else {
-            f = contentRoot.getFile(new Path(name));
-        }
+        f = contentRoot.getFile(new Path(name));
         return f;
     }
 

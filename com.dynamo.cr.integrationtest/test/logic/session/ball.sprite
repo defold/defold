@@ -1,4 +1,4 @@
-texture: "graphics/ball.png"
+texture: "/graphics/ball.png"
 width: 25.0
 height: 25.0
 tile_width: 25

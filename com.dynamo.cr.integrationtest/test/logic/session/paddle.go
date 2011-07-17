@@ -1,10 +1,10 @@
 components {
   id: "sprite"
-  component: "logic/session/paddle.sprite"
+  component: "/logic/session/paddle.sprite"
 }
 components {
   id: "script"
-  component: "logic/session/paddle.script"
+  component: "/logic/session/paddle.script"
 }
 components {
   id: "wav"
@@ -12,5 +12,5 @@ components {
 }
 components {
   id: "co"
-  component: "logic/session/paddle.collisionobject"
+  component: "/logic/session/paddle.collisionobject"
 }

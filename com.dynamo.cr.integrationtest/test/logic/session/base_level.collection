@@ -1,7 +1,7 @@
 name: "base_level"
 instances {
   id: "left_wall"
-  prototype: "logic/session/wall.go"
+  prototype: "/logic/session/wall.go"
   position {
     x: 158.51591
     y: 320.0
@@ -16,7 +16,7 @@ instances {
 }
 instances {
   id: "paddle"
-  prototype: "logic/session/paddle.go"
+  prototype: "/logic/session/paddle.go"
   children: "ball"
   position {
     x: 488.51593
@@ -32,7 +32,7 @@ instances {
 }
 instances {
   id: "ball"
-  prototype: "logic/session/ball.go"
+  prototype: "/logic/session/ball.go"
   position {
     x: 0.0
     y: 22.5
@@ -47,7 +47,7 @@ instances {
 }
 instances {
   id: "right_wall"
-  prototype: "logic/session/wall.go"
+  prototype: "/logic/session/wall.go"
   position {
     x: 808.51587
     y: 320.0
@@ -62,7 +62,7 @@ instances {
 }
 instances {
   id: "roof"
-  prototype: "logic/session/roof.go"
+  prototype: "/logic/session/roof.go"
   position {
     x: 483.51593
     y: 680.0

@@ -39,6 +39,7 @@ import org.eclipse.ui.forms.widgets.FormToolkit;
 import com.dynamo.cr.ddfeditor.operations.AddRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.RemoveRepeatedOperation;
 import com.dynamo.cr.ddfeditor.operations.SetFieldOperation;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeEditSupport;
 import com.dynamo.cr.protobind.IPath;
@@ -77,8 +78,7 @@ public class ProtoTreeEditor implements Listener {
             if (ret == ListDialog.OK)
             {
                 IResource r = (IResource) dialog.getResult()[0];
-                org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
-                return fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
+                return EditorUtil.makeResourcePath(r);
             }
             return null;
         }

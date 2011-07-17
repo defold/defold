@@ -24,6 +24,7 @@ import org.eclipse.ui.views.properties.IPropertySource;
 import org.eclipse.ui.views.properties.PropertyDescriptor;
 import org.eclipse.ui.views.properties.TextPropertyDescriptor;
 
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.internal.DoublePropertyDescriptor;
 import com.dynamo.cr.properties.internal.EmbeddedPropertySourceProxy;
 import com.dynamo.cr.properties.internal.IntegerPropertyDescriptor;
@@ -79,8 +80,7 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
             if (ret == ListDialog.OK)
             {
                 IResource r = (IResource) dialog.getResult()[0];
-                org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
-                return fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
+                return EditorUtil.makeResourcePath(r);
             }
             return null;
         }

@@ -19,13 +19,10 @@ import com.dynamo.cr.guieditor.scene.GuiScene;
 public class AddFont extends AbstractHandler {
 
     public void doExecute(IGuiEditor editor, IResource resource) {
-        IContainer contentRoot = EditorUtil.findContentRoot(resource);
-
-        org.eclipse.core.runtime.IPath fullPath = resource.getFullPath();
-        String relativePath = fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
+        String resourcePath = EditorUtil.makeResourcePath(resource);
 
         GuiScene scene = editor.getScene();
-        if (scene.getFontFromPath(relativePath) != null) {
+        if (scene.getFontFromPath(resourcePath) != null) {
             return;
         }
 
@@ -34,7 +31,7 @@ public class AddFont extends AbstractHandler {
             name = name.substring(0, name.lastIndexOf('.'));
         }
         name = scene.getUniqueFontName(name);
-        AddFontOperation operation = new AddFontOperation(scene, name, relativePath);
+        AddFontOperation operation = new AddFontOperation(scene, name, resourcePath);
         editor.executeOperation(operation);
     }
 
