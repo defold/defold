@@ -27,20 +27,28 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
 
         descriptor = getattr(msg, 'DESCRIPTOR')
         for field in descriptor.fields:
-            if is_resource(field):
-                resource_list = getattr(msg, field.name)
-                if field.label != FieldDescriptor.LABEL_REPEATED:
-                    resource_list = [resource_list]
-                for r in resource_list:
-                    if isinstance(r, google.protobuf.message.Message):
-                        # Validate recursively if of message type
-                        if not validate_resource_files(task, r):
-                            return False
-                    else:
-                        path = os.path.join(task.generator.content_root, r)
-                        if not os.path.exists(path):
-                            print >>sys.stderr, '%s:0: error: is missing dependent resource file %s' % (task.inputs[0].srcpath(), r)
-                            return False
+            value = getattr(msg, field.name)
+            if field.type == FieldDescriptor.TYPE_MESSAGE:
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    for x in value:
+                        validate_resource_files(task, x)
+                else:
+                    validate_resource_files(task, value)
+            elif is_resource(field):
+
+                if field.label == FieldDescriptor.LABEL_REPEATED:
+                    lst = value
+                else:
+                    lst = [value]
+
+                for x in lst:
+                    if not x.startswith('/'):
+                        print >>sys.stderr, '%s:0: error: resource path is not absolute "%s"' % (task.inputs[0].srcpath(), x)
+                        return False
+                    path = os.path.join(task.generator.content_root, x[1:])
+                    if not os.path.exists(path):
+                        print >>sys.stderr, '%s:0: error: is missing dependent resource file "%s"' % (task.inputs[0].srcpath(), x)
+                        return False
         return True
 
     def compile(task):
