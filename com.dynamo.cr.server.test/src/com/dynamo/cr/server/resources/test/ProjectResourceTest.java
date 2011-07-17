@@ -23,6 +23,7 @@ import com.dynamo.cr.client.ClientUtils;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.IProjectClient;
+import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
@@ -60,6 +61,7 @@ public class ProjectResourceTest {
     private User owner;
     private UserInfo ownerInfo;
     private IBranchClient ownerBranchClient;
+    private IProjectsClient ownerProjectsClient;
     private IProjectClient ownerProjectClient;
     private IClientFactory ownerFactory;
     private WebResource ownerProjectsWebResource;
@@ -153,6 +155,8 @@ public class ProjectResourceTest {
         usersClient = ownerFactory.getUsersClient(uri);
         ownerInfo = usersClient.getUserInfo(ownerEmail);
 
+        uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d", ownerInfo.getId())).port(port).build();
+        ownerProjectsClient = ownerFactory.getProjectsClient(uri);
         uri = UriBuilder.fromUri(String.format("http://localhost/projects/%d/%d", ownerInfo.getId(), proj1.getId())).port(port).build();
         ownerProjectClient = ownerFactory.getProjectClient(uri);
         ownerBranchClient = ownerFactory.getBranchClient(ClientUtils.getBranchUri(ownerProjectClient, "branch1"));
@@ -279,6 +283,25 @@ public class ProjectResourceTest {
 
         response = nonMemberProjectsWebResource.path("/project_info").get(ClientResponse.class);
         assertEquals(403, response.getStatus());
+    }
+
+    @Test
+    public void deleteProject() throws Exception {
+        ownerProjectClient.createBranch("branch1");
+
+        assertEquals(1, ownerProjectsClient.getProjects().getProjectsCount());
+        assertEquals(1, ownerProjectClient.getBranchList().getBranchesCount());
+
+        ClientResponse response = memberProjectsWebResource.path("").delete(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        response = nonMemberProjectsWebResource.path("").delete(ClientResponse.class);
+        assertEquals(403, response.getStatus());
+
+        response = ownerProjectsWebResource.path("").delete(ClientResponse.class);
+        assertEquals(204, response.getStatus());
+
+        assertEquals(0, ownerProjectsClient.getProjects().getProjectsCount());
     }
 
     @Test

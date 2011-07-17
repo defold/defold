@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.security.RolesAllowed;
 import javax.persistence.EntityManager;
@@ -253,6 +254,28 @@ public class ProjectResource extends BaseResource {
         server.getUser(em, user);
         Project project = server.getProject(em, projectId);
         return ResourceUtil.createProjectInfo(project);
+    }
+
+    @DELETE
+    @RolesAllowed(value = { "owner" })
+    public void deleteProject(@PathParam("user") String user,
+            @PathParam("project") String projectId) throws ServerException {
+        EntityManager em = server.getEntityManagerFactory().createEntityManager();
+
+        // Ensure user is valid
+        server.getUser(em, user);
+        Project project = server.getProject(em, projectId);
+        Set<User> members = project.getMembers();
+        // Remove branches
+        for (User member : members) {
+            String memberId = member.getId().toString();
+            for (String branch : server.getBranchNames(em, projectId, memberId)) {
+                server.deleteBranch(em, projectId, memberId, branch);
+            }
+        }
+        em.getTransaction().begin();
+        ModelUtil.removeProject(em, project);
+        em.getTransaction().commit();
     }
 
     /*

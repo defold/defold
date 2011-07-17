@@ -37,6 +37,7 @@ public class ModelUtil {
         Set<User> users = project.getMembers();
         for (User user : users) {
             user.getProjects().remove(project);
+            entityManager.persist(user);
         }
         entityManager.remove(project);
     }
