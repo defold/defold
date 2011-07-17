@@ -1,5 +1,4 @@
-components
-{
-    id: "co"
-    component: "collision_object/invalid_mass.collisionobject"
+components {
+  id: "co"
+  component: "/collision_object/invalid_mass.collisionobject"
 }

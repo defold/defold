@@ -1,5 +1,4 @@
-components
-{
-    id: "emitter"
-    component: "emitter/invalid_texture.emitter"
+components {
+  id: "emitter"
+  component: "/emitter/invalid_texture.emitter"
 }

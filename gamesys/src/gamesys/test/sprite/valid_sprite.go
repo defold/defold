@@ -1,5 +1,4 @@
-components
-{
-    id: "sprite"
-    component: "sprite/valid.sprite"
+components {
+  id: "sprite"
+  component: "/sprite/valid.sprite"
 }

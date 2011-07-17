@@ -1,5 +1,4 @@
-components
-{
-    id: "gui"
-    component: "gui/valid.gui"
+components {
+  id: "gui"
+  component: "/gui/valid.gui"
 }

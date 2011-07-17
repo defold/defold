@@ -1,3 +1,3 @@
 name: ""
-fragment_program: "fragment_program/valid.fp"
-vertex_program: "vertex_program/valid.vp"
+vertex_program: "/vertex_program/valid.vp"
+fragment_program: "/fragment_program/valid.fp"

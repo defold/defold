@@ -1,5 +1,4 @@
-components
-{
-    id: "script"
-    component: "script/missing.script"
+components {
+  id: "script"
+  component: "/script/missing.script"
 }

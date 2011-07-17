@@ -1,5 +1,4 @@
-components
-{
-    id: "model"
-    component: "model/valid.model"
+components {
+  id: "model"
+  component: "/model/valid.model"
 }

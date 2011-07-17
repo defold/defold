@@ -1,5 +1,4 @@
-components
-{
-    id: "sound"
-    component: "sound/valid.wav"
+components {
+  id: "sound"
+  component: "/sound/valid.wav"
 }

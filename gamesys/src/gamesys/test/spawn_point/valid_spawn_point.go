@@ -1,5 +1,4 @@
-components
-{
-    id: "spawnpoint"
-    component: "spawn_point/valid.spawnpoint"
+components {
+  id: "spawnpoint"
+  component: "/spawn_point/valid.spawnpoint"
 }

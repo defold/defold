@@ -1,5 +1,4 @@
-components
-{
-    id: "emitter"
-    component: "emitter/valid.emitter"
+components {
+  id: "emitter"
+  component: "/emitter/valid.emitter"
 }

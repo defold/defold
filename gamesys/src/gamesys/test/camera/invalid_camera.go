@@ -1,5 +1,4 @@
-components
-{
-    id: "camera"
-    component: "camera/missing.camera"
+components {
+  id: "camera"
+  component: "/camera/missing.camera"
 }
