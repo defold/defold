@@ -3,6 +3,11 @@ import Utils
 from TaskGen import extension, before, feature
 import hashlib, sys, os
 
+# NOTE: This must be included explicitly prior to any modules with fields that set [(resource) = true].
+# Otherwise field_desc.GetOptions().ListFields() will return [] for the first loaded module
+# Strange error and probably a bug in google protocol buffers
+import ddf.ddf_extensions_pb2
+
 @feature('*')
 @before('apply_core')
 def apply_content_root(self):
