@@ -124,7 +124,7 @@ dmGameObject::InputResult InputTest::CompInputTargetOnInput(const dmGameObject::
 
 TEST_F(InputTest, TestComponentInput)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
@@ -159,7 +159,7 @@ TEST_F(InputTest, TestComponentInput)
 
 TEST_F(InputTest, TestComponentInput2)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input2.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input2.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
@@ -178,7 +178,7 @@ TEST_F(InputTest, TestComponentInput2)
 
 TEST_F(InputTest, TestComponentInput3)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input3.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input3.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
@@ -197,7 +197,7 @@ TEST_F(InputTest, TestComponentInput3)
 
 TEST_F(InputTest, TestDeleteFocusInstance)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_input.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);

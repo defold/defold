@@ -1,15 +1,12 @@
-components
-{
-    id: "script"
-    component: "component_broadcast_message.scriptc"
+components {
+  id: "script"
+  component: "/component_broadcast_message.scriptc"
 }
-components
-{
-    id: "mt1"
-    component: "message_target.mt"
+components {
+  id: "mt1"
+  component: "/message_target.mt"
 }
-components
-{
-    id: "mt2"
-    component: "message_target2.mt"
+components {
+  id: "mt2"
+  component: "/message_target2.mt"
 }

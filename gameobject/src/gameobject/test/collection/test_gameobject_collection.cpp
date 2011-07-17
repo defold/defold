@@ -50,7 +50,7 @@ TEST_F(CollectionTest, Collection)
     {
         // NOTE: Coll is local and not m_Collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::FactoryResult r = dmResource::Get(m_Factory, "test.collectionc", (void**) &coll);
+        dmResource::FactoryResult r = dmResource::Get(m_Factory, "/test.collectionc", (void**) &coll);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -77,12 +77,12 @@ TEST_F(CollectionTest, PostCollection)
     {
         dmResource::FactoryResult r;
         dmGameObject::HCollection coll1;
-        r = dmResource::Get(m_Factory, "post1.collectionc", (void**) &coll1);
+        r = dmResource::Get(m_Factory, "/post1.collectionc", (void**) &coll1);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll1);
 
         dmGameObject::HCollection coll2;
-        r = dmResource::Get(m_Factory, "post2.collectionc", (void**) &coll2);
+        r = dmResource::Get(m_Factory, "/post2.collectionc", (void**) &coll2);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll2);
 
@@ -119,7 +119,7 @@ TEST_F(CollectionTest, CollectionInCollection)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::FactoryResult r = dmResource::Get(m_Factory, "root1.collectionc", (void**) &coll);
+        dmResource::FactoryResult r = dmResource::Get(m_Factory, "/root1.collectionc", (void**) &coll);
         ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -208,7 +208,7 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
 TEST_F(CollectionTest, DefaultValues)
 {
     dmGameObject::HCollection coll;
-    dmResource::FactoryResult r = dmResource::Get(m_Factory, "defaults.collectionc", (void**) &coll);
+    dmResource::FactoryResult r = dmResource::Get(m_Factory, "/defaults.collectionc", (void**) &coll);
     ASSERT_EQ(dmResource::FACTORY_RESULT_OK, r);
     ASSERT_EQ(2U, coll->m_LevelInstanceCount[0]);
     for (uint32_t i = 0; i < coll->m_LevelInstanceCount[0]; ++i)

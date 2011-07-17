@@ -246,7 +246,7 @@ dmGameObject::ComponentsUpdate ComponentTest::CComponentsUpdate = GenericCompone
 
 TEST_F(ComponentTest, TestUpdate)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -265,7 +265,7 @@ TEST_F(ComponentTest, TestUpdate)
 
 TEST_F(ComponentTest, TestPostDeleteUpdate)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go1"));
 
@@ -286,7 +286,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
 
 TEST_F(ComponentTest, TestNonexistingComponent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go2.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go2.goc");
     ASSERT_EQ((void*) 0, (void*) go);
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -297,7 +297,7 @@ TEST_F(ComponentTest, TestNonexistingComponent)
 
 TEST_F(ComponentTest, TestPartialNonexistingComponent1)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go3.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     // First one exists
@@ -312,7 +312,7 @@ TEST_F(ComponentTest, TestPartialFailingComponent)
 {
     // Only succeed creating the first component
     m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1;
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go4.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go4.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -325,7 +325,7 @@ TEST_F(ComponentTest, TestPartialFailingComponent)
 
 TEST_F(ComponentTest, TestComponentUserdata)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go5.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmGameObject::Delete(m_Collection, go);
@@ -341,7 +341,7 @@ TEST_F(ComponentTest, TestComponentUserdata)
 
 TEST_F(ComponentTest, TestUpdateOrder)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -353,13 +353,13 @@ TEST_F(ComponentTest, TestUpdateOrder)
 
 TEST_F(ComponentTest, TestDuplicatedIds)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go6.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go6.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
 TEST_F(ComponentTest, TestIndexId)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
 
     uint8_t component_index;
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("script"), &component_index));

@@ -1,13 +1,9 @@
 name: "sub"
-
-instances
-{
-    prototype: "go1.goc"
-    id: "go1"
+instances {
+  id: "go1"
+  prototype: "/go1.goc"
 }
-
-instances
-{
-    prototype: "does_not_exists.goc"
-    id: "go2"
+instances {
+  id: "go2"
+  prototype: "/does_not_exists.goc"
 }

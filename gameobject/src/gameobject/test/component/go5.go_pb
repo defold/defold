@@ -1,35 +1,28 @@
-components
-{
-    id: "script"
-    component: "null.scriptc"
+components {
+  id: "script"
+  component: "/null.scriptc"
 }
-components
-{
-    id: "a1"
-    component: "a.a"
+components {
+  id: "a1"
+  component: "/a.a"
 }
-components
-{
-    id: "a2"
-    component: "a.a"
+components {
+  id: "a2"
+  component: "/a.a"
 }
-components
-{
-    id: "b"
-    component: "b.b"
+components {
+  id: "b"
+  component: "/b.b"
 }
-components
-{
-    id: "c1"
-    component: "c.c"
+components {
+  id: "c1"
+  component: "/c.c"
 }
-components
-{
-    id: "c2"
-    component: "c.c"
+components {
+  id: "c2"
+  component: "/c.c"
 }
-components
-{
-    id: "c3"
-    component: "c.c"
+components {
+  id: "c3"
+  component: "/c.c"
 }

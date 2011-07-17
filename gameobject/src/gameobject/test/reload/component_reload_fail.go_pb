@@ -1,5 +1,4 @@
-components
-{
-    id: "script"
-    component: "component_reload_fail.scriptc"
+components {
+  id: "script"
+  component: "/component_reload_fail.scriptc"
 }

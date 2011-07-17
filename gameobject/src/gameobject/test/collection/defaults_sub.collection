@@ -1,6 +1,5 @@
 name: "defaults_sub"
-instances
-{
-    id: "id_sub"
-    prototype: "child.goc"
+instances {
+  id: "id_sub"
+  prototype: "/child.goc"
 }

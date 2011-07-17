@@ -1,32 +1,61 @@
 name: "root"
-instances
-{
-    prototype: "go1.goc"
-    id: "go1"
-    position { x: 123 y: 0 z: 0 }
-    rotation { x: 0.0 y: 1.0 z: 0.0 w: 0.0 }
+instances {
+  id: "go1"
+  prototype: "/go1.goc"
+  position {
+    x: 123.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 1.0
+    z: 0.0
+    w: 0.0
+  }
 }
-
-instances
-{
-    prototype: "go2.goc"
-    id: "go2"
-    position { x: 456 y: 0 z: 0 }
-    rotation { x: 0.0 y: 2.0 z: 0.0 w: 0.0 }
+instances {
+  id: "go2"
+  prototype: "/go2.goc"
+  position {
+    x: 456.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 2.0
+    z: 0.0
+    w: 0.0
+  }
 }
-
-collection_instances:
-{
-    id: "sub1"
-    collection: "sub.collectionc"
-    position: { x: 0 y: 1000 z: 0 }
-    rotation: { x: 0 y: 0 z: 0 w: 1 }
+collection_instances {
+  id: "sub1"
+  collection: "/sub.collectionc"
+  position {
+    x: 0.0
+    y: 1000.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
 }
-
-collection_instances:
-{
-    id: "sub2"
-    collection: "sub.collectionc"
-    position: { x: 0 y: 1000 z: 0 }
-    rotation: { x: 0 y: 0 z: -0.7071 w: 0.7071 }
+collection_instances {
+  id: "sub2"
+  collection: "/sub.collectionc"
+  position {
+    x: 0.0
+    y: 1000.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: -0.7071
+    w: 0.7071
+  }
 }

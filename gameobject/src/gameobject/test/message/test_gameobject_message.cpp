@@ -191,7 +191,7 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr)
 
 TEST_F(MessageTest, TestPostNamedTo)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_onmessage.goc");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
     dmhash_t message_id = POST_NAMED_TO_INST_ID;
@@ -205,7 +205,7 @@ TEST_F(MessageTest, TestPostNamedTo)
 
 TEST_F(MessageTest, TestPostDDFTo)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_onmessage.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_onmessage.goc");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_instance"));
     TestGameObjectDDF::TestMessage ddf;
@@ -221,7 +221,7 @@ TEST_F(MessageTest, TestPostDDFTo)
 
 TEST_F(MessageTest, TestTable)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "test_table.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/test_table.goc");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_table_instance"));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -230,7 +230,7 @@ TEST_F(MessageTest, TestTable)
 
 TEST_F(MessageTest, TestComponentMessage)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_message.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
@@ -261,7 +261,7 @@ TEST_F(MessageTest, TestComponentMessage)
 
 TEST_F(MessageTest, TestComponentMessageFail)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_message.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     dmhash_t message_id = dmHashString64("inc");
@@ -282,7 +282,7 @@ TEST_F(MessageTest, TestComponentMessageFail)
 
 TEST_F(MessageTest, TestBroadcastDDFMessage)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_broadcast_message.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_broadcast_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
     dmGameObject::SetIdentifier(m_Collection, go, "cbm");
 
@@ -297,7 +297,7 @@ TEST_F(MessageTest, TestBroadcastDDFMessage)
 
 TEST_F(MessageTest, TestBroadcastNamedMessage)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_broadcast_message.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_broadcast_message.goc");
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
@@ -316,7 +316,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
 
 TEST_F(MessageTest, TestInputFocus)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
 
@@ -366,9 +366,9 @@ void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user
 
 TEST_F(MessageTest, TestGameObjectTransform)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
     ASSERT_NE((void*) 0, (void*) go);
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
     ASSERT_NE((void*) 0, (void*) parent);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));
@@ -419,9 +419,9 @@ TEST_F(MessageTest, TestGameObjectTransform)
 
 TEST_F(MessageTest, TestSetParent)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
     ASSERT_NE((void*) 0, (void*) go);
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "test_no_onmessage.goc");
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
     ASSERT_NE((void*) 0, (void*) parent);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));

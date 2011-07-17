@@ -1,6 +1,5 @@
 name: "post1"
-instances
-{
-    prototype: "post1.goc"
-    id: "go1"
+instances {
+  id: "go1"
+  prototype: "/post1.goc"
 }

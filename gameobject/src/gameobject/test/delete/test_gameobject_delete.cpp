@@ -128,7 +128,7 @@ TEST_F(DeleteTest, AutoDelete)
 {
     for (int i = 0; i < 512; ++i)
     {
-        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go.goc");
+        dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go.goc");
         ASSERT_NE((void*) 0, (void*) go);
     }
 }
@@ -147,7 +147,7 @@ TEST_F(DeleteTest, DeleteSelf)
 
         for (int i = 0; i < 512; ++i)
         {
-            dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go.goc");
+            dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go.goc");
             dmGameObject::SetPosition(go, Vectormath::Aos::Point3(i,i,i));
             ASSERT_NE((void*) 0, (void*) go);
             m_DeleteSelfInstances.push_back(go);
@@ -180,7 +180,7 @@ TEST_F(DeleteTest, DeleteSelf)
 
 TEST_F(DeleteTest, TestScriptDelete)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "delete.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete.goc");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));

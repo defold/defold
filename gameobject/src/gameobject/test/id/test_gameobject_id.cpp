@@ -40,8 +40,8 @@ public:
 
 TEST_F(IdTest, TestIdentifier)
 {
-    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "go.goc");
-    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "go.goc");
+    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
     ASSERT_NE((void*) 0, (void*) go1);
     ASSERT_NE((void*) 0, (void*) go2);
 
@@ -75,7 +75,7 @@ TEST_F(IdTest, TestIdentifier)
 TEST_F(IdTest, TestHierarchies)
 {
     dmGameObject::HCollection collection;
-    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, dmResource::Get(m_Factory, "root.collectionc", (void**)&collection));
+    ASSERT_EQ(dmResource::FACTORY_RESULT_OK, dmResource::Get(m_Factory, "/root.collectionc", (void**)&collection));
     dmhash_t id = dmHashString64("go");
     dmhash_t sub1_id = dmHashString64("sub/go1");
     dmhash_t sub2_id = dmHashString64("sub/go2");

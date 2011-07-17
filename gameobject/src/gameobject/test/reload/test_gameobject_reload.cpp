@@ -183,7 +183,7 @@ void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadP
 
 TEST_F(ReloadTest, TestComponentReload)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_reload.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     ReloadTargetWorld* world = m_World;
@@ -195,7 +195,7 @@ TEST_F(ReloadTest, TestComponentReload)
 
     ASSERT_EQ((void*)0, m_NewResource);
 
-    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, "reload_target.rt", 0);
+    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, "/reload_target.rt", 0);
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
 
     ASSERT_EQ(world, m_World);
@@ -217,10 +217,10 @@ TEST_F(ReloadTest, TestComponentReload)
 
 TEST_F(ReloadTest, TestComponentReloadScriptFail)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "component_reload_fail.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, "component_reload_fail.scriptc", 0);
+    dmResource::ReloadResult rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
     ASSERT_EQ(dmResource::RELOAD_RESULT_OK, rr);
 
     dmGameObject::Delete(m_Collection, go);

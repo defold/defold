@@ -1,5 +1,4 @@
-components
-{
-    id: "script"
-    component: "null.scriptc"
+components {
+  id: "script"
+  component: "/null.scriptc"
 }

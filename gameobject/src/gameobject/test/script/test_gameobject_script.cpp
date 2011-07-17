@@ -89,7 +89,7 @@ void TestScript01CollectionDispatch(dmMessage::Message *message_object, void* us
 
 TEST_F(ScriptTest, TestScript01)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go1.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "my_object01"));
@@ -140,7 +140,7 @@ TEST_F(ScriptTest, TestFailingScript02)
 
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    dmGameObject::New(m_Collection, "go2.goc");
+    dmGameObject::New(m_Collection, "/go2.goc");
     bool result = dmGameObject::Init(m_Collection);
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
     EXPECT_FALSE(result);
@@ -151,7 +151,7 @@ TEST_F(ScriptTest, TestFailingScript02)
 TEST_F(ScriptTest, TestFailingScript03)
 {
     // Test update failure
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go3.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     // Avoid logging expected errors. Better solution?
@@ -164,14 +164,14 @@ TEST_F(ScriptTest, TestFailingScript03)
 TEST_F(ScriptTest, TestFailingScript04)
 {
     // Test update failure, lua update-identifier used for something else than function callback
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go4.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go4.goc");
     ASSERT_EQ((void*) 0, (void*) go);
 }
 
 TEST_F(ScriptTest, TestFailingScript05)
 {
     // Test posting to missing component id
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "go5.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -190,13 +190,13 @@ static void CreateFile(const char* file_name, const char* contents)
 
 TEST_F(ScriptTest, TestReload)
 {
-    const char* script_resource_name = "__test__.scriptc";
+    const char* script_resource_name = "/__test__.scriptc";
     char script_file_name[512];
-    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "%s/%s", m_Path, script_resource_name);
+    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
 
-    const char* go_resource_name = "__go__.goc";
+    const char* go_resource_name = "/__go__.goc";
     char go_file_name[512];
-    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "%s/%s", m_Path, go_resource_name);
+    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "/%s%s", m_Path, go_resource_name);
 
     dmGameObjectDDF::PrototypeDesc prototype;
     memset(&prototype, 0, sizeof(prototype));
@@ -207,10 +207,12 @@ TEST_F(ScriptTest, TestReload)
     component_desc.m_Component = script_resource_name;
     prototype.m_Components.m_Data = &component_desc;
 
-    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name);
+    // NOTE: +1 to remove /
+    dmDDF::Result ddf_r = dmDDF::SaveMessageToFile(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, go_file_name + 1);
     ASSERT_EQ(dmDDF::RESULT_OK, ddf_r);
 
-    CreateFile(script_file_name,
+    // NOTE: +1 to remove /
+    CreateFile(script_file_name + 1,
                "function update(self)\n"
                "    go.set_position(vmath.vector3(1,2,3))\n"
                "end\n");
@@ -227,7 +229,8 @@ TEST_F(ScriptTest, TestReload)
 
     dmTime::Sleep(1000000); // TODO: Currently seconds time resolution in modification time
 
-    CreateFile(script_file_name,
+    // NOTE: +1 to remove /
+    CreateFile(script_file_name + 1,
                "function update(self)\n"
                "    go.set_position(vmath.vector3(10,20,30))\n"
                "end\n");
@@ -241,7 +244,8 @@ TEST_F(ScriptTest, TestReload)
     ASSERT_EQ(20, p2.getY());
     ASSERT_EQ(30, p2.getZ());
 
-    unlink(script_file_name);
+    // NOTE: +1 to remove /
+    unlink(script_file_name + 1);
     rr = dmResource::ReloadResource(m_Factory, script_resource_name, 0);
     ASSERT_EQ(dmResource::RELOAD_RESULT_LOAD_ERROR, rr);
 
@@ -251,7 +255,7 @@ TEST_F(ScriptTest, TestReload)
 
 TEST_F(ScriptTest, Null)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "null.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/null.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

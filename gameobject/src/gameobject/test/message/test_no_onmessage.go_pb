@@ -1,5 +1,4 @@
-components
-{
-    id: "script"
-    component: "test_no_onmessage.scriptc"
+components {
+  id: "script"
+  component: "/test_no_onmessage.scriptc"
 }
