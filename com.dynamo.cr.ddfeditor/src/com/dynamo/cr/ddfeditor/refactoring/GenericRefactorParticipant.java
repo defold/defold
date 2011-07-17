@@ -36,38 +36,42 @@ public abstract class GenericRefactorParticipant implements IResourceRefactorPar
             boolean isResource = (Boolean) options.getField(resourceDesc);
             IPath path = node.getPathTo(fieldDescriptor.getName());
             Object value = root.getField(path);
-            if (isResource) {
-                if (value instanceof RepeatedNode) {
-                    RepeatedNode repeated = (RepeatedNode) value;
-                    List<Object> values = repeated.getValueList();
-                    int index = 0;
-                    for (Object listValue : values) {
-                        if (listValue instanceof MessageNode) {
-                            MessageNode listNode = (MessageNode) listValue;
-                            if (doUpdateReferences(contentRoot, reference, newPath, root, listNode))
-                                changed = true;
-                        } else {
-                            IFile file = contentRoot.getFile(new Path((String) listValue));
-                            if (reference.equals(file)) {
-                                root.setField(repeated.getPathTo(index), newPath);
-                                changed = true;
-                            }
-                        }
-                        ++index;
-                    }
-                } else {
-                    String tmp = (String) value;
-                    if (tmp.length() > 0) {
-                        IFile file = contentRoot.getFile(new Path(tmp));
+            if (value instanceof MessageNode) {
+                if (doUpdateReferences(contentRoot, reference, newPath, root, (MessageNode) value))
+                    changed = true;
+
+            } else if (value instanceof RepeatedNode) {
+                RepeatedNode repeated = (RepeatedNode) value;
+                List<Object> values = repeated.getValueList();
+                int index = 0;
+                for (Object listValue : values) {
+                    if (listValue instanceof MessageNode) {
+                        MessageNode listNode = (MessageNode) listValue;
+                        if (doUpdateReferences(contentRoot, reference, newPath, root, listNode))
+                            changed = true;
+                    } else if (isResource && listValue instanceof String){
+                        IFile file = contentRoot.getFile(new Path((String) listValue));
                         if (reference.equals(file)) {
-                            root.setField(path, newPath);
+                            root.setField(repeated.getPathTo(index), newPath);
                             changed = true;
                         }
+                    }
+                    ++index;
+                }
+            } else if (isResource && value instanceof String){
+                String tmp = (String) value;
+                // Skip empty paths and paths equal to "/". new Path("") is invalid
+                if (tmp.length() > 0 && !tmp.equals("/")) {
+                    if (tmp.startsWith("/"))
+                        tmp = tmp.substring(1);
+                    IFile file = contentRoot.getFile(new Path(tmp));
+                    if (reference.equals(file)) {
+                        root.setField(path, newPath);
+                        changed = true;
                     }
                 }
             }
         }
-
         return changed;
     }
 

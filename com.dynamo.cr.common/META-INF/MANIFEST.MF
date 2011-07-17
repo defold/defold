@@ -6,13 +6,13 @@ Bundle-Version: 1.0.0.qualifier
 Bundle-Activator: com.dynamo.cr.common.Activator
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Bundle-ClassPath: ext/jersey-client-1.3.jar,
- .,
+Bundle-ClassPath: .,
  DYNAMO_HOME/ext/share/java/protobuf-java-2.3.0.jar,
  ext/jsr311-api-1.1.1.jar,
- ext/jersey-core-1.3.jar,
  ext/httpcore-4.0.1.jar,
  ext/httpclient-4.0.1.jar,
+ ext/jersey-client-1.8.jar,
+ ext/jersey-core-1.8.jar,
  DYNAMO_HOME/share/java/ddf.jar,
  DYNAMO_HOME/share/java/render.jar,
  DYNAMO_HOME/share/java/gameobject.jar,

@@ -1,4 +1,4 @@
-texture: "graphics/block.png"
+texture: "/graphics/block.png"
 width: 60.0
 height: 20.0
 tile_width: 60

@@ -4,7 +4,6 @@ import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IContainer;
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.swt.widgets.Shell;
@@ -16,11 +15,11 @@ import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.contenteditor.editors.IEditor;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.scene.graph.CollectionNode;
 import com.dynamo.cr.scene.graph.INodeFactory;
 import com.dynamo.cr.scene.graph.InstanceNode;
 import com.dynamo.cr.scene.graph.Node;
-import com.dynamo.cr.scene.graph.NodeFactory;
 import com.dynamo.cr.scene.graph.PrototypeNode;
 import com.dynamo.cr.scene.graph.Scene;
 import com.dynamo.cr.scene.operations.AddGameObjectOperation;
@@ -59,14 +58,13 @@ public class AddGameObject extends AbstractHandler {
                 Scene scene = editor.getScene();
 
                 INodeFactory factory = editor.getNodeFactory();
-                IContainer content_root = ((NodeFactory)factory).getContentRoot();
-                IFile file = (IFile)r;
-                String name = file.getFullPath().makeRelativeTo(content_root.getFullPath()).toPortableString();
+
+                String name = EditorUtil.makeResourcePath(r);
                 try {
                     Resource resource = editor.getResourceFactory().load(new NullProgressMonitor(), name);
                     PrototypeNode proto = (PrototypeNode) factory.create(name, resource, root, scene);
                     CollectionNode parent = (CollectionNode)root;
-                    InstanceNode node = new InstanceNode(file.getName(), scene, name, proto);
+                    InstanceNode node = new InstanceNode(r.getName(), scene, name, proto);
                     AddGameObjectOperation op = new AddGameObjectOperation(node, parent);
                     ((IEditor) editor).executeOperation(op);
                 } catch (Exception e) {

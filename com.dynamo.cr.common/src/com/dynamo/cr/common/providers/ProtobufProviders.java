@@ -7,8 +7,6 @@ import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
@@ -59,24 +57,24 @@ public class ProtobufProviders {
             return Message.class.isAssignableFrom(type);
         }
 
-        private Map<Object, byte[]> buffer = new WeakHashMap<Object, byte[]>();
-
-        public long getSize(Message m, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        private byte[] toBytes(Message m) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             try {
                 m.writeTo(baos);
+                return baos.toByteArray();
             } catch (IOException e) {
-                return -1;
+                throw new RuntimeException(e);
             }
-            byte[] bytes = baos.toByteArray();
-            buffer.put(m, bytes);
-            return bytes.length;
+        }
+
+        public long getSize(Message m, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return toBytes(m).length;
         }
 
         public void writeTo(Message m, @SuppressWarnings("rawtypes") Class type, Type genericType, Annotation[] annotations,
                     MediaType mediaType, @SuppressWarnings("rawtypes") MultivaluedMap httpHeaders,
                     OutputStream entityStream) throws IOException, WebApplicationException {
-            entityStream.write(buffer.remove(m));
+            entityStream.write(toBytes(m));
         }
     }
 }

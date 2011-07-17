@@ -1,4 +1,4 @@
-texture: "graphics/pow.png"
+texture: "/graphics/pow.png"
 width: 32.0
 height: 32.0
 tile_width: 32

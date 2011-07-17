@@ -9,8 +9,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
@@ -139,8 +137,6 @@ public class JsonProviders {
             return Message.class.isAssignableFrom(type);
         }
 
-        private Map<Object, byte[]> buffer = new WeakHashMap<Object, byte[]>();
-
         void ObjectToJSON(Object o, JsonGenerator generator) throws JsonGenerationException, IOException {
             if (o instanceof Integer) {
                 generator.writeNumber((Integer) o);
@@ -191,7 +187,7 @@ public class JsonProviders {
             generator.writeEndObject();
         }
 
-        public long getSize(Message m, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        private byte[] toBytes(Message m) {
             StringWriter writer = new StringWriter();
             JsonGenerator generator = null;
             try {
@@ -199,18 +195,22 @@ public class JsonProviders {
                  MessageToJSON(m, generator);
                  generator.close();
                  byte[] bytes = writer.getBuffer().toString().getBytes();
-                 buffer.put(m, bytes);
-                 return bytes.length;
+                 return bytes;
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        public long getSize(Message m, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+            return toBytes(m).length;
         }
 
         @Override
         public void writeTo(Message m, @SuppressWarnings("rawtypes") Class type, Type genericType, Annotation[] annotations,
                     MediaType mediaType, @SuppressWarnings("rawtypes") MultivaluedMap httpHeaders,
                     OutputStream entityStream) throws IOException, WebApplicationException {
-            entityStream.write(buffer.remove(m));
+
+            entityStream.write(toBytes(m));
         }
     }
 }

@@ -1,4 +1,4 @@
-texture: "graphics/paddle.png"
+texture: "/graphics/paddle.png"
 width: 100.0
 height: 20.0
 tile_width: 100

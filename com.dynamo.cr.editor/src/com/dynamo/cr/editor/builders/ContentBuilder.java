@@ -15,6 +15,7 @@ import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.ui.console.ConsolePlugin;
 import org.eclipse.ui.console.IConsole;
@@ -85,7 +86,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     task_started = true;
                 }
 
-                if (build.getBuildActivity() == Activity.IDLE) {
+                if (build.getBuildActivity() == Activity.IDLE || monitor.isCanceled()) {
                     break;
                 }
 
@@ -93,6 +94,10 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
                 }
+            }
+
+            if (monitor.isCanceled()) {
+                throw new OperationCanceledException();
             }
 
             if (build.getWorkAmount() != -1) {

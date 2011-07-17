@@ -583,11 +583,11 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     IResource r = (IResource) dialog.getResult()[0];
 
                     org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
-                    String relPath = fullPath.makeRelativeTo(contentRoot.getFullPath()).toPortableString();
+                    String resourcePath = EditorUtil.makeResourcePath(r);
 
                     String id = fullPath.getFileExtension();
                     id = getUniqueId(id);
-                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setComponent(relPath).build();
+                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setComponent(resourcePath).build();
                     ResourceComponent resourceComponent = new ResourceComponent(editor, componentDesc);
                     AddComponentOperation op = new AddComponentOperation("Add " + r.getName(), resourceComponent);
                     executeOperation(op);

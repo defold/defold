@@ -38,4 +38,18 @@ public class EditorUtil {
         // NOTE: In the "future" we might change "content". Thats why we have this method.
         return project.getFolder("content");
     }
+
+    /**
+     * Create an absolute resource path, from content root, to a resource
+     * @param resource resource to create resource path for
+     * @return Absolute path to file
+     */
+    public static String makeResourcePath(IResource resource) {
+        IContainer contentRoot = findContentRoot(resource);
+        if (contentRoot == null) {
+            throw new RuntimeException(String.format("Content root for file '%s' not found", resource.getFullPath().toPortableString()));
+        }
+        String path = "/" + resource.getFullPath().makeRelativeTo(contentRoot.getFullPath()).toPortableString();
+        return path;
+    }
 }

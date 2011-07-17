@@ -1,5 +1,5 @@
-font: "fonts/justov.ttf"
-material: "fonts/active_menu_item.material"
+font: "/fonts/justov.ttf"
+material: "/fonts/active_menu_item.material"
 size: 32
 antialias: 1
 alpha: 1.0
