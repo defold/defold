@@ -8,7 +8,7 @@ components {
 }
 components {
   id: "wav"
-  component: "sounds/powerup.wav"
+  component: "/sounds/powerup.wav"
 }
 components {
   id: "co"
