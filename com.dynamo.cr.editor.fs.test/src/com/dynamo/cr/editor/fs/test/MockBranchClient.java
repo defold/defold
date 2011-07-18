@@ -214,4 +214,9 @@ public class MockBranchClient implements IBranchClient {
         throw new RuntimeException("Not impl.");
     }
 
+    @Override
+    public void cancelBuild(int id) throws RepositoryException {
+        throw new RuntimeException("Not impl.");
+    }
+
 }

@@ -170,6 +170,11 @@ public class CachingBranchClient implements IBranchClient {
     }
 
     @Override
+    public void cancelBuild(int id) throws RepositoryException {
+        client.cancelBuild(id);
+    }
+
+    @Override
     public BuildLog getBuildLogs(int id) throws RepositoryException {
         return client.getBuildLogs(id);
     }
@@ -184,7 +189,6 @@ public class CachingBranchClient implements IBranchClient {
         return client.getURI();
     }
 
-
     @Override
     public Log log(int maxCount) throws RepositoryException {
         return client.log(maxCount);
@@ -194,4 +198,5 @@ public class CachingBranchClient implements IBranchClient {
     public void reset(String mode, String target) throws RepositoryException {
         client.reset(mode, target);
     }
+
 }

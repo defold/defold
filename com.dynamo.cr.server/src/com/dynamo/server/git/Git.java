@@ -10,10 +10,11 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.StringTokenizer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
@@ -22,6 +23,8 @@ import com.dynamo.server.git.GitStatus.Entry;
 
 public class Git {
 
+    protected static Logger logger = LoggerFactory.getLogger(Git.class);
+
     public Git() {
     }
 
@@ -29,12 +32,12 @@ public class Git {
         try {
             CommandUtil.Result res = execGitCommand(null, "git", "--version");
             if (res.exitValue != 0) {
-                Logger.getLogger(Logger.GLOBAL_LOGGER_NAME).log(Level.WARNING, "Error running git --version.");
+                logger.warn("Error running git --version.");
                 return false;
             }
             else {
                 if (!res.stdOut.toString().startsWith("git version 1.7")) {
-                    Logger.getLogger(Logger.GLOBAL_LOGGER_NAME).log(Level.WARNING, "Unsupported git version '" + res.stdOut.toString() + "'");
+                    logger.warn("Unsupported git version '" + res.stdOut.toString() + "'");
                     return false;
                 }
                 else {
@@ -42,7 +45,7 @@ public class Git {
                 }
             }
         } catch (IOException e) {
-            Logger.getLogger(Logger.GLOBAL_LOGGER_NAME).log(Level.WARNING, "Unable to run git --version", e);
+            logger.warn("Unable to run git --version", e);
             return false;
         }
     }

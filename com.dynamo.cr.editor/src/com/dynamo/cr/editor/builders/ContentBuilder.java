@@ -97,6 +97,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             }
 
             if (monitor.isCanceled()) {
+                branch_client.cancelBuild(build.getId());
                 throw new OperationCanceledException();
             }
 

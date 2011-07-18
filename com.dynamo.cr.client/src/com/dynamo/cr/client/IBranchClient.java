@@ -46,4 +46,6 @@ public interface IBranchClient extends IClient {
     public Log log(int maxCount) throws RepositoryException;
 
     public void reset(String mode, String target) throws RepositoryException;
+
+    public void cancelBuild(int id) throws RepositoryException;
 }

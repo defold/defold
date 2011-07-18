@@ -224,6 +224,21 @@ public class BranchClient extends BaseClient implements IBranchClient {
     }
 
     @Override
+    public void cancelBuild(int id) throws RepositoryException {
+        try {
+            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .delete(ClientResponse.class);
+            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
+                throwRespositoryException(resp);
+            }
+        }
+        catch (ClientHandlerException e) {
+            throwRespositoryException(e);
+        }
+    }
+
+    @Override
     public BuildLog getBuildLogs(int id) throws RepositoryException {
         try {
             ClientResponse resp = resource.path("builds/log").queryParam("id", Integer.toString(id))
@@ -274,4 +289,5 @@ public class BranchClient extends BaseClient implements IBranchClient {
             throwRespositoryException(e);
         }
     }
+
 }
