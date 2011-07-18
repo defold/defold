@@ -55,6 +55,9 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
 
 def build(bld):
+    if not os.path.exists('tmp'):
+        os.mkdir('tmp')
+
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
