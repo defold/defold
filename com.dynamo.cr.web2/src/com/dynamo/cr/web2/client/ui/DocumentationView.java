@@ -13,6 +13,7 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.user.client.ui.Image;
 
 public class DocumentationView extends Composite {
 
@@ -34,20 +35,28 @@ public class DocumentationView extends Composite {
     @UiField Anchor guiLink;
     @UiField Anchor renderLink;
     @UiField Anchor scriptLink;
+    @UiField Image loader;
 
     private Presenter listener;
 
     public DocumentationView() {
         initWidget(uiBinder.createAndBindUi(this));
+        loader.setVisible(false);
     }
 
     public void setPresenter(DocumentationView.Presenter listener) {
         this.listener = listener;
     }
 
+    public void clearDocumentation() {
+        documentationList.clear();
+    }
+
     public void setDocumentation(List<DocumentationElement> functions,
                                  List<DocumentationElement> messages,
                                  List<DocumentationElement> constants) {
+
+        loader.setVisible(false);
         documentationList.clear();
 
         if (functions.size() > 0)
@@ -103,5 +112,9 @@ public class DocumentationView extends Composite {
     @UiHandler("scriptLink")
     void onScriptLinkClick(ClickEvent event) {
         listener.onDocumentation("script");
+    }
+
+    public void setLoading(boolean loading) {
+        loader.setVisible(loading);
     }
 }

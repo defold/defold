@@ -12,6 +12,10 @@
         	margin-bottom: 16px;
         }
 
+        .loader {
+        	margin: 8px;
+        }
+
     </ui:style>
 
     <g:FlowPanel>
@@ -24,6 +28,7 @@
             <g:Anchor styleName="hover {style.navigationLink}" ui:field="scriptLink">Script</g:Anchor>
         </g:HorizontalPanel>
 
+        <g:Image url="images/ajax-loader.gif" styleName="{style.loader}" ui:field="loader"></g:Image>
         <g:VerticalPanel ui:field="documentationList">
         </g:VerticalPanel>
     </g:FlowPanel>

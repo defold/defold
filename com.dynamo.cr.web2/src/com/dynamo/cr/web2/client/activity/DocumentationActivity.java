@@ -28,6 +28,9 @@ public class DocumentationActivity extends AbstractActivity implements Documenta
     private void loadDocument(String name) {
         final DocumentationView documentationView = clientFactory.getDocumentationView();
 
+        documentationView.setLoading(true);
+        documentationView.clearDocumentation();
+
         RequestBuilder builder = new RequestBuilder(RequestBuilder.GET, "/doc/" + name
                 + "_doc.json");
         try {
@@ -69,16 +72,19 @@ public class DocumentationActivity extends AbstractActivity implements Documenta
 
                     } else {
                         clientFactory.getDefold().showErrorMessage("Unable to load documentation");
+                        documentationView.setLoading(false);
                     }
                 }
 
                 @Override
                 public void onError(Request request, Throwable exception) {
                     clientFactory.getDefold().showErrorMessage("Unable to load documentation");
+                    documentationView.setLoading(false);
                 }
             });
         } catch (RequestException e) {
             clientFactory.getDefold().showErrorMessage("Unable to load documentation");
+            documentationView.setLoading(false);
         }
     }
 
