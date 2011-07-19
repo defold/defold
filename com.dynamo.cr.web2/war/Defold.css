@@ -128,6 +128,48 @@ button.openIDGoogle {
     height: 42px;
 }
 
+/*
+   Navigation bar
+
+   Example:
+   <ul class="nav nav1">
+    <li><a>Documentation</a></li>
+    <li><a>Dashboard</a></li>
+    <li><a>Logout</a></li>
+   </ul>
+ */
+
+/* Add this class for navigation level 1 */
+.nav1 {
+    font-size: 13px;
+}
+
+/* Add this class for navigation level 2 */
+.nav2 {
+    font-size: 12px;
+}
+
+ul.nav {
+    margin-left: 0px;
+    margin-top: 0px;
+    margin-bottom: 4px;
+    padding-left: 0px;
+    list-style: none;
+    overflow: hidden;
+    zoom: 1;
+}
+
+ul.nav li {
+    float: left;
+}
+
+ul.nav a {
+    display: block;
+    border-bottom: none;
+    padding-right: 12px;
+    cursor: pointer;
+}
+
 /* Form stuff */
 div.form {
 	width: 300px;

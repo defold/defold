@@ -7,6 +7,7 @@ import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
 import com.dynamo.cr.web2.client.ui.ProductInfoView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
+import com.dynamo.cr.web2.client.ui.TutorialsView;
 import com.google.gwt.event.shared.EventBus;
 import com.google.gwt.event.shared.SimpleEventBus;
 import com.google.gwt.place.shared.PlaceController;
@@ -22,6 +23,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private static final NewProjectView newProjectView = new NewProjectView();
     private static final OpenIDView openIDView = new OpenIDView();
     private static final DocumentationView documentationView = new DocumentationView();
+    private static final TutorialsView tutorialsView = new TutorialsView();
 
     private Defold defold;
 
@@ -78,6 +80,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public DocumentationView getDocumentationView() {
         return documentationView;
+    }
+
+    @Override
+    public TutorialsView getTutorialsView() {
+        return tutorialsView;
     }
 
 }

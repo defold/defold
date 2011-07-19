@@ -3,41 +3,35 @@
     xmlns:g='urn:import:com.google.gwt.user.client.ui' xmlns:p1="urn:import:com.google.gwt.user.cellview.client"
     xmlns:d="urn:import:com.dynamo.cr.web2.client" xmlns:p2="urn:import:com.dynamo.cr.web2.client.ui">
     <ui:style>
-        /* Add CSS here. See the GWT docs on UI Binder for more details */
-        .important {
-        	font-weight: bold;
-        }
-
         .dock {
-        	margin: 16px;
-        }
-
-        .navigationLink {
-        	padding-right: 8px;
-        	cursor: pointer;
+        	margin-top: 16px;
+        	margin-left: auto;
+        	margin-right: auto;
         }
     </ui:style>
 
     <g:DockLayoutPanel styleName="{style.dock}" unit='EM'
         width="960px">
-        <g:north size="6">
+        <g:north size="5.5">
             <g:VerticalPanel>
                 <g:HTML>
                     <span style="font-size: 24px; margin-bottom: 16px">
                         <b>Defold</b>
                     </span>
                 </g:HTML>
-                <g:HorizontalPanel>
-                    <g:Anchor styleName="{style.navigationLink}"
-                        ui:field="productInfo">Product Info</g:Anchor>
-                    <g:Anchor styleName="{style.navigationLink}"
-                        ui:field="dashBoard">Dashboard</g:Anchor>
-                    <g:Anchor styleName="{style.navigationLink}"
-                        ui:field="documentation">Documentation</g:Anchor>
-                    <g:Anchor styleName="{style.navigationLink}"
-                        ui:field="logout">Logout</g:Anchor>
-                </g:HorizontalPanel>
-                <p2:EditableLabel value="http://example.com" ui:field="editableLabel" />
+
+                <g:HTMLPanel>
+                    <ul class="nav nav1">
+                        <li><g:Anchor ui:field="productInfo">Product Info</g:Anchor></li>
+                        <li><g:Anchor ui:field="dashBoard">Dashboard</g:Anchor></li>
+                        <li><g:Anchor ui:field="documentation">Documentation</g:Anchor></li>
+                        <li><g:Anchor ui:field="tutorials">Tutorials</g:Anchor></li>
+                        <li><g:Anchor ui:field="logout">Logout</g:Anchor></li>
+                    </ul>
+                </g:HTMLPanel>
+
+                <p2:EditableLabel value="http://example.com"
+                    ui:field="editableLabel" />
             </g:VerticalPanel>
         </g:north>
 
@@ -45,8 +39,12 @@
             <g:ScrollPanel ui:field="panel"></g:ScrollPanel>
         </g:center>
 
-        <g:south size = "2">
-            <g:Label>Footer</g:Label>
+        <g:south size="3">
+            <g:HTMLPanel>
+                <div style="margin-top: 16px;">
+                    © 2011 Defold All rights reserved
+                </div>
+            </g:HTMLPanel>
         </g:south>
     </g:DockLayoutPanel>
 

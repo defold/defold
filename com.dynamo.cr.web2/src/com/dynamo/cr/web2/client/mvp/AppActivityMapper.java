@@ -8,6 +8,7 @@ import com.dynamo.cr.web2.client.activity.NewProjectActivity;
 import com.dynamo.cr.web2.client.activity.OpenIDActivity;
 import com.dynamo.cr.web2.client.activity.ProductInfoActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
+import com.dynamo.cr.web2.client.activity.TutorialsActivity;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
@@ -15,6 +16,7 @@ import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
+import com.dynamo.cr.web2.client.place.TutorialsPlace;
 import com.google.gwt.activity.shared.Activity;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.place.shared.Place;
@@ -57,6 +59,8 @@ public class AppActivityMapper implements ActivityMapper {
             return new OpenIDActivity((OpenIDPlace) place, clientFactory);
         else if (place instanceof DocumentationPlace)
             return new DocumentationActivity((DocumentationPlace) place, clientFactory);
+        else if (place instanceof TutorialsPlace)
+            return new TutorialsActivity((TutorialsPlace) place, clientFactory);
 
 		return null;
 	}

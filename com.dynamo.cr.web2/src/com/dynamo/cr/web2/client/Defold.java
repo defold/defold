@@ -11,6 +11,7 @@ import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
+import com.dynamo.cr.web2.client.place.TutorialsPlace;
 import com.dynamo.cr.web2.client.ui.EditableLabel;
 import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
@@ -237,6 +238,11 @@ public class Defold implements EntryPoint {
     @UiHandler("documentation")
     void onDocumentationClick(ClickEvent event) {
         clientFactory.getPlaceController().goTo(new DocumentationPlace());
+    }
+
+    @UiHandler("tutorials")
+    void onTutorialsClick(ClickEvent event) {
+        clientFactory.getPlaceController().goTo(new TutorialsPlace());
     }
 
     @UiHandler("editableLabel")

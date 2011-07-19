@@ -7,16 +7,18 @@ import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
+import com.dynamo.cr.web2.client.place.TutorialsPlace;
 import com.google.gwt.place.shared.PlaceHistoryMapper;
 import com.google.gwt.place.shared.WithTokenizers;
 
 /**
- * PlaceHistoryMapper interface is used to attach all places which the
- * PlaceHistoryHandler should be aware of. This is done via the @WithTokenizers
- * annotation or by extending PlaceHistoryMapperWithFactory and creating a
- * separate TokenizerFactory.
+ * PlaceHistoryMapper interface is used to attach all places which the PlaceHistoryHandler should be
+ * aware of. This is done via the @WithTokenizers annotation or by extending
+ * PlaceHistoryMapperWithFactory and creating a separate TokenizerFactory.
  */
 @WithTokenizers({ LoginPlace.Tokenizer.class, ProductInfoPlace.Tokenizer.class,
-        DashboardPlace.Tokenizer.class, ProjectPlace.Tokenizer.class, NewProjectPlace.Tokenizer.class, OpenIDPlace.Tokenizer.class, DocumentationPlace.Tokenizer.class })
+        DashboardPlace.Tokenizer.class, ProjectPlace.Tokenizer.class,
+        NewProjectPlace.Tokenizer.class, OpenIDPlace.Tokenizer.class,
+        DocumentationPlace.Tokenizer.class, TutorialsPlace.Tokenizer.class })
 public interface AppPlaceHistoryMapper extends PlaceHistoryMapper {
 }
