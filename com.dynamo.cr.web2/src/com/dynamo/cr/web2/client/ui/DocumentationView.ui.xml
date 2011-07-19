@@ -16,7 +16,9 @@
 
     <g:FlowPanel>
         <g:HorizontalPanel styleName="{style.navigationPanel}">
+            <g:Anchor styleName="hover {style.navigationLink}" ui:field="engineLink">Engine</g:Anchor>
             <g:Anchor styleName="hover {style.navigationLink}" ui:field="gameObjectLink">GameObject</g:Anchor>
+            <g:Anchor styleName="hover {style.navigationLink}" ui:field="gameSysLink">GameSys</g:Anchor>
             <g:Anchor styleName="hover {style.navigationLink}" ui:field="guiLink">Gui</g:Anchor>
             <g:Anchor styleName="hover {style.navigationLink}" ui:field="renderLink">Render</g:Anchor>
             <g:Anchor styleName="hover {style.navigationLink}" ui:field="scriptLink">Script</g:Anchor>

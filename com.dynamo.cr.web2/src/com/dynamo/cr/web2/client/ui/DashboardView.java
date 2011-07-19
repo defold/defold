@@ -2,7 +2,6 @@ package com.dynamo.cr.web2.client.ui;
 
 import com.dynamo.cr.web2.client.ProjectInfo;
 import com.dynamo.cr.web2.client.ProjectInfoList;
-import com.dynamo.cr.web2.client.UserInfo;
 import com.google.gwt.cell.client.ActionCell;
 import com.google.gwt.cell.client.ClickableTextCell;
 import com.google.gwt.cell.client.FieldUpdater;

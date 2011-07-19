@@ -36,22 +36,30 @@ public class FunctionDocumentationPanel extends Composite {
     public void setDocumentationElement(DocumentationElement element) {
         this.functionName.setText(element.getName());
         this.description.add(new HTML(element.getDescription()));
-        this.return_.setText(element.getReturn());
+        if (element.getReturn().length() > 0)
+            this.return_.setText(element.getReturn());
+        else
+            this.return_.setText("No return value");
 
         parameterList.clear();
         JsArray<DocumentationParameter> parameters = element.getParameters();
-        for (int i = 0; i < parameters.length(); ++i) {
-            DocumentationParameter param = parameters.get(i);
-            StringBuffer html = new StringBuffer();
-            html.append("<div class=\"script_param_block\">");
-            html.append("<span class=\"script_param\">");
-            html.append(param.getName());
-            html.append("</span>");
-            html.append("<div class=\"script_param_desc\">");
-            html.append(param.getDoc());
-            html.append("</div>");
-            html.append("</div>");
-            parameterList.add(new HTML(html.toString()));
+
+        if (parameters.length() == 0) {
+            parameterList.add(new HTML("No parameters"));
+        } else {
+            for (int i = 0; i < parameters.length(); ++i) {
+                DocumentationParameter param = parameters.get(i);
+                StringBuffer html = new StringBuffer();
+                html.append("<div class=\"script_param_block\">");
+                html.append("<span class=\"script_param\">");
+                html.append(param.getName());
+                html.append("</span>");
+                html.append("<div class=\"script_param_desc\">");
+                html.append(param.getDoc());
+                html.append("</div>");
+                html.append("</div>");
+                parameterList.add(new HTML(html.toString()));
+            }
         }
     }
 

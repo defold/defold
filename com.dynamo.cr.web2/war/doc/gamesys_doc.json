@@ -1,0 +1,72 @@
+{
+  "elements": [
+    {
+      "parameters": [
+        {
+          "doc": "delay sound by numbers of seconds. Default is 0.", 
+          "name": "[delay]"
+        }
+      ], 
+      "type": "MESSAGE", 
+      "name": "PlaySound", 
+      "return_": "", 
+      "description": "PlaySound message"
+    }, 
+    {
+      "parameters": [
+        {
+          "doc": "aspect_ratio to set", 
+          "name": "aspect_ratio"
+        }, 
+        {
+          "doc": "field of view in radians to set", 
+          "name": "fov"
+        }, 
+        {
+          "doc": "near z plane to set", 
+          "name": "near_z"
+        }, 
+        {
+          "doc": "far z plane to set", 
+          "name": "far_z"
+        }
+      ], 
+      "type": "MESSAGE", 
+      "name": "SetCamera", 
+      "return_": "", 
+      "description": "Set camera message"
+    }, 
+    {
+      "parameters": [
+        {
+          "doc": "time-step scaling factor", 
+          "name": "factor"
+        }, 
+        {
+          "doc": "time-step mode. 0 for continuous, 1 for discrete.", 
+          "name": "mode"
+        }
+      ], 
+      "type": "MESSAGE", 
+      "name": "SetTimeStep", 
+      "return_": "", 
+      "description": "Set collection time-step message"
+    }, 
+    {
+      "parameters": [
+        {
+          "doc": "initial position (Point3) for object", 
+          "name": "position"
+        }, 
+        {
+          "doc": "initial rotation quaternion for object.", 
+          "name": "rotation"
+        }
+      ], 
+      "type": "MESSAGE", 
+      "name": "SpawnObject", 
+      "return_": "", 
+      "description": "Spawn object message"
+    }
+  ]
+}

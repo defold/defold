@@ -28,7 +28,9 @@ public class DocumentationView extends Composite {
     }
 
     @UiField VerticalPanel documentationList;
+    @UiField Anchor engineLink;
     @UiField Anchor gameObjectLink;
+    @UiField Anchor gameSysLink;
     @UiField Anchor guiLink;
     @UiField Anchor renderLink;
     @UiField Anchor scriptLink;
@@ -44,17 +46,28 @@ public class DocumentationView extends Composite {
     }
 
     public void setDocumentation(List<DocumentationElement> functions,
-            List<DocumentationElement> constants) {
+                                 List<DocumentationElement> messages,
+                                 List<DocumentationElement> constants) {
         documentationList.clear();
-        documentationList.add(new HTML("<h2>Functions</h2>"));
 
+        if (functions.size() > 0)
+            documentationList.add(new HTML("<h2>Functions</h2>"));
         for (DocumentationElement function : functions) {
             FunctionDocumentationPanel panel = new FunctionDocumentationPanel();
             panel.setDocumentationElement(function);
             documentationList.add(panel);
         }
 
-        documentationList.add(new HTML("<h2>Constants</h2>"));
+        if (messages.size() > 0)
+            documentationList.add(new HTML("<h2>Messages</h2>"));
+        for (DocumentationElement message : messages) {
+            MessageDocumentationPanel panel = new MessageDocumentationPanel();
+            panel.setDocumentationElement(message);
+            documentationList.add(panel);
+        }
+
+        if (constants.size() > 0)
+            documentationList.add(new HTML("<h2>Constants</h2>"));
         for (DocumentationElement constant : constants) {
             ConstantDocumentationPanel panel = new ConstantDocumentationPanel();
             panel.setDocumentationElement(constant);
@@ -62,9 +75,19 @@ public class DocumentationView extends Composite {
         }
     }
 
+    @UiHandler("engineLink")
+    void onEngineLinkClick(ClickEvent event) {
+        listener.onDocumentation("engine");
+    }
+
     @UiHandler("gameObjectLink")
     void onGameObjectLinkClick(ClickEvent event) {
         listener.onDocumentation("go");
+    }
+
+    @UiHandler("gameSysLink")
+    void onGameSysLinkClick(ClickEvent event) {
+        listener.onDocumentation("gamesys");
     }
 
     @UiHandler("guiLink")

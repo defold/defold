@@ -50,6 +50,10 @@ body, table td, select {
 
 /* script doc */
 
+div.script_doc {
+	margin-left: 16px;
+}
+
 .script_doc p {
     margin: 0px 0px 12px 0px;
 }

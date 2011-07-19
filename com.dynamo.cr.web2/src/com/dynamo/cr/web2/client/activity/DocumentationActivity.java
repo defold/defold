@@ -40,6 +40,7 @@ public class DocumentationActivity extends AbstractActivity implements Documenta
                                 .getText());
 
                         List<DocumentationElement> functions = new ArrayList<DocumentationElement>();
+                        List<DocumentationElement> messages = new ArrayList<DocumentationElement>();
                         List<DocumentationElement> constants = new ArrayList<DocumentationElement>();
 
                         JsArray<DocumentationElement> elements = doc.getElements();
@@ -52,12 +53,19 @@ public class DocumentationActivity extends AbstractActivity implements Documenta
 
                         for (int i = 0; i < elements.length(); ++i) {
                             DocumentationElement element = elements.get(i);
+                            if (element.getType().equals("MESSAGE")) {
+                                messages.add(element);
+                            }
+                        }
+
+                        for (int i = 0; i < elements.length(); ++i) {
+                            DocumentationElement element = elements.get(i);
                             if (element.getType().equals("VARIABLE")) {
                                 constants.add(element);
                             }
                         }
 
-                        documentationView.setDocumentation(functions, constants);
+                        documentationView.setDocumentation(functions, messages, constants);
 
                     } else {
                         clientFactory.getDefold().showErrorMessage("Unable to load documentation");
