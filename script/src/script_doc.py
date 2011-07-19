@@ -20,27 +20,26 @@ def _strip_comment_stars(str):
 
 def _parse_comment(str):
     str = _strip_comment_stars(str)
-    lst = re.findall('@([^ ]+)[ ]*(.*?)$', str, re.MULTILINE)
+    lst = re.findall('@([^ \n]+)[ ]*(.*?)$', str, re.MULTILINE)
 
     name_found = False
-    is_variable = False
+    element_type = script_doc_ddf_pb2.FUNCTION
     for (tag, value) in lst:
         tag = tag.strip()
         value = value.strip()
         if tag == 'name':
             name_found = True
         elif tag == 'variable':
-            is_variable = True
+            element_type = script_doc_ddf_pb2.VARIABLE
+        elif tag == 'message':
+            element_type = script_doc_ddf_pb2.MESSAGE
 
     if not name_found:
         logging.warn('Missing tag name in "%s"' % str)
         return
 
     element = script_doc_ddf_pb2.Element()
-    if is_variable:
-        element.type = script_doc_ddf_pb2.VARIABLE
-    else:
-        element.type = script_doc_ddf_pb2.FUNCTION
+    element.type = element_type
 
     desc_end = min(len(str), str.find('@'))
     element.description = str[0:desc_end].strip().replace('\n', ' ')
@@ -124,7 +123,7 @@ if __name__ == '__main__':
         f.write(doc.SerializeToString())
     elif options.type == 'json':
         doc_dict = message_to_dict(doc)
-        json.dump(doc_dict, f, indent = None)
+        json.dump(doc_dict, f, indent = 2)
     else:
         print 'Unknown type: %s' % options.type
         sys.exit(5)

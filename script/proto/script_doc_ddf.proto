@@ -13,6 +13,7 @@ enum Type
 {
     FUNCTION = 0;
     VARIABLE = 1;
+    MESSAGE = 2;
 }
 
 message Element

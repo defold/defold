@@ -151,6 +151,22 @@ foobar
         elements = script_doc.parse_document(doc).elements
         print elements
 
+    def test_message(self):
+        doc= """
+/*# MY_DESC
+ * @name MY_MESSAGE
+ * @message
+ * @param param_x DOC X
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_MESSAGE', elements[0].name)
+        p1 = elements[0].parameters[0]
+        self.assertEqual('param_x', p1.name)
+        self.assertEqual('DOC X', p1.doc)
 
 if __name__ == '__main__':
     unittest.main()
