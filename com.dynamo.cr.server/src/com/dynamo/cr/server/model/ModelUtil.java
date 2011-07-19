@@ -91,15 +91,6 @@ public class ModelUtil {
         }
     }
 
-    public static void deleteProject(EntityManager entityManager, Project project) {
-        Set<User> members = project.getMembers();
-        for (User user : members) {
-            user.getProjects().remove(project);
-            entityManager.persist(user);
-        }
-        entityManager.remove(project);
-    }
-
     public static void addMember(Project project, User user) {
         project.getMembers().add(user);
         user.getProjects().add(project);

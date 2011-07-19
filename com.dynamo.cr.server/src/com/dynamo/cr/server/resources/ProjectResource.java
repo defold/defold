@@ -39,6 +39,7 @@ import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.server.git.Git;
 import com.sun.jersey.api.NotFoundException;
 
 /*
@@ -273,9 +274,19 @@ public class ProjectResource extends BaseResource {
                 server.deleteBranch(em, projectId, memberId, branch);
             }
         }
-        em.getTransaction().begin();
-        ModelUtil.removeProject(em, project);
-        em.getTransaction().commit();
+        // Delete git repo
+        Configuration configuration = server.getConfiguration();
+        String repositoryRoot = configuration.getRepositoryRoot();
+        File projectPath = new File(String.format("%s/%d", repositoryRoot, project.getId()));
+        Git git = new Git();
+        try {
+            git.rmRepo(projectPath.getAbsolutePath());
+            em.getTransaction().begin();
+            ModelUtil.removeProject(em, project);
+            em.getTransaction().commit();
+        } catch (IOException e) {
+            throw new ServerException(String.format("Could not delete git repo for project %s", project.getName()), Status.INTERNAL_SERVER_ERROR);
+        }
     }
 
     /*

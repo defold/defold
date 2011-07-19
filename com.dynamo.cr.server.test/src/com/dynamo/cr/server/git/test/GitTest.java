@@ -1,6 +1,7 @@
 package com.dynamo.cr.server.git.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
@@ -645,4 +646,11 @@ public class GitTest {
         assertEquals(1, preLog.getCommitsCount());
     }
 
+    @Test
+    public void rmRepo() throws IOException {
+        File repo = new File("tmp/source_repo");
+        assertTrue(repo.isDirectory());
+        git.rmRepo(repo.getAbsolutePath());
+        assertFalse(repo.isDirectory());
+    }
 }

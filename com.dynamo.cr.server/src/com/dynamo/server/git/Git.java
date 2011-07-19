@@ -496,6 +496,15 @@ public class Git {
     }
 
     /**
+     * Removes a git repo from the file system. Use with caution since no branches or clones are removed.
+     * @param path path of the repository
+     */
+    public void rmRepo(String path) throws IOException {
+        Result r = CommandUtil.execCommand(new String[] {"rm", "-rf", path});
+        checkResult(r);
+    }
+
+    /**
      * Returns the content of the file at the specified revision, runs:
      * git show {revision}:{file}
      * @param directory Repository root
