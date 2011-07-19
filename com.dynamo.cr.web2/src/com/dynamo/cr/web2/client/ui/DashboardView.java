@@ -81,7 +81,7 @@ public class DashboardView extends Composite {
         Column<ProjectInfo, String> ownerColumn = new Column<ProjectInfo, String>(ownerCell) {
             @Override
             public String getValue(ProjectInfo object) {
-                return object.getName();
+                return object.getOwner().getEmail();
             }
         };
         ownerColumn.setFieldUpdater(fieldUpdater);
