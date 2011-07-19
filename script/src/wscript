@@ -39,7 +39,12 @@ def build(bld):
                      target = 'script_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
+    bld.new_task_gen(source = 'script_sys.cpp script_msg.cpp script_vmath.cpp',
+                     target = 'script_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
     bld.install_files('${PREFIX}/share/doc', 'script_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'script_doc.json')
 
     bld.install_files('${PREFIX}/bin', 'script_doc', chmod=493)
     bld.install_files('${PREFIX}/bin', 'script_doc.bat')

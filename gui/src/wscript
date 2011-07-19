@@ -18,4 +18,9 @@ def build(bld):
                      target = 'gui_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
+    bld.new_task_gen(source = 'gui_script.cpp',
+                     target = 'gui_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
     bld.install_files('${PREFIX}/share/doc', 'gui_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'gui_doc.json')

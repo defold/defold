@@ -24,7 +24,12 @@ def build(bld):
                      target = 'go_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
+    bld.new_task_gen(source = 'gameobject_script.cpp',
+                     target = 'go_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
     bld.install_files('${PREFIX}/share/doc', 'go_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'go_doc.json')
 
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
     bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')

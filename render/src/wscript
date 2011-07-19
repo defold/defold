@@ -54,5 +54,9 @@ def build(bld):
                      target = 'render_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.install_files('${PREFIX}/share/doc', 'render_doc.sdoc')
+    bld.new_task_gen(source = 'render/render_script.cpp',
+                     target = 'render_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'render_doc.sdoc render_doc.json')
 

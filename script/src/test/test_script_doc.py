@@ -10,14 +10,14 @@ class TestParse(unittest.TestCase):
 
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(0, len(elements))
 
     def test_empty2(self):
         doc= """
 foobar
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(0, len(elements))
 
     def test_missing_name(self):
@@ -26,7 +26,7 @@ foobar
 
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(0, len(elements))
 
     def test_simple(self):
@@ -35,7 +35,7 @@ foobar
  * @name MY_NAME
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -49,7 +49,7 @@ foobar
  * @variable
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -63,7 +63,7 @@ foobar
  * @name MY_NAME
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -79,7 +79,7 @@ foobar
  */
 
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(2, len(elements))
         self.assertEqual('MY_DESC1', elements[0].description)
         self.assertEqual('MY_NAME1', elements[0].name)
@@ -95,7 +95,7 @@ foobar
  * @return 123
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -116,7 +116,7 @@ foobar
  * @param [param_y] DOCY
  */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
@@ -148,7 +148,7 @@ foobar
      * @return a new URI
      */
 """
-        elements = script_doc.parseDocument(doc).elements
+        elements = script_doc.parse_document(doc).elements
         print elements
 
 
