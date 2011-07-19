@@ -16,19 +16,15 @@ import com.google.gwt.http.client.Response;
 import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class DashboardActivity extends AbstractActivity implements DashboardView.Presenter {
-	private ClientFactory clientFactory;
+    private ClientFactory clientFactory;
 
-	public DashboardActivity(DashboardPlace place, ClientFactory clientFactory) {
-		this.clientFactory = clientFactory;
-	}
+    public DashboardActivity(DashboardPlace place, ClientFactory clientFactory) {
+        this.clientFactory = clientFactory;
+    }
 
-	@Override
-	public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
-		final DashboardView dashboardView = clientFactory.getDashboardView();
-		dashboardView.setPresenter(this);
-		containerWidget.setWidget(dashboardView.asWidget());
-
-		Defold defold = clientFactory.getDefold();
+    public void loadProjects() {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        Defold defold = clientFactory.getDefold();
         defold.getResource("/projects/" + defold.getUserId(), new ResourceCallback<ProjectInfoList>() {
 
             @Override
@@ -42,7 +38,15 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
                 dashboardView.clearProjectInfoList();
             }
         });
-	}
+    }
+
+    @Override
+    public void start(AcceptsOneWidget containerWidget, EventBus eventBus) {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        dashboardView.setPresenter(this);
+        containerWidget.setWidget(dashboardView.asWidget());
+        loadProjects();
+    }
 
     @Override
     public void showProject(ProjectInfo projectInfo) {
@@ -52,5 +56,36 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
     @Override
     public void onNewProject() {
         clientFactory.getPlaceController().goTo(new NewProjectPlace());
+    }
+
+    @Override
+    public void removeProject(ProjectInfo projectInfo) {
+        final DashboardView dashboardView = clientFactory.getDashboardView();
+        Defold defold = clientFactory.getDefold();
+        defold.deleteResource("/projects/" + defold.getUserId() + "/" + projectInfo.getId(), new ResourceCallback<String>() {
+
+            @Override
+            public void onSuccess(String result, Request request,
+                    Response response) {
+
+                int statusCode = response.getStatusCode();
+                if (statusCode >= 300) {
+                    dashboardView.setError(response.getText());
+                } else {
+                    loadProjects();
+                    dashboardView.setError("");
+                }
+            }
+
+            @Override
+            public void onFailure(Request request, Response response) {
+                dashboardView.setError(response.getText());
+            }
+        });
+    }
+
+    @Override
+    public boolean isOwner(ProjectInfo projectInfo) {
+        return clientFactory.getDefold().getUserId() == projectInfo.getOwner().getId();
     }
 }
