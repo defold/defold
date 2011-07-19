@@ -2,12 +2,14 @@ package com.dynamo.cr.web2.client.mvp;
 
 import com.dynamo.cr.web2.client.ClientFactory;
 import com.dynamo.cr.web2.client.activity.DashboardActivity;
+import com.dynamo.cr.web2.client.activity.DocumentationActivity;
 import com.dynamo.cr.web2.client.activity.LoginActivity;
 import com.dynamo.cr.web2.client.activity.NewProjectActivity;
 import com.dynamo.cr.web2.client.activity.OpenIDActivity;
 import com.dynamo.cr.web2.client.activity.ProductInfoActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
+import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OpenIDPlace;
@@ -53,6 +55,8 @@ public class AppActivityMapper implements ActivityMapper {
             return new NewProjectActivity((NewProjectPlace) place, clientFactory);
         else if (place instanceof OpenIDPlace)
             return new OpenIDActivity((OpenIDPlace) place, clientFactory);
+        else if (place instanceof DocumentationPlace)
+            return new DocumentationActivity((DocumentationPlace) place, clientFactory);
 
 		return null;
 	}

@@ -8,13 +8,16 @@ import java.util.Date;
 import com.dynamo.cr.web2.client.mvp.AppActivityMapper;
 import com.dynamo.cr.web2.client.mvp.AppPlaceHistoryMapper;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
+import com.dynamo.cr.web2.client.place.DocumentationPlace;
 import com.dynamo.cr.web2.client.place.LoginPlace;
 import com.dynamo.cr.web2.client.place.ProductInfoPlace;
+import com.dynamo.cr.web2.client.ui.EditableLabel;
 import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.RequestBuilder;
 import com.google.gwt.http.client.RequestCallback;
@@ -30,9 +33,7 @@ import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
-import com.google.gwt.user.client.ui.SimplePanel;
-import com.dynamo.cr.web2.client.ui.EditableLabel;
-import com.google.gwt.event.logical.shared.ValueChangeEvent;
+import com.google.gwt.user.client.ui.ScrollPanel;
 
 /**
  * @author chmu
@@ -45,7 +46,7 @@ public class Defold implements EntryPoint {
     private Place defaultPlace = new ProductInfoPlace();
 
     @UiField Anchor logout;
-    @UiField SimplePanel panel;
+    @UiField ScrollPanel panel;
     @UiField Anchor dashBoard;
     @UiField Anchor productInfo;
     @UiField EditableLabel editableLabel;
@@ -231,6 +232,11 @@ public class Defold implements EntryPoint {
     @UiHandler("dashBoard")
     void onDashBoardClick(ClickEvent event) {
         clientFactory.getPlaceController().goTo(new DashboardPlace());
+    }
+
+    @UiHandler("documentation")
+    void onDocumentationClick(ClickEvent event) {
+        clientFactory.getPlaceController().goTo(new DocumentationPlace());
     }
 
     @UiHandler("editableLabel")

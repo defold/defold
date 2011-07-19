@@ -8,6 +8,76 @@ h1 {
 	text-align: left;
 }
 
+h2 {
+    font-weight: 300;
+    font-size: 2.0em;
+    margin: 0px 0px 8px 0px;
+    color: #000;
+}
+
+h3 {
+    font-weight: 400;
+    font-size: 1.5em;
+    margin: 0px 0px 8px 0px;
+    color: #000;
+}
+
+h4 {
+    font-weight: 400;
+    font-size: 1.2em;
+    margin: 0px 0px 8px 0px;
+    color: #000;
+}
+
+.hover {
+    color: #06C;
+    cursor: pointer;
+}
+
+.hover:hover {
+    color: #06C;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+body, table td, select {
+    __font: 13px/1.5 'Helvetica Neue',Arial,'Liberation Sans',FreeSans,sans-serif;
+    font-size: 13px;
+    font-family: 'Helvetica Neue',Arial,'Liberation Sans',FreeSans,sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #333;
+}
+
+/* script doc */
+
+.script_doc p {
+    margin: 0px 0px 12px 0px;
+}
+
+.script_param {
+    display: block;
+    float: left;
+    width: 150px;
+    font-weight: 500;
+}
+
+.script_param_desc {
+    margin-left: 150px;
+}
+
+.script_block {
+    width: 500px;
+    margin-bottom: 26px;
+    color: #555;
+}
+
+.script_param_block {
+    width: 500px;
+    __border-top: 1px solid #ccc;
+    padding-top: 6px;
+}
+
+
 .sendButton {
 	display: block;
 	font-size: 16pt;

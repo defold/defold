@@ -1,6 +1,7 @@
 package com.dynamo.cr.web2.client;
 
 import com.dynamo.cr.web2.client.ui.DashboardView;
+import com.dynamo.cr.web2.client.ui.DocumentationView;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.NewProjectView;
 import com.dynamo.cr.web2.client.ui.OpenIDView;
@@ -21,4 +22,5 @@ public interface ClientFactory
     ProjectView getProjectView();
     NewProjectView getNewProjectView();
     OpenIDView getOpenIDView();
+    DocumentationView getDocumentationView();
 }

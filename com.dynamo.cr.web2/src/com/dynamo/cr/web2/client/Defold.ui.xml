@@ -19,7 +19,7 @@
     </ui:style>
 
     <g:DockLayoutPanel styleName="{style.dock}" unit='EM'
-        width="800px" height="600px">
+        width="960px">
         <g:north size="6">
             <g:VerticalPanel>
                 <g:HTML>
@@ -33,6 +33,8 @@
                     <g:Anchor styleName="{style.navigationLink}"
                         ui:field="dashBoard">Dashboard</g:Anchor>
                     <g:Anchor styleName="{style.navigationLink}"
+                        ui:field="documentation">Documentation</g:Anchor>
+                    <g:Anchor styleName="{style.navigationLink}"
                         ui:field="logout">Logout</g:Anchor>
                 </g:HorizontalPanel>
                 <p2:EditableLabel value="http://example.com" ui:field="editableLabel" />
@@ -40,8 +42,12 @@
         </g:north>
 
         <g:center>
-            <g:SimplePanel ui:field="panel"></g:SimplePanel>
+            <g:ScrollPanel ui:field="panel"></g:ScrollPanel>
         </g:center>
+
+        <g:south size = "2">
+            <g:Label>Footer</g:Label>
+        </g:south>
     </g:DockLayoutPanel>
 
 </ui:UiBinder>
