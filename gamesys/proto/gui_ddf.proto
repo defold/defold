@@ -69,12 +69,6 @@ message NodeDesc
     optional Pivot      pivot        = 14 [default = PIVOT_CENTER];
 }
 
-    message Pelle
-    {
-        required string name    = 1;
-        required string font    = 2 [(resource)=true];
-    }
-
 message SceneDesc
 {
     message FontDesc

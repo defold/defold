@@ -2,9 +2,20 @@ package dmEngineDDF;
 
 import "ddf/ddf_math.proto";
 
+/*#
+ * Exit game message.
+ * @message
+ * @name Exit
+ * @param code exit code to return from engine
+ */
 message Exit
 {
     required int32 code = 1;
 }
 
+/*#
+ * Toggle on-screen profiler message
+ * @message
+ * @name ToggleProfile
+ */
 message ToggleProfile {}

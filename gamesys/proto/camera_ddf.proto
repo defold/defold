@@ -15,6 +15,15 @@ message CameraDesc
     optional uint32 auto_aspect_ratio   = 5 [default = 0];
 }
 
+/*#
+ * Set camera message
+ * @message
+ * @name SetCamera
+ * @param aspect_ratio aspect_ratio to set
+ * @param fov field of view in radians to set
+ * @param near_z near z plane to set
+ * @param far_z far z plane to set
+ */
 message SetCamera
 {
     required float          aspect_ratio    = 1;

@@ -11,6 +11,13 @@ message SpawnPointDesc
     required string prototype = 1 [(resource)=true];
 }
 
+/*#
+ * Spawn object message
+ * @message
+ * @name SpawnObject
+ * @param position initial position (Point3) for object
+ * @param rotation initial rotation quaternion for object.
+ */
 message SpawnObject
 {
     required dmMath.Point3  position = 1;
@@ -28,6 +35,13 @@ enum TimeStepMode
     TIME_STEP_MODE_DISCRETE     = 1;
 }
 
+/*#
+ * Set collection time-step message
+ * @message
+ * @name SetTimeStep
+ * @param factor time-step scaling factor
+ * @param mode time-step mode. 0 for continuous, 1 for discrete.
+ */
 message SetTimeStep
 {
     required float          factor  = 1;
@@ -68,6 +82,12 @@ message SetViewProjection
     required dmMath.Matrix4 projection  = 3;
 }
 
+/*#
+ * PlaySound message
+ * @message
+ * @name PlaySound
+ * @param [delay] delay sound by numbers of seconds. Default is 0.
+ */
 message PlaySound
 {
     optional float delay = 1 [default=0.0];

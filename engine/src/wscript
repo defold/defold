@@ -38,6 +38,17 @@ def build(bld):
         target = 'dmengine_headless',
         source='main.cpp')
 
+    bld.new_task_gen(source = '../proto/engine_ddf.proto',
+                     target = 'engine_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = '../proto/engine_ddf.proto',
+                     target = 'engine_doc.json',
+                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'engine_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'engine_doc.json')
+
     bld.add_subdirs('test')
 
 def configure(conf):
