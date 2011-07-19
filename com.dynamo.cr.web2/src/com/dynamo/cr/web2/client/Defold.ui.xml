@@ -14,11 +14,17 @@
         width="960px">
         <g:north size="5.5">
             <g:VerticalPanel>
-                <g:HTML>
+                <g:HTMLPanel>
                     <span style="font-size: 24px; margin-bottom: 16px">
                         <b>Defold</b>
                     </span>
-                </g:HTML>
+
+                    <div style="margin-bottom: 4px;">
+                        <p2:EditableLabel value="http://example.com" ui:field="editableLabel" />
+                    </div>
+
+                </g:HTMLPanel>
+
 
                 <g:HTMLPanel>
                     <ul class="nav nav1">
@@ -30,8 +36,6 @@
                     </ul>
                 </g:HTMLPanel>
 
-                <p2:EditableLabel value="http://example.com"
-                    ui:field="editableLabel" />
             </g:VerticalPanel>
         </g:north>
 
