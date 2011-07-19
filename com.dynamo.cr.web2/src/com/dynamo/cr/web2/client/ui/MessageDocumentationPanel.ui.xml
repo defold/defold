@@ -14,7 +14,7 @@
         </p>
 
         <div class="script_block">
-            <h4>Parameters</h4>
+            <h4>Fields</h4>
 
             <g:VerticalPanel ui:field="fieldList">
                 <g:cell>
@@ -22,14 +22,12 @@
                         <div class="script_param_block">
                             <span class="script_param">parameters</span>
                             <div class="script_param_desc">
-                                clear parameters. Available keys are: BUFFER_TYPE_COLOR_BIT,
-                                BUFFER_TYPE_DEPTH_BIT and
-                                BUFFER_TYPE_STENCIL_BIT.</div>
+                                DESC
+                            </div>
                         </div>
                     </g:HTMLPanel>
                 </g:cell>
             </g:VerticalPanel>
-
         </div>
         </g:HTMLPanel>
     </g:HTMLPanel>

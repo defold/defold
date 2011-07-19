@@ -38,20 +38,23 @@ public class MessageDocumentationPanel extends Composite {
 
         fieldList.clear();
         JsArray<DocumentationParameter> parameters = element.getParameters();
-        for (int i = 0; i < parameters.length(); ++i) {
-            DocumentationParameter param = parameters.get(i);
-            StringBuffer html = new StringBuffer();
-            html.append("<div class=\"script_param_block\">");
-            html.append("<span class=\"script_param\">");
-            html.append(param.getName());
-            html.append("</span>");
-            html.append("<div class=\"script_param_desc\">");
-            html.append(param.getDoc());
-            html.append("</div>");
-            html.append("</div>");
-            fieldList.add(new HTML(html.toString()));
+        if (parameters.length() == 0) {
+            fieldList.add(new HTML("No fields"));
+        } else {
+            for (int i = 0; i < parameters.length(); ++i) {
+                DocumentationParameter param = parameters.get(i);
+                StringBuffer html = new StringBuffer();
+                html.append("<div class=\"script_param_block\">");
+                html.append("<span class=\"script_param\">");
+                html.append(param.getName());
+                html.append("</span>");
+                html.append("<div class=\"script_param_desc\">");
+                html.append(param.getDoc());
+                html.append("</div>");
+                html.append("</div>");
+                fieldList.add(new HTML(html.toString()));
+            }
         }
-
     }
 
     @UiHandler("messageName")
