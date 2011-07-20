@@ -35,11 +35,11 @@ def build(bld):
 
     bld.add_group()
 
-    bld.new_task_gen(source = 'script_sys.cpp script_msg.cpp script_vmath.cpp',
+    bld.new_task_gen(source = 'script_hash.cpp script_sys.cpp script_msg.cpp script_vmath.cpp',
                      target = 'script_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = 'script_sys.cpp script_msg.cpp script_vmath.cpp',
+    bld.new_task_gen(source = 'script_hash.cpp script_sys.cpp script_msg.cpp script_vmath.cpp',
                      target = 'script_doc.json',
                      rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 
