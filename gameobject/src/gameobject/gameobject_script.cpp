@@ -128,9 +128,10 @@ namespace dmGameObject
     }
 
     /*#
-     * Get GameObject position
+     * Gets the position of the instance
+     *
      * @name go.get_position
-     * @return GameObject position (vector3)
+     * @return instance position (vector3)
      */
     int Script_GetPosition(lua_State* L)
     {
@@ -140,9 +141,10 @@ namespace dmGameObject
     }
 
     /*#
-     * Get GameObject rotation
+     * Gets the rotation of the instance
+     *
      * @name go.get_rotation
-     * @return GameObject rotation quaternion
+     * @return instance rotation (quaternion)
      */
     int Script_GetRotation(lua_State* L)
     {
@@ -152,8 +154,9 @@ namespace dmGameObject
     }
 
     /*#
-     * Set GameObject position
-     * @name vmath.set_position
+     * Sets the position of the instance
+     *
+     * @name go.set_position
      * @param position position to set (vector3)
      */
     int Script_SetPosition(lua_State* L)
@@ -165,9 +168,10 @@ namespace dmGameObject
     }
 
     /*#
-     * Set GameObject rotation
-     * @name vmath.set_rotation
-     * @param quat rotation quaternion to set
+     * Sets the rotation of the instance
+     *
+     * @name go.set_rotation
+     * @param rotation rotation to set (quaternion)
      */
     int Script_SetRotation(lua_State* L)
     {
@@ -178,9 +182,10 @@ namespace dmGameObject
     }
 
     /*#
-     * Get GameObject world position
+     * Gets the instance world position
+     *
      * @name go.get_world_position
-     * @return GameObject position (vector3)
+     * @return instance world position (vector3)
      */
     int Script_GetWorldPosition(lua_State* L)
     {
@@ -190,9 +195,10 @@ namespace dmGameObject
     }
 
     /*#
-     * Get GameObject world rotation
+     * Gets the instance world rotation
+     *
      * @name go.get_world_rotation
-     * @return GameObject rotation (quaternion)
+     * @return instance world rotation (quaternion)
      */
     int Script_GetWorldRotation(lua_State* L)
     {
@@ -202,9 +208,10 @@ namespace dmGameObject
     }
 
     /*#
-     * Get GameObject id
+     * Gets the instance id
+     *
      * @name go.get_id
-     * @return GameObject id (hashed format)
+     * @return instance id (hash)
      */
     int Script_GetId(lua_State* L)
     {
@@ -222,7 +229,8 @@ namespace dmGameObject
     }
 
     /*#
-     * Delete GameObject
+     * Deletes an instance
+     *
      * @name go.delete
      */
     int Script_Delete(lua_State* L)

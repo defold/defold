@@ -31,10 +31,12 @@ namespace dmScript
     const uint32_t MAX_BUFFER_SIZE =  64 * 1024;
 
     /*#
-     * Save lua table to disk
+     * Saves a lua table to disk
+     *
      * @name sys.save
-     * @param filename destination filename
-     * @param table table to write to disk
+     * @param filename file to write to (string)
+     * @param table lua table to save (table)
+     * @return a boolean indicating if the table could be saved or not (boolean)
      */
     int Sys_Save(lua_State* L)
     {
@@ -57,10 +59,11 @@ namespace dmScript
     }
 
     /*#
-     * Load lua table to disk
+     * Loads a lua table from disk
+     *
      * @name sys.load
-     * @param filename source filename
-     * @return loaded table
+     * @param filename file to read from (string)
+     * @return loaded lua table (table)
      */
     int Sys_Load(lua_State* L)
     {
@@ -87,10 +90,12 @@ namespace dmScript
     }
 
     /**
-     * Get save-file path to operating system specific save-file location.
-     * @param application_id application-id of the application to get save-file for
-     * @param file_name file-name to get path for
-     * @return path to save-file
+     * Gets the save-file path of the operating system specific save-file location.
+     *
+     * @name sys.get_save_file
+     * @param application_id user defined id of the application, which helps define the location of the save-file (string)
+     * @param file_name file-name to get path for (string)
+     * @return path to save-file (string)
      */
     int Sys_GetSaveFile(lua_State* L)
     {

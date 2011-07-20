@@ -184,9 +184,10 @@ namespace dmRender
      */
 
     /*#
-     * Enable render state
+     * Enables a render state
+     *
      * @name render.enable_state
-     * @param state state to enable, eg render.STATE_DEPTH_TEST
+     * @param state state to enable (render.STATE_DEPTH_TEST|render.STATE_BLEND|render.STATE_CULL_FACE|render.STATE_POLYGON_OFFSET_FILL|render.STATE_POLYGON_OFFSET_LINE|render.STATE_POLYGON_OFFSET_POINT)
      */
     int RenderScript_EnableState(lua_State* L)
     {
@@ -213,9 +214,10 @@ namespace dmRender
     }
 
     /*#
-     * Disable render state
+     * Disables a render state
+     *
      * @name render.disable_state
-     * @param state state to enable, render.STATE_DEPTH_TEST
+     * @param state state to enable (render.STATE_DEPTH_TEST|render.STATE_BLEND|render.STATE_CULL_FACE|render.STATE_POLYGON_OFFSET_FILL|render.STATE_POLYGON_OFFSET_LINE|render.STATE_POLYGON_OFFSET_POINT)
      */
     int RenderScript_DisableState(lua_State* L)
     {
@@ -241,12 +243,13 @@ namespace dmRender
     }
 
     /*#
-     * Set render viewport
+     * Sets the render viewport
+     *
      * @name render.set_viewport
-     * @param x left corner
-     * @param y bottom corner
-     * @param width viewport width
-     * @param height viewport height
+     * @param x left corner (number)
+     * @param y bottom corner (number)
+     * @param width viewport width (number)
+     * @param height viewport height (number)
      */
     int RenderScript_SetViewport(lua_State* L)
     {
@@ -262,11 +265,118 @@ namespace dmRender
     }
 
     /*#
-     * Create a new render target
+     * @name render.TEXTURE_FORMAT_LUMINANCE
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_RGB
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_RGBA
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_RGB_DXT1
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_RGBA_DXT1
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_RGBA_DXT3
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_RGBA_DXT5
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FORMAT_DEPTH
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FILTER_LINEAR
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_FILTER_NEAREST
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_WRAP_CLAMP_TO_BORDER
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_WRAP_CLAMP_TO_EDGE
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_WRAP_MIRRORED_REPEAT
+     * @variable
+     */
+
+    /*#
+     * @name render.TEXTURE_WRAP_REPEAT
+     * @variable
+     */
+
+    /*#
+     * Creates a new render target
+     *
+     * Available keys for the render target parameters table:
+     * <table>
+     *   <th>Keys</th><th>Values</th>
+     *   <tr><td>"format"</td><td>
+     *      render.TEXTURE_FORMAT_LUMINANCE<br/>
+     *      render.TEXTURE_FORMAT_RGB<br/>
+     *      render.TEXTURE_FORMAT_RGBA<br/>
+     *      render.TEXTURE_FORMAT_RGB_DXT1<br/>
+     *      render.TEXTURE_FORMAT_RGBA_DXT1<br/>
+     *      render.TEXTURE_FORMAT_RGBA_DXT3<br/>
+     *      render.TEXTURE_FORMAT_RGBA_DXT5<br/>
+     *      render.TEXTURE_FORMAT_DEPTH<br/>
+     *     </td></tr>
+     *   <tr><td>"width"</td><td>number</td></tr>
+     *   <tr><td>"height"</td><td>number</td></tr>
+     *   <tr><td>"min_filter"</td><td>
+     *      render.TEXTURE_FILTER_LINEAR<br/>
+     *      render.TEXTURE_FILTER_NEAREST<br/>
+     *     </td></tr>
+     *   <tr><td>"mag_filter"</td><td>
+     *      render.TEXTURE_FILTER_LINEAR<br/>
+     *      render.TEXTURE_FILTER_NEAREST<br/>
+     *     </td></tr>
+     *   <tr><td>"u_wrap"</td><td>
+     *      render.TEXTURE_WRAP_CLAMP_TO_BORDER<br/>
+     *      render.TEXTURE_WRAP_CLAMP_TO_EDGE<br/>
+     *      render.TEXTURE_WRAP_MIRRORED_REPEAT<br/>
+     *      render.TEXTURE_WRAP_REPEAT<br/>
+     *     </td></tr>
+     *   <tr><td>"v_wrap"</td><td>
+     *      render.TEXTURE_WRAP_CLAMP_TO_BORDER<br/>
+     *      render.TEXTURE_WRAP_CLAMP_TO_EDGE<br/>
+     *      render.TEXTURE_WRAP_MIRRORED_REPEAT<br/>
+     *      render.TEXTURE_WRAP_REPEAT<br/>
+     *     </td></tr>
+     * </table>
      * @name render.render_target
-     * @param name render target name
-     * @param parameters table of all parameters. Available keys: format, width, height, min_filter, mag_filter, u_wrap, v_wrap
-     * @return new render target
+     * @param name render target name (string)
+     * @param parameters table of all parameters, see the description for available keys and values (table)
+     * @return new render target (render_target)
      */
     int RenderScript_RenderTarget(lua_State* L)
     {
@@ -347,9 +457,10 @@ namespace dmRender
     }
 
     /*#
-     * Delete render target
+     * Deletes a render target
+     *
      * @name render.delete_render_target
-     * @param render_target render target to delete
+     * @param render_target render target to delete (render_target)
      */
     int RenderScript_DeleteRenderTarget(lua_State* L)
     {
@@ -369,9 +480,10 @@ namespace dmRender
     }
 
     /*#
-     * Enable render target
+     * Enables a render target
+     *
      * @name render.enable_render_target
-     * @param render_target render target to enable
+     * @param render_target render target to enable (render_target)
      */
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
@@ -392,9 +504,10 @@ namespace dmRender
     }
 
     /*#
-     * Disable render target
+     * Disables a render target
+     *
      * @name render.disable_render_target
-     * @param render_target render target to disable
+     * @param render_target render target to disable (render_target)
      */
     int RenderScript_DisableRenderTarget(lua_State* L)
     {
@@ -412,11 +525,12 @@ namespace dmRender
     }
 
     /*#
-     * Set render target size
+     * Sets the render target size
+     *
      * @name render.set_render_target_size
-     * @param render_target render target to set size for
-     * @param width new render target width
-     * @param height new render target height
+     * @param render_target render target to set size for (render_target)
+     * @param width new render target width (number)
+     * @param height new render target height (number)
      */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
@@ -439,10 +553,11 @@ namespace dmRender
     }
 
     /*#
-     * Enable texture
+     * Enables a texture for a render target
+     *
      * @name render.enable_texture
-     * @param unit texture unit to enable texture for
-     * @param texture texture to enable
+     * @param unit texture unit to enable texture for (number)
+     * @param render_target render target for which to enable the specified texture unit (render_target)
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
@@ -462,15 +577,16 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(self, unit, render_target) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.enable_texture(unit, render_target) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
         }
     }
 
     /*#
-     * Disable texture
+     * Disables a texture for a render target
+     *
      * @name render.disable_texture
-     * @param unit texture unit to enable disable for
-     * @param texture texture to disable
+     * @param unit texture unit to enable disable for (number)
+     * @param render_target render target for which to disable the specified texture unit (render_target)
      */
     int RenderScript_DisableTexture(lua_State* L)
     {
@@ -498,12 +614,12 @@ namespace dmRender
      */
 
     /*#
-     * Clear active render target <br>
+     * Clears the active render target <br>
      * Example: <br>
      * render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1}) <br>
+     *
      * @name render.clear
-     * @param parameters clear parameters. Available keys are: BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT and BUFFER_TYPE_STENCIL_BIT.
-     * @return
+     * @param buffers Table specifying which buffers to clear. Available keys are: render.BUFFER_TYPE_COLOR_BIT, render.BUFFER_TYPE_DEPTH_BIT and render.BUFFER_TYPE_STENCIL_BIT.
      */
     int RenderScript_Clear(lua_State* L)
     {
@@ -559,9 +675,10 @@ namespace dmRender
     }
 
     /*#
-     * Draw using a predicate
+     * Draws all objects matching a predicate
+     *
      * @name render.draw
-     * @param predicate predicate to draw for
+     * @param predicate predicate to draw for (predicate)
      */
     int RenderScript_Draw(lua_State* L)
     {
@@ -578,7 +695,8 @@ namespace dmRender
     }
 
     /*#
-     * Draw all 3d debug data
+     * Draws all 3d debug graphics
+     *
      * @name render.draw_debug3d
      */
     int RenderScript_DrawDebug3d(lua_State* L)
@@ -591,7 +709,8 @@ namespace dmRender
     }
 
     /*#
-     * Draw all 2d debug data
+     * Draws all 2d debug graphics
+     *
      * @name render.draw_debug2d
      */
     int RenderScript_DrawDebug2d(lua_State* L)
@@ -604,9 +723,10 @@ namespace dmRender
     }
 
     /*#
-     * Set render view matrix
+     * Sets the view matrix
+     *
      * @name render.set_view
-     * @param matrix view matrix to set
+     * @param matrix view matrix to set (matrix4)
      */
     int RenderScript_SetView(lua_State* L)
     {
@@ -622,9 +742,10 @@ namespace dmRender
     }
 
     /*#
-     * Set projection matrix
+     * Sets the projection matrix
+     *
      * @name render.set_projection
-     * @param matrix projection matrix
+     * @param matrix projection matrix (matrix4)
      */
     int RenderScript_SetProjection(lua_State* L)
     {
@@ -714,8 +835,9 @@ namespace dmRender
       */
 
      /*#
-     * Set blending function.<br>
-     * Avaliable factors:<br>
+     * Sets the blending function.<br>
+     *
+     * Available factors:<br>
         BLEND_FACTOR_ZERO <br>
         BLEND_FACTOR_ONE <br>
         BLEND_FACTOR_SRC_COLOR <br>
@@ -731,9 +853,10 @@ namespace dmRender
         BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR <br>
         BLEND_FACTOR_CONSTANT_ALPHA <br>
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA <br>
+     *
      * @name render.set_blend_func
-     * @param sfactor source factor
-     * @param dfactor destination factor
+     * @param source_factor source factor
+     * @param destination_factor destination factor
      */
     int RenderScript_SetBlendFunc(lua_State* L)
     {
@@ -774,13 +897,13 @@ namespace dmRender
     }
 
     /*#
-     * Set color mask
+     * Sets the color mask
+     *
      * @name render.set_color_mask
-     * @param red red mask boolean
-     * @param green green mask boolean
-     * @param blue blue mask boolean
-     * @param alpha alpha mask boolean
-     * @return
+     * @param red red mask (boolean)
+     * @param green green mask (boolean)
+     * @param blue blue mask (boolean)
+     * @param alpha alpha mask (boolean)
      */
     int RenderScript_SetColorMask(lua_State* L)
     {
@@ -803,9 +926,10 @@ namespace dmRender
     }
 
     /*#
-     * Set depth mask
+     * Sets the depth mask
+     *
      * @name render.set_depth_mask
-     * @param depth depth mask boolean
+     * @param depth depth mask (boolean)
      */
     int RenderScript_SetDepthMask(lua_State* L)
     {
@@ -825,9 +949,10 @@ namespace dmRender
     }
 
     /*#
-     * Set stencil mask
+     * Sets the stencil mask
+     *
      * @name render.set_stencil_mask
-     * @param stencil stencil mask integer value
+     * @param stencil stencil mask (number)
      */
     int RenderScript_SetStencilMask(lua_State* L)
     {
@@ -856,9 +981,10 @@ namespace dmRender
      */
 
     /*#
-     * Set cull face
+     * Sets the cull face
+     *
      * @name render.set_cull_face
-     * @param face_type face type. FACE_TYPE_FRONT, FACE_TYPE_BACK or FACE_TYPE_FRONT_AND_BACK
+     * @param face_type face type (render.FACE_TYPE_FRONT|render.FACE_TYPE_BACK|render.FACE_TYPE_FRONT_AND_BACK)
      */
     int RenderScript_SetCullFace(lua_State* L)
     {
@@ -880,10 +1006,11 @@ namespace dmRender
     }
 
     /*#
-     * Set polygon offset
+     * Sets the polygon offset
+     *
      * @name render.set_polygon_offset
-     * @param factor polygon offset factor
-     * @param units polygon offset units
+     * @param factor polygon offset factor (number)
+     * @param units polygon offset units (number)
      */
     int RenderScript_SetPolygonOffset(lua_State* L)
     {
@@ -897,9 +1024,10 @@ namespace dmRender
     }
 
     /*#
-     * Get window width
+     * Gets the window width
+     *
      * @name render.get_window_width
-     * @return window width
+     * @return window width (number)
      */
     int RenderScript_GetWindowWidth(lua_State* L)
     {
@@ -910,9 +1038,10 @@ namespace dmRender
     }
 
     /*#
-     * Get window height
+     * Gets the window height
+     *
      * @name render.get_window_height
-     * @return window height
+     * @return window height (number)
      */
     int RenderScript_GetWindowHeight(lua_State* L)
     {
@@ -923,12 +1052,13 @@ namespace dmRender
     }
 
     /*#
-     * Create a new render predicate<br>
+     * Creates a new render predicate<br>
      * Example:<br>
      * render.predicate({ "opaque", "smoke" })
+     *
      * @name render.predicate
-     * @param predicates table of tags
-     * @return new predicate
+     * @param predicates table of tags that the predicate should match (table)
+     * @return new predicate (predicate)
      */
     int RenderScript_Predicate(lua_State* L)
     {
@@ -957,9 +1087,10 @@ namespace dmRender
     }
 
     /*#
-     * Enable vertex constant
+     * Enables a vertex constant
+     *
      * @name render.enable_vertex_constant
-     * @param register register number to enable
+     * @param register register number to enable (number)
      * @param constant vertex constant (vector4)
      */
     int RenderScript_EnableVertexConstant(lua_State* L)
@@ -973,9 +1104,10 @@ namespace dmRender
     }
 
     /*#
-     * Disable vertex constant
+     * Disables a vertex constant
+     *
      * @name render.enable_vertex_constant
-     * @param register register number to disable
+     * @param register register number to disable (number)
      */
     int RenderScript_DisableVertexConstant(lua_State* L)
     {
@@ -987,10 +1119,11 @@ namespace dmRender
     }
 
     /*#
-     * Enable vertex constant block
+     * Enables a vertex constant block
+     *
      * @name render.enable_vertex_constant_block
-     * @param register base register number to enable
-     * @param matrix matrix of four constant
+     * @param register base register number to enable (number)
+     * @param matrix matrix of four constants (matrix4)
      */
     int RenderScript_EnableVertexConstantBlock(lua_State* L)
     {
@@ -1003,9 +1136,10 @@ namespace dmRender
     }
 
     /*#
-     * Disable vertex constant block
+     * Disables a vertex constant block
+     *
      * @name render.disable_vertex_constant_block
-     * @param register base register number to disable
+     * @param register base register number to disable (number)
      */
     int RenderScript_DisableVertexConstantBlock(lua_State* L)
     {
@@ -1017,9 +1151,10 @@ namespace dmRender
     }
 
     /*#
-     * Enable fragment constant
+     * Enables a fragment constant
+     *
      * @name render.enable_fragment_constant
-     * @param register register number to enable
+     * @param register register number to enable (number)
      * @param constant fragment constant (vector4)
      */
     int RenderScript_EnableFragmentConstant(lua_State* L)
@@ -1033,9 +1168,10 @@ namespace dmRender
     }
 
     /*#
-     * Disable fragment constant
+     * Disables a fragment constant
+     *
      * @name render.enable_fragment_constant
-     * @param register register number to disable
+     * @param register register number to disable (number)
      */
     int RenderScript_DisableFragmentConstant(lua_State* L)
     {
@@ -1047,10 +1183,11 @@ namespace dmRender
     }
 
     /*#
-     * Enable fragment constant block
+     * Enables a fragment constant block
+     *
      * @name render.enable_fragment_constant_block
-     * @param register base register number to enable
-     * @param matrix matrix of four constant
+     * @param register base register number to enable (number)
+     * @param matrix matrix of four constant (matrix4)
      */
     int RenderScript_EnableFragmentConstantBlock(lua_State* L)
     {
@@ -1063,9 +1200,10 @@ namespace dmRender
     }
 
     /*#
-     * Disable fragment constant block
+     * Disables fragment constant block
+     *
      * @name render.disable_fragment_constant_block
-     * @param register base register number to disable
+     * @param register base register number to disable (number)
      */
     int RenderScript_DisableFragmentConstantBlock(lua_State* L)
     {
@@ -1077,11 +1215,10 @@ namespace dmRender
     }
 
     /*#
-     * Enable material
-     * @name render.enable_material
-     * @param material_id material id to enable
+     * Enables a material
      *
-     * @return
+     * @name render.enable_material
+     * @param material_id material id to enable (string)
      */
     int RenderScript_EnableMaterial(lua_State* L)
     {
@@ -1112,10 +1249,9 @@ namespace dmRender
     }
 
     /*#
-     * Disable material
+     * Disables the currently enabled material
+     *
      * @name render.disable_material
-     * @param material_id material id to disable
-     * @return
      */
     int RenderScript_DisableMaterial(lua_State* L)
     {
