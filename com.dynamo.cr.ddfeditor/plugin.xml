@@ -508,6 +508,7 @@
             type-class="component">
       </resource-type>
       <resource-type
+            embeddable="true"
             file-extension="sprite"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Sprite"
             name="Sprite"
