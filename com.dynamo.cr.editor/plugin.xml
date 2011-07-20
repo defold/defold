@@ -353,10 +353,6 @@
       </activityPatternBinding>
       <activityPatternBinding
             activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
-            pattern="org\.eclipse\.ui\.ide/org\.eclipse\.ui\.wizards\.new\.folder">
-      </activityPatternBinding>
-      <activityPatternBinding
-            activityId="com.dynamo.cr.editor.activities.disableEclipseUI"
             pattern="org\.eclipse\.ui\.editors/org\.eclipse\.ui\.editors\.wizards\.UntitledTextFileWizard">
       </activityPatternBinding>
    </extension>
