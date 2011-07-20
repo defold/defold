@@ -65,6 +65,7 @@ def shutdown():
     os.environ['DM_SAVEGAME_HOME'] = 'build'
     waf_dynamo.run_gtests(valgrind = True)
 
-    python_path = os.environ.get('PYTHONPATH', '')
-    os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/proto' + os.pathsep + python_path
-    os.system('python %s' % 'src/test/test_script_doc.py')
+    if not getattr(Options.options, 'skip_tests', False):
+        python_path = os.environ.get('PYTHONPATH', '')
+        os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/proto' + os.pathsep + python_path
+        os.system('python %s' % 'src/test/test_script_doc.py')
