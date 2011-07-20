@@ -4,4 +4,5 @@ war/WEB-INF/classes
 war/WEB-INF/lib/*.jar
 war/defold
 war/site/*.html
+war/doc/*.json
 
