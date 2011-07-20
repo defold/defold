@@ -6,6 +6,20 @@
 
 typedef uint64_t dmhash_t;
 
+struct dmReverseHashEntry
+{
+    void*    m_Value;
+    uint32_t m_Length;
+
+    inline dmReverseHashEntry() {}
+
+    dmReverseHashEntry(void* value, uint32_t length)
+    {
+        m_Value = value;
+        m_Length = length;
+    }
+};
+
 extern "C"
 {
 
@@ -18,6 +32,7 @@ struct HashState32
     uint32_t m_Tail;
     uint32_t m_Count;
     uint32_t m_Size;
+    dmReverseHashEntry m_ReverseEntry;
 };
 
 /**
@@ -29,6 +44,7 @@ struct HashState64
     uint64_t m_Tail;
     uint32_t m_Count;
     uint32_t m_Size;
+    dmReverseHashEntry m_ReverseEntry;
 };
 
 /**
@@ -64,7 +80,7 @@ DM_DLLEXPORT void dmHashInit64(HashState64* hash_state);
  * @param buffer Buffer
  * @param buffer_len Length of buffer
  */
-DM_DLLEXPORT void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint64_t buffer_len);
+DM_DLLEXPORT void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t buffer_len);
 
 /**
  * Finalize hashing
@@ -80,6 +96,15 @@ DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
  * @return Hash value
  */
 DM_DLLEXPORT uint32_t dmHashBuffer32(const void* buffer, uint32_t buffer_len);
+
+/**
+ * Calculate 32-bit hash value from buffer. Special version of dmHashBuffer32 with reverse always disabled.
+ * Used in situations when no memory allocations can occur, eg profiling scenarios.
+ * @param buffer Buffer
+ * @param buffer_len Length of buffer
+ * @return Hash value
+ */
+DM_DLLEXPORT uint32_t dmHashBufferNoReverse32(const void* buffer, uint32_t buffer_len);
 
 /**
  * Calculate 64-bit hash value from buffer
@@ -102,6 +127,28 @@ DM_DLLEXPORT uint32_t dmHashString32(const char* string);
  * @return Hash value
  */
 DM_DLLEXPORT uint64_t dmHashString64(const char* string);
+
+/**
+ * Enable/disable support for reverse hash lookup
+ * @param enable true for enable
+ */
+DM_DLLEXPORT void dmHashEnableReverseHash(bool enable);
+
+/**
+ * Reverse hash lookup. Maps hash to original data.
+ * @param hash hash to lookup
+ * @param length orignal data length
+ * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
+ */
+DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
+
+/**
+ * Reverse hash lookup. Maps hash to original data.
+ * @param hash hash to lookup
+ * @param length orignal data length
+ * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
+ */
+DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
 
 }
 

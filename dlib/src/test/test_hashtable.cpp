@@ -12,8 +12,8 @@ TEST(dmHashTable, EmtpyConstructor)
 {
     dmHashTable32<int> ht;
 
-    EXPECT_EQ(0, ht.Size());
-    EXPECT_EQ(0, ht.Capacity());
+    EXPECT_EQ(0U, ht.Size());
+    EXPECT_EQ(0U, ht.Capacity());
     EXPECT_EQ(true, ht.Full());
     EXPECT_EQ(true, ht.Empty());
 }
@@ -175,7 +175,7 @@ TEST(dmHashTable, Exhaustive1)
                 ht.Erase(j);
                 ht.Verify();
             }
-            ASSERT_EQ(0, ht.Size());
+            ASSERT_EQ(0U, ht.Size());
 
             // Fill again
             for (int i = 0; i < count; ++i)
@@ -203,7 +203,7 @@ TEST(dmHashTable, TestBug1)
     ht.SetCapacity(122, 3);
     ht.Put(487, 0);
     ht.Put(487, 0);
-    ASSERT_EQ(1, ht.Size());
+    ASSERT_EQ(1U, ht.Size());
 }
 
 TEST(dmHashTable, Exhaustive2)

@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 /**
- * Hashtable with chaining for collision resolution, memcpy-copy semantics and 16-bit indicies instead of pointers. (NUMA-friendly)
+ * Hashtable with chaining for collision resolution, memcpy-copy semantics and 32-bit indicies instead of pointers. (NUMA-friendly)
  * Only uint16_t, uint32_t and uint64_t is supported as KEY type.
  */
 template <typename KEY, typename T>
@@ -24,7 +24,7 @@ public:
     {
         KEY      m_Key;
         T        m_Value;
-        uint16_t m_Next;
+        uint32_t m_Next;
     };
 
     /**
@@ -33,25 +33,25 @@ public:
     dmHashTable()
     {
         memset(this, 0, sizeof(*this));
-        m_FreeEntries = 0xffff;
+        m_FreeEntries = 0xffffffff;
     }
 
     /**
      * Creates a hashtable array with user allocated memory. User allocated arrays can not change capacity.
-     * @param user_allocated Pointer to user allocated continous data-block ((table_size*sizeof(uint16_t)) + (capacity*sizeof(dmHashTable::Entry))
-     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
-     * @param capacity Capacity. capacity < 0xffff
+     * @param user_allocated Pointer to user allocated continous data-block ((table_size*sizeof(uint32_t)) + (capacity*sizeof(dmHashTable::Entry))
+     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffffffff
+     * @param capacity Capacity. capacity < 0xffffffff
      */
-    dmHashTable(void *user_allocated, uint16_t table_size, uint16_t capacity)
+    dmHashTable(void *user_allocated, uint32_t table_size, uint32_t capacity)
     {
-        assert(table_size < 0xffff);
-        assert(capacity < 0xffff);
+        assert(table_size < 0xffffffff);
+        assert(capacity < 0xffffffff);
         memset(this, 0, sizeof(*this));
-        m_FreeEntries = 0xffff;
+        m_FreeEntries = 0xffffffff;
 
         m_HashTableSize = table_size;
-        m_HashTable = (uint16_t*) user_allocated;
-        memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
+        m_HashTable = (uint32_t*) user_allocated;
+        memset(m_HashTable, 0xff, sizeof(uint32_t) * table_size);
 
         m_InitialEntries = (Entry*) (m_HashTable + table_size);
         m_InitialEntriesNextFree = m_InitialEntries;
@@ -61,9 +61,9 @@ public:
 
     void Clear()
     {
-        memset(m_HashTable, 0xff, sizeof(uint16_t) * m_HashTableSize);
+        memset(m_HashTable, 0xff, sizeof(uint32_t) * m_HashTableSize);
         m_InitialEntriesNextFree = m_InitialEntries;
-        m_FreeEntries = 0xffff;
+        m_FreeEntries = 0xffffffff;
         m_Count = 0;
     }
 
@@ -91,7 +91,7 @@ public:
      * Number of entries stored in table. (not the actual hashtable size)
      * @return Number of entries.
      */
-    uint16_t Size()
+    uint32_t Size()
     {
         return m_Count;
     }
@@ -100,28 +100,28 @@ public:
      * Hashtable capacity. Maximum number of entries possible to store in table
      * @return Capcity
      */
-    uint16_t Capacity()
+    uint32_t Capacity()
     {
         return m_InitialEntriesEnd - m_InitialEntries;
     }
 
     /**
      * Set hashtable capacity. New capacity must be greater or equal to current capacity
-     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffff
-     * @param capacity Capacity. capacity < 0xffff
+     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffffffff
+     * @param capacity Capacity. capacity < 0xffffffff
      */
-    void SetCapacity(uint16_t table_size, uint16_t capacity)
+    void SetCapacity(uint32_t table_size, uint32_t capacity)
     {
         assert(table_size > 0);
-        assert(table_size < 0xffff);
-        assert(capacity < 0xffff);
+        assert(table_size < 0xffffffff);
+        assert(capacity < 0xffffffff);
         assert(capacity >= Capacity());
 
         if (m_InitialEntries == 0)
         {
             m_HashTableSize = table_size;
-            m_HashTable = (uint16_t*) malloc(sizeof(uint16_t) * table_size);
-            memset(m_HashTable, 0xff, sizeof(uint16_t) * table_size);
+            m_HashTable = (uint32_t*) malloc(sizeof(uint32_t) * table_size);
+            memset(m_HashTable, 0xff, sizeof(uint32_t) * table_size);
 
             m_InitialEntries = (Entry*) malloc(sizeof(Entry) * capacity);
             m_InitialEntriesNextFree = m_InitialEntries;
@@ -184,11 +184,11 @@ public:
             entry = AllocateEntry();
             entry->m_Key = key;
             entry->m_Value = value;
-            entry->m_Next = 0xffff;
+            entry->m_Next = 0xffffffff;
 
-            uint16_t bucket_index = key % m_HashTableSize;
-            uint16_t entry_ptr = m_HashTable[bucket_index];
-            if (entry_ptr == 0xffff)
+            uint32_t bucket_index = key % m_HashTableSize;
+            uint32_t entry_ptr = m_HashTable[bucket_index];
+            if (entry_ptr == 0xffffffff)
             {
                 m_HashTable[bucket_index] = entry - m_InitialEntries; // Store the index of the entry
             }
@@ -196,12 +196,12 @@ public:
             {
                 // We need to traverse the list of entries for the bucket
                 Entry* prev_entry;
-                while (entry_ptr != 0xffff)
+                while (entry_ptr != 0xffffffff)
                 {
                     prev_entry = &m_InitialEntries[entry_ptr];
                     entry_ptr = prev_entry->m_Next;
                 }
-                assert(prev_entry->m_Next == 0xffff);
+                assert(prev_entry->m_Next == 0xffffffff);
 
                 // Link prev entry to this
                 prev_entry->m_Next = entry - m_InitialEntries;
@@ -272,14 +272,14 @@ public:
         // Avoid module division by zero
         assert(m_HashTableSize != 0);
 
-        uint16_t bucket_index = key % m_HashTableSize;
-        uint16_t entry_ptr = m_HashTable[bucket_index];
+        uint32_t bucket_index = key % m_HashTableSize;
+        uint32_t entry_ptr = m_HashTable[bucket_index];
 
         // Empty list?
-        assert(entry_ptr != 0xffff);
+        assert(entry_ptr != 0xffffffff);
 
         Entry* prev_e = 0;
-        while (entry_ptr != 0xffff)
+        while (entry_ptr != 0xffffffff)
         {
             Entry* e = &m_InitialEntries[entry_ptr];
             if (e->m_Key == key)
@@ -313,12 +313,12 @@ public:
     template <typename CONTEXT>
     void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context)
     {
-        for (int i = 0; i < m_HashTableSize; ++i)
+        for (uint32_t i = 0; i < m_HashTableSize; ++i)
         {
-            if (m_HashTable[i] != 0xffff)
+            if (m_HashTable[i] != 0xffffffff)
             {
-                uint16_t entry_ptr = m_HashTable[i];
-                while (entry_ptr != 0xffff)
+                uint32_t entry_ptr = m_HashTable[i];
+                while (entry_ptr != 0xffffffff)
                 {
                     Entry*e = &m_InitialEntries[entry_ptr];
                     call_back(context, &e->m_Key, &e->m_Value);
@@ -334,8 +334,8 @@ public:
     void Verify()
     {
         // Ensure that not items in free list is used
-        uint16_t free_ptr = m_FreeEntries;
-        while (free_ptr != 0xffff)
+        uint32_t free_ptr = m_FreeEntries;
+        while (free_ptr != 0xffffffff)
         {
             Entry* e = &m_InitialEntries[free_ptr];
             // Check that free entry not is in table
@@ -348,13 +348,13 @@ public:
             free_ptr = e->m_Next;
         }
 
-        uint16_t real_count = 0;
-        for (int i = 0; i < m_HashTableSize; ++i)
+        uint32_t real_count = 0;
+        for (uint32_t i = 0; i < m_HashTableSize; ++i)
         {
-            if (m_HashTable[i] != 0xffff)
+            if (m_HashTable[i] != 0xffffffff)
             {
-                uint16_t entry_ptr = m_HashTable[i];
-                while (entry_ptr != 0xffff)
+                uint32_t entry_ptr = m_HashTable[i];
+                while (entry_ptr != 0xffffffff)
                 {
                     real_count++;
                     Entry*e = &m_InitialEntries[entry_ptr];
@@ -382,11 +382,11 @@ private:
         if (!m_HashTableSize)
             return 0;
 
-        uint16_t bucket_index = key % m_HashTableSize;
-        uint16_t bucket = m_HashTable[bucket_index];
+        uint32_t bucket_index = key % m_HashTableSize;
+        uint32_t bucket = m_HashTable[bucket_index];
 
-        uint16_t entry_ptr = bucket;
-        while (entry_ptr != 0xffff)
+        uint32_t entry_ptr = bucket;
+        while (entry_ptr != 0xffffffff)
         {
             Entry* e = &m_InitialEntries[entry_ptr];
             if (e->m_Key == key)
@@ -408,7 +408,7 @@ private:
         else
         {
             // No, pick an entry from the free list.
-            assert(m_FreeEntries != 0xffff && "No free entries in hashtable");
+            assert(m_FreeEntries != 0xffffffff && "No free entries in hashtable");
 
             Entry*ret = &m_InitialEntries[m_FreeEntries];
             m_FreeEntries = ret->m_Next;
@@ -420,10 +420,10 @@ private:
     void FreeEntry(Entry* e)
     {
         // Empty list of entries?
-        if (m_FreeEntries == 0xffff)
+        if (m_FreeEntries == 0xffffffff)
         {
             m_FreeEntries = e - m_InitialEntries;
-            e->m_Next = 0xffff;
+            e->m_Next = 0xffffffff;
         }
         else
         {
@@ -433,8 +433,8 @@ private:
     }
 
     // The actual hash table
-    uint16_t* m_HashTable;
-    uint16_t  m_HashTableSize;
+    uint32_t* m_HashTable;
+    uint32_t  m_HashTableSize;
 
     // Pointer to all entries
     Entry*    m_InitialEntries;
@@ -444,10 +444,10 @@ private:
     Entry*    m_InitialEntriesEnd;
 
     // Linked list of free entries.
-    uint16_t  m_FreeEntries;
+    uint32_t  m_FreeEntries;
 
     // Number of key/value pairs in table
-    uint16_t  m_Count;
+    uint32_t  m_Count;
 
     // state flags/info
     uint16_t m_State : 1;
