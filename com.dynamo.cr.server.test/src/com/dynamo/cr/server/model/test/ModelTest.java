@@ -256,7 +256,7 @@ public class ModelTest {
     }
 
     @Test
-    public void testRemoveProject() throws Exception {
+    public void testDeleteProject() throws Exception {
 
         List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(2, allProjects.size());

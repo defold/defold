@@ -264,6 +264,8 @@ public class ProjectResourceTest {
 
         response = memberProjectsWebResource.path(String.format("/members/%d", ownerInfo.getId())).delete(ClientResponse.class);
         assertEquals(403, response.getStatus());
+        int b = response.getEntityInputStream().read();
+        assertTrue(b >= 0);
 
         assertEquals(2, ownerProjectClient.getProjectInfo().getMembersCount());
         response = ownerProjectsWebResource.path(String.format("/members/%d", memberInfo.getId())).delete(ClientResponse.class);

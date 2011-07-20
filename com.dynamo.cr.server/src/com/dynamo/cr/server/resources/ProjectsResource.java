@@ -76,7 +76,7 @@ public class ProjectsResource extends BaseResource {
         catch (Throwable e) {
             logger.error(e.getMessage(), e);
             em.getTransaction().begin();
-            ModelUtil.deleteProject(em, project);
+            ModelUtil.removeProject(em, project);
             em.getTransaction().commit();
             em.close();
             throw new ServerException("Unable to create project. Internal error.", Status.INTERNAL_SERVER_ERROR);
