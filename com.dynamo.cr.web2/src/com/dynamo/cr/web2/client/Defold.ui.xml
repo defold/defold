@@ -8,11 +8,15 @@
         	margin-left: auto;
         	margin-right: auto;
         }
+
+        .center {
+            margin-left: 8px;
+        }
     </ui:style>
 
     <g:DockLayoutPanel styleName="{style.dock}" unit='EM'
         width="960px">
-        <g:north size="5.5">
+        <g:north size="7">
             <g:VerticalPanel>
                 <g:HTMLPanel>
                     <span style="font-size: 24px; margin-bottom: 16px">
@@ -28,11 +32,10 @@
 
                 <g:HTMLPanel>
                     <ul class="nav nav1">
-                        <li><g:Anchor ui:field="productInfo">Product Info</g:Anchor></li>
-                        <li><g:Anchor ui:field="dashBoard">Dashboard</g:Anchor></li>
-                        <li><g:Anchor ui:field="documentation">Documentation</g:Anchor></li>
-                        <li><g:Anchor ui:field="tutorials">Tutorials</g:Anchor></li>
-                        <li><g:Anchor ui:field="logout">Logout</g:Anchor></li>
+                        <li id="product_info"><g:Anchor ui:field="productInfo">Product Info</g:Anchor></li>
+                        <li id="dashboard"><g:Anchor ui:field="dashBoard">Dashboard</g:Anchor></li>
+                        <li id="documentation"><g:Anchor ui:field="documentation">Documentation</g:Anchor></li>
+                        <li id="tutorials"><g:Anchor ui:field="tutorials">Tutorials</g:Anchor></li>
                     </ul>
                 </g:HTMLPanel>
 
@@ -40,13 +43,16 @@
         </g:north>
 
         <g:center>
-            <g:ScrollPanel ui:field="panel"></g:ScrollPanel>
+            <g:ScrollPanel ui:field="panel" styleName="{style.center}"></g:ScrollPanel>
         </g:center>
 
         <g:south size="3">
             <g:HTMLPanel>
                 <div style="margin-top: 16px;">
                     © 2011 Defold All rights reserved
+                    <span style="float: right">
+                        <g:Anchor ui:field="logout">Logout</g:Anchor>
+                    </span>
                 </div>
             </g:HTMLPanel>
         </g:south>

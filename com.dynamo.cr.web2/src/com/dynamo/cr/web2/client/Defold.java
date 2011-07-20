@@ -25,12 +25,15 @@ import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
 import com.google.gwt.place.shared.Place;
+import com.google.gwt.place.shared.PlaceChangeEvent;
 import com.google.gwt.place.shared.PlaceController;
 import com.google.gwt.place.shared.PlaceHistoryHandler;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.Cookies;
+import com.google.gwt.user.client.DOM;
+import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
@@ -58,6 +61,10 @@ public class Defold implements EntryPoint {
     private String url = "http://cr.defold.se:9998";
 
     private ClientFactory clientFactory;
+
+    private com.google.gwt.dom.client.Element prevActiveNavElement;
+
+    private AppPlaceHistoryMapper historyMapper;
 
     interface DefoldUiBinder extends UiBinder<DockLayoutPanel, Defold> {
     }
@@ -115,8 +122,6 @@ public class Defold implements EntryPoint {
                         eventBus.fireEvent(new AuthenticationFailureEvent());
                     } else if (statusCode == 0) {
                         eventBus.fireEvent(new AuthenticationFailureEvent());
-                        //showErrorMessage("Network error");
-                        //callback.onFailure(request, response);
                     }
                     else {
                         callback.onSuccess(response.getText(), request, response);
@@ -147,6 +152,35 @@ public class Defold implements EntryPoint {
         sendRequest(resource, RequestBuilder.PUT, data, callback, "application/json");
     }
 
+    /**
+     * Handles activation of top-level navigation menu elements
+     * @author chmu
+     *
+     */
+    class NavigationHandler implements PlaceChangeEvent.Handler {
+
+        @Override
+        public void onPlaceChange(PlaceChangeEvent event) {
+            String token = historyMapper.getToken(event.getNewPlace());
+            int i = token.indexOf(":");
+            token = token.substring(0, i);
+            Element liElement = DOM.getElementById(token);
+
+            if (liElement != null) {
+                com.google.gwt.dom.client.Element anchorElement = liElement.getFirstChildElement();
+                anchorElement.addClassName("nav1Active");
+                if (anchorElement == prevActiveNavElement)
+                    return;
+
+                if (prevActiveNavElement != null) {
+                    prevActiveNavElement.removeClassName("nav1Active");
+                }
+                prevActiveNavElement = anchorElement;
+
+            }
+        }
+    }
+
     @Override
     public void onModuleLoad() {
 
@@ -163,7 +197,10 @@ public class Defold implements EntryPoint {
         activityManager.setDisplay(panel);
 
         // Start PlaceHistoryHandler with our PlaceHistoryMapper
-        AppPlaceHistoryMapper historyMapper= GWT.create(AppPlaceHistoryMapper.class);
+        historyMapper = GWT.create(AppPlaceHistoryMapper.class);
+        // NOTE: We must add this early in order to catch "first page"
+        eventBus.addHandler(PlaceChangeEvent.TYPE, new NavigationHandler());
+
         PlaceHistoryHandler historyHandler = new PlaceHistoryHandler(historyMapper);
         historyHandler.register(placeController, eventBus, defaultPlace);
 
@@ -175,7 +212,6 @@ public class Defold implements EntryPoint {
 
         RootLayoutPanel root = RootLayoutPanel.get();
         root.add(outer);
-        //root.add(outer);
         historyHandler.handleCurrentHistory();
 
         logout.setVisible(Cookies.getCookie("auth") != null);

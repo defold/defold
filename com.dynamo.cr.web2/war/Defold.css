@@ -10,21 +10,21 @@ h1 {
 
 h2 {
     font-weight: 300;
-    font-size: 2.0em;
-    margin: 0px 0px 8px 0px;
+    font-size: 1.6em;
+    margin: 12px 0px 8px 0px;
     color: #000;
 }
 
 h3 {
     font-weight: 400;
-    font-size: 1.5em;
-    margin: 0px 0px 8px 0px;
+    font-size: 1.2em;
+    margin: 4px 0px 8px 0px;
     color: #000;
 }
 
 h4 {
     font-weight: 400;
-    font-size: 1.2em;
+    font-size: 1.1em;
     margin: 0px 0px 8px 0px;
     color: #000;
 }
@@ -161,6 +161,7 @@ ul.nav {
 
 ul.nav li {
     float: left;
+    cursor: pointer;
 }
 
 ul.nav a {
@@ -169,6 +170,44 @@ ul.nav a {
     padding-right: 12px;
     cursor: pointer;
 }
+
+ul.nav1 a.nav1Active {
+    background-color: #444;
+}
+
+ul.nav1 a {
+    width: auto;
+    background-color: #7d7d7d;
+    margin: 0px;
+    padding: 10px 25px 10px;
+    color: white !important;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+    text-decoration: none;
+    -moz-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+    position: relative;
+    overflow: visible;
+    text-align: center;
+}
+
+ul.nav1 a:hover {
+    background-color: #444;
+}
+
+.nav1 li:first-child a {
+    -moz-border-radius: 5px 0px 0px 5px;
+    -webkit-border-radius: 5px 0px 0px 5px;
+}
+
+.nav1 li:last-child a {
+    -moz-border-radius: 0px 5px 5px 0px;
+    -webkit-border-radius: 0px 5px 5px 0px;
+}
+
 
 /* Form stuff */
 div.form {
