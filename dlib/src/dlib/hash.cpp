@@ -69,9 +69,44 @@ struct dmHashInitializer
         m_ReverseHashEnabled = true;
     }
 
+    static void FreeCallback(void* context, const uintptr_t* key, bool* value)
+    {
+        free((void*) *key);
+    }
+
+    template <typename KEY>
+    static void BuiltPointerSetCallback(dmHashTable<uintptr_t, bool>* pointer_set, const KEY* key, dmReverseHashEntry* value)
+    {
+        if (pointer_set->Get((uintptr_t) value->m_Value) == (bool*) 0)
+        {
+            if (pointer_set->Full())
+            {
+                pointer_set->SetCapacity(1024, pointer_set->Capacity() + 1024);
+            }
+            pointer_set->Put((uintptr_t) value->m_Value, true);
+        }
+    }
+
     ~dmHashInitializer()
     {
         dmMutex::Delete(m_Mutex);
+        dmHashTable<uintptr_t, bool> pointer_set;
+        uint32_t table_size = 0;
+        table_size += m_ReverseHashTable32.Size();
+        table_size += m_ReverseHashTable64.Size();
+        table_size += m_ReverseStateHashTable32.Size();
+        table_size += m_ReverseStateHashTable64.Size();
+        pointer_set.SetCapacity(table_size / 2 + 17, table_size);
+
+        /*
+         * Memory can be shared between m_ReverseHashTableX and m_ReverseStateHashTableX
+         * We must first build a set of all memory to free
+         */
+        m_ReverseHashTable32.Iterate(dmHashInitializer::BuiltPointerSetCallback<uint32_t>, &pointer_set);
+        m_ReverseHashTable64.Iterate(dmHashInitializer::BuiltPointerSetCallback<uint64_t>, &pointer_set);
+        m_ReverseStateHashTable32.Iterate(dmHashInitializer::BuiltPointerSetCallback<dmHashIncrementalStateKey32>, &pointer_set);
+        m_ReverseStateHashTable64.Iterate(dmHashInitializer::BuiltPointerSetCallback<dmHashIncrementalStateKey64>, &pointer_set);
+        pointer_set.Iterate(dmHashInitializer::FreeCallback, (void*) 0);
     }
 };
 
