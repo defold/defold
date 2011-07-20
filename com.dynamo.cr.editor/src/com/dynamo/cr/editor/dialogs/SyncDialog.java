@@ -271,7 +271,7 @@ public class SyncDialog extends TitleAreaDialog {
 
     private void downloadApplication() {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        if (store.getBoolean(PreferenceConstants.P_DOWNLOADAPPLICATION)) {
+        if (store.getBoolean(PreferenceConstants.P_DOWNLOAD_APPLICATION)) {
             IProjectClient projectClient = Activator.getDefault().projectClient;
 
             String platform = Activator.getPlatform();

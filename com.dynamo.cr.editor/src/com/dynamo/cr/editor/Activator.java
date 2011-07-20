@@ -189,8 +189,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
 	private void updateSocksProxy() {
         IPreferenceStore store = getPreferenceStore();
-        String socks_proxy = store.getString(PreferenceConstants.P_SOCKSPROXY);
-        int socks_proxy_port = store.getInt(PreferenceConstants.P_SOCKSPROXYPORT);
+        String socks_proxy = store.getString(PreferenceConstants.P_SOCKS_PROXY);
+        int socks_proxy_port = store.getInt(PreferenceConstants.P_SOCKS_PROXY_PORT);
 
         if (!socks_proxy.isEmpty()) {
             System.setProperty("socksProxyHost", socks_proxy);
@@ -418,8 +418,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         if (p.equals(PreferenceConstants.P_SERVER_URI)) {
             connectProjectClient();
         }
-        else if (p.equals(PreferenceConstants.P_SOCKSPROXY) ||
-        		 p.equals(PreferenceConstants.P_SOCKSPROXYPORT)) {
+        else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) ||
+        		 p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
             updateSocksProxy();
         }
     }

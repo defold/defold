@@ -8,8 +8,13 @@ public class PreferenceConstants {
     public static final String P_EMAIL = "emailPreference";
     public static final String P_AUTH_COOKIE = "authCookiePreference";
     public static final String P_APPLICATION = "applicationPreference";
-    public static final String P_DOWNLOADAPPLICATION = "downloadApplicationPreference";
+    public static final String P_DOWNLOAD_APPLICATION = "downloadApplicationPreference";
 
-    public static final String P_SOCKSPROXY = "socksProxyPreference";
-    public static final String P_SOCKSPROXYPORT = "socksProxyPortPreference";
+    public static final String P_SOCKS_PROXY = "socksProxyPreference";
+    public static final String P_SOCKS_PROXY_PORT = "socksProxyPortPreference";
+
+    // Debug
+    public static final String P_RUN_IN_DEBUGGER = "runInDebugger";
+    public static final String P_AUTO_RUN_DEBUGGER = "autoRunDebugger";
 }
+

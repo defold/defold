@@ -27,15 +27,15 @@ public class PreferencePage
 
 	public void createFieldEditors() {
         addField(new StringFieldEditor(PreferenceConstants.P_SERVER_URI, "Resource server URI:", getFieldEditorParent()));
-        addField(new StringFieldEditor(PreferenceConstants.P_SOCKSPROXY, "Socks proxy:", getFieldEditorParent()));
-        addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKSPROXYPORT, "Socks proxy port:", getFieldEditorParent()));
+        addField(new StringFieldEditor(PreferenceConstants.P_SOCKS_PROXY, "Socks proxy:", getFieldEditorParent()));
+        addField(new IntegerFieldEditor(PreferenceConstants.P_SOCKS_PROXY_PORT, "Socks proxy port:", getFieldEditorParent()));
 
-        downloadApplicationField = new BooleanFieldEditor(PreferenceConstants.P_DOWNLOADAPPLICATION, "Download application:", getFieldEditorParent());
+        downloadApplicationField = new BooleanFieldEditor(PreferenceConstants.P_DOWNLOAD_APPLICATION, "Download application:", getFieldEditorParent());
         addField(downloadApplicationField);
         applicationField = new FileFieldEditor(PreferenceConstants.P_APPLICATION, "Application:", getFieldEditorParent());
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        applicationField.setEnabled(!store.getBoolean(PreferenceConstants.P_DOWNLOADAPPLICATION), getFieldEditorParent());
+        applicationField.setEnabled(!store.getBoolean(PreferenceConstants.P_DOWNLOAD_APPLICATION), getFieldEditorParent());
         addField(applicationField);
 	}
 

@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -47,10 +48,10 @@ public class LaunchHandler extends AbstractHandler {
     private static final String PARM_MSG = "com.dynamo.crepo.commands.launch.type";
 
     IStatus launchGame() throws RepositoryException {
-        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         final String exe_name = store.getString(PreferenceConstants.P_APPLICATION);
-        final String socks_proxy = store.getString(PreferenceConstants.P_SOCKSPROXY);
-        final int socks_proxy_port = store.getInt(PreferenceConstants.P_SOCKSPROXYPORT);
+        final String socks_proxy = store.getString(PreferenceConstants.P_SOCKS_PROXY);
+        final int socks_proxy_port = store.getInt(PreferenceConstants.P_SOCKS_PROXY_PORT);
 
         final File exe = new File(exe_name);
 
@@ -62,15 +63,54 @@ public class LaunchHandler extends AbstractHandler {
 
         Thread thread = new Thread(new Runnable() {
 
-            @Override
-            public void run() {
-                try {
-                    String[] args = new String[launchInfo.getArgsCount()];
+            private String[] createArgs() throws IOException {
+                if (store.getBoolean(PreferenceConstants.P_RUN_IN_DEBUGGER)) {
+                    File gdbCommandsFile = File.createTempFile("gdb", "commands");
+                    gdbCommandsFile.deleteOnExit();
+                    PrintWriter gdbCommandsWriter = new PrintWriter(gdbCommandsFile);
 
+                    gdbCommandsWriter.println("set $_exitcode = -999");
+                    if (store.getBoolean(PreferenceConstants.P_AUTO_RUN_DEBUGGER)) {
+                        gdbCommandsWriter.println("run");
+                    }
+                    gdbCommandsWriter.println("if $_exitcode != -999");
+                    gdbCommandsWriter.println("  quit");
+                    gdbCommandsWriter.println("end");
+                    gdbCommandsWriter.close();
+
+                    String command = String.format("gdb -x %s --args ", gdbCommandsFile.getAbsolutePath());
+                    for (String s : launchInfo.getArgsList()) {
+                        command += substituteVariables(s);
+                        command += " ";
+                    }
+
+                    String[] args;
+                    if (Activator.getPlatform().equals("darwin")) {
+                        command = "DMSOCKS_PROXY=" + socks_proxy + " " + command;
+                        command = "DMSOCKS_PROXY_PORT=" + socks_proxy_port + " " + command;
+                        command += " && exit";
+                        args = new String[] {"osascript", "-e", "tell application \"Terminal\"\n do script \"" + command + '"' + "\nend tell"};
+                    } else {
+                        args = new String[] {"xterm", "-e", command};
+                    }
+
+                    return args;
+
+                } else {
+                    String[] args = new String[launchInfo.getArgsCount()];
                     int i = 0;
                     for (String s : launchInfo.getArgsList()) {
                         args[i++] = substituteVariables(s);
                     }
+                    return args;
+
+                }
+            }
+
+            @Override
+            public void run() {
+                try {
+                    String[] args = createArgs();
 
                     Map<String, String> env = new HashMap<String, String>();
                     if (!socks_proxy.isEmpty())

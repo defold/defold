@@ -259,6 +259,11 @@
             id="com.dynamo.rclient.preferences.PreferencePage"
             name="Content Repository">
       </page>
+      <page
+            class="com.dynamo.cr.editor.preferences.DebugPreferencePage"
+            id="com.dynamo.rclient.preferences.DebugPreferencePage"
+            name="Debug">
+      </page>
    </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">
