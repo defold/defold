@@ -250,21 +250,35 @@ namespace dmScript
     };
 
     /*#
-     * Create a new URL. The function has two general forms.
-     * Either you pass a single argument containing the URI to be parsed as text
-     * or you pass individual parts of the URI. The two forms are illustrated in the following examples:
+     * Creates a new URL, which is the address of the component of the calling script.
+     *
+     * @name msg.url
+     * @return a new URL (url)
+     */
+
+    /*#
+     * Creates a new URL from a string
      * <br><br>
-     * msg.url("socket:/path#fragment) <br>
+     * msg.url("socket:/path#fragment") <br>
+     *
+     * @name msg.url
+     * @param urlstring string to create the url from (string)
+     * @return a new URL (url)
+     */
+
+    /*#
+     * Creates a new URL from a socket, path and fragment
+     * <br><br>
      * msg.url("socket", "/path", "fragment") <br>
-     * In the second form you could leave out arguments, eg: <br><br>
+     * msg.url(my_url.socket, my_url.path, my_url.fragment) <br>
+     * You can also leave out arguments, eg: <br><br>
      * msg.url("socket", "/path")
      *
      * @name msg.url
-     * @param [uristring] uri string to create uri from
-     * @param [socket] socket name from the URI
-     * @param [path] path of the URI
-     * @param [fragment] fragment of the URI
-     * @return a new URI
+     * @param [socket] socket of the URL (string|socket)
+     * @param [path] path of the URL (string|hash)
+     * @param [fragment] fragment of the URL (string|hash)
+     * @return a new URL (url)
      */
     int URL_new(lua_State* L)
     {
@@ -396,11 +410,12 @@ namespace dmScript
     }
 
     /*#
-     * Post message
+     * Posts a message
+     *
      * @name msg.post
-     * @param receiver receiver to send message to. Could be nil, a string or an URL object
-     * @param message_id message id for the message. Either a string or a pre-hashed value
-     * @param [message] lua table message to send. Optional argument
+     * @param receiver The receiver must be a string in URL-format, a URL object or nil. Nil is a short way of sending the message back to the calling script. (string|url|nil)
+     * @param message_id The id must be a string or a hashed string. (string|hash)
+     * @param [message] lua table message to send (table)
      */
     int Msg_Post(lua_State* L)
     {

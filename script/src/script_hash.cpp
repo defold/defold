@@ -35,6 +35,14 @@ namespace dmScript
         return result;
     }
 
+    /*#
+     * Hashes a string. All ids in the engine are represented as hashes, so a string needs to be hashed
+     * before it can be compared with an id.
+     *
+     * @name hash
+     * @param s string to hash (string)
+     * @return a hashed string (hash)
+     */
     int Script_Hash(lua_State* L)
     {
         int top = lua_gettop(L);
