@@ -214,7 +214,10 @@ public class Defold implements EntryPoint {
         root.add(outer);
         historyHandler.handleCurrentHistory();
 
-        logout.setVisible(Cookies.getCookie("auth") != null);
+        if (Cookies.getCookie("auth") != null && Cookies.getCookie("email") != null) {
+            logout.setVisible(Cookies.getCookie("auth") != null);
+            logout.setText("Logout (" + Cookies.getCookie("email") + ")");
+        }
 
         new ShowLoginOnAuthenticationFailure().register(clientFactory, eventBus);
         messageNotification = new MessageNotification();
@@ -233,6 +236,7 @@ public class Defold implements EntryPoint {
         Cookies.setCookie("email", email, expires);
         Cookies.setCookie("auth", authCookie, expires);
 
+        logout.setText("Logout (" + email + ")");
         logout.setVisible(true);
     }
 

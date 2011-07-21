@@ -29,6 +29,11 @@ h4 {
     color: #000;
 }
 
+a {
+	/* Force pointer cursor on gwt-anchors (avoid text selection cursor) */
+    cursor: pointer;
+}
+
 .hover {
     color: #06C;
     cursor: pointer;
