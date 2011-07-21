@@ -445,7 +445,7 @@
                   definitionId="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
             </reference>
          </activeWhen>
-            
+
       </handler>
       <handler
             class="com.dynamo.cr.contenteditor.commands.Copy"
@@ -570,10 +570,14 @@
       <definition
             id="com.dynamo.cr.contenteditor.definitions.collectionEditorActive">
          <with
-               variable="activeEditor">
-            <instanceof
-                  value="com.dynamo.cr.contenteditor.editors.CollectionEditor">
-            </instanceof>
+               variable="activeContexts">
+            <iterate
+                  ifEmpty="false"
+                  operator="or">
+               <equals
+                     value="com.dynamo.cr.contenteditor.contexts.collectioneditor">
+               </equals>
+            </iterate>
          </with>
       </definition>
    </extension>
