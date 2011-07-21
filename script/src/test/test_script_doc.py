@@ -218,7 +218,7 @@ foobar
         self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual('example: MY_EXAMPLE', elements[0].examples)
+        self.assertEqual('example:\nMY_EXAMPLE', elements[0].examples)
         p1 = elements[0].parameters[0]
         self.assertEqual('param_x', p1.name)
         self.assertEqual('DOC X', p1.doc)
@@ -236,7 +236,7 @@ foobar
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual('example: MY_EXAMPLE', elements[0].examples)
+        self.assertEqual('example:\nMY_EXAMPLE', elements[0].examples)
 
 if __name__ == '__main__':
     unittest.main()

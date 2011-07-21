@@ -12,15 +12,14 @@ def _strip_comment_stars(str):
     ret = []
     for line in lines:
         line = line.strip()
-        index = line.find('*')
-        if index != -1:
-            line = line[index+1:]
-        ret.append(line.strip())
+        if line.startswith('* '):
+            line = line[2:]
+        ret.append(line)
     return '\n'.join(ret)
 
 def _parse_comment(str):
     str = _strip_comment_stars(str)
-    lst = re.findall('@(\S+)\s+([^@]*|$)', str, re.MULTILINE)
+    lst = re.findall('@(\S+) *([^@]*|$)', str, re.MULTILINE)
 
     name_found = False
     element_type = script_doc_ddf_pb2.FUNCTION
@@ -44,11 +43,11 @@ def _parse_comment(str):
     desc_start = min(len(str), str.find('\n'))
     element.brief = str[0:desc_start]
     desc_end = min(len(str), str.find('@'))
-    element.description = str[desc_start:desc_end].strip().replace('\n', ' ')
+    element.description = str[desc_start:desc_end].strip()
     element.return_ = ''
 
     for (tag, value) in lst:
-        value = value.strip().replace('\n', ' ')
+        value = value.strip()
         if tag == 'name':
             element.name = value
         elif tag == 'return':
