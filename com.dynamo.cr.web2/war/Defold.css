@@ -4,7 +4,7 @@ h1 {
 	font-size: 2em;
 	font-weight: bold;
 	color: #777777;
-	margin: 10px 0px 20px;
+	margin: 10px 0px 10px;
 	text-align: left;
 }
 
@@ -206,6 +206,44 @@ ul.nav1 a:hover {
 .nav1 li:last-child a {
     -moz-border-radius: 0px 5px 5px 0px;
     -webkit-border-radius: 0px 5px 5px 0px;
+}
+
+/* usp (Unique selling points) style */
+
+div.usp > div {
+    background: -webkit-gradient(linear, left top, left bottom, from(#fafafa), to(#eeeeee));
+    padding: 20px;
+    padding-bottom: 32px;
+    -webkit-border-radius: 5px;
+}
+
+div.usp h1 {
+    margin-top: 0px;
+    font-size: 22px;
+    color: #000;
+}
+
+div.usp img {
+    -webkit-box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    border: 1px solid #eee;
+}
+
+div.usp p {
+    width: 260px;
+    margin: 0px;
+    padding: 0px;
+}
+
+div.usp {
+    width: 500px;
+    -webkit-box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.39);
+    border-color: #E5E5E5 hsl(0, 0%, 86%) #D2D2D2;
+    -webkit-border-radius: 5px;
+    padding: 3px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    margin-left: 4px;
 }
 
 
