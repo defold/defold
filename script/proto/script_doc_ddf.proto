@@ -24,7 +24,7 @@ message Element
     required string description = 4;
     required string return_ = 5;
     repeated Parameter parameters = 6;
-    required string examples = 7;
+    optional string examples = 7 [default=""];
 }
 
 message Document
