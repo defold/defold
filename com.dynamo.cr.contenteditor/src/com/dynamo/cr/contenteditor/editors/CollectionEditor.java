@@ -591,8 +591,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
                 @Override
                 public void run() {
-                    doPaint();
-                    m_Canvas.update();
+                    if (!m_Canvas.isDisposed()) {
+                        doPaint();
+                        m_Canvas.update();
+                    }
                     redrawPosted = false;
                 }
             });
