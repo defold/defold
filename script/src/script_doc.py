@@ -12,8 +12,10 @@ def _strip_comment_stars(str):
     ret = []
     for line in lines:
         line = line.strip()
-        if line.startswith('* '):
-            line = line[2:]
+        if line.startswith('*'):
+            line = line[1:]
+            if line.startswith(' '):
+                line = line[1:]
         ret.append(line)
     return '\n'.join(ret)
 

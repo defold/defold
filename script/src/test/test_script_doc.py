@@ -33,11 +33,13 @@ foobar
         doc= """
 /*#
  * MY_DESC
+ *
  * @name MY_NAME
  */
 """
         elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
+        self.assertEqual('', elements[0].brief)
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(script_doc_ddf_pb2.FUNCTION, elements[0].type)
@@ -45,14 +47,14 @@ foobar
     def test_simple_brief(self):
         doc= """
 /*# MY_BRIEF
- * MY_DESC
+ *
  * @name MY_NAME
  */
 """
         elements = script_doc.parse_document(doc).elements
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_BRIEF', elements[0].brief)
-        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(script_doc_ddf_pb2.FUNCTION, elements[0].type)
 
