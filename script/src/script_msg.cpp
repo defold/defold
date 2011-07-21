@@ -417,7 +417,7 @@ namespace dmScript
      * @param [message] lua table message to send (table)
      * @examples
      * <pre>
-     * msg.post(my_url, "my_message", {"my_parameter" = "my_value"})
+     * msg.post(my_url, "my_message", {my_parameter = "my_value"})
      * </pre>
      */
     int Msg_Post(lua_State* L)

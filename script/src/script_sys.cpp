@@ -41,7 +41,7 @@ namespace dmScript
      * @examples
      * Save data:
      * <pre>
-     * local my_table = {"my_key" = "my_important_value"}
+     * local my_table = {my_key = "my_important_value"}
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * if not sys.save(my_file_path, my_table) then
      *     -- Alert user that the data could not be saved
