@@ -17,6 +17,10 @@ public class DocumentationElement extends BaseResponse {
         return this.name;
     }-*/;
 
+    public final native String getBrief() /*-{
+        return this.brief;
+    }-*/;
+
     public final native String getDescription() /*-{
         return this.description;
     }-*/;
@@ -27,6 +31,10 @@ public class DocumentationElement extends BaseResponse {
 
     public final native JsArray<DocumentationParameter> getParameters() /*-{
         return this.parameters;
+    }-*/;
+
+    public final native String getExamples() /*-{
+        return this.examples;
     }-*/;
 
 }

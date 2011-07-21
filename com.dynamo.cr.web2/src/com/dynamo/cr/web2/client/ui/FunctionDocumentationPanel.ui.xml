@@ -5,36 +5,42 @@
     </ui:style>
 
     <g:HTMLPanel>
-        <h3 class="hover">
-            <g:InlineLabel ui:field="functionName">render.clear</g:InlineLabel>
+        <h3>
+            <g:InlineLabel ui:field="functionName" styleName="hover">render.clear</g:InlineLabel>
+            <g:InlineHTML ui:field="brief" styleName="script_brief">clears buffers</g:InlineHTML>
         </h3>
         <g:HTMLPanel ui:field="content" styleName="script_doc">
-        <p>
-            <g:HTMLPanel ui:field="description"></g:HTMLPanel>
-        </p>
+            <p>
+                <g:HTMLPanel ui:field="description"></g:HTMLPanel>
+            </p>
 
-        <div class="script_block">
-            <h4>Parameters</h4>
+            <div class="script_block">
+                <h4>Parameters</h4>
 
-            <g:VerticalPanel ui:field="parameterList">
-                <g:cell>
-                    <g:HTMLPanel>
-                        <div class="script_param_block">
-                            <span class="script_param">parameters</span>
-                            <div class="script_param_desc">
-                                clear parameters. Available keys are: BUFFER_TYPE_COLOR_BIT,
-                                BUFFER_TYPE_DEPTH_BIT and
-                                BUFFER_TYPE_STENCIL_BIT.</div>
-                        </div>
-                    </g:HTMLPanel>
-                </g:cell>
-            </g:VerticalPanel>
+                <g:VerticalPanel ui:field="parameterList">
+                    <g:cell>
+                        <g:HTMLPanel>
+                            <div class="script_param_block">
+                                <span class="script_param">parameters</span>
+                                <div class="script_param_desc">
+                                    clear parameters. Available keys are: BUFFER_TYPE_COLOR_BIT,
+                                    BUFFER_TYPE_DEPTH_BIT and
+                                    BUFFER_TYPE_STENCIL_BIT.</div>
+                            </div>
+                        </g:HTMLPanel>
+                    </g:cell>
+                </g:VerticalPanel>
 
-        </div>
-        <div class="script_block">
-            <h4>Returns</h4>
-            <g:InlineLabel ui:field="return_">No value</g:InlineLabel>
-        </div>
+            </div>
+            <div class="script_block">
+                <h4>Returns</h4>
+                <g:HTMLPanel ui:field="return_"></g:HTMLPanel>
+            </div>
+            <div>
+                <h4>Examples</h4>
+                <g:HTMLPanel ui:field="examples"></g:HTMLPanel>
+            </div>
+            <hr class="script_separator"/>
         </g:HTMLPanel>
     </g:HTMLPanel>
 

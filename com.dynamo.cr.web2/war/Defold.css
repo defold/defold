@@ -50,6 +50,12 @@ body, table td, select {
 
 /* script doc */
 
+hr.script_separator {
+    border-style: dotted none none none;
+    border-color: #BBB;
+    border-width: 1px;
+}
+
 div.script_doc {
 	margin-left: 16px;
 }
@@ -58,25 +64,32 @@ div.script_doc {
     margin: 0px 0px 12px 0px;
 }
 
+.script_brief {
+    display: inline;
+    margin-left: 20px;
+    color: #888;
+}
+
 .script_param {
     display: block;
     float: left;
-    width: 150px;
+    width: 160px;
     font-weight: 500;
+    font-family: monospace;
 }
 
 .script_param_desc {
-    margin-left: 150px;
+    margin-left: 160px;
 }
 
 .script_block {
-    width: 500px;
+    width: 600px;
     margin-bottom: 26px;
     color: #555;
 }
 
 .script_param_block {
-    width: 500px;
+    width: 600px;
     __border-top: 1px solid #ccc;
     padding-top: 6px;
 }
