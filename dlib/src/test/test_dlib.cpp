@@ -123,6 +123,40 @@ TEST(dlib, HashToString32)
         ASSERT_NE((void*) 0, reverse);
         ASSERT_EQ(iter->second.second, len);
         ASSERT_TRUE(memcmp(iter->first.c_str(), reverse, len) == 0);
+        // Check that the buffer is null-terminated
+        ASSERT_STREQ(iter->first.c_str(), reverse);
+        ++iter;
+    }
+}
+
+TEST(dlib, HashToString64)
+{
+    std::map<std::string, std::pair<uint64_t, uint32_t> > string_to_hash;
+
+    for (uint32_t i = 0; i < 1000; ++i)
+    {
+        std::string s;
+        uint32_t n = rand() % 32 + 1;
+        for (uint32_t j = 0; j < n; ++j)
+        {
+            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            s += tmp;
+        }
+
+        uint64_t h = dmHashBuffer64(s.c_str(), s.size());
+        string_to_hash[s] = std::pair<uint64_t, uint32_t>(h, s.size());
+    }
+
+    std::map<std::string, std::pair<uint64_t, uint32_t> >::const_iterator iter = string_to_hash.begin();
+    while (iter != string_to_hash.end())
+    {
+        uint32_t len;
+        const char* reverse = (const char*) dmHashReverse64(iter->second.first, &len);
+        ASSERT_NE((void*) 0, reverse);
+        ASSERT_EQ(iter->second.second, len);
+        ASSERT_TRUE(memcmp(iter->first.c_str(), reverse, len) == 0);
+        // Check that the buffer is null-terminated
+        ASSERT_STREQ(iter->first.c_str(), reverse);
         ++iter;
     }
 }
@@ -195,6 +229,8 @@ TEST(dlib, HashToStringIncremental32)
         ASSERT_EQ(expected_len, len);
         std::string expected  = iter->first;
         ASSERT_TRUE(memcmp(expected.c_str(), reverse, len) == 0);
+        // Check that the buffer is null-terminated
+        ASSERT_STREQ(expected.c_str(), reverse);
         ++iter;
     }
 }
@@ -237,6 +273,8 @@ TEST(dlib, HashToStringIncremental64)
         ASSERT_EQ(expected_len, len);
         std::string expected  = iter->first;
         ASSERT_TRUE(memcmp(expected.c_str(), reverse, len) == 0);
+        // Check that the buffer is null-terminated
+        ASSERT_STREQ(expected.c_str(), reverse);
         ++iter;
     }
 }

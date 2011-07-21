@@ -135,17 +135,21 @@ DM_DLLEXPORT uint64_t dmHashString64(const char* string);
 DM_DLLEXPORT void dmHashEnableReverseHash(bool enable);
 
 /**
- * Reverse hash lookup. Maps hash to original data.
+ * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
+ * buffer is null-terminated. If the buffer contains a valid c-string
+ * it can safely be used in printf and friends.
  * @param hash hash to lookup
- * @param length orignal data length
+ * @param length original data length. Optional argument and NULL-pointer is accepted.
  * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
  */
 DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
 
 /**
- * Reverse hash lookup. Maps hash to original data.
+ * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
+ * buffer is null-terminated. If the buffer contains a valid c-string
+ * it can safely be used in printf and friends.
  * @param hash hash to lookup
- * @param length orignal data length
+ * @param length original data length. Optional argument and NULL-pointer is accepted.
  * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
  */
 DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);

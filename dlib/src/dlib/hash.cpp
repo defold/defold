@@ -180,8 +180,9 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
                 hash_table->SetCapacity(1024U, hash_table->Capacity() + 512U);
             }
 
-            void* copy = malloc(len);
+            char* copy = (char*) malloc(len + 1);
             memcpy(copy, key, len);
+            copy[len] = '\0';
             hash_table->Put(h, dmReverseHashEntry(copy, len));
         }
         dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
@@ -253,8 +254,9 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
                 hash_table->SetCapacity(1024U, hash_table->Capacity() + 512U);
             }
 
-            void* copy = malloc(original_len);
+            char* copy = (char*) malloc(original_len + 1);
             memcpy(copy, key, original_len);
+            copy[original_len] = '\0';
             hash_table->Put(h, dmReverseHashEntry(copy, original_len));
         }
         dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
@@ -348,12 +350,13 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
 
             dmReverseHashEntry entry = hash_state->m_ReverseEntry;
             uint32_t buffer_size = original_len + entry.m_Length;
-            void* copy = (char*) malloc(buffer_size);
+            void* copy = (char*) malloc(buffer_size + 1);
 
             char* p = (char*) copy;
             memcpy(p, entry.m_Value, entry.m_Length);
             p += entry.m_Length;
             memcpy(p, buffer, original_len);
+            p[original_len] = '\0';
 
             hash_table->Put(key, dmReverseHashEntry(copy, buffer_size));
             hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
@@ -479,12 +482,13 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
 
             dmReverseHashEntry entry = hash_state->m_ReverseEntry;
             uint32_t buffer_size = original_len + entry.m_Length;
-            void* copy = (char*) malloc(buffer_size);
+            void* copy = (char*) malloc(buffer_size + 1);
 
             char* p = (char*) copy;
             memcpy(p, entry.m_Value, entry.m_Length);
             p += entry.m_Length;
             memcpy(p, buffer, original_len);
+            p[original_len] = '\0';
 
             hash_table->Put(key, dmReverseHashEntry(copy, buffer_size));
             hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
@@ -544,7 +548,10 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length)
 
         if (reverse)
         {
-            *length = reverse->m_Length;
+            if (length)
+            {
+                *length = reverse->m_Length;
+            }
             return reverse->m_Value;
         }
     }
@@ -561,7 +568,10 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
 
         if (reverse)
         {
-            *length = reverse->m_Length;
+            if (length)
+            {
+                *length = reverse->m_Length;
+            }
             return reverse->m_Value;
         }
     }
