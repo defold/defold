@@ -18,7 +18,8 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
 	 */
 	public void initializeDefaultPreferences() {
 		IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-	    store.setDefault(PreferenceConstants.P_SERVER_URI, "http://localhost:9998");
+	    store.setDefault(PreferenceConstants.P_SERVER_URI, "http://cr.defold.se:9998");
 	    store.setDefault(PreferenceConstants.P_SOCKS_PROXY_PORT, 1080);
+	    store.setDefault(PreferenceConstants.P_DOWNLOAD_APPLICATION, true);
 	}
 }
