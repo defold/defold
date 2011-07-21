@@ -215,6 +215,7 @@ div.usp > div {
     padding: 20px;
     padding-bottom: 32px;
     -webkit-border-radius: 5px;
+    -moz-border-radius: 5px;
 }
 
 div.usp h1 {
@@ -225,6 +226,7 @@ div.usp h1 {
 
 div.usp img {
     -webkit-box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
+    -moz-box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
     padding: 8px;
     border: 1px solid #eee;
 }
@@ -238,8 +240,10 @@ div.usp p {
 div.usp {
     width: 500px;
     -webkit-box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.39);
+    -moz-box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.39);
     border-color: #E5E5E5 hsl(0, 0%, 86%) #D2D2D2;
     -webkit-border-radius: 5px;
+    -moz-border-radius: 5px;
     padding: 3px;
     margin-top: 24px;
     margin-bottom: 24px;
