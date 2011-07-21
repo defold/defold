@@ -20,7 +20,7 @@ def _strip_comment_stars(str):
 
 def _parse_comment(str):
     str = _strip_comment_stars(str)
-    lst = re.findall('@([^ \n]+)[ ]*(.*?)$', str, re.MULTILINE)
+    lst = re.findall('@(\S+)\s+([^@]*|$)', str, re.MULTILINE)
 
     name_found = False
     element_type = script_doc_ddf_pb2.FUNCTION
@@ -35,18 +35,20 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.MESSAGE
 
     if not name_found:
-        logging.warn('Missing tag name in "%s"' % str)
+        logging.warn('Missing tag @name in "%s"' % str)
         return
 
     element = script_doc_ddf_pb2.Element()
     element.type = element_type
 
+    desc_start = min(len(str), str.find('\n'))
+    element.brief = str[0:desc_start]
     desc_end = min(len(str), str.find('@'))
-    element.description = str[0:desc_end].strip().replace('\n', ' ')
+    element.description = str[desc_start:desc_end].strip().replace('\n', ' ')
     element.return_ = ''
 
     for (tag, value) in lst:
-        value = value.strip()
+        value = value.strip().replace('\n', ' ')
         if tag == 'name':
             element.name = value
         elif tag == 'return':
@@ -58,6 +60,8 @@ def _parse_comment(str):
             param = element.parameters.add()
             param.name = tmp[0]
             param.doc = tmp[1]
+        elif tag == 'examples':
+            element.examples = value
     return element
 
 def parse_document(doc_str):

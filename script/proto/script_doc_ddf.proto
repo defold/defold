@@ -20,9 +20,11 @@ message Element
 {
     required Type type = 1;
     required string name = 2;
-    required string description = 3;
-    required string return_ = 4;
-    repeated Parameter parameters = 5;
+    required string brief = 3;
+    required string description = 4;
+    required string return_ = 5;
+    repeated Parameter parameters = 6;
+    required string examples = 7;
 }
 
 message Document

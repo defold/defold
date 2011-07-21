@@ -31,7 +31,8 @@ foobar
 
     def test_simple(self):
         doc= """
-/*# MY_DESC
+/*#
+ * MY_DESC
  * @name MY_NAME
  */
 """
@@ -39,12 +40,26 @@ foobar
         self.assertEquals(1, len(elements))
         self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual(script_doc_ddf_pb2.FUNCTION, elements[0].type)
+
+    def test_simple_brief(self):
+        doc= """
+/*# MY_BRIEF
+ * MY_DESC
+ * @name MY_NAME
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_BRIEF', elements[0].brief)
+        self.assertEqual('MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(script_doc_ddf_pb2.FUNCTION, elements[0].type)
 
     def test_simple_variable(self):
         doc= """
-/*# MY_DESC
+/*#
+ * MY_DESC
  * @name MY_NAME
  * @variable
  */
@@ -70,11 +85,13 @@ foobar
 
     def test_multiple(self):
         doc= """
-/*# MY_DESC1
+/*#
+ * MY_DESC1
  * @name MY_NAME1
  */
 
-/*# MY_DESC2
+/*#
+ * MY_DESC2
  * @name MY_NAME2
  */
 
@@ -88,7 +105,8 @@ foobar
 
     def test_param(self):
         doc= """
-/*# MY_DESC
+/*#
+ * MY_DESC
  * @name MY_NAME
  * @param param_x DOC X
  * @param param_y DOC Y
@@ -110,7 +128,8 @@ foobar
 
     def test_optional(self):
         doc= """
-/*# MY_DESC
+/*#
+ * MY_DESC
  * @name MY_NAME
  * @param param_x DOCX
  * @param [param_y] DOCY
@@ -153,7 +172,8 @@ foobar
 
     def test_message(self):
         doc= """
-/*# MY_DESC
+/*#
+ * MY_DESC
  * @name MY_MESSAGE
  * @message
  * @param param_x DOC X
@@ -167,6 +187,56 @@ foobar
         p1 = elements[0].parameters[0]
         self.assertEqual('param_x', p1.name)
         self.assertEqual('DOC X', p1.doc)
+
+    def test_message2(self):
+        doc= """
+/*#
+ * MY_DESC
+ * @name MY_MESSAGE
+ * @message
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_MESSAGE', elements[0].name)
+
+    def test_examples(self):
+        doc= """
+/*#
+ * MY_DESC
+ * @name MY_MESSAGE
+ * @message
+ * @examples example:
+ * MY_EXAMPLE
+ * @param param_x DOC X
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_MESSAGE', elements[0].name)
+        self.assertEqual('example: MY_EXAMPLE', elements[0].examples)
+        p1 = elements[0].parameters[0]
+        self.assertEqual('param_x', p1.name)
+        self.assertEqual('DOC X', p1.doc)
+
+    def test_examples2(self):
+        doc= """
+/*#
+ * MY_DESC
+ * @name MY_MESSAGE
+ * @examples example:
+ * MY_EXAMPLE
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC', elements[0].description)
+        self.assertEqual('MY_MESSAGE', elements[0].name)
+        self.assertEqual('example: MY_EXAMPLE', elements[0].examples)
 
 if __name__ == '__main__':
     unittest.main()
