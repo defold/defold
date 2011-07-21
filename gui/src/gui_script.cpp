@@ -163,11 +163,10 @@ namespace dmGui
         {0, 0}
     };
 
-    /*#
-     * Gets a node given its name
+    /*# gets the node with the specified name
      *
      * @name gui.get_node
-     * @param name name of the node to get (string)
+     * @param name name of the node to retrieve (string)
      * @return node instance (node)
      */
     int LuaGetNode(lua_State* L)
@@ -197,8 +196,7 @@ namespace dmGui
         return 1;
     }
 
-    /*#
-     * Deletes a node
+    /*# deletes a node
      *
      * @name gui.delete_node
      * @param node node to delete (node)
@@ -245,45 +243,86 @@ namespace dmGui
         lua_setglobal(L, "__scene__");
     }
 
-    /*#
-     * Linear interpolation
+    /*# linear interpolation
      *
      * @name gui.EASING_NONE
      * @variable
      */
 
-    /*#
-     * In easing interpolation
+    /*# in easing interpolation
      *
      * @name gui.EASING_IN
      * @variable
      */
 
-    /*#
-     * Out easing interpolation
+    /*# out easing interpolation
      *
      * @name gui.EASING_OUT
      * @variable
      */
 
-    /*#
-     * In and out easing interpolation
+    /*# in and out easing interpolation
      *
      * @name gui.EASING_INOUT
      * @variable
      */
 
-    /*#
-     * Animates a node property
+    /*# animates a node property
+     * <p>
+     * This starts an animation of a node property according to the specified parameters. If the node property is already being
+     * animated, that animation will be canceled and replaced by the new one. Note however that several different node properties
+     * can be animated simultaneously. Use <code>gui.cancel_animation</code> to stop the animation before it has completed.
+     * </p>
+     * <p>
+     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
+     * </p>
      *
      * @name gui.animate
      * @param node node to animate (node)
-     * @param property property to animate (gui.POSITION|gui.ROTATION|gui.SCALE|gui.COLOR|gui.EXTENTS)
+     * @param property property to animate (constant)
+     * <ul>
+     *   <li><code>gui.POSITION</code></li>
+     *   <li><code>gui.ROTATION</code></li>
+     *   <li><code>gui.SCALE</code></li>
+     *   <li><code>gui.COLOR</code></li>
+     *   <li><code>gui.EXTENTS</code></li>
+     * </ul>
      * @param to target property value (vector3|vector4)
-     * @param easing easing to use during animation (gui.EASING_NONE|gui.EASING_IN|gui.EASING_OUT|gui.EASING_INOUT)
+     * @param easing easing to use during animation (constant)
+     * <ul>
+     *   <li><code>gui.EASING_NONE</code></li>
+     *   <li><code>gui.EASING_IN</code></li>
+     *   <li><code>gui.EASING_OUT</code></li>
+     *   <li><code>gui.EASING_INOUT</code></li>
+     * </ul>
      * @param duration duration of the animation (number)
      * @param [delay] delay before the animation starts (number)
      * @param [complete_function] function to call when the animation has completed (function)
+     * @examples
+     * <p>
+     * How to start a simple color animation, where the node fades in to white during 0.5 seconds:
+     * <pre>
+     * gui.set_color(node, vmath.vector4(0, 0, 0, 0)) -- node is fully transparent
+     * gui.animate(node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUT, 0.5) -- start animation
+     * </pre>
+     * </p>
+     * <p>
+     * How to start a sequenced animation where the node fades in to white during 0.5 seconds, stays visible for 2 seconds and then fades out:
+     * <pre>
+     * local function on_animation_done(self, node)
+     *     -- fade out node, but wait 2 seconds before the animation starts
+     *     gui.animate(node, gui.COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_OUT, 0.5, 2.0)
+     * end
+     *
+     * function init(self)
+     *     -- fetch the node we want to animate
+     *     local my_node = gui.get_node("my_node")
+     *     -- node is initially set to fully transparent
+     *     gui.set_color(my_node, vmath.vector4(0, 0, 0, 0))
+     *     -- animate the node immediately and call on_animation_done when the animation has completed
+     *     gui.animate(my_node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUT, 0.5, 0.0, on_animation_done)
+     * end
      */
     int LuaAnimate(lua_State* L)
     {
@@ -345,12 +384,19 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Cancels an ongoing animation
+    /*# cancels an ongoing animation
+     * If an animation of the specified node is currently running (started by <code>gui.animate</code>), it will immediately be canceled.
      *
      * @name gui.cancel_animation
      * @param node node that should have its animation canceled (node)
-     * @param property property for which the animation should be canceled (gui.POSITION|gui.ROTATION|gui.SCALE|gui.COLOR|gui.EXTENTS)
+     * @param property property for which the animation should be canceled (constant)
+     * <ul>
+     *   <li><code>gui.POSITION</code></li>
+     *   <li><code>gui.ROTATION</code></li>
+     *   <li><code>gui.SCALE</code></li>
+     *   <li><code>gui.COLOR</code></li>
+     *   <li><code>gui.EXTENTS</code></li>
+     * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
     {
@@ -406,8 +452,7 @@ namespace dmGui
         return 1;
     }
 
-    /*#
-     * Creates a new box node
+    /*# creates a new box node
      *
      * @name gui.new_box_node
      * @param pos node position (vector3)
@@ -421,8 +466,7 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_BOX, 0);
     }
 
-    /*#
-     * Creates a new text node
+    /*# creates a new text node
      *
      * @name gui.new_text_node
      * @param pos node position (vector3)
@@ -437,8 +481,8 @@ namespace dmGui
         return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
     }
 
-    /*#
-     * Gets the node text
+    /*# gets the node text
+     * This is only useful for text nodes.
      *
      * @name gui.get_text
      * @param node node from which to get the text (node)
@@ -451,8 +495,8 @@ namespace dmGui
         return 1;
     }
 
-    /*#
-     * Sets the node text
+    /*# sets the node text
+     * This is only useful for text nodes.
      *
      * @name gui.set_text
      * @param node node to set text for (node)
@@ -469,12 +513,18 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Gets the node blend mode
+    /*# gets the node blend mode
+     * Blend mode defines how the node will be blended with the background.
      *
      * @name gui.get_blend_mode
      * @param node node from which to get the blend mode (node)
-     * @return node blend mode (gui.BLEND_MODE_ALPHA|gui.BLEND_MODE_ADD|gui.BLEND_MODE_ADD_ALPHA|gui.BLEND_MODE_MULT)
+     * @return node blend mode (constant)
+     * <ul>
+     *   <li><code>gui.BLEND_MODE_ALPHA</code></li>
+     *   <li><code>gui.BLEND_MODE_ADD</code></li>
+     *   <li><code>gui.BLEND_MODE_ADD_ALPHA</code></li>
+     *   <li><code>gui.BLEND_MODE_MULT</code></li>
+     * </ul>
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -483,12 +533,18 @@ namespace dmGui
         return 1;
     }
 
-    /*#
-     * Sets node blend mode
+    /*# sets node blend mode
+     * Blend mode defines how the node will be blended with the background.
      *
      * @name gui.set_blend_mode
      * @param node node to set blend mode for (node)
-     * @param blend_mode blend mode to set (gui.BLEND_MODE_ALPHA|gui.BLEND_MODE_ADD|gui.BLEND_MODE_ADD_ALPHA|gui.BLEND_MODE_MULT)
+     * @param blend_mode blend mode to set (constant)
+     * <ul>
+     *   <li><code>gui.BLEND_MODE_ALPHA</code></li>
+     *   <li><code>gui.BLEND_MODE_ADD</code></li>
+     *   <li><code>gui.BLEND_MODE_ADD_ALPHA</code></li>
+     *   <li><code>gui.BLEND_MODE_MULT</code></li>
+     * </ul>
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -499,8 +555,8 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Sets the node texture
+    /*# sets the node texture
+     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_texture
      * @param node node to set texture for (node)
@@ -525,8 +581,8 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Sets the node font
+    /*# sets the node font
+     * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_font
      * @param node node for which to set the font (node)
@@ -551,12 +607,16 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Sets the x-anchor of a node
+    /*# sets the x-anchor of a node
+     * The x-anchor specifies how the node is moved when the game is run in a different resolution.
      *
      * @name gui.set_xanchor
      * @param node node to set x-anchor for (node)
-     * @param anchor anchor constant (gui.LEFT|gui.RIGHT)
+     * @param anchor anchor constant (constant)
+     * <ul>
+     *   <li><code>gui.LEFT</code></li>
+     *   <li><code>gui.RIGHT</code></li>
+     * </ul>
      */
     static int LuaSetXAnchor(lua_State* L)
     {
@@ -579,12 +639,16 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Sets the y-anchor of a node
+    /*# sets the y-anchor of a node
+     * The y-anchor specifies how the node is moved when the game is run in a different resolution.
      *
      * @name gui.set_yanchor
      * @param node node to set y-anchor for (node)
-     * @param anchor anchor constant (gui.TOP|gui.BOTTOM)
+     * @param anchor anchor constant (constant)
+     * <ul>
+     *   <li><code>gui.TOP</code></li>
+     *   <li><code>gui.BOTTOM</code></li>
+     * </ul>
      */
     static int LuaSetYAnchor(lua_State* L)
     {
@@ -607,8 +671,7 @@ namespace dmGui
         return 0;
     }
 
-    /*#
-     * Gets the scene width
+    /*# gets the scene width
      *
      * @name gui.get_width
      * @return scene width (number)
@@ -621,8 +684,7 @@ namespace dmGui
         return 1;
     }
 
-    /*#
-     * Gets the scene height
+    /*# gets the scene height
      *
      * @name gui.get_height
      * @return scene height (number)
@@ -635,78 +697,70 @@ namespace dmGui
         return 1;
     }
 
-    /*#
-     * Gets the node position
+    /*# gets the node position
      *
      * @name gui.get_position
      * @param node node to get the position from (node)
      * @return node position (vector4)
      */
 
-    /*#
-     * Sets the node position
+    /*# sets the node position
      *
      * @name gui.set_position
      * @param node node to set the position for (node)
      * @param position new position (vector3|vector4)
      */
 
-    /*#
-     * Gets the node rotation
+    /*# gets the node rotation
      *
      * @name gui.get_rotation
      * @param node node to get the rotation from (node)
      * @return node rotation (vector4)
      */
 
-    /*#
-     * Sets the node rotation
+    /*# sets the node rotation
      *
      * @name gui.set_rotation
      * @param node node to set the rotation for (node)
      * @param rotation new rotation (vector3|vector4)
      */
 
-    /*#
-     * Gets the node scale
+    /*# gets the node scale
      *
      * @name gui.get_scale
      * @param node node to get the scale from (node)
      * @return node scale (vector4)
      */
 
-    /*#
-     * Sets the node scale
+    /*# sets the node scale
      *
      * @name gui.set_scale
      * @param node node to set the scale for (node)
      * @param scale new scale (vector3|vector4)
      */
 
-    /*#
-     * Gets the node color
+    /*# gets the node color
      *
      * @name gui.get_color
      * @param node node to get the color from (node)
      * @return node color (vector4)
      */
 
-    /*#
-     * Sets the node color
+    /*# sets the node color
+     *
      * @name gui.set_color
      * @param node node to set the color for (node)
      * @param color new color (vector3|vector4)
      */
 
-    /*#
-     * Gets the node extents
+    /*# gets the node extents
+     *
      * @name gui.get_extents
      * @param node node to get the extents from (node)
      * @return node extents (vector4)
      */
 
-    /*#
-     * Sets the node extents
+    /*# sets the node extents
      *
      * @name gui.set_extents
      * @param node node to set the extents for (node)
@@ -802,92 +856,79 @@ namespace dmGui
         return scene->m_Context->m_GetUserDataCallback(scene);
     }
 
-    /*#
-     * Position property
+    /*# position property
      *
      * @name gui.POSITION
      * @variable
      */
 
-    /*#
-     * Rotation property
+    /*# rotation property
      *
      * @name gui.ROTATION
      * @variable
      */
 
-    /*#
-     * Scale property
+    /*# scale property
      *
      * @name gui.SCALE
      * @variable
      */
 
-    /*#
-     * Color property
+    /*# color property
      *
      * @name gui.COLOR
      * @variable
      */
 
-    /*#
-     * Extents property
+    /*# extents property
      *
      * @name gui.EXTENTS
      * @variable
      */
 
-    /*#
-     * Alpha blending
+    /*# alpha blending
      *
      * @name gui.ALPHA
      * @variable
      */
 
-    /*#
-     * Additive blending
+    /*# additive blending
      *
      * @name gui.ADD
      * @variable
      */
 
-    /*#
-     * Additive alpha blending
+    /*# additive alpha blending
      *
      * @name gui.ADD_ALPHA
      * @variable
      */
 
-    /*#
-     * Multiply blending
+    /*# multiply blending
      *
      * @name gui.MULT
      * @variable
      */
 
-    /*#
-     * Left x-anchor
+    /*# left x-anchor
      *
      * @name gui.LEFT
      * @variable
      */
 
-    /*#
-     * Right x-anchor
+    /*# right x-anchor
      *
      * @name gui.RIGHT
      * @variable
      */
 
-    /*#
-     * Top y-anchor
+    /*# top y-anchor
      *
      * @name gui.TOP
      * @variable
      */
 
-    /*#
-     * Bottom y-anchor
+    /*# bottom y-anchor
      *
      * @name gui.BOTTOM
      * @variable

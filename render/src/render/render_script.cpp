@@ -183,11 +183,18 @@ namespace dmRender
      * @variable
      */
 
-    /*#
-     * Enables a render state
+    /*# enables a render state
      *
      * @name render.enable_state
-     * @param state state to enable (render.STATE_DEPTH_TEST|render.STATE_BLEND|render.STATE_CULL_FACE|render.STATE_POLYGON_OFFSET_FILL|render.STATE_POLYGON_OFFSET_LINE|render.STATE_POLYGON_OFFSET_POINT)
+     * @param state state to enable (constant)
+     * <ul>
+     *   <li><code>render.STATE_DEPTH_TEST</code></li>
+     *   <li><code>render.STATE_BLEND</code></li>
+     *   <li><code>render.STATE_CULL_FACE</code></li>
+     *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
+     *   <li><code>render.STATE_POLYGON_OFFSET_LINE</code></li>
+     *   <li><code>render.STATE_POLYGON_OFFSET_POINT</code></li>
+     * </ul>
      */
     int RenderScript_EnableState(lua_State* L)
     {
@@ -213,11 +220,18 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Disables a render state
+    /*# disables a render state
      *
      * @name render.disable_state
-     * @param state state to enable (render.STATE_DEPTH_TEST|render.STATE_BLEND|render.STATE_CULL_FACE|render.STATE_POLYGON_OFFSET_FILL|render.STATE_POLYGON_OFFSET_LINE|render.STATE_POLYGON_OFFSET_POINT)
+     * @param state state to enable (constant)
+     * <ul>
+     *   <li><code>render.STATE_DEPTH_TEST</code></li>
+     *   <li><code>render.STATE_BLEND</code></li>
+     *   <li><code>render.STATE_CULL_FACE</code></li>
+     *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
+     *   <li><code>render.STATE_POLYGON_OFFSET_LINE</code></li>
+     *   <li><code>render.STATE_POLYGON_OFFSET_POINT</code></li>
+     * </ul>
      */
     int RenderScript_DisableState(lua_State* L)
     {
@@ -242,8 +256,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Sets the render viewport
+    /*# sets the render viewport
      *
      * @name render.set_viewport
      * @param x left corner (number)
@@ -334,8 +347,7 @@ namespace dmRender
      * @variable
      */
 
-    /*#
-     * Creates a new render target
+    /*# creates a new render target
      *
      * Available keys for the render target parameters table:
      * <table>
@@ -456,8 +468,7 @@ namespace dmRender
         return 1;
     }
 
-    /*#
-     * Deletes a render target
+    /*# deletes a render target
      *
      * @name render.delete_render_target
      * @param render_target render target to delete (render_target)
@@ -479,8 +490,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Enables a render target
+    /*# enables a render target
      *
      * @name render.enable_render_target
      * @param render_target render target to enable (render_target)
@@ -503,8 +513,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Disables a render target
+    /*# disables a render target
      *
      * @name render.disable_render_target
      * @param render_target render target to disable (render_target)
@@ -524,8 +533,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Sets the render target size
+    /*# sets the render target size
      *
      * @name render.set_render_target_size
      * @param render_target render target to set size for (render_target)
@@ -552,8 +560,7 @@ namespace dmRender
         }
     }
 
-    /*#
-     * Enables a texture for a render target
+    /*# enables a texture for a render target
      *
      * @name render.enable_texture
      * @param unit texture unit to enable texture for (number)
@@ -581,8 +588,7 @@ namespace dmRender
         }
     }
 
-    /*#
-     * Disables a texture for a render target
+    /*# disables a texture for a render target
      *
      * @name render.disable_texture
      * @param unit texture unit to enable disable for (number)
@@ -613,13 +619,14 @@ namespace dmRender
      * @variable
      */
 
-    /*#
-     * Clears the active render target <br>
-     * Example: <br>
-     * render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1}) <br>
+    /*# clears the active render target
      *
      * @name render.clear
      * @param buffers Table specifying which buffers to clear. Available keys are: render.BUFFER_TYPE_COLOR_BIT, render.BUFFER_TYPE_DEPTH_BIT and render.BUFFER_TYPE_STENCIL_BIT.
+     * @examples
+     * <pre>
+     * render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1})
+     * </pre>
      */
     int RenderScript_Clear(lua_State* L)
     {
@@ -674,8 +681,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Draws all objects matching a predicate
+    /*# draws all objects matching a predicate
      *
      * @name render.draw
      * @param predicate predicate to draw for (predicate)
@@ -694,8 +700,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Draws all 3d debug graphics
+    /*# draws all 3d debug graphics
      *
      * @name render.draw_debug3d
      */
@@ -708,8 +713,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Draws all 2d debug graphics
+    /*# draws all 2d debug graphics
      *
      * @name render.draw_debug2d
      */
@@ -722,8 +726,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Sets the view matrix
+    /*# sets the view matrix
      *
      * @name render.set_view
      * @param matrix view matrix to set (matrix4)
@@ -741,8 +744,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Sets the projection matrix
+    /*# sets the projection matrix
      *
      * @name render.set_projection
      * @param matrix projection matrix (matrix4)
@@ -834,25 +836,26 @@ namespace dmRender
       * @variable
       */
 
-     /*#
-     * Sets the blending function.<br>
+     /*# sets the blending function
      *
-     * Available factors:<br>
-        BLEND_FACTOR_ZERO <br>
-        BLEND_FACTOR_ONE <br>
-        BLEND_FACTOR_SRC_COLOR <br>
-        BLEND_FACTOR_ONE_MINUS_SRC_COLOR <br>
-        BLEND_FACTOR_DST_COLOR <br>
-        BLEND_FACTOR_ONE_MINUS_DST_COLOR <br>
-        BLEND_FACTOR_SRC_ALPHA <br>
-        BLEND_FACTOR_ONE_MINUS_SRC_ALPHA <br>
-        BLEND_FACTOR_DST_ALPHA <br>
-        BLEND_FACTOR_ONE_MINUS_DST_ALPHA <br>
-        BLEND_FACTOR_SRC_ALPHA_SATURATE <br>
-        BLEND_FACTOR_CONSTANT_COLOR <br>
-        BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR <br>
-        BLEND_FACTOR_CONSTANT_ALPHA <br>
-        BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA <br>
+     * Available factors:
+     * <ul>
+     *   <li><code>render.BLEND_FACTOR_ZERO</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE</code></li>
+     *   <li><code>render.BLEND_FACTOR_SRC_COLOR</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_SRC_COLOR</code></li>
+     *   <li><code>render.BLEND_FACTOR_DST_COLOR</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_DST_COLOR</code></li>
+     *   <li><code>render.BLEND_FACTOR_SRC_ALPHA</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA</code></li>
+     *   <li><code>render.BLEND_FACTOR_DST_ALPHA</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_DST_ALPHA</code></li>
+     *   <li><code>render.BLEND_FACTOR_SRC_ALPHA_SATURATE</code></li>
+     *   <li><code>render.BLEND_FACTOR_CONSTANT_COLOR</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR</code></li>
+     *   <li><code>render.BLEND_FACTOR_CONSTANT_ALPHA</code></li>
+     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA</code></li>
+     * </ul>
      *
      * @name render.set_blend_func
      * @param source_factor source factor
@@ -896,8 +899,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Sets the color mask
+    /*# sets the color mask
      *
      * @name render.set_color_mask
      * @param red red mask (boolean)
@@ -925,8 +927,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Sets the depth mask
+    /*# sets the depth mask
      *
      * @name render.set_depth_mask
      * @param depth depth mask (boolean)
@@ -948,8 +949,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Sets the stencil mask
+    /*# sets the stencil mask
      *
      * @name render.set_stencil_mask
      * @param stencil stencil mask (number)
@@ -980,11 +980,15 @@ namespace dmRender
      * @variable
      */
 
-    /*#
-     * Sets the cull face
+    /*# sets the cull face
      *
      * @name render.set_cull_face
-     * @param face_type face type (render.FACE_TYPE_FRONT|render.FACE_TYPE_BACK|render.FACE_TYPE_FRONT_AND_BACK)
+     * @param face_type face type (constant)
+     * <ul>
+     *   <li><code>render.FACE_TYPE_FRONT</code></li>
+     *   <li><code>render.FACE_TYPE_BACK</code></li>
+     *   <li><code>render.FACE_TYPE_FRONT_AND_BACK</code></li>
+     * </ul>
      */
     int RenderScript_SetCullFace(lua_State* L)
     {
@@ -1005,8 +1009,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Sets the polygon offset
+    /*# sets the polygon offset
      *
      * @name render.set_polygon_offset
      * @param factor polygon offset factor (number)
@@ -1023,8 +1026,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*#
-     * Gets the window width
+    /*# gets the window width
      *
      * @name render.get_window_width
      * @return window width (number)
@@ -1037,8 +1039,7 @@ namespace dmRender
         return 1;
     }
 
-    /*#
-     * Gets the window height
+    /*# gets the window height
      *
      * @name render.get_window_height
      * @return window height (number)
@@ -1051,14 +1052,15 @@ namespace dmRender
         return 1;
     }
 
-    /*#
-     * Creates a new render predicate<br>
-     * Example:<br>
-     * render.predicate({ "opaque", "smoke" })
+    /*# creates a new render predicate
      *
      * @name render.predicate
      * @param predicates table of tags that the predicate should match (table)
      * @return new predicate (predicate)
+     * @examples
+     * <pre>
+     * local p = render.predicate({"opaque", "smoke"})
+     * </pre>
      */
     int RenderScript_Predicate(lua_State* L)
     {
@@ -1086,8 +1088,7 @@ namespace dmRender
         }
     }
 
-    /*#
-     * Enables a vertex constant
+    /*# enables a vertex constant
      *
      * @name render.enable_vertex_constant
      * @param register register number to enable (number)
@@ -1103,8 +1104,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Disables a vertex constant
+    /*# disables a vertex constant
      *
      * @name render.enable_vertex_constant
      * @param register register number to disable (number)
@@ -1118,8 +1118,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Enables a vertex constant block
+    /*# enables a vertex constant block
      *
      * @name render.enable_vertex_constant_block
      * @param register base register number to enable (number)
@@ -1135,8 +1134,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Disables a vertex constant block
+    /*# disables a vertex constant block
      *
      * @name render.disable_vertex_constant_block
      * @param register base register number to disable (number)
@@ -1150,8 +1148,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Enables a fragment constant
+    /*# enables a fragment constant
      *
      * @name render.enable_fragment_constant
      * @param register register number to enable (number)
@@ -1167,8 +1164,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Disables a fragment constant
+    /*# disables a fragment constant
      *
      * @name render.enable_fragment_constant
      * @param register register number to disable (number)
@@ -1182,8 +1178,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Enables a fragment constant block
+    /*# enables a fragment constant block
      *
      * @name render.enable_fragment_constant_block
      * @param register base register number to enable (number)
@@ -1199,8 +1194,7 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Disables fragment constant block
+    /*# disables fragment constant block
      *
      * @name render.disable_fragment_constant_block
      * @param register base register number to disable (number)
@@ -1214,8 +1208,8 @@ namespace dmRender
         return 0;
     }
 
-    /*#
-     * Enables a material
+    /*# enables a material
+     * If another material was already enabled, it will be automatically disabled.
      *
      * @name render.enable_material
      * @param material_id material id to enable (string)
@@ -1248,8 +1242,7 @@ namespace dmRender
         assert(top == lua_gettop(L));
     }
 
-    /*#
-     * Disables the currently enabled material
+    /*# disables the currently enabled material
      *
      * @name render.disable_material
      */

@@ -35,13 +35,22 @@ namespace dmScript
         return result;
     }
 
-    /*#
-     * Hashes a string. All ids in the engine are represented as hashes, so a string needs to be hashed
+    /*# hashes a string
+     * All ids in the engine are represented as hashes, so a string needs to be hashed
      * before it can be compared with an id.
      *
      * @name hash
      * @param s string to hash (string)
      * @return a hashed string (hash)
+     * @examples
+     * <p>To compare a message_id in an on-message callback function:</p>
+     * <pre>
+     * function on_message(self, message_id, message)
+     *     if message_id == hash("my_message") then
+     *         -- Act on the message here
+     *     end
+     * end
+     * </pre>
      */
     int Script_Hash(lua_State* L)
     {

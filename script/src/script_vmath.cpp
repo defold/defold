@@ -587,23 +587,20 @@ namespace dmScript
         {0,0}
     };
 
-    /*#
-     * Creates a new zero vector
+    /*# creates a new zero vector
      *
      * @name vmath.vector3
      * @return new zero vector (vector3)
      */
 
-    /*#
-     * Creates a new vector from another existing vector
+    /*# creates a new vector from another existing vector
      *
      * @name vmath.vector3
      * @param v existing vector (vector3)
      * @return new vector (vector3)
      */
 
-    /*#
-     * Creates a new vector from its coordinates
+    /*# creates a new vector from its coordinates
      *
      * @name vmath.vector3
      * @param x x coordinate (number)
@@ -632,23 +629,20 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a new zero vector
+    /*# creates a new zero vector
      *
      * @name vmath.vector4
      * @return new zero vector (vector4)
      */
 
-    /*#
-     * Creates a new vector from another existing vector
+    /*# creates a new vector from another existing vector
      *
      * @name vmath.vector4
      * @param v existing vector (vector4)
      * @return new vector (vector4)
      */
 
-    /*#
-     * Creates a new vector from its coordinates
+    /*# creates a new vector from its coordinates
      *
      * @name vmath.vector4
      * @param x x coordinate (number)
@@ -676,23 +670,20 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a new identity quaternion
+    /*# creates a new identity quaternion
      *
      * @name vmath.quaternion
      * @return new identity quaternion (quaternion)
      */
 
-    /*#
-     * Creates a new quaternion from another existing quaternion
+    /*# creates a new quaternion from another existing quaternion
      *
      * @name vmath.quaternion
      * @param q existing quaternion (quaternion)
      * @return new quaternion (quaternion)
      */
 
-    /*#
-     * Creates a new quaternion from its coordinates
+    /*# creates a new quaternion from its coordinates
      *
      * @name vmath.quaternion
      * @param x x coordinate (number)
@@ -723,8 +714,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a quaternion based on a vector rotation
+    /*# creates a quaternion based on a vector rotation
      * The resulting quaternion describes the rotation that would make the first vector end up at the second.
      *
      * @name vmath.quat_from_to
@@ -740,8 +730,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a quaternion from axis and angle
+    /*# creates a quaternion from axis and angle
      *
      * @name vmath.quat_axis_angle
      * @param v axis (vector3)
@@ -756,13 +745,12 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a quaternion from three base vectors
+    /*# creates a quaternion from three base vectors
      *
      * @name vmath.quat_basis
-     * @param x x base vector (number)
-     * @param y y base vector (number)
-     * @param z z base vector (number)
+     * @param x x base vector (vector3)
+     * @param y y base vector (vector3)
+     * @param z z base vector (vector3)
      * @return quaternion representing the rotation of the specified base vectors (quaternion)
      */
     static int Quat_Basis(lua_State* L)
@@ -778,11 +766,10 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a quaternion from rotation around x-axis
-     *0
+    /*# creates a quaternion from rotation around x-axis
+     *
      * @name vmath.quat_rotation_x
-     * @param angle angle around x-axis (number)
+     * @param angle angle in radians around x-axis (number)
      * @return quaternion representing the rotation around the x-axis (quaternion)
      */
     static int Quat_RotationX(lua_State* L)
@@ -792,10 +779,10 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a quaternion from rotation around y-axis
+    /*# creates a quaternion from rotation around y-axis
+     *
      * @name vmath.quat_rotation_y
-     * @param angle angle around y-axis (number)
+     * @param angle angle in radians around y-axis (number)
      * @return quaternion representing the rotation around the y-axis (quaternion)
      */
     static int Quat_RotationY(lua_State* L)
@@ -805,10 +792,10 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a quaternion from rotation around z-axis
+    /*# creates a quaternion from rotation around z-axis
+     *
      * @name vmath.quat_rotation_z
-     * @param angle angle around z-axis (number)
+     * @param angle angle in radians around z-axis (number)
      * @return quaternion representing the rotation around the z-axis (quaternion)
      */
     static int Quat_RotationZ(lua_State* L)
@@ -818,15 +805,14 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a new identity matrix
+    /*# creates a new identity matrix
+     * An identity matrix describes a transform with no translation or rotation.
      *
      * @name vmath.matrix4
      * @return identity matrix (matrix4)
      */
 
-    /*#
-     * Creates a new matrix as a copy of another existing matrix
+    /*# creates a new matrix from another existing matrix
      *
      * @name vmath.matrix4
      * @param [m] existing matrix (matrix4)
@@ -851,8 +837,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a frustum matrix
+    /*# creates a frustum matrix
      *
      * @name vmath.matrix4_frustum
      * @param left coordinate for left clipping plane (number)
@@ -875,8 +860,8 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a lookat matrix
+    /*# creates a lookat view matrix
+     * This is useful to construct a view matrix for a camera or rendering in general.
      *
      * @name vmath.matrix4_lookat
      * @param eye eye position (vector3)
@@ -890,8 +875,8 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates an orthographic projection matrix
+    /*# creates an orthographic projection matrix
+     * This is useful to construct a projection matrix for a camera or rendering in general.
      *
      * @name vmath.matrix4_orthographic
      * @param left coordinate for left clipping plane (number)
@@ -914,8 +899,8 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a perspective projection matrix
+    /*# creates a perspective projection matrix
+     * This is useful to construct a projection matrix for a camera or rendering in general.
      *
      * @name vmath.matrix4_perspective
      * @param fov field of view in radians (number)
@@ -934,7 +919,8 @@ namespace dmScript
         return 1;
     }
 
-    /*# Creates a matrix from a quaternion
+    /*# creates a matrix from a quaternion
+     * The resulting matrix describes the same rotation as the quaternion, but does not have any translation (also like the quaternion).
      *
      * @name vmath.matrix4_from_quat
      * @param q quaternion to create matrix from (quaternion)
@@ -946,12 +932,12 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a matrix from axis and angle
+    /*# creates a matrix from an axis and an angle
+     *  The resulting matrix describes a rotation around the axis by the specified angle.
      *
      * @name vmath.matrix4_axis_angle
      * @param v axis (vector3)
-     * @param angle angle (number)
+     * @param angle angle in radians (number)
      * @return matrix represented by axis and angle (matrix4)
      */
     static int Matrix4_AxisAngle(lua_State* L)
@@ -962,11 +948,10 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a matrix from rotation around x-axis
+    /*# creates a matrix from rotation around x-axis
      *
      * @name vmath.matrix4_rotation_x
-     * @param angle angle around x-axis (number)
+     * @param angle angle in radians around x-axis (number)
      * @return matrix from rotation around x-axis (matrix4)
      */
     static int Matrix4_RotationX(lua_State* L)
@@ -975,11 +960,10 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a matrix from rotation around y-axis
+    /*# creates a matrix from rotation around y-axis
      *
      * @name vmath.matrix4_rotation_y
-     * @param angle angle around y-axis (number)
+     * @param angle angle in radians around y-axis (number)
      * @return matrix from rotation around y-axis (matrix4)
      */
     static int Matrix4_RotationY(lua_State* L)
@@ -988,11 +972,10 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Creates a matrix from rotation around z-axis
+    /*# creates a matrix from rotation around z-axis
      *
      * @name vmath.matrix4_rotation_z
-     * @param angle angle around z-axis (number)
+     * @param angle angle in radians around z-axis (number)
      * @return matrix from rotation around z-axis (matrix4)
      */
     static int Matrix4_RotationZ(lua_State* L)
@@ -1001,8 +984,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Calculates the dot product of two vectors
+    /*# calculates the dot-product of two vectors
      *
      * @name vmath.dot
      * @param v1 first vector (vector3)
@@ -1017,8 +999,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Calculates the squared vector length
+    /*# calculates the squared vector length
      *
      * @name vmath.length_sqr
      * @param v vector of which to calculate the squared length (vector3)
@@ -1031,8 +1012,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Calculates the vector length
+    /*# calculates the vector length
      *
      * @name vmath.length
      * @param v vector of which to calculate the length (vector3)
@@ -1045,8 +1025,8 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Normalizes a vector3
+    /*# normalizes a vector
+     * The length of the vector must be above 0, otherwise a div-by-zero will occur.
      *
      * @name vmath.normalize
      * @param v vector to normalize (vector3)
@@ -1059,8 +1039,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Calculates cross product of two vectors
+    /*# calculates the cross-product of two vectors
      *
      * @name vmath.cross
      * @param v1 first vector (vector3)
@@ -1075,21 +1054,19 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Lerps between two vectors
+    /*# lerps between two vectors
      *
      * @name vmath.lerp
-     * @param t interpolation parameter (number)
+     * @param t interpolation parameter, 0-1 (number)
      * @param v1 vector to lerp from (vector3)
      * @param v2 vector to lerp to (vector3)
      * @return the lerped vector (vector3)
      */
 
-    /*#
-     * Lerps between two quaternions
+    /*# lerps between two quaternions
      *
      * @name vmath.lerp
-     * @param t interpolation parameter (number)
+     * @param t interpolation parameter, 0-1 (number)
      * @param q1 quaternion to lerp to (quaternion)
      * @param q2 quaternion to lerp from (quaternion)
      * @return the lerped quaternion (quaternion)
@@ -1115,21 +1092,19 @@ namespace dmScript
         return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
-    /*#
-     * Slerps between two vectors
+    /*# slerps between two vectors
      *
      * @name vmath.slerp
-     * @param t interpolation parameter (number)
+     * @param t interpolation parameter, 0-1 (number)
      * @param v1 vector to slerp from (vector3)
      * @param v2 vector to slerp to (vector3)
      * @return the slerped vector (vector3)
      */
 
-    /*#
-     * Slerps between two quaternions
+    /*# slerps between two quaternions
      *
      * @name vmath.slerp
-     * @param t interpolation parameter (number)
+     * @param t interpolation parameter, 0-1 (number)
      * @param q1 quaternion to slerp from (quaternion)
      * @param q2 quaternion to slerp to (quaternion)
      * @return the slerped quaternion (quaternion)
@@ -1154,8 +1129,7 @@ namespace dmScript
         return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "slerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
 
-    /*#
-     * Calculates the conjugate of a quaternion
+    /*# calculates the conjugate of a quaternion
      *
      * @name vmath.conj
      * @param q quaternion of which to calculate the conjugate (quaternion)
@@ -1168,8 +1142,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Rotates a vector by a quaternion
+    /*# rotates a vector by a quaternion
      *
      * @name vmath.rotate
      * @param q quaternion (quaternion)
@@ -1184,12 +1157,11 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Projects a vector against another vector
+    /*# projects a vector onto another vector
      *
      * @name vmath.project
      * @param v1 vector to be projected on the second (vector3)
-     * @param v2 vector onto which the first will be projected (vector3)
+     * @param v2 vector onto which the first will be projected, must not have zero length (vector3)
      * @return the projected extent of the first vector onto the second (number)
      */
     static int Project(lua_State* L)

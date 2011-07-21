@@ -127,8 +127,8 @@ namespace dmGameObject
         return i;
     }
 
-    /*#
-     * Gets the position of the instance
+    /*# gets the position of the instance
+     * The position is relative the parent (if any). Use <code>go.get_world_position</code> to retrieve the global world position.
      *
      * @name go.get_position
      * @return instance position (vector3)
@@ -140,8 +140,8 @@ namespace dmGameObject
         return 1;
     }
 
-    /*#
-     * Gets the rotation of the instance
+    /*# gets the rotation of the instance
+     * The rotation is relative to the parent (if any). Use <code>go.get_world_rotation</code> to retrieve the global world position.
      *
      * @name go.get_rotation
      * @return instance rotation (quaternion)
@@ -153,8 +153,8 @@ namespace dmGameObject
         return 1;
     }
 
-    /*#
-     * Sets the position of the instance
+    /*# sets the position of the instance
+     * The position is relative to the parent (if any). The global world position cannot be manually set.
      *
      * @name go.set_position
      * @param position position to set (vector3)
@@ -167,8 +167,8 @@ namespace dmGameObject
         return 0;
     }
 
-    /*#
-     * Sets the rotation of the instance
+    /*# sets the rotation of the instance
+     * The rotation is relative to the parent (if any). The global world rotation cannot be manually set.
      *
      * @name go.set_rotation
      * @param rotation rotation to set (quaternion)
@@ -181,8 +181,8 @@ namespace dmGameObject
         return 0;
     }
 
-    /*#
-     * Gets the instance world position
+    /*# gets the instance world position
+     * Use <code>go.get_position</code> to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
      * @return instance world position (vector3)
@@ -194,8 +194,8 @@ namespace dmGameObject
         return 1;
     }
 
-    /*#
-     * Gets the instance world rotation
+    /*# gets the instance world rotation
+     * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
      * @return instance world rotation (quaternion)
@@ -207,11 +207,25 @@ namespace dmGameObject
         return 1;
     }
 
-    /*#
-     * Gets the instance id
+    /*# gets the id of an instance
+     * The instance id is a hash of the absolute path.
+     * If <code>path</code> is specified it can either be absolute, or relative to the instance of the calling script.
+     * If <code>path</code> is not specified, the id of the instance of the calling script will be returned. See the examples below for more information.
      *
      * @name go.get_id
+     * @param [path] path of the instance for which to return the id (string)
      * @return instance id (hash)
+     * @examples
+     * For the instance with path <code>/my_sub_collection/my_instance</code>, the following calls are equivalent:
+     * <pre>
+     * local id = go.get_id() -- no path, defaults to the instance of the calling script
+     * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
+     * </pre>
+     * From a script in another instance in the same collection, i.e. path <code>/my_sub_collection/my_other_instance</code>, the id of the first instance can be retrieved in two ways:
+     * <pre>
+     * local id = go.get_id("my_instance") -- relative path
+     * local id = go.get_id("/my_sub_collection/my_instance") -- absolute path
+     * </pre>
      */
     int Script_GetId(lua_State* L)
     {
@@ -228,8 +242,7 @@ namespace dmGameObject
         return 1;
     }
 
-    /*#
-     * Deletes an instance
+    /*# deletes the instance of the calling script
      *
      * @name go.delete
      */

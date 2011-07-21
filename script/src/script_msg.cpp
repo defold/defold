@@ -249,30 +249,30 @@ namespace dmScript
         {0,0}
     };
 
-    /*#
-     * Creates a new URL, which is the address of the component of the calling script.
+    /*# creates a new URL
+     * The URL references the address of the component of the calling script.
      *
      * @name msg.url
      * @return a new URL (url)
      */
 
-    /*#
-     * Creates a new URL from a string
-     * <br><br>
-     * msg.url("socket:/path#fragment") <br>
+    /*# creates a new URL from a string
+     * The format of the string must be <code>"[socket:][path][#fragment]"</code>, which is similar to a http URL.
+     * When addressing instances, <code>socket</code> is the name of the collection. <code>path</code> is the id of the instance,
+     * which can either be relative the instance of the calling script or global. <code>fragment</code> would be the id of the desired component.
      *
      * @name msg.url
      * @param urlstring string to create the url from (string)
      * @return a new URL (url)
+     * @examples
+     * <pre>
+     * local my_url = msg.url("#my_component")
+     * local my_url = msg.url("my_collection:/my_sub_collection/my_instance#my_component")
+     * local my_url = msg.url("my_socket:")
+     * </pre>
      */
 
-    /*#
-     * Creates a new URL from a socket, path and fragment
-     * <br><br>
-     * msg.url("socket", "/path", "fragment") <br>
-     * msg.url(my_url.socket, my_url.path, my_url.fragment) <br>
-     * You can also leave out arguments, eg: <br><br>
-     * msg.url("socket", "/path")
+    /*# creates a new URL from separate arguments
      *
      * @name msg.url
      * @param [socket] socket of the URL (string|socket)
@@ -409,13 +409,16 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * Posts a message
+    /*# posts a message to a receiving URL
      *
      * @name msg.post
      * @param receiver The receiver must be a string in URL-format, a URL object or nil. Nil is a short way of sending the message back to the calling script. (string|url|nil)
      * @param message_id The id must be a string or a hashed string. (string|hash)
      * @param [message] lua table message to send (table)
+     * @examples
+     * <pre>
+     * msg.post(my_url, "my_message", {"my_parameter" = "my_value"})
+     * </pre>
      */
     int Msg_Post(lua_State* L)
     {

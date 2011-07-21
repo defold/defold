@@ -30,13 +30,31 @@ namespace dmScript
 
     const uint32_t MAX_BUFFER_SIZE =  64 * 1024;
 
-    /*#
-     * Saves a lua table to disk
+    /*# saves a lua table to a file stored on disk
+     * The table can later be loaded by <code>sys.load</code>.
+     * Use <code>sys.get_save_file</code> to obtain a good location for the file.
      *
      * @name sys.save
      * @param filename file to write to (string)
      * @param table lua table to save (table)
      * @return a boolean indicating if the table could be saved or not (boolean)
+     * @examples
+     * Save data:
+     * <pre>
+     * local my_table = {"my_key" = "my_important_value"}
+     * local my_file_path = sys.get_save_file("my_game", "my_file")
+     * if not sys.save(my_file_path, my_table) then
+     *     -- Alert user that the data could not be saved
+     * end
+     * </pre>
+     * And load it at a later time, e.g. next game session:
+     * <pre>
+     * local my_file_path = sys.get_save_file("my_game", "my_file")
+     * local my_table = sys.load(my_file_path)
+     * if #my_table == 0 then
+     *     -- The file could not be found
+     * end
+     * </pre>
      */
     int Sys_Save(lua_State* L)
     {
@@ -58,12 +76,12 @@ namespace dmScript
         return luaL_error(L, "Could not write to the file %s.", filename);
     }
 
-    /*#
-     * Loads a lua table from disk
+    /*# loads a lua table from a file on disk
+     * The file must have been created by <code>sys.save</code>
      *
      * @name sys.load
      * @param filename file to read from (string)
-     * @return loaded lua table (table)
+     * @return loaded lua table, which is empty if the file could not be found (table)
      */
     int Sys_Load(lua_State* L)
     {
@@ -89,8 +107,8 @@ namespace dmScript
         }
     }
 
-    /**
-     * Gets the save-file path of the operating system specific save-file location.
+    /** gets the save-file path
+     * The save-file path is operating system specific and is typically located under the users home directory.
      *
      * @name sys.get_save_file
      * @param application_id user defined id of the application, which helps define the location of the save-file (string)
