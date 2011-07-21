@@ -23,4 +23,6 @@ public class Constants {
 
     public static float DEFAULT_HANDLE_COLOR[] = new float[] { 164.0f/255, 164.0f/255, 164.0f/255 };
 
+    public static float CONVEX_SHAPE_COLOR[] = new float[] { 255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f };
+
 }

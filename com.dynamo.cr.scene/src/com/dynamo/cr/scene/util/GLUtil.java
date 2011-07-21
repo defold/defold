@@ -176,4 +176,32 @@ public class GLUtil
 
         gl.glEnd();
     }
+
+    public static void drawSphere(GL gl, GLU glu, float radius, int slices, int stacks) {
+        GLUquadric quadric = glu.gluNewQuadric();
+        glu.gluSphere(quadric, radius, slices, stacks);
+        glu.gluDeleteQuadric(quadric);
+    }
+
+    public static void drawCapsule(GL gl, GLU glu, float radius, float height, int slices, int stacks) {
+        GLUquadric quadric = glu.gluNewQuadric();
+
+        gl.glPushMatrix();
+
+        gl.glPushMatrix();
+        gl.glTranslatef(0, height * 0.5f, 0);
+        gl.glRotatef(90, 1, 0, 0);
+        glu.gluCylinder(quadric, radius, radius, height, slices, stacks);
+        gl.glPopMatrix();
+
+        gl.glTranslatef(0, -height * 0.5f, 0);
+        glu.gluSphere(quadric, radius, slices, stacks);
+        gl.glTranslatef(0, height, 0);
+        glu.gluSphere(quadric, radius, slices, stacks);
+
+        gl.glPopMatrix();
+
+        glu.gluDeleteQuadric(quadric);
+    }
+
 }

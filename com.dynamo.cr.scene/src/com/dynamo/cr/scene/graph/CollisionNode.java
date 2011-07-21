@@ -3,6 +3,7 @@ package com.dynamo.cr.scene.graph;
 import java.io.IOException;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.glu.GLU;
 
 import org.eclipse.core.runtime.CoreException;
 
@@ -40,9 +41,20 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                 float d_e = shape.getData(2);
                 m_AABB.union(-w_e, -h_e, -d_e);
                 m_AABB.union(w_e, h_e, d_e);
+            } else if (shape.getShapeType() == ConvexShape.Type.TYPE_SPHERE) {
+                float r = shape.getData(0);
+                m_AABB.union(-r, -r, -r);
+                m_AABB.union(r, r, r);
+            } else if (shape.getShapeType() == ConvexShape.Type.TYPE_CAPSULE) {
+                float r = shape.getData(0);
+                float h = shape.getData(1);
+                m_AABB.union(0, h, 0);
+                m_AABB.union(0, -h, 0);
+                m_AABB.union(r, 0, r);
+                m_AABB.union(-r, 0, -r);
             }
             else {
-                // TODO: We need to fix the convex shape stuff. Support for non-box shapes is lacking...
+                // TODO: Still lacking support for hull
                 System.err.println("Warning: Unsupported shape type: " + shape.getShapeType());
             }
         }
@@ -54,44 +66,83 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
             return;
 
         GL gl = context.m_GL;
+        GLU glu = context.m_GLU;
         gl.glPushAttrib(GL.GL_ENABLE_BIT);
         gl.glEnable(GL.GL_BLEND);
 
         ConvexShape shape = this.resource.getConvexShapeResource().getConvexShape();
         if (shape.getShapeType() == Type.TYPE_BOX) {
-            if (shape.getDataCount() != 3) {
-                invalid = true;
-                System.err.println("Invalid box shape");
+            float w_e = shape.getData(0);
+            float h_e = shape.getData(1);
+            float d_e = shape.getData(2);
+
+            if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
+                gl.glColor3fv(Constants.GHOST_COLOR, 0);
+                GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
             }
             else {
-                float w_e = shape.getData(0);
-                float h_e = shape.getData(1);
-                float d_e = shape.getData(2);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+                if (context.isSelected(this))
+                    gl.glColor3fv(Constants.SELECTED_COLOR, 0);
+                else
+                    gl.glColor3fv(Constants.OBJECT_COLOR, 0);
 
-                if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
-                    gl.glColor3fv(Constants.GHOST_COLOR, 0);
-                    GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
-                }
-                else {
-                    gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
-                    if (context.isSelected(this))
-                        gl.glColor3fv(Constants.SELECTED_COLOR, 0);
-                    else
-                        gl.glColor3fv(Constants.OBJECT_COLOR, 0);
+                GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
 
-                    GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
-                    gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
-
-                    if (context.isSelected(this)) {
-                    }
-
-                    gl.glColor4f(255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f);
-                    GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
-                }
+                gl.glColor4fv(Constants.CONVEX_SHAPE_COLOR, 0);
+                GLUtil.drawCube(gl, -w_e, -h_e, -d_e, w_e, h_e, d_e);
             }
+        } else if (shape.getShapeType() == Type.TYPE_SPHERE) {
+            float r = shape.getData(0);
 
-        } else {
-            // TODO: See commment above
+            final int slices = 16;
+            final int stacks = 6;
+
+            if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
+                gl.glColor3fv(Constants.GHOST_COLOR, 0);
+                GLUtil.drawSphere(gl, glu, r, slices, stacks);
+            }
+            else {
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+                if (context.isSelected(this))
+                    gl.glColor3fv(Constants.SELECTED_COLOR, 0);
+                else
+                    gl.glColor3fv(Constants.OBJECT_COLOR, 0);
+
+                GLUtil.drawSphere(gl, glu, r, slices, stacks);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+
+                gl.glColor4fv(Constants.CONVEX_SHAPE_COLOR, 0);
+                GLUtil.drawSphere(gl, glu, r, slices, stacks);
+            }
+        } else if (shape.getShapeType() == Type.TYPE_CAPSULE) {
+            float r = shape.getData(0);
+            float h = shape.getData(1);
+
+            final int slices = 16;
+            final int stacks = 6;
+
+            if ((getFlags() & FLAG_GHOST) == FLAG_GHOST) {
+                gl.glColor3fv(Constants.GHOST_COLOR, 0);
+
+                GLUtil.drawCapsule(gl, glu, r, h, slices, stacks);
+            }
+            else {
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+                if (context.isSelected(this))
+                    gl.glColor3fv(Constants.SELECTED_COLOR, 0);
+                else
+                    gl.glColor3fv(Constants.OBJECT_COLOR, 0);
+
+                GLUtil.drawCapsule(gl, glu, r, h, slices, stacks);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+
+                gl.glColor4fv(Constants.CONVEX_SHAPE_COLOR, 0);
+                GLUtil.drawCapsule(gl, glu, r, h, slices, stacks);
+            }
+        }
+        else {
             System.err.println("Warning: Unsupported shape type: " + shape.getShapeType());
             invalid = true;
         }
