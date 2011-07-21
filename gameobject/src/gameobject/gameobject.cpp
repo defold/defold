@@ -932,8 +932,11 @@ namespace dmGameObject
         }
         if (instance == 0x0)
         {
-            // TODO: hash to string
-            dmLogError("Instance could not be found when dispatching message %llu.", message->m_Id);
+            dmLogError("Instance '%s#%s' could not be found when dispatching message %s.",
+                        (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
+                        (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
+                        (const char*) dmHashReverse64(message->m_Id, 0));
+
             context->m_Success = false;
             return;
         }
@@ -978,7 +981,8 @@ namespace dmGameObject
                 {
                     parent = dmGameObject::GetInstanceFromIdentifier(context->m_Collection, sp->m_ParentId);
                     if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id %llu.", sp->m_ParentId);
+                        dmLogWarning("Could not find parent instance with id %s.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
+
                 }
                 Point3 parent_wp(0.0f, 0.0f, 0.0f);
                 Quat parent_wr(0.0f, 0.0f, 0.0f, 1.0f);
@@ -1002,7 +1006,10 @@ namespace dmGameObject
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
                 if (result != dmGameObject::RESULT_OK)
-                    dmLogWarning("Error when setting parent of %llu to %llu, error: %i.", instance->m_Identifier, sp->m_ParentId, result);
+                    dmLogWarning("Error when setting parent of %s to %s, error: %i.",
+                                 (const char*) dmHashReverse64(instance->m_Identifier, 0),
+                                 (const char*) dmHashReverse64(sp->m_ParentId, 0),
+                                 result);
                 return;
             }
         }
@@ -1014,8 +1021,10 @@ namespace dmGameObject
             Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
-                // TODO: hash to string
-                dmLogError("Component could not be found when dispatching message %llu.", message->m_Id);
+                dmLogError("Component '%s#%s' could not be found when dispatching message %s",
+                            (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
+                            (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
+                            (const char*) dmHashReverse64(message->m_Id, 0));
                 context->m_Success = false;
                 return;
             }

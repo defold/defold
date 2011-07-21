@@ -52,6 +52,7 @@ namespace dmScript
 
     void url_tostring(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
+        char tmp[32];
         *buffer = '\0';
         if (url->m_Socket != 0)
         {
@@ -68,16 +69,14 @@ namespace dmScript
         }
         if (url->m_Path != 0)
         {
-            char path[16];
-            DM_SNPRINTF(path, 16, "%llu", url->m_Path);
-            dmStrlCat(buffer, path, buffer_size);
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Path, 0));
+            dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
             dmStrlCat(buffer, "#", buffer_size);
-            char path[16];
-            DM_SNPRINTF(path, 16, "%llu", url->m_Fragment);
-            dmStrlCat(buffer, path, buffer_size);
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Fragment, 0));
+            dmStrlCat(buffer, tmp, buffer_size);
         }
     }
 
