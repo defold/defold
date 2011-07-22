@@ -574,7 +574,7 @@ namespace dmProfile
 
     void AddCounter(const char* name, uint32_t amount)
     {
-        uint32_t name_hash = dmHashString32(name);
+        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
         AddCounterHash(name, name_hash, amount);
     }
 
@@ -603,7 +603,7 @@ namespace dmProfile
 
             Counter* c = &g_Counters[new_index];
             c->m_Name = name;
-            c->m_NameHash = dmHashString32(name);
+            c->m_NameHash = dmHashBufferNoReverse32(name, strlen(name));
 
             CounterData* cd = &profile->m_CountersData[new_index];
             cd->m_Counter = c;

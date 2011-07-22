@@ -107,7 +107,7 @@ namespace dmScript
     {
         dmhash_t hash = CheckHash(L, 1);
         char buffer[64];
-        DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu]", SCRIPT_TYPE_NAME_HASH, hash);
+        DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, (const char*) dmHashReverse64(hash, 0));
         lua_pushstring(L, buffer);
         return 1;
     }
@@ -118,7 +118,7 @@ namespace dmScript
         dmhash_t hash = CheckHash(L, 2);
         size_t size = 64 + strlen(s);
         char* buffer = new char[size];
-        DM_SNPRINTF(buffer, size, "%s[%llu]", s, hash);
+        DM_SNPRINTF(buffer, size, "%s[%s]", s, (const char*) dmHashReverse64(hash, 0));
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;

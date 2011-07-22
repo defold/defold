@@ -157,8 +157,10 @@ namespace dmGameSystem
             {
                 ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
             }
-            else
-                dmLogWarning("No such render target: 0x%llx (%llu)", ddf->m_TextureHash, ddf->m_TextureHash);
+            else {
+                dmLogWarning("No such render target: %s",
+                             (const char*) dmHashReverse64(ddf->m_TextureHash, 0));
+            }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

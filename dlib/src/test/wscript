@@ -47,7 +47,7 @@ def build(bld):
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_dlib.cpp',
-                                      uselib = 'GTEST',
+                                      uselib = 'GTEST THREAD',
                                       uselib_local = "dlib",
                                       includes = ['../../src'],
                                       target = 'test_dlib')
