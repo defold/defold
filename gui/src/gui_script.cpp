@@ -1027,4 +1027,156 @@ namespace dmGui
     {
         lua_close(L);
     }
+
+    // Documentation for the scripts
+
+    /*# called when a gui component is initialized
+     * This is a callback-function, which is called by the engine when a gui component is initialized. It can be used
+     * to set the initial state of the script and gui scene.
+     *
+     * @name init
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @examples
+     * <pre>
+     * function init(self)
+     *     -- set up useful data
+     *     self.my_value = 1
+     * end
+     * </pre>
+     */
+
+    /*# called when a gui component is finalized
+     * This is a callback-function, which is called by the engine when a gui component is finalized (destroyed). It can
+     * be used to e.g. take some last action, report the finalization to other game object instances
+     * or release user input focus (see <code>release_input_focus</code>). There is no use in starting any animations or similar
+     * from this function since the gui component is about to be destroyed.
+     *
+     * @name final
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @examples
+     * <pre>
+     * function final(self)
+     *     -- report finalization
+     *     msg.post("my_friend_instance", "im_dead", {my_stats = self.some_value})
+     * end
+     * </pre>
+     */
+
+    /*# called every frame to update the gui component
+     * This is a callback-function, which is called by the engine every frame to update the state of a gui component.
+     * It can be used to perform any kind of gui related tasks, e.g. animating nodes.
+     *
+     * @name update
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param dt the time-step of the frame update
+     * @examples
+     * This example demonstrates how to update a text node that displays game score in a counting fashion.
+     * It is assumed that the gui component receives messages from the game when a new score is to be shown.
+     * <pre>
+     * function init(self)
+     *     -- fetch the score text node for later use (assumes it is called "score")
+     *     self.score_node = gui.get_node("score")
+     *     -- keep track of the current score counted up so far
+     *     self.current_score = 0
+     *     -- keep track of the target score we should count up to
+     *     self.current_score = 0
+     *     -- how fast we will update the score, in score/second
+     *     self.score_update_speed = 1
+     * end
+     *
+     * function update(self, dt)
+     *     -- check if target score is more than current score
+     *     if self.current_score < self.target_score
+     *         -- increment current score according to the speed
+     *         self.current_score = self.current_score + dt * self.score_update_speed
+     *         -- check if we went past the target score, clamp current score in that case
+     *         if self.current_score > self.target_score then
+     *             self.current_score = self.target_score
+     *         end
+     *         -- update the score text node
+     *         gui.set_text(self.score_node, "" .. math.floor(self.current_score))
+     *     end
+     * end
+     *
+     * function on_message(self, message_id, message, sender)
+     *     -- check the message
+     *     if message_id == hash("set_score") then
+     *         self.target_score = message.score
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# called when a message has been sent to the gui component
+     * <p>
+     * This is a callback-function, which is called by the engine whenever a message has been sent to the gui component.
+     * It can be used to take action on the message, e.g. update the gui or send a response back to the sender of the message.
+     * </p>
+     * <p>
+     * The <code>message</code> parameter is a table containing the message data. If the message is sent from the engine, the
+     * documentation of the message specifies which data is supplied.
+     * </p>
+     * <p>See the <code>update</code> function for examples on how to use this callback-function.</p>
+     *
+     * @name on_message
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param message_id id of the received message (hash)
+     * @param message a table containing the message data (table)
+     */
+
+    /*# called when user input is received
+     * <p>
+     * This is a callback-function, which is called by the engine when user input is sent to the instance of the gui component.
+     * It can be used to take action on the input, e.g. modify the gui according to the input.
+     * </p>
+     * <p>
+     * For an instance to obtain user input, it must first acquire input focuse through the message <code>acquire_input_focus</code>.
+     * See the documentation of that message for more information.
+     * </p>
+     * <p>
+     * The <code>action</code> parameter is a table containing data about the input, such as the id of the action it corresponds to.
+     * Actions are mapped to input in an input_binding-file.
+     * </p>
+     * Here is a brief description of the available table fields:
+     * <table>
+     *   <th>Field</th>
+     *   <th>Description</th>
+     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs.</td></tr>
+     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true.</td></tr>
+     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true.</td></tr>
+     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down.</td></tr>
+     * </table>
+     *
+     * @name on_input
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param action_id id of the received input action, as mapped in the input_binding-file (hash)
+     * @param action a table containing the input data, see above for a description (table)
+     * @examples
+     * <pre>
+     * function on_input(self, action_id, action)
+     *     -- check for input
+     *     if action_id == hash("my_action") then
+     *         -- take appropritate action
+     *         self.my_value = action.value
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# called when the gui script is reloaded
+     * <p>
+     * This is a callback-function, which is called by the engine when the gui script is reloaded, e.g. from the editor.
+     * It can be used for live development, e.g. to tweak constants or set up the state properly for the script.
+     * </p>
+     *
+     * @name on_reload
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @examples
+     * <pre>
+     * function on_reload(self)
+     *     -- restore some color (or similar)
+     *     gui.set_color(gui.get_node("my_node"), self.my_original_color)
+     * end
+     * </pre>
+     */
 }

@@ -503,4 +503,207 @@ bail:
 
         assert(top == lua_gettop(L));
     }
+
+    // Documentation for the scripts
+
+    /*# called when a script component is initialized
+     * This is a callback-function, which is called by the engine when a script component is initialized. It can be used
+     * to set the initial state of the script.
+     *
+     * @name init
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @examples
+     * <pre>
+     * function init(self)
+     *     -- set up useful data
+     *     self.my_value = 1
+     * end
+     * </pre>
+     */
+
+    /*# called when a script component is finalized
+     * This is a callback-function, which is called by the engine when a script component is finalized (destroyed). It can
+     * be used to e.g. take some last action, report the finalization to other game object instances
+     * or release user input focus (see <code>release_input_focus</code>).
+     *
+     * @name final
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @examples
+     * <pre>
+     * function final(self)
+     *     -- report finalization
+     *     msg.post("my_friend_instance", "im_dead", {my_stats = self.some_value})
+     * end
+     * </pre>
+     */
+
+    /*# called every frame to update the script component
+     * This is a callback-function, which is called by the engine every frame to update the state of a script component.
+     * It can be used to perform any kind of game related tasks, e.g. moving the game object instance.
+     *
+     * @name update
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param dt the time-step of the frame update
+     * @examples
+     * This example demonstrates how to move a game object instance through the script component:
+     * <pre>
+     * function init(self)
+     *     -- set initial velocity to be 1 along world x-axis
+     *     self.my_velocity = vmath.vector3(1, 0, 0)
+     * end
+     *
+     * function update(self, dt)
+     *     -- move the game object instance
+     *     go.set_position(go.get_position() + dt * self.my_velocity)
+     * end
+     * </pre>
+     */
+
+    /*# called when a message has been sent to the script component
+     * <p>
+     * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
+     * It can be used to take action on the message, e.g. send a response back to the sender of the message.
+     * </p>
+     * <p>
+     * The <code>message</code> parameter is a table containing the message data. If the message is sent from the engine, the
+     * documentation of the message specifies which data is supplied.
+     * </p>
+     *
+     * @name on_message
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param message_id id of the received message (hash)
+     * @param message a table containing the message data (table)
+     * @examples
+     * <p>
+     * This example demonstrates how a game object instance, called "a", can communicate with another instance, called "b". It
+     * is assumed that both script components of the instances has id "script".
+     * </p>
+     * Script of instance "a":
+     * <pre>
+     * function init(self)
+     *     -- let b know about some important data
+     *     msg.post("b#script", "my_data", {important_value = 1})
+     * end
+     * </pre>
+     * Script of intance "b":
+     * <pre>
+     * function init(self)
+     *     -- store the url of instance "a" for later use, by specifying nil as socket we
+     *     -- automatically use our own socket
+     *     self.a_url = msg.url(nil, go.get_id("a"), "script")
+     * end
+     *
+     * function on_message(self, message_id, message, sender)
+     *     -- check message and sender
+     *     if message_id == hash("my_data") and sender == self.a_url then
+     *         -- use the data in some way
+     *         self.important_value = message.important_value
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# called when user input is received
+     * <p>
+     * This is a callback-function, which is called by the engine when user input is sent to the game object instance of the script.
+     * It can be used to take action on the input, e.g. move the instance according to the input.
+     * </p>
+     * <p>
+     * For an instance to obtain user input, it must first acquire input focuse through the message <code>acquire_input_focus</code>.
+     * See the documentation of that message for more information.
+     * </p>
+     * <p>
+     * The <code>action</code> parameter is a table containing data about the input, such as the id of the action it corresponds to.
+     * Actions are mapped to input in an input_binding-file.
+     * </p>
+     * Here is a brief description of the available table fields:
+     * <table>
+     *   <th>Field</th>
+     *   <th>Description</th>
+     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs.</td></tr>
+     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true.</td></tr>
+     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true.</td></tr>
+     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down.</td></tr>
+     * </table>
+     *
+     * @name on_input
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @param action_id id of the received input action, as mapped in the input_binding-file (hash)
+     * @param action a table containing the input data, see above for a description (table)
+     * @examples
+     * <p>
+     * This example demonstrates how a game object instance can be moved as a response to user input.
+     * </p>
+     * <pre>
+     * function init(self)
+     *     -- acquire input focus
+     *     msg.post(nil, "acquire_input_focus")
+     *     -- maximum speed the instance can be moved
+     *     self.max_speed = 2
+     *     -- velocity of the instance, initially zero
+     *     self.velocity = vmath.vector3()
+     * end
+     *
+     * function update(self, dt)
+     *     -- move the instance
+     *     go.set_position(go.get_position() + dt * self.velocity)
+     * end
+     *
+     * function on_input(self, action_id, action)
+     *     -- check for movement input
+     *     if action_id == hash("right") then
+     *         if action.released then -- reset velocity if input was released
+     *             self.velocity = vmath.vector3()
+     *         else -- update velocity
+     *             self.velocity = vmath.vector3(action.value * self.max_speed, 0, 0)
+     *         end
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# called when the script component is reloaded
+     * <p>
+     * This is a callback-function, which is called by the engine when the script component is reloaded, e.g. from the editor.
+     * It can be used for live development, e.g. to tweak constants or set up the state properly for the instance.
+     * </p>
+     *
+     * @name on_reload
+     * @param self reference to the script state to be used for storing data (script_ref)
+     * @examples
+     * <p>
+     * This example demonstrates how to tweak the speed of a game object instance that is moved on user input.
+     * </p>
+     * <pre>
+     * function init(self)
+     *     -- acquire input focus
+     *     msg.post(nil, "acquire_input_focus")
+     *     -- maximum speed the instance can be moved, this value is tweaked in the on_reload function below
+     *     self.max_speed = 2
+     *     -- velocity of the instance, initially zero
+     *     self.velocity = vmath.vector3()
+     * end
+     *
+     * function update(self, dt)
+     *     -- move the instance
+     *     go.set_position(go.get_position() + dt * self.velocity)
+     * end
+     *
+     * function on_input(self, action_id, action)
+     *     -- check for movement input
+     *     if action_id == hash("right") then
+     *         if action.released then -- reset velocity if input was released
+     *             self.velocity = vmath.vector3()
+     *         else -- update velocity
+     *             self.velocity = vmath.vector3(action.value * self.max_speed, 0, 0)
+     *         end
+     *     end
+     * end
+     *
+     * function on_reload(self)
+     *     -- edit this value and reload the script component
+     *     self.max_speed = 100
+     * end
+     * </pre>
+     */
 }
