@@ -52,7 +52,7 @@ public class FunctionDocumentationPanel extends Composite {
             this.examples.add(new HTML(element.getExamples()));
         } else {
             StringBuffer autoExample = new StringBuffer();
-            autoExample.append("<code>");
+            autoExample.append("<pre>");
             StringBuffer functionCall = new StringBuffer();
             if (element.getReturn().length() > 0) {
                 functionCall.append("local x = ");
@@ -71,7 +71,7 @@ public class FunctionDocumentationPanel extends Composite {
                 }
                 functionCall.append(paramName);
             }
-            autoExample.append(functionCall).append(")</code>");
+            autoExample.append(functionCall).append(")</pre>");
             this.examples.add(new HTML(autoExample.toString()));
         }
 
