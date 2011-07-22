@@ -49,12 +49,78 @@ message CollectionDesc
     repeated CollectionInstanceDesc collection_instances    = 3;
 }
 
+/*# acquires the user input focus
+ * Post this message to an instance to make that instance acquire the user input focus.
+ * This means that the scripts in the instance will have first-hand-chance at reacting
+ * on user input, possibly consuming it so that no other instances can react on it.
+ * The most common case is for a script to send this message to itself when it needs to
+ * respond to user input. A script belonging to an instance which has the user input focus
+ * will receive the input actions in its <code>on_input</code> callback function.
+ *
+ * @message
+ * @name acquire_input_focus
+ */
 message AcquireInputFocus {}
 
+/*# releases the user input focus
+ * Post this message to an instance to make that instance release the user input focus.
+ * See <code>acquire_input_focus</code> for more information on how the user input handling
+ * works.
+ *
+ * @message
+ * @name release_input_focus
+ */
 message ReleaseInputFocus {}
 
+/*# queries an instance for its position and rotation
+ * Send this message to an instance to query it for its transform (position/rotation).
+ * The sending script will receive the answer as a <code>game_object_transform_response</code>-message
+ * at a later time.
+ *
+ * @message
+ * @name game_object_transform_query
+ * @examples
+ * <pre>
+ * function init(self)
+ *     -- create a url to the interesting instance for later use, assuming the instance has id "my_friend_instance"
+ *     self.friend_url = msg.url("my_friend_instance")
+ * end
+ *
+ * function update(self, dt)
+ *     -- query the transform
+ *     msg.post(self.friend_url, "game_object_transform_query")
+ *     -- check if we have received the position yet
+ *     if self.my_friends_position then
+ *         -- do something useful with the position
+ *     end
+ * end
+ *
+ * function on_message(self, message_id, message, sender)
+ *     -- check if its the transform response
+ *     if message_id == hash("game_object_transform_response") then
+ *         -- if it comes from the right instance (in case we send out several queries to different instances)
+ *         if sender == self.friend_url then
+ *             -- store the position so we can use it in the update-function
+ *             self.my_friends_position = message.position
+ *         end
+ *     end
+ * end
+ * </pre>
+ */
 message GameObjectTransformQuery {}
 
+/*# reports back the position and rotation of an instance
+ * The answer a script obtains after it has queried an instance for its position and rotation
+ * using the <code>game_object_transform_query</code>-message. See the description of that message
+ * for a complete example of how to use it.
+ *
+ * @message
+ * @name game_object_transform_response
+ * @param position local position of the instance (vector3)
+ * @param rotation local rotation of the instance (quaternion)
+ * @param world_position world position of the instance (vector3)
+ * @param world_rotation world rotation of the instancee (quaternion)
+ */
 message GameObjectTransformResponse
 {
     required dmMath.Point3  position        = 1;
@@ -63,6 +129,29 @@ message GameObjectTransformResponse
     required dmMath.Quat    world_rotation  = 4;
 }
 
+/*# sets the parent of the receiving instance
+ * When this message is sent to an instance, it sets the parent of that instance. This means that the instance will exist
+ * in the geometrical space of its parent, like a basic transformation hierarchy or scene graph. If no parent is specified,
+ * the instance will be detached from any parent and exist in world space. A script can send this message to itself to set
+ * the parent of its instance.
+ *
+ * @message
+ * @name set_parent
+ * @param [parent_id] the id of the new parent (hash)
+ * @param [keep_world_transform] if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true (number)
+ * @examples
+ * Attach myself to another instance "my_parent":
+ * <pre>
+ * msg.post(nil, "set_parent", {parent_id = go.get_id("my_parent")})
+ * Attach an instance "my_instance" to another instance "my_parent":
+ * <pre>
+ * msg.post("my_instance", "set_parent", {parent_id = go.get_id("my_parent")})
+ * </pre>
+ * Detach an instance "my_instance" from its parent (if any):
+ * <pre>
+ * msg.post("my_instance", "set_parent")
+ * </pre>
+ */
 message SetParent
 {
     optional uint64 parent_id               = 1 [default = 0];

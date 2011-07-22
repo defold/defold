@@ -27,6 +27,61 @@ enum Playback
     PLAYBACK_LOOP_PINGPONG = 5;
 }
 
+/*# plays a sprite animation
+ * <p>
+ * Post this message to a sprite-component to make it play an animation of its tiles.
+ * The tiles are enumerated starting with 1 at top left and then right along each row.
+ * </p>
+ * <p>
+ * There are several different playback modes to use for the animation:
+ * <table>
+ *   <th>Mode</th><th>Value</th><th>Description</th>
+ *   <tr><td><code>PLAYBACK_NONE</code></td><td>0</td><td>Moves to the specified start frame, but stops there</td></tr>
+ *   <tr><td><code>PLAYBACK_ONCE_FORWARD</code></td><td>1</td><td>Plays from start to end and stops</td></tr>
+ *   <tr><td><code>PLAYBACK_ONCE_BACKWARD</code></td><td>2</td><td>Plays from end to start and stops</td></tr>
+ *   <tr><td><code>PLAYBACK_LOOP_FORWARD</code></td><td>3</td><td>Plays from start to end and restarts from the start frame</td></tr>
+ *   <tr><td><code>PLAYBACK_LOOP_BACKWARD</code></td><td>4</td><td>Plays from end to start and restarts from the end frame</td></tr>
+ *   <tr><td><code>PLAYBACK_LOOP_PINGPONG</code></td><td>5</td><td>Plays from start to end, from end to start, from start to end, etc</td></tr>
+ * </table>
+ * </p>
+ * <p>
+ * It is important to use the modes properly. Assume that a sprite has 9 tiles and
+ * we want to play an animation backwards from frames 3 to 1. If we specify 3 as
+ * <code>start_frame</code> and 1 as <code>end_frame</code> and mode
+ * <code>PLAYBACK_ONCE_FORWARD</code>, the animation would play from frame 3,
+ * continue to frame 9 and then wrap around to frame 1.
+ * </p>
+ *
+ * @message
+ * @name play_animation
+ * @param start_frame the start frame, or tile, of the animation (number)
+ * @param end_frame the end frame, or tile, of the animation (number)
+ * @param playback playback mode of the animation, see above for a description (number)
+ * @param fps the playback speed measured as frames per second, 30 by default (number)
+ * @examples
+ * <p>
+ * In the examples, it is assumed that the instance of the script has a sprite-component with id "sprite". The sprite itself is assumed to be a 3x3 tile map, targeted at 30 fps.
+ * </p>
+ * How to play a simple animation of a 3x3 tile sprite, from first to last frame:
+ * <pre>
+ * msg.post("#sprite", "play_animation", {start_frame = 1, end_frame = 9, playback = 1})
+ * </pre>
+ * How to sequence two animations together. The first animation plays forward along the first row and the second plays backwards along the last row.
+ * <pre>
+ * function init(self)
+ *     -- play first animation at init
+ *     msg.post("#sprite", "play_animation", {start_frame = 1, end_frame = 3, playback = 1})
+ * end
+ *
+ * function on_message(self, message_id, message, sender)
+ *     -- check for animation done response
+ *     if message_id == hash("animation_done") then
+ *         -- start the second backwards aniation
+ *         msg.post("#sprite", "play_animation", {start_frame = 6, end_frame = 9, playback = 1})
+ *     end
+ * end
+ * </pre>
+ */
 message PlayAnimation
 {
     required uint32     start_frame = 1;
@@ -35,6 +90,15 @@ message PlayAnimation
     optional float      fps         = 4 [default = 30.0];
 }
 
+/*# reports that an animation has completed
+ * This message is sent to the sender of a <code>play_animation</code> message when the animation has completed.
+ * Note that only animations played either forward or backward once ever completes. See <code>play_animation</code>
+ * for more information and examples of how to use this message.
+ *
+ * @message
+ * @name animation_done
+ * @param current_frame the current frame of the sprite (number)
+ */
 message AnimationDone
 {
     required uint32 current_frame = 1;

@@ -2,20 +2,33 @@ package dmEngineDDF;
 
 import "ddf/ddf_math.proto";
 
-/*#
- * Exit game message.
+/*# exits application
+ * Terminates the game application and reports the specified <code>code</code> to the OS.
+ * This message can only be sent to the designated <code>@system</code> socket.
+ *
  * @message
- * @name Exit
- * @param code exit code to return from engine
+ * @name exit
+ * @param code exit code to report to the OS, 0 means clean exit (number)
+ * @examples
+ * This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     if message_id == hash("quit") then
+ *         msg.post("@system:", "exit", {code = 0})
+ *     end
+ * end
  */
 message Exit
 {
     required int32 code = 1;
 }
 
-/*#
- * Toggle on-screen profiler message
+/*# shows/hides the on-screen profiler
+ * This message can only be sent to the designated <code>@system</code> socket.
+ *
  * @message
- * @name ToggleProfile
+ * @name toggle_profile
+ * @examples
+ * msg.post("@system:", "toggle_profile")
  */
 message ToggleProfile {}

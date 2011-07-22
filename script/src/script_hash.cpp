@@ -45,7 +45,7 @@ namespace dmScript
      * @examples
      * <p>To compare a message_id in an on-message callback function:</p>
      * <pre>
-     * function on_message(self, message_id, message)
+     * function on_message(self, message_id, message, sender)
      *     if message_id == hash("my_message") then
      *         -- Act on the message here
      *     end
