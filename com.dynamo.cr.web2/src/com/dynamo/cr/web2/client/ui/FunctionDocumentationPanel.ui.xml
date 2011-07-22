@@ -10,10 +10,9 @@
             <g:InlineHTML ui:field="brief" styleName="script_brief">clears buffers</g:InlineHTML>
         </h3>
         <g:HTMLPanel ui:field="content" styleName="script_doc">
-            <p>
+            <div class="script_block">
                 <g:HTMLPanel ui:field="description"></g:HTMLPanel>
-            </p>
-
+            </div>
             <div class="script_block">
                 <h4>Parameters</h4>
 
@@ -36,7 +35,7 @@
                 <h4>Returns</h4>
                 <g:HTMLPanel ui:field="return_"></g:HTMLPanel>
             </div>
-            <div>
+            <div class="script_block">
                 <h4>Examples</h4>
                 <g:HTMLPanel ui:field="examples"></g:HTMLPanel>
             </div>

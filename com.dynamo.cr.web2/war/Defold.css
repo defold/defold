@@ -62,7 +62,8 @@ hr.script_separator {
 }
 
 div.script_doc {
-	margin-left: 16px;
+    margin-left: 16px;
+    margin-right: 16px;
 }
 
 .script_doc p {
@@ -78,23 +79,22 @@ div.script_doc {
 .script_param {
     display: block;
     float: left;
-    width: 160px;
+    width: 175px;
     font-weight: 500;
     font-family: monospace;
 }
 
 .script_param_desc {
-    margin-left: 160px;
+    margin-left: 175px;
 }
 
 .script_block {
-    width: 600px;
+    width: 904px;
     margin-bottom: 26px;
-    color: #555;
 }
 
 .script_param_block {
-    width: 600px;
+    width: 700px;
     __border-top: 1px solid #ccc;
     padding-top: 6px;
 }
