@@ -21,7 +21,12 @@ def _strip_comment_stars(str):
 
 def _parse_comment(str):
     str = _strip_comment_stars(str)
-    lst = re.findall('@(\S+) *([^@]*|$)', str, re.MULTILINE)
+    # The regexp means match all strings that:
+    # * begins with line start, possible whitespace and an @
+    # * followed by non-white-space (the tag)
+    # * followed by possible spaces
+    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
+    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
 
     name_found = False
     element_type = script_doc_ddf_pb2.FUNCTION
@@ -44,7 +49,7 @@ def _parse_comment(str):
 
     desc_start = min(len(str), str.find('\n'))
     element.brief = str[0:desc_start]
-    desc_end = min(len(str), str.find('@'))
+    desc_end = min(len(str), str.find('\n@'))
     element.description = str[desc_start:desc_end].strip()
     element.return_ = ''
 

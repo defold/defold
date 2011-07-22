@@ -240,5 +240,20 @@ foobar
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual('example:\nMY_EXAMPLE', elements[0].examples)
 
+    def test_at(self):
+        doc= """
+/*#
+ * MY_DESC @test
+ * @name MY_MESSAGE
+ * @examples example:
+ * MY_EXAMPLE @test
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEquals(1, len(elements))
+        self.assertEqual('MY_DESC @test', elements[0].description)
+        self.assertEqual('MY_MESSAGE', elements[0].name)
+        self.assertEqual('example:\nMY_EXAMPLE @test', elements[0].examples)
+
 if __name__ == '__main__':
     unittest.main()
