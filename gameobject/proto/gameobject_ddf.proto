@@ -50,15 +50,39 @@ message CollectionDesc
 }
 
 /*# acquires the user input focus
- * Post this message to an instance to make that instance acquire the user input focus.
- * This means that the scripts in the instance will have first-hand-chance at reacting
- * on user input, possibly consuming it so that no other instances can react on it.
- * The most common case is for a script to send this message to itself when it needs to
- * respond to user input. A script belonging to an instance which has the user input focus
- * will receive the input actions in its <code>on_input</code> callback function.
+ * <p>
+ * Post this message to a game object instance to make that instance acquire the user input focus.
+ * </p>
+ * <p>
+ * User input is distributed by the engine to every instance that has requested it. The last instance
+ * to request focus will receive it first. This means that the scripts in the instance will have
+ * first-hand-chance at reacting on user input, possibly consuming it so that no other instances
+ * can react on it. The most common case is for a script to send this message to itself when it needs to
+ * respond to user input.
+ * </p>
+ * <p>
+ * A script belonging to an instance which has the user input focus will receive the input actions
+ * in its <code>on_input</code> callback function. See <code>on_input</code> for more information on
+ * how user input can be handled.
+ * </p>
  *
  * @message
  * @name acquire_input_focus
+ * @examples
+ * This example demonstrates how to acquire and act on user input.
+ * <pre>
+ * function init(self)
+ *     -- acquire input focus as soon as the instance has been initialized
+ *     msg.post(nil, "acquire_input_focus")
+ * end
+ *
+ * function on_input(self, action_id, action)
+ *     -- check which input we received
+ *     if action_id == hash("my_action") then
+ *         -- act on the input
+ *         self.my_action_amount = action.value
+ *     end
+ * end
  */
 message AcquireInputFocus {}
 
@@ -69,6 +93,11 @@ message AcquireInputFocus {}
  *
  * @message
  * @name release_input_focus
+ * @examples
+ * How to make a game object stop receiving input:
+ * <pre>
+ * msg.post(nil, "release_input_focus")
+ * </pre>
  */
 message ReleaseInputFocus {}
 
@@ -80,6 +109,7 @@ message ReleaseInputFocus {}
  * @message
  * @name game_object_transform_query
  * @examples
+ * How to obtain the position of another game object instance:
  * <pre>
  * function init(self)
  *     -- create a url to the interesting instance for later use, assuming the instance has id "my_friend_instance"
@@ -110,7 +140,7 @@ message ReleaseInputFocus {}
 message GameObjectTransformQuery {}
 
 /*# reports back the position and rotation of an instance
- * The answer a script obtains after it has queried an instance for its position and rotation
+ * The response a script receives after it has queried an instance for its position and rotation
  * using the <code>game_object_transform_query</code>-message. See the description of that message
  * for a complete example of how to use it.
  *

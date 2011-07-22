@@ -54,18 +54,18 @@ message CollisionObjectDesc
     repeated uint32                 mask            = 7;
 }
 
-/*# applies a force to a collision object
- * Post this message to a collision-object-component to affect it with the specified force.
+/*# applies a force on a collision object
+ * Post this message to a collision-object-component to apply the specified force on the collision object.
  * The collision object must be dynamic.
  *
  * @message
  * @name apply_force_message
- * @param force the force with which to affect the collision object, measured in Newton (vector3)
- * @param position the position where to apply the force (vector3)
+ * @param force the force to be applied on the collision object, measured in Newton (vector3)
+ * @param position the position where the force should be applied (vector3)
  * @examples
  * Assuming the instance of the script has a collision-object-component with id "co":
  * <pre>
- * -- apply a force of 1 Newton towards world-x at the center of the body
+ * -- apply a force of 1 Newton towards world-x at the center of the game object instance
  * msg.post("#co", "apply_force_message", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
  * </pre>
  */
@@ -110,7 +110,7 @@ message CollisionMessage
 /*# reports a contact point between two collision objects
  * <p>
  * This message is broadcasted to every component of an instance that has a collision object, when the collision
- * object collides has contact points with respect to another collision object. For a script to take action when
+ * object has contact points with respect to another collision object. For a script to take action when
  * such contact points occur, it should check for this message in its <code>on_message</code> callback function.
  * </p>
  * <p>
@@ -124,12 +124,12 @@ message CollisionMessage
  * @param position world position of the contact point (vector3)
  * @param normal normal in world space of the contact point, which points from the other object towards the current object (vector3)
  * @param relative_velocity the relative velocity of the collision object as observed from the other object (vector3)
- * @param distance the penetration distance between the objects (number)
+ * @param distance the penetration distance between the objects, which is always positive (number)
  * @param applied_impulse the impulse the contact resulted in (number)
  * @param life_time life time of the contact, <b>not currently used</b> (number)
  * @param mass the mass of the current collision object in kg (number)
  * @param other_mass the mass of the other collision object in kg (number)
- * @param other_game_object_id the id of the instance the collision object collided with (hash)
+ * @param other_game_object_id the id of the instance the collision object is in contact with (hash)
  * @param other_position the world position of the other collision object (vector3)
  * @param group the collision group of the other collision object (number)
  * @examples
@@ -238,7 +238,7 @@ message VelocityRequest {}
 
 /*# reports the velocity of a collision object
  * This message is sent back to the sender of a <code>velocity_request</code> message.
- * See <code>velocity_request</code> for examples of how to use it.
+ * See <code>velocity_request</code> for examples on how to use it.
  *
  * @message
  * @name velocity_response
