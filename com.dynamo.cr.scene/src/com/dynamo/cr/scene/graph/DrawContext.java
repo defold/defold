@@ -1,17 +1,21 @@
 package com.dynamo.cr.scene.graph;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.glu.GLU;
 
 
 public class DrawContext
 {
-    public DrawContext(GL gl, Node[] selected_nodes)
+    public GL m_GL;
+    public GLU m_GLU;
+    public Node[] m_SelectedNodes;
+
+    public DrawContext(GL gl, GLU glu, Node[] selected_nodes)
     {
         m_GL = gl;
+        m_GLU = glu;
         m_SelectedNodes = selected_nodes;
     }
-    public GL m_GL;
-    public Node[] m_SelectedNodes;
 
     public boolean isSelected(Node node) {
         for (Node n : m_SelectedNodes) {

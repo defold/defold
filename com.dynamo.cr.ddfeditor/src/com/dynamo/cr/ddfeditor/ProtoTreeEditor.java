@@ -86,7 +86,7 @@ public class ProtoTreeEditor implements Listener {
 
     class EnumCellEditor extends ComboBoxCellEditor {
         public EnumCellEditor(Composite parent) {
-            super(parent, new String[] {});
+            super(parent, new String[] {}, SWT.READ_ONLY);
         }
 
         public void setEnumDescriptor(EnumDescriptor enumDescriptor) {

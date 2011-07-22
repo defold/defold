@@ -591,8 +591,10 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
                 @Override
                 public void run() {
-                    doPaint();
-                    m_Canvas.update();
+                    if (!m_Canvas.isDisposed()) {
+                        doPaint();
+                        m_Canvas.update();
+                    }
                     redrawPosted = false;
                 }
             });
@@ -981,7 +983,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
 
-        DrawContext context = new DrawContext(gl, m_SelectedNodes);
+        DrawContext context = new DrawContext(gl, new GLU(), m_SelectedNodes);
         drawNodesRecursively(context, m_Root.getChildren());
 
         // Draw grid
@@ -1175,7 +1177,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         GL gl = m_Context.getGL();
 
         beginSelect(gl, m_ActiveCamera.getViewMatrixArray(), x, y, w, h);
-        DrawContext context = new DrawContext(gl, m_SelectedNodes);
+        DrawContext context = new DrawContext(gl, new GLU(), m_SelectedNodes);
         Map<Integer, Node> name_node_map = new HashMap<Integer, Node>();
         drawSelectNodesRecursively(context, m_Root.getChildren(), 0, name_node_map);
         SelectResult result = endSelct(gl);

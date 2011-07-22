@@ -36,6 +36,9 @@
                         <li id="dashboard"><g:Anchor ui:field="dashBoard">Dashboard</g:Anchor></li>
                         <li id="documentation"><g:Anchor ui:field="documentation">Documentation</g:Anchor></li>
                         <li id="tutorials"><g:Anchor ui:field="tutorials">Tutorials</g:Anchor></li>
+                        <li id="forum"><g:Anchor>Forum</g:Anchor></li>
+                        <li id="contact"><g:Anchor>Contact</g:Anchor></li>
+                        <li id="about"><g:Anchor>About</g:Anchor></li>
                     </ul>
                 </g:HTMLPanel>
 

@@ -127,7 +127,7 @@
             extensions="convexshape"
             icon="icons/contrast_high.png"
             id="com.dynamo.cr.ddfeditor.convexshapeeditor"
-            name="Convext Shape Editor">
+            name="Convex Shape Editor">
       </editor>
    </extension>
    <extension
