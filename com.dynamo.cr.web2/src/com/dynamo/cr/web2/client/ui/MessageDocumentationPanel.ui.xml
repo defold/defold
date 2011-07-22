@@ -5,30 +5,36 @@
     </ui:style>
 
     <g:HTMLPanel>
-        <h3 class="hover">
-            <g:InlineLabel ui:field="messageName">MY_MESSAGE</g:InlineLabel>
+        <h3>
+            <g:InlineLabel ui:field="messageName" styleName="hover">MY_MESSAGE</g:InlineLabel>
+            <g:InlineHTML ui:field="brief" styleName="script_brief">MY_BRIEF</g:InlineHTML>
         </h3>
         <g:HTMLPanel ui:field="content" styleName="script_doc">
-        <p>
-            <g:HTMLPanel ui:field="description"></g:HTMLPanel>
-        </p>
+            <p>
+                <g:HTMLPanel ui:field="description"></g:HTMLPanel>
+            </p>
 
-        <div class="script_block">
-            <h4>Fields</h4>
+            <div class="script_block">
+                <h4>Fields</h4>
 
-            <g:VerticalPanel ui:field="fieldList">
-                <g:cell>
-                    <g:HTMLPanel>
-                        <div class="script_param_block">
-                            <span class="script_param">parameters</span>
-                            <div class="script_param_desc">
-                                DESC
+                <g:VerticalPanel ui:field="fieldList">
+                    <g:cell>
+                        <g:HTMLPanel>
+                            <div class="script_param_block">
+                                <span class="script_param">parameters</span>
+                                <div class="script_param_desc">
+                                    DESC
+                                </div>
                             </div>
-                        </div>
-                    </g:HTMLPanel>
-                </g:cell>
-            </g:VerticalPanel>
-        </div>
+                        </g:HTMLPanel>
+                    </g:cell>
+                </g:VerticalPanel>
+            </div>
+            <div>
+                <h4>Examples</h4>
+                <g:HTMLPanel ui:field="examples"></g:HTMLPanel>
+            </div>
+            <hr class="script_separator"/>
         </g:HTMLPanel>
     </g:HTMLPanel>
 

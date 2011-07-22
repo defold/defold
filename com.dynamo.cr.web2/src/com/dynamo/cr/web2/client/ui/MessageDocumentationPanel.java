@@ -11,6 +11,7 @@ import com.google.gwt.uibinder.client.UiHandler;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HTMLPanel;
+import com.google.gwt.user.client.ui.InlineHTML;
 import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
@@ -23,9 +24,11 @@ public class MessageDocumentationPanel extends Composite {
     }
 
     @UiField InlineLabel messageName;
+    @UiField InlineHTML brief;
     @UiField HTMLPanel content;
     @UiField HTMLPanel description;
     @UiField VerticalPanel fieldList;
+    @UiField HTMLPanel examples;
 
     public MessageDocumentationPanel() {
         initWidget(uiBinder.createAndBindUi(this));
@@ -34,8 +37,14 @@ public class MessageDocumentationPanel extends Composite {
 
     public void setDocumentationElement(DocumentationElement element) {
         this.messageName.setText(element.getName());
+        this.brief.setHTML(element.getBrief());
         this.description.add(new HTML(element.getDescription()));
 
+        if (element.getExamples().length() > 0) {
+            this.examples.add(new HTML(element.getExamples()));
+        } else {
+            this.examples.add(new HTML("No examples"));
+        }
         fieldList.clear();
         JsArray<DocumentationParameter> parameters = element.getParameters();
         if (parameters.length() == 0) {
