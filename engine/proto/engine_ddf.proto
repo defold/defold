@@ -29,6 +29,8 @@ message Exit
  * @message
  * @name toggle_profile
  * @examples
+ * <pre>
  * msg.post("@system:", "toggle_profile")
+ * </pre>
  */
 message ToggleProfile {}
