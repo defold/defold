@@ -20,11 +20,11 @@ def build(bld):
 
     bld.add_subdirs('test')
 
-    bld.new_task_gen(source = 'gameobject_script.cpp',
+    bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
                      target = 'go_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = 'gameobject_script.cpp',
+    bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
                      target = 'go_doc.json',
                      rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 

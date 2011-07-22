@@ -19,11 +19,11 @@ def build(bld):
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', '../../proto'])
 
-    bld.new_task_gen(source = '../../proto/gamesys_ddf.proto ../../proto/camera_ddf.proto',
+    bld.new_task_gen(source = '../../proto/gamesys_ddf.proto ../../proto/physics_ddf.proto ../../proto/sprite_ddf.proto',
                      target = 'gamesys_doc.sdoc',
                      rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = '../../proto/gamesys_ddf.proto ../../proto/camera_ddf.proto',
+    bld.new_task_gen(source = '../../proto/gamesys_ddf.proto ../../proto/physics_ddf.proto ../../proto/sprite_ddf.proto',
                      target = 'gamesys_doc.json',
                      rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
 
