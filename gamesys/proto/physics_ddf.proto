@@ -59,17 +59,17 @@ message CollisionObjectDesc
  * The collision object must be dynamic.
  *
  * @message
- * @name apply_force_message
+ * @name apply_force
  * @param force the force to be applied on the collision object, measured in Newton (vector3)
  * @param position the position where the force should be applied (vector3)
  * @examples
  * Assuming the instance of the script has a collision-object-component with id "co":
  * <pre>
  * -- apply a force of 1 Newton towards world-x at the center of the game object instance
- * msg.post("#co", "apply_force_message", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
+ * msg.post("#co", "apply_force", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
  * </pre>
  */
-message ApplyForceMessage
+message ApplyForce
 {
     required dmMath.Vector3 force       = 1;
     required dmMath.Point3  position    = 2;
@@ -83,28 +83,28 @@ message ApplyForceMessage
  * </p>
  * <p>
  * This message only reports that a collision actually happened and will only be sent once per colliding pair and frame.
- * To retrieve more detailed information, check for the <code>contact_point_messsage</code> instead.
+ * To retrieve more detailed information, check for the <code>contact_point_response</code> instead.
  * </p>
  *
  * @message
- * @name collision_message
- * @param other_game_object_id the id of the instance the collision object collided with (hash)
+ * @name collision_response
+ * @param other_id the id of the instance the collision object collided with (hash)
  * @param group the collision group of the other collision object (number)
  * @examples
  * How to take action when a collision occurs:
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
- *     if message_id == hash("collision_message") then
+ *     if message_id == hash("collision_response") then
  *         -- take action
  *     end
  * end
  * </pre>
  */
-message CollisionMessage
+message CollisionResponse
 {
-    required uint64 other_game_object_id    = 1;
-    required uint32 group                   = 2;
+    required uint64 other_id    = 1;
+    required uint32 group       = 2;
 }
 
 /*# reports a contact point between two collision objects
@@ -116,11 +116,11 @@ message CollisionMessage
  * <p>
  * Since multiple contact points can occur for two colliding objects, this message can be sent multiple times in
  * the same frame for the same two colliding objects. To only be notified once when the collision occurs, check
- * for the <code>collision_message</code> message instead.
+ * for the <code>collision_response</code> message instead.
  * </p>
  *
  * @message
- * @name contact_point_message
+ * @name contact_point_response
  * @param position world position of the contact point (vector3)
  * @param normal normal in world space of the contact point, which points from the other object towards the current object (vector3)
  * @param relative_velocity the relative velocity of the collision object as observed from the other object (vector3)
@@ -129,7 +129,7 @@ message CollisionMessage
  * @param life_time life time of the contact, <b>not currently used</b> (number)
  * @param mass the mass of the current collision object in kg (number)
  * @param other_mass the mass of the other collision object in kg (number)
- * @param other_game_object_id the id of the instance the collision object is in contact with (hash)
+ * @param other_id the id of the instance the collision object is in contact with (hash)
  * @param other_position the world position of the other collision object (vector3)
  * @param group the collision group of the other collision object (number)
  * @examples
@@ -137,13 +137,13 @@ message CollisionMessage
  * <pre>
  * function on_message(self, message_id, message, sender)
  *     -- check for the message
- *     if message_id == hash("contact_point_message") then
+ *     if message_id == hash("contact_point_response") then
  *         -- take action
  *     end
  * end
  * </pre>
  */
-message ContactPointMessage
+message ContactPointResponse
 {
     required dmMath.Point3  position                = 1;
     required dmMath.Vector3 normal                  = 2;
@@ -153,7 +153,7 @@ message ContactPointMessage
     required float          life_time               = 6;
     required float          mass                    = 7;
     required float          other_mass              = 8;
-    required uint64         other_game_object_id    = 9;
+    required uint64         other_id                = 9;
     required dmMath.Point3  other_position          = 10;
     required uint32         group                   = 11;
 }
@@ -163,7 +163,7 @@ message ContactPointMessage
  * The ray cast will be performed in the same physics world as the sender exists in.
  *
  * @message
- * @name ray_cast_request
+ * @name request_ray_cast
  * @param from the world position of the start of the ray (vector3)
  * @param to the world position of the end of the ray (vector3)
  * @param mask a bit mask to filter out which collision groups will be checked for collisions (number)
@@ -173,7 +173,7 @@ message ContactPointMessage
  * function update(self, dt)
  *     -- request ray cast
  *     local my_mask = 1 + 2 + 8 -- assuming we are interested in collision groups 1, 2 and 8
- *     msg.post("@physics:", "ray_cast_request", {from = interesting_start, to = interesting_end, mask = my_mask})
+ *     msg.post("@physics:", "request_ray_cast", {from = interesting_start, to = interesting_end, mask = my_mask})
  * end
  *
  * function on_message(self, message_id, message, sender)
@@ -184,7 +184,7 @@ message ContactPointMessage
  * end
  * </pre>
  */
-message RayCastRequest
+message RequestRayCast
 {
     required dmMath.Point3  from = 1;
     required dmMath.Point3  to = 2;
@@ -193,14 +193,14 @@ message RayCastRequest
 
 /*# reports a ray cast hit
  * This message is sent back to the sender of a <code>ray_cast_request</code>, if the ray hit a collision object.
- * See <code>ray_cast_request</code> for examples of how to use it.
+ * See <code>request_ray_cast</code> for examples of how to use it.
  *
  * @message
  * @name ray_cast_response
  * @param fraction the fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end (number)
  * @param position the world position of the hit
  * @param normal the normal of the surface of the collision object where it was hit
- * @param game_object_id the instance id of the hit collision object
+ * @param id the instance id of the hit collision object
  * @param group the collision group of the hit collision object
  */
 message RayCastResponse
@@ -208,7 +208,7 @@ message RayCastResponse
     required float          fraction        = 1;
     required dmMath.Point3  position        = 2;
     required dmMath.Vector3 normal          = 3;
-    required uint64         game_object_id  = 4;
+    required uint64         id              = 4;
     required uint32         group           = 5;
 }
 
@@ -216,13 +216,13 @@ message RayCastResponse
  * Post this message to a collision-object-component to retrieve its velocity.
  *
  * @message
- * @name velocity_request
+ * @name request_velocity
  * @examples
  * How to retrieve the velocity of a collision object, assuming the collision-object-component has id "co" and belongs to the same instance as the script:
  * <pre>
  * function update(self, dt)
  *     -- request velocity
- *     msg.post("#co", "velocity_request")
+ *     msg.post("#co", "request_velocity")
  * end
  *
  * function on_message(self, message_id, message, sender)
@@ -234,11 +234,11 @@ message RayCastResponse
  * end
  * </pre>
  */
-message VelocityRequest {}
+message RequestVelocity {}
 
 /*# reports the velocity of a collision object
- * This message is sent back to the sender of a <code>velocity_request</code> message.
- * See <code>velocity_request</code> for examples on how to use it.
+ * This message is sent back to the sender of a <code>request_velocity</code> message.
+ * See <code>request_velocity</code> for examples on how to use it.
  *
  * @message
  * @name velocity_response

@@ -5,7 +5,7 @@ function init(self)
 end
 
 function update(self)
-    render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0)})
+    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0)})
 
     render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
     render.set_view(vmath.matrix4())
@@ -14,7 +14,7 @@ function update(self)
     render.set_depth_mask(false)
     render.disable_state(render.STATE_DEPTH_TEST)
     render.enable_state(render.STATE_BLEND)
-    render.set_blend_func(render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
     render.disable_state(render.STATE_CULL_FACE)
 
     render.draw(self.sprite_pred)

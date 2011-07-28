@@ -101,13 +101,13 @@ message AcquireInputFocus {}
  */
 message ReleaseInputFocus {}
 
-/*# queries an instance for its position and rotation
- * Send this message to an instance to query it for its transform (position/rotation).
- * The sending script will receive the answer as a <code>game_object_transform_response</code>-message
+/*# requests the position and rotation from an instance
+ * Send this message to an instance to request its transform (position/rotation).
+ * The sending script will receive the answer as a <code>transform_response</code>-message
  * at a later time.
  *
  * @message
- * @name game_object_transform_query
+ * @name request_transform
  * @examples
  * How to obtain the position of another game object instance:
  * <pre>
@@ -117,8 +117,8 @@ message ReleaseInputFocus {}
  * end
  *
  * function update(self, dt)
- *     -- query the transform
- *     msg.post(self.friend_url, "game_object_transform_query")
+ *     -- request the transform
+ *     msg.post(self.friend_url, "request_transform")
  *     -- check if we have received the position yet
  *     if self.my_friends_position then
  *         -- do something useful with the position
@@ -127,7 +127,7 @@ message ReleaseInputFocus {}
  *
  * function on_message(self, message_id, message, sender)
  *     -- check if its the transform response
- *     if message_id == hash("game_object_transform_response") then
+ *     if message_id == hash("transform_response") then
  *         -- if it comes from the right instance (in case we send out several queries to different instances)
  *         if sender == self.friend_url then
  *             -- store the position so we can use it in the update-function
@@ -137,21 +137,21 @@ message ReleaseInputFocus {}
  * end
  * </pre>
  */
-message GameObjectTransformQuery {}
+message RequestTransform {}
 
 /*# reports back the position and rotation of an instance
- * The response a script receives after it has queried an instance for its position and rotation
- * using the <code>game_object_transform_query</code>-message. See the description of that message
- * for a complete example of how to use it.
+ * The response a script receives after it has requested the position and rotation from an instance
+ * using the <code>request_transform</code>-message. See the description of that message
+ * for a complete example on how to use it.
  *
  * @message
- * @name game_object_transform_response
+ * @name transform_response
  * @param position local position of the instance (vector3)
  * @param rotation local rotation of the instance (quaternion)
  * @param world_position world position of the instance (vector3)
  * @param world_rotation world rotation of the instancee (quaternion)
  */
-message GameObjectTransformResponse
+message TransformResponse
 {
     required dmMath.Point3  position        = 1;
     required dmMath.Quat    rotation        = 2;

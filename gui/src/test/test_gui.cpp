@@ -443,7 +443,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
-                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5)\n"
+                    "    gui.animate(self.node, gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0.5)\n"
                     "end\n"
                     "function final(self)\n"
                     "    gui.delete_node(self.node)\n"
@@ -488,11 +488,11 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function cb(self, node)\n"
                     "    assert(self.foobar == 123)\n"
-                    "    gui.animate(node, gui.POSITION, vmath.vector4(2,0,0,0), gui.EASING_NONE, 0.5, 0)\n"
+                    "    gui.animate(node, gui.PROP_POSITION, vmath.vector4(2,0,0,0), gui.EASING_NONE, 0.5, 0)\n"
                     "end\n;"
                     "function init(self)\n"
                     "    self.foobar = 123\n"
-                    "    gui.animate(gui.get_node(\"n\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
+                    "    gui.animate(gui.get_node(\"n\"), gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -533,8 +533,8 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
                     "    gui.delete_node(node)\n"
                     "end\n;"
                     "function init(self)\n"
-                    "    gui.animate(gui.get_node(\"n1\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
-                    "    gui.animate(gui.get_node(\"n2\"), gui.POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
+                    "    gui.animate(gui.get_node(\"n1\"), gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
+                    "    gui.animate(gui.get_node(\"n2\"), gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, cb)\n"
                     "end\n";
 
     dmGui::Result r;
@@ -567,8 +567,8 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
-                    "    gui.animate(self.node, gui.COLOR, vmath.vector4(1,0,0,0), gui.EASING_NONE, 0.2)\n"
-                    "    gui.cancel_animation(self.node, gui.COLOR)\n"
+                    "    gui.animate(self.node, gui.PROP_COLOR, vmath.vector4(1,0,0,0), gui.EASING_NONE, 0.2)\n"
+                    "    gui.cancel_animation(self.node, gui.PROP_COLOR)\n"
                     "end\n"
                     "function update(self, dt)\n"
                     "end\n"
@@ -604,13 +604,13 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function init(self)\n"
                     "    self.node = gui.get_node(\"n\")\n"
-                    "    gui.animate(self.node, gui.POSITION, vmath.vector4(10,0,0,0), gui.EASING_NONE, 1)\n"
+                    "    gui.animate(self.node, gui.PROP_POSITION, vmath.vector4(10,0,0,0), gui.EASING_NONE, 1)\n"
                     "    self.nframes = 0\n"
                     "end\n"
                     "function update(self, dt)\n"
                     "    self.nframes = self.nframes + 1\n"
                     "    if self.nframes > 30 then\n"
-                    "        gui.cancel_animation(self.node, gui.POSITION)\n"
+                    "        gui.cancel_animation(self.node, gui.PROP_POSITION)\n"
                     "    end\n"
                     "end\n"
                     "function final(self)\n"
@@ -1390,11 +1390,11 @@ TEST_F(dmGuiTest, ScriptAnchoring)
                     "    assert (1024 == gui.get_width())\n"
                     "    assert (768 == gui.get_height())\n"
                     "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
-                    "    gui.set_xanchor(self.n1, gui.LEFT)\n"
-                    "    gui.set_yanchor(self.n1, gui.TOP)\n"
+                    "    gui.set_xanchor(self.n1, gui.ANCHOR_LEFT)\n"
+                    "    gui.set_yanchor(self.n1, gui.ANCHOR_TOP)\n"
                     "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")"
-                    "    gui.set_xanchor(self.n2, gui.RIGHT)\n"
-                    "    gui.set_yanchor(self.n2, gui.BOTTOM)\n"
+                    "    gui.set_xanchor(self.n2, gui.ANCHOR_RIGHT)\n"
+                    "    gui.set_yanchor(self.n2, gui.ANCHOR_BOTTOM)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";

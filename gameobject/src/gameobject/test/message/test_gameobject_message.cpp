@@ -353,9 +353,9 @@ struct GameObjectTransformContext
 
 void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user_ptr)
 {
-    if (message->m_Id == dmHashString64(dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name))
+    if (message->m_Id == dmHashString64(dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name))
     {
-        dmGameObjectDDF::GameObjectTransformResponse* ddf = (dmGameObjectDDF::GameObjectTransformResponse*)message->m_Data;
+        dmGameObjectDDF::TransformResponse* ddf = (dmGameObjectDDF::TransformResponse*)message->m_Data;
         GameObjectTransformContext* context = (GameObjectTransformContext*)user_ptr;
         context->m_Position = ddf->m_Position;
         context->m_Rotation = ddf->m_Rotation;
@@ -382,7 +382,7 @@ TEST_F(MessageTest, TestGameObjectTransform)
     dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
     dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
 
-    dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor->m_Name);
+    dmhash_t message_id = dmHashString64(dmGameObjectDDF::RequestTransform::m_DDFDescriptor->m_Name);
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
     dmMessage::URL sender;
@@ -390,7 +390,7 @@ TEST_F(MessageTest, TestGameObjectTransform)
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     receiver.m_Path = dmGameObject::GetIdentifier(go);
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor, 0x0, 0));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::RequestTransform::m_DDFDescriptor, 0x0, 0));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 

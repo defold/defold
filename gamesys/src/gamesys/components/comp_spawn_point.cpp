@@ -99,10 +99,10 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpawnPointOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        if (params.m_Message->m_Id == dmHashString64("spawn_object"))
+        if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::Spawn::m_DDFDescriptor)
         {
             SpawnPointComponent* spc = (SpawnPointComponent*) *params.m_UserData;
-            if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::SpawnObject::m_DDFDescriptor)
+            if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::Spawn::m_DDFDescriptor)
             {
                 if (spc->m_SpawnRequested)
                 {
@@ -110,7 +110,7 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmGameSystemDDF::SpawnObject* spawn_object = (dmGameSystemDDF::SpawnObject*) params.m_Message->m_Data;
+                    dmGameSystemDDF::Spawn* spawn_object = (dmGameSystemDDF::Spawn*) params.m_Message->m_Data;
                     spc->m_SpawnRequested = 1;
                     spc->m_Position = spawn_object->m_Position;
                     spc->m_Rotation = spawn_object->m_Rotation;

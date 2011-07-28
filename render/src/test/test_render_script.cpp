@@ -203,11 +203,11 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     "function update(self)\n"
     "    render.enable_state(render.STATE_ALPHA_TEST)\n"
     "    render.disable_state(render.STATE_ALPHA_TEST)\n"
-    "    render.set_blend_func(render.BLEND_FACTOR_ONE, render.BLEND_FACTOR_SRC_COLOR)\n"
+    "    render.set_blend_func(render.BLEND_ONE, render.BLEND_SRC_COLOR)\n"
     "    render.set_color_mask(true, true, true, true)\n"
     "    render.set_depth_mask(true)\n"
     "    render.set_stencil_mask(1)\n"
-    "    render.set_cull_face(render.FACE_TYPE_BACK)\n"
+    "    render.set_cull_face(render.FACE_BACK)\n"
     "    render.set_polygon_offset(1, 2)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
@@ -266,15 +266,15 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     const char* script =
     "function update(self)\n"
     "    local params = {\n"
-    "        format = render.TEXTURE_FORMAT_RGB,\n"
+    "        format = render.FORMAT_RGB,\n"
     "        width = 1,\n"
     "        height = 2,\n"
-    "        min_filter = render.TEXTURE_FILTER_NEAREST,\n"
-    "        mag_filter = render.TEXTURE_FILTER_LINEAR,\n"
-    "        u_wrap = render.TEXTURE_WRAP_REPEAT,\n"
-    "        v_wrap = render.TEXTURE_WRAP_MIRRORED_REPEAT\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_TYPE_DEPTH_BIT] = params})\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_DEPTH_BIT] = params})\n"
     "    render.enable_render_target(self.rt)\n"
     "    render.disable_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
@@ -304,7 +304,7 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
 {
     const char* script =
     "function update(self)\n"
-    "    render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
+    "    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1})\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);

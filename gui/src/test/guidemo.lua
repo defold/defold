@@ -1,16 +1,16 @@
 local nodes = {}
 
 local function call_back2(node)
-    gui.animate(node, gui.COLOR, vmath.vector4(1,1,1,0), gui.EASING_OUT, 0.8, 0)
+    gui.animate(node, gui.PROP_COLOR, vmath.vector4(1,1,1,0), gui.EASING_OUT, 0.8, 0)
 end
 
 local function call_back1(node)
     local d = 1.6 + math.random() * 0.4
-    gui.animate(node, gui.COLOR, vmath.vector4(1,1,1,1), gui.EASING_IN, 0.6, 0.4, call_back2)
+    gui.animate(node, gui.PROP_COLOR, vmath.vector4(1,1,1,1), gui.EASING_IN, 0.6, 0.4, call_back2)
     local to = gui.get_position(node)
     to.y = to.y - 2
-    gui.animate(node, gui.POSITION, to, gui.EASING_OUT, 0.2 + d, 0.2)
-    gui.animate(node, gui.ROTATION, vmath.vector3(0, 0, 2*180-2*math.random()*360), gui.EASING_OUT, 0.1 + d, 0.2)
+    gui.animate(node, gui.PROP_POSITION, to, gui.EASING_OUT, 0.2 + d, 0.2)
+    gui.animate(node, gui.PROP_ROTATION, vmath.vector3(0, 0, 2*180-2*math.random()*360), gui.EASING_OUT, 0.1 + d, 0.2)
 end
 
 local function init1(self)
@@ -30,9 +30,9 @@ local function init1(self)
         gui.set_texture(n, "checker")
         gui.set_color(n, vmath.vector4(0, 0, 0, 0))
         local d = math.random() * 0.2
-        gui.animate(n, gui.POSITION, vmath.vector3(x, y, 0), gui.EASING_IN, 0.65 + d, 0.1, call_back1)
-        gui.animate(n, gui.EXTENTS, vmath.vector3(w, h, 0), gui.EASING_IN, 0.65 + d, 0.1)
-        gui.animate(n, gui.COLOR, vmath.vector4(math.random(), math.random(), math.random(),1), gui.EASING_IN, 0.65 + d, 0.1)
+        gui.animate(n, gui.PROP_POSITION, vmath.vector3(x, y, 0), gui.EASING_IN, 0.65 + d, 0.1, call_back1)
+        gui.animate(n, gui.PROP_EXTENTS, vmath.vector3(w, h, 0), gui.EASING_IN, 0.65 + d, 0.1)
+        gui.animate(n, gui.PROP_COLOR, vmath.vector4(math.random(), math.random(), math.random(),1), gui.EASING_IN, 0.65 + d, 0.1)
     end
 end
 
@@ -46,7 +46,7 @@ function rotate_cb(node)
         to.z = to.z + 45
     end
 
-    gui.animate(node, gui.ROTATION, to, gui.EASING_NONE, 30/60, 0, rotate_cb)
+    gui.animate(node, gui.PROP_ROTATION, to, gui.EASING_NONE, 30/60, 0, rotate_cb)
 end
 
 function on_input(self, action_id, action)
@@ -68,7 +68,7 @@ function init2(self)
         nodes[i] = gui.new_box_node(vmath.vector3(x, y, 0), vmath.vector3(w, h, 0))
         gui.set_rotation(nodes[i], vmath.vector3(0, 0, i * 120))
         rotate_cb(nodes[i])
-        gui.set_blend_mode(nodes[i], gui.BLEND_MODE_ADD)
+        gui.set_blend_mode(nodes[i], gui.BLEND_ADD)
 
         if (i == 0) then
             gui.set_color(nodes[i], vmath.vector4(1, 0, 0, 1))

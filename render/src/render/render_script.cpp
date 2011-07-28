@@ -278,72 +278,72 @@ namespace dmRender
     }
 
     /*#
-     * @name render.TEXTURE_FORMAT_LUMINANCE
+     * @name render.FORMAT_LUMINANCE
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_RGB
+     * @name render.FORMAT_RGB
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_RGBA
+     * @name render.FORMAT_RGBA
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_RGB_DXT1
+     * @name render.FORMAT_RGB_DXT1
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_RGBA_DXT1
+     * @name render.FORMAT_RGBA_DXT1
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_RGBA_DXT3
+     * @name render.FORMAT_RGBA_DXT3
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_RGBA_DXT5
+     * @name render.FORMAT_RGBA_DXT5
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FORMAT_DEPTH
+     * @name render.FORMAT_DEPTH
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FILTER_LINEAR
+     * @name render.FILTER_LINEAR
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_FILTER_NEAREST
+     * @name render.FILTER_NEAREST
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_WRAP_CLAMP_TO_BORDER
+     * @name render.WRAP_CLAMP_TO_BORDER
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_WRAP_CLAMP_TO_EDGE
+     * @name render.WRAP_CLAMP_TO_EDGE
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_WRAP_MIRRORED_REPEAT
+     * @name render.WRAP_MIRRORED_REPEAT
      * @variable
      */
 
     /*#
-     * @name render.TEXTURE_WRAP_REPEAT
+     * @name render.WRAP_REPEAT
      * @variable
      */
 
@@ -353,36 +353,36 @@ namespace dmRender
      * <table>
      *   <th>Keys</th><th>Values</th>
      *   <tr><td>"format"</td><td>
-     *      render.TEXTURE_FORMAT_LUMINANCE<br/>
-     *      render.TEXTURE_FORMAT_RGB<br/>
-     *      render.TEXTURE_FORMAT_RGBA<br/>
-     *      render.TEXTURE_FORMAT_RGB_DXT1<br/>
-     *      render.TEXTURE_FORMAT_RGBA_DXT1<br/>
-     *      render.TEXTURE_FORMAT_RGBA_DXT3<br/>
-     *      render.TEXTURE_FORMAT_RGBA_DXT5<br/>
-     *      render.TEXTURE_FORMAT_DEPTH<br/>
+     *      render.FORMAT_LUMINANCE<br/>
+     *      render.FORMAT_RGB<br/>
+     *      render.FORMAT_RGBA<br/>
+     *      render.FORMAT_RGB_DXT1<br/>
+     *      render.FORMAT_RGBA_DXT1<br/>
+     *      render.FORMAT_RGBA_DXT3<br/>
+     *      render.FORMAT_RGBA_DXT5<br/>
+     *      render.FORMAT_DEPTH<br/>
      *     </td></tr>
      *   <tr><td>"width"</td><td>number</td></tr>
      *   <tr><td>"height"</td><td>number</td></tr>
      *   <tr><td>"min_filter"</td><td>
-     *      render.TEXTURE_FILTER_LINEAR<br/>
-     *      render.TEXTURE_FILTER_NEAREST<br/>
+     *      render.FILTER_LINEAR<br/>
+     *      render.FILTER_NEAREST<br/>
      *     </td></tr>
      *   <tr><td>"mag_filter"</td><td>
-     *      render.TEXTURE_FILTER_LINEAR<br/>
-     *      render.TEXTURE_FILTER_NEAREST<br/>
+     *      render.FILTER_LINEAR<br/>
+     *      render.FILTER_NEAREST<br/>
      *     </td></tr>
      *   <tr><td>"u_wrap"</td><td>
-     *      render.TEXTURE_WRAP_CLAMP_TO_BORDER<br/>
-     *      render.TEXTURE_WRAP_CLAMP_TO_EDGE<br/>
-     *      render.TEXTURE_WRAP_MIRRORED_REPEAT<br/>
-     *      render.TEXTURE_WRAP_REPEAT<br/>
+     *      render.WRAP_CLAMP_TO_BORDER<br/>
+     *      render.WRAP_CLAMP_TO_EDGE<br/>
+     *      render.WRAP_MIRRORED_REPEAT<br/>
+     *      render.WRAP_REPEAT<br/>
      *     </td></tr>
      *   <tr><td>"v_wrap"</td><td>
-     *      render.TEXTURE_WRAP_CLAMP_TO_BORDER<br/>
-     *      render.TEXTURE_WRAP_CLAMP_TO_EDGE<br/>
-     *      render.TEXTURE_WRAP_MIRRORED_REPEAT<br/>
-     *      render.TEXTURE_WRAP_REPEAT<br/>
+     *      render.WRAP_CLAMP_TO_BORDER<br/>
+     *      render.WRAP_CLAMP_TO_EDGE<br/>
+     *      render.WRAP_MIRRORED_REPEAT<br/>
+     *      render.WRAP_REPEAT<br/>
      *     </td></tr>
      * </table>
      * @name render.render_target
@@ -605,27 +605,27 @@ namespace dmRender
     }
 
     /*#
-     * @name render.BUFFER_TYPE_COLOR_BIT
+     * @name render.BUFFER_COLOR_BIT
      * @variable
      */
 
     /*#
-     * @name render.BUFFER_TYPE_DEPTH_BIT
+     * @name render.BUFFER_DEPTH_BIT
      * @variable
      */
 
     /*#
-     * @name render.BUFFER_TYPE_STENCIL_BIT
+     * @name render.BUFFER_STENCIL_BIT
      * @variable
      */
 
     /*# clears the active render target
      *
      * @name render.clear
-     * @param buffers Table specifying which buffers to clear. Available keys are: render.BUFFER_TYPE_COLOR_BIT, render.BUFFER_TYPE_DEPTH_BIT and render.BUFFER_TYPE_STENCIL_BIT.
+     * @param buffers Table specifying which buffers to clear. Available keys are: render.BUFFER_COLOR_BIT, render.BUFFER_DEPTH_BIT and render.BUFFER_STENCIL_BIT.
      * @examples
      * <pre>
-     * render.clear({[render.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_TYPE_DEPTH_BIT] = 1})
+     * render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1})
      * </pre>
      */
     int RenderScript_Clear(lua_State* L)
@@ -762,77 +762,77 @@ namespace dmRender
     }
 
     /*#
-     * @name render.BLEND_FACTOR_ZERO
+     * @name render.BLEND_ZERO
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_ONE
+     * @name render.BLEND_ONE
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_SRC_COLOR
+     * @name render.BLEND_SRC_COLOR
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_ONE_MINUS_SRC_COLOR
+     * @name render.BLEND_ONE_MINUS_SRC_COLOR
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_DST_COLOR
+     * @name render.BLEND_DST_COLOR
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_ONE_MINUS_DST_COLOR
+     * @name render.BLEND_ONE_MINUS_DST_COLOR
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_SRC_ALPHA
+     * @name render.BLEND_SRC_ALPHA
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+     * @name render.BLEND_ONE_MINUS_SRC_ALPHA
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_DST_ALPHA
+     * @name render.BLEND_DST_ALPHA
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_ONE_MINUS_DST_ALPHA
+     * @name render.BLEND_ONE_MINUS_DST_ALPHA
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_SRC_ALPHA_SATURATE
+     * @name render.BLEND_SRC_ALPHA_SATURATE
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_CONSTANT_COLOR
+     * @name render.BLEND_CONSTANT_COLOR
      * @variable
      */
 
     /*#
-     * @name render.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR
+     * @name render.BLEND_ONE_MINUS_CONSTANT_COLOR
      * @variable
      */
 
      /*#
-      * @name render.BLEND_FACTOR_CONSTANT_ALPHA
+      * @name render.BLEND_CONSTANT_ALPHA
       * @variable
       */
 
      /*#
-      * @name render.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA
+      * @name render.BLEND_ONE_MINUS_CONSTANT_ALPHA
       * @variable
       */
 
@@ -840,21 +840,21 @@ namespace dmRender
      *
      * Available factors:
      * <ul>
-     *   <li><code>render.BLEND_FACTOR_ZERO</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE</code></li>
-     *   <li><code>render.BLEND_FACTOR_SRC_COLOR</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_SRC_COLOR</code></li>
-     *   <li><code>render.BLEND_FACTOR_DST_COLOR</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_DST_COLOR</code></li>
-     *   <li><code>render.BLEND_FACTOR_SRC_ALPHA</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA</code></li>
-     *   <li><code>render.BLEND_FACTOR_DST_ALPHA</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_DST_ALPHA</code></li>
-     *   <li><code>render.BLEND_FACTOR_SRC_ALPHA_SATURATE</code></li>
-     *   <li><code>render.BLEND_FACTOR_CONSTANT_COLOR</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR</code></li>
-     *   <li><code>render.BLEND_FACTOR_CONSTANT_ALPHA</code></li>
-     *   <li><code>render.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA</code></li>
+     *   <li><code>render.BLEND_ZERO</code></li>
+     *   <li><code>render.BLEND_ONE</code></li>
+     *   <li><code>render.BLEND_SRC_COLOR</code></li>
+     *   <li><code>render.BLEND_ONE_MINUS_SRC_COLOR</code></li>
+     *   <li><code>render.BLEND_DST_COLOR</code></li>
+     *   <li><code>render.BLEND_ONE_MINUS_DST_COLOR</code></li>
+     *   <li><code>render.BLEND_SRC_ALPHA</code></li>
+     *   <li><code>render.BLEND_ONE_MINUS_SRC_ALPHA</code></li>
+     *   <li><code>render.BLEND_DST_ALPHA</code></li>
+     *   <li><code>render.BLEND_ONE_MINUS_DST_ALPHA</code></li>
+     *   <li><code>render.BLEND_SRC_ALPHA_SATURATE</code></li>
+     *   <li><code>render.BLEND_CONSTANT_COLOR</code></li>
+     *   <li><code>render.BLEND_ONE_MINUS_CONSTANT_COLOR</code></li>
+     *   <li><code>render.BLEND_CONSTANT_ALPHA</code></li>
+     *   <li><code>render.BLEND_ONE_MINUS_CONSTANT_ALPHA</code></li>
      * </ul>
      *
      * @name render.set_blend_func
@@ -966,17 +966,17 @@ namespace dmRender
     }
 
     /*#
-     * @name render.FACE_TYPE_FRONT
+     * @name render.FACE_FRONT
      * @variable
      */
 
     /*#
-     * @name render.FACE_TYPE_BACK
+     * @name render.FACE_BACK
      * @variable
      */
 
     /*#
-     * @name render.FACE_TYPE_FRONT_AND_BACK
+     * @name render.FACE_FRONT_AND_BACK
      * @variable
      */
 
@@ -985,9 +985,9 @@ namespace dmRender
      * @name render.set_cull_face
      * @param face_type face type (constant)
      * <ul>
-     *   <li><code>render.FACE_TYPE_FRONT</code></li>
-     *   <li><code>render.FACE_TYPE_BACK</code></li>
-     *   <li><code>render.FACE_TYPE_FRONT_AND_BACK</code></li>
+     *   <li><code>render.FACE_FRONT</code></li>
+     *   <li><code>render.FACE_BACK</code></li>
+     *   <li><code>render.FACE_FRONT_AND_BACK</code></li>
      * </ul>
      */
     int RenderScript_SetCullFace(lua_State* L)
@@ -1343,61 +1343,96 @@ namespace dmRender
 
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, RenderScript_methods);
 
-        #define REGISTER_RENDER_CONSTANT(name)\
-        lua_pushliteral(L, #name);\
-        lua_pushnumber(L, dmGraphics::name);\
-        lua_settable(L, -3);
+#define REGISTER_STATE_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::name); \
+        lua_setfield(L, -2, #name);
 
-        REGISTER_RENDER_CONSTANT(STATE_DEPTH_TEST);
-        REGISTER_RENDER_CONSTANT(STATE_ALPHA_TEST);
-        REGISTER_RENDER_CONSTANT(STATE_BLEND);
-        REGISTER_RENDER_CONSTANT(STATE_CULL_FACE);
-        REGISTER_RENDER_CONSTANT(STATE_POLYGON_OFFSET_FILL);
-        REGISTER_RENDER_CONSTANT(STATE_POLYGON_OFFSET_LINE);
-        REGISTER_RENDER_CONSTANT(STATE_POLYGON_OFFSET_POINT);
+        REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
+        REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
+        REGISTER_STATE_CONSTANT(STATE_BLEND);
+        REGISTER_STATE_CONSTANT(STATE_CULL_FACE);
+        REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_FILL);
+        REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_LINE);
+        REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_POINT);
 
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_LUMINANCE);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGB);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGB_DXT1);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA_DXT1);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA_DXT3);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_RGBA_DXT5);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FORMAT_DEPTH);
+#undef REGISTER_STATE_CONSTANT
 
-        REGISTER_RENDER_CONSTANT(TEXTURE_FILTER_LINEAR);
-        REGISTER_RENDER_CONSTANT(TEXTURE_FILTER_NEAREST);
+#define REGISTER_FORMAT_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
+        lua_setfield(L, -2, "FORMAT_"#name);
 
-        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_CLAMP_TO_BORDER);
-        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_CLAMP_TO_EDGE);
-        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_MIRRORED_REPEAT);
-        REGISTER_RENDER_CONSTANT(TEXTURE_WRAP_REPEAT);
+        REGISTER_FORMAT_CONSTANT(LUMINANCE);
+        REGISTER_FORMAT_CONSTANT(RGB);
+        REGISTER_FORMAT_CONSTANT(RGBA);
+        REGISTER_FORMAT_CONSTANT(RGB_DXT1);
+        REGISTER_FORMAT_CONSTANT(RGBA_DXT1);
+        REGISTER_FORMAT_CONSTANT(RGBA_DXT3);
+        REGISTER_FORMAT_CONSTANT(RGBA_DXT5);
+        REGISTER_FORMAT_CONSTANT(DEPTH);
 
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ZERO);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_SRC_COLOR);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_SRC_COLOR);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_DST_COLOR);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_DST_COLOR);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_SRC_ALPHA);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_DST_ALPHA);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_DST_ALPHA);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_SRC_ALPHA_SATURATE);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_CONSTANT_COLOR);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_CONSTANT_ALPHA);
-        REGISTER_RENDER_CONSTANT(BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
+#undef REGISTER_FORMAT_CONSTANT
 
-        REGISTER_RENDER_CONSTANT(FACE_TYPE_FRONT);
-        REGISTER_RENDER_CONSTANT(FACE_TYPE_BACK);
-        REGISTER_RENDER_CONSTANT(FACE_TYPE_FRONT_AND_BACK);
+#define REGISTER_FILTER_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FILTER_##name); \
+        lua_setfield(L, -2, "FILTER_"#name);
 
-        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_COLOR_BIT);
-        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_DEPTH_BIT);
-        REGISTER_RENDER_CONSTANT(BUFFER_TYPE_STENCIL_BIT);
+        REGISTER_FILTER_CONSTANT(LINEAR);
+        REGISTER_FILTER_CONSTANT(NEAREST);
 
-        #undef REGISTER_RENDER_CONSTANT
+#undef REGISTER_FILTER_CONSTANT
+
+#define REGISTER_WRAP_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_WRAP_##name); \
+        lua_setfield(L, -2, "WRAP_"#name);
+
+        REGISTER_WRAP_CONSTANT(CLAMP_TO_BORDER);
+        REGISTER_WRAP_CONSTANT(CLAMP_TO_EDGE);
+        REGISTER_WRAP_CONSTANT(MIRRORED_REPEAT);
+        REGISTER_WRAP_CONSTANT(REPEAT);
+
+#undef REGISTER_WRAP_CONSTANT
+
+#define REGISTER_BLEND_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_FACTOR_##name); \
+        lua_setfield(L, -2, "BLEND_"#name);
+
+        REGISTER_BLEND_CONSTANT(ZERO);
+        REGISTER_BLEND_CONSTANT(ONE);
+        REGISTER_BLEND_CONSTANT(SRC_COLOR);
+        REGISTER_BLEND_CONSTANT(ONE_MINUS_SRC_COLOR);
+        REGISTER_BLEND_CONSTANT(DST_COLOR);
+        REGISTER_BLEND_CONSTANT(ONE_MINUS_DST_COLOR);
+        REGISTER_BLEND_CONSTANT(SRC_ALPHA);
+        REGISTER_BLEND_CONSTANT(ONE_MINUS_SRC_ALPHA);
+        REGISTER_BLEND_CONSTANT(DST_ALPHA);
+        REGISTER_BLEND_CONSTANT(ONE_MINUS_DST_ALPHA);
+        REGISTER_BLEND_CONSTANT(SRC_ALPHA_SATURATE);
+        REGISTER_BLEND_CONSTANT(CONSTANT_COLOR);
+        REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_COLOR);
+        REGISTER_BLEND_CONSTANT(CONSTANT_ALPHA);
+        REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
+
+#undef REGISTER_BLEND_CONSTANT
+
+#define REGISTER_FACE_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::FACE_TYPE_##name); \
+        lua_setfield(L, -2, "FACE_"#name);
+
+        REGISTER_FACE_CONSTANT(FRONT);
+        REGISTER_FACE_CONSTANT(BACK);
+        REGISTER_FACE_CONSTANT(FRONT_AND_BACK);
+
+#undef REGISTER_FACE_CONSTANT
+
+#define REGISTER_BUFFER_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##name); \
+        lua_setfield(L, -2, "BUFFER_"#name);
+
+        REGISTER_BUFFER_CONSTANT(COLOR_BIT);
+        REGISTER_BUFFER_CONSTANT(DEPTH_BIT);
+        REGISTER_BUFFER_CONSTANT(STENCIL_BIT);
+
+#undef REGISTER_BUFFER_CONSTANT
 
         lua_pop(L, 1);
 

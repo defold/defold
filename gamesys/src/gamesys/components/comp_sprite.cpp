@@ -39,9 +39,9 @@ namespace dmGameSystem
         dmGameSystemDDF::Playback   m_Playback;
         float                       m_FrameTime;
         float                       m_FrameTimer;
-        uint16_t                    m_StartFrame;
-        uint16_t                    m_EndFrame;
-        uint16_t                    m_CurrentFrame;
+        uint16_t                    m_StartTile;
+        uint16_t                    m_EndTile;
+        uint16_t                    m_CurrentTile;
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_PlayBackwards : 1;
     };
@@ -214,8 +214,8 @@ namespace dmGameSystem
 
                 float tile_uv_width = ddf->m_TileWidth / (float)dmGraphics::GetTextureWidth(texture);
                 float tile_uv_height = ddf->m_TileHeight / (float)dmGraphics::GetTextureHeight(texture);
-                uint16_t tile_x = component->m_CurrentFrame % ddf->m_FramesPerRow;
-                uint16_t tile_y = component->m_CurrentFrame / ddf->m_FramesPerRow;
+                uint16_t tile_x = component->m_CurrentTile % ddf->m_TilesPerRow;
+                uint16_t tile_y = component->m_CurrentTile / ddf->m_TilesPerRow;
                 Vertex* v = (Vertex*)vertex_buffer + vertex_index;
                 for (uint32_t j = 0; j < 4; ++j)
                 {
@@ -232,14 +232,14 @@ namespace dmGameSystem
                 if (component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
                     || component->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD)
                 {
-                    if (component->m_CurrentFrame == component->m_EndFrame)
+                    if (component->m_CurrentTile == component->m_EndTile)
                     {
                         component->m_Playback = dmGameSystemDDF::PLAYBACK_NONE;
                         if (component->m_ListenerInstance != 0x0)
                         {
                             dmhash_t message_id = dmHashString64(dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_Name);
                             dmGameSystemDDF::AnimationDone message;
-                            message.m_CurrentFrame = component->m_CurrentFrame;
+                            message.m_CurrentTile = component->m_CurrentTile;
                             dmMessage::URL receiver;
                             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
                             if (dmMessage::IsSocketValid(receiver.m_Socket))
@@ -272,45 +272,45 @@ namespace dmGameSystem
                     if (component->m_FrameTimer >= component->m_FrameTime)
                     {
                         component->m_FrameTimer -= component->m_FrameTime;
-                        int16_t current_frame = (int16_t)component->m_CurrentFrame;
+                        int16_t current_tile = (int16_t)component->m_CurrentTile;
                         switch (component->m_Playback)
                         {
                             case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                                if (current_frame != component->m_EndFrame)
-                                    ++current_frame;
+                                if (current_tile != component->m_EndTile)
+                                    ++current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                                if (current_frame != component->m_EndFrame)
-                                    --current_frame;
+                                if (current_tile != component->m_EndTile)
+                                    --current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
-                                if (current_frame == component->m_EndFrame)
-                                    current_frame = component->m_StartFrame;
+                                if (current_tile == component->m_EndTile)
+                                    current_tile = component->m_StartTile;
                                 else
-                                    ++current_frame;
+                                    ++current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
-                                if (current_frame == component->m_EndFrame)
-                                    current_frame = component->m_StartFrame;
+                                if (current_tile == component->m_EndTile)
+                                    current_tile = component->m_StartTile;
                                 else
-                                    --current_frame;
+                                    --current_tile;
                                 break;
                             case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
                                 if (component->m_PlayBackwards)
-                                    --current_frame;
+                                    --current_tile;
                                 else
-                                    ++current_frame;
+                                    ++current_tile;
                                 break;
                             default:
                                 break;
                         }
-                        if (current_frame < 0)
-                            current_frame = ddf->m_FrameCount - 1;
-                        else if ((uint16_t)current_frame >= ddf->m_FrameCount)
-                            current_frame = 0;
-                        component->m_CurrentFrame = (uint16_t)current_frame;
+                        if (current_tile < 0)
+                            current_tile = ddf->m_TileCount - 1;
+                        else if ((uint16_t)current_tile >= ddf->m_TileCount)
+                            current_tile = 0;
+                        component->m_CurrentTile = (uint16_t)current_tile;
                         if (component->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
-                            if (current_frame == component->m_StartFrame || current_frame == component->m_EndFrame)
+                            if (current_tile == component->m_StartTile || current_tile == component->m_EndTile)
                                 component->m_PlayBackwards = ~component->m_PlayBackwards;
                     }
                 }
@@ -343,9 +343,9 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 component->m_Playback = ddf->m_Playback;
-                component->m_StartFrame = ddf->m_StartFrame - 1;
-                component->m_EndFrame = ddf->m_EndFrame - 1;
-                component->m_CurrentFrame = ddf->m_StartFrame - 1;
+                component->m_StartTile = ddf->m_StartTile - 1;
+                component->m_EndTile = ddf->m_EndTile - 1;
+                component->m_CurrentTile = ddf->m_StartTile - 1;
                 component->m_PlayBackwards = 0;
                 component->m_FrameTime = 1.0f / ddf->m_Fps;
                 component->m_FrameTimer = 0.0f;
@@ -359,9 +359,9 @@ namespace dmGameSystem
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         Component* component = (Component*)*params.m_UserData;
-        component->m_StartFrame = 0;
-        component->m_EndFrame = 0;
-        component->m_CurrentFrame = 0;
+        component->m_StartTile = 0;
+        component->m_EndTile = 0;
+        component->m_CurrentTile = 0;
         component->m_FrameTimer = 0.0f;
         component->m_FrameTime = 0.0f;
     }

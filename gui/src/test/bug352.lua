@@ -12,7 +12,7 @@ end
 function update(self, dt)
 end
 
-local function fade_done(node)
+local function fade_done(self, node)
     gui.delete_node(node)
 end
 
@@ -25,5 +25,5 @@ function on_message(self, message_id, message)
     local start_color = vmath.vector4(1, 0, 0, 0.9)
     local end_color = vmath.vector4(1, 0, 0, 0.0)
     gui.set_color(n, start_color)
-    gui.animate(n, gui.COLOR, end_color, gui.EASING_NONE, 1, 0, fade_done)
+    gui.animate(n, gui.PROP_COLOR, end_color, gui.EASING_NONE, 1, 0, fade_done)
 end

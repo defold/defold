@@ -556,8 +556,8 @@ bail:
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetFragmentConstant::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::RequestTransform::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::TransformResponse::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::SetParent::m_DDFDescriptor);
     }
 

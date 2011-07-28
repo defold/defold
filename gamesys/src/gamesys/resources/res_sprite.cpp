@@ -17,7 +17,7 @@ namespace dmGameSystem
         {
             return false;
         }
-        if (resource->m_DDF->m_FrameCount == 0 || resource->m_DDF->m_FramesPerRow == 0)
+        if (resource->m_DDF->m_TileCount == 0 || resource->m_DDF->m_TilesPerRow == 0)
         {
             dmLogError("%s", "frame_count and frames_per_row must both be over 0");
             return false;

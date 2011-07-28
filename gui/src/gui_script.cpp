@@ -282,11 +282,11 @@ namespace dmGui
      * @param node node to animate (node)
      * @param property property to animate (constant)
      * <ul>
-     *   <li><code>gui.POSITION</code></li>
-     *   <li><code>gui.ROTATION</code></li>
-     *   <li><code>gui.SCALE</code></li>
-     *   <li><code>gui.COLOR</code></li>
-     *   <li><code>gui.EXTENTS</code></li>
+     *   <li><code>gui.PROP_POSITION</code></li>
+     *   <li><code>gui.PROP_ROTATION</code></li>
+     *   <li><code>gui.PROP_SCALE</code></li>
+     *   <li><code>gui.PROP_COLOR</code></li>
+     *   <li><code>gui.PROP_EXTENTS</code></li>
      * </ul>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant)
@@ -391,11 +391,11 @@ namespace dmGui
      * @param node node that should have its animation canceled (node)
      * @param property property for which the animation should be canceled (constant)
      * <ul>
-     *   <li><code>gui.POSITION</code></li>
-     *   <li><code>gui.ROTATION</code></li>
-     *   <li><code>gui.SCALE</code></li>
-     *   <li><code>gui.COLOR</code></li>
-     *   <li><code>gui.EXTENTS</code></li>
+     *   <li><code>gui.PROP_POSITION</code></li>
+     *   <li><code>gui.PROP_ROTATION</code></li>
+     *   <li><code>gui.PROP_SCALE</code></li>
+     *   <li><code>gui.PROP_COLOR</code></li>
+     *   <li><code>gui.PROP_EXTENTS</code></li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
@@ -520,10 +520,10 @@ namespace dmGui
      * @param node node from which to get the blend mode (node)
      * @return node blend mode (constant)
      * <ul>
-     *   <li><code>gui.BLEND_MODE_ALPHA</code></li>
-     *   <li><code>gui.BLEND_MODE_ADD</code></li>
-     *   <li><code>gui.BLEND_MODE_ADD_ALPHA</code></li>
-     *   <li><code>gui.BLEND_MODE_MULT</code></li>
+     *   <li><code>gui.BLEND_ALPHA</code></li>
+     *   <li><code>gui.BLEND_ADD</code></li>
+     *   <li><code>gui.BLEND_ADD_ALPHA</code></li>
+     *   <li><code>gui.BLEND_MULT</code></li>
      * </ul>
      */
     static int LuaGetBlendMode(lua_State* L)
@@ -540,10 +540,10 @@ namespace dmGui
      * @param node node to set blend mode for (node)
      * @param blend_mode blend mode to set (constant)
      * <ul>
-     *   <li><code>gui.BLEND_MODE_ALPHA</code></li>
-     *   <li><code>gui.BLEND_MODE_ADD</code></li>
-     *   <li><code>gui.BLEND_MODE_ADD_ALPHA</code></li>
-     *   <li><code>gui.BLEND_MODE_MULT</code></li>
+     *   <li><code>gui.BLEND_ALPHA</code></li>
+     *   <li><code>gui.BLEND_ADD</code></li>
+     *   <li><code>gui.BLEND_ADD_ALPHA</code></li>
+     *   <li><code>gui.BLEND_MULT</code></li>
      * </ul>
      */
     static int LuaSetBlendMode(lua_State* L)
@@ -614,8 +614,8 @@ namespace dmGui
      * @param node node to set x-anchor for (node)
      * @param anchor anchor constant (constant)
      * <ul>
-     *   <li><code>gui.LEFT</code></li>
-     *   <li><code>gui.RIGHT</code></li>
+     *   <li><code>gui.ANCHOR_LEFT</code></li>
+     *   <li><code>gui.ANCHOR_RIGHT</code></li>
      * </ul>
      */
     static int LuaSetXAnchor(lua_State* L)
@@ -646,8 +646,8 @@ namespace dmGui
      * @param node node to set y-anchor for (node)
      * @param anchor anchor constant (constant)
      * <ul>
-     *   <li><code>gui.TOP</code></li>
-     *   <li><code>gui.BOTTOM</code></li>
+     *   <li><code>gui.ANCHOR_TOP</code></li>
+     *   <li><code>gui.ANCHOR_BOTTOM</code></li>
      * </ul>
      */
     static int LuaSetYAnchor(lua_State* L)
@@ -858,79 +858,79 @@ namespace dmGui
 
     /*# position property
      *
-     * @name gui.POSITION
+     * @name gui.PROP_POSITION
      * @variable
      */
 
     /*# rotation property
      *
-     * @name gui.ROTATION
+     * @name gui.PROP_ROTATION
      * @variable
      */
 
     /*# scale property
      *
-     * @name gui.SCALE
+     * @name gui.PROP_SCALE
      * @variable
      */
 
     /*# color property
      *
-     * @name gui.COLOR
+     * @name gui.PROP_COLOR
      * @variable
      */
 
     /*# extents property
      *
-     * @name gui.EXTENTS
+     * @name gui.PROP_EXTENTS
      * @variable
      */
 
     /*# alpha blending
      *
-     * @name gui.ALPHA
+     * @name gui.BLEND_ALPHA
      * @variable
      */
 
     /*# additive blending
      *
-     * @name gui.ADD
+     * @name gui.BLEND_ADD
      * @variable
      */
 
     /*# additive alpha blending
      *
-     * @name gui.ADD_ALPHA
+     * @name gui.BLEND_ADD_ALPHA
      * @variable
      */
 
     /*# multiply blending
      *
-     * @name gui.MULT
+     * @name gui.BLEND_MULT
      * @variable
      */
 
     /*# left x-anchor
      *
-     * @name gui.LEFT
+     * @name gui.ANCHOR_LEFT
      * @variable
      */
 
     /*# right x-anchor
      *
-     * @name gui.RIGHT
+     * @name gui.ANCHOR_RIGHT
      * @variable
      */
 
     /*# top y-anchor
      *
-     * @name gui.TOP
+     * @name gui.ANCHOR_TOP
      * @variable
      */
 
     /*# bottom y-anchor
      *
-     * @name gui.BOTTOM
+     * @name gui.ANCHOR_BOTTOM
      * @variable
      */
 
@@ -963,7 +963,7 @@ namespace dmGui
 
 #define SETPROP(name) \
         lua_pushnumber(L, (lua_Number) PROPERTY_##name); \
-        lua_setfield(L, -2, #name);\
+        lua_setfield(L, -2, "PROP_"#name);\
 
         SETPROP(POSITION)
         SETPROP(ROTATION)
@@ -986,7 +986,7 @@ namespace dmGui
 
 #define SETBLEND(name) \
         lua_pushnumber(L, (lua_Number) BLEND_MODE_##name); \
-        lua_setfield(L, -2, "BLEND_MODE_"#name);\
+        lua_setfield(L, -2, "BLEND_"#name);\
 
         SETBLEND(ALPHA)
         SETBLEND(ADD)
@@ -996,13 +996,13 @@ namespace dmGui
 #undef SETBLEND
 
         lua_pushnumber(L, (lua_Number) XANCHOR_LEFT);
-        lua_setfield(L, -2, "LEFT");
+        lua_setfield(L, -2, "ANCHOR_LEFT");
         lua_pushnumber(L, (lua_Number) XANCHOR_RIGHT);
-        lua_setfield(L, -2, "RIGHT");
+        lua_setfield(L, -2, "ANCHOR_RIGHT");
         lua_pushnumber(L, (lua_Number) YANCHOR_TOP);
-        lua_setfield(L, -2, "TOP");
+        lua_setfield(L, -2, "ANCHOR_TOP");
         lua_pushnumber(L, (lua_Number) YANCHOR_BOTTOM);
-        lua_setfield(L, -2, "BOTTOM");
+        lua_setfield(L, -2, "ANCHOR_BOTTOM");
 
         lua_pop(L, 1);
 

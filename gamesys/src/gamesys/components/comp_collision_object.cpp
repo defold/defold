@@ -164,15 +164,15 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = (dmGameObject::HInstance)user_data_b;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::CollisionMessage::m_DDFDescriptor->m_Name);
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::CollisionMessage::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::CollisionMessage);
-            dmPhysicsDDF::CollisionMessage ddf;
+            dmhash_t message_id = dmHashString64(dmPhysicsDDF::CollisionResponse::m_DDFDescriptor->m_Name);
+            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::CollisionResponse::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmPhysicsDDF::CollisionResponse);
+            dmPhysicsDDF::CollisionResponse ddf;
             dmMessage::URL receiver;
 
             // Broadcast to A components
             ddf.m_Group = group_b;
-            ddf.m_OtherGameObjectId = instance_b_id;
+            ddf.m_OtherId = instance_b_id;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
             dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
@@ -183,7 +183,7 @@ namespace dmGameSystem
 
             // Broadcast to B components
             ddf.m_Group = group_a;
-            ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
+            ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
             result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
@@ -212,13 +212,13 @@ namespace dmGameSystem
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-            dmPhysicsDDF::ContactPointMessage ddf;
+            dmPhysicsDDF::ContactPointResponse ddf;
             float mass_a = dmMath::Select(-contact_point.m_InvMassA, 0.0f, 1.0f / contact_point.m_InvMassA);
             float mass_b = dmMath::Select(-contact_point.m_InvMassB, 0.0f, 1.0f / contact_point.m_InvMassB);
 
-            dmhash_t message_id = dmHashString64(dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor->m_Name);
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointMessage::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::ContactPointMessage);
+            dmhash_t message_id = dmHashString64(dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor->m_Name);
+            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmPhysicsDDF::ContactPointResponse);
             dmMessage::URL receiver;
 
             // Broadcast to A components
@@ -229,7 +229,7 @@ namespace dmGameSystem
             ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
             ddf.m_Mass = mass_a;
             ddf.m_OtherMass = mass_b;
-            ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_b);
+            ddf.m_OtherId = dmGameObject::GetIdentifier(instance_b);
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = contact_point.m_GroupB;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
@@ -248,7 +248,7 @@ namespace dmGameSystem
             ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
             ddf.m_Mass = mass_b;
             ddf.m_OtherMass = mass_a;
-            ddf.m_OtherGameObjectId = dmGameObject::GetIdentifier(instance_a);
+            ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = contact_point.m_GroupA;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
@@ -277,7 +277,7 @@ namespace dmGameSystem
             dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
-            ddf.m_GameObjectId = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
+            ddf.m_Id = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
             ddf.m_Group = response.m_CollisionObjectGroup;
             ddf.m_Position = response.m_Position;
             ddf.m_Normal = response.m_Normal;
@@ -315,15 +315,15 @@ namespace dmGameSystem
         if (message->m_Descriptor != 0)
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
-            if (descriptor == dmPhysicsDDF::RayCastRequest::m_DDFDescriptor)
+            if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
             {
-                dmPhysicsDDF::RayCastRequest* ddf = (dmPhysicsDDF::RayCastRequest*)message->m_Data;
+                dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
                 dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
                 uint8_t component_index;
                 dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
                 if (go_result != dmGameObject::RESULT_OK)
                 {
-                    dmLogError("Component index could not be retrieved when handling '%s': %d.", dmPhysicsDDF::RayCastRequest::m_DDFDescriptor->m_Name, go_result);
+                    dmLogError("Component index could not be retrieved when handling '%s': %d.", dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_Name, go_result);
                     context->m_Success = false;
                 }
                 else
@@ -451,9 +451,9 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = (Component*) *params.m_UserData;
-        if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::ApplyForceMessage::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_Name))
         {
-            dmPhysicsDDF::ApplyForceMessage* af = (dmPhysicsDDF::ApplyForceMessage*) params.m_Message->m_Data;
+            dmPhysicsDDF::ApplyForce* af = (dmPhysicsDDF::ApplyForce*) params.m_Message->m_Data;
             if (physics_context->m_3D)
             {
                 dmPhysics::ApplyForce3D(component->m_Object3D, af->m_Force, af->m_Position);
@@ -463,7 +463,7 @@ namespace dmGameSystem
                 dmPhysics::ApplyForce2D(component->m_Object2D, af->m_Force, af->m_Position);
             }
         }
-        if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::VelocityRequest::m_DDFDescriptor->m_Name))
+        if (params.m_Message->m_Id == dmHashString64(dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_Name))
         {
             dmPhysicsDDF::VelocityResponse response;
             if (physics_context->m_3D)

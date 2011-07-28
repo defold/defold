@@ -14,7 +14,7 @@ local function start(self)
     self.loading_node = gui.get_node("loading")
     local color = gui.get_color(self.loading_node)
     gui.set_color(self.loading_node, vmath.vector4(color.x, color.y, color.z, 0))
-    gui.animate(self.loading_node, gui.COLOR, color, gui.EASING_OUT, 0.5, 0.0, on_fade_in)
+    gui.animate(self.loading_node, gui.PROP_COLOR, color, gui.EASING_OUT, 0.5, 0.0, on_fade_in)
 end
 
 function init(self)
@@ -32,7 +32,7 @@ function on_message(self, message_id, message, sender)
     elseif message_id == hash("proxy_loaded") then
         self.loaded_proxies = self.loaded_proxies + 1
         if self.loaded_proxies == #self.proxies then
-            gui.animate(self.loading_node, gui.COLOR, vmath.vector4(1, 1, 1, 0), gui.EASING_OUT, 0.5, 0.0, on_fade_out)
+            gui.animate(self.loading_node, gui.PROP_COLOR, vmath.vector4(1, 1, 1, 0), gui.EASING_OUT, 0.5, 0.0, on_fade_out)
         end
     end
 end

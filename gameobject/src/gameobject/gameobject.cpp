@@ -953,22 +953,22 @@ namespace dmGameObject
                 dmGameObject::ReleaseInputFocus(context->m_Collection, instance);
                 return;
             }
-            else if (descriptor == dmGameObjectDDF::GameObjectTransformQuery::m_DDFDescriptor)
+            else if (descriptor == dmGameObjectDDF::RequestTransform::m_DDFDescriptor)
             {
-                dmGameObjectDDF::GameObjectTransformResponse response;
+                dmGameObjectDDF::TransformResponse response;
                 response.m_Position = dmGameObject::GetPosition(instance);
                 response.m_Rotation = dmGameObject::GetRotation(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                dmhash_t message_id = dmHashString64(dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name);
-                uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor;
-                uint32_t data_size = sizeof(dmGameObjectDDF::GameObjectTransformResponse);
+                dmhash_t message_id = dmHashString64(dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name);
+                uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
+                uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
                 if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
                 {
                     dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData, gotr_descriptor, &response, data_size);
                     if (message_result != dmMessage::RESULT_OK)
                     {
-                        dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::GameObjectTransformResponse::m_DDFDescriptor->m_Name, message_result);
+                        dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name, message_result);
                     }
                 }
                 return;
