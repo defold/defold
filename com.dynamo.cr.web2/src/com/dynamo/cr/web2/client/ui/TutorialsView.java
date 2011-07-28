@@ -44,7 +44,7 @@ public class TutorialsView extends Composite {
 
     @UiHandler("tutorial01Link")
     void onTutorial01LinkClick(ClickEvent event) {
-        listener.onTutorial("tutorial01");
+        listener.onTutorial("tutorial_falling_box");
     }
 
     @UiHandler("tutorial02Link")
