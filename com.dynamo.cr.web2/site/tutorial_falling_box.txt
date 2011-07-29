@@ -112,7 +112,12 @@ Both 'tile_width' and 'tile_height' should be set to +1+, since the texture is o
 Save the file.
 
 The ground also needs collision.
-We will begin by creating a new collision shape.
+This is handled by the 'Collision Object'-component, which also handles all other
+physical interaction.
+The actual shape of the 'Collision Object' is defined by a separate resource type called
+'Convex Shape'.
+The shape is then bound to the 'Collision Object'.
+We will begin by creating a new 'Convex Shape'.
 *Right-click* the +logic+-directory and select *New > Convex Shape File*.
 Name it +ground.convexshape+ and click *Finish*.
 
