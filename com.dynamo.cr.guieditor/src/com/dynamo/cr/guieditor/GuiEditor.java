@@ -411,31 +411,33 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     }
 
     private void paint() {
-        canvas.setCurrent();
-        context.makeCurrent();
-        GL gl = context.getGL();
-        GLU glu = new GLU();
-        try {
-            gl.glDisable(GL.GL_LIGHTING);
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
-            gl.glDisable(GL.GL_DEPTH_TEST);
+        if (!canvas.isDisposed()) {
+            canvas.setCurrent();
+            context.makeCurrent();
+            GL gl = context.getGL();
+            GLU glu = new GLU();
+            try {
+                gl.glDisable(GL.GL_LIGHTING);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+                gl.glDisable(GL.GL_DEPTH_TEST);
 
-            gl.glMatrixMode(GL.GL_PROJECTION);
-            gl.glLoadIdentity();
-            glu.gluOrtho2D(0, viewPort[2], 0, viewPort[3]);
-            gl.glViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3]);
+                gl.glMatrixMode(GL.GL_PROJECTION);
+                gl.glLoadIdentity();
+                glu.gluOrtho2D(0, viewPort[2], 0, viewPort[3]);
+                gl.glViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3]);
 
-            gl.glMatrixMode(GL.GL_MODELVIEW);
-            gl.glLoadIdentity();
-            gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
-            gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+                gl.glMatrixMode(GL.GL_MODELVIEW);
+                gl.glLoadIdentity();
+                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
+                gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
-            doDraw(gl);
-        } catch (Throwable e) {
-            e.printStackTrace();
-        } finally {
-            canvas.swapBuffers();
-            context.release();
+                doDraw(gl);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            } finally {
+                canvas.swapBuffers();
+                context.release();
+            }
         }
     }
 
@@ -655,8 +657,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
                 @Override
                 public void run() {
-                    paint();
-                    canvas.update();
+                    if (!canvas.isDisposed()) {
+                        paint();
+                        canvas.update();
+                    }
                     redrawPosted = false;
                 }
             });
