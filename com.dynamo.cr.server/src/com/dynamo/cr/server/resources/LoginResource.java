@@ -204,7 +204,12 @@ public class LoginResource extends BaseResource {
 
     @PUT
     @Path("/openid/register/{token}")
-    public Response register(@PathParam("token") String token) throws ServerException {
+    public Response register(@PathParam("token") String token,
+                             @QueryParam("key") String key) throws ServerException {
+
+        if (key == null || !key.toLowerCase().equals("de5a6bf2-5f20-436e-836d-0fbe14c480cb")) {
+            throw new ServerException("Invalid registration key", Status.UNAUTHORIZED);
+        }
 
         EntityManager em = emf.createEntityManager();
         em.getTransaction().begin();

@@ -77,12 +77,12 @@ public class OpenIDActivity extends AbstractActivity implements
     }
 
     @Override
-    public void register() {
+    public void register(String registrationKey) {
         final OpenIDView openIDView = clientFactory.getOpenIDView();
 
         final Defold defold = clientFactory.getDefold();
 
-        RequestBuilder builder = new RequestBuilder(RequestBuilder.PUT, defold.getUrl() + "/login/openid/register/" + loginToken);
+        RequestBuilder builder = new RequestBuilder(RequestBuilder.PUT, defold.getUrl() + "/login/openid/register/" + loginToken + "?key=" + registrationKey);
         builder.setHeader("Accept", "application/json");
 
         try {

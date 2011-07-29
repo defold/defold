@@ -271,11 +271,12 @@ div.usp {
 
 /* Form stuff */
 div.form {
-	width: 300px;
+	width: 500px;
 }
 
 div.formRow {
 	padding-bottom: 16px;
+	width: 400px;
 }
 
 .formLabel {
@@ -299,8 +300,12 @@ div.form input[type="text"] {
 	padding: 4px;
 
 	margin: 0;
-	width: 290px;
+	width: 390px;
 	font-size: 16px;
 	line-height: 20px;
 	color: #222;
+}
+
+div.form textarea {
+    width: 390px;
 }

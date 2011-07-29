@@ -11,12 +11,13 @@ import com.google.gwt.user.client.ui.DeckPanel;
 import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextArea;
+import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
 
 public class OpenIDView extends Composite {
 
     public interface Presenter {
-        void register();
+        void register(String registrationKey);
     }
 
     private static final Binder binder = GWT.create(Binder.class);
@@ -25,6 +26,7 @@ public class OpenIDView extends Composite {
     @UiField InlineLabel emailLabel;
     @UiField InlineLabel firstNameLabel;
     @UiField InlineLabel lastNameLabel;
+    @UiField TextBox registrationKey;
     @UiField TextArea eula;
     @UiField Button registerButton;
 
@@ -73,6 +75,6 @@ public class OpenIDView extends Composite {
 
     @UiHandler("registerButton")
     void onRegisterButtonClick(ClickEvent event) {
-        listener.register();
+        listener.register(registrationKey.getText());
     }
 }
