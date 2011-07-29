@@ -61,7 +61,7 @@ public class ProjectView extends Composite implements KeyPressHandler {
     public ProjectView() {
         suggestBox = new SuggestBox(suggestions);
         /*
-         * NOTE: Workaround for the followin bug:
+         * NOTE: Workaround for the following bug:
          * http://code.google.com/p/google-web-toolkit/issues/detail?id=3533 We
          * add handler to the textbox
          */
@@ -152,7 +152,7 @@ public class ProjectView extends Composite implements KeyPressHandler {
 
     @Override
     public void onKeyPress(KeyPressEvent event) {
-        if (KeyCodes.KEY_ENTER == event.getCharCode()) {
+        if (KeyCodes.KEY_ENTER == event.getNativeEvent().getKeyCode()) {
             listener.addMember(suggestBox.getText());
         }
     }
