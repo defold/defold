@@ -46,7 +46,7 @@ function postbuild {
         local HOST=${HOST_DIR[0]}
         local DIR=${HOST_DIR[1]}
 
-        tar -C ${BUILD_DIRECTORY} -cvz - repository | ssh $HOST "rm -rf ${DIR}_tmp; mkdir -p ${DIR}_tmp; cd ${DIR}_tmp; tar xvfz -"
+        tar -C ${BUILD_DIRECTORY} -cvz repository | ssh $HOST "rm -rf ${DIR}_tmp; mkdir -p ${DIR}_tmp; cd ${DIR}_tmp; tar xvfz -"
         ssh $HOST "rm -rf ${DIR}; mv ${DIR}_tmp ${DIR}"
 
         scp ${BUILD_DIRECTORY}/I.*/*.zip $DEPLOY_PATH
