@@ -14,8 +14,10 @@ import com.google.gwt.user.client.ui.AcceptsOneWidget;
 
 public class TutorialsActivity extends AbstractActivity implements TutorialsView.Presenter {
     private ClientFactory clientFactory;
+    private TutorialsPlace place;
 
     public TutorialsActivity(TutorialsPlace place, ClientFactory clientFactory) {
+        this.place = place;
         this.clientFactory = clientFactory;
     }
 
@@ -24,10 +26,17 @@ public class TutorialsActivity extends AbstractActivity implements TutorialsView
         final TutorialsView tutorialsView = clientFactory.getTutorialsView();
         containerWidget.setWidget(tutorialsView.asWidget());
         tutorialsView.setPresenter(this);
+        if (place.getId().length() > 0) {
+            loadTutorial(place.getId());
+        }
     }
 
     @Override
     public void onTutorial(String name) {
+        clientFactory.getPlaceController().goTo(new TutorialsPlace(name));
+    }
+
+    public void loadTutorial(String name) {
         final TutorialsView tutorialsView = clientFactory.getTutorialsView();
         tutorialsView.setLoading(true);
         tutorialsView.clear();

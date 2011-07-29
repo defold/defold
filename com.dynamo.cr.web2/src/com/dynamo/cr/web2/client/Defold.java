@@ -282,7 +282,7 @@ public class Defold implements EntryPoint {
 
     @UiHandler("tutorials")
     void onTutorialsClick(ClickEvent event) {
-        clientFactory.getPlaceController().goTo(new TutorialsPlace());
+        clientFactory.getPlaceController().goTo(new TutorialsPlace(""));
     }
 
     @UiHandler("editableLabel")
