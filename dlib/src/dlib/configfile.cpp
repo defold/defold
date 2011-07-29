@@ -351,7 +351,11 @@ namespace dmConfigFile
             params.m_Userdata = &context;
             params.m_HttpContent = &HttpContent;
             params.m_HttpHeader = &HttpHeader;
-            dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", uri_parts.m_Port);
+            dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port);
+            if (client == 0x0)
+            {
+                return RESULT_FILE_NOT_FOUND;
+            }
 
             context.m_BufferSize = -1;
             dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);

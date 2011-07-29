@@ -198,18 +198,21 @@ namespace dmEngine
         }
 
         dmConfigFile::HConfig config;
+        dmConfigFile::Result config_results[2];
         dmConfigFile::Result config_result = dmConfigFile::RESULT_FILE_NOT_FOUND;
         uint32_t current_project_file = 0;
         while (config_result != dmConfigFile::RESULT_OK && current_project_file < project_file_count)
         {
-            config_result = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &config);
+            config_results[current_project_file] = dmConfigFile::Load(project_files[current_project_file], argc, (const char**) argv, &config);
+            config_result = config_results[current_project_file];
             ++current_project_file;
         }
         if (config_result != dmConfigFile::RESULT_OK)
         {
             dmLogFatal("Unable to load project file from any of the locations:");
             for (uint32_t i = 0; i < project_file_count; ++i)
-                dmLogFatal("%s", project_files[i]);
+                // TODO: Translate code
+                dmLogFatal("Error %d: %s", config_results[i], project_files[i]);
             return false;
         }
         const char* content_root = default_content_roots[current_project_file - 1];
