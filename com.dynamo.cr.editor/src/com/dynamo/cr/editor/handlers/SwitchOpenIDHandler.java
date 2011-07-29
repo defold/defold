@@ -5,6 +5,7 @@ import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.graphics.Point;
@@ -13,6 +14,9 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
+
+import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 
 class LoginDialog extends TitleAreaDialog {
 
@@ -65,6 +69,8 @@ public class SwitchOpenIDHandler extends AbstractHandler {
     public Object execute(ExecutionEvent event) throws ExecutionException {
         LoginDialog loginDialog = new LoginDialog(HandlerUtil.getActiveShell(event));
         loginDialog.open();
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        store.setValue(PreferenceConstants.P_AUTH_COOKIE, "");
         return null;
     }
 
