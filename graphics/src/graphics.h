@@ -240,8 +240,8 @@ namespace dmGraphics
         bool                    m_PrintDeviceInfo;
     };
 
-    /**
-     * Create a graphics context
+    /** Creates a graphics context
+     * Currently, there can only be one context active at a time.
      * @return New graphics context
      */
     HContext NewContext();

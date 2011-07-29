@@ -223,6 +223,11 @@ namespace dmEngine
         DM_PROFILE(Engine, "Init");
 
         engine->m_GraphicsContext = dmGraphics::NewContext();
+        if (engine->m_GraphicsContext == 0x0)
+        {
+            dmLogFatal("Unable to create the graphics context.");
+            return false;
+        }
 
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;

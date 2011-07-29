@@ -139,39 +139,57 @@ namespace dmGraphics
 
     HContext NewContext()
     {
-        if (g_Context == 0x0 && glfwInit() == GL_TRUE)
+        if (g_Context == 0x0)
         {
+            if (glfwInit() == GL_TRUE)
+            {
 #if defined (_WIN32)
-            glGenProgramsARB = (PFNGLGENPROGRAMARBPROC) wglGetProcAddress("glGenProgramsARB");
-            glBindProgramARB = (PFNGLBINDPROGRAMARBPROC) wglGetProcAddress("glBindProgramARB");
-            glDeleteProgramsARB = (PFNGLDELETEPROGRAMSARBPROC) wglGetProcAddress("glDeleteProgramsARB");
-            glProgramStringARB = (PFNGLPROGRAMSTRINGARBPROC) wglGetProcAddress("glProgramStringARB");
-            glProgramLocalParameter4fARB = (PFNGLVERTEXPARAMFLOAT4ARBPROC) wglGetProcAddress("glProgramLocalParameter4fARB");
-            glEnableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glEnableVertexAttribArray");
-            glDisableVertexAttribArray = (PFNGLVERTEXATTRIBSETPROC) wglGetProcAddress("glDisableVertexAttribArray");
-            glVertexAttribPointer = (PFNGLVERTEXATTRIBPTRPROC) wglGetProcAddress("glVertexAttribPointer");
-            glCompressedTexImage2D = (PFNGLTEXPARAM2DPROC) wglGetProcAddress("glCompressedTexImage2D");
-            glGenBuffersARB = (PFNGLGENBUFFERSPROC) wglGetProcAddress("glGenBuffersARB");
-            glDeleteBuffersARB = (PFNGLDELETEBUFFERSPROC) wglGetProcAddress("glDeleteBuffersARB");
-            glBindBufferARB = (PFNGLBINDBUFFERPROC) wglGetProcAddress("glBindBufferARB");
-            glBufferDataARB = (PFNGLBUFFERDATAPROC) wglGetProcAddress("glBufferDataARB");
-            glDrawRangeElements = (PFNGLDRAWRANGEELEMENTSPROC) wglGetProcAddress("glDrawRangeElements");
-            glGenRenderbuffers = (PFNGLGENRENDERBUFFERSPROC) wglGetProcAddress("glGenRenderbuffers");
-            glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC) wglGetProcAddress("glBindRenderbuffer");
-            glRenderbufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC) wglGetProcAddress("glRenderbufferStorage");
-            glFramebufferTexture2D = (PFNGLRENDERBUFFERTEXTURE2DPROC) wglGetProcAddress("glFramebufferTexture2D");
-            glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC) wglGetProcAddress("glFramebufferRenderbuffer");
-            glGenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC) wglGetProcAddress("glGenFramebuffers");
-            glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC) wglGetProcAddress("glBindFramebuffer");
-            glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC) wglGetProcAddress("glDeleteFramebuffers");
-            glDeleteRenderbuffers = (PFNGLDELETERENDERBUFFERSPROC) wglGetProcAddress("glDeleteRenderbuffers");
-            glBufferSubDataARB = (PFNGLBUFFERSUBDATAPROC) wglGetProcAddress("glBufferSubDataARB");
-            glMapBufferARB = (PFNGLMAPBUFFERPROC) wglGetProcAddress("glMapBufferARB");
-            glUnmapBufferARB = (PFNGLUNMAPBUFFERPROC) wglGetProcAddress("glUnmapBufferARB");
-            glActiveTexture = (PFNGLACTIVETEXTUREPROC) wglGetProcAddress("glActiveTexture");
-            glCheckFramebufferStatus = (PFNGLCHECKFRAMEBUFFERSTATUSPROC) wglGetProcAddress("glCheckFrameBufferStatus");
-#endif
+#define GET_PROC_ADDRESS(name, type)\
+                name = (type)wglGetProcAddress(#name);\
+                if (name == 0x0)\
+                {\
+                    dmLogError("Could not find gl function '%s'.", #name);\
+                    glfwTerminate();\
+                    return 0x0;\
+                }
 
+                GET_PROC_ADDRESS(glGenProgramsARB, PFNGLGENPROGRAMARBPROC);
+                GET_PROC_ADDRESS(glBindProgramARB, PFNGLBINDPROGRAMARBPROC);
+                GET_PROC_ADDRESS(glDeleteProgramsARB, PFNGLDELETEPROGRAMSARBPROC);
+                GET_PROC_ADDRESS(glProgramStringARB, PFNGLPROGRAMSTRINGARBPROC);
+                GET_PROC_ADDRESS(glProgramLocalParameter4fARB, PFNGLVERTEXPARAMFLOAT4ARBPROC);
+                GET_PROC_ADDRESS(glEnableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
+                GET_PROC_ADDRESS(glDisableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
+                GET_PROC_ADDRESS(glVertexAttribPointer, PFNGLVERTEXATTRIBPTRPROC);
+                GET_PROC_ADDRESS(glCompressedTexImage2D, PFNGLTEXPARAM2DPROC);
+                GET_PROC_ADDRESS(glGenBuffersARB, PFNGLGENBUFFERSPROC);
+                GET_PROC_ADDRESS(glDeleteBuffersARB, PFNGLDELETEBUFFERSPROC);
+                GET_PROC_ADDRESS(glBindBufferARB, PFNGLBINDBUFFERPROC);
+                GET_PROC_ADDRESS(glBufferDataARB, PFNGLBUFFERDATAPROC);
+                GET_PROC_ADDRESS(glDrawRangeElements, PFNGLDRAWRANGEELEMENTSPROC);
+                GET_PROC_ADDRESS(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC);
+                GET_PROC_ADDRESS(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC);
+                GET_PROC_ADDRESS(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC);
+                GET_PROC_ADDRESS(glFramebufferTexture2D, PFNGLRENDERBUFFERTEXTURE2DPROC);
+                GET_PROC_ADDRESS(glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC);
+                GET_PROC_ADDRESS(glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC);
+                GET_PROC_ADDRESS(glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC);
+                GET_PROC_ADDRESS(glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC);
+                GET_PROC_ADDRESS(glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC);
+                GET_PROC_ADDRESS(glBufferSubDataARB, PFNGLBUFFERSUBDATAPROC);
+                GET_PROC_ADDRESS(glMapBufferARB, PFNGLMAPBUFFERPROC);
+                GET_PROC_ADDRESS(glUnmapBufferARB, PFNGLUNMAPBUFFERPROC);
+                GET_PROC_ADDRESS(glActiveTexture, PFNGLACTIVETEXTUREPROC);
+                GET_PROC_ADDRESS(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+
+#undef GET_PROC_ADDRESS
+#endif
+            }
+            else
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0x0;
+            }
             g_Context = new Context();
             return g_Context;
         }
@@ -180,8 +198,12 @@ namespace dmGraphics
 
     void DeleteContext(HContext context)
     {
-        delete context;
-        glfwTerminate();
+        if (context != 0x0)
+        {
+            delete context;
+            g_Context = 0x0;
+            glfwTerminate();
+        }
     }
 
     void OnWindowResize(int width, int height)
