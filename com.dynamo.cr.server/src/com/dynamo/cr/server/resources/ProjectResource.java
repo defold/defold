@@ -240,8 +240,9 @@ public class ProjectResource extends BaseResource {
         }
 
         em.getTransaction().begin();
-        project.getMembers().remove(member);
+        ModelUtil.removeMember(project, member);
         em.persist(project);
+        em.persist(member);
         em.getTransaction().commit();
     }
 

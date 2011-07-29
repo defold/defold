@@ -96,6 +96,11 @@ public class ModelUtil {
         user.getProjects().add(project);
     }
 
+    public static void removeMember(Project project, User user) {
+        project.getMembers().remove(user);
+        user.getProjects().remove(project);
+    }
+
     public static void connect(User u1, User u2) {
         u1.getConnections().add(u2);
         u2.getConnections().add(u1);
