@@ -141,51 +141,7 @@ namespace dmGraphics
     {
         if (g_Context == 0x0)
         {
-            if (glfwInit() == GL_TRUE)
-            {
-#if defined (_WIN32)
-#define GET_PROC_ADDRESS(name, type)\
-                name = (type)wglGetProcAddress(#name);\
-                if (name == 0x0)\
-                {\
-                    dmLogError("Could not find gl function '%s'.", #name);\
-                    glfwTerminate();\
-                    return 0x0;\
-                }
-
-                GET_PROC_ADDRESS(glGenProgramsARB, PFNGLGENPROGRAMARBPROC);
-                GET_PROC_ADDRESS(glBindProgramARB, PFNGLBINDPROGRAMARBPROC);
-                GET_PROC_ADDRESS(glDeleteProgramsARB, PFNGLDELETEPROGRAMSARBPROC);
-                GET_PROC_ADDRESS(glProgramStringARB, PFNGLPROGRAMSTRINGARBPROC);
-                GET_PROC_ADDRESS(glProgramLocalParameter4fARB, PFNGLVERTEXPARAMFLOAT4ARBPROC);
-                GET_PROC_ADDRESS(glEnableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
-                GET_PROC_ADDRESS(glDisableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
-                GET_PROC_ADDRESS(glVertexAttribPointer, PFNGLVERTEXATTRIBPTRPROC);
-                GET_PROC_ADDRESS(glCompressedTexImage2D, PFNGLTEXPARAM2DPROC);
-                GET_PROC_ADDRESS(glGenBuffersARB, PFNGLGENBUFFERSPROC);
-                GET_PROC_ADDRESS(glDeleteBuffersARB, PFNGLDELETEBUFFERSPROC);
-                GET_PROC_ADDRESS(glBindBufferARB, PFNGLBINDBUFFERPROC);
-                GET_PROC_ADDRESS(glBufferDataARB, PFNGLBUFFERDATAPROC);
-                GET_PROC_ADDRESS(glDrawRangeElements, PFNGLDRAWRANGEELEMENTSPROC);
-                GET_PROC_ADDRESS(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC);
-                GET_PROC_ADDRESS(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC);
-                GET_PROC_ADDRESS(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC);
-                GET_PROC_ADDRESS(glFramebufferTexture2D, PFNGLRENDERBUFFERTEXTURE2DPROC);
-                GET_PROC_ADDRESS(glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC);
-                GET_PROC_ADDRESS(glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC);
-                GET_PROC_ADDRESS(glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC);
-                GET_PROC_ADDRESS(glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC);
-                GET_PROC_ADDRESS(glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC);
-                GET_PROC_ADDRESS(glBufferSubDataARB, PFNGLBUFFERSUBDATAPROC);
-                GET_PROC_ADDRESS(glMapBufferARB, PFNGLMAPBUFFERPROC);
-                GET_PROC_ADDRESS(glUnmapBufferARB, PFNGLUNMAPBUFFERPROC);
-                GET_PROC_ADDRESS(glActiveTexture, PFNGLACTIVETEXTUREPROC);
-                GET_PROC_ADDRESS(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
-
-#undef GET_PROC_ADDRESS
-#endif
-            }
-            else
+            if (glfwInit() == GL_FALSE)
             {
                 dmLogError("Could not initialize glfw.");
                 return 0x0;
@@ -225,9 +181,49 @@ namespace dmGraphics
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, GLFW_WINDOW))
         {
-            glfwTerminate();
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
+
+#if defined (_WIN32)
+#define GET_PROC_ADDRESS(name, type)\
+        name = (type)wglGetProcAddress(#name);\
+        if (name == 0x0)\
+        {\
+            dmLogError("Could not find gl function '%s'.", #name);\
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;\
+        }
+
+        GET_PROC_ADDRESS(glGenProgramsARB, PFNGLGENPROGRAMARBPROC);
+        GET_PROC_ADDRESS(glBindProgramARB, PFNGLBINDPROGRAMARBPROC);
+        GET_PROC_ADDRESS(glDeleteProgramsARB, PFNGLDELETEPROGRAMSARBPROC);
+        GET_PROC_ADDRESS(glProgramStringARB, PFNGLPROGRAMSTRINGARBPROC);
+        GET_PROC_ADDRESS(glProgramLocalParameter4fARB, PFNGLVERTEXPARAMFLOAT4ARBPROC);
+        GET_PROC_ADDRESS(glEnableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
+        GET_PROC_ADDRESS(glDisableVertexAttribArray, PFNGLVERTEXATTRIBSETPROC);
+        GET_PROC_ADDRESS(glVertexAttribPointer, PFNGLVERTEXATTRIBPTRPROC);
+        GET_PROC_ADDRESS(glCompressedTexImage2D, PFNGLTEXPARAM2DPROC);
+        GET_PROC_ADDRESS(glGenBuffersARB, PFNGLGENBUFFERSPROC);
+        GET_PROC_ADDRESS(glDeleteBuffersARB, PFNGLDELETEBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindBufferARB, PFNGLBINDBUFFERPROC);
+        GET_PROC_ADDRESS(glBufferDataARB, PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glDrawRangeElements, PFNGLDRAWRANGEELEMENTSPROC);
+        GET_PROC_ADDRESS(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC);
+        GET_PROC_ADDRESS(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC);
+        GET_PROC_ADDRESS(glFramebufferTexture2D, PFNGLRENDERBUFFERTEXTURE2DPROC);
+        GET_PROC_ADDRESS(glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC);
+        GET_PROC_ADDRESS(glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC);
+        GET_PROC_ADDRESS(glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC);
+        GET_PROC_ADDRESS(glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC);
+        GET_PROC_ADDRESS(glBufferSubDataARB, PFNGLBUFFERSUBDATAPROC);
+        GET_PROC_ADDRESS(glMapBufferARB, PFNGLMAPBUFFERPROC);
+        GET_PROC_ADDRESS(glUnmapBufferARB, PFNGLUNMAPBUFFERPROC);
+        GET_PROC_ADDRESS(glActiveTexture, PFNGLACTIVETEXTUREPROC);
+        GET_PROC_ADDRESS(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+
+#undef GET_PROC_ADDRESS
+#endif
 
         glfwSetWindowTitle(params->m_Title);
         glfwSetWindowSizeCallback(OnWindowResize);
