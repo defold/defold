@@ -25,7 +25,7 @@ Here is a brief description of the format used in this tutorial:
 |+mono+   |user content, such as file names and user specified values.
 |============================================================================================
 
-If you haven't already, please http://www.defold.se/downloads/editor[download the editor].
+If you haven't already, please http://cr.defold.com/downloads/cr-editor/1.0[download the editor].
 
 NOTE: This tutorial contains mouse and keyboard input specific to Windows and Linux.
 If you use Mac, *right-click* means *Ctrl-click* and the *Cmd*-button
