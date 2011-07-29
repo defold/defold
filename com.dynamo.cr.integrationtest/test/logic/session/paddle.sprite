@@ -3,5 +3,5 @@ width: 100.0
 height: 20.0
 tile_width: 100
 tile_height: 20
-frames_per_row: 1
-frame_count: 1
+tiles_per_row: 1
+tile_count: 1

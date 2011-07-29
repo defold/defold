@@ -3,5 +3,5 @@ width: 25.0
 height: 25.0
 tile_width: 25
 tile_height: 25
-frames_per_row: 2
-frame_count: 2
+tiles_per_row: 2
+tile_count: 2
