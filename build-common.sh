@@ -38,20 +38,19 @@ function build {
 }
 
 function postbuild {
-    if [ ! -z $DEPLOY_DIRECTORY ]; then
+    # DEPLOY_PATHS is on format "host1:/path1 host2:/path2 ..."
+    for DEPLOY_PATH in $DEPLOY_PATHS
+    do
+        TMP=$(echo $DEPLOY_PATH | tr ":" "\n")
+        HOST_DIR=($TMP)
+        local HOST=${HOST_DIR[0]}
+        local DIR=${HOST_DIR[1]}
 
-        if [ $DEPLOY_DIRECTORY/repository -ef $DEPLOY_DIRECTORY/repository-a ]; then
-            rm -rf $DEPLOY_DIRECTORY/repository-b
-            mv ${BUILD_DIRECTORY}/repository $DEPLOY_DIRECTORY/repository-b
-            ln -sfn $DEPLOY_DIRECTORY/repository-b $DEPLOY_DIRECTORY/repository
-        else
-            rm -rf $DEPLOY_DIRECTORY/repository-a
-            mv ${BUILD_DIRECTORY}/repository $DEPLOY_DIRECTORY/repository-a
-            ln -sfn $DEPLOY_DIRECTORY/repository-a $DEPLOY_DIRECTORY/repository
-        fi
+        tar -C ${BUILD_DIRECTORY} -cvz - repository | ssh $HOST "rm -rf ${DIR}_tmp; mkdir -p ${DIR}_tmp; cd ${DIR}_tmp; tar xvfz -"
+        ssh $HOST "rm -rf ${DIR}; mv ${DIR}_tmp ${DIR}"
 
-        cp ${BUILD_DIRECTORY}/I.*/*.zip $DEPLOY_DIRECTORY
-        chmod 775 -R $DEPLOY_DIRECTORY/*
-    fi
+        scp ${BUILD_DIRECTORY}/I.*/*.zip $DEPLOY_PATH
+        ssh $HOST "chmod -R 775 ${DIR}"
+    done
 }
 
