@@ -19,7 +19,7 @@ namespace dmGameSystem
         }
         if (resource->m_DDF->m_TileCount == 0 || resource->m_DDF->m_TilesPerRow == 0)
         {
-            dmLogError("%s", "frame_count and frames_per_row must both be over 0");
+            dmLogError("%s", "tile_count and tiles_per_row must both be over 0");
             return false;
         }
         dmResource::FactoryResult fr = dmResource::Get(factory, resource->m_DDF->m_Texture, (void**)&resource->m_Texture);
