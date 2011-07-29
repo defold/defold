@@ -81,8 +81,10 @@ public class LaunchHandler extends AbstractHandler {
 
                     String[] args;
                     if (Activator.getPlatform().equals("darwin")) {
-                        command = "DMSOCKS_PROXY=" + socks_proxy + " " + command;
-                        command = "DMSOCKS_PROXY_PORT=" + socks_proxy_port + " " + command;
+                        if (socks_proxy.length() > 0) {
+                            command = "DMSOCKS_PROXY=" + socks_proxy + " " + command;
+                            command = "DMSOCKS_PROXY_PORT=" + socks_proxy_port + " " + command;
+                        }
                         command += " && exit";
                         args = new String[] {"osascript", "-e", "tell application \"Terminal\"\n do script \"" + command + '"' + "\nend tell"};
                     } else {
