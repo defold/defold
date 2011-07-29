@@ -10,10 +10,10 @@ message ConvexShape
 {
     enum Type
     {
-        TYPE_SPHERE = 1;
-        TYPE_BOX = 2;
-        TYPE_CAPSULE = 3;
-        TYPE_HULL = 4;
+        TYPE_SPHERE = 0;
+        TYPE_BOX = 1;
+        TYPE_CAPSULE = 2;
+        TYPE_HULL = 3;
     }
 
     required Type shape_type = 1;
