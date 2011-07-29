@@ -277,7 +277,8 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                             });
                             return false;
                         }
-                    } else if ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED) {
+                    } else if ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED
+                            && (delta.getFlags() & IResourceDelta.CONTENT) == IResourceDelta.CONTENT) {
                         IResource resource = delta.getResource();
                         if (resource.equals(input.getFile())) {
                             try {

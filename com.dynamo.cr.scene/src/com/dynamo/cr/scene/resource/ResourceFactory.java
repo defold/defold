@@ -103,7 +103,8 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
 
                     @Override
                     public boolean visit(IResourceDelta delta) {
-                        if ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED) {
+                        if ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED
+                                && (delta.getFlags() & IResourceDelta.CONTENT) == IResourceDelta.CONTENT) {
                             IPath path = delta.getResource().getProjectRelativePath();
                             Resource resource = resources.get(path);
                             if (resource != null) {
