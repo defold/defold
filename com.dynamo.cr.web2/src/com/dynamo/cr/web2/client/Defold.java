@@ -181,6 +181,25 @@ public class Defold implements EntryPoint {
         }
     }
 
+    //  NOTE: The account id is duplicated in Defold.html
+    class GoogleAnalyticsHandler implements PlaceChangeEvent.Handler {
+
+        private native void trackHit(String pageName) /*-{
+            try {
+                $wnd._gaq.push(['_setAccount', 'UA-83690-3']);
+                $wnd._gaq.push(['_setDomainName', 'www.defold.se']);
+                $wnd._gaq.push(['_trackPageview', pageName]);
+            } catch(err) {
+            }
+        }-*/;
+
+        @Override
+        public void onPlaceChange(PlaceChangeEvent event) {
+            String token = historyMapper.getToken(event.getNewPlace());
+            trackHit(token);
+        }
+    }
+
     @Override
     public void onModuleLoad() {
 
@@ -200,6 +219,9 @@ public class Defold implements EntryPoint {
         historyMapper = GWT.create(AppPlaceHistoryMapper.class);
         // NOTE: We must add this early in order to catch "first page"
         eventBus.addHandler(PlaceChangeEvent.TYPE, new NavigationHandler());
+
+        // Add google analytics handler
+        eventBus.addHandler(PlaceChangeEvent.TYPE, new GoogleAnalyticsHandler());
 
         PlaceHistoryHandler historyHandler = new PlaceHistoryHandler(historyMapper);
         historyHandler.register(placeController, eventBus, defaultPlace);
