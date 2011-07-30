@@ -15,6 +15,7 @@ public:
     dmHttpClient::HClient m_Client;
     std::map<std::string, std::string> m_Headers;
     std::string m_Content;
+    std::string m_ToPost;
     int m_StatusCode;
 
     static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
@@ -30,6 +31,20 @@ public:
         self->m_Content.append((const char*) content_data, content_data_size);
     }
 
+    static uint32_t HttpSendContentLength(dmHttpClient::HClient client, void* user_data)
+    {
+        dmHttpClientTest* self = (dmHttpClientTest*) user_data;
+        const char* s = self->m_ToPost.c_str();
+        return strlen(s);
+    }
+
+    static dmHttpClient::Result HttpWrite(dmHttpClient::HClient client, void* user_data)
+    {
+        dmHttpClientTest* self = (dmHttpClientTest*) user_data;
+        const char* s = self->m_ToPost.c_str();
+        return dmHttpClient::Write(client, s, strlen(s));
+    }
+
     virtual void SetUp()
     {
         int ret = system("python src/test/test_httpclient.py");
@@ -39,6 +54,8 @@ public:
         params.m_Userdata = this;
         params.m_HttpContent = dmHttpClientTest::HttpContent;
         params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+        params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
+        params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
         ASSERT_NE((void*) 0, m_Client);
     }
@@ -297,6 +314,30 @@ TEST_F(dmHttpClientTest, Test404)
         r = dmHttpClient::Get(m_Client, "/does_not_exists");
         ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_EQ(404, m_StatusCode);
+    }
+}
+
+TEST_F(dmHttpClientTest, Post)
+{
+    for (int i = 0; i < 27; ++i)
+    {
+        int n = (rand() % 123) + 171;
+        int sum = 0;
+        m_ToPost = "";
+
+        for (int j = 0; j < n; ++j) {
+            char buf[2] = { (rand() % 255) - 128, 0 };
+            m_ToPost.append(buf);
+            sum += buf[0];
+        }
+
+        dmHttpClient::Result r;
+        m_Content = "";
+        m_StatusCode = -1;
+        r = dmHttpClient::Post(m_Client, "/post");
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, m_StatusCode);
+        ASSERT_EQ(sum, atoi(m_Content.c_str()));
     }
 }
 

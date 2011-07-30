@@ -77,6 +77,8 @@ namespace dmHttpClient
         void*               m_Userdata;
         HttpContent         m_HttpContent;
         HttpHeader          m_HttpHeader;
+        HttpSendContentLength m_HttpSendContentLength;
+        HttpWrite           m_HttpWrite;
         int                 m_MaxGetRetries;
         Statistics          m_Statistics;
 
@@ -99,6 +101,8 @@ namespace dmHttpClient
     {
         params->m_HttpContent = &DefaultHttpContentData;
         params->m_HttpHeader = 0;
+        params->m_HttpSendContentLength = 0;
+        params->m_HttpWrite = 0;
         params->m_HttpCache = 0;
     }
 
@@ -132,6 +136,8 @@ namespace dmHttpClient
         client->m_Userdata = params->m_Userdata;
         client->m_HttpContent = params->m_HttpContent;
         client->m_HttpHeader = params->m_HttpHeader;
+        client->m_HttpSendContentLength = params->m_HttpSendContentLength;
+        client->m_HttpWrite = params->m_HttpWrite;
         client->m_MaxGetRetries = 4;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
@@ -333,6 +339,18 @@ namespace dmHttpClient
         return RESULT_OK;
     }
 
+    Result Write(HClient client, const void* buffer, uint32_t buffer_size)
+    {
+        dmSocket::Result sock_res = SendAll(client->m_Socket, (const char*) buffer, buffer_size);
+        if (sock_res != dmSocket::RESULT_OK)
+        {
+            client->m_SocketResult = sock_res;
+            return RESULT_SOCKET_ERROR;
+        }
+
+        return RESULT_OK;
+    }
+
 #define HTTP_CLIENT_SENDALL_AND_BAIL(s) \
 sock_res = SendAll(client->m_Socket, s, strlen(s));\
 if (sock_res != dmSocket::RESULT_OK)\
@@ -342,10 +360,13 @@ if (sock_res != dmSocket::RESULT_OK)\
 }\
 
 
-    static dmSocket::Result SendRequest(HClient client, const char* path)
+    static dmSocket::Result SendRequest(HClient client, const char* path, const char* method)
     {
         dmSocket::Result sock_res;
-        HTTP_CLIENT_SENDALL_AND_BAIL("GET ")
+        uint32_t send_content_length = 0;
+
+        HTTP_CLIENT_SENDALL_AND_BAIL(method);
+        HTTP_CLIENT_SENDALL_AND_BAIL(" ")
         HTTP_CLIENT_SENDALL_AND_BAIL(path)
         HTTP_CLIENT_SENDALL_AND_BAIL(" HTTP/1.1\r\n")
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: foo.com\r\n")
@@ -360,7 +381,25 @@ if (sock_res != dmSocket::RESULT_OK)\
                 HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
             }
         }
-        HTTP_CLIENT_SENDALL_AND_BAIL("\r\n\r\n")
+
+        if (strcmp(method, "POST") == 0) {
+            send_content_length = client->m_HttpSendContentLength(client, client->m_Userdata);
+            HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
+            char buf[64];
+            DM_SNPRINTF(buf, sizeof(buf), "%d", send_content_length);
+            HTTP_CLIENT_SENDALL_AND_BAIL(buf);
+            HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
+        }
+
+        HTTP_CLIENT_SENDALL_AND_BAIL("\r\n")
+
+        if (strcmp(method, "POST") == 0)
+        {
+            Result post_result = client->m_HttpWrite(client, client->m_Userdata);
+            if (post_result != RESULT_OK) {
+                goto bail;
+            }
+        }
 
         return sock_res;
 bail:
@@ -572,7 +611,7 @@ bail:
         return r;
     }
 
-    Result DoGet(HClient client, const char* path)
+    Result DoRequest(HClient client, const char* path, const char* method)
     {
         Response response(client);
         client->m_Statistics.m_Responses++;
@@ -583,7 +622,7 @@ bail:
             return r;
 
         dmSocket::Result sock_res;
-        sock_res = SendRequest(client, path);
+        sock_res = SendRequest(client, path, method);
 
         if (sock_res != dmSocket::RESULT_OK)
         {
@@ -675,7 +714,7 @@ bail:
         Result r;
         for (int i = 0; i < client->m_MaxGetRetries; ++i)
         {
-            r = DoGet(client, path);
+            r = DoRequest(client, path, "GET");
             if (r == RESULT_UNEXPECTED_EOF ||
                (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
@@ -687,6 +726,13 @@ bail:
                 return r;
             }
         }
+        return r;
+    }
+
+    Result Post(HClient client, const char* path)
+    {
+        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+        Result r = DoRequest(client, path, "POST");
         return r;
     }
 

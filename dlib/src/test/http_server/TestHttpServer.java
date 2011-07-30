@@ -90,6 +90,28 @@ public class TestHttpServer extends AbstractHandler
             response.getWriter().println(new String(buf, 0, n));
             r.close();
         }
+        else if (target.equals("/post")) {
+            baseRequest.setHandled(true);
+            if (!request.getMethod().equals("POST")) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST );
+                return;
+            }
+
+            InputStream is = request.getInputStream();
+            byte[] buf = new byte[1024];
+            int n = is.read(buf);
+            int sum = 0;
+            while (n != -1) {
+                for (int i = 0; i < n; ++i) {
+                    sum += buf[i];
+                }
+                n = is.read(buf);
+            }
+            is.close();
+
+            response.getWriter().println(sum);
+            response.setStatus(HttpServletResponse.SC_OK);
+        }
         // No match? Let ResourceHandler handle the request. See setup code.
     }
 

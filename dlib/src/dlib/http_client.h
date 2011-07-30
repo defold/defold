@@ -8,6 +8,23 @@
 namespace dmHttpClient
 {
     /**
+     * Result values
+     */
+    enum Result
+    {
+        RESULT_NOT_200_OK = 1,                    //!< RESULT_NOT_200_OK
+        RESULT_OK = 0,                            //!< RESULT_OK
+        RESULT_SOCKET_ERROR = -1,                 //!< RESULT_SOCKET_ERROR
+        RESULT_HTTP_HEADERS_ERROR = -2,           //!< RESULT_HTTP_HEADERS_ERROR
+        RESULT_INVALID_RESPONSE = -3,             //!< RESULT_INVALID_RESPONSE
+        RESULT_PARTIAL_CONTENT = -4,              //!< RESULT_PARTIAL_CONTENT
+        RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5,//!< RESULT_UNSUPPORTED_TRANSFER_ENCODING
+        RESULT_INVAL_ERROR = -6,                  //!< RESULT_INVAL_ERROR
+        RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
+        RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
+    };
+
+    /**
      * HTTP-client handle
      */
     typedef struct Client* HClient;
@@ -33,21 +50,20 @@ namespace dmHttpClient
     typedef void (*HttpContent)(HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size);
 
     /**
-     * Result values
+     * HTTP content-length callback. Invoked for POST-request prior to HttpWrite-callback to determine content-length
+     * @param client Client handle
+     * @param user_data User data
+     * @return Content length
      */
-    enum Result
-    {
-        RESULT_NOT_200_OK = 1,                    //!< RESULT_NOT_200_OK
-        RESULT_OK = 0,                            //!< RESULT_OK
-        RESULT_SOCKET_ERROR = -1,                 //!< RESULT_SOCKET_ERROR
-        RESULT_HTTP_HEADERS_ERROR = -2,           //!< RESULT_HTTP_HEADERS_ERROR
-        RESULT_INVALID_RESPONSE = -3,             //!< RESULT_INVALID_RESPONSE
-        RESULT_PARTIAL_CONTENT = -4,              //!< RESULT_PARTIAL_CONTENT
-        RESULT_UNSUPPORTED_TRANSFER_ENCODING = -5,//!< RESULT_UNSUPPORTED_TRANSFER_ENCODING
-        RESULT_INVAL_ERROR = -6,                  //!< RESULT_INVAL_ERROR
-        RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
-        RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
-    };
+    typedef uint32_t (*HttpSendContentLength)(HClient client, void* user_data);
+
+    /**
+     * HTTP-post callback. Invoked for POST method. The function invokes the Write function to POST data.
+     * @param client Client handle
+     * @param user_data User data
+     * @return The callback should return the value returned from the Write function
+     */
+    typedef Result (*HttpWrite)(HClient client, void* user_data);
 
     /**
      * HTTP-client options
@@ -76,8 +92,14 @@ namespace dmHttpClient
         //// HTTP-content callback
         HttpContent m_HttpContent;
 
-        /// HTTP-header handle
+        /// HTTP-header callback
         HttpHeader  m_HttpHeader;
+
+        /// HTTP send content-length callback
+        HttpSendContentLength m_HttpSendContentLength;
+
+        /// HTTP-write callback
+        HttpWrite    m_HttpWrite;
 
         /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
         dmHttpCache::HCache m_HttpCache;
@@ -131,6 +153,23 @@ namespace dmHttpClient
      * @return RESULT_OK on success
      */
     Result Get(HClient client, const char* path);
+
+    /**
+     * HTTP POST-request
+     * @param client Client handle
+     * @param path Path part of URI
+     * @return RESULT_OK on success
+     */
+    Result Post(HClient client, const char* path);
+
+    /**
+     * Write data. Called from HttpWrite-callback to write POST-data
+     * @param client Client handle
+     * @param buffer Buffer
+     * @param buffer_size Buffer size
+     * @return RESULT_OK on success
+     */
+    Result Write(HClient client, const void* buffer, uint32_t buffer_size);
 
     /**
      * Get HTTP-client statistics
