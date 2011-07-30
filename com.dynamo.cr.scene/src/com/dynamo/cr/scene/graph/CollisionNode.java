@@ -28,41 +28,41 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
         };
     }
 
-    private boolean invalid = false;
-
     public CollisionNode(String identifier, CollisionResource collisionResource, Scene scene) {
         super(identifier, collisionResource, scene);
 
-        ConvexShape shape = collisionResource.getConvexShapeResource().getConvexShape();
-        if (shape != null) {
-            if (shape.getShapeType() == ConvexShape.Type.TYPE_BOX) {
-                float w_e = shape.getData(0);
-                float h_e = shape.getData(1);
-                float d_e = shape.getData(2);
-                m_AABB.union(-w_e, -h_e, -d_e);
-                m_AABB.union(w_e, h_e, d_e);
-            } else if (shape.getShapeType() == ConvexShape.Type.TYPE_SPHERE) {
-                float r = shape.getData(0);
-                m_AABB.union(-r, -r, -r);
-                m_AABB.union(r, r, r);
-            } else if (shape.getShapeType() == ConvexShape.Type.TYPE_CAPSULE) {
-                float r = shape.getData(0);
-                float h = shape.getData(1);
-                m_AABB.union(0, h, 0);
-                m_AABB.union(0, -h, 0);
-                m_AABB.union(r, 0, r);
-                m_AABB.union(-r, 0, -r);
-            }
-            else {
-                // TODO: Still lacking support for hull
-                System.err.println("Warning: Unsupported shape type: " + shape.getShapeType());
+        if (collisionResource.getConvexShapeResource() == null) {
+            setError(ERROR_FLAG_RESOURCE_ERROR, "The convex shape resource '" + collisionResource.getCollisionDesc().getCollisionShape() + "' could not be loaded.");
+        } else {
+            ConvexShape shape = collisionResource.getConvexShapeResource().getConvexShape();
+            if (shape != null) {
+                if (shape.getShapeType() == ConvexShape.Type.TYPE_BOX) {
+                    float w_e = shape.getData(0);
+                    float h_e = shape.getData(1);
+                    float d_e = shape.getData(2);
+                    m_AABB.union(-w_e, -h_e, -d_e);
+                    m_AABB.union(w_e, h_e, d_e);
+                } else if (shape.getShapeType() == ConvexShape.Type.TYPE_SPHERE) {
+                    float r = shape.getData(0);
+                    m_AABB.union(-r, -r, -r);
+                    m_AABB.union(r, r, r);
+                } else if (shape.getShapeType() == ConvexShape.Type.TYPE_CAPSULE) {
+                    float r = shape.getData(0);
+                    float h = shape.getData(1);
+                    m_AABB.union(0, h, 0);
+                    m_AABB.union(0, -h, 0);
+                    m_AABB.union(r, 0, r);
+                    m_AABB.union(-r, 0, -r);
+                } else {
+                    setError(ERROR_FLAG_RESOURCE_ERROR, "Unsupported shape type: " + shape.getShapeType());
+                }
             }
         }
     }
 
     @Override
     public void draw(DrawContext context) {
-        if (invalid)
+        if (!isOk())
             return;
 
         GL gl = context.m_GL;
@@ -141,10 +141,6 @@ public class CollisionNode extends ComponentNode<CollisionResource> {
                 gl.glColor4fv(Constants.CONVEX_SHAPE_COLOR, 0);
                 GLUtil.drawCapsule(gl, glu, r, h, slices, stacks);
             }
-        }
-        else {
-            System.err.println("Warning: Unsupported shape type: " + shape.getShapeType());
-            invalid = true;
         }
 
         gl.glPopAttrib();

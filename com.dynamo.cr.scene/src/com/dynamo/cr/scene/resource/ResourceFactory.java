@@ -50,7 +50,11 @@ public class ResourceFactory implements IResourceFactory, IResourceChangeListene
     public Resource load(IProgressMonitor monitor, String path)
             throws IOException, CreateException, CoreException {
         IFile file = getFile(path);
-        return load(monitor, path, file.getContents());
+        if (file.exists()) {
+            return load(monitor, path, file.getContents());
+        } else {
+            return null;
+        }
     }
 
     @Override
