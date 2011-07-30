@@ -187,6 +187,11 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
             IGuiRenderer renderer) throws GLException, IOException, CoreException {
         IFile textureFile = contentRoot.getFile(new Path(textureDesc.getTexture()));
 
+        if (!textureFile.exists()) {
+            textureDesc.setTextureResource(null);
+            return;
+        }
+
         long lastModified = textureFile.getModificationStamp();
         if (lastModified == textureDesc.getLastModified())
             return;
@@ -605,11 +610,16 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
 
                 @Override
                 public boolean visit(IResourceDelta delta) throws CoreException {
-                    IResource resource = delta.getResource();
-                    if (resource != null) {
-                        if (referredResources.contains(resource)) {
-                            doReload[0] = true;
-                            return false;
+                    // Only reload if change is added, removed or content-change
+                    if ((delta.getKind() & (IResourceDelta.ADDED | IResourceDelta.REMOVED)) != 0
+                            || ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED
+                                    && (delta.getFlags() & IResourceDelta.CONTENT) == IResourceDelta.CONTENT)) {
+                        IResource resource = delta.getResource();
+                        if (resource != null) {
+                            if (referredResources.contains(resource)) {
+                                doReload[0] = true;
+                                return false;
+                            }
                         }
                     }
                     return true;

@@ -27,6 +27,13 @@ import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceChangeEvent;
+import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -91,7 +98,7 @@ import com.google.protobuf.TextFormat;
 
 public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         MouseMoveListener, Listener, IOperationHistoryListener,
-        IGuiSceneListener, ISelectionListener, KeyListener {
+        IGuiSceneListener, ISelectionListener, KeyListener, IResourceChangeListener {
 
     private GLCanvas canvas;
     private GLContext context;
@@ -110,6 +117,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     private GuiRenderer renderer;
     private GuiEditorOutlinePage outlinePage;
     private int undoRedoCounter = 0;
+    private boolean inSave = false;
 
     public GuiEditor() {
         selectionProvider = new GuiSelectionProvider();
@@ -142,6 +150,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     public void doSave(IProgressMonitor monitor) {
 
         IFileEditorInput i = (IFileEditorInput) getEditorInput();
+        this.inSave = true;
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
 
@@ -162,6 +171,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                     e.getMessage(), null);
             ErrorDialog.openError(Display.getCurrent().getActiveShell(),
                     "Unable to save file", "Unable to save file", status);
+        } finally {
+            this.inSave = false;
         }
     }
 
@@ -222,6 +233,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     @Override
     public void init(IEditorSite site, IEditorInput input)
             throws PartInitException {
+        ResourcesPlugin.getWorkspace().addResourceChangeListener(this);
+
         setSite(site);
         setInput(input);
         setPartName(input.getName());
@@ -294,6 +307,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         if (guiScene != null) {
             guiScene.removeGuiSceneListener(this);
         }
+        ResourcesPlugin.getWorkspace().removeResourceChangeListener(this);
     }
 
     @Override
@@ -397,31 +411,33 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     }
 
     private void paint() {
-        canvas.setCurrent();
-        context.makeCurrent();
-        GL gl = context.getGL();
-        GLU glu = new GLU();
-        try {
-            gl.glDisable(GL.GL_LIGHTING);
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
-            gl.glDisable(GL.GL_DEPTH_TEST);
+        if (!canvas.isDisposed()) {
+            canvas.setCurrent();
+            context.makeCurrent();
+            GL gl = context.getGL();
+            GLU glu = new GLU();
+            try {
+                gl.glDisable(GL.GL_LIGHTING);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+                gl.glDisable(GL.GL_DEPTH_TEST);
 
-            gl.glMatrixMode(GL.GL_PROJECTION);
-            gl.glLoadIdentity();
-            glu.gluOrtho2D(0, viewPort[2], 0, viewPort[3]);
-            gl.glViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3]);
+                gl.glMatrixMode(GL.GL_PROJECTION);
+                gl.glLoadIdentity();
+                glu.gluOrtho2D(0, viewPort[2], 0, viewPort[3]);
+                gl.glViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3]);
 
-            gl.glMatrixMode(GL.GL_MODELVIEW);
-            gl.glLoadIdentity();
-            gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
-            gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+                gl.glMatrixMode(GL.GL_MODELVIEW);
+                gl.glLoadIdentity();
+                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
+                gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
-            doDraw(gl);
-        } catch (Throwable e) {
-            e.printStackTrace();
-        } finally {
-            canvas.swapBuffers();
-            context.release();
+                doDraw(gl);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            } finally {
+                canvas.swapBuffers();
+                context.release();
+            }
         }
     }
 
@@ -641,8 +657,10 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
                 @Override
                 public void run() {
-                    paint();
-                    canvas.update();
+                    if (!canvas.isDisposed()) {
+                        paint();
+                        canvas.update();
+                    }
                     redrawPosted = false;
                 }
             });
@@ -749,6 +767,63 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                 selectionProvider.setSelectionNoFireEvent(nodes);
                 postRedraw();
             }
+        }
+    }
+
+    @Override
+    public void resourceChanged(IResourceChangeEvent event) {
+        if (this.inSave)
+            return;
+
+        final IFileEditorInput input = (IFileEditorInput) getEditorInput();
+        try {
+            event.getDelta().accept(new IResourceDeltaVisitor() {
+
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    if ((delta.getKind() & IResourceDelta.REMOVED) == IResourceDelta.REMOVED) {
+                        IResource resource = delta.getResource();
+                        if (resource.equals(input.getFile())) {
+                            getSite().getShell().getDisplay().asyncExec(new Runnable() {
+                                @Override
+                                public void run() {
+                                    getSite().getPage().closeEditor(GuiEditor.this, false);
+                                }
+                            });
+                            return false;
+                        }
+                    } else if ((delta.getKind() & IResourceDelta.CHANGED) == IResourceDelta.CHANGED
+                            && (delta.getFlags() & IResourceDelta.CONTENT) == IResourceDelta.CONTENT) {
+                        IResource resource = delta.getResource();
+                        if (resource.equals(input.getFile())) {
+                            try {
+                                guiScene.removeGuiSceneListener(GuiEditor.this);
+
+                                IProgressService service = PlatformUI.getWorkbench().getProgressService();
+                                Loader loader = new Loader(input.getFile());
+                                try {
+                                    service.runInUI(service, loader, null);
+                                    if (loader.exception != null) {
+                                        throw new PartInitException(loader.exception.getMessage(),
+                                                loader.exception);
+                                    }
+                                } catch (Throwable e) {
+                                    throw new PartInitException(e.getMessage(), e);
+                                }
+
+                                guiScene.addGuiSceneListener(GuiEditor.this);
+                                postRedraw();
+
+                            } catch (CoreException e) {
+                                throw new PartInitException(e.getMessage(), e);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            });
+        } catch (CoreException e) {
+            e.printStackTrace();
         }
     }
 

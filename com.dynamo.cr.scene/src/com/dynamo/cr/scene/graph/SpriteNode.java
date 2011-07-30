@@ -32,6 +32,9 @@ public class SpriteNode extends ComponentNode<SpriteResource> {
         float height = spriteResource.getSpriteDesc().getHeight();
         m_AABB.union(-width/2, -height/2, 0);
         m_AABB.union(width/2, height/2, 0);
+        if (spriteResource.getTextureResource() == null) {
+            setError(ERROR_FLAG_RESOURCE_ERROR, "The sprite texture '" + spriteResource.getSpriteDesc().getTexture() + "' could not be loaded.");
+        }
     }
 
     @Override

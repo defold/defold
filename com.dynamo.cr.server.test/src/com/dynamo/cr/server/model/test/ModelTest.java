@@ -268,6 +268,10 @@ public class ModelTest {
         List<Project> carlsProjects = q.getResultList();
 
         Project p = carlsProjects.get(0);
+
+        User lisa = ModelUtil.findUserByEmail(em, LISA_USER_EMAIL);
+        ModelUtil.removeMember(p, lisa);
+
         em.getTransaction().begin();
         ModelUtil.removeProject(em, p);
         em.getTransaction().commit();
@@ -288,4 +292,5 @@ public class ModelTest {
         allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
         assertEquals(1, allProjects.size());
     }
+
 }
