@@ -19,6 +19,16 @@ namespace dmGameSystem
     static const uint32_t MAX_COLLISION_COUNT = 64;
     static const uint32_t MAX_CONTACT_COUNT = 128;
 
+    struct World
+    {
+        uint64_t m_Groups[16];
+        union
+        {
+            dmPhysics::HWorld2D m_World2D;
+            dmPhysics::HWorld3D m_World3D;
+        };
+    };
+
     struct Component
     {
         CollisionObjectResource* m_Resource;
@@ -53,20 +63,25 @@ namespace dmGameSystem
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        World* world = new World();
+        memset(world, 0, sizeof(World));
         if (physics_context->m_3D)
-            *params.m_World = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
+            world->m_World3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
         else
-            *params.m_World = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
+            world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
+        *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollisionObjectDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        World* world = (World*)params.m_World;
         if (physics_context->m_3D)
-            dmPhysics::DeleteWorld3D(physics_context->m_Context3D, (dmPhysics::HWorld3D)params.m_World);
+            dmPhysics::DeleteWorld3D(physics_context->m_Context3D, world->m_World3D);
         else
-            dmPhysics::DeleteWorld2D(physics_context->m_Context2D, (dmPhysics::HWorld2D)params.m_World);
+            dmPhysics::DeleteWorld2D(physics_context->m_Context2D, world->m_World2D);
+        delete world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -91,23 +106,72 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    uint16_t GetGroupBitIndex(World* world, uint64_t group_hash)
+    {
+        if (group_hash != 0)
+        {
+            for (uint32_t i = 0; i < 16; ++i)
+            {
+                if (world->m_Groups[i] != 0)
+                {
+                    if (world->m_Groups[i] == group_hash)
+                    {
+                        return 1 << i;
+                    }
+                }
+                else
+                {
+                    world->m_Groups[i] = group_hash;
+                    return 1 << i;
+                }
+            }
+            // When we get here, there are no more group bits available
+            const void* group = dmHashReverse64(group_hash, 0x0);
+            if (group != 0x0)
+            {
+                dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", (const char*)group);
+            }
+        }
+        return 0;
+    }
+
+    uint64_t GetLSBGroupHash(World* world, uint16_t mask)
+    {
+        if (mask > 0)
+        {
+            uint32_t index = 0;
+            while ((mask & 1) == 0)
+            {
+                mask >>= 1;
+                ++index;
+            }
+            return world->m_Groups[index];
+        }
+        return 0;
+    }
+
     dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = (Component*) *params.m_UserData;
         if (component->m_Object2D == 0)
         {
+            World* world = (World*)params.m_World;
             dmPhysics::CollisionObjectData data;
             data.m_UserData = params.m_Instance;
             data.m_Type = (dmPhysics::CollisionObjectType)component->m_Resource->m_DDF->m_Type;
             data.m_Mass = component->m_Resource->m_DDF->m_Mass;
             data.m_Friction = component->m_Resource->m_DDF->m_Friction;
             data.m_Restitution = component->m_Resource->m_DDF->m_Restitution;
-            data.m_Group = component->m_Resource->m_DDF->m_Group;
-            data.m_Mask = component->m_Resource->m_Mask;
+            data.m_Group = GetGroupBitIndex(world, component->m_Resource->m_Group);
+            data.m_Mask = 0;
+            for (uint32_t i = 0; i < 16 && component->m_Resource->m_Mask[i] != 0; ++i)
+            {
+                data.m_Mask |= GetGroupBitIndex(world, component->m_Resource->m_Mask[i]);
+            }
             if (physics_context->m_3D)
             {
-                dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) params.m_World;
+                dmPhysics::HWorld3D physics_world = world->m_World3D;
                 component->m_Object3D = dmPhysics::NewCollisionObject3D(physics_world, data, component->m_Resource->m_ConvexShape->m_Shape3D);
                 if (component->m_Object3D != 0x0)
                 {
@@ -116,7 +180,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) params.m_World;
+                dmPhysics::HWorld2D physics_world = world->m_World2D;
                 component->m_Object2D = dmPhysics::NewCollisionObject2D(physics_world, data, component->m_Resource->m_ConvexShape->m_Shape2D);
                 if (component->m_Object2D != 0x0)
                 {
@@ -132,11 +196,12 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         Component* component = (Component*)*params.m_UserData;
+        World* world = (World*)params.m_World;
         if (physics_context->m_3D)
         {
             if (component->m_Object3D != 0)
             {
-                dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) params.m_World;
+                dmPhysics::HWorld3D physics_world = world->m_World3D;
                 dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
                 component->m_Object3D = 0;
             }
@@ -145,7 +210,7 @@ namespace dmGameSystem
         {
             if (component->m_Object2D != 0)
             {
-                dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) params.m_World;
+                dmPhysics::HWorld2D physics_world = world->m_World2D;
                 dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
                 component->m_Object2D = 0;
             }
@@ -153,12 +218,18 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    struct CollisionUserData
+    {
+        World* m_World;
+        uint32_t m_Count;
+    };
+
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
-        uint32_t* count = (uint32_t*)user_data;
-        if (*count < MAX_COLLISION_COUNT)
+        CollisionUserData* cud = (CollisionUserData*)user_data;
+        if (cud->m_Count < MAX_COLLISION_COUNT)
         {
-            *count += 1;
+            cud->m_Count += 1;
 
             dmGameObject::HInstance instance_a = (dmGameObject::HInstance)user_data_a;
             dmGameObject::HInstance instance_b = (dmGameObject::HInstance)user_data_b;
@@ -171,7 +242,7 @@ namespace dmGameSystem
             dmMessage::URL receiver;
 
             // Broadcast to A components
-            ddf.m_Group = group_b;
+            ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_OtherId = instance_b_id;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
@@ -182,7 +253,7 @@ namespace dmGameSystem
             }
 
             // Broadcast to B components
-            ddf.m_Group = group_a;
+            ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
@@ -202,10 +273,10 @@ namespace dmGameSystem
 
     bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
     {
-        uint32_t* count = (uint32_t*)user_data;
-        if (*count < MAX_CONTACT_COUNT)
+        CollisionUserData* cud = (CollisionUserData*)user_data;
+        if (cud->m_Count < MAX_CONTACT_COUNT)
         {
-            *count += 1;
+            cud->m_Count += 1;
 
             dmGameObject::HInstance instance_a = (dmGameObject::HInstance)contact_point.m_UserDataA;
             dmGameObject::HInstance instance_b = (dmGameObject::HInstance)contact_point.m_UserDataB;
@@ -231,7 +302,7 @@ namespace dmGameSystem
             ddf.m_OtherMass = mass_b;
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_b);
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-            ddf.m_Group = contact_point.m_GroupB;
+            ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
             receiver.m_Path = instance_a_id;
             dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
@@ -250,7 +321,7 @@ namespace dmGameSystem
             ddf.m_OtherMass = mass_a;
             ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-            ddf.m_Group = contact_point.m_GroupA;
+            ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
             receiver.m_Path = instance_b_id;
             result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size);
@@ -270,15 +341,31 @@ namespace dmGameSystem
     static bool g_CollisionOverflowWarning = false;
     static bool g_ContactOverflowWarning = false;
 
+    struct RayCastUserData
+    {
+        dmGameObject::HInstance m_Instance;
+        World* m_World;
+    };
+
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request)
     {
         if (response.m_Hit)
         {
             dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+            uint32_t type;
+            dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
+            if (fact_result != dmResource::FACTORY_RESULT_OK)
+            {
+                dmLogError("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
+                return;
+            }
+            World* world = (World*)dmGameObject::FindWorld(collection, type);
+
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
             ddf.m_Id = dmGameObject::GetIdentifier((dmGameObject::HInstance)response.m_CollisionObjectUserData);
-            ddf.m_Group = response.m_CollisionObjectGroup;
+            ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
             ddf.m_Position = response.m_Position;
             ddf.m_Normal = response.m_Normal;
             dmhash_t message_id = dmHashString64(dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_Name);
@@ -346,18 +433,16 @@ namespace dmGameSystem
                         dmLogError("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
                         context->m_Success = false;
                     }
-                    void* world = dmGameObject::FindWorld(collection, type);
+                    World* world = (World*)dmGameObject::FindWorld(collection, type);
                     if (world != 0x0)
                     {
                         if (context->m_PhysicsContext->m_3D)
                         {
-                            dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) world;
-                            dmPhysics::RequestRayCast3D(physics_world, request);
+                            dmPhysics::RequestRayCast3D(world->m_World3D, request);
                         }
                         else
                         {
-                            dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) world;
-                            dmPhysics::RequestRayCast2D(physics_world, request);
+                            dmPhysics::RequestRayCast2D(world->m_World2D, request);
                         }
                     }
                     else
@@ -397,23 +482,28 @@ namespace dmGameSystem
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
-        uint32_t collision_count = 0;
-        uint32_t contact_count = 0;
+        World* world = (World*)params.m_World;
+        CollisionUserData collision_user_data;
+        collision_user_data.m_World = world;
+        collision_user_data.m_Count = 0;
+        CollisionUserData contact_user_data;
+        contact_user_data.m_World = world;
+        contact_user_data.m_Count = 0;
         if (physics_context->m_3D)
         {
-            dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) params.m_World;
-            dmPhysics::SetCollisionCallback3D(physics_world, CollisionCallback, &collision_count);
-            dmPhysics::SetContactPointCallback3D(physics_world, ContactPointCallback, &contact_count);
+            dmPhysics::HWorld3D physics_world = world->m_World3D;
+            dmPhysics::SetCollisionCallback3D(physics_world, CollisionCallback, &collision_user_data);
+            dmPhysics::SetContactPointCallback3D(physics_world, ContactPointCallback, &contact_user_data);
             dmPhysics::StepWorld3D(physics_world, params.m_UpdateContext->m_DT);
         }
         else
         {
-            dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) params.m_World;
-            dmPhysics::SetCollisionCallback2D(physics_world, CollisionCallback, &collision_count);
-            dmPhysics::SetContactPointCallback2D(physics_world, ContactPointCallback, &contact_count);
+            dmPhysics::HWorld2D physics_world = world->m_World2D;
+            dmPhysics::SetCollisionCallback2D(physics_world, CollisionCallback, &collision_user_data);
+            dmPhysics::SetContactPointCallback2D(physics_world, ContactPointCallback, &contact_user_data);
             dmPhysics::StepWorld2D(physics_world, params.m_UpdateContext->m_DT);
         }
-        if (collision_count >= 128)
+        if (collision_user_data.m_Count >= 128)
         {
             if (!g_CollisionOverflowWarning)
             {
@@ -425,7 +515,7 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_count >= 128)
+        if (contact_user_data.m_Count >= 128)
         {
             if (!g_ContactOverflowWarning)
             {
@@ -440,9 +530,9 @@ namespace dmGameSystem
         if (physics_context->m_Debug)
         {
             if (physics_context->m_3D)
-                dmPhysics::DrawDebug3D((dmPhysics::HWorld3D)params.m_World);
+                dmPhysics::DrawDebug3D(world->m_World3D);
             else
-                dmPhysics::DrawDebug2D((dmPhysics::HWorld2D)params.m_World);
+                dmPhysics::DrawDebug2D(world->m_World2D);
         }
         return result;
     }
@@ -493,6 +583,7 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionObjectResource* co_resource = (CollisionObjectResource*) params.m_Resource;
+        World* world = (World*)params.m_World;
         Component* component = (Component*)*params.m_UserData;
         dmPhysics::CollisionObjectData data;
         data.m_UserData = params.m_Instance;
@@ -500,12 +591,16 @@ namespace dmGameSystem
         data.m_Mass = co_resource->m_DDF->m_Mass;
         data.m_Friction = co_resource->m_DDF->m_Friction;
         data.m_Restitution = co_resource->m_DDF->m_Restitution;
-        data.m_Group = co_resource->m_DDF->m_Group;
-        data.m_Mask = co_resource->m_Mask;
+        data.m_Group = GetGroupBitIndex(world, co_resource->m_Group);
+        data.m_Mask = 0;
+        for (uint32_t i = 0; i < 16 && co_resource->m_Mask[i] != 0; ++i)
+        {
+            data.m_Mask |= GetGroupBitIndex(world, co_resource->m_Mask[i]);
+        }
         bool result = false;
         if (physics_context->m_3D)
         {
-            dmPhysics::HWorld3D physics_world = (dmPhysics::HWorld3D) params.m_World;
+            dmPhysics::HWorld3D physics_world = world->m_World3D;
             dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(physics_world, data, co_resource->m_ConvexShape->m_Shape3D);
             if (collision_object != 0x0)
             {
@@ -516,7 +611,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmPhysics::HWorld2D physics_world = (dmPhysics::HWorld2D) params.m_World;
+            dmPhysics::HWorld2D physics_world = world->m_World2D;
             dmPhysics::HCollisionObject2D collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, co_resource->m_ConvexShape->m_Shape2D);
             if (collision_object != 0x0)
             {
@@ -527,5 +622,10 @@ namespace dmGameSystem
         }
         if (!result)
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
+    }
+
+    uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)
+    {
+        return GetGroupBitIndex((World*)world, group_hash);
     }
 }

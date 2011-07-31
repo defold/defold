@@ -61,6 +61,8 @@ namespace dmGameSystem
 
     void RegisterDDFTypes(dmScript::HContext script_context);
 
+    void RegisterLibs(lua_State* L);
+
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
         GuiContext* gui_context,

@@ -363,6 +363,9 @@ namespace dmEngine
         if (engine->m_RenderScriptPrototype)
             InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
 
+        dmGameSystem::RegisterLibs(dmGameObject::GetLuaState());
+        dmGameSystem::RegisterLibs(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
+
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
             goto bail;

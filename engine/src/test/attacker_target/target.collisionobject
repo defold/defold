@@ -3,5 +3,5 @@ type: COLLISION_OBJECT_TYPE_KINEMATIC
 mass: 0.0
 friction: 0.0
 restitution: 0.0
-group: 2
-mask: 1
+group: "target"
+mask: "attacker"

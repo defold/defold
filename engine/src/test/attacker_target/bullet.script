@@ -1,7 +1,6 @@
 function init(self)
     -- properties
-    self.group = 1
-    self.mask = 2
+    self.target_group = hash("target")
     self.speed = 18
     self.impact_damage = 0.2
     self.hit_response = nil
@@ -25,7 +24,7 @@ function update(self, dt)
         local next_pos = pos + dp
         go.set_position(pos)
         -- request ray cast
-        msg.post("@physics:", "request_ray_cast", {from = prev_pos, to = next_pos, ignored_id = go.get_id(), mask = self.mask})
+        physics.ray_cast(prev_pos, next_pos, {self.target_group})
     end
     if expired then
         go.delete()
@@ -33,7 +32,7 @@ function update(self, dt)
 end
 
 function on_message(self, message_id, message)
-    if message_id == hash("ray_cast_response") then
+    if message_id == hash("ray_cast_response") and message.group == self.target_group then
         self.hit_response = message
     end
 end

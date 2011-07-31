@@ -50,8 +50,8 @@ message CollisionObjectDesc
     required float                  mass            = 3;
     required float                  friction        = 4;
     required float                  restitution     = 5;
-    required uint32                 group           = 6;
-    repeated uint32                 mask            = 7;
+    required string                 group           = 6;
+    repeated string                 mask            = 7;
 }
 
 /*# applies a force on a collision object
@@ -104,7 +104,7 @@ message ApplyForce
 message CollisionResponse
 {
     required uint64 other_id    = 1;
-    required uint32 group       = 2;
+    required uint64 group       = 2;
 }
 
 /*# reports a contact point between two collision objects
@@ -155,7 +155,7 @@ message ContactPointResponse
     required float          other_mass              = 8;
     required uint64         other_id                = 9;
     required dmMath.Point3  other_position          = 10;
-    required uint32         group                   = 11;
+    required uint64         group                   = 11;
 }
 
 /*# requests a ray cast to be performed
@@ -201,7 +201,7 @@ message RequestRayCast
  * @param position the world position of the hit
  * @param normal the normal of the surface of the collision object where it was hit
  * @param id the instance id of the hit collision object
- * @param group the collision group of the hit collision object
+ * @param group the collision group of the hit collision object as a hashed name
  */
 message RayCastResponse
 {
@@ -209,7 +209,7 @@ message RayCastResponse
     required dmMath.Point3  position        = 2;
     required dmMath.Vector3 normal          = 3;
     required uint64         id              = 4;
-    required uint32         group           = 5;
+    required uint64         group           = 5;
 }
 
 /*# requests the velocity of a collision object

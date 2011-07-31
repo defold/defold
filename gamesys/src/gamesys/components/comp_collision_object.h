@@ -24,6 +24,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params);
+
+    uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
