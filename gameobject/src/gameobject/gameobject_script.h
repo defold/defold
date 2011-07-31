@@ -69,6 +69,8 @@ namespace dmGameObject
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
+
+    extern lua_State* g_LuaState;
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

@@ -690,6 +690,8 @@ namespace dmGameObject
      * @return Result
      */
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist);
+
+    lua_State* GetLuaState();
 }
 
 #endif // GAMEOBJECT_H
