@@ -1,13 +1,18 @@
 package com.dynamo.cr.server;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -231,6 +236,55 @@ public class Server implements ServerMBean {
             public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
                 if (baseRequest.isHandled())
                     return;
+
+                if (target.equals("/__verify_etags__")) {
+                    baseRequest.setHandled(true);
+
+                    if (!request.getMethod().equals("POST")) {
+                        response.setStatus(HttpServletResponse.SC_BAD_REQUEST );
+                        return;
+                    }
+
+                    StringBuffer responseBuffer = new StringBuffer();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(request.getInputStream()));
+
+                    try {
+                        String line = reader.readLine();
+                        while (line != null) {
+                            int i = line.indexOf(' ');
+                            URI uri;
+                            try {
+                                uri = new URI(URLDecoder.decode(line.substring(0, i), "UTF-8"));
+                                uri = uri.normalize(); // http://foo.com//a -> http://foo.com/a
+                            } catch (URISyntaxException e) {
+                                logger.warn(e.getMessage(), e);
+                                continue;
+                            }
+
+                            String etag = line.substring(i + 1);
+                            String fileName = uri.getPath().substring(1);
+                            File file = new File(fileName);
+                            if (file.exists()) {
+                                String thisEtag = etagCache.getETag(file);
+                                if (etag.equals(thisEtag)) {
+                                    responseBuffer.append(line.substring(0, i));
+                                    responseBuffer.append('\n');
+                                }
+                            }
+                            else {
+                                logger.warn("File doesn't exists {}", fileName);
+                            }
+
+                            line = reader.readLine();
+                        }
+                    } finally {
+                        reader.close();
+                    }
+
+                    response.getWriter().print(responseBuffer);
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    return;
+                }
 
                 String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
                 if (ifNoneMatch != null) {

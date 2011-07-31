@@ -47,6 +47,7 @@ public class ETagCache {
                 md.update(buffer, 0, n);
                 n = is.read(buffer);
             }
+            is.close();
             return HexUtils.convert(md.digest());
 
         } catch (IOException e) {
