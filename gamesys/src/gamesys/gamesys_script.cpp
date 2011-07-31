@@ -25,6 +25,7 @@ namespace dmGameSystem
      * @param from the world position of the start of the ray (vector3)
      * @param to the world position of the end of the ray (vector3)
      * @param groups a lua table containing the hashed groups for which to test collisions against
+     * @param [request_id] a number between 0-255 that will be sent back in the response for identification, 0 by default
      * @examples
      * How to perform a ray cast:
      * <pre>
@@ -74,6 +75,15 @@ namespace dmGameSystem
             {
                 request.m_Mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
                 lua_pop(L, 1);
+            }
+            request.m_RequestId = 0;
+            if (top > 3)
+            {
+                request.m_RequestId = luaL_checkinteger(L, 4);
+                if (request.m_RequestId > 255)
+                {
+                    return luaL_error(L, "request_id must be between 0-255");
+                }
             }
             dmMessage::URL receiver;
             receiver.m_Socket = g_PhysicsSocket;

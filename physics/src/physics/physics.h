@@ -595,7 +595,7 @@ namespace dmPhysics
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
         /// User supplied id to identify this query when the response is handled
-        uint8_t m_UserId;
+        uint16_t m_UserId;
     };
 
     /**
