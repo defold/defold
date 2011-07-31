@@ -255,7 +255,7 @@ To check for such a message, change the function to look like this and save the 
 ----
 function on_message(self, message_id, message, sender)
     -- check for contact points
-    if message_id == hash("contact_point_message") then
+    if message_id == hash("contact_point_response") then
         -- play sound
         msg.post("#thud", "play_sound")
     end
@@ -281,7 +281,7 @@ Change +on_message+ to look like this:
 function on_message(self, message_id, message, sender)
     -- check for contact points
     -- *and* that the impact in them is hard enough
-    if message_id == hash("contact_point_message") and message.applied_impulse > 1 then
+    if message_id == hash("contact_point_response") and message.applied_impulse > 1 then
         -- play sound
         msg.post("#thud", "play_sound")
     end
@@ -328,7 +328,7 @@ function on_message(self, message_id, message, sender)
     -- check for contact points
     -- *and* that the impact in them is hard enough
     -- *and* that the timer has expired
-    if message_id == hash("contact_point_message") and message.applied_impulse > 1 and self.sfx_timer <= 0 then
+    if message_id == hash("contact_point_response") and message.applied_impulse > 1 and self.sfx_timer <= 0 then
         -- play sound
         msg.post("#thud", "play_sound")
         -- wait 0.3 seconds before playing the sound again
