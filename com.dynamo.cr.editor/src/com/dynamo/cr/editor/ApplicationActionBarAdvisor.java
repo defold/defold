@@ -12,8 +12,11 @@ import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.actions.ActionFactory.IWorkbenchAction;
+import org.eclipse.ui.actions.NewWizardMenu;
 import org.eclipse.ui.application.ActionBarAdvisor;
 import org.eclipse.ui.application.IActionBarConfigurer;
+import org.eclipse.ui.ide.IDEActionFactory;
+import org.eclipse.ui.internal.ide.IDEWorkbenchMessages;
 import org.eclipse.ui.menus.CommandContributionItem;
 import org.eclipse.ui.menus.CommandContributionItemParameter;
 
@@ -35,10 +38,17 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
     private IWorkbenchAction cutAction;
     private IWorkbenchAction copyAction;
     private IWorkbenchAction pasteAction;
+    private IWorkbenchAction newWizardAction;
+    private IWorkbenchAction newWizardDropDownAction;
+    private NewWizardMenu newWizardMenu;
 
     public ApplicationActionBarAdvisor(IActionBarConfigurer configurer) {
         super(configurer);
         window = configurer.getWindowConfigurer().getWindow();
+    }
+
+    public IWorkbenchWindow getWindow() {
+        return window;
     }
 
     protected void makeActions(IWorkbenchWindow window) {
@@ -78,6 +88,12 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
         pasteAction = ActionFactory.PASTE.create(window);
         register(pasteAction);
 
+        newWizardAction = ActionFactory.NEW.create(window);
+        register(newWizardAction);
+
+        newWizardDropDownAction = IDEActionFactory.NEW_WIZARD_DROP_DOWN
+                .create(window);
+        register(newWizardDropDownAction);
     }
 
     protected void fillMenuBar(IMenuManager menuBar) {
@@ -90,6 +106,18 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
 
     private MenuManager createFileMenu() {
         MenuManager menu = new MenuManager("File", IWorkbenchActionConstants.M_FILE);
+        {
+            // create the New submenu, using the same id for it as the New action
+            String newText = IDEWorkbenchMessages.Workbench_new;
+            String newId = ActionFactory.NEW.getId();
+            MenuManager newMenu = new MenuManager(newText, newId);
+            newMenu.setActionDefinitionId("org.eclipse.ui.file.newQuickMenu"); //$NON-NLS-1$
+            newMenu.add(new Separator(newId));
+            this.newWizardMenu = new NewWizardMenu(getWindow());
+            newMenu.add(this.newWizardMenu);
+            newMenu.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
+            menu.add(newMenu);
+        }
 
         menu.add(new GroupMarker(IWorkbenchActionConstants.FILE_START));
         menu.add(new GroupMarker(IWorkbenchActionConstants.NEW_EXT));

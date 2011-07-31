@@ -570,5 +570,53 @@
             name="Game Object Editor">
       </context>
    </extension>
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension
+            targetID="*">
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.GameObjectNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.LightNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.SpawnPointNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.FontNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.MaterialNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.RenderNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CollectionNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.EmitterNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.SpriteNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.ConvexShapeNewWizard">
+         </newWizardShortcut>
+      </perspectiveExtension>
+   </extension>
 
 </plugin>
