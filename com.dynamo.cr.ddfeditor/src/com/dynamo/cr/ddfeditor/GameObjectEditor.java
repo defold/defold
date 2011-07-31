@@ -12,6 +12,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.commands.NotEnabledException;
+import org.eclipse.core.commands.NotHandledException;
+import org.eclipse.core.commands.common.NotDefinedException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.commands.operations.IOperationApprover;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -558,6 +561,80 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         return false;
     }
 
+    public void onAddResourceComponent() {
+        ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(getSite().getShell(), contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
+        dialog.setTitle("Add Resource Component");
+
+        int ret = dialog.open();
+        if (ret == Dialog.OK) {
+            IResource r = (IResource) dialog.getResult()[0];
+
+            org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
+            String resourcePath = EditorUtil.makeResourcePath(r);
+
+            String id = fullPath.getFileExtension();
+            id = getUniqueId(id);
+            ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setComponent(resourcePath).build();
+            ResourceComponent resourceComponent = new ResourceComponent(this, componentDesc);
+            AddComponentOperation op = new AddComponentOperation("Add " + r.getName(), resourceComponent);
+            executeOperation(op);
+        }
+    }
+
+    public void onAddEmbeddedComponent() {
+        IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
+        IResourceType[] resourceTypes = registry.getResourceTypes();
+        List<IResourceType> embedabbleTypes = new ArrayList<IResourceType>();
+        for (IResourceType t : resourceTypes) {
+            if (t.isEmbeddable()) {
+                embedabbleTypes.add(t);
+            }
+        }
+
+        ListDialog dialog = new ListDialog(getSite().getShell());
+        dialog.setTitle("Add Embedded Resource");
+        dialog.setMessage("Select resource type from list to embed:");
+        dialog.setContentProvider(new ArrayContentProvider());
+        dialog.setInput(embedabbleTypes.toArray());
+        dialog.setLabelProvider(new LabelProvider() {
+            @Override
+            public Image getImage(Object element) {
+                IResourceType resourceType = (IResourceType) element;
+                return getImageFromFilename("dummy." + resourceType.getFileExtension());
+            }
+
+            @Override
+            public String getText(Object element) {
+                IResourceType resourceType = (IResourceType) element;
+                return resourceType.getName();
+            }
+        });
+
+        int ret = dialog.open();
+        if (ret == Dialog.OK) {
+            Object[] result = dialog.getResult();
+            IResourceType resourceType = (IResourceType) result[0];
+            Message templateMessage = resourceType.createTemplateMessage();
+            String id = resourceType.getFileExtension();
+            id = getUniqueId(id);
+            EmbeddedComponentDesc embeddedComponentDesc = EmbeddedComponentDesc.newBuilder().setId(id).setData(TextFormat.printToString(templateMessage)).setType(resourceType.getFileExtension()).build();
+            EmbeddedComponent embeddedComponent = new EmbeddedComponent(this, embeddedComponentDesc);
+            AddComponentOperation op = new AddComponentOperation("Add " + resourceType.getName(), embeddedComponent);
+            executeOperation(op);
+        }
+    }
+
+    public void onRemoveComponent() {
+        ISelection selection = componentsViewer.getSelection();
+        if (!selection.isEmpty()) {
+            Component component = (Component) ((IStructuredSelection) selection).getFirstElement();
+            int index = allComponents.indexOf(component);
+            assert index != -1;
+            RemoveComponentOperation op = new RemoveComponentOperation("Remove " + component.getId(), index, component);
+            executeOperation(op);
+        }
+    }
+
     void createComponentsComposite(Composite parent) {
         GridLayout layout = new GridLayout();
         layout.numColumns = 3;
@@ -569,29 +646,11 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
         Button addResource = toolkit.createButton(parent, null, SWT.PUSH);
         addResource.setToolTipText("Add Component From Resource...");
         addResource.setImage(imageRegistry.get("link_add"));
-        final GameObjectEditor editor = this;
-        addResource.addSelectionListener(new SelectionListener() {
 
+        addResource.addSelectionListener(new SelectionListener() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-
-                ResourceListSelectionDialog dialog = new ResourceListSelectionDialog(getSite().getShell(), contentRoot, IResource.FILE | IResource.DEPTH_INFINITE);
-                dialog.setTitle("Add Resource Component");
-
-                int ret = dialog.open();
-                if (ret == Dialog.OK) {
-                    IResource r = (IResource) dialog.getResult()[0];
-
-                    org.eclipse.core.runtime.IPath fullPath = r.getFullPath();
-                    String resourcePath = EditorUtil.makeResourcePath(r);
-
-                    String id = fullPath.getFileExtension();
-                    id = getUniqueId(id);
-                    ComponentDesc componentDesc = ComponentDesc.newBuilder().setId(id).setComponent(resourcePath).build();
-                    ResourceComponent resourceComponent = new ResourceComponent(editor, componentDesc);
-                    AddComponentOperation op = new AddComponentOperation("Add " + r.getName(), resourceComponent);
-                    executeOperation(op);
-                }
+                onAddResourceComponent();
             }
 
             @Override
@@ -610,47 +669,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
 
             @Override
             public void widgetSelected(SelectionEvent e) {
-
-                IResourceTypeRegistry registry = EditorCorePlugin.getDefault().getResourceTypeRegistry();
-                IResourceType[] resourceTypes = registry.getResourceTypes();
-                List<IResourceType> embedabbleTypes = new ArrayList<IResourceType>();
-                for (IResourceType t : resourceTypes) {
-                    if (t.isEmbeddable()) {
-                        embedabbleTypes.add(t);
-                    }
-                }
-
-                ListDialog dialog = new ListDialog(getSite().getShell());
-                dialog.setTitle("Add Embedded Resource");
-                dialog.setMessage("Select resource type from list to embed:");
-                dialog.setContentProvider(new ArrayContentProvider());
-                dialog.setInput(embedabbleTypes.toArray());
-                dialog.setLabelProvider(new LabelProvider() {
-                    @Override
-                    public Image getImage(Object element) {
-                        IResourceType resourceType = (IResourceType) element;
-                        return getImageFromFilename("dummy." + resourceType.getFileExtension());
-                    }
-
-                    @Override
-                    public String getText(Object element) {
-                        IResourceType resourceType = (IResourceType) element;
-                        return resourceType.getName();
-                    }
-                });
-
-                int ret = dialog.open();
-                if (ret == Dialog.OK) {
-                    Object[] result = dialog.getResult();
-                    IResourceType resourceType = (IResourceType) result[0];
-                    Message templateMessage = resourceType.createTemplateMessage();
-                    String id = resourceType.getFileExtension();
-                    id = getUniqueId(id);
-                    EmbeddedComponentDesc embeddedComponentDesc = EmbeddedComponentDesc.newBuilder().setId(id).setData(TextFormat.printToString(templateMessage)).setType(resourceType.getFileExtension()).build();
-                    EmbeddedComponent embeddedComponent = new EmbeddedComponent(editor, embeddedComponentDesc);
-                    AddComponentOperation op = new AddComponentOperation("Add " + resourceType.getName(), embeddedComponent);
-                    executeOperation(op);
-                }
+                onAddEmbeddedComponent();
             }
 
             @Override
@@ -665,20 +684,13 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
 
         this.removeButton = toolkit.createButton(parent, null, SWT.PUSH);
         removeButton.setEnabled(false);
-        removeButton.setToolTipText("Remove Resource");
+        removeButton.setToolTipText("Remove Component");
         removeButton.setImage(imageRegistry.get("delete"));
         removeButton.addSelectionListener(new SelectionListener() {
 
             @Override
             public void widgetSelected(SelectionEvent e) {
-                ISelection selection = componentsViewer.getSelection();
-                if (!selection.isEmpty()) {
-                    Component component = (Component) ((IStructuredSelection) selection).getFirstElement();
-                    int index = allComponents.indexOf(component);
-                    assert index != -1;
-                    RemoveComponentOperation op = new RemoveComponentOperation("Remove " + component.getId(), index, component);
-                    executeOperation(op);
-                }
+                onRemoveComponent();
             }
 
             @Override
