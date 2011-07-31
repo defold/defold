@@ -4,10 +4,12 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "dlib/time.h"
+#include "dlib/uri.h"
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
+#include "dlib/http_cache_verify.h"
 
-const char* g_Hostname = "localhost";
+const char* g_URI = "http://localhost:7000";
 
 class dmHttpClientTest: public ::testing::Test
 {
@@ -17,6 +19,7 @@ public:
     std::string m_Content;
     std::string m_ToPost;
     int m_StatusCode;
+    dmURI::Parts m_URI;
 
     static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
     {
@@ -47,6 +50,16 @@ public:
 
     virtual void SetUp()
     {
+#ifndef _WIN32
+        // Unset these variables to ensure that they are unset even after failing tests
+        unsetenv("DMSOCKS_PROXY");
+        unsetenv("DMSOCKS_PROXY_PORT");
+#endif
+        m_Client = 0;
+
+        dmURI::Result parse_r = dmURI::Parse(g_URI, &m_URI);
+        ASSERT_EQ(dmURI::RESULT_OK, parse_r);
+
         int ret = system("python src/test/test_httpclient.py");
         ASSERT_EQ(0, ret);
 
@@ -56,7 +69,7 @@ public:
         params.m_HttpHeader = dmHttpClientTest::HttpHeader;
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
-        m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
+        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
         ASSERT_NE((void*) 0, m_Client);
     }
 
@@ -351,7 +364,7 @@ TEST_F(dmHttpClientTest, InvalidProxy)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
     unsetenv("DMSOCKS_PROXY");
     ASSERT_EQ((void*) 0, (void*) m_Client);
 }
@@ -367,7 +380,7 @@ TEST_F(dmHttpClientTest, InvalidProxyPort)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
 
     dmHttpClient::Result r;
     r = dmHttpClient::Get(m_Client, "/add/10/20");
@@ -390,7 +403,7 @@ TEST_F(dmHttpClientTest, SimpleProxy)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
-    m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
 
     for (int i = 0; i < 100; ++i)
     {
@@ -419,14 +432,14 @@ TEST_F(dmHttpClientTest, Cache)
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, g_Hostname, 7000);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
     ASSERT_NE((void*) 0, m_Client);
 
     for (int i = 0; i < 100; ++i)
     {
         m_Content = "";
         dmHttpClient::Result r;
-        r = dmHttpClient::Get(m_Client, "/cached");
+        r = dmHttpClient::Get(m_Client, "/cached/0");
         if (r == dmHttpClient::RESULT_OK)
         {
             ASSERT_EQ(200, m_StatusCode);
@@ -447,6 +460,198 @@ TEST_F(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+
+class dmHttpClientTestCache : public dmHttpClientTest
+{
+public:
+    void GetFiles(bool check_content)
+    {
+        char buf[512];
+        for (int i = 0; i < 100; ++i)
+        {
+            m_Content = "";
+            dmHttpClient::Result r;
+            snprintf(buf, sizeof(buf), "/tmp/http_files/%c.txt", 'a' + (i % 4));
+            r = dmHttpClient::Get(m_Client, buf);
+            if (r == dmHttpClient::RESULT_OK)
+            {
+                ASSERT_EQ(200, m_StatusCode);
+            }
+            else
+            {
+                ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, r);
+                ASSERT_EQ(304, m_StatusCode);
+            }
+
+            if (check_content)
+            {
+                if (i % 4 == 0)
+                    ASSERT_EQ(std::string("You will find this data in a.txt and d.txt"), m_Content);
+                else if (i % 4 == 1)
+                    ASSERT_EQ(std::string("Some data in file b"), m_Content);
+                else if (i % 4 == 2)
+                    ASSERT_EQ(std::string("Some data in file c"), m_Content);
+                else if (i % 4 == 3)
+                    ASSERT_EQ(std::string("You will find this data in a.txt and d.txt"), m_Content);
+                else
+                    ASSERT_TRUE(false);
+            }
+        }
+    }
+};
+
+TEST_F(dmHttpClientTestCache, DirectFromCache)
+{
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = "tmp/cache";
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    ASSERT_NE((void*) 0, m_Client);
+
+    GetFiles(true);
+
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    ASSERT_EQ(100U, stats.m_Responses);
+    ASSERT_EQ(96U, stats.m_CachedResponses);
+    ASSERT_EQ(0U, stats.m_DirectFromCache);
+
+    // Change consistency police to "trust-cache". All files are retrieved and should therefore be already verified
+    dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+    GetFiles(true);
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    ASSERT_EQ(100U, stats.m_Responses);
+    ASSERT_EQ(96U, stats.m_CachedResponses);
+    ASSERT_EQ(100U, stats.m_DirectFromCache);
+
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+}
+
+TEST_F(dmHttpClientTestCache, TrustCacheNoValidate)
+{
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = "tmp/cache";
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    ASSERT_NE((void*) 0, m_Client);
+
+    // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
+    dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+
+    GetFiles(true);
+
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+
+    // Four non-cached and four cached
+    ASSERT_EQ(8U, stats.m_Responses);
+    // Four cached responses
+    ASSERT_EQ(4U, stats.m_CachedResponses);
+    // Rest are loaded directly from the cache
+    ASSERT_EQ(92U, stats.m_DirectFromCache);
+
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+}
+
+TEST_F(dmHttpClientTestCache, BatchValidateCache)
+{
+    dmHttpClient::Delete(m_Client);
+
+    // Reinit client with http-cache
+    dmHttpClient::NewParams params;
+    params.m_Userdata = this;
+    params.m_HttpContent = dmHttpClientTest::HttpContent;
+    params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = "tmp/cache";
+    dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    ASSERT_NE((void*) 0, m_Client);
+
+    // Warmup cache
+    GetFiles(true);
+
+    // Reopen
+    dmHttpClient::Delete(m_Client);
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    ASSERT_NE((void*) 0, m_Client);
+
+
+    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5);
+    ASSERT_EQ(dmHttpCacheVerify::RESULT_OK, verify_r);
+
+    // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
+    dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+
+    GetFiles(true);
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    // Zero responses, all direct from cache
+    ASSERT_EQ(0U, stats.m_Responses);
+    // Zero cached responses, all direct from cache
+    ASSERT_EQ(0U, stats.m_CachedResponses);
+    // All are loaded directly from the cache
+    ASSERT_EQ(100U, stats.m_DirectFromCache);
+
+    // Change a.txt file.
+    FILE* a_file = fopen("tmp/http_files/a.txt", "wb");
+    ASSERT_NE((FILE*) 0, a_file);
+    fwrite("foo", 1, 3, a_file);
+    fclose(a_file);
+
+    GetFiles(true);
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    // Zero responses, all direct from cache
+    ASSERT_EQ(0U, stats.m_Responses);
+    // Zero cached responses, all direct from cache
+    ASSERT_EQ(0U, stats.m_CachedResponses);
+    // All are loaded directly from the cache
+    ASSERT_EQ(200U, stats.m_DirectFromCache);
+
+    // Change a.txt file again
+    a_file = fopen("tmp/http_files/a.txt", "wb");
+    ASSERT_NE((FILE*) 0, a_file);
+    fwrite("bar", 1, 3, a_file);
+    fclose(a_file);
+
+    // Change policy
+    dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
+    GetFiles(false);
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    // Zero responses, all direct from cache
+    ASSERT_EQ(100U, stats.m_Responses);
+    // Zero cached responses, all direct from cache
+    ASSERT_EQ(99U, stats.m_CachedResponses);
+    // All are loaded directly from the cache
+    ASSERT_EQ(200U, stats.m_DirectFromCache);
+
+    cache_r = dmHttpCache::Close(params.m_HttpCache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+}
+
 #endif // #ifndef _WIN32
 
 TEST(dmHttpClient, HostNotFound)
@@ -459,7 +664,7 @@ TEST(dmHttpClient, HostNotFound)
 TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
-    dmHttpClient::HClient client = dmHttpClient::New(&params, g_Hostname, 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
@@ -469,11 +674,6 @@ TEST(dmHttpClient, ConnectionRefused)
 
 int main(int argc, char **argv)
 {
-    if (argc > 1)
-    {
-        g_Hostname = argv[1];
-    }
-
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();

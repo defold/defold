@@ -15,15 +15,14 @@
 #include "mutex.h"
 #include "index_pool.h"
 #include "array.h"
+#include "poolallocator.h"
 
 namespace dmHttpCache
 {
-    // Maximum length of tags
-    const uint32_t MAX_TAG_LEN = 64;
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 2;
+    const uint32_t VERSION = 3;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;
@@ -40,7 +39,7 @@ namespace dmHttpCache
     };
 
     /*
-     * In-memory represention of a cache entry
+     * In-memory representation of a cache entry
      */
     struct Entry
     {
@@ -48,14 +47,7 @@ namespace dmHttpCache
         {
             memset(this, 0, sizeof(*this));
         }
-        // ETag string
-        char     m_ETag[MAX_TAG_LEN];
-        // The content hash is the hash of URI and ETag.
-        uint64_t m_IdentifierHash;
-        // Last accessed time
-        uint64_t m_LastAccessed;
-        // Checksum
-        uint64_t m_Checksum;
+        EntryInfo m_Info;
         uint8_t  m_ReadLockCount : 8;
         uint8_t  m_WriteLock : 1;
     };
@@ -68,6 +60,8 @@ namespace dmHttpCache
         uint64_t m_UriHash;
         // ETag string
         char     m_ETag[MAX_TAG_LEN];
+        // Path string
+        char     m_URI[256];
         // The content hash is the hash of URI and ETag.
         uint64_t m_IdentifierHash;
         // Last accessed time
@@ -101,12 +95,15 @@ namespace dmHttpCache
             m_MaxCacheEntryAge = max_entry_age;
             m_CacheTable.SetCapacity(11, 32);
             m_Mutex = dmMutex::New();
+            m_Policy = CONSISTENCY_POLICY_VERIFY;
+            m_StringAllocator = dmPoolAllocator::New(4096);
         }
 
         ~Cache()
         {
             free(m_Path);
             dmMutex::Delete(m_Mutex);
+            dmPoolAllocator::Delete(m_StringAllocator);
         }
 
         char*                m_Path;
@@ -115,6 +112,9 @@ namespace dmHttpCache
         dmMutex::Mutex       m_Mutex;
         dmIndexPool16        m_CacheCreatorsPool;
         dmArray<CacheCreator> m_CacheCreators;
+        ConsistencyPolicy    m_Policy;
+        dmPoolAllocator::HPool m_StringAllocator;
+
     };
 
     void SetDefaultParams(NewParams* params)
@@ -229,10 +229,11 @@ namespace dmHttpCache
                         {
                             // Keep cache entry, ie within max age
                             Entry e;
-                            memcpy(e.m_ETag, entries[i].m_ETag, sizeof(e.m_ETag));
-                            e.m_IdentifierHash = entries[i].m_IdentifierHash;
-                            e.m_LastAccessed = entries[i].m_LastAccessed;
-                            e.m_Checksum = entries[i].m_Checksum;
+                            memcpy(e.m_Info.m_ETag, entries[i].m_ETag, sizeof(e.m_Info.m_ETag));
+                            e.m_Info.m_URI = dmPoolAllocator::Duplicate(c->m_StringAllocator, entries[i].m_URI);
+                            e.m_Info.m_IdentifierHash = entries[i].m_IdentifierHash;
+                            e.m_Info.m_LastAccessed = entries[i].m_LastAccessed;
+                            e.m_Info.m_Checksum = entries[i].m_Checksum;
                             c->m_CacheTable.Put(entries[i].m_UriHash, e);
                         }
                         else
@@ -280,16 +281,17 @@ namespace dmHttpCache
 
         if(entry->m_WriteLock)
         {
-            dmLogWarning("Invalid http cache state. Not yet flushed cache entry (etag: %s).", entry->m_ETag);
+            dmLogWarning("Invalid http cache state. Not yet flushed cache entry (etag: %s).", entry->m_Info.m_ETag);
             return;
         }
 
         FileEntry file_entry;
         file_entry.m_UriHash = *key;
-        memcpy(file_entry.m_ETag, entry->m_ETag, sizeof(file_entry.m_ETag));
-        file_entry.m_IdentifierHash = entry->m_IdentifierHash;
-        file_entry.m_LastAccessed = entry->m_LastAccessed;
-        file_entry.m_Checksum = entry->m_Checksum;
+        memcpy(file_entry.m_ETag, entry->m_Info.m_ETag, sizeof(file_entry.m_ETag));
+        memcpy(file_entry.m_URI, entry->m_Info.m_URI, sizeof(file_entry.m_URI));
+        file_entry.m_IdentifierHash = entry->m_Info.m_IdentifierHash;
+        file_entry.m_LastAccessed = entry->m_Info.m_LastAccessed;
+        file_entry.m_Checksum = entry->m_Info.m_Checksum;
 
         dmHashUpdateBuffer64(&context->m_HashState, &file_entry, sizeof(file_entry));
         size_t n_written = fwrite(&file_entry, 1, sizeof(file_entry), context->m_File);
@@ -386,7 +388,7 @@ namespace dmHttpCache
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry)
         {
-            if (entry->m_IdentifierHash == identifier_hash)
+            if (entry->m_Info.m_IdentifierHash == identifier_hash)
             {
                 dmLogWarning("Trying to update existing cache entry for uri: '%s' with etag: '%s'.", uri, etag);
                 return RESULT_ALREADY_CACHED;
@@ -418,9 +420,10 @@ namespace dmHttpCache
         }
 
         entry = cache->m_CacheTable.Get(uri_hash);
-        dmStrlCpy(entry->m_ETag, etag, sizeof(entry->m_ETag));
-        entry->m_IdentifierHash = identifier_hash;
-        entry->m_LastAccessed = dmTime::GetTime();
+        dmStrlCpy(entry->m_Info.m_ETag, etag, sizeof(entry->m_Info.m_ETag));
+        entry->m_Info.m_URI = dmPoolAllocator::Duplicate(cache->m_StringAllocator, uri);
+        entry->m_Info.m_IdentifierHash = identifier_hash;
+        entry->m_Info.m_LastAccessed = dmTime::GetTime();
         entry->m_WriteLock = 1;
 
         if (cache->m_CacheCreatorsPool.Remaining() == 0)
@@ -554,9 +557,9 @@ namespace dmHttpCache
         }
 
         assert(entry->m_WriteLock);
-        assert(entry->m_IdentifierHash == identifier_hash);
+        assert(entry->m_Info.m_IdentifierHash == identifier_hash);
         entry->m_WriteLock = 0;
-        entry->m_Checksum = dmHashFinal64(&cache_creator->m_ChecksumState);
+        entry->m_Info.m_Checksum = dmHashFinal64(&cache_creator->m_ChecksumState);
 
         int ret = rename(cache_creator->m_Filename, path);
         if (ret != 0)
@@ -582,7 +585,24 @@ namespace dmHttpCache
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry != 0)
         {
-            dmStrlCpy(tag_buffer, entry->m_ETag, tag_buffer_len);
+            dmStrlCpy(tag_buffer, entry->m_Info.m_ETag, tag_buffer_len);
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_NO_ENTRY;
+        }
+    }
+
+    Result GetInfo(HCache cache, const char* uri, EntryInfo* info)
+    {
+        dmMutex::ScopedLock lock(cache->m_Mutex);
+
+        uint64_t uri_hash = dmHashString64(uri);
+        Entry* entry = cache->m_CacheTable.Get(uri_hash);
+        if (entry != 0)
+        {
+            memcpy(info, &entry->m_Info, sizeof(*info));
             return RESULT_OK;
         }
         else
@@ -603,7 +623,7 @@ namespace dmHttpCache
 
         uint64_t uri_hash = dmHashString64(uri);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
-        if (entry != 0 && entry->m_IdentifierHash == identifier_hash)
+        if (entry != 0 && entry->m_Info.m_IdentifierHash == identifier_hash)
         {
             if (entry->m_WriteLock)
             {
@@ -611,7 +631,7 @@ namespace dmHttpCache
                 return RESULT_LOCKED;
             }
 
-            entry->m_LastAccessed = dmTime::GetTime();
+            entry->m_Info.m_LastAccessed = dmTime::GetTime();
 
             char path[512];
             ContentFilePath(cache, identifier_hash, path, sizeof(path));
@@ -620,7 +640,7 @@ namespace dmHttpCache
             {
                 *file = f;
                 entry->m_ReadLockCount++;
-                *checksum = entry->m_Checksum;
+                *checksum = entry->m_Info.m_Checksum;
                 return RESULT_OK;
             }
             else
@@ -633,6 +653,23 @@ namespace dmHttpCache
         }
 
         return RESULT_NO_ENTRY;
+    }
+
+    Result SetVerified(HCache cache, const char* uri, bool verified)
+    {
+        dmMutex::ScopedLock lock(cache->m_Mutex);
+
+        uint64_t uri_hash = dmHashString64(uri);
+        Entry* entry = cache->m_CacheTable.Get(uri_hash);
+        if (entry != 0)
+        {
+            entry->m_Info.m_Verified = verified;
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_NO_ENTRY;
+        }
     }
 
     Result Release(HCache cache, const char* uri, const char* etag, FILE* file)
@@ -648,7 +685,8 @@ namespace dmHttpCache
         uint64_t uri_hash = dmHashString64(uri);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         assert(entry);
-        assert(entry->m_IdentifierHash == identifier_hash);
+        assert(entry->m_Info.m_IdentifierHash == identifier_hash);
+        assert(strcmp(uri, entry->m_Info.m_URI) == 0);
         assert(entry->m_ReadLockCount > 0);
         --entry->m_ReadLockCount;
 
@@ -661,4 +699,40 @@ namespace dmHttpCache
         dmMutex::ScopedLock lock(cache->m_Mutex);
         return cache->m_CacheTable.Size();
     }
+
+    struct IterateContext
+    {
+        IterateContext(HCache cache, void* context, void (*callback)(void* context, const EntryInfo* entry_info))
+        {
+            m_Cache = cache;
+            m_Context = context;
+            m_Callback = callback;
+        }
+
+        HCache m_Cache;
+        void*  m_Context;
+        void (*m_Callback)(void* context, const EntryInfo* entry_info);
+    };
+
+    static void IterateCallback(IterateContext *context, const uint64_t* key, Entry* value)
+    {
+        context->m_Callback(context->m_Context, &value->m_Info);
+    }
+
+    void SetConsistencyPolicy(HCache cache, ConsistencyPolicy policy)
+    {
+        cache->m_Policy = policy;
+    }
+
+    ConsistencyPolicy GetConsistencyPolicy(HCache cache)
+    {
+        return cache->m_Policy;
+    }
+
+    void Iterate(HCache cache, void* context, void (*call_back)(void* context, const EntryInfo* entry_info))
+    {
+        IterateContext iterate_context(cache, context, call_back);
+        cache->m_CacheTable.Iterate(&IterateCallback, &iterate_context);
+    }
+
 }

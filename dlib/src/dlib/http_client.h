@@ -119,6 +119,8 @@ namespace dmHttpClient
         uint32_t m_Responses;
         /// Number of cached responses. This includes all cached responses, even for retries for idempotent requests.
         uint32_t m_CachedResponses;
+        /// Number of direct cached verified, ie data taken directly from cache without validation request
+        uint32_t m_DirectFromCache;
     };
 
     /**
@@ -177,6 +179,13 @@ namespace dmHttpClient
      * @param statistics Pointer to statistics struct
      */
     void GetStatistics(HClient client, Statistics* statistics);
+
+    /**
+     * Get HTTP-cache associaed with this client
+     * @param client client
+     * @return dmHttpCache::HCache handle
+     */
+    dmHttpCache::HCache GetHttpCache(HClient client);
 
     /**
      * Delete HTTP client

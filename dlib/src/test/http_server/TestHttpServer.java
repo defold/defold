@@ -2,6 +2,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.ServletException;
 
+import java.net.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.regex.*;
 import java.io.*;
 
@@ -20,10 +23,59 @@ public class TestHttpServer extends AbstractHandler
 {
     Pattern m_AddPattern = Pattern.compile("/add/(\\d+)/(\\d+)");
     Pattern m_ArbPattern = Pattern.compile("/arb/(\\d+)");
+    Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
     public TestHttpServer()
     {
         super();
     }
+
+    private void sendFile(String target, HttpServletResponse response) throws IOException {
+        Reader r = new FileReader(target.substring(1));
+        char[] buf = new char[1024 * 128];
+        int n = r.read(buf);
+        response.getWriter().print(new String(buf, 0, n));
+        r.close();
+    }
+
+    private static char convertDigit(int value) {
+
+        value &= 0x0f;
+        if (value >= 10)
+            return ((char) (value - 10 + 'a'));
+        else
+            return ((char) (value + '0'));
+    }
+
+    public static String toHex(byte bytes[]) {
+        StringBuffer sb = new StringBuffer(bytes.length * 2);
+        for (int i = 0; i < bytes.length; i++) {
+            sb.append(convertDigit((int) (bytes[i] >> 4)));
+            sb.append(convertDigit((int) (bytes[i] & 0x0f)));
+        }
+        return (sb.toString());
+    }
+
+    private static String calculateSHA1(File file) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            BufferedInputStream is = new BufferedInputStream(
+                    new FileInputStream(file));
+            byte[] buffer = new byte[1024];
+            int n = is.read(buffer);
+            while (n != -1) {
+                md.update(buffer, 0, n);
+                n = is.read(buffer);
+            }
+            is.close();
+            return toHex(md.digest());
+
+        } catch (IOException e) {
+            return null;
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public void handle(String target,
                        Request baseRequest,
@@ -33,15 +85,54 @@ public class TestHttpServer extends AbstractHandler
     {
         Matcher addm = m_AddPattern.matcher(target);
         Matcher arbm = m_ArbPattern.matcher(target);
+        Matcher cachedm = m_CachedPattern.matcher(target);
 
         if (target.equals("/"))
         {
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
         }
-        else if (target.equals("/cached"))
+        else if (target.equals("/__verify_etags__")) {
+            baseRequest.setHandled(true);
+            if (!request.getMethod().equals("POST")) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST );
+                return;
+            }
+
+            StringBuffer responseBuffer = new StringBuffer();
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(request.getInputStream()));
+            String line = reader.readLine();
+            while (line != null) {
+                int i = line.indexOf(' ');
+                URI uri;
+                try {
+                    uri = new URI(URLDecoder.decode(line.substring(0, i), "UTF-8"));
+                    uri = uri.normalize(); // http://foo.com//a -> http://foo.com/a
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+                String etag = line.substring(i + 1);
+
+                String actualETag = String.format("W/\"" + calculateSHA1(new File(uri.getPath().substring(1))) + "\"");
+
+                if (etag.equals(actualETag)) {
+                    responseBuffer.append(line.substring(0, i));
+                    responseBuffer.append('\n');
+                }
+
+                line = reader.readLine();
+            }
+            reader.close();
+
+            response.getWriter().print(responseBuffer);
+            response.setStatus(HttpServletResponse.SC_OK);
+
+        }
+        else if (cachedm.matches())
         {
-            String tag = String.format("W/\"A TAG\"");
+            String id = cachedm.group(1);
+            String tag = String.format("W/\"A TAG " + id + "\"");
             response.setHeader(HttpHeaders.ETAG, tag);
             int status = HttpServletResponse.SC_OK;
 
@@ -58,6 +149,27 @@ public class TestHttpServer extends AbstractHandler
             if (status == HttpServletResponse.SC_OK)
                 response.getWriter().print("cached_content");
         }
+        else if (target.startsWith("/tmp/http_files"))
+        {
+            String tag = String.format("W/\"" + calculateSHA1(new File(target.substring(1))) + "\"");
+            response.setHeader(HttpHeaders.ETAG, tag);
+            int status = HttpServletResponse.SC_OK;
+
+            String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+            if (ifNoneMatch != null) {
+                if (ifNoneMatch.equals(tag)) {
+                    baseRequest.setHandled(true);
+                    status = HttpStatus.NOT_MODIFIED_304;
+                }
+            }
+
+            response.setStatus(status);
+            baseRequest.setHandled(true);
+            if (status == HttpServletResponse.SC_OK) {
+                sendFile(target, response);
+            }
+        }
+
         else if (addm.matches())
         {
             response.setStatus(HttpServletResponse.SC_OK);
@@ -84,11 +196,7 @@ public class TestHttpServer extends AbstractHandler
             // For dmConfigFile test
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
-            Reader r = new FileReader(target.substring(1));
-            char[] buf = new char[1024 * 128];
-            int n = r.read(buf);
-            response.getWriter().println(new String(buf, 0, n));
-            r.close();
+            sendFile(target, response);
         }
         else if (target.equals("/post")) {
             baseRequest.setHandled(true);

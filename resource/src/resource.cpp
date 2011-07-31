@@ -19,6 +19,7 @@
 #include <dlib/http_client.h>
 #include <dlib/http_cache.h>
 #include <dlib/http_server.h>
+#include <dlib/http_cache_verify.h>
 #include <dlib/uri.h>
 #include <dlib/profile.h>
 #include <dlib/sys.h>
@@ -160,6 +161,9 @@ static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code,
     SResourceFactory* factory = (SResourceFactory*) user_data;
     (void) status_code;
 
+    // We must set http-status here. For direct cached result HttpHeader is not called.
+    factory->m_HttpStatus = status_code;
+
     assert(factory->m_HttpTotalBytesStreamed <= factory->m_StreamBufferSize);
     if (factory->m_StreamBufferSize - factory->m_HttpTotalBytesStreamed < content_data_size)
     {
@@ -210,7 +214,12 @@ void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
         const char* name = request->m_Resource + strlen("/reload/");
 
         SResourceDescriptor* descriptor;
+
+        // Always verify cache for reloaded resources
+        dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
         ReloadResult result = ReloadResource(factory, name, &descriptor);
+        dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+
         switch (result)
         {
             case RELOAD_RESULT_OK:
@@ -286,7 +295,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {
             dmHttpCache::NewParams cache_params;
             char path[1024];
-            dmSys::GetApplicationSupportPath("dynamo", path, sizeof(path));
+            dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
             dmStrlCat(path, "/cache", sizeof(path));
             cache_params.m_Path = path;
             dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &factory->m_HttpCache);
@@ -294,6 +303,17 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             {
                 dmLogWarning("Unable to open http cache (%d)", cache_r);
             }
+            else
+            {
+                dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, 60 * 60 * 24 * 5); // 5 days
+                if (verify_r != dmHttpCacheVerify::RESULT_OK)
+                {
+                    dmLogWarning("Cache validation failed (%d)", verify_r);
+                }
+
+                dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+            }
+
         }
 
         dmHttpClient::NewParams http_params;

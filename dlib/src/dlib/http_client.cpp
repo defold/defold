@@ -524,6 +524,8 @@ bail:
             return RESULT_IO_ERROR;
         }
 
+        dmHttpCache::SetVerified(client->m_HttpCache, client->m_URI, true);
+
         return RESULT_OK;
     }
 
@@ -707,11 +709,55 @@ bail:
         return r;
     }
 
+    static Result HandleCachedVerified(HClient client, const dmHttpCache::EntryInfo* info)
+    {
+        client->m_Statistics.m_DirectFromCache++;
+
+        FILE* file = 0;
+        uint64_t checksum;
+
+        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, info->m_ETag, &file, &checksum);
+        if (cache_result == dmHttpCache::RESULT_OK)
+        {
+            // NOTE: We have an extra byte for null-termination so no buffer overrun here.
+            size_t nread;
+            do
+            {
+                nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
+                client->m_Buffer[nread] = '\0';
+                client->m_HttpContent(client, client->m_Userdata, 304, client->m_Buffer, nread);
+            }
+            while (nread > 0);
+            dmHttpCache::Release(client->m_HttpCache, client->m_URI, info->m_ETag, file);
+            return RESULT_NOT_200_OK;
+        }
+        else
+        {
+            return RESULT_IO_ERROR;
+        }
+    }
+
     Result Get(HClient client, const char* path)
     {
         DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
 
         Result r;
+
+        if (client->m_HttpCache && dmHttpCache::GetConsistencyPolicy(client->m_HttpCache) == dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE)
+        {
+            // We have a cache and trust the content of the cache
+            dmHttpCache::EntryInfo info;
+            dmHttpCache::Result cache_r = dmHttpCache::GetInfo(client->m_HttpCache, client->m_URI, &info);
+            if (cache_r == dmHttpCache::RESULT_OK && info.m_Verified)
+            {
+                r = HandleCachedVerified(client, &info);
+                if (r == RESULT_NOT_200_OK)
+                {
+                    return r;
+                }
+            }
+        }
+
         for (int i = 0; i < client->m_MaxGetRetries; ++i)
         {
             r = DoRequest(client, path, "GET");
@@ -741,6 +787,10 @@ bail:
         *statistics = client->m_Statistics;
     }
 
+    dmHttpCache::HCache GetHttpCache(HClient client)
+    {
+        return client->m_HttpCache;
+    }
 
 #undef HTTP_CLIENT_SENDALL_AND_BAIL
 

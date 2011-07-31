@@ -24,6 +24,37 @@ namespace dmHttpCache
         RESULT_OUT_OF_RESOURCES = -3,
     };
 
+    /**
+     * Consistency policy
+     */
+    enum ConsistencyPolicy
+    {
+        CONSISTENCY_POLICY_VERIFY = 0,     //!< Always verify etag with server
+        CONSISTENCY_POLICY_TRUST_CACHE = 1,//!< Trust the local cache and avoid network round-trips
+    };
+
+    /// Maximum length of tags
+    const uint32_t MAX_TAG_LEN = 64;
+
+    /**
+     * Cache entry info
+     */
+    struct EntryInfo
+    {
+        /// ETag string
+        char     m_ETag[MAX_TAG_LEN];
+        /// Path string
+        char*    m_URI;
+        /// The content hash is the hash of URI and ETag.
+        uint64_t m_IdentifierHash;
+        /// Last accessed time
+        uint64_t m_LastAccessed;
+        /// Checksum
+        uint64_t m_Checksum;
+        /// True if the entry is verified, ie the cached version is valid, during the session
+        uint8_t  m_Verified : 1;
+    };
+
     void SetDefaultParams(struct NewParams* params);
 
     /**
@@ -97,6 +128,8 @@ namespace dmHttpCache
      */
     Result GetETag(HCache cache, const char* uri, char* tag_buffer, uint32_t tag_buffer_len);
 
+    Result GetInfo(HCache cache, const char* uri, EntryInfo* info);
+
     /**
      * Get file for cache entry
      * @param cache cache
@@ -107,6 +140,15 @@ namespace dmHttpCache
      * @return RESULT_OK on success.
      */
     Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint64_t* checksum);
+
+    /**
+     * Set cache entry to verifed
+     * @param cache cache
+     * @param uri uri
+     * @param verified true for verified.
+     * @return RESULT_OK on success, RESULT_NO_ENTRY if the entry doesn't exist.
+     */
+    Result SetVerified(HCache cache, const char* uri, bool verified);
 
     /**
      * Release cache entry (for reading), see Get.
@@ -124,6 +166,28 @@ namespace dmHttpCache
      * @return entry count
      */
     uint32_t GetEntryCount(HCache cache);
+
+    /**
+     * Set consistency policy
+     * @param cache cache
+     * @param policy policy to set
+     */
+    void SetConsistencyPolicy(HCache cache, ConsistencyPolicy policy);
+
+    /**
+     * Get consistency policy
+     * @param cache cache
+     * @return policy
+     */
+    ConsistencyPolicy GetConsistencyPolicy(HCache cache);
+
+    /**
+     * Iterate over all entries
+     * @param cache cache
+     * @param context user context
+     * @param call_back call-back
+     */
+    void Iterate(HCache cache, void* context, void (*call_back)(void* context, const EntryInfo* entry_info));
 }
 
 #endif
