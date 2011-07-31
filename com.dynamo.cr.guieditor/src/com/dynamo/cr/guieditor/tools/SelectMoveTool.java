@@ -138,6 +138,7 @@ public class SelectMoveTool {
                 IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
                 @SuppressWarnings("unchecked")
                 IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
+                @SuppressWarnings({ "unchecked", "rawtypes" })
                 SetPropertiesOperation<Vector4d> operation = new SetPropertiesOperation<Vector4d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
                 editor.executeOperation(operation);
             }
@@ -177,6 +178,7 @@ public class SelectMoveTool {
             IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
             @SuppressWarnings("unchecked")
             IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
+            @SuppressWarnings({ "unchecked", "rawtypes" })
             SetPropertiesOperation<Vector4d> operation = new SetPropertiesOperation<Vector4d>((List) selectionProvider.getSelectionList(), "position", accessor, originalPositions, newPositions, editor.getScene());
             editor.executeOperation(operation);
         }

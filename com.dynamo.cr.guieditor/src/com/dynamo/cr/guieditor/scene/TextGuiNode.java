@@ -1,10 +1,7 @@
 package com.dynamo.cr.guieditor.scene;
 
 import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.geom.Rectangle2D;
-import java.awt.image.BufferedImage;
 
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
