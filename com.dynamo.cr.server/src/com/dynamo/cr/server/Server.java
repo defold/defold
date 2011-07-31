@@ -262,17 +262,16 @@ public class Server implements ServerMBean {
                             }
 
                             String etag = line.substring(i + 1);
-                            String fileName = uri.getPath().substring(1);
-                            File file = new File(fileName);
-                            if (file.exists()) {
-                                String thisEtag = etagCache.getETag(file);
+                            Resource resource = getResource(uri.getPath());
+                            if (resource != null && resource.exists() && resource.getFile() != null) {
+                                String thisEtag = etagCache.getETag(resource.getFile());
                                 if (etag.equals(thisEtag)) {
                                     responseBuffer.append(line.substring(0, i));
                                     responseBuffer.append('\n');
                                 }
                             }
                             else {
-                                logger.warn("File doesn't exists {}", fileName);
+                                logger.warn("File doesn't exists {}", uri.getPath());
                             }
 
                             line = reader.readLine();
