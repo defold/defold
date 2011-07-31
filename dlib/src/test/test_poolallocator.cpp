@@ -47,6 +47,8 @@ TEST(dmPoolAllocator, Test)
 
             ++iter;
         }
+
+        dmPoolAllocator::Delete(pool);
     }
 }
 

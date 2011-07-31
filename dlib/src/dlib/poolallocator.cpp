@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <assert.h>
-#include <strings.h>
+#include <string.h>
 #include <new>
 #include "poolallocator.h"
 
@@ -41,7 +41,7 @@ namespace dmPoolAllocator
         while (p)
         {
             Page* tmp = p->m_Next;
-            char* page_buffer = (char*) tmp;
+            char* page_buffer = (char*) p;
             delete[] page_buffer;
             p = tmp;
         }
