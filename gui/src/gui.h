@@ -350,6 +350,11 @@ namespace dmGui
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
     Result SetScript(HScript script, const char* source, uint32_t source_length, const char* filename);
+
+    /** Gets the lua state used for gui scripts.
+     * @return lua state
+     */
+    lua_State* GetLuaState(HContext context);
 }
 
 #endif
