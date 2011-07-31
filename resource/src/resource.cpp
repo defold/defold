@@ -216,9 +216,13 @@ void HttpServerResponse(void* user_data, const dmHttpServer::Request* request)
         SResourceDescriptor* descriptor;
 
         // Always verify cache for reloaded resources
-        dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
+        if (factory->m_HttpCache)
+            dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
+
         ReloadResult result = ReloadResource(factory, name, &descriptor);
-        dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+
+        if (factory->m_HttpCache)
+            dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
 
         switch (result)
         {
