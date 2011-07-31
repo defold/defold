@@ -283,9 +283,7 @@ namespace dmScript
     {
         int top = lua_gettop(L);
         dmMessage::URL url;
-        lua_getglobal(L, SCRIPT_GET_URL_CALLBACK);
-        ((GetURLCallback)lua_touserdata(L, -1))(L, &url);
-        lua_pop(L, 1);
+        GetURL(L, &url);
         if (top == 1 && !lua_isnil(L, 1))
         {
             const char* s = luaL_checkstring(L, 1);
@@ -426,9 +424,7 @@ namespace dmScript
         dmMessage::URL sender;
         dmMessage::URL receiver;
 
-        lua_getglobal(L, SCRIPT_GET_URL_CALLBACK);
-        ((GetURLCallback)lua_touserdata(L, -1))(L, &sender);
-        lua_pop(L, 1);
+        GetURL(L, &sender);
 
         if (lua_isnil(L, 1))
         {
@@ -543,9 +539,8 @@ namespace dmScript
 
         assert(top == lua_gettop(L));
 
-        lua_getglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
-        uintptr_t user_data = ((GetUserDataCallback)lua_touserdata(L, -1))(L);
-        lua_pop(L, 1);
+        uintptr_t user_data;
+        GetUserData(L, &user_data);
 
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, user_data, descriptor, data, data_size);
         if (result != dmMessage::RESULT_OK)
@@ -616,6 +611,34 @@ namespace dmScript
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
         return 0x0;
+    }
+
+    bool GetURL(lua_State* L, dmMessage::URL* out_url)
+    {
+        lua_getglobal(L, SCRIPT_GET_URL_CALLBACK);
+        GetURLCallback callback = (GetURLCallback)lua_touserdata(L, -1);
+        if (callback != 0x0)
+        {
+            callback(L, out_url);
+            lua_pop(L, 1);
+            return true;
+        }
+        lua_pop(L, 1);
+        return false;
+    }
+
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data)
+    {
+        lua_getglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
+        GetUserDataCallback callback = (GetUserDataCallback)lua_touserdata(L, -1);
+        if (callback != 0x0)
+        {
+            *out_user_data = callback(L);
+            lua_pop(L, 1);
+            return true;
+        }
+        lua_pop(L, 1);
+        return false;
     }
 
 #undef SCRIPT_LIB_NAME

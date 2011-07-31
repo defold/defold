@@ -254,6 +254,22 @@ namespace dmScript
      * @return The URL value
      */
     dmMessage::URL* CheckURL(lua_State* L, int index);
+
+    /**
+     * Returns the URL of a script currently operating on the given lua state.
+     * @param L Lua state
+     * @param Pointer to a URL to be written to
+     * @return true if a URL could be found
+     */
+    bool GetURL(lua_State* L, dmMessage::URL* out_url);
+
+    /**
+     * Returns the user data associated with the script currently operating on the given lua state.
+     * @param L Lua state
+     * @param Pointer to the pointer to be written to
+     * @return true if user data could be found
+     */
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data);
 }
 
 #endif // DM_SCRIPT_H
