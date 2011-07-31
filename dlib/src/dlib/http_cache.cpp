@@ -286,9 +286,11 @@ namespace dmHttpCache
         }
 
         FileEntry file_entry;
+        memset(&file_entry, 0, sizeof(file_entry));
+
         file_entry.m_UriHash = *key;
         memcpy(file_entry.m_ETag, entry->m_Info.m_ETag, sizeof(file_entry.m_ETag));
-        memcpy(file_entry.m_URI, entry->m_Info.m_URI, sizeof(file_entry.m_URI));
+        dmStrlCpy(file_entry.m_URI, entry->m_Info.m_URI, sizeof(file_entry.m_URI));
         file_entry.m_IdentifierHash = entry->m_Info.m_IdentifierHash;
         file_entry.m_LastAccessed = entry->m_Info.m_LastAccessed;
         file_entry.m_Checksum = entry->m_Info.m_Checksum;
