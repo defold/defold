@@ -337,6 +337,7 @@ namespace dmGameSystem
                     assert(0);
                 break;
             }
+            ro.m_SetBlendFactors = 1;
 
             ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
             ro.m_VertexBuffer = gui_world->m_QuadVertexBuffer;

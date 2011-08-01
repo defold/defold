@@ -190,6 +190,9 @@ namespace dmRender
         for (int i = 2; i >= 0; --i)
         {
             RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
+            ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+            ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            ro->m_SetBlendFactors = 1;
             ro->m_RenderKey.m_Depth = params.m_Depth;
             ro->m_RenderKey.m_Order = 2 - i;
             ro->m_Material = font_map->m_Material;
