@@ -101,6 +101,22 @@ TEST_F(ScriptHashTest, TestHash)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptHashTest, TestHashUnknown)
+{
+    int top = lua_gettop(L);
+    (void)top;
+
+    dmhash_t hash = 1234;
+    dmScript::PushHash(L, hash);
+    lua_setglobal(L, "test_hash");
+    const char* script =
+        "print(\"tostring: \" .. tostring(test_hash))\n"
+        "print(\"concat: \" .. test_hash)\n";
+    ASSERT_TRUE(RunString(L, script));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -15,8 +15,12 @@ namespace dmPhysics
 
         virtual void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse);
 
+        void SetStepWorldContext(const StepWorldContext* context);
+
     private:
         HWorld2D m_World;
+        /// Temporary context to be set before each stepping of the world
+        const StepWorldContext* m_TempStepWorldContext;
     };
 
     struct World2D
@@ -30,10 +34,6 @@ namespace dmPhysics
         ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
-        CollisionCallback           m_CollisionCallback;
-        void*                       m_CollisionCallbackUserData;
-        ContactPointCallback        m_ContactPointCallback;
-        void*                       m_ContactPointCallbackUserData;
     };
 
     struct Context2D

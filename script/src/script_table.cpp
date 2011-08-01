@@ -24,15 +24,16 @@ namespace dmScript
      * T      key (null terminated string or char)
      * T      value
      * ...
-     * if value is of type Point3, Vector3, Vector4 or Quat, ie LUA_TUSERDATA, the first byte in value is the SubType
+     * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
      */
 
     enum SubType
     {
-        SUB_TYPE_VECTOR3 = 0,
-        SUB_TYPE_VECTOR4 = 1,
-        SUB_TYPE_QUAT    = 2,
-        SUB_TYPE_MATRIX4 = 3,
+        SUB_TYPE_VECTOR3    = 0,
+        SUB_TYPE_VECTOR4    = 1,
+        SUB_TYPE_QUAT       = 2,
+        SUB_TYPE_MATRIX4    = 3,
+        SUB_TYPE_HASH       = 4,
     };
 
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
@@ -226,6 +227,19 @@ namespace dmScript
 
                         buffer += sizeof(float) * 16;
                     }
+                    else if (IsHash(L, -1))
+                    {
+                        dmhash_t hash = CheckHash(L, -1);
+                        const uint32_t hash_size = sizeof(dmhash_t);
+
+                        if (buffer_end - buffer < int32_t(hash_size))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_HASH;
+
+                        memcpy(buffer, (const void*)&hash, hash_size);
+                        buffer += hash_size;
+                    }
                     else
                     {
                         luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
@@ -345,6 +359,14 @@ namespace dmScript
                                 m.setElem(i, j, f[i * 4 + j]);
                         dmScript::PushMatrix4(L, m);
                         buffer += sizeof(float) * 16;
+                    }
+                    else if (sub_type == (char) SUB_TYPE_HASH)
+                    {
+                        dmhash_t hash;
+                        uint32_t hash_size = sizeof(dmhash_t);
+                        memcpy(&hash, buffer, hash_size);
+                        dmScript::PushHash(L, hash);
+                        buffer += hash_size;
                     }
                     else
                     {

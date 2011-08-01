@@ -73,8 +73,6 @@ Test3D::Test3D()
 , m_NewWorldFunc(dmPhysics::NewWorld3D)
 , m_DeleteWorldFunc(dmPhysics::DeleteWorld3D)
 , m_StepWorldFunc(dmPhysics::StepWorld3D)
-, m_SetCollisionCallbackFunc(dmPhysics::SetCollisionCallback3D)
-, m_SetContactPointCallbackFunc(dmPhysics::SetContactPointCallback3D)
 , m_DrawDebugFunc(dmPhysics::DrawDebug3D)
 , m_NewBoxShapeFunc(dmPhysics::NewBoxShape3D)
 , m_NewSphereShapeFunc(dmPhysics::NewSphereShape3D)
@@ -116,8 +114,6 @@ Test2D::Test2D()
 , m_NewWorldFunc(dmPhysics::NewWorld2D)
 , m_DeleteWorldFunc(dmPhysics::DeleteWorld2D)
 , m_StepWorldFunc(dmPhysics::StepWorld2D)
-, m_SetCollisionCallbackFunc(dmPhysics::SetCollisionCallback2D)
-, m_SetContactPointCallbackFunc(dmPhysics::SetContactPointCallback2D)
 , m_DrawDebugFunc(dmPhysics::DrawDebug2D)
 , m_NewBoxShapeFunc(dmPhysics::NewBoxShape2D)
 , m_NewSphereShapeFunc(dmPhysics::NewCircleShape2D)
@@ -304,7 +300,7 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
         ASSERT_NEAR(start_rot.getElem(i), body_rot.getElem(i), 0.0000001f);
     }
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_GT(start_pos.getY(), vo.m_Position.getY());
     ASSERT_GT(start_pos.getY(), (*TestFixture::m_Test.m_GetWorldPositionFunc)(dynamic_co).getY());
@@ -324,7 +320,7 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position.setY(1.0f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1.0f, vo.m_Position.getY());
     ASSERT_EQ(1.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(kinematic_co).getY());
@@ -343,7 +339,7 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position.setY(1.0f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1.0f, vo.m_Position.getY());
     ASSERT_EQ(0.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(static_co).getY());
@@ -362,7 +358,7 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 
     vo.m_Position.setY(1.0f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1.0f, vo.m_Position.getY());
     ASSERT_EQ(1.0f, (*TestFixture::m_Test.m_GetWorldPositionFunc)(trigger_co).getY());
@@ -397,7 +393,7 @@ TYPED_TEST(PhysicsTest, GroundBoxCollision)
 
     for (int i = 0; i < 200; ++i)
     {
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
     ASSERT_NEAR(ground_height_half_ext + box_half_ext, box_visual_object.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius);
@@ -434,7 +430,7 @@ TYPED_TEST(PhysicsTest, CollisionCallbacks)
     TestFixture::m_ContactPointCount = 0;
     for (int i = 0; i < 10; ++i)
     {
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
     ASSERT_EQ(0, TestFixture::m_CollisionCount);
     ASSERT_EQ(0, TestFixture::m_ContactPointCount);
@@ -443,7 +439,7 @@ TYPED_TEST(PhysicsTest, CollisionCallbacks)
     for (int i = 0; i < 200 && box_visual_object.m_Position.getY() != last_y; ++i)
     {
         last_y = box_visual_object.m_Position.getY();
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
     ASSERT_EQ(20, TestFixture::m_CollisionCount);
     ASSERT_EQ(20, TestFixture::m_ContactPointCount);
@@ -492,7 +488,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
 
     for (int i = 0; i < 20; ++i)
     {
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
     ASSERT_NEAR(1.0f, dynamic_vo.m_Position.getY(), 2.0f * TestFixture::m_Test.m_PolygonRadius);
@@ -519,13 +515,13 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     trigger_data.m_UserData = &trigger_vo;
     typename TypeParam::CollisionObjectType trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, trigger_data, trigger_shape);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
 
     for (int i = 0; i < 20; ++i)
     {
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
     ASSERT_GT(1.0f - 0.1f, dynamic_vo.m_Position.getY());
@@ -548,13 +544,13 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     trigger_vo.m_CollisionCount = 0;
     trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, trigger_data, trigger_shape);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
 
     trigger_vo.m_Position.setY(0.8f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_LT(0, trigger_vo.m_CollisionCount);
 
@@ -562,7 +558,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
 
     trigger_vo.m_Position.setY(1.1f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
 
@@ -589,14 +585,14 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
     trigger_vo.m_CollisionCount = 0;
     trigger_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, trigger_data, trigger_shape);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(0, kinematic_vo.m_CollisionCount);
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
 
     kinematic_vo.m_Position.setY(0.5f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(1, kinematic_vo.m_CollisionCount);
     ASSERT_EQ(1, trigger_vo.m_CollisionCount);
@@ -606,7 +602,7 @@ TYPED_TEST(PhysicsTest, TriggerCollisions)
 
     kinematic_vo.m_Position.setY(0.0f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_EQ(0, kinematic_vo.m_CollisionCount);
     ASSERT_EQ(0, trigger_vo.m_CollisionCount);
@@ -637,7 +633,7 @@ TYPED_TEST(PhysicsTest, ApplyForce)
     ASSERT_NEAR(total_force.getY(), force.getY(), 0.01f);
     ASSERT_NEAR(total_force.getZ(), force.getZ(), 0.01f);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(box_co);
     ASSERT_NE(0.0f, lengthSqr(lin_vel));
@@ -654,7 +650,7 @@ struct RayCastResult
     void* m_UserData;
 };
 
-void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request)
+void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
 {
     RayCastResult* rcr = (RayCastResult*)request.m_UserData;
     rcr[request.m_UserId].m_Response = response;
@@ -673,11 +669,11 @@ TYPED_TEST(PhysicsTest, EmptyRayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
-    request.m_Callback = &RayCastCallback;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_FALSE(result.m_Response.m_Hit);
 }
@@ -701,7 +697,6 @@ TYPED_TEST(PhysicsTest, RayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 0.51f + TestFixture::m_Test.m_PolygonRadius, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = result;
-    request.m_Callback = &RayCastCallback;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
@@ -710,7 +705,8 @@ TYPED_TEST(PhysicsTest, RayCasting)
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
 
     ASSERT_FALSE(result[0].m_Response.m_Hit);
@@ -748,7 +744,6 @@ TYPED_TEST(PhysicsTest, InsideRayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 1.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = result;
-    request.m_Callback = &RayCastCallback;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
@@ -757,7 +752,8 @@ TYPED_TEST(PhysicsTest, InsideRayCasting)
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_FALSE(result[0].m_Response.m_Hit);
     ASSERT_FALSE(result[1].m_Response.m_Hit);
@@ -786,11 +782,11 @@ TYPED_TEST(PhysicsTest, IgnoreRayCasting)
     request.m_UserId = 0;
     request.m_IgnoredUserData = &vo;
     request.m_UserData = &result;
-    request.m_Callback = &RayCastCallback;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_FALSE(result.m_Response.m_Hit);
 
@@ -817,11 +813,11 @@ TYPED_TEST(PhysicsTest, TriggerRayCasting)
     request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
     request.m_UserId = 0;
     request.m_UserData = &result;
-    request.m_Callback = &RayCastCallback;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     // We rather have a 0.0f hit here, but bullet thinks otherwise
     ASSERT_FALSE(result.m_Response.m_Hit);
@@ -870,11 +866,11 @@ TYPED_TEST(PhysicsTest, FilteredRayCasting)
     request.m_UserId = 0;
     request.m_UserData = &result;
     request.m_Mask = GROUP_B;
-    request.m_Callback = &RayCastCallback;
 
     (*TestFixture::m_Test.m_RequestRayCastFunc)(TestFixture::m_World, request);
 
-    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+    TestFixture::m_StepWorldContext.m_RayCastCallback = RayCastCallback;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_TRUE(result.m_Response.m_Hit);
     ASSERT_EQ(GROUP_B, result.m_Response.m_CollisionObjectGroup);
@@ -976,11 +972,13 @@ TYPED_TEST(PhysicsTest, CollisionFiltering)
     int contact_point_count[FILTER_GROUP_COUNT];
     memset(contact_point_count, 0, FILTER_GROUP_COUNT * sizeof(int));
 
-    (*TestFixture::m_Test.m_SetCollisionCallbackFunc)(TestFixture::m_World, FilterCollisionCallback, collision_count);
-    (*TestFixture::m_Test.m_SetContactPointCallbackFunc)(TestFixture::m_World, FilterContactPointCallback, contact_point_count);
+    TestFixture::m_StepWorldContext.m_CollisionCallback = FilterCollisionCallback;
+    TestFixture::m_StepWorldContext.m_CollisionUserData = collision_count;
+    TestFixture::m_StepWorldContext.m_ContactPointCallback = FilterContactPointCallback;
+    TestFixture::m_StepWorldContext.m_ContactPointUserData = contact_point_count;
     for (int i = 0; i < 10; ++i)
     {
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, 1.0f / 60.0f);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     }
 
     ASSERT_EQ(collision_count[FILTER_GROUP_A] + collision_count[FILTER_GROUP_B], vo_a.m_CollisionCount + vo_b.m_CollisionCount);

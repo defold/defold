@@ -420,12 +420,12 @@ namespace dmGameObject
     void DeleteCollection(HCollection collection);
 
     /**
-     * Retrieve the world in the collection connected to the supplied resource type
+     * Retrieve the world in the collection connected to the supplied component
      * @param collection Collection handle
-     * @param resource_type Resource type
-     * @return A pointer to the world or 0x0 if the resource type could not be found
+     * @param component_index index of the component for which the world is to be retrieved
+     * @return a pointer to the world, 0x0 if not found
      */
-    void* FindWorld(HCollection collection, uint32_t resource_type);
+    void* GetWorld(HCollection collection, uint32_t component_index);
 
     /**
      * Register a new component type
@@ -434,6 +434,15 @@ namespace dmGameObject
      * @return RESULT_OK on success
      */
     Result RegisterComponentType(HRegister regist, const ComponentType& type);
+
+    /**
+     * Retrieves a registered component type given its resource type.
+     * @param regist Game object register
+     * @param resource_type The resource type of the component type
+     * @param out_component_index Optional component index out argument, 0x0 is accepted
+     * @return the registered component type or 0x0 if not found
+     */
+    ComponentType* FindComponentType(HRegister regist, uint32_t resource_type, uint32_t* out_component_index);
 
     /**
      * Set update order priority. Zero is highest priority.
@@ -690,6 +699,8 @@ namespace dmGameObject
      * @return Result
      */
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist);
+
+    lua_State* GetLuaState();
 }
 
 #endif // GAMEOBJECT_H

@@ -954,4 +954,10 @@ bail:
         assert(top == lua_gettop(L));
         return res;
     }
+
+    lua_State* GetLuaState(HContext context)
+    {
+        return context->m_LuaState;
+    }
+
 }  // namespace dmGui

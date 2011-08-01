@@ -59,7 +59,19 @@ namespace dmGameSystem
         uint32_t                    m_MaxSpriteCount;
     };
 
+    struct ScriptLibContext
+    {
+        ScriptLibContext();
+
+        lua_State* m_LuaState;
+        dmResource::HFactory m_Factory;
+        dmGameObject::HRegister m_Register;
+    };
+
     void RegisterDDFTypes(dmScript::HContext script_context);
+
+    bool InitializeScriptLibs(const ScriptLibContext& context);
+    void FinalizeScriptLibs(const ScriptLibContext& context);
 
     dmResource::FactoryResult RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,

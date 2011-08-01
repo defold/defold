@@ -50,8 +50,8 @@ message CollisionObjectDesc
     required float                  mass            = 3;
     required float                  friction        = 4;
     required float                  restitution     = 5;
-    required uint32                 group           = 6;
-    repeated uint32                 mask            = 7;
+    required string                 group           = 6;
+    repeated string                 mask            = 7;
 }
 
 /*# applies a force on a collision object
@@ -104,7 +104,7 @@ message ApplyForce
 message CollisionResponse
 {
     required uint64 other_id    = 1;
-    required uint32 group       = 2;
+    required uint64 group       = 2;
 }
 
 /*# reports a contact point between two collision objects
@@ -155,40 +155,15 @@ message ContactPointResponse
     required float          other_mass              = 8;
     required uint64         other_id                = 9;
     required dmMath.Point3  other_position          = 10;
-    required uint32         group                   = 11;
+    required uint64         group                   = 11;
 }
 
-/*# requests a ray cast to be performed
- * Post this message to the designated physics socket <code>@physics</code> to request a ray cast.
- * The ray cast will be performed in the same physics world as the sender exists in.
- *
- * @message
- * @name request_ray_cast
- * @param from the world position of the start of the ray (vector3)
- * @param to the world position of the end of the ray (vector3)
- * @param mask a bit mask to filter out which collision groups will be checked for collisions (number)
- * @examples
- * How to perform a ray cast:
- * <pre>
- * function update(self, dt)
- *     -- request ray cast
- *     local my_mask = 1 + 2 + 8 -- assuming we are interested in collision groups 1, 2 and 8
- *     msg.post("@physics:", "request_ray_cast", {from = interesting_start, to = interesting_end, mask = my_mask})
- * end
- *
- * function on_message(self, message_id, message, sender)
- *     -- check for the response
- *     if message_id == hash("ray_cast_response") then
- *         -- act on the hit
- *     end
- * end
- * </pre>
- */
 message RequestRayCast
 {
     required dmMath.Point3  from = 1;
     required dmMath.Point3  to = 2;
     required uint32         mask = 3;
+    required uint32         request_id = 4;
 }
 
 /*# reports a ray cast hit
@@ -201,7 +176,8 @@ message RequestRayCast
  * @param position the world position of the hit
  * @param normal the normal of the surface of the collision object where it was hit
  * @param id the instance id of the hit collision object
- * @param group the collision group of the hit collision object
+ * @param group the collision group of the hit collision object as a hashed name
+ * @param request_id id supplied when the ray cast was requested
  */
 message RayCastResponse
 {
@@ -209,7 +185,8 @@ message RayCastResponse
     required dmMath.Point3  position        = 2;
     required dmMath.Vector3 normal          = 3;
     required uint64         id              = 4;
-    required uint32         group           = 5;
+    required uint64         group           = 5;
+    required uint32         request_id      = 6;
 }
 
 /*# requests the velocity of a collision object

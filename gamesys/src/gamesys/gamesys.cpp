@@ -55,7 +55,6 @@ namespace dmGameSystem
     {
         dmScript::RegisterDDFType(script_context, dmGamesysDDF::AddCameraTarget::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmGamesysDDF::SetCamera::m_DDFDescriptor);
-        dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmPhysicsDDF::RequestVelocity::m_DDFDescriptor);
         dmScript::RegisterDDFType(script_context, dmPhysicsDDF::VelocityResponse::m_DDFDescriptor);

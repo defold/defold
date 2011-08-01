@@ -31,13 +31,14 @@ protected:
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
-        world_params.m_CollisionCallback = CollisionCallback;
-        world_params.m_CollisionCallbackUserData = (void*)&m_CollisionCount;
-        world_params.m_ContactPointCallback = ContactPointCallback;
-        world_params.m_ContactPointCallbackUserData = (void*)&m_ContactPointCount;
         m_World = (*m_Test.m_NewWorldFunc)(m_Context, world_params);
         m_CollisionCount = 0;
         m_ContactPointCount = 0;
+        m_StepWorldContext.m_DT = 1.0f / 60.0f;
+        m_StepWorldContext.m_CollisionCallback = CollisionCallback;
+        m_StepWorldContext.m_CollisionUserData = &m_CollisionCount;
+        m_StepWorldContext.m_ContactPointCallback = ContactPointCallback;
+        m_StepWorldContext.m_ContactPointUserData = &m_ContactPointCount;
     }
 
     virtual void TearDown()
@@ -49,6 +50,7 @@ protected:
     typename T::ContextType m_Context;
     typename T::WorldType m_World;
     T m_Test;
+    dmPhysics::StepWorldContext m_StepWorldContext;
     int m_CollisionCount;
     int m_ContactPointCount;
 };
@@ -60,7 +62,7 @@ struct Funcs
     typedef void (*DeleteContextFunc)(typename T::ContextType context);
     typedef typename T::WorldType (*NewWorldFunc)(typename T::ContextType context, const dmPhysics::NewWorldParams& params);
     typedef void (*DeleteWorldFunc)(typename T::ContextType context, typename T::WorldType world);
-    typedef void (*StepWorldFunc)(typename T::WorldType world, float dt);
+    typedef void (*StepWorldFunc)(typename T::WorldType world, const dmPhysics::StepWorldContext& context);
     typedef void (*SetCollisionCallbackFunc)(typename T::WorldType world, dmPhysics::CollisionCallback callback, void* user_data);
     typedef void (*SetContactPointCallbackFunc)(typename T::WorldType world, dmPhysics::ContactPointCallback callback, void* user_data);
     typedef void (*DrawDebugFunc)(typename T::WorldType world);
@@ -143,8 +145,6 @@ struct Test2D
     Funcs<Test2D>::NewWorldFunc                     m_NewWorldFunc;
     Funcs<Test2D>::DeleteWorldFunc                  m_DeleteWorldFunc;
     Funcs<Test2D>::StepWorldFunc                    m_StepWorldFunc;
-    Funcs<Test2D>::SetCollisionCallbackFunc         m_SetCollisionCallbackFunc;
-    Funcs<Test2D>::SetContactPointCallbackFunc      m_SetContactPointCallbackFunc;
     Funcs<Test2D>::DrawDebugFunc                    m_DrawDebugFunc;
     Funcs<Test2D>::NewBoxShapeFunc                  m_NewBoxShapeFunc;
     Funcs<Test2D>::NewSphereShapeFunc               m_NewSphereShapeFunc;

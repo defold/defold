@@ -1,10 +1,11 @@
+#include "physics.h"
+
 #include <stdint.h>
+#include <string.h>
 
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
-
-#include "physics.h"
 
 namespace dmPhysics
 {
@@ -26,10 +27,6 @@ namespace dmPhysics
     , m_WorldMax(WORLD_EXTENT, WORLD_EXTENT, WORLD_EXTENT)
     , m_GetWorldTransformCallback(0x0)
     , m_SetWorldTransformCallback(0x0)
-    , m_CollisionCallback(0x0)
-    , m_CollisionCallbackUserData(0x0)
-    , m_ContactPointCallback(0x0)
-    , m_ContactPointCallbackUserData(0x0)
     {
 
     }
@@ -46,10 +43,14 @@ namespace dmPhysics
 
     }
 
+    StepWorldContext::StepWorldContext()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     RayCastRequest::RayCastRequest()
     : m_From(0.0f, 0.0f, 0.0f)
     , m_To(0.0f, 0.0f, 0.0f)
-    , m_Callback(0x0)
     , m_IgnoredUserData((void*)~0) // unlikely user data to ignore
     , m_UserData(0x0)
     , m_Mask(~0)

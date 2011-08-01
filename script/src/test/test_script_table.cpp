@@ -271,6 +271,35 @@ TEST_F(LuaTableTest, Matrix4)
     lua_pop(L, 1);
 }
 
+TEST_F(LuaTableTest, Hash)
+{
+    int top = lua_gettop(L);
+
+    // Create table
+    lua_newtable(L);
+    dmhash_t hash = dmHashString64("test");
+    dmScript::PushHash(L, hash);
+    lua_setfield(L, -2, "h");
+
+    char buf[256];
+
+    uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, buf);
+
+    lua_getfield(L, -1, "h");
+    ASSERT_TRUE(dmScript::IsHash(L, -1));
+    dmhash_t hash2 = dmScript::CheckHash(L, -1);
+    ASSERT_EQ(hash, hash2);
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(LuaTableTest, MixedKeys)
 {
     // Create table

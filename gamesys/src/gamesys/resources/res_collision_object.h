@@ -12,9 +12,10 @@ namespace dmGameSystem
 {
     struct CollisionObjectResource
     {
+        uint64_t m_Mask[16];
+        uint64_t m_Group;
         ConvexShapeResource* m_ConvexShape;
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;
-        uint16_t m_Mask;
     };
 
     dmResource::CreateResult ResCollisionObjectCreate(dmResource::HFactory factory,

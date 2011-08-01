@@ -160,6 +160,18 @@ namespace dmGameObject
         delete collection;
     }
 
+    void* GetWorld(HCollection collection, uint32_t component_index)
+    {
+        if (component_index < MAX_COMPONENT_TYPES)
+        {
+            return collection->m_ComponentWorlds[component_index];
+        }
+        else
+        {
+            return 0x0;
+        }
+    }
+
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index)
     {
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -173,15 +185,6 @@ namespace dmGameObject
             }
         }
         return 0;
-    }
-
-    void* FindWorld(HCollection collection, uint32_t resource_type)
-    {
-        uint32_t index;
-        ComponentType* component_type = FindComponentType(collection->m_Register, resource_type, &index);
-        if (component_type != 0x0)
-            return collection->m_ComponentWorlds[index];
-        return 0x0;
     }
 
     struct ComponentTypeSortPred
@@ -1641,5 +1644,10 @@ namespace dmGameObject
                 }
             }
         }
+    }
+
+    lua_State* GetLuaState()
+    {
+        return g_LuaState;
     }
 }

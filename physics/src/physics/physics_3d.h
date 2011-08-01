@@ -23,10 +23,6 @@ namespace dmPhysics
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
-        CollisionCallback                       m_CollisionCallback;
-        void*                                   m_CollisionCallbackUserData;
-        ContactPointCallback                    m_ContactPointCallback;
-        void*                                   m_ContactPointCallbackUserData;
     };
 
     struct Context3D

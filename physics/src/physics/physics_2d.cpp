@@ -26,10 +26,6 @@ namespace dmPhysics
     , m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
-    , m_CollisionCallback(params.m_CollisionCallback)
-    , m_CollisionCallbackUserData(params.m_CollisionCallbackUserData)
-    , m_ContactPointCallback(params.m_ContactPointCallback)
-    , m_ContactPointCallbackUserData(params.m_ContactPointCallbackUserData)
     {
         m_DebugDraw.SetFlags(~0u);
         m_RayCastRequests.SetCapacity(64);
@@ -77,13 +73,15 @@ namespace dmPhysics
 
     void ContactListener::PostSolve(b2Contact* contact, const b2ContactImpulse* impulse)
     {
-        if (m_World->m_CollisionCallback != 0x0 || m_World->m_ContactPointCallback != 0x0)
+        CollisionCallback collision_callback = m_TempStepWorldContext->m_CollisionCallback;
+        ContactPointCallback contact_point_callback = m_TempStepWorldContext->m_ContactPointCallback;
+        if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
             if (contact->IsTouching())
             {
-                if (m_World->m_CollisionCallback)
-                    (*m_World->m_CollisionCallback)(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().groupIndex, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().groupIndex, m_World->m_CollisionCallbackUserData);
-                if (m_World->m_ContactPointCallback)
+                if (collision_callback)
+                    collision_callback(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().groupIndex, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().groupIndex, m_TempStepWorldContext->m_CollisionUserData);
+                if (contact_point_callback)
                 {
                     b2WorldManifold world_manifold;
                     contact->GetWorldManifold(&world_manifold);
@@ -101,10 +99,15 @@ namespace dmPhysics
                     cp.m_InvMassB = 1.0f / contact->GetFixtureB()->GetBody()->GetMass();
                     cp.m_GroupA = contact->GetFixtureA()->GetFilterData().groupIndex;
                     cp.m_GroupB = contact->GetFixtureB()->GetFilterData().groupIndex;
-                    (*m_World->m_ContactPointCallback)(cp, m_World->m_ContactPointCallbackUserData);
+                    contact_point_callback(cp, m_TempStepWorldContext->m_ContactPointUserData);
                 }
             }
         }
+    }
+
+    void ContactListener::SetStepWorldContext(const StepWorldContext* context)
+    {
+        m_TempStepWorldContext = context;
     }
 
     HContext2D NewContext2D(const NewContextParams& params)
@@ -162,8 +165,9 @@ namespace dmPhysics
         delete world;
     }
 
-    void StepWorld2D(HWorld2D world, float dt)
+    void StepWorld2D(HWorld2D world, const StepWorldContext& context)
     {
+        float dt = context.m_DT;
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
@@ -179,6 +183,7 @@ namespace dmPhysics
                 }
             }
         }
+        world->m_ContactListener.SetStepWorldContext(&context);
         world->m_World.Step(dt, 10, 10);
         // Update transforms of dynamic bodies
         if (world->m_SetWorldTransformCallback)
@@ -207,33 +212,21 @@ namespace dmPhysics
                 callback.m_CollisionMask = request.m_Mask;
                 callback.m_Response.m_Hit = 0;
                 world->m_World.RayCast(&callback, from, to);
-                (*request.m_Callback)(callback.m_Response, request);
+                (*context.m_RayCastCallback)(callback.m_Response, request, context.m_RayCastUserData);
             }
             world->m_RayCastRequests.SetSize(0);
         }
         // Report sensor collisions
-        if (world->m_CollisionCallback)
+        if (context.m_CollisionCallback)
         {
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
                 if (contact->IsTouching() && (contact->GetFixtureA()->IsSensor() || contact->GetFixtureB()->IsSensor()))
                 {
-                    (*world->m_CollisionCallback)(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().groupIndex, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().groupIndex, world->m_CollisionCallbackUserData);
+                    context.m_CollisionCallback(contact->GetFixtureA()->GetUserData(), contact->GetFixtureA()->GetFilterData().groupIndex, contact->GetFixtureB()->GetUserData(), contact->GetFixtureB()->GetFilterData().groupIndex, context.m_CollisionUserData);
                 }
             }
         }
-    }
-
-    void SetCollisionCallback2D(HWorld2D world, CollisionCallback collision_callback, void* collision_callback_user_data)
-    {
-        world->m_CollisionCallback = collision_callback;
-        world->m_CollisionCallbackUserData = collision_callback_user_data;
-    }
-
-    void SetContactPointCallback2D(HWorld2D world, ContactPointCallback contact_point_callback, void* contact_point_callback_user_data)
-    {
-        world->m_ContactPointCallback = contact_point_callback;
-        world->m_ContactPointCallbackUserData = contact_point_callback_user_data;
     }
 
     void DrawDebug2D(HWorld2D world)
