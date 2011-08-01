@@ -478,7 +478,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
             firePropertyChange(PROP_DIRTY);
         } catch (CoreException e) {
-            Status status = new Status(IStatus.ERROR, "com.dynamo.cr.ddfeditor", "Error occured while saving file", e);
+            Status status = new Status(IStatus.ERROR, "com.dynamo.cr.ddfeditor", "Error occurred while saving file", e);
             StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
         }
     }

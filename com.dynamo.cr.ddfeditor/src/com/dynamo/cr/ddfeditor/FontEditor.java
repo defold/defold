@@ -90,7 +90,7 @@ public class FontEditor extends DdfEditor {
                     Display.getDefault().asyncExec(new Runnable() {
                         @Override
                         public void run() {
-                            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "An error occured while creating preview.", e);
+                            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "An error occurred while creating preview.", e);
                             StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
                         }
                     });

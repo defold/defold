@@ -387,7 +387,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                         pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
                     } catch (CoreException ex) {
-                        showError("Error occured when creating project", ex);
+                        showError("Error occurred when creating project", ex);
                     }
                 }
             }, null);
