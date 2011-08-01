@@ -32,6 +32,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo.Type;
 import com.sun.jersey.api.client.Client;
@@ -138,8 +139,7 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
         try {
             server.start();
         } catch (Exception e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            Activator.logException(e);
         }
     }
 
@@ -163,7 +163,7 @@ public class OpenIDLoginDialog extends TitleAreaDialog {
             server.stop();
             connector.stop();
         } catch (Exception e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
         return super.close();
     }

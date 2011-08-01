@@ -131,6 +131,7 @@ public class ResourceMoveParticipant extends MoveParticipant implements ISharabl
                     }
                 });
             } catch (CoreException e) {
+                // Can't use any UI here in a core plugin such as StatusManager
                 e.printStackTrace();
             }
         }

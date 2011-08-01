@@ -35,6 +35,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.ui.services.IDisposable;
 import org.eclipse.ui.views.properties.IPropertySource;
 
+import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.IGuiEditor;
 import com.dynamo.cr.guieditor.render.GuiFontResource;
@@ -227,8 +228,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
                 loadFont(guiFont, contentRoot, renderer);
             }
             catch(Throwable e) {
-                // TODO: WE MUST HANDLE THIS...
-                e.printStackTrace();
+                Activator.logException(e);
             }
             monitor.worked(1);
         }
@@ -239,8 +239,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
                 loadTexture(textureDesc, contentRoot, renderer);
             }
             catch(Throwable e) {
-                // TODO: WE MUST HANDLE THIS...
-                e.printStackTrace();
+                Activator.logException(e);
             }
             monitor.worked(1);
         }
@@ -490,7 +489,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
         try {
             loadRenderResources(new NullProgressMonitor(), editor.getContentRoot(), editor.getRenderer());
         } catch (Throwable e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
         return textureDesc;
     }
@@ -501,7 +500,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
         try {
             loadRenderResources(new NullProgressMonitor(), editor.getContentRoot(), editor.getRenderer());
         } catch (Throwable e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
         return fontDesc;
     }
@@ -626,7 +625,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
                 }
             });
         } catch (CoreException e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
 
         try {
@@ -638,7 +637,7 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
                 }
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
     }
 }

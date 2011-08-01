@@ -133,7 +133,7 @@ public class BranchService implements IBranchService {
                                     fireBranchStatusChangedEvent(new BranchStatusChangedEvent(branchStatus, resources.toArray()));
                                 }
                             } catch (CoreException e) {
-                                e.printStackTrace();
+                                Activator.logException(e);
                             }
                         } catch (RepositoryException e) {
                             Activator.getDefault().logger.warning(e.getMessage());

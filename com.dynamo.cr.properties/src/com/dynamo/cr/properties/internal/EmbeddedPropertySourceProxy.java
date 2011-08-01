@@ -34,6 +34,7 @@ public class EmbeddedPropertySourceProxy<T, U extends IPropertyObjectWorld, V> i
         try {
             return this.accessor.getValue(parent, property, world);
         } catch (Throwable e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
         return null;
@@ -51,6 +52,7 @@ public class EmbeddedPropertySourceProxy<T, U extends IPropertyObjectWorld, V> i
             V object = (V) this.accessor.getValue(parent, property, world);
             return embeddedPropertySource.getPropertyValue(object, id);
         } catch (Throwable e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
         return null;

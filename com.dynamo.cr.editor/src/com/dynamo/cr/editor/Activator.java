@@ -39,6 +39,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 
@@ -154,6 +155,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         }
     }
 
+    public static void logException(Throwable e) {
+        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
+        StatusManager.getManager().handle(status, StatusManager.LOG);
+    }
+
 	/*
 	 * (non-Javadoc)
 	 * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
@@ -181,7 +187,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         try {
             workspace.setDescription(work_desc);
         } catch (CoreException e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
 
         ResourcesPlugin.getWorkspace().addResourceChangeListener(this, IResourceChangeEvent.POST_CHANGE);
@@ -216,7 +222,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         try {
             proxy_service.setProxyData(proxy_data);
         } catch (CoreException e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
 
 	}
@@ -323,7 +329,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                     cr_project.delete(true, new NullProgressMonitor());
                     setProjectExplorerInput(ResourcesPlugin.getWorkspace().getRoot());
                 } catch (CoreException e) {
-                    e.printStackTrace();
+                    Activator.logException(e);
                 }
                 IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
                 if (branchService != null) {

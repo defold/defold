@@ -95,12 +95,10 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
     public void executeOperation(IUndoableOperation operation) {
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         operation.addContext(undoContext);
-        try
-        {
+        try {
             history.execute(operation, null, null);
-        } catch (ExecutionException e)
-        {
-            e.printStackTrace();
+        } catch (ExecutionException e) {
+            Activator.logException(e);
         }
     }
 
@@ -119,8 +117,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
                 firePropertyChange(PROP_DIRTY);
             } catch (CoreException e) {
-                e.printStackTrace();
-                Status status = new Status(IStatus.ERROR, "com.dynamo.cr.ddfeditor", 0, e.getMessage(), null);
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
                 ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
             }
         }
@@ -322,7 +319,7 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 }
             });
         } catch (CoreException e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
     }
 }

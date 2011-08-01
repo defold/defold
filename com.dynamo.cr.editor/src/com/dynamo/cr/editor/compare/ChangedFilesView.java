@@ -73,7 +73,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
                 BranchStatus branchStatus = branchClient.getBranchStatus();
                 updateTable(branchStatus);
             } catch (RepositoryException e) {
-                e.printStackTrace();
+                Activator.logException(e);
             }
         }
     }
@@ -139,14 +139,14 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
                                     subMonitor.worked(1);
                                 }
                                 catch (Exception e) {
-                                    e.printStackTrace();
+                                    Activator.logException(e);
                                 }
                                 subMonitor.done();
                             }
                             try {
                                 ResourcesPlugin.getWorkspace().getRoot().refreshLocal(IResource.DEPTH_INFINITE, monitor);
                             } catch (CoreException e) {
-                                e.printStackTrace();
+                                Activator.logException(e);
                             }
                             monitor.done();
                         }
@@ -158,7 +158,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
                         }
                     }, null);
                 } catch (Throwable e) {
-                    e.printStackTrace();
+                    Activator.logException(e);
                 }
             }
         }

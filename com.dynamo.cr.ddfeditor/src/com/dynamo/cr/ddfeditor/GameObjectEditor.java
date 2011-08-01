@@ -479,7 +479,6 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
             cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
             firePropertyChange(PROP_DIRTY);
         } catch (CoreException e) {
-            e.printStackTrace();
             Status status = new Status(IStatus.ERROR, "com.dynamo.cr.ddfeditor", 0, e.getMessage(), null);
             ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
         }
@@ -805,7 +804,7 @@ public class GameObjectEditor extends EditorPart implements IOperationHistoryLis
                     try {
                         IDE.openEditor(page, file);
                     } catch (PartInitException e1) {
-                        e1.printStackTrace();
+                        Activator.logException(e1);
                     }
                 }
             }

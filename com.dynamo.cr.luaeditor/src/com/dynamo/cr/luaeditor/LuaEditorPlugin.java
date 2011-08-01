@@ -10,9 +10,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
 import com.dynamo.scriptdoc.proto.ScriptDoc;
@@ -57,7 +60,8 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
             }
 
         } catch (IOException e) {
-            e.printStackTrace();
+            Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
+            StatusManager.getManager().handle(status, StatusManager.LOG);
         }
     }
 

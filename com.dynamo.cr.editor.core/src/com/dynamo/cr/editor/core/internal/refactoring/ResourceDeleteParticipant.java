@@ -73,6 +73,7 @@ public class ResourceDeleteParticipant extends DeleteParticipant implements ISha
                     }
                 });
             } catch (CoreException e) {
+                // Can't use any UI here in a core plugin such as StatusManager
                 e.printStackTrace();
             }
         }

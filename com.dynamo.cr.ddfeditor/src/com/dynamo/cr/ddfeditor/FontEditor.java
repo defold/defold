@@ -36,6 +36,7 @@ public class FontEditor extends DdfEditor {
     private Image image;
     private IContainer root;
     private PreviewThread previewThread;
+    private boolean previewErrorLogged;
 
     class PreviewThread extends Thread {
         boolean run = true;
@@ -147,7 +148,10 @@ public class FontEditor extends DdfEditor {
             previewThread.queue.offer(fontDesc);
 
         } catch (IOException e) {
-            e.printStackTrace();
+            if (!previewErrorLogged) {
+                previewErrorLogged = true;
+                Activator.logException(e);
+            }
         }
     }
 

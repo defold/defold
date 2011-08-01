@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextViewer;
@@ -14,6 +16,7 @@ import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.ui.statushandlers.StatusManager;
 
 import com.dynamo.scriptdoc.proto.ScriptDoc;
 import com.dynamo.scriptdoc.proto.ScriptDoc.Parameter;
@@ -109,7 +112,8 @@ public class LuaContentAssistProcessor implements IContentAssistProcessor {
 
             }
         } catch (BadLocationException e) {
-            e.printStackTrace();
+            Status status = new Status(IStatus.ERROR, LuaEditorPlugin.PLUGIN_ID, e.getMessage(), e);
+            StatusManager.getManager().handle(status, StatusManager.LOG);
         }
 
         return proposals.toArray(new ICompletionProposal[proposals.size()]);

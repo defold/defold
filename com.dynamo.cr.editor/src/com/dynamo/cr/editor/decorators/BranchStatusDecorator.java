@@ -68,7 +68,7 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator {
                         }
                     }
                 } catch (CoreException e) {
-                    e.printStackTrace();
+                    Activator.logException(e);
                 }
             }
         } else if (element instanceof ResourceStatus) {
