@@ -75,10 +75,6 @@ namespace dmPhysics
     World3D::World3D(HContext3D context, const NewWorldParams& params)
     : m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
-    , m_CollisionCallback(params.m_CollisionCallback)
-    , m_CollisionCallbackUserData(params.m_CollisionCallbackUserData)
-    , m_ContactPointCallback(params.m_ContactPointCallback)
-    , m_ContactPointCallbackUserData(params.m_ContactPointCallbackUserData)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -193,8 +189,9 @@ namespace dmPhysics
         world->m_DynamicsWorld->debugDrawWorld();
     }
 
-    void StepWorld3D(HWorld3D world, float dt)
+    void StepWorld3D(HWorld3D world, const StepWorldContext& context)
     {
+        float dt = context.m_DT;
         // Update all trigger transforms before physics world step
         if (world->m_GetWorldTransform != 0x0)
         {
@@ -229,7 +226,7 @@ namespace dmPhysics
             for (uint32_t i = 0; i < size; ++i)
             {
                 const RayCastRequest& request = world->m_RayCastRequests[i];
-                if (request.m_Callback == 0x0)
+                if (context.m_RayCastCallback == 0x0)
                 {
                     dmLogWarning("Ray cast requested without any response callback, skipped.");
                     continue;
@@ -248,7 +245,7 @@ namespace dmPhysics
                     response.m_CollisionObjectUserData = result_callback.m_collisionObject->getUserPointer();
                     response.m_CollisionObjectGroup = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
                 }
-                request.m_Callback(response, request);
+                context.m_RayCastCallback(response, request, context.m_RayCastUserData);
             }
             world->m_RayCastRequests.SetSize(0);
         }
@@ -257,7 +254,9 @@ namespace dmPhysics
         bool requests_collision_callbacks = true;
         bool requests_contact_callbacks = true;
 
-        if (world->m_CollisionCallback != 0x0 || world->m_ContactPointCallback != 0x0)
+        CollisionCallback collision_callback = context.m_CollisionCallback;
+        ContactPointCallback contact_point_callback = context.m_ContactPointCallback;
+        if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
             DM_PROFILE(Physics, "CollisionCallbacks");
             int num_manifolds = world->m_DynamicsWorld->getDispatcher()->getNumManifolds();
@@ -270,14 +269,14 @@ namespace dmPhysics
                 if (!object_a->isActive() && !object_b->isActive())
                     continue;
 
-                if (world->m_CollisionCallback != 0x0 && requests_collision_callbacks)
+                if (collision_callback != 0x0 && requests_collision_callbacks)
                 {
-                    requests_collision_callbacks = world->m_CollisionCallback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, world->m_CollisionCallbackUserData);
+                    requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, context.m_CollisionUserData);
                     if (!requests_collision_callbacks && !requests_contact_callbacks)
                         return;
                 }
 
-                if (world->m_ContactPointCallback)
+                if (contact_point_callback != 0x0)
                 {
                     int num_contacts = contact_manifold->getNumContacts();
                     for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
@@ -315,14 +314,14 @@ namespace dmPhysics
                             vel_b = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
                         }
                         point.m_RelativeVelocity = vel_b - vel_a;
-                        requests_contact_callbacks = world->m_ContactPointCallback(point, world->m_ContactPointCallbackUserData);
+                        requests_contact_callbacks = contact_point_callback(point, context.m_ContactPointUserData);
                         if (!requests_collision_callbacks && !requests_contact_callbacks)
                             return;
                     }
                 }
             }
             // check ghosts
-            if (world->m_CollisionCallback != 0x0 && requests_collision_callbacks)
+            if (collision_callback != 0x0 && requests_collision_callbacks)
             {
                 int num_collision_objects = world->m_DynamicsWorld->getNumCollisionObjects();
                 for (int i = 0; i < num_collision_objects; ++i)
@@ -335,7 +334,7 @@ namespace dmPhysics
                         for (int j = 0; j < num_overlaps; ++j)
                         {
                             btCollisionObject* collidee = ghost_object->getOverlappingObject(j);
-                            requests_collision_callbacks = world->m_CollisionCallback(ghost_object->getUserPointer(), ghost_object->getBroadphaseHandle()->m_collisionFilterGroup, collidee->getUserPointer(), collidee->getBroadphaseHandle()->m_collisionFilterGroup, world->m_CollisionCallbackUserData);
+                            requests_collision_callbacks = collision_callback(ghost_object->getUserPointer(), ghost_object->getBroadphaseHandle()->m_collisionFilterGroup, collidee->getUserPointer(), collidee->getBroadphaseHandle()->m_collisionFilterGroup, context.m_CollisionUserData);
                             if (!requests_collision_callbacks)
                                 return;
                         }
@@ -343,18 +342,6 @@ namespace dmPhysics
                 }
             }
         }
-    }
-
-    void SetCollisionCallback3D(HWorld3D world, CollisionCallback collision_callback, void* collision_callback_user_data)
-    {
-        world->m_CollisionCallback = collision_callback;
-        world->m_CollisionCallbackUserData = collision_callback_user_data;
-    }
-
-    void SetContactPointCallback3D(HWorld3D world, ContactPointCallback contact_point_callback, void* contact_point_callback_user_data)
-    {
-        world->m_ContactPointCallback = contact_point_callback;
-        world->m_ContactPointCallbackUserData = contact_point_callback_user_data;
     }
 
     HCollisionShape3D NewSphereShape3D(float radius)

@@ -63,7 +63,7 @@ namespace dmPhysics
      * @param group_a Collision group of the first colliding object
      * @param user_data_b User data pointing to the external object of the second colliding object
      * @param group_b Collision group of the second colliding object
-     * @param user_data User data supplied to the collision query
+     * @param user_data User data supplied to StepWorldContext::m_CollisionUserData
      * @return If the collision signaling should be continued or not
      */
     typedef bool (*CollisionCallback)(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
@@ -103,10 +103,21 @@ namespace dmPhysics
      * Callback used to signal contacts.
      *
      * @param contact_point Contact data
-     * @param user_data User data supplied to the collision query
+     * @param user_data User data supplied to StepWorldContext::m_ContactPointUserData
      * @return If the contact signaling should be continued or not
      */
     typedef bool (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
+
+    struct RayCastRequest;
+    struct RayCastResponse;
+
+    /**
+     * Callback used to report ray cast response.
+     * @param response Information about the result of the ray cast
+     * @param request The request that the callback originated from
+     * @param user_data The user data as supplied to the StepWorldContext::m_RayCastUserData
+     */
+    typedef void (*RayCastCallback)(const RayCastResponse& response, const RayCastRequest& request, void* user_data);
 
     /**
      * Parameters to use when creating a context.
@@ -178,14 +189,6 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
-        /// callback to use when reporting collisions
-        CollisionCallback m_CollisionCallback;
-        /// user data to pass along to the collision callback function
-        void* m_CollisionCallbackUserData;
-        /// callback to use when reporting contact points
-        ContactPointCallback m_ContactPointCallback;
-        /// user data to pass along to the contact point callback function
-        void* m_ContactPointCallbackUserData;
     };
 
     /**
@@ -221,56 +224,43 @@ namespace dmPhysics
     void DeleteWorld2D(HContext2D context, HWorld2D world);
 
     /**
+     * Arguments passed to the StepWorld* functions.
+     */
+    struct StepWorldContext
+    {
+        StepWorldContext();
+
+        /// Time step
+        float                   m_DT;
+        /// Collision callback function
+        CollisionCallback       m_CollisionCallback;
+        /// Collision callback user data
+        void*                   m_CollisionUserData;
+        /// Contact point callback
+        ContactPointCallback    m_ContactPointCallback;
+        /// Contact point callback user data
+        void*                   m_ContactPointUserData;
+        /// Ray cast callback
+        RayCastCallback         m_RayCastCallback;
+        /// Ray cast callback user data
+        void*                   m_RayCastUserData;
+    };
+
+    /**
      * Simulate 3D physics
      *
      * @param world Physics world
-     * @param dt Time step in seconds
+     * @param context Function parameter struct
      */
-    void StepWorld3D(HWorld3D world, float dt);
+    void StepWorld3D(HWorld3D world, const StepWorldContext& context);
 
     /**
      * Simulate 2D physics
      *
      * @param world Physics world
-     * @param dt Time step in seconds
+     * @param context Function parameter struct
      */
-    void StepWorld2D(HWorld2D world, float dt);
-
-    /**
-     * Call callback functions for each collision in a 3D physics world.
-     *
-     * @param world Physics world
-     * @param collision_callback Collision callback function, called once per collision pair
-     * @param collision_callback_user_data User data passed to collision_callback
-     */
-    void SetCollisionCallback3D(HWorld3D world, CollisionCallback collision_callback, void* collision_callback_user_data);
-
-    /**
-     * Set callback functions for each collision in a 2D physics world.
-     *
-     * @param world Physics world
-     * @param collision_callback Collision callback function, called once per collision pair
-     * @param collision_callback_user_data User data passed to collision_callback
-     */
-    void SetCollisionCallback2D(HWorld2D world, CollisionCallback collision_callback, void* collision_callback_user_data);
-
-    /**
-     * Call callback functions for each contact in a 3D physics world.
-     *
-     * @param world Physics world
-     * @param contact_point_callback Contact point callback function, called once per contact point
-     * @param contact_point_callback_user_data User data passed to contact_point_callback
-     */
-    void SetContactPointCallback3D(HWorld3D world, ContactPointCallback contact_point_callback, void* contact_point_callback_user_data);
-
-    /**
-     * Set callback functions for each contact in a 2D physics world.
-     *
-     * @param world Physics world
-     * @param contact_point_callback Contact point callback function, called once per contact point
-     * @param contact_point_callback_user_data User data passed to contact_point_callback
-     */
-    void SetContactPointCallback2D(HWorld2D world, ContactPointCallback contact_point_callback, void* contact_point_callback_user_data);
+    void StepWorld2D(HWorld2D world, const StepWorldContext& context);
 
     /**
      * Draws the 3D world using the callback function registered through SetDebugCallbacks.
@@ -565,16 +555,6 @@ namespace dmPhysics
      */
     Vectormath::Aos::Vector3 GetAngularVelocity2D(HCollisionObject2D collision_object);
 
-    struct RayCastRequest;
-    struct RayCastResponse;
-
-    /**
-     * Callback used to report ray cast response.
-     * @param response Information about the result of the ray cast
-     * @param request The request that the callback originated from
-     */
-    typedef void (*RayCastCallback)(const RayCastResponse& response, const RayCastRequest& request);
-
     /**
      * Container of data for ray cast queries.
      */
@@ -586,14 +566,10 @@ namespace dmPhysics
         Vectormath::Aos::Point3 m_From;
         /// End of ray, exclusive since the ray is valid in [m_From, m_To)
         Vectormath::Aos::Point3 m_To;
-        /// Response callback function that will be called once the ray cast has been performed
-        RayCastCallback m_Callback;
         /// All collision objects with this user data will be ignored in the ray cast
         void* m_IgnoredUserData;
         /// User supplied data that will be passed to the response callback
         void* m_UserData;
-        /// Additional user supplied data that will be passed to the response callback
-        void* m_UserData2;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
         /// User supplied id to identify this query when the response is handled

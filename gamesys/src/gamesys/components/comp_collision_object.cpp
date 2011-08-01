@@ -347,12 +347,12 @@ namespace dmGameSystem
         World* m_World;
     };
 
-    static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request)
+    static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
         if (response.m_Hit)
         {
             dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
-            World* world = (World*)request.m_UserData2;
+            World* world = (World*)user_data;
 
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
@@ -419,8 +419,6 @@ namespace dmGameSystem
                     request.m_Mask = ddf->m_Mask;
                     request.m_UserId = ((uint16_t)component_index << 16) | (ddf->m_RequestId & 0xff);
                     request.m_UserData = (void*)sender_instance;
-                    request.m_UserData2 = (void*)context->m_World;
-                    request.m_Callback = &RayCastCallback;
 
                     dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
                     // Make sure no external component has sent a ray cast message during the update of this collection
@@ -475,19 +473,23 @@ namespace dmGameSystem
         CollisionUserData contact_user_data;
         contact_user_data.m_World = world;
         contact_user_data.m_Count = 0;
+
+        dmPhysics::StepWorldContext step_world_context;
+        step_world_context.m_DT = params.m_UpdateContext->m_DT;
+        step_world_context.m_CollisionCallback = CollisionCallback;
+        step_world_context.m_CollisionUserData = &collision_user_data;
+        step_world_context.m_ContactPointCallback = ContactPointCallback;
+        step_world_context.m_ContactPointUserData = &contact_user_data;
+        step_world_context.m_RayCastCallback = RayCastCallback;
+        step_world_context.m_RayCastUserData = world;
+
         if (physics_context->m_3D)
         {
-            dmPhysics::HWorld3D physics_world = world->m_World3D;
-            dmPhysics::SetCollisionCallback3D(physics_world, CollisionCallback, &collision_user_data);
-            dmPhysics::SetContactPointCallback3D(physics_world, ContactPointCallback, &contact_user_data);
-            dmPhysics::StepWorld3D(physics_world, params.m_UpdateContext->m_DT);
+            dmPhysics::StepWorld3D(world->m_World3D, step_world_context);
         }
         else
         {
-            dmPhysics::HWorld2D physics_world = world->m_World2D;
-            dmPhysics::SetCollisionCallback2D(physics_world, CollisionCallback, &collision_user_data);
-            dmPhysics::SetContactPointCallback2D(physics_world, ContactPointCallback, &contact_user_data);
-            dmPhysics::StepWorld2D(physics_world, params.m_UpdateContext->m_DT);
+            dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
         }
         if (collision_user_data.m_Count >= 128)
         {
