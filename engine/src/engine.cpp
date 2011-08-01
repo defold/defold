@@ -133,6 +133,18 @@ namespace dmEngine
     {
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
+
+        dmGameSystem::ScriptLibContext script_lib_context;
+        script_lib_context.m_Factory = engine->m_Factory;
+        script_lib_context.m_Register = engine->m_Register;
+        script_lib_context.m_LuaState = dmGameObject::GetLuaState();
+        dmGameSystem::FinalizeScriptLibs(script_lib_context);
+        if (engine->m_GuiContext.m_GuiContext != 0x0)
+        {
+            script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+            dmGameSystem::FinalizeScriptLibs(script_lib_context);
+        }
+
         dmGameObject::DeleteRegister(engine->m_Register);
 
         UnloadBootstrapContent(engine);
@@ -339,6 +351,7 @@ namespace dmEngine
 
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;
+        dmGameSystem::ScriptLibContext script_lib_context;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
         if (fact_result != dmResource::FACTORY_RESULT_OK)
@@ -363,8 +376,14 @@ namespace dmEngine
         if (engine->m_RenderScriptPrototype)
             InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
 
-        dmGameSystem::RegisterLibs(dmGameObject::GetLuaState());
-        dmGameSystem::RegisterLibs(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
+        script_lib_context.m_Factory = engine->m_Factory;
+        script_lib_context.m_Register = engine->m_Register;
+        script_lib_context.m_LuaState = dmGameObject::GetLuaState();
+        if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+            goto bail;
+        script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+        if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+            goto bail;
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(config, "bootstrap.main_collection", "logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::FACTORY_RESULT_OK)

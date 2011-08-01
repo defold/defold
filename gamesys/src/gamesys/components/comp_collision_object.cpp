@@ -352,15 +352,7 @@ namespace dmGameSystem
         if (response.m_Hit)
         {
             dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-            uint32_t type;
-            dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
-            if (fact_result != dmResource::FACTORY_RESULT_OK)
-            {
-                dmLogError("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
-                return;
-            }
-            World* world = (World*)dmGameObject::FindWorld(collection, type);
+            World* world = (World*)request.m_UserData2;
 
             dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
@@ -396,6 +388,8 @@ namespace dmGameSystem
     {
         PhysicsContext* m_PhysicsContext;
         bool m_Success;
+        dmGameObject::HCollection m_Collection;
+        World* m_World;
     };
 
     void DispatchCallback(dmMessage::Message *message, void* user_ptr)
@@ -425,32 +419,20 @@ namespace dmGameSystem
                     request.m_Mask = ddf->m_Mask;
                     request.m_UserId = ((uint16_t)component_index << 16) | (ddf->m_RequestId & 0xff);
                     request.m_UserData = (void*)sender_instance;
+                    request.m_UserData2 = (void*)context->m_World;
                     request.m_Callback = &RayCastCallback;
 
                     dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-                    uint32_t type;
-                    dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
-                    if (fact_result != dmResource::FACTORY_RESULT_OK)
+                    // Make sure no external component has sent a ray cast message during the update of this collection
+                    assert(collection == context->m_Collection);
+                    World* world = context->m_World;
+                    if (context->m_PhysicsContext->m_3D)
                     {
-                        dmLogError("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
-                        context->m_Success = false;
-                    }
-                    World* world = (World*)dmGameObject::FindWorld(collection, type);
-                    if (world != 0x0)
-                    {
-                        if (context->m_PhysicsContext->m_3D)
-                        {
-                            dmPhysics::RequestRayCast3D(world->m_World3D, request);
-                        }
-                        else
-                        {
-                            dmPhysics::RequestRayCast2D(world->m_World2D, request);
-                        }
+                        dmPhysics::RequestRayCast3D(world->m_World3D, request);
                     }
                     else
                     {
-                        dmLogError("Could not find the physics world when dispatching messages.");
-                        context->m_Success = false;
+                        dmPhysics::RequestRayCast2D(world->m_World2D, request);
                     }
                 }
             }
@@ -464,11 +446,14 @@ namespace dmGameSystem
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
 
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
+        World* world = (World*)params.m_World;
 
         // Dispatch messages
         DispatchContext dispatch_context;
         dispatch_context.m_PhysicsContext = physics_context;
         dispatch_context.m_Success = true;
+        dispatch_context.m_World = world;
+        dispatch_context.m_Collection = params.m_Collection;
         dmMessage::HSocket physics_socket = 0;
         if (physics_context->m_3D)
         {
@@ -484,7 +469,6 @@ namespace dmGameSystem
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
-        World* world = (World*)params.m_World;
         CollisionUserData collision_user_data;
         collision_user_data.m_World = world;
         collision_user_data.m_Count = 0;

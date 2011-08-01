@@ -592,6 +592,8 @@ namespace dmPhysics
         void* m_IgnoredUserData;
         /// User supplied data that will be passed to the response callback
         void* m_UserData;
+        /// Additional user supplied data that will be passed to the response callback
+        void* m_UserData2;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
         /// User supplied id to identify this query when the response is handled

@@ -15,7 +15,19 @@ extern "C"
 
 namespace dmGameSystem
 {
-    dmMessage::HSocket g_PhysicsSocket;
+#define PHYSICS_CONTEXT_NAME "__PhysicsContext"
+#define COLLISION_OBJECT_EXT "collisionobjectc"
+
+    struct PhysicsScriptContext
+    {
+        dmMessage::HSocket m_Socket;
+        uint32_t m_ComponentIndex;
+    };
+
+    ScriptLibContext::ScriptLibContext()
+    {
+        memset(this, 0, sizeof(*this));
+    }
 
     /*# requests a ray cast to be performed
      * The ray cast will be performed during the physics-update. If an object is hit, the
@@ -49,6 +61,7 @@ namespace dmGameSystem
     int Physics_RayCast(lua_State* L)
     {
         int top = lua_gettop(L);
+
         dmMessage::URL sender;
         uintptr_t user_data;
         if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
@@ -59,16 +72,13 @@ namespace dmGameSystem
             request.m_Mask = 0;
             luaL_checktype(L, 3, LUA_TTABLE);
 
+            lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+            PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+            lua_pop(L, 1);
+
             dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)user_data;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-            uint32_t type;
-            dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(collection), "collisionobjectc", &type);
-            if (fact_result != dmResource::FACTORY_RESULT_OK)
-            {
-                dmLogError("Unable to get resource type for '%s' (%d)", "collisionobjectc", fact_result);
-                return luaL_error(L, "System error.");
-            }
-            void* world = dmGameObject::FindWorld(collection, type);
+            void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
 
             lua_pushnil(L);
             while (lua_next(L, 3) != 0)
@@ -86,7 +96,7 @@ namespace dmGameSystem
                 }
             }
             dmMessage::URL receiver;
-            receiver.m_Socket = g_PhysicsSocket;
+            receiver.m_Socket = context->m_Socket;
             dmMessage::Post(&sender, &receiver, dmHashString64(dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_Name), user_data, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
             assert(top == lua_gettop(L));
             return 0;
@@ -94,7 +104,7 @@ namespace dmGameSystem
         else
         {
             assert(top == lua_gettop(L));
-            return luaL_error(L, "physics.ray_cast not allowed from this script.");
+            return luaL_error(L, "physics.ray_cast is not available from this script-type.");
         }
     }
 
@@ -104,15 +114,81 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void RegisterLibs(lua_State* L)
+    bool InitializeScriptLibs(const ScriptLibContext& context)
     {
+        lua_State* L = context.m_LuaState;
+        dmResource::HFactory factory = context.m_Factory;
+        dmGameObject::HRegister regist = context.m_Register;
+
         int top = lua_gettop(L);
+        (void)top;
+
+        bool result = true;
 
         luaL_register(L, "physics", PHYSICS_FUNCTIONS);
         lua_pop(L, 1);
 
-        assert(top == lua_gettop(L));
+        PhysicsScriptContext* physics_context = new PhysicsScriptContext();
+        dmMessage::Result socket_result = dmMessage::GetSocket(dmPhysics::PHYSICS_SOCKET_NAME, &physics_context->m_Socket);
+        if (socket_result != dmMessage::RESULT_OK)
+        {
+            dmLogError("Could not retrieve the physics socket '%s': %d.", dmPhysics::PHYSICS_SOCKET_NAME, socket_result);
+            result = false;
+        }
+        uint32_t co_resource_type;
+        if (result)
+        {
+            dmResource::FactoryResult fact_result = dmResource::GetTypeFromExtension(factory, COLLISION_OBJECT_EXT, &co_resource_type);
+            if (fact_result != dmResource::FACTORY_RESULT_OK)
+            {
+                dmLogError("Unable to get resource type for '%s': %d.", COLLISION_OBJECT_EXT, fact_result);
+                result = false;
+            }
+        }
+        if (result)
+        {
+            dmGameObject::ComponentType* co_component_type = dmGameObject::FindComponentType(regist, co_resource_type, &physics_context->m_ComponentIndex);
+            if (co_component_type == 0x0)
+            {
+                dmLogError("Could not find componet type '%s'.", COLLISION_OBJECT_EXT);
+                result = false;
+            }
+        }
+        if (result)
+        {
+            lua_pushlightuserdata(L, physics_context);
+            lua_setglobal(L, PHYSICS_CONTEXT_NAME);
+        }
+        else
+        {
+            delete physics_context;
+        }
 
-        dmMessage::GetSocket(dmPhysics::PHYSICS_SOCKET_NAME, &g_PhysicsSocket);
+        assert(top == lua_gettop(L));
+        return result;
     }
+
+    void FinalizeScriptLibs(const ScriptLibContext& context)
+    {
+        lua_State* L = context.m_LuaState;
+
+        if (L != 0x0)
+        {
+            int top = lua_gettop(L);
+            (void)top;
+
+            lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+            PhysicsScriptContext* physics_context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+            lua_pop(L, 1);
+            if (physics_context != 0x0)
+            {
+                delete physics_context;
+            }
+
+            assert(top == lua_gettop(L));
+        }
+    }
+
+#undef PHYSICS_CONTEXT_NAME
+#undef COLLISION_OBJECT_EXT
 }
