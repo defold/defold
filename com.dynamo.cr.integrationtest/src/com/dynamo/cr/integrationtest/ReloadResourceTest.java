@@ -158,7 +158,7 @@ public class ReloadResourceTest {
         String path = "logic/session/paddle.collisionobject";
         CollisionResource resource = (CollisionResource)factory.load(monitor, path);
         CollisionObjectDesc.Builder builder = CollisionObjectDesc.newBuilder();
-        CollisionObjectDesc newMessage = builder.setCollisionShape("test").setFriction(1.0f).setGroup(1).addMask(1).setMass(2.0f).setRestitution(1.0f).setType(CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC).build();
+        CollisionObjectDesc newMessage = builder.setCollisionShape("test").setFriction(1.0f).setGroup("1").addMask("1").setMass(2.0f).setRestitution(1.0f).setType(CollisionObjectType.COLLISION_OBJECT_TYPE_DYNAMIC).build();
         testReload(path, resource, newMessage, new IMessageHelper<CollisionResource, CollisionObjectDesc>() {
             public CollisionObjectDesc getMessage(CollisionResource resource) {
                 return resource.getCollisionDesc();
