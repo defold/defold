@@ -10,9 +10,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.events.PaintEvent;
@@ -24,6 +24,7 @@ import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Canvas;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.statushandlers.StatusManager;
 
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.render.Fontc;
@@ -89,7 +90,8 @@ public class FontEditor extends DdfEditor {
                     Display.getDefault().asyncExec(new Runnable() {
                         @Override
                         public void run() {
-                            ErrorDialog.openError(canvas.getShell(), "Preview Font", "An error occured while creating preview.", new Status(Status.ERROR, "com.dynamo.cr.ddfeditor", e.getMessage()));
+                            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "An error occured while creating preview.", e);
+                            StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
                         }
                     });
                 }

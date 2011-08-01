@@ -33,7 +33,6 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
-import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.util.DownloadApplication;
 import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
@@ -145,7 +144,7 @@ public class LaunchHandler extends AbstractHandler {
                     stream.close();
 
                 } catch (IOException e) {
-                    DialogUtil.openErrorAsync("Error running game", "Error running game", e);
+                    Activator.showError("Error occurred while running game", e);
                 }
             }
         });

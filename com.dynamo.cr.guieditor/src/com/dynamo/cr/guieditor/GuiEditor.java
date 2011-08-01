@@ -39,7 +39,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.jface.action.IAction;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -170,8 +169,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         } catch (Throwable e) {
             Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
                     e.getMessage(), null);
-            ErrorDialog.openError(Display.getCurrent().getActiveShell(),
-                    "Unable to save file", "Unable to save file", status);
+            StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
         } finally {
             this.inSave = false;
         }

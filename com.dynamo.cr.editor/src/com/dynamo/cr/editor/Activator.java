@@ -24,7 +24,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.Dialog;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.resource.ImageDescriptor;
@@ -57,7 +56,6 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.dialogs.DialogUtil;
 import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
@@ -160,7 +158,12 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         StatusManager.getManager().handle(status, StatusManager.LOG);
     }
 
-	/*
+    public static void showError(String message, Throwable e) {
+        Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, message, e);
+        StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
+    }
+
+    /*
 	 * (non-Javadoc)
 	 * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
 	 */
@@ -283,8 +286,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             userInfo = usersClient.getUserInfo(email);
         } catch (RepositoryException e) {
             final String message = "Error signing in";
-            ErrorDialog.openError(shell, message, message,
-                    new Status(IStatus.ERROR, Activator.PLUGIN_ID, message));
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, message, e);
+            StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
             return false;
         }
         this.userInfo = userInfo;
@@ -351,7 +354,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         try {
             deleteAllCrProjects();
         } catch (CoreException e) {
-            DialogUtil.openError("Connect To Branch", "Unable to delete projects", e);
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Error occurred while removing old project data.", e);
+            StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
         }
 
         ProjectInfo projectInfo = projectClient.getProjectInfo();
@@ -383,12 +387,12 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                         pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
                     } catch (CoreException ex) {
-                        DialogUtil.openError("Error occured when creating project", ex.getMessage(), ex);
+                        showError("Error occured when creating project", ex);
                     }
                 }
             }, null);
         } catch (Throwable e2) {
-            DialogUtil.openError("Error occured when creating project", e2.getMessage(), e2);
+            showError("Error occured when creating project", e2);
         }
 
         setProjectExplorerInput(p.getFolder("content"));
@@ -444,11 +448,6 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         else if (os_name.indexOf("linux") != -1)
             return "linux";
         return null;
-    }
-
-    public static void openError(Shell shell, String title, String message, Throwable e) {
-        ErrorDialog.openError(shell, title, e.getMessage(),
-                new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
     }
 
     @Override

@@ -53,7 +53,6 @@ import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.action.IAction;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -257,8 +256,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             firePropertyChange(PROP_DIRTY);
 
         } catch (Throwable e) {
-            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0, e.getMessage(), null);
-            ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
+            StatusManager.getManager().handle(status, StatusManager.SHOW);
         }
         finally {
             resourceFactory.setInSave(false);

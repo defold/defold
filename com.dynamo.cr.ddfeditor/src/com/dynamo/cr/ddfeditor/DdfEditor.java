@@ -24,7 +24,6 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.graphics.Image;
@@ -44,6 +43,7 @@ import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
+import org.eclipse.ui.statushandlers.StatusManager;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -117,8 +117,8 @@ public abstract class DdfEditor extends EditorPart implements IOperationHistoryL
                 cleanUndoStackDepth = history.getUndoHistory(undoContext).length;
                 firePropertyChange(PROP_DIRTY);
             } catch (CoreException e) {
-                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
-                ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
+                StatusManager.getManager().handle(status, StatusManager.SHOW);
             }
         }
        finally {
