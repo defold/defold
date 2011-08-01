@@ -56,6 +56,7 @@ public class ResourceRenameParticipant extends RenameParticipant {
                     }
                 });
             } catch (CoreException e) {
+                // Can't use any UI here in a core plugin such as StatusManager
                 e.printStackTrace();
             }
             return true;

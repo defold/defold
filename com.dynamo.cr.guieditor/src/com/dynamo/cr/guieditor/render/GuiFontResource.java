@@ -3,6 +3,7 @@ package com.dynamo.cr.guieditor.render;
 import java.awt.Font;
 import java.io.ByteArrayInputStream;
 
+import com.dynamo.cr.guieditor.Activator;
 import com.sun.opengl.util.j2d.TextRenderer;
 
 public class GuiFontResource {
@@ -23,7 +24,7 @@ public class GuiFontResource {
                 font = font.deriveFont(Font.PLAIN, size);
                 textRenderer = new TextRenderer(font, true, true);
             } catch (Throwable e) {
-                e.printStackTrace();
+                Activator.logException(e);
             } finally {
                 fontData = null;
             }

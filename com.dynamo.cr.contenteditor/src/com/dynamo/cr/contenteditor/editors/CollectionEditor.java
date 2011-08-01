@@ -53,7 +53,6 @@ import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.action.IAction;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -98,6 +97,7 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 import org.eclipse.ui.views.properties.PropertySheetPage;
@@ -256,8 +256,8 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             firePropertyChange(PROP_DIRTY);
 
         } catch (Throwable e) {
-            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0, e.getMessage(), null);
-            ErrorDialog.openError(Display.getCurrent().getActiveShell(), "Unable to save file", "Unable to save file", status);
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e);
+            StatusManager.getManager().handle(status, StatusManager.SHOW);
         }
         finally {
             resourceFactory.setInSave(false);
@@ -289,7 +289,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 monitor.done();
             } catch (Throwable e) {
                 this.exception = e;
-                e.printStackTrace();
+                StatusManager.getManager().handle(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage()), StatusManager.LOG);
             }
         }
 
@@ -311,7 +311,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             }
         }
         catch (Throwable e) {
-            e.printStackTrace();
+            StatusManager.getManager().handle(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage()), StatusManager.LOG);
             return null;
         }
     }
@@ -340,7 +340,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
             oos.flush();
             preferences.putByteArray("cameras", os.toByteArray());
         } catch (Throwable e) {
-            e.printStackTrace();
+            StatusManager.getManager().handle(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage()), StatusManager.LOG);
         }
     }
 
@@ -468,7 +468,6 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
 
         } catch (Throwable e)
         {
-            e.printStackTrace();
             throw new PartInitException(String.format("Unable to load prototype (%s)", e.getMessage()), e);
         }
 
@@ -672,16 +671,14 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
         m_Context.makeCurrent();
         GL gl = m_Context.getGL();
 
-        try
-        {
+        try {
             draw(gl);
         }
-        catch (Throwable e)
-        {
+        catch (Throwable e) {
+            // Avoid logging or dialogs in paint-loop
             e.printStackTrace();
         }
-        finally
-        {
+        finally {
             m_Canvas.swapBuffers();
             m_Context.release();
         }
@@ -1643,7 +1640,7 @@ public class CollectionEditor extends EditorPart implements IEditor, Listener, M
                 }
             });
         } catch (CoreException e) {
-            e.printStackTrace();
+            StatusManager.getManager().handle(new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage()), StatusManager.LOG);
         }
     }
 

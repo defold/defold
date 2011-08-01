@@ -10,10 +10,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.widgets.Shell;
@@ -122,8 +120,7 @@ public class DownloadApplication {
                         service.run(true, false, copy);
 
                         if (copy.exception != null) {
-                            ErrorDialog.openError(shell, "Error Downloading Application", copy.exception.getMessage(),
-                                    new org.eclipse.core.runtime.Status(IStatus.ERROR, Activator.PLUGIN_ID, copy.exception.getMessage(), copy.exception));
+                            Activator.showError("Error occurred while downloading application", copy.exception);
                         } else {
                             store.setValue(PreferenceConstants.P_APPLICATION, applicationFile);
 
@@ -134,8 +131,7 @@ public class DownloadApplication {
                         }
 
                     } catch (Throwable e) {
-                        ErrorDialog.openError(shell, "Error Downloading Application", e.getMessage(),
-                                new org.eclipse.core.runtime.Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+                        Activator.showError("Error occurred while downloading application", e);
                     }
                     finally {
                         try {
@@ -147,8 +143,7 @@ public class DownloadApplication {
                     }
                 }
             } catch (Exception e) {
-                ErrorDialog.openError(shell, "Error Downloading Application", e.getMessage(),
-                        new org.eclipse.core.runtime.Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage(), e));
+                Activator.showError("Error occurred while downloading application", e);
             }
         }
 

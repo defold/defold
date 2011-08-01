@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextViewer;
@@ -12,6 +14,7 @@ import org.eclipse.jface.text.contentassist.ICompletionProposal;
 import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
+import org.eclipse.ui.statushandlers.StatusManager;
 
 public class CgContentAssistProcessor implements IContentAssistProcessor {
 
@@ -76,7 +79,7 @@ public class CgContentAssistProcessor implements IContentAssistProcessor {
             }
 
         } catch (BadLocationException e) {
-            e.printStackTrace();
+            StatusManager.getManager().handle(new Status(IStatus.ERROR, CgEditorPlugin.PLUGIN_ID, e.getMessage()), StatusManager.LOG);
         }
 
         return proposals.toArray(new ICompletionProposal[proposals.size()]);

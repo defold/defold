@@ -320,12 +320,10 @@ public class ProtoTreeEditor implements Listener {
     public void executeOperation(IUndoableOperation operation) {
         IOperationHistory history = PlatformUI.getWorkbench().getOperationSupport().getOperationHistory();
         operation.addContext(undoContext);
-        try
-        {
+        try {
             history.execute(operation, null, null);
-        } catch (ExecutionException e)
-        {
-            e.printStackTrace();
+        } catch (ExecutionException e) {
+            Activator.logException(e);
         }
     }
 

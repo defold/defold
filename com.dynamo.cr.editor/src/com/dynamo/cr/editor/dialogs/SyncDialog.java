@@ -282,7 +282,7 @@ public class SyncDialog extends TitleAreaDialog {
                         try {
                             stream.close();
                         } catch (IOException e1) {
-                            e1.printStackTrace();
+                            Activator.logException(e1);
                         }
                     }
                     return org.eclipse.core.runtime.Status.OK_STATUS;
@@ -716,7 +716,7 @@ public class SyncDialog extends TitleAreaDialog {
                         try {
                             handlerService.executeCommand(DIFF_CONFLICT_COMMAND_ID, e);
                         } catch (Exception e1) {
-                            e1.printStackTrace();
+                            Activator.logException(e1);
                         }
                     }
                 }
@@ -732,7 +732,7 @@ public class SyncDialog extends TitleAreaDialog {
                         try {
                             handlerService.executeCommand(DIFF_CONFLICT_COMMAND_ID, event);
                         } catch (Exception e1) {
-                            e1.printStackTrace();
+                            Activator.logException(e1);
                         }
                     }
                 }
@@ -814,8 +814,8 @@ public class SyncDialog extends TitleAreaDialog {
                         IParameter typeParameter = command.getParameter(RESOLVE_COMMAND_TYPE_PARAMETER_ID);
                         Parameterization[] parameterizations = { new Parameterization(typeParameter, "yours") };
                         handlerService.executeCommand(new ParameterizedCommand(command, parameterizations), event);
-                    } catch (Exception exception) {
-                        exception.printStackTrace();
+                    } catch (Exception e1) {
+                        Activator.logException(e1);
                     }
                 }
 
@@ -841,8 +841,8 @@ public class SyncDialog extends TitleAreaDialog {
                         IParameter typeParameter = command.getParameter(RESOLVE_COMMAND_TYPE_PARAMETER_ID);
                         Parameterization[] parameterizations = { new Parameterization(typeParameter, "theirs") };
                         handlerService.executeCommand(new ParameterizedCommand(command, parameterizations), event);
-                    } catch (Exception exception) {
-                        exception.printStackTrace();
+                    } catch (Exception e1) {
+                        Activator.logException(e1);
                     }
                 }
 

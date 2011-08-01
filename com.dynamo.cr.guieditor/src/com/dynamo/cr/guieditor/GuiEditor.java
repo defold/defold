@@ -39,7 +39,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.jface.action.IAction;
-import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -78,6 +77,7 @@ import org.eclipse.ui.operations.RedoActionHandler;
 import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 import org.eclipse.ui.views.properties.PropertySheetPage;
@@ -169,8 +169,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         } catch (Throwable e) {
             Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, 0,
                     e.getMessage(), null);
-            ErrorDialog.openError(Display.getCurrent().getActiveShell(),
-                    "Unable to save file", "Unable to save file", status);
+            StatusManager.getManager().handle(status, StatusManager.LOG | StatusManager.SHOW);
         } finally {
             this.inSave = false;
         }
@@ -433,6 +432,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
                 doDraw(gl);
             } catch (Throwable e) {
+                // Don't show dialog or similar in paint-handle
                 e.printStackTrace();
             } finally {
                 canvas.swapBuffers();
@@ -554,11 +554,11 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
             status = history.execute(operation, null, null);
 
         } catch (final ExecutionException e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
 
         if (status != Status.OK_STATUS) {
-            System.err.println("Failed to execute operation: " + operation);
+            StatusManager.getManager().handle(status, StatusManager.LOG);
         }
     }
 
@@ -823,7 +823,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
                 }
             });
         } catch (CoreException e) {
-            e.printStackTrace();
+            Activator.logException(e);
         }
     }
 

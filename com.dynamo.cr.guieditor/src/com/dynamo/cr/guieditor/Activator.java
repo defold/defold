@@ -1,8 +1,11 @@
 package com.dynamo.cr.guieditor;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
 /**
@@ -42,6 +45,11 @@ public class Activator extends AbstractUIPlugin {
 
         registry.put(BOXNODE_IMAGE_ID, getImageDescriptor("icons/picture.png"));
         registry.put(TEXTNODE_IMAGE_ID, getImageDescriptor("icons/text_large_cap.png"));
+    }
+
+    public static void logException(Throwable e) {
+        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
+        StatusManager.getManager().handle(status, StatusManager.LOG);
     }
 
 	/*

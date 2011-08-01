@@ -10,7 +10,9 @@ import java.util.Set;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -49,6 +51,7 @@ import org.eclipse.ui.contexts.IContextActivation;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.part.IPageSite;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
@@ -353,7 +356,8 @@ public class EditorOutlinePage extends ContentOutlinePage implements ISelectionL
                     try {
                         IDE.openEditor(page, file);
                     } catch (PartInitException e1) {
-                        e1.printStackTrace();
+                        Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, e1.getMessage());
+                        StatusManager.getManager().handle(status, StatusManager.LOG);
                     }
                 }
             }

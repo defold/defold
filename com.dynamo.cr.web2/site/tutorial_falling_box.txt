@@ -80,12 +80,7 @@ Each component adds some kind of functionality to the game object, e.g. graphics
 collisions or logic in the form of scripts.
 We want the ground to be visible so we need to add a 'Sprite'-component to it.
 
-The buttons for adding and removing components are visible whenever a game object file is opened.
-They are located in the top of the 'Components'-view.
-
-image:images/falling_box/comp_view.png[The Components-view]
-
-Click the button with a paper sheet and plus-sign (the center button), which opens
+Select *Tools > GameObject > Add Embedded Component*, which opens
 a dialog for creating an embedded resource.
 When a resource is embedded, it simply means that the component information will be stored in
 the game object file, as opposed to a referenced separate file (more on this later).
@@ -128,7 +123,7 @@ The data-numbers specify the extents (half-size) of the box along x, y and z res
 Set x ('data 0') to +480+ and y ('data 1') to +50+.
 Save the file.
 
-Open the file +ground.go+ again. Click the paper-plus-button to add another embedded resource.
+Open the file +ground.go+ again. Select *Tools > GameObject > Add Embedded Component* to add another embedded resource.
 Select 'Collision Object' this time.
 
 NOTE: You can use *Ctrl-Shift-R* to quickly open resources by searching their names incrementally.
@@ -226,7 +221,7 @@ bounce slightly and then come to a stop. Hit *Esc* to quit the application.
 Add Effects
 -----------
 Open +box.go+.
-Click the button with a chain-link and a plus-sign to add a component from a referenced file.
+Select *Tools > GameObject > Add Component From Resource* to add an component from a referenced file.
 
 image:images/falling_box/add_comp.png[Adding a referenced component]
 

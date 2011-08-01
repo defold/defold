@@ -168,15 +168,19 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
             return value;
 
         } catch (IllegalArgumentException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
             return null;
         } catch (IllegalAccessException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
             return null;
         } catch (InvocationTargetException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
             return null;
         } catch (InstantiationException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
             return null;
         }
@@ -203,12 +207,16 @@ public class PropertyIntrospectorSource<T, U extends IPropertyObjectWorld> imple
             commandFactory.createCommand(object, (String) id, accessor, oldValue, value, world);
 
         } catch (InstantiationException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         } catch (IllegalAccessException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         } catch (IllegalArgumentException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         } catch (InvocationTargetException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
     }

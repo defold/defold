@@ -2,6 +2,7 @@ package com.dynamo.cr.guieditor.render;
 
 import java.io.ByteArrayInputStream;
 
+import com.dynamo.cr.guieditor.Activator;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;
 
@@ -20,7 +21,7 @@ public class GuiTextureResource {
             try {
                 texture = TextureIO.newTexture(new ByteArrayInputStream(textureData), true, ext);
             } catch (Throwable e) {
-                e.printStackTrace();
+                Activator.logException(e);
             } finally {
                 textureData = null;
             }

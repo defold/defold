@@ -80,6 +80,7 @@ public class ResourceType implements IResourceType {
             GeneratedMessage.Builder builder = (Builder) m.invoke(null);
             return builder.getDescriptorForType();
         } catch (Throwable e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
         return null;
@@ -100,6 +101,7 @@ public class ResourceType implements IResourceType {
             TextFormat.merge(reader, builder);
             return builder.build();
         } catch (Throwable e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
         return null;

@@ -32,5 +32,8 @@ public class Perspective implements IPerspectiveFactory {
 
         folder.addView(IPageLayout.ID_PROP_SHEET);
         layout.getViewLayout(IPageLayout.ID_PROP_SHEET).setCloseable(false);
+
+        folder.addView("org.eclipse.pde.runtime.LogView");
+        layout.getViewLayout("org.eclipse.pde.runtime.LogView").setCloseable(false);
 	}
 }

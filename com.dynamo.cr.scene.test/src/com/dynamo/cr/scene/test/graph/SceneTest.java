@@ -132,6 +132,7 @@ public class SceneTest {
         assertThat(target_prototype.getChildren().length, is(3));
     }
 
+    @SuppressWarnings("rawtypes")
     ComponentNode getComponentNode(Node[] nodes, String resource) {
         for (Node n : nodes) {
             ComponentNode cn = (ComponentNode) n;
@@ -143,6 +144,7 @@ public class SceneTest {
         return null;
     }
 
+    @SuppressWarnings("rawtypes")
     @Test
     public void testPrototypeLoader() throws Exception {
         String name = "attacker.go";

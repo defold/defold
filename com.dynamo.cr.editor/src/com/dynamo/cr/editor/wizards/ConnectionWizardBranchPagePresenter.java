@@ -89,7 +89,7 @@ public class ConnectionWizardBranchPagePresenter {
             updateBranchList();
         } catch (RepositoryException e) {
             display.setErrorMessage(e.getMessage());
-            e.printStackTrace();
+            Activator.logException(e);
         }
     }
 
@@ -127,7 +127,6 @@ public class ConnectionWizardBranchPagePresenter {
         }
         catch (Throwable e) {
             MessageDialog.openError(display.getShell(), "Connection error", e.getMessage());
-            e.printStackTrace();
             return false;
         }
         return true;

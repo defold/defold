@@ -349,6 +349,7 @@ public class CollectionNode extends Node implements IResourceListener {
             setup();
             getScene().fireSceneEvent(new SceneEvent(SceneEvent.NODE_CHANGED, this));
         } catch (CreateException e) {
+            // Can't use any UI here in a core plugin such as StatusManager
             e.printStackTrace();
         }
     }
