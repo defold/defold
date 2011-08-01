@@ -367,7 +367,7 @@ namespace dmGameSystem
             dmMessage::URL receiver;
             receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
             receiver.m_Path = dmGameObject::GetIdentifier(instance);
-            uint8_t component_index = request.m_UserId >> 16;
+            uint8_t component_index = request.m_UserId >> 8;
             dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
             if (result != dmGameObject::RESULT_OK)
             {
@@ -417,7 +417,7 @@ namespace dmGameSystem
                     request.m_To = ddf->m_To;
                     request.m_IgnoredUserData = sender_instance;
                     request.m_Mask = ddf->m_Mask;
-                    request.m_UserId = ((uint16_t)component_index << 16) | (ddf->m_RequestId & 0xff);
+                    request.m_UserId = ((uint16_t)component_index << 8) | (ddf->m_RequestId & 0xff);
                     request.m_UserData = (void*)sender_instance;
 
                     dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);

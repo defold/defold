@@ -347,7 +347,7 @@ namespace dmEngine
             dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 64);
+        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 128);
 
         dmResource::FactoryResult fact_result;
         dmGameObject::Result res;
