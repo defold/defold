@@ -385,7 +385,7 @@
             name="Collision Object"
             proto-message-class="com.dynamo.physics.proto.Physics$CollisionObjectDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollisionObjectRefactorParticipant"
-            template-data="collision_shape: &apos;&apos; type: COLLISION_OBJECT_TYPE_DYNAMIC mass: 1 friction: 0.1 restitution: 0.5 group: 1"
+            template-data="collision_shape: &apos;&apos; type: COLLISION_OBJECT_TYPE_DYNAMIC mass: 1 friction: 0.1 restitution: 0.5 group: &apos;default&apos;"
             type-class="component">
          <references>
             <reference-resource-type
