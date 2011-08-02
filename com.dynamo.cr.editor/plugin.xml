@@ -24,10 +24,10 @@
          point="org.eclipse.core.runtime.products">
       <product
             application="com.dynamo.cr.editor.application"
-            name="Dynamo Editor">
+            name="Defold Editor">
          <property
                name="appName"
-               value="Dynamo Editor">
+               value="Defold Editor">
          </property>
          <property
                name="startupProgressRect"
