@@ -465,7 +465,7 @@ public class SyncDialog extends TitleAreaDialog {
                         if (done) {
                             IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
                             if (branchService != null) {
-                                branchService.updateBranchStatus();
+                                branchService.updateBranchStatus(null);
                             }
                             Display.getDefault().asyncExec(new Runnable() {
 
@@ -523,7 +523,7 @@ public class SyncDialog extends TitleAreaDialog {
                         branchClient.publish();
                         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
                         if (branchService != null) {
-                            branchService.updateBranchStatus();
+                            branchService.updateBranchStatus(null);
                         }
                         Display.getDefault().asyncExec(new Runnable() {
 

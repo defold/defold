@@ -2,6 +2,8 @@ package com.dynamo.cr.editor;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import javax.ws.rs.core.UriBuilder;
@@ -15,6 +17,8 @@ import org.eclipse.core.resources.IProjectNature;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceChangeEvent;
 import org.eclipse.core.resources.IResourceChangeListener;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceDeltaVisitor;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceDescription;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -336,7 +340,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
                 }
                 IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
                 if (branchService != null) {
-                    branchService.updateBranchStatus();
+                    branchService.updateBranchStatus(null);
                 }
             }
 	    }
@@ -398,7 +402,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         setProjectExplorerInput(p.getFolder("content"));
         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
-            branchService.updateBranchStatus();
+            branchService.updateBranchStatus(null);
         }
     }
 
@@ -452,9 +456,39 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     @Override
     public void resourceChanged(IResourceChangeEvent event) {
-        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
-        if (branchService != null) {
-            branchService.updateBranchStatus();
+        final IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService == null) {
+            return;
+        }
+
+        // Mask of interesting resource flags
+        final int mask = IResourceDelta.ADDED
+                       | IResourceDelta.REMOVED
+                       | IResourceDelta.MOVED_FROM
+                       | IResourceDelta.MOVED_TO;
+
+        // Set of changed resources
+        final Set<IResource> changedResources = new HashSet<IResource>();
+
+        try {
+            event.getDelta().accept(new IResourceDeltaVisitor() {
+                @Override
+                public boolean visit(IResourceDelta delta) throws CoreException {
+                    if ((delta.getFlags() & mask) != 0) {
+                        IResource resource = delta.getResource();
+                        if (resource != null) {
+                            changedResources.add(delta.getResource());
+                        }
+                    }
+                    return true;
+                }
+            });
+        } catch (CoreException e) {
+            Activator.logException(e);
+        }
+
+        if (changedResources.size() > 0) {
+            branchService.updateBranchStatus(changedResources);
         }
     }
 

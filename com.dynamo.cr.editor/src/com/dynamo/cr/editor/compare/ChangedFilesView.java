@@ -153,7 +153,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
                         {
                             IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
                             if (branchService != null) {
-                                branchService.updateBranchStatus();
+                                branchService.updateBranchStatus(null);
                             }
                         }
                     }, null);
