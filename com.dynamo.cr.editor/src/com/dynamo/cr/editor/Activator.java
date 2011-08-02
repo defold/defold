@@ -95,6 +95,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
 	private static BundleContext context;
 
+	boolean branchListenerAdded = false;
+
 	static BundleContext getContext() {
 		return context;
 	}
@@ -129,6 +131,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
     private IClientFactory factory;
 
+    @SuppressWarnings("rawtypes")
     private ServiceTracker proxyTracker;
 
     public UserInfo userInfo;
@@ -171,7 +174,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	 * (non-Javadoc)
 	 * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
 	 */
-	public void start(BundleContext bundleContext) throws Exception {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+    public void start(BundleContext bundleContext) throws Exception {
 	    super.start(bundleContext);
 	    this.logger = Logger.getLogger(Activator.PLUGIN_ID);
 
@@ -239,6 +243,21 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 	}
 
 	public boolean connectProjectClient() {
+
+	    /*
+	     * NOTE: We can't invoke getWorkbench() in start. The workbench is not started yet.
+	     * Should we really use workspace services for this? (IBranchClient)
+	     */
+		if (!branchListenerAdded) {
+	        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+	        if (branchService != null) {
+	            branchService.addBranchListener(this);
+	        } else {
+	            Status status = new Status(IStatus.ERROR, PLUGIN_ID, "Unable to locate IBranchService");
+	            StatusManager.getManager().handle(status, StatusManager.LOG);
+	        }
+		}
+
         ClientConfig cc = new DefaultClientConfig();
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
@@ -424,6 +443,11 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 		Activator.context = null;
         IPreferenceStore store = getPreferenceStore();
         store.removePropertyChangeListener(this);
+
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.removeBranchListener(this);
+        }
 	}
 
     @Override
@@ -465,7 +489,8 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
         final int mask = IResourceDelta.ADDED
                        | IResourceDelta.REMOVED
                        | IResourceDelta.MOVED_FROM
-                       | IResourceDelta.MOVED_TO;
+                       | IResourceDelta.MOVED_TO
+                       | IResourceDelta.CONTENT;
 
         // Set of changed resources
         final Set<IResource> changedResources = new HashSet<IResource>();
