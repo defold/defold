@@ -106,7 +106,7 @@ public class EditorCorePlugin implements BundleActivator, IResourceTypeRegistry 
 
             Class<GeneratedMessage> messageClass = null;
             if (protoMessageClassName != null) {
-                messageClass = bundle.loadClass(protoMessageClassName);
+                messageClass = (Class<GeneratedMessage>) bundle.loadClass(protoMessageClassName);
             }
             IResourceType resourceType = new ResourceType(id, name, fileExtension, templateData, messageClass, embeddable != null && embeddable.equals("true"), editSupport, type, refacorParticipant, referenceTypeClasses, referenceResourceTypeIds);
 
