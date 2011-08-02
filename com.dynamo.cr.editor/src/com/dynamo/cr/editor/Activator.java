@@ -251,6 +251,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 		if (!branchListenerAdded) {
 	        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
 	        if (branchService != null) {
+                branchListenerAdded = true;
 	            branchService.addBranchListener(this);
 	        } else {
 	            Status status = new Status(IStatus.ERROR, PLUGIN_ID, "Unable to locate IBranchService");
