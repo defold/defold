@@ -64,7 +64,6 @@ import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.services.IBranchService;
-import com.dynamo.cr.markers.BranchStatusMarker;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
@@ -486,12 +485,10 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             return;
         }
 
-        // Mask of interesting resource flags
+        // Mask of interesting resource kind change flags
         final int mask = IResourceDelta.ADDED
                        | IResourceDelta.REMOVED
-                       | IResourceDelta.MOVED_FROM
-                       | IResourceDelta.MOVED_TO
-                       | IResourceDelta.CONTENT;
+                       | IResourceDelta.CHANGED;
 
         // Set of changed resources
         final Set<IResource> changedResources = new HashSet<IResource>();
@@ -500,7 +497,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
             event.getDelta().accept(new IResourceDeltaVisitor() {
                 @Override
                 public boolean visit(IResourceDelta delta) throws CoreException {
-                    if ((delta.getFlags() & mask) != 0) {
+                    if ((delta.getKind() & mask) != 0) {
                         IResource resource = delta.getResource();
                         if (resource != null) {
                             changedResources.add(delta.getResource());
@@ -546,7 +543,7 @@ public class Activator extends AbstractUIPlugin implements IPropertyChangeListen
 
                     @Override
                     public void run() {
-                        projectExplorer.getCommonViewer().update(resources, new String[] {BranchStatusMarker.MARKER_ID});
+                        projectExplorer.getCommonViewer().update(resources, null);
                     }
                 });
             }

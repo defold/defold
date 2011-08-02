@@ -387,17 +387,6 @@
       </decorator>
    </extension>
    <extension
-         id="com.dynamo.cr.editor.markers.branchStatus"
-         name="Branch Status"
-         point="org.eclipse.core.resources.markers">
-      <attribute
-            name="com.dynamo.cr.editor.attributes.indexStatus">
-      </attribute>
-      <attribute
-            name="com.dynamo.cr.editor.attributes.workingTreeStatus">
-      </attribute>
-   </extension>
-   <extension
          point="org.eclipse.ui.services">
       <serviceFactory
             factoryClass="com.dynamo.cr.editor.services.ServiceFactory">

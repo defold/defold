@@ -1,24 +1,43 @@
 package com.dynamo.cr.editor.decorators;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 
-import org.eclipse.core.resources.IMarker;
+import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IResource;
-import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IDecoration;
 import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.ILightweightLabelDecorator;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.statushandlers.StatusManager;
 
+import com.dynamo.cr.client.BranchStatusChangedEvent;
+import com.dynamo.cr.client.IBranchListener;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.compare.ResourceStatus;
-import com.dynamo.cr.markers.BranchStatusMarker;
+import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.services.IBranchService;
+import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 
-public class BranchStatusDecorator implements ILightweightLabelDecorator {
+public class BranchStatusDecorator implements ILightweightLabelDecorator, IBranchListener {
 
     private Vector<ILabelProviderListener> listeners;
+    private Map<IResource, BranchStatus.Status> resourceToStatus = new HashMap<IResource, BranchStatus.Status>();
 
     public BranchStatusDecorator() {
         this.listeners = new Vector<ILabelProviderListener>();
+
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.addBranchListener(this);
+        } else {
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Unable to locate IBranchService");
+            StatusManager.getManager().handle(status, StatusManager.LOG);
+        }
     }
 
     @Override
@@ -28,11 +47,18 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator {
 
     @Override
     public void dispose() {
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
+        if (branchService != null) {
+            branchService.removeBranchListener(this);
+        } else {
+            Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Unable to locate IBranchService");
+            StatusManager.getManager().handle(status, StatusManager.LOG);
+        }
     }
 
     @Override
     public boolean isLabelProperty(Object element, String property) {
-        return property.equals(BranchStatusMarker.MARKER_ID);
+        return false;
     }
 
     @Override
@@ -42,41 +68,20 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator {
 
     @Override
     public void decorate(Object element, IDecoration decoration) {
-        String indexStatus = " ";
-        String workingTreeStatus = " ";
+
+        IResource resource = null;
         if (element instanceof IResource) {
-            IResource resource = (IResource)element;
-            if (resource.isAccessible()) {
-                try {
-                    IMarker[] markers = resource.findMarkers(BranchStatusMarker.MARKER_ID, true, 0);
-                    for (IMarker marker : markers) {
-                        if (marker.exists()) {
-                            Object indexStatusAttribute = marker.getAttribute(BranchStatusMarker.INDEX_STATUS_ATTRIBUTE_ID);
-                            if (indexStatusAttribute != null && indexStatusAttribute instanceof String) {
-                                indexStatus = (String)indexStatusAttribute;
-                                break;
-                            }
-                        }
-                    }
-                    for (IMarker marker : markers) {
-                        if (marker.exists()) {
-                            Object workingTreeStatusAttribute = marker.getAttribute(BranchStatusMarker.WORKING_TREE_STATUS_ATTRIBUTE_ID);
-                            if (workingTreeStatusAttribute != null && workingTreeStatusAttribute instanceof String) {
-                                workingTreeStatus = (String)workingTreeStatusAttribute;
-                                break;
-                            }
-                        }
-                    }
-                } catch (CoreException e) {
-                    Activator.logException(e);
-                }
-            }
+            resource = (IResource) element;
+
         } else if (element instanceof ResourceStatus) {
             ResourceStatus resourceStatus = (ResourceStatus)element;
-            indexStatus = resourceStatus.getStatus().getIndexStatus();
-            workingTreeStatus = resourceStatus.getStatus().getWorkingTreeStatus();
+            resource = resourceStatus.getResource();
         }
-        doDecorate(decoration, indexStatus, workingTreeStatus);
+
+        if (resource != null && resourceToStatus.containsKey(resource)) {
+            BranchStatus.Status fileStatus = resourceToStatus.get(resource);
+            doDecorate(decoration, fileStatus.getIndexStatus(), fileStatus.getWorkingTreeStatus());
+        }
     }
 
     private void doDecorate(IDecoration decoration, String indexStatus, String workingTreeStatus) {
@@ -106,4 +111,21 @@ public class BranchStatusDecorator implements ILightweightLabelDecorator {
         }
     }
 
+    @Override
+    public void branchStatusChanged(BranchStatusChangedEvent event) {
+        IFolder contentRoot = EditorUtil.getContentRoot(Activator.getDefault().getProject());
+
+        BranchStatus branchStatus = event.getBranchStatus();
+        List<BranchStatus.Status> fileStatusList = branchStatus.getFileStatusList();
+        resourceToStatus.clear();
+        for (BranchStatus.Status fileStatus : fileStatusList) {
+            IResource resource = contentRoot.findMember(fileStatus.getName());
+            if (resource != null) {
+                resourceToStatus.put(resource, fileStatus);
+            } else {
+                Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Unable to locate " + fileStatus.getName());
+                StatusManager.getManager().handle(status, StatusManager.LOG);
+            }
+        }
+    }
 }

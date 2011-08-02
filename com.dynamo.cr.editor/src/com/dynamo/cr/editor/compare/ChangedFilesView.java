@@ -180,7 +180,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
 
     @Override
     public void branchStatusChanged(BranchStatusChangedEvent event) {
-        updateTable((BranchStatus)event.getSource());
+        updateTable(event.getBranchStatus());
     }
 
     private void updateTable(BranchStatus branchStatus) {
