@@ -21,16 +21,19 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
 
     if platform == "linux" or platform == "darwin":
-        self.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
         self.env.append_value('LINKFLAGS', ['-m32'])
         # OSX only
         if platform == "darwin":
             self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
     elif platform == "armv6-darwin":
-        self.env.append_value('CXXFLAGS', ['-g', '-DNDEBUG', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
     else:
-        self.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
 
@@ -47,7 +50,7 @@ if sys.platform == "darwin":
     @extension(EXT_OBJC)
     def objc_hook(self, node):
         tsk = cxx.cxx_hook(self, node)
-        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJC'])
+        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCXX'])
         tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
 
 # iPhone bundle and signing support
@@ -352,7 +355,7 @@ def detect(conf):
     conf.env['BUILD_PLATFORM'] = build_platform
 
     if platform == "armv6-darwin":
-        conf.env['GCC-OBJC'] = '-xobjective-c++'
+        conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
         conf.env['CC'] = '%s/usr/bin/llvm-gcc-4.2' % (ARM_DARWIN_ROOT)
         conf.env['CXX'] = '%s/usr/bin/llvm-g++-4.2' % (ARM_DARWIN_ROOT)
@@ -360,8 +363,6 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (ARM_DARWIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
-
-    conf.env['CCFLAGS'] = conf.env['CXXFLAGS']
 
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
