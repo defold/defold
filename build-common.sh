@@ -35,7 +35,7 @@ function gitclone {
 }
 
 function build {
-    java -jar $BASE_LOCATION/plugins/org.eclipse.equinox.launcher_1.2.0.v20110502.jar\
+    java -Xmx768m -jar $BASE_LOCATION/plugins/org.eclipse.equinox.launcher_1.2.0.v20110502.jar\
      -application org.eclipse.ant.core.antRunner\
      -buildfile $1\
      -DbaseLocation=$BASE_LOCATION\
