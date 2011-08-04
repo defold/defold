@@ -132,7 +132,7 @@ TEST(Simple, LoadFromFile)
         TestDDF::Simple simple;
         simple.set_a(test_values[i]);
 
-        const char* file_name = mktemp("TEMPFILE");
+        const char* file_name = "__TEMPFILE__";
         {
             std::fstream output(file_name,  std::ios::out | std::ios::trunc | std::ios::binary);
             ASSERT_EQ(true, simple.SerializeToOstream(&output));
