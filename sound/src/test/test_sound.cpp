@@ -8,6 +8,17 @@
 #include <dlib/time.h>
 #include "../sound.h"
 
+extern char CLICK_TRACK_OGG[];
+extern uint32_t CLICK_TRACK_OGG_SIZE;
+extern char DRUMLOOP_WAV[];
+extern uint32_t DRUMLOOP_WAV_SIZE;
+extern char ONEFOOTSTEP_WAV[];
+extern uint32_t ONEFOOTSTEP_WAV_SIZE;
+extern char LAYER_GUITAR_A_OGG[];
+extern uint32_t LAYER_GUITAR_A_OGG_SIZE;
+extern char CLICK_TRACK_OGG[];
+extern uint32_t CLICK_TRACK_OGG_SIZE;
+
 class dmSoundTest : public ::testing::Test
 {
 public:
@@ -54,19 +65,21 @@ public:
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
-        LoadFile("src/test/drumloop.wav", &m_DrumLoop, &m_DrumLoopSize);
-        LoadFile("src/test/onefootstep.wav", &m_OneFootStep, &m_OneFootStepSize);
-        LoadFile("src/test/layer-guitar-a.ogg", &m_LayerGuitarA, &m_LayerGuitarASize);
-        LoadFile("src/test/click-track.ogg", &m_ClickTrack, &m_ClickTrackSize);
+        m_DrumLoop = (void*) DRUMLOOP_WAV;
+        m_DrumLoopSize = DRUMLOOP_WAV_SIZE;
 
+        m_OneFootStep = (void*) ONEFOOTSTEP_WAV;
+        m_OneFootStepSize = ONEFOOTSTEP_WAV_SIZE;
+
+        m_LayerGuitarA = (void*) LAYER_GUITAR_A_OGG;
+        m_LayerGuitarASize = LAYER_GUITAR_A_OGG_SIZE;
+
+        m_ClickTrack = (void*) CLICK_TRACK_OGG;
+        m_ClickTrackSize = CLICK_TRACK_OGG_SIZE;
     }
 
     virtual void TearDown()
     {
-        free(m_DrumLoop);
-        free(m_OneFootStep);
-        free(m_LayerGuitarA);
-        free(m_ClickTrack);
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
