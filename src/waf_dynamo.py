@@ -252,7 +252,7 @@ def create_app_bundle(self):
 
 
 def embed_build(task):
-    symbol = task.inputs[0].name.upper().replace('.', '_')
+    symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_')
     in_file = open(task.inputs[0].bldpath(task.env), 'rb')
     out_file = open(task.outputs[0].bldpath(task.env), 'wb')
 
