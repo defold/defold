@@ -13,14 +13,14 @@ def init():
     pass
 
 def set_options(opt):
+    opt.tool_options('waf_dynamo')
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
-    opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('waf_dynamo')
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
-    conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
 
@@ -35,21 +35,16 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "linux":
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif 'darwin' in platform:
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    else:
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
-
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
-    if platform == "linux":
+    elif platform == "armv6-darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'IOKit'])
+    elif platform == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    if platform == "win32":
+    elif platform == "win32":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-        conf.env.append_value('LINKFLAGS', ['user32.lib', 'shell32.lib'])
+        conf.env.append_value('LINKFLAGS', ['user32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')

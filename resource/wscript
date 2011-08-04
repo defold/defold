@@ -17,14 +17,14 @@ def init():
     pass
 
 def set_options(opt):
+    opt.tool_options('waf_dynamo')
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
-    opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('waf_dynamo')
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
-    conf.check_tool('waf_dynamo')
     conf.check_tool('waf_resource')
 
     waf_ddf.configure(conf)
@@ -35,20 +35,6 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DDF'] = 'ddf'
-
-    platform = conf.env['PLATFORM']
-
-    if platform == "linux":
-        conf.env['LIB_THREAD'] = 'pthread'
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif 'darwin' in platform:
-        conf.env['LIB_THREAD'] = ''
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
-    else:
-        conf.env['LIB_THREAD'] = ''
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
-        conf.env.append_value('LINKFLAGS', ['shell32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
