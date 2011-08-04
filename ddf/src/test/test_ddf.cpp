@@ -120,6 +120,9 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
+#ifndef __arm__
+// TODO: Disabled on iOS
+// We have add functionality to located tmp-dir on iOS. See issue #624
 TEST(Simple, LoadFromFile)
 {
     int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
@@ -129,7 +132,7 @@ TEST(Simple, LoadFromFile)
         TestDDF::Simple simple;
         simple.set_a(test_values[i]);
 
-        const char* file_name = "__TEMPFILE__";
+        const char* file_name = mktemp("TEMPFILE");
         {
             std::fstream output(file_name,  std::ios::out | std::ios::trunc | std::ios::binary);
             ASSERT_EQ(true, simple.SerializeToOstream(&output));
@@ -151,6 +154,7 @@ TEST(Simple, LoadFromFile)
         dmDDF::FreeMessage(message);
     }
 }
+#endif
 
 TEST(Simple, LoadFromFile2)
 {
