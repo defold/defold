@@ -6,6 +6,7 @@ function prebuild {
     # Specifically mmap and zip failed in java.
     # Could perhaps be due to heap/stack and virtual address space?
     ulimit -s 8192
+    ulimit -a
 
     [ -z $DYNAMO_HOME ] && echo "DYNAMO_HOME not set" && exit 1
 
@@ -35,7 +36,7 @@ function gitclone {
 }
 
 function build {
-    java -Xmx768m -jar $BASE_LOCATION/plugins/org.eclipse.equinox.launcher_1.2.0.v20110502.jar\
+    java -Xms256m -Xmx1500m -jar $BASE_LOCATION/plugins/org.eclipse.equinox.launcher_1.2.0.v20110502.jar\
      -application org.eclipse.ant.core.antRunner\
      -buildfile $1\
      -DbaseLocation=$BASE_LOCATION\
