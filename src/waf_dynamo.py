@@ -24,7 +24,8 @@ def default_flags(self):
         self.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
         self.env.append_value('LINKFLAGS', ['-m32'])
         # OSX only
-        self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
+        if platform == "darwin":
+            self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
     elif platform == "armv6-darwin":
         self.env.append_value('CXXFLAGS', ['-g', '-DNDEBUG', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
