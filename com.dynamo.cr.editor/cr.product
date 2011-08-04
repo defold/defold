@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
 
-<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.0.29" useFeatures="false" includeLaunchers="true">
+<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.0.30" useFeatures="false" includeLaunchers="true">
+
 
    <configIni use="default">
    </configIni>
@@ -27,8 +28,10 @@
       </win>
    </launcher>
 
+
    <vm>
    </vm>
+
 
    <plugins>
       <plugin id="com.dynamo.cr.cgeditor"/>
