@@ -13,13 +13,13 @@ def init():
     pass
 
 def set_options(opt):
-    opt.tool_options('compiler_cxx')
     opt.tool_options('waf_dynamo')
+    opt.tool_options('compiler_cxx')
     opt.sub_options('src')
 
 def configure(conf):
-    conf.check_tool('compiler_cxx')
     conf.check_tool('waf_dynamo')
+    conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
     conf.check_tool('java')

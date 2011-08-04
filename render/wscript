@@ -17,12 +17,12 @@ def init():
 
 def set_options(opt):
     opt.sub_options('src')
-    opt.tool_options('compiler_cxx')
     opt.tool_options('waf_dynamo')
+    opt.tool_options('compiler_cxx')
 
 def configure(conf):
-    conf.check_tool('compiler_cxx')
     conf.check_tool('waf_dynamo')
+    conf.check_tool('compiler_cxx')
     conf.check_tool('java')
     conf.check_tool('python')
     conf.check_python_version((2,5))
