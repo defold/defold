@@ -1,5 +1,12 @@
 function prebuild {
 
+    # Set stack limit to 8MB. When running from buildbot the stack limit is set to unlimited
+    # for unknown reasons (8192 is the default in a login shell on dev.defold.com)
+    # With stack set to unlimited we got memory exceptions when building editor with pde.
+    # Specifically mmap and zip failed in java.
+    # Could perhaps be due to heap/stack and virtual address space?
+    ulimit -s 8192
+
     [ -z $DYNAMO_HOME ] && echo "DYNAMO_HOME not set" && exit 1
 
     export BUILD_DIRECTORY=`pwd`/build
