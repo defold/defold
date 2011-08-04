@@ -6,12 +6,13 @@ from Logs import error
 import cc, cxx
 
 # objective-c support
-EXT_OBJC = ['.mm']
-@extension(EXT_OBJC)
-def objc_hook(self, node):
-    tsk = cxx.cxx_hook(self, node)
-    tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJC'])
-    tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
+if sys.platform == "darwin":
+    EXT_OBJC = ['.mm']
+    @extension(EXT_OBJC)
+    def objc_hook(self, node):
+        tsk = cxx.cxx_hook(self, node)
+        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJC'])
+        tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
 
 # iPhone bundle and signing support
 RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
