@@ -5,6 +5,41 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
 
+ARM_DARWIN_ROOT='/Developer/Platforms/iPhoneOS.platform/Developer'
+IOS_SDK_VERSION="4.3"
+
+@feature('cc', 'cxx')
+# We must apply this before the objc_hook below
+# Otherwise will .mm-files not be compiled with -arch armv6 etc.
+# I don't know if this is entirely correct
+@before('apply_core')
+def default_flags(self):
+
+    platform = self.env['PLATFORM']
+    if 'darwin' in platform:
+        # OSX and iOS
+        self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
+
+    if platform == "linux" or platform == "darwin":
+        self.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
+        self.env.append_value('LINKFLAGS', ['-m32'])
+        # OSX only
+        self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
+    elif platform == "armv6-darwin":
+        self.env.append_value('CXXFLAGS', ['-g', '-DNDEBUG', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+    else:
+        self.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
+        self.env.append_value('LINKFLAGS', '/DEBUG')
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
+
+# Install all static libraries by default
+@feature('cstaticlib')
+@after('default_cc')
+@before('apply_core')
+def default_install_staticlib(self):
+    self.default_install_path = self.env.LIBDIR
+
 # objective-c support
 if sys.platform == "darwin":
     EXT_OBJC = ['.mm']
@@ -294,8 +329,6 @@ def detect(conf):
 
     conf.env['DYNAMO_HOME'] = dynamo_home
 
-    IOS_SDK_VERSION="4.3"
-
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
     platform = None
@@ -317,26 +350,15 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
-    if platform == "linux" or platform == "darwin":
-        conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
-        conf.env.append_value('LINKFLAGS', ['-m32'])
-    elif platform == "armv6-darwin":
+    if platform == "armv6-darwin":
         conf.env['GCC-OBJC'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
-        ARM_DARWIN_ROOT='/Developer/Platforms/iPhoneOS.platform/Developer'
         conf.env['CC'] = '%s/usr/bin/llvm-gcc-4.2' % (ARM_DARWIN_ROOT)
         conf.env['CXX'] = '%s/usr/bin/llvm-g++-4.2' % (ARM_DARWIN_ROOT)
         conf.env['CPP'] = '%s/usr/bin/cpp-4.2' % (ARM_DARWIN_ROOT)
         conf.env['AR'] = '%s/usr/bin/ar' % (ARM_DARWIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
-
-        conf.env.append_value('CXXFLAGS', ['-g', '-DNDEBUG', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        conf.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-    else:
-        conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
-        conf.env.append_value('LINKFLAGS', '/DEBUG')
-        conf.env.append_value('LINKFLAGS', 'WS2_32.LIB')
 
     conf.env['CCFLAGS'] = conf.env['CXXFLAGS']
 
@@ -345,20 +367,24 @@ def detect(conf):
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
-    conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
+
+    if platform == build_platform:
+        # Host libraries are installed to $PREFIX/lib
+        conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
+        conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin', conf.env)
+    else:
+        # Cross libraries are installed to $PREFIX/lib/PLATFORM
+        conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib", platform))
+        conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % platform, conf.env)
+        conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % platform, conf.env)
 
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', '-lpthread')
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'darwin' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
-        if platform == 'darwin':
-            # Only for OSX
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
-        conf.env.append_value('LINKFLAGS', ['shell32.lib'])
 
 def configure(conf):
     detect(conf)
