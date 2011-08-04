@@ -1,6 +1,7 @@
 # config
 
 ARM_DARWIN_ROOT=/Developer/Platforms/iPhoneOS.platform/Developer
+IOS_SDK_VERSION=4.3
 
 function download() {
     mkdir -p ../download
@@ -73,16 +74,17 @@ function cmi() {
 
 	case $1 in
 		armv6-darwin)
-			export CFLAGS="-isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS3.2.sdk"
-			export CPPFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS3.2.sdk"
-			export CXXFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS3.2.sdk"
-			export CPP=$ARM_DARWIN_ROOT/usr/bin/cpp-4.2
-			export CC=$ARM_DARWIN_ROOT/usr/bin/gcc-4.2
-			export CXX=$ARM_DARWIN_ROOT/usr/bin/g++-4.2
-			export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-			export RANLIN=$ARM_DARWIN_ROOT/usr/bin/ranlib
-			cmi_cross $1 arm-darwin
-			;;
+            [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
+            export CFLAGS="-isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CPPFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="-arch armv6 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CPP=$ARM_DARWIN_ROOT/usr/bin/cpp-4.2
+            export CC=$ARM_DARWIN_ROOT/usr/bin/gcc-4.2
+            export CXX=$ARM_DARWIN_ROOT/usr/bin/g++-4.2
+            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
+            export RANLIN=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            cmi_cross $1 arm-darwin
+            ;;
 
         darwin)
             cmi_buildplatform $1

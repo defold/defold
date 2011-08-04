@@ -31,6 +31,7 @@ REMOTE_PATH="$USER_OVERRATED@overrated.dyndns.org:/repo/packages"
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.2.1 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 SDL-1.2.13 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1"
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.2.1 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 SDL-1.2.13 openal-1.1"
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg"
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.2.1"
 
 for p in $PACKAGES_ALL; do
     download "$p-common.tar.gz"
@@ -38,6 +39,10 @@ done
 
 for p in $PACKAGES_HOST; do
     download "$p-$HOST.tar.gz"
+done
+
+for p in $PACKAGES_IOS; do
+    download "$p-armv6-darwin.tar.gz"
 done
 
 for p in $PACKAGES_EGGS; do
@@ -54,6 +59,11 @@ done
 for p in $PACKAGES_HOST; do
     echo "Extracting $p..."
     tar xfz "cache/$p-$HOST.tar.gz"
+done
+
+for p in $PACKAGES_IOS; do
+    echo "Extracting $p..."
+    tar xfz "cache/$p-armv6-darwin.tar.gz"
 done
 
 #for p in `ls cache/*.tar.gz`; do
@@ -88,6 +98,8 @@ echo "Copying share/valgrind-libasound.supp -> DYNAMO_HOME/share"
 cp share/valgrind-libasound.supp $DYNAMO_HOME/share
 echo "Copying share/valgrind-libdlib.supp -> DYNAMO_HOME/share"
 cp share/valgrind-libdlib.supp $DYNAMO_HOME/share
+echo "Copying share/engine_profile.mobileprovision -> DYNAMO_HOME/share"
+cp share/engine_profile.mobileprovision $DYNAMO_HOME/share
 
 mkdir -p $DYNAMO_HOME/bin
 cp -v bin/git* $DYNAMO_HOME/bin
