@@ -18,6 +18,7 @@ def default_flags(self):
     platform = self.env['PLATFORM']
     build_platform = self.env['BUILD_PLATFORM']
     dynamo_home = self.env['DYNAMO_HOME']
+    dynamo_ext = os.path.join(dynamo_home, "ext")
 
     if 'darwin' in platform:
         # OSX and iOS
@@ -46,6 +47,11 @@ def default_flags(self):
     else:
         # Cross libraries are installed to $PREFIX/lib/PLATFORM
         self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib", platform))
+
+    self.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
+    self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
+    self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
+    self.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
 
 # Install all static libraries by default
 @feature('cstaticlib')
@@ -343,8 +349,6 @@ def detect(conf):
 
     conf.env['DYNAMO_HOME'] = dynamo_home
 
-    dynamo_ext = os.path.join(dynamo_home, "ext")
-
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
@@ -373,12 +377,6 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (ARM_DARWIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
-
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
-
-    conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
 
     if platform == build_platform:
         # Host libraries are installed to $PREFIX/lib
