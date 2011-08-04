@@ -7,8 +7,7 @@ def build(bld):
                                includes = '. ../bullet ../box2d',
                                proto_gen_py = True,
                                #uselib_local = 'BulletCollision BulletDynamics LinearMath',
-                               target = 'physics',
-                               install_path='${PREFIX}/lib')
+                               target = 'physics')
     physics.find_sources_in_dirs('.')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')

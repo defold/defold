@@ -7,8 +7,7 @@ def configure(conf):
 def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                 includes = '.',
-                                target = 'resource',
-                                install_path='${PREFIX}/lib')
+                                target = 'resource')
     resource.find_sources_in_dirs('.')
 
     bld.add_subdirs('test')

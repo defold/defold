@@ -8,8 +8,7 @@ def build(bld):
 
     alut = bld.new_task_gen(features = 'cc cstaticlib',
                             includes = '. alut',
-                            target = 'alut',
-                            install_path='${PREFIX}/lib')
+                            target = 'alut')
 
     alut.find_sources_in_dirs('alut')
 
@@ -22,13 +21,11 @@ def build(bld):
     sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                              includes = '. alut vorbis_tremor',
                              target = 'sound',
-                             install_path='${PREFIX}/lib',
                              source = 'sound.cpp stb_vorbis/stb_vorbis.c')
 
     sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                              includes = '.',
                              target = 'sound_null',
-                             install_path='${PREFIX}/lib',
                              source = 'sound_null.cpp')
 
     if sys.platform == 'win32':

@@ -10,8 +10,7 @@ def build(bld):
                            includes = ['. opengl'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
-                           target = 'graphics',
-                           install_path='${PREFIX}/lib')
+                           target = 'graphics')
 
     obj.find_sources_in_dirs('. opengl ../proto')
 
@@ -19,8 +18,7 @@ def build(bld):
                            includes = ['. null'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
-                           target = 'graphics_null',
-                           install_path='${PREFIX}/lib')
+                           target = 'graphics_null')
 
     obj.find_sources_in_dirs('. null ../proto')
 

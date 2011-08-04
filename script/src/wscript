@@ -7,8 +7,7 @@ def configure(conf):
 def build(bld):
     script = bld.new_task_gen(features = 'cxx cstaticlib',
                           includes = '.',
-                          target = 'script',
-                          install_path='${PREFIX}/lib')
+                          target = 'script')
     script.find_sources_in_dirs(['.'])
 
     script_proto = bld.new_task_gen(features = 'cxx cstaticlib ddf',

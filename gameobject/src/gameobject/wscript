@@ -13,8 +13,7 @@ def build(bld):
                                   # NOTE: default/... is hardcoded. How to solve?
                                   classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                   target = 'gameobject',
-                                  ddf_jar = 'gameobject.jar',
-                                  install_path='${PREFIX}/lib')
+                                  ddf_jar = 'gameobject.jar')
 
     gameobject.find_sources_in_dirs(['.', '../../proto'])
 
