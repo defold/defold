@@ -16,7 +16,9 @@
 #endif
 
 #ifdef __MACH__
+#ifndef __arm__
 #include <Carbon/Carbon.h>
+#endif
 #endif
 
 namespace dmSys
@@ -100,6 +102,9 @@ namespace dmSys
     }
 
 #if defined(__MACH__)
+
+#ifndef __arm__
+    // NOTE: iOS implementation in sys_cocoa.mm
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         FSRef file;
@@ -115,6 +120,8 @@ namespace dmSys
         else
             return r;
     }
+#endif
+
 #elif defined(_WIN32)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
