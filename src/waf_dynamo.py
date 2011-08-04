@@ -348,17 +348,15 @@ def detect(conf):
     conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
 
     if platform == "linux":
-        conf.env['LIB_THREAD'] = 'pthread'
+        conf.env.append_value('LINKFLAGS', '-lpthread')
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'darwin' in platform:
-        conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if platform == 'darwin':
             # Only for OSX
             conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
     else:
-        conf.env['LIB_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
         conf.env.append_value('LINKFLAGS', ['shell32.lib'])
 
