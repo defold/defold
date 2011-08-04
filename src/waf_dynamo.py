@@ -1,7 +1,199 @@
-import os, sys, subprocess
+import os, sys, subprocess, shutil, re
 import Build, Options, Utils, Task
 from Configure import conf
-from TaskGen import feature, after, before
+from TaskGen import extension, taskgen, feature, after, before
+from Logs import error
+import cc, cxx
+
+# objective-c support
+EXT_OBJC = ['.mm']
+@extension(EXT_OBJC)
+def objc_hook(self, node):
+    tsk = cxx.cxx_hook(self, node)
+    tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJC'])
+    tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
+
+# iPhone bundle and signing support
+RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>rules</key>
+        <dict>
+                <key>.*</key>
+                <true/>
+                <key>Info.plist</key>
+                <dict>
+                        <key>omit</key>
+                        <true/>
+                        <key>weight</key>
+                        <real>10</real>
+                </dict>
+                <key>ResourceRules.plist</key>
+                <dict>
+                        <key>omit</key>
+                        <true/>
+                        <key>weight</key>
+                        <real>100</real>
+                </dict>
+        </dict>
+</dict>
+</plist>
+"""
+
+INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>BuildMachineOSBuild</key>
+        <string>10K540</string>
+        <key>CFBundleDevelopmentRegion</key>
+        <string>en</string>
+        <key>CFBundleDisplayName</key>
+        <string>%(executable)s</string>
+        <key>CFBundleExecutable</key>
+        <string>%(executable)s</string>
+        <key>CFBundleIdentifier</key>
+        <string>TODO_PREFIX.%(executable)s</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>6.0</string>
+        <key>CFBundleName</key>
+        <string>%(executable)s</string>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleResourceSpecification</key>
+        <string>ResourceRules.plist</string>
+        <key>CFBundleShortVersionString</key>
+        <string>1.0</string>
+        <key>CFBundleSignature</key>
+        <string>????</string>
+        <key>CFBundleSupportedPlatforms</key>
+        <array>
+                <string>iPhoneOS</string>
+        </array>
+        <key>CFBundleVersion</key>
+        <string>1.0</string>
+        <key>DTCompiler</key>
+        <string>com.apple.compilers.llvmgcc42</string>
+        <key>DTPlatformBuild</key>
+        <string>8H7</string>
+        <key>DTPlatformName</key>
+        <string>iphoneos</string>
+        <key>DTPlatformVersion</key>
+        <string>4.3</string>
+        <key>DTSDKBuild</key>
+        <string>8H7</string>
+        <key>DTSDKName</key>
+        <string>iphoneos4.3</string>
+        <key>DTXcode</key>
+        <string>0402</string>
+        <key>DTXcodeBuild</key>
+        <string>4A2002a</string>
+        <key>LSRequiresIPhoneOS</key>
+        <true/>
+        <key>MinimumOSVersion</key>
+        <string>4.3</string>
+        <key>NSMainNibFile</key>
+        <string>MainWindow</string>
+        <key>UIDeviceFamily</key>
+        <array>
+                <integer>1</integer>
+        </array>
+        <key>UIStatusBarHidden</key>
+        <true/>
+        <key>UISupportedInterfaceOrientations</key>
+        <array>
+                <string>UIInterfaceOrientationPortrait</string>
+                <string>UIInterfaceOrientationLandscapeLeft</string>
+                <string>UIInterfaceOrientationLandscapeRight</string>
+        </array>
+</dict>
+</plist>
+"""
+def codesign(task):
+    bld = task.generator.bld
+
+    exe_path = task.exe.bldpath(task.env)
+    signed_exe_path = task.signed_exe.bldpath(task.env)
+    shutil.copy(exe_path, signed_exe_path)
+
+    signed_exe_dir = os.path.dirname(signed_exe_path)
+
+    identity = task.env.IDENTITY
+    if not identity:
+        identity = 'iPhone Developer: Christian MURRAY (QXZXCL5J5G)'
+
+    mobileprovision = task.env.MOBILE_PROVISION
+    if not mobileprovision:
+        mobileprovision = 'engine_profile.mobileprovision'
+    mobileprovision_path = os.path.join(task.env['DYNAMO_HOME'], 'share', mobileprovision)
+    shutil.copyfile(mobileprovision_path, os.path.join(signed_exe_dir, 'embedded.mobileprovision'))
+
+    entitlements = '/Users/chmu/Library/Developer/Xcode/DerivedData/test_iphone2-dsbdefmnlgdwdlchxwoxthhbgnwc/Build/Intermediates/test_iphone2.build/Debug-iphoneos/test_iphone2.build/test_iphone2.xcent'
+    resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
+
+    ret = bld.exec_command('CODESIGN_ALLOCATE=/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements, signed_exe_dir))
+    if ret != 0:
+        error('Error running codesign')
+        return 1
+
+    return 0
+
+Task.task_type_from_func('codesign',
+                         func = codesign,
+                         #color = 'RED',
+                         after  = 'app_bundle')
+
+def app_bundle(task):
+    info_plist_file = open(task.info_plist.bldpath(task.env), 'wb')
+    info_plist_file.write(INFO_PLIST % { 'executable' : task.exe_name })
+    info_plist_file.close()
+
+    resource_rules_plist_file = open(task.resource_rules_plist.bldpath(task.env), 'wb')
+    resource_rules_plist_file.write(RESOURCE_RULES_PLIST)
+    resource_rules_plist_file.close()
+
+    return 0
+
+Task.task_type_from_func('app_bundle',
+                         func = app_bundle,
+                         vars = ['SRC', 'DST'],
+                         #color = 'RED',
+                         after  = 'cxx_link cc_link static_link')
+
+@taskgen
+@after('apply_link')
+@feature('cprogram')
+def create_app_bundle(self):
+    if not re.match('arm.*?darwin', self.env['PLATFORM']):
+        return
+
+    app_bundle_task = self.create_task('app_bundle', self.env)
+    app_bundle_task.set_inputs(self.link_task.outputs)
+
+    exe_name = self.link_task.outputs[0].name
+    app_bundle_task.exe_name = exe_name
+
+    info_plist = self.path.exclusive_build_node("%s.app/Info.plist" % exe_name)
+    app_bundle_task.info_plist = info_plist
+
+    resource_rules_plist = self.path.exclusive_build_node("%s.app/ResourceRules.plist" % exe_name)
+    app_bundle_task.resource_rules_plist = resource_rules_plist
+
+    app_bundle_task.set_outputs([info_plist, resource_rules_plist])
+
+    self.app_bundle_task = app_bundle_task
+
+    signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
+
+    codesign = self.create_task('codesign', self.env)
+    codesign.resource_rules_plist = resource_rules_plist
+    codesign.set_inputs(self.link_task.outputs)
+    codesign.set_outputs(signed_exe)
+
+    codesign.exe = self.link_task.outputs[0]
+    codesign.signed_exe = signed_exe
+
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_')
@@ -101,6 +293,8 @@ def detect(conf):
 
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    IOS_SDK_VERSION="4.3"
+
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
     platform = None
@@ -125,17 +319,19 @@ def detect(conf):
     if platform == "linux" or platform == "darwin":
         conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-m32'])
         conf.env.append_value('LINKFLAGS', ['-m32'])
-    elif platform == "arm6-darwin":
+    elif platform == "armv6-darwin":
+        conf.env['GCC-OBJC'] = '-xobjective-c++'
+        conf.env['GCC-OBJCLINK'] = '-lobjc'
         ARM_DARWIN_ROOT='/Developer/Platforms/iPhoneOS.platform/Developer'
-        conf.env['CC'] = '%s/usr/bin/gcc-4.2' % (ARM_DARWIN_ROOT)
-        conf.env['CXX'] = '%s/usr/bin/g++-4.2' % (ARM_DARWIN_ROOT)
+        conf.env['CC'] = '%s/usr/bin/llvm-gcc-4.2' % (ARM_DARWIN_ROOT)
+        conf.env['CXX'] = '%s/usr/bin/llvm-g++-4.2' % (ARM_DARWIN_ROOT)
         conf.env['CPP'] = '%s/usr/bin/cpp-4.2' % (ARM_DARWIN_ROOT)
         conf.env['AR'] = '%s/usr/bin/ar' % (ARM_DARWIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (ARM_DARWIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (ARM_DARWIN_ROOT)
 
-        conf.env.append_value('CXXFLAGS', ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS3.2.sdk' % (ARM_DARWIN_ROOT)])
-        conf.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS3.2.sdk' % (ARM_DARWIN_ROOT)])
+        conf.env.append_value('CXXFLAGS', ['-g', '-DNDEBUG', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv6', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        conf.env.append_value('LINKFLAGS', [ '-arch', 'armv6', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
     else:
         conf.env['CXXFLAGS']=['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS']
         conf.env.append_value('LINKFLAGS', '/DEBUG')
@@ -156,9 +352,14 @@ def detect(conf):
     elif 'darwin' in platform:
         conf.env['LIB_PLATFORM_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
+        if platform == 'darwin':
+            # Only for OSX
+            conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
     else:
         conf.env['LIB_PLATFORM_THREAD'] = ''
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+        conf.env.append_value('LINKFLAGS', ['shell32.lib'])
 
 def configure(conf):
     detect(conf)
@@ -176,5 +377,5 @@ Build.BuildContext.exec_command = exec_command
 
 def set_options(opt):
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm6-darwin')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv6-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
