@@ -16,6 +16,9 @@ IOS_SDK_VERSION="4.3"
 def default_flags(self):
 
     platform = self.env['PLATFORM']
+    build_platform = self.env['BUILD_PLATFORM']
+    dynamo_home = self.env['DYNAMO_HOME']
+
     if 'darwin' in platform:
         # OSX and iOS
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
@@ -36,6 +39,13 @@ def default_flags(self):
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
+
+    if platform == build_platform:
+        # Host libraries are installed to $PREFIX/lib
+        self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
+    else:
+        # Cross libraries are installed to $PREFIX/lib/PLATFORM
+        self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib", platform))
 
 # Install all static libraries by default
 @feature('cstaticlib')
@@ -372,11 +382,9 @@ def detect(conf):
 
     if platform == build_platform:
         # Host libraries are installed to $PREFIX/lib
-        conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
         conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin', conf.env)
     else:
         # Cross libraries are installed to $PREFIX/lib/PLATFORM
-        conf.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib", platform))
         conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % platform, conf.env)
         conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % platform, conf.env)
 
