@@ -1,0 +1,240 @@
+##########################################################################
+# Makefile for GLFW on Windows using MinGW32.
+#-------------------------------------------------------------------------
+# To compile GLFW using this makefile, run:
+#  make -f Makefile.win32.mgw
+##########################################################################
+
+##########################################################################
+# Default: Build static and dynamic versions of GLFW
+##########################################################################
+all: libglfw.a glfw.dll
+
+
+##########################################################################
+# GLFW version
+##########################################################################
+VERMAJOR = 2
+VERMINOR = 7
+
+
+##########################################################################
+# Compiler settings
+##########################################################################
+CC         = gcc
+CFLAGS     = -c -I. -I.. -Wall -O2
+CFLAGS_DLL = $(CFLAGS) -mdll -DGLFW_BUILD_DLL -D_GLFW_NO_DLOAD_GDI32 -D_GLFW_NO_DLOAD_WINMM
+
+
+##########################################################################
+# Library builder settings
+##########################################################################
+# Static library
+MKLIB     = ar
+LIBFLAGS  = -rcs
+
+# DLL
+LINK      = dllwrap
+LINKFLAGS = -s -Wl,--major-image-version,$(VERMAJOR),--minor-image-version,$(VERMINOR)
+LINKLIBS  = -lopengl32 -lwinmm -lgdi32
+
+
+##########################################################################
+# Object files for static library
+##########################################################################
+OBJS = \
+       enable.o \
+       fullscreen.o \
+       glext.o \
+       image.o \
+       init.o \
+       input.o \
+       joystick.o \
+       stream.o \
+       tga.o \
+       thread.o \
+       time.o \
+       window.o \
+       win32_enable.o \
+       win32_fullscreen.o \
+       win32_glext.o \
+       win32_init.o \
+       win32_joystick.o \
+       win32_thread.o \
+       win32_time.o \
+       win32_window.o
+
+
+##########################################################################
+# Object files for dynamic library
+##########################################################################
+DLLOBJS = \
+       enable_dll.o \
+       fullscreen_dll.o \
+       glext_dll.o \
+       image_dll.o \
+       init_dll.o \
+       input_dll.o \
+       joystick_dll.o \
+       stream_dll.o \
+       tga_dll.o \
+       thread_dll.o \
+       time_dll.o \
+       window_dll.o \
+       win32_dllmain_dll.o \
+       win32_enable_dll.o \
+       win32_fullscreen_dll.o \
+       win32_glext_dll.o \
+       win32_init_dll.o \
+       win32_joystick_dll.o \
+       win32_thread_dll.o \
+       win32_time_dll.o \
+       win32_window_dll.o
+
+
+
+##########################################################################
+# Rule for building static library
+##########################################################################
+libglfw.a: $(OBJS)
+	$(MKLIB) $(LIBFLAGS) $@ $(OBJS) $(SYSOBJS)
+
+
+##########################################################################
+# Rule for building dynamic library
+##########################################################################
+glfw.dll: $(DLLOBJS)
+	$(LINK) --dllname $@ --def glfwdll_mgw1.def $(DLLOBJS) $(LINKFLAGS) $(LINKLIBS)
+	dlltool --kill-at --output-lib libglfwdll.a --def glfwdll_mgw2.def
+
+
+##########################################################################
+# Rules for building static library object files
+##########################################################################
+enable.o: ../enable.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../enable.c
+
+fullscreen.o: ../fullscreen.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../fullscreen.c
+
+glext.o: ../glext.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../glext.c
+
+image.o: ../image.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../image.c
+
+init.o: ../init.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../init.c
+
+input.o: ../input.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../input.c
+
+joystick.o: ../joystick.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../joystick.c
+
+stream.o: ../stream.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../stream.c
+
+tga.o: ../tga.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../tga.c
+
+thread.o: ../thread.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../thread.c
+
+time.o: ../time.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../time.c
+
+window.o: ../window.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ ../window.c
+
+win32_enable.o: win32_enable.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_enable.c
+
+win32_fullscreen.o: win32_fullscreen.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_fullscreen.c
+
+win32_glext.o: win32_glext.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_glext.c
+
+win32_init.o: win32_init.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_init.c
+
+win32_joystick.o: win32_joystick.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_joystick.c
+
+win32_thread.o: win32_thread.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_thread.c
+
+win32_time.o: win32_time.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_time.c
+
+win32_window.o: win32_window.c ../internal.h platform.h
+	$(CC) $(CFLAGS) -o $@ win32_window.c
+
+
+##########################################################################
+# Rules for building dynamic library object files
+##########################################################################
+enable_dll.o: ../enable.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../enable.c
+
+fullscreen_dll.o: ../fullscreen.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../fullscreen.c
+
+glext_dll.o: ../glext.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../glext.c
+
+image_dll.o: ../image.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../image.c
+
+init_dll.o: ../init.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../init.c
+
+input_dll.o: ../input.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../input.c
+
+joystick_dll.o: ../joystick.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../joystick.c
+
+stream_dll.o: ../stream.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../stream.c
+
+tga_dll.o: ../tga.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../tga.c
+
+thread_dll.o: ../thread.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../thread.c
+
+time_dll.o: ../time.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../time.c
+
+window_dll.o: ../window.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ ../window.c
+
+win32_dllmain_dll.o: win32_dllmain.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_dllmain.c
+
+win32_enable_dll.o: win32_enable.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_enable.c
+
+win32_fullscreen_dll.o: win32_fullscreen.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_fullscreen.c
+
+win32_glext_dll.o: win32_glext.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_glext.c
+
+win32_init_dll.o: win32_init.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_init.c
+
+win32_joystick_dll.o: win32_joystick.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_joystick.c
+
+win32_thread_dll.o: win32_thread.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_thread.c
+
+win32_time_dll.o: win32_time.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_time.c
+
+win32_window_dll.o: win32_window.c ../internal.h platform.h
+	$(CC) $(CFLAGS_DLL) -o $@ win32_window.c
+

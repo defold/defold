@@ -1,0 +1,64 @@
+##########################################################################
+# Makefile for GLFW test programs for Windows on Unix using MinGW32
+#-------------------------------------------------------------------------
+# To compile the test files using this makefile, run:
+#  make -f Makefile.win32.cross-mgw
+##########################################################################
+
+TARGET ?= i586-mingw32msvc-
+
+CC     = gcc
+CFLAGS = -I../include -Wall -O2
+
+LIB    = ../lib/win32/libglfw.a
+LFLAGS = $(LIB) -lglu32 -lopengl32 
+
+WINDOWS = -mwindows -e _mainCRTStartup
+CONSOLE = -mconsole
+
+BINARIES = triangle.exe listmodes.exe mthello.exe pong3d.exe mtbench.exe \
+		   particles.exe splitview.exe mipmaps.exe gears.exe boing.exe \
+		   wave.exe heightmap.exe
+
+all: $(BINARIES)
+
+triangle.exe: triangle.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) triangle.c $(LFLAGS) -o $@
+
+listmodes.exe: listmodes.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(CONSOLE) listmodes.c $(LFLAGS) -o $@
+
+mthello.exe: mthello.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(CONSOLE) mthello.c $(LFLAGS) -o $@
+
+pong3d.exe: pong3d.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) pong3d.c $(LFLAGS) -lm -o $@
+
+mtbench.exe: mtbench.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(CONSOLE) mtbench.c $(LFLAGS) -o $@
+
+particles.exe: particles.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(CONSOLE) particles.c $(LFLAGS) -lm -o $@
+
+splitview.exe: splitview.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) splitview.c $(LFLAGS) -lm -o $@
+
+mipmaps.exe: mipmaps.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) mipmaps.c $(LFLAGS) -lm -o $@
+
+gears.exe: gears.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) gears.c $(LFLAGS) -lm -o $@
+
+boing.exe: boing.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) boing.c $(LFLAGS) -lm -o $@
+
+wave.exe: wave.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) wave.c $(LFLAGS) -lm -o $@
+
+heightmap.exe: heightmap.c getopt.c $(LIB)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) heightmap.c getopt.c $(LFLAGS) -lm -o $@
+
+
+clean:
+	rm -f $(BINARIES)
+

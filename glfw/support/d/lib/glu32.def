@@ -1,0 +1,56 @@
+LIBRARY glu32
+EXETYPE NT
+SUBSYSTEM WINDOWS
+EXPORTS
+_gluBeginCurve@4 = gluBeginCurve
+_gluBeginPolygon@4 = gluBeginPolygon
+_gluBeginSurface@4 = gluBeginSurface
+_gluBeginTrim@4 = gluBeginTrim
+_gluBuild1DMipmaps@24 = gluBuild1DMipmaps
+_gluBuild2DMipmaps@28 = gluBuild2DMipmaps
+_gluCylinder@36 = gluCylinder
+_gluDeleteNurbsRenderer@4 = gluDeleteNurbsRenderer
+_gluDeleteQuadric@4 = gluDeleteQuadric
+_gluDeleteTess@4 = gluDeleteTess
+_gluDisk@28 = gluDisk
+_gluEndCurve@4 = gluEndCurve
+_gluEndPolygon@4 = gluEndPolygon
+_gluEndSurface@4 = gluEndSurface
+_gluEndTrim@4 = gluEndTrim
+_gluErrorString@4 = gluErrorString
+_gluErrorUnicodeStringEXT@4 = gluErrorUnicodeStringEXT
+_gluGetNurbsProperty@12 = gluGetNurbsProperty
+_gluGetString@4 = gluGetString
+_gluGetTessProperty@12 = gluGetTessProperty
+_gluLoadSamplingMatrices@16 = gluLoadSamplingMatrices
+_gluLookAt@72 = gluLookAt
+_gluNewNurbsRenderer@0 = gluNewNurbsRenderer
+_gluNewQuadric@0 = gluNewQuadric
+_gluNewTess@0 = gluNewTess
+_gluNextContour@8 = gluNextContour
+_gluNurbsCallback@12 = gluNurbsCallback
+_gluNurbsCurve@28 = gluNurbsCurve
+_gluNurbsProperty@12 = gluNurbsProperty
+_gluNurbsSurface@44 = gluNurbsSurface
+_gluOrtho2D@32 = gluOrtho2D
+_gluPartialDisk@44 = gluPartialDisk
+_gluPerspective@32 = gluPerspective
+_gluPickMatrix@36 = gluPickMatrix
+_gluProject@48 = gluProject
+_gluPwlCurve@20 = gluPwlCurve
+_gluQuadricCallback@12 = gluQuadricCallback
+_gluQuadricDrawStyle@8 = gluQuadricDrawStyle
+_gluQuadricNormals@8 = gluQuadricNormals
+_gluQuadricOrientation@8 = gluQuadricOrientation
+_gluQuadricTexture@8 = gluQuadricTexture
+_gluScaleImage@36 = gluScaleImage
+_gluSphere@20 = gluSphere
+_gluTessBeginContour@4 = gluTessBeginContour
+_gluTessBeginPolygon@8 = gluTessBeginPolygon
+_gluTessCallback@12 = gluTessCallback
+_gluTessEndContour@4 = gluTessEndContour
+_gluTessEndPolygon@4 = gluTessEndPolygon
+_gluTessNormal@28 = gluTessNormal
+_gluTessProperty@16 = gluTessProperty
+_gluTessVertex@12 = gluTessVertex
+_gluUnProject@48 = gluUnProject
