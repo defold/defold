@@ -69,6 +69,7 @@ struct js_event {
 #define JSIOCGVERSION  _IOR('j', 0x01, int)   /* get driver version (u32) */
 #define JSIOCGAXES     _IOR('j', 0x11, char)  /* get number of axes (u8) */
 #define JSIOCGBUTTONS  _IOR('j', 0x12, char)  /* get number of buttons (u8) */
+#define JSIOCGNAME(len) _IOC(_IOC_READ, 'j', 0x13, len) /* get identifier string */
 
 #endif // _GLFW_USE_LINUX_JOYSTICKS
 
@@ -129,6 +130,10 @@ void _glfwInitJoysticks( void )
                     // It's an old 0.x interface (we don't support it)
                     close( fd );
                     continue;
+                }
+                if ( ioctl( fd, JSIOCGNAME(DEVICE_ID_LENGTH), _glfwJoy[ joy_count ].DeviceId ) == -1)
+                {
+                    perror("JSIOCGNAME(DEVICE_ID_LENGTH)");
                 }
 
                 // Get number of joystick axes
@@ -363,5 +368,23 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons,
     }
 
     return numbuttons;
+}
+
+//========================================================================
+// _glfwPlatformGetJoystickDeviceId() - Get joystick device id
+//========================================================================
+
+int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
+{
+    // Is joystick present?
+    if( !_glfwJoy[ joy ].Present )
+    {
+        return GL_FALSE;
+    }
+    else
+    {
+        *device_id = _glfwJoy[ joy ].DeviceId;
+        return GL_TRUE;
+    }
 }
 

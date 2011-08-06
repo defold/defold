@@ -236,6 +236,15 @@ int _glfwPlatformInit( void )
         chdir( [resourcePath cStringUsingEncoding:NSUTF8StringEncoding] );
     }
 
+    if (!_glfwInitJoysticks())
+    {
+        fprintf(
+            stderr,
+            "glfwInit failing because it initiate joysticks\n" );
+        _glfwPlatformTerminate();
+        return GL_FALSE;
+    }
+
     // Setting up menu bar must go exactly here else weirdness ensues
     setUpMenuBar();
 
@@ -263,6 +272,7 @@ int _glfwPlatformTerminate( void )
     // TODO: Fail unless this is the main thread
 
     glfwCloseWindow();
+    _glfwTerminateJoysticks();
 
     // TODO: Kill all non-main threads?
     // TODO: Probably other cleanup

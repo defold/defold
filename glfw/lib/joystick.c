@@ -97,3 +97,13 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy,
     return _glfwPlatformGetJoystickButtons( joy, buttons, numbuttons );
 }
 
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id )
+{
+    // Is GLFW initialized?
+    if( !_glfwInitialized )
+    {
+        return 0;
+    }
+
+    return _glfwPlatformGetJoystickDeviceId( joy, device_id );
+}

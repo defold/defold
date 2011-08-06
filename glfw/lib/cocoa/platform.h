@@ -220,6 +220,18 @@ GLFWGLOBAL struct {
 
 } _glfwThrd;
 
+//------------------------------------------------------------------------
+// Joystick information & state
+//------------------------------------------------------------------------
+GLFWGLOBAL struct {
+    int           Present;
+    //int           fd;
+    void*         Device;
+    int           NumAxes;
+    int           NumButtons;
+    float         *Axis;
+    unsigned char *Button;
+} _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 //========================================================================
 // Macros for encapsulating critical code sections (i.e. making parts

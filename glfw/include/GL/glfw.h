@@ -476,6 +476,7 @@ GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickParam( int joy, int param );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id );
 
 /* Time */
 GLFWAPI double GLFWAPIENTRY glfwGetTime( void );

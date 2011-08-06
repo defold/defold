@@ -452,6 +452,9 @@ GLFWGLOBAL struct {
 //------------------------------------------------------------------------
 // Joystick information & state
 //------------------------------------------------------------------------
+
++#define DEVICE_ID_LENGTH 64
+
 GLFWGLOBAL struct {
     int           Present;
     int           fd;
@@ -459,6 +462,7 @@ GLFWGLOBAL struct {
     int           NumButtons;
     float         *Axis;
     unsigned char *Button;
+    char DeviceId[DEVICE_ID_LENGTH];
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 
