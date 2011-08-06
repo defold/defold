@@ -453,7 +453,7 @@ GLFWGLOBAL struct {
 // Joystick information & state
 //------------------------------------------------------------------------
 
-+#define DEVICE_ID_LENGTH 64
+#define DEVICE_ID_LENGTH 64
 
 GLFWGLOBAL struct {
     int           Present;
