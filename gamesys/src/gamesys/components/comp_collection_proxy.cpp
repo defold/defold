@@ -230,19 +230,26 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmHashString64("init"))
         {
-            if (proxy->m_Initialized == 0)
+            if (proxy->m_Collection != 0)
             {
-                dmGameObject::Init(proxy->m_Collection);
-                proxy->m_Initialized = 1;
+                if (proxy->m_Initialized == 0)
+                {
+                    dmGameObject::Init(proxy->m_Collection);
+                    proxy->m_Initialized = 1;
+                }
+                else
+                {
+                    dmLogWarning("The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
+                }
             }
             else
             {
-                dmLogWarning("The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
+                dmLogWarning("The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64("final"))
         {
-            if (proxy->m_Initialized == 1)
+            if (proxy->m_Initialized == 1 && proxy->m_Collection != 0x0)
             {
                 dmGameObject::Final(proxy->m_Collection);
                 proxy->m_Initialized = 0;
@@ -254,18 +261,25 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmHashString64("enable"))
         {
-            if (proxy->m_Enabled == 0)
+            if (proxy->m_Collection != 0)
             {
-                proxy->m_Enabled = 1;
-                if (proxy->m_Initialized == 0)
+                if (proxy->m_Enabled == 0)
                 {
-                    dmGameObject::Init(proxy->m_Collection);
-                    proxy->m_Initialized = 1;
+                    proxy->m_Enabled = 1;
+                    if (proxy->m_Initialized == 0)
+                    {
+                        dmGameObject::Init(proxy->m_Collection);
+                        proxy->m_Initialized = 1;
+                    }
+                }
+                else
+                {
+                    dmLogWarning("The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
                 }
             }
             else
             {
-                dmLogWarning("The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
+                dmLogWarning("The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
         else if (params.m_Message->m_Id == dmHashString64("disable"))
