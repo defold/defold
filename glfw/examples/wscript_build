@@ -1,0 +1,25 @@
+import sys, re
+
+platform = bld.env.PLATFORM
+local_libs = 'dmglfw'
+if platform == 'win32':
+    local_libs = 'dmglfw dmglfw_getopt'
+    bld.new_task_gen(features = 'cc cstaticlib',
+                     includes = '.',
+                     target = 'dmglfw_getopt',
+                     source = 'getopt.c' % e,
+                     install_path = None)
+
+
+samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pong3d splitview triangle wave'
+if re.match('arm.*?darwin', platform):
+    # Other examples are not compatible with OpenGLES
+    samples = 'simple_ios'
+
+for e in samples.split():
+    bld.new_task_gen(features = 'cc cprogram',
+                     includes = '. ../include',
+                     target = e,
+                     source = '%s.c' % e,
+                     uselib_local = local_libs,
+                     install_path = None)

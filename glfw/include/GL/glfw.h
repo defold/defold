@@ -160,10 +160,25 @@ extern "C" {
  * (which is not a nice solution for portable programs).
  */
 #if defined(__APPLE_CC__)
+#ifdef __arm__
+ /*
+#import <OpenGLES/EAGL.h>
+
+#import <OpenGLES/ES1/gl.h>
+#import <OpenGLES/ES1/glext.h>
+#import <OpenGLES/ES2/gl.h>
+#import <OpenGLES/ES2/glext.h>
+*/
+
+#include <OpenGLES/ES1/gl.h>
+#include <OpenGLES/ES2/gl.h>
+
+#else
  #include <OpenGL/gl.h>
  #ifndef GLFW_NO_GLU
   #include <OpenGL/glu.h>
  #endif
+#endif
 #else
  #include <GL/gl.h>
  #ifndef GLFW_NO_GLU
