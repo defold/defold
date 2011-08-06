@@ -7,7 +7,8 @@
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
-#include "../glfw/include/GL/glfw.h"
+
+#include <graphics/glfw/glfw.h>
 
 #ifdef __linux__
 #include <GL/glext.h>

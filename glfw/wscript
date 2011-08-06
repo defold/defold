@@ -44,24 +44,13 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
 
     conf.env.append_value('CPPPATH', "../src")
-#    conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
-#    conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
-#    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
-#    conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
-
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
     conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
-
-#    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
-#    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
-
-#    conf.env['LIB_GTEST'] = 'gtest'
-#    conf.env['STATICLIB_DLIB'] = 'dlib'
 
 def build(bld):
     bld.add_subdirs('lib')
     bld.add_subdirs('examples')
-#    bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
+    bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
 
 def shutdown():
     waf_dynamo.run_gtests(valgrind = True)
