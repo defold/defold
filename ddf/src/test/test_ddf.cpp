@@ -120,6 +120,9 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
+#ifndef __arm__
+// TODO: Disabled on iOS
+// We have add functionality to located tmp-dir on iOS. See issue #624
 TEST(Simple, LoadFromFile)
 {
     int32_t test_values[] = { INT32_MIN, INT32_MAX, 0 };
@@ -151,6 +154,7 @@ TEST(Simple, LoadFromFile)
         dmDDF::FreeMessage(message);
     }
 }
+#endif
 
 TEST(Simple, LoadFromFile2)
 {

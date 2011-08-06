@@ -56,8 +56,7 @@ def build(bld):
             protoc_includes = '..',
             target = 'ddf',
             # NOTE: default/... is hardcoded. How to solve?
-            classpath=bld.env.PROTOBUF_JAR + os.pathsep + 'default/src/java' + os.pathsep + 'default/src/ddf/generated',
-            install_path='${PREFIX}/lib')
+            classpath=bld.env.PROTOBUF_JAR + os.pathsep + 'default/src/java' + os.pathsep + 'default/src/ddf/generated')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
 

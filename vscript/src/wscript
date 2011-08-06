@@ -12,7 +12,6 @@ def build(bld):
                               proto_gen_java = True,
                               ddf_jar = 'vscript.jar',
                               protoc_includes = '../proto',
-                              classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                              install_path='${PREFIX}/lib')
+                              classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar')
     script.find_sources_in_dirs(['.', '../proto'])
 

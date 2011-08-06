@@ -42,8 +42,7 @@ def build(bld):
                             includes = '.',
                             target = 'dlib',
                             defines= 'VALGRIND',
-                            embed_source = '../data/profiler.html',
-                            install_path = '${PREFIX}/lib')
+                            embed_source = '../data/profiler.html')
     dlib.find_sources_in_dirs('dlib')
 
     dlib = bld.new_task_gen(features = 'cxx cshlib embed',

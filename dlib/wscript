@@ -13,13 +13,13 @@ def init():
     pass
 
 def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('compiler_cxx')
     opt.tool_options('waf_dynamo')
+    opt.tool_options('compiler_cxx')
+    opt.sub_options('src')
 
 def configure(conf):
-    conf.check_tool('compiler_cxx')
     conf.check_tool('waf_dynamo')
+    conf.check_tool('compiler_cxx')
     conf.sub_config('src')
 
     conf.check_tool('java')
@@ -38,18 +38,6 @@ def configure(conf):
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
 
     conf.env['LIB_GTEST'] = 'gtest'
-
-    if platform == "linux":
-        conf.env['LIB_THREAD'] = 'pthread'
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif 'darwin' in platform:
-        conf.env['LIB_THREAD'] = ''
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
-    else:
-        conf.env['LIB_THREAD'] = ''
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
-        conf.env.append_value('LINKFLAGS', ['shell32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
