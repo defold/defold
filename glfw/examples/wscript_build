@@ -15,6 +15,9 @@ samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pon
 if re.match('arm.*?darwin', platform):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_ios'
+elif platform == 'win32':
+    # Disable all examples on win32 for now. Requires linking to some win32 libraries
+    samples = ''
 
 for e in samples.split():
     bld.new_task_gen(features = 'cc cprogram',
