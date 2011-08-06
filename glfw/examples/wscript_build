@@ -7,7 +7,7 @@ if platform == 'win32':
     bld.new_task_gen(features = 'cc cstaticlib',
                      includes = '.',
                      target = 'dmglfw_getopt',
-                     source = 'getopt.c' % e,
+                     source = 'getopt.c',
                      install_path = None)
 
 
