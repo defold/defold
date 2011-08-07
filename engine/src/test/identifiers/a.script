@@ -1,0 +1,6 @@
+function update(self, dt)
+    if not self.post then
+        msg.post("collection_b:/sub_b/instance_b#script", "hello_world")
+        self.post = true
+    end
+end

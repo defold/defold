@@ -21,3 +21,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/attacker_target/test_attacker_target.collection\"\n"
 }
+embedded_components {
+  id: "identifiers_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/identifiers/test_identifiers.collection\"\n"
+}

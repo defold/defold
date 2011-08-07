@@ -1,0 +1,15 @@
+function init(self)
+    self.sender = msg.url("collection_a", "/sub_a/instance_a", "script")
+    --assert(self.sender == msg.url("collection_a", "/sub_a/instance_a", "script"))
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hello_world") then
+        if sender == self.sender then
+            msg.post("main:/main#script", "done")
+        else
+            print("expected sender: " .. self.sender)
+            print("actual sender: " .. sender)
+        end
+    end
+end

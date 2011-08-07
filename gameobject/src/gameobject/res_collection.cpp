@@ -49,7 +49,8 @@ namespace dmGameObject
 
             // NOTE: Root-collection name is not prepended to identifier
             prev_identifier_path[0] = '\0';
-            regist->m_CurrentIdentifierPath[0] = '\0';
+            regist->m_CurrentIdentifierPath[0] = *ID_SEPARATOR;
+            regist->m_CurrentIdentifierPath[1] = '\0';
         }
         else
         {

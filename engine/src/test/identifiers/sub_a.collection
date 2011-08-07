@@ -1,0 +1,5 @@
+name: "sub_a"
+instances {
+  id: "instance_a"
+  prototype: "/identifiers/a.go"
+}

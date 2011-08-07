@@ -1,13 +1,13 @@
 local function on_fade_in(self, n)
     for k,v in pairs(self.proxies) do
-        msg.post("main:main" .. v, "load")
+        msg.post("main:/main" .. v, "load")
     end
 end
 
 local function on_fade_out(self, n)
-    msg.post("main:main#loading_proxy", "disable")
-    msg.post("main:main#loading_proxy", "final")
-    msg.post("main:main#script", "start")
+    msg.post("main:/main#loading_proxy", "disable")
+    msg.post("main:/main#loading_proxy", "final")
+    msg.post("main:/main#script", "start")
 end
 
 local function start(self)
@@ -22,7 +22,7 @@ function init(self)
 end
 
 function final(self)
-    msg.post("main:main#loading_proxy", "unload")
+    msg.post("main:/main#loading_proxy", "unload")
 end
 
 function on_message(self, message_id, message, sender)

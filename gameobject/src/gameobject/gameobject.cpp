@@ -864,7 +864,7 @@ namespace dmGameObject
         // check for global id (/foo/bar)
         if (*id == *ID_SEPARATOR)
         {
-            return dmHashBuffer64(&id[1], id_size - 1);
+            return dmHashBuffer64(id, id_size);
         }
         else
         {
@@ -935,9 +935,8 @@ namespace dmGameObject
         }
         if (instance == 0x0)
         {
-            dmLogError("Instance '%s#%s' could not be found when dispatching message %s.",
+            dmLogError("Instance '%s' could not be found when dispatching message '%s'.",
                         (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                        (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
                         (const char*) dmHashReverse64(message->m_Id, 0));
 
             context->m_Success = false;
@@ -984,7 +983,7 @@ namespace dmGameObject
                 {
                     parent = dmGameObject::GetInstanceFromIdentifier(context->m_Collection, sp->m_ParentId);
                     if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id %s.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
+                        dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
 
                 }
                 Point3 parent_wp(0.0f, 0.0f, 0.0f);
@@ -1009,7 +1008,7 @@ namespace dmGameObject
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
                 if (result != dmGameObject::RESULT_OK)
-                    dmLogWarning("Error when setting parent of %s to %s, error: %i.",
+                    dmLogWarning("Error when setting parent of '%s' to '%s', error: %i.",
                                  (const char*) dmHashReverse64(instance->m_Identifier, 0),
                                  (const char*) dmHashReverse64(sp->m_ParentId, 0),
                                  result);
@@ -1024,7 +1023,7 @@ namespace dmGameObject
             Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
-                dmLogError("Component '%s#%s' could not be found when dispatching message %s",
+                dmLogError("Component '%s#%s' could not be found when dispatching message '%s'",
                             (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
                             (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
                             (const char*) dmHashReverse64(message->m_Id, 0));

@@ -7,3 +7,5 @@ gamepads = /default.gamepadsc
 game_binding = /default.input_bindingc
 [resource]
 uri = build/default/src/test
+[physics]
+world_count = 6

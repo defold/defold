@@ -1,5 +1,5 @@
 function update(self)
-    assert(self.reloaded)
+    assert(self.reloaded, "not yet reloaded")
 end
 
 function on_reload(self)

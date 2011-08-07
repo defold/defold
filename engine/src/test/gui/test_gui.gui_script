@@ -1,6 +1,6 @@
 function update(self, dt)
     if self.activated then
-        msg.post("main:main#script", "done")
+        msg.post("main:/main#script", "done")
     end
 end
 

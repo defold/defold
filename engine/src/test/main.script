@@ -3,7 +3,7 @@ local test_duration = 3
 function init(self)
     self.timer = test_duration
     self.loading_proxy = "#loading_proxy"
-    self.test_proxies = {"#gui_proxy", "#attacker_target_proxy"}
+    self.test_proxies = {"#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy"}
     self.test_index = 1
     msg.post(self.loading_proxy, "load")
 end
@@ -36,7 +36,7 @@ function on_message(self, message_id, message)
     if message_id == hash("proxy_loaded") then
         msg.post(self.loading_proxy, "init")
         msg.post(self.loading_proxy, "enable")
-        msg.post("test_loading:loading#gui", "start", {proxies = self.test_proxies})
+        msg.post("test_loading:/loading#gui", "start", {proxies = self.test_proxies})
     elseif message_id == hash("start") then
         self.started = true
         activate_proxy(self, self.test_index)

@@ -268,7 +268,7 @@ namespace dmGameObject
 
         if (path_size > 0)
         {
-            return dmGameObject::GetAbsoluteIdentifier(i->m_Instance, path, path_size);
+            return GetAbsoluteIdentifier(i->m_Instance, path, path_size);
         }
         else
         {

@@ -1,0 +1,5 @@
+name: "collection_b"
+collection_instances {
+  id: "sub_b"
+  collection: "/identifiers/sub_b.collection"
+}
