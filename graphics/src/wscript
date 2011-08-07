@@ -22,13 +22,10 @@ def build(bld):
 
     obj.find_sources_in_dirs('. null ../proto')
 
-    bld.add_subdirs('glfw')
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
-
-    bld.install_files('${PREFIX}/include/graphics/glfw', 'glfw/include/GL/glfw.h')
 
     bld.install_files('${PREFIX}/bin', 'ddsc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')

@@ -1,0 +1,56 @@
+#! /usr/bin/env python
+
+VERSION = '2.7.1'
+APPNAME = 'glfw'
+
+srcdir = '.'
+blddir = 'build'
+
+import os, sys, re
+
+import waf_ddf, waf_dynamo
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+    opt.tool_options('compiler_cc')
+    opt.tool_options('compiler_cxx')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+    conf.check_tool('compiler_cc')
+    conf.check_tool('compiler_cxx')
+    waf_ddf.configure(conf)
+
+    platform = conf.env.PLATFORM
+
+    if platform == "linux":
+        conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESSARB'])
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    if not dynamo_home:
+        conf.fatal("DYNAMO_HOME not set")
+    dynamo_ext = os.path.join(dynamo_home, "ext")
+
+    if platform == "darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit'])
+    elif re.match('arm.*?darwin', platform):
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+    elif platform == "linux":
+        conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
+    elif platform == "win32":
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
+
+    conf.env.append_value('CPPPATH', "../src")
+    conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
+    conf.env.append_value('CXXDEFINES', 'SDL_JOYSTICK_IOKIT')
+
+def build(bld):
+    bld.add_subdirs('lib')
+    bld.add_subdirs('examples')
+    bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
+
+def shutdown():
+    waf_dynamo.run_gtests(valgrind = True)

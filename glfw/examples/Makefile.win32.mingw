@@ -1,0 +1,57 @@
+##########################################################################
+# Makefile for GLFW test programs on Windows using bare MinGW
+#-------------------------------------------------------------------------
+# To compile the test files using this makefile, run:
+#  make -f Makefile.win32.mingw
+##########################################################################
+
+CC     = gcc
+CFLAGS = -I../include -Wall -O2
+
+LIB    = ../lib/win32/libglfw.a
+LFLAGS = $(LIB) -lglu32 -lopengl32 -s
+
+WINDOWS = -mwindows
+CONSOLE = -mconsole
+
+HEADER = ../include/GL/glfw.h
+
+all: triangle.exe listmodes.exe mthello.exe pong3d.exe mtbench.exe \
+     particles.exe splitview.exe mipmaps.exe gears.exe boing.exe \
+	 wave.exe heightmap.exe
+
+triangle.exe: triangle.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) triangle.c $(LFLAGS) -o $@
+
+listmodes.exe: listmodes.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) listmodes.c $(LFLAGS) -o $@
+
+mthello.exe: mthello.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) mthello.c $(LFLAGS) -o $@
+
+pong3d.exe: pong3d.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) pong3d.c $(LFLAGS) -lm -o $@
+
+mtbench.exe: mtbench.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) mtbench.c $(LFLAGS) -o $@
+
+particles.exe: particles.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) particles.c $(LFLAGS) -lm -o $@
+
+splitview.exe: splitview.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) splitview.c $(LFLAGS) -lm -o $@
+
+mipmaps.exe: mipmaps.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) mipmaps.c $(LFLAGS) -lm -o $@
+
+gears.exe: gears.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) gears.c $(LFLAGS) -lm -o $@
+
+boing.exe: boing.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) boing.c $(LFLAGS) -lm -o $@
+
+wave.exe: wave.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) wave.c $(LFLAGS) -lm -o $@
+
+heightmap.exe: heightmap.c getopt.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) heightmap.c getopt.c $(LFLAGS) -lm -o $@

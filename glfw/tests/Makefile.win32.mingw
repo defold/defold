@@ -1,0 +1,62 @@
+##########################################################################
+# Makefile for GLFW test programs on Windows using bare MinGW
+#-------------------------------------------------------------------------
+# To compile the test files using this makefile, run:
+#  make -f Makefile.win32.mingw
+##########################################################################
+
+CC     = gcc
+CFLAGS = -I../include -Wall -O2
+
+LIB       = ../lib/win32/libglfw.a
+SOLIB     = ../lib/win32/libglfwdll.a
+LFLAGS    = $(LIB) -lglu32 -lopengl32
+SO_LFLAGS = $(SOLIB) -lglu32 -lopengl32
+
+WINDOWS = -mwindows
+CONSOLE = -mconsole
+
+BINARIES = accuracy.exe defaults.exe dynamic.exe events.exe fsaa.exe \
+	   fsinput.exe iconify.exe joysticks.exe peter.exe reopen.exe \
+	   tearing.exe version.exe
+
+HEADER = ../include/GL/glfw.h
+
+all: $(BINARIES)
+
+accuracy.exe: accuracy.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) accuracy.c $(LFLAGS) -o $@
+
+defaults.exe: defaults.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) defaults.c $(LFLAGS) -o $@
+
+dynamic.exe: dynamic.c $(SOLIB) $(HEADER)
+	$(TARGET)$(CC) $(CFLAGS) $(WINDOWS) dynamic.c $(SO_LFLAGS) -o $@
+
+events.exe: events.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) events.c $(LFLAGS) -o $@
+
+fsaa.exe: fsaa.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) fsaa.c $(LFLAGS) -o $@
+
+fsinput.exe: fsinput.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) fsinput.c $(LFLAGS) -o $@
+
+iconify.exe: iconify.c getopt.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) iconify.c getopt.c $(LFLAGS) -o $@
+
+joysticks.exe: joysticks.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) joysticks.c $(LFLAGS) -o $@
+
+peter.exe: peter.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) peter.c $(LFLAGS) -o $@
+
+reopen.exe: reopen.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) reopen.c $(LFLAGS) -o $@
+
+tearing.exe: tearing.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(WINDOWS) tearing.c $(LFLAGS) -o $@
+
+version.exe: version.c $(LIB) $(HEADER)
+	$(CC) $(CFLAGS) $(CONSOLE) version.c $(LFLAGS) -o $@
+

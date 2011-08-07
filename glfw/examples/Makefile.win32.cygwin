@@ -1,0 +1,64 @@
+##########################################################################
+# Makefile for GLFW test programs on Windows using Cygwin
+#-------------------------------------------------------------------------
+# To compile the test files using this makefile, run:
+#  make -f Makefile.win32.cygwin
+##########################################################################
+
+CC     = gcc
+CFLAGS = -I../include -Wall -O2 -mwin32 -mno-cygwin
+
+LIB    = ../lib/win32/libglfw.a
+LFLAGS = -mno-cygwin $(LIB) -lglu32 -lopengl32
+
+WINDOWS = -mwindows -e _mainCRTStartup
+CONSOLE = -mconsole
+
+BINARIES = triangle.exe listmodes.exe mthello.exe pong3d.exe mtbench.exe \
+		   particles.exe splitview.exe mipmaps.exe gears.exe boing.exe \
+		   wave.exe heightmap.exe
+
+all: $(BINARIES)
+
+triangle.exe: triangle.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) triangle.c $(LFLAGS) -o $@
+
+listmodes.exe: listmodes.c $(LIB)
+	$(CC) $(CFLAGS) $(CONSOLE) listmodes.c $(LFLAGS) -o $@
+
+mthello.exe: mthello.c $(LIB)
+	$(CC) $(CFLAGS) $(CONSOLE) mthello.c $(LFLAGS) -o $@
+
+pong3d.exe: pong3d.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) pong3d.c $(LFLAGS) -o $@
+
+mtbench.exe: mtbench.c $(LIB)
+	$(CC) $(CFLAGS) $(CONSOLE) mtbench.c $(LFLAGS) -o $@
+
+particles.exe: particles.c $(LIB)
+	$(CC) $(CFLAGS) $(CONSOLE) particles.c $(LFLAGS) -o $@
+
+splitview.exe: splitview.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) splitview.c $(LFLAGS) -o $@
+
+mipmaps.exe: mipmaps.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) mipmaps.c $(LFLAGS) -o $@
+
+gears.exe: gears.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) gears.c $(LFLAGS) -o $@
+
+boing.exe: boing.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) boing.c $(LFLAGS) -o $@
+
+wave.exe: wave.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) wave.c $(LFLAGS) -o $@
+
+heightmap.exe: heightmap.c getopt.c $(LIB)
+	$(CC) $(CFLAGS) $(WINDOWS) heightmap.c getopt.c $(LFLAGS) -o $@
+
+
+
+
+clean:
+	rm -f $(BINARIES)
+
