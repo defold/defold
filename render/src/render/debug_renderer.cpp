@@ -56,7 +56,7 @@ namespace dmRender
         SetMaterialVertexProgram(material2d, vertex_program);
         SetMaterialFragmentProgram(material2d, fragment_program);
 
-        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_QUADS, dmGraphics::PRIMITIVE_LINES};
+        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
@@ -125,18 +125,20 @@ namespace dmRender
     {
         RenderObject& ro = context->m_DebugRenderer.m_RenderObject2d[DEBUG_RENDER_TYPE_FACE];
         ADD_TO_RENDER(ro);
-        if (context->m_DebugRenderer.m_VertexIndex + 4 < MAX_VERTEX_COUNT)
+        if (context->m_DebugRenderer.m_VertexIndex + 6 < MAX_VERTEX_COUNT)
         {
-            DebugVertex v[4];
+            DebugVertex v[6];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
-            v[1].m_Position = Vector4(x1, y0, 0.0f, 0.0f);
-            v[2].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
-            v[3].m_Position = Vector4(x0, y1, 0.0f, 0.0f);
-            for (uint32_t i = 0; i < 4; ++i)
+            v[1].m_Position = Vector4(x0, y1, 0.0f, 0.0f);
+            v[2].m_Position = Vector4(x1, y0, 0.0f, 0.0f);
+            v[5].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
+            v[3].m_Position = v[2].m_Position;
+            v[4].m_Position = v[1].m_Position;
+            for (uint32_t i = 0; i < 6; ++i)
                 v[i].m_Color = color;
-            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 4 * sizeof(DebugVertex), (const void*)v);
-            ro.m_VertexCount += 4;
-            context->m_DebugRenderer.m_VertexIndex += 4;
+            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 6 * sizeof(DebugVertex), (const void*)v);
+            ro.m_VertexCount += 6;
+            context->m_DebugRenderer.m_VertexIndex += 6;
         }
         else
         {

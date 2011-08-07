@@ -81,16 +81,16 @@ void MyRenderNode(dmGui::HScene scene,
 
         float dx = ext.getX() * 0.5f;
         float dy = ext.getY() * 0.5f;
-        glBegin(GL_QUADS);
+        glBegin(GL_TRIANGLE_STRIP);
 
-        glTexCoord2f(0, 0);
-        glVertex3f(x - dx, y - dy, z);
-        glTexCoord2f(1, 0);
-        glVertex3f(x + dx, y - dy, z);
-        glTexCoord2f(1, 1);
-        glVertex3f(x + dx, y + dy, z);
         glTexCoord2f(0, 1);
+        glVertex3f(x - dx, y - dy, z);
+        glTexCoord2f(0, 0);
         glVertex3f(x - dx, y + dy, z);
+        glTexCoord2f(1, 1);
+        glVertex3f(x + dx, y - dy, z);
+        glTexCoord2f(1, 0);
+        glVertex3f(x + dx, y + dy, z);
 
         glEnd();
 
@@ -128,10 +128,10 @@ int main(void)
     int width, height, running, x, y;
     float t;
 
-    uint8_t checker_texture_data[] = {128, 128, 128, 255,
-                                      255, 255, 255, 255,
-                                      255, 255, 255, 255,
-                                      128, 128, 128, 255};
+    uint8_t checker_texture_data[] = {64, 64, 64, 255,
+                                      128, 128, 128, 255,
+                                      192, 192, 192, 255,
+                                      255, 255, 255, 255};
 
     glfwInit();
 

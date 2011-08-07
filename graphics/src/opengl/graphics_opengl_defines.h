@@ -31,8 +31,6 @@
 #define DMGRAPHICS_PRIMITIVE_TRIANGLES                      (GL_TRIANGLES)
 #define DMGRAPHICS_PRIMITIVE_TRIANGLE_STRIP                 (GL_TRIANGLE_STRIP)
 #define DMGRAPHICS_PRIMITIVE_TRIANGLE_FAN                   (GL_TRIANGLE_FAN)
-#define DMGRAPHICS_PRIMITIVE_QUADS                          (GL_QUADS)
-#define DMGRAPHICS_PRIMITIVE_QUAD_STRIP                     (GL_QUAD_STRIP)
 
 // Buffer type flags
 #define DMGRAPHICS_BUFFER_TYPE_COLOR_BIT                    (GL_COLOR_BUFFER_BIT)

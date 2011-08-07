@@ -73,11 +73,11 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         float quad[] = { 0, 0, 0, 0, 1,
+                         0, 1, 0, 0, 0,
                          1, 0, 0, 1, 1,
-                         1, 1, 0, 1, 0,
-                         0, 1, 0, 0, 0 };
+                         1, 1, 0, 1, 0 };
 
-        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), sizeof(float) * 5 * 4, (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), sizeof(quad), (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -341,9 +341,9 @@ namespace dmGameSystem
 
             ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
             ro.m_VertexBuffer = gui_world->m_QuadVertexBuffer;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
             ro.m_VertexStart = 0;
-            ro.m_VertexCount = 2 * 3;
+            ro.m_VertexCount = 4;
             ro.m_Material = gui_world->m_Material;
 
             // Set default texture

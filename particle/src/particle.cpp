@@ -456,108 +456,134 @@ namespace dmParticle
         SetParticleProperty(particle->m_Properties, PARTICLE_KEY_ALPHA, &particle_alpha);
     }
 
+    struct Vertex
+    {
+        float m_Position[3];
+        float m_UV[2];
+        float m_Alpha;
+    };
+
     static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
 
-        uint32_t particle_count = emitter->m_Particles.Size();
-        if (particle_count * 4 <= vertex_buffer_size - vertex_index)
+        emitter->m_VertexIndex = vertex_index;
+        emitter->m_VertexCount = 0;
+
+        // texture animation
+        uint32_t total_frames = emitter->m_Prototype->m_DDF->m_Texture.m_TX * emitter->m_Prototype->m_DDF->m_Texture.m_TY;
+        float dU = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TX);
+        float dV = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TY);
+
+        // calculate emission space
+        Quat emission_rotation = Quat::identity();
+        Vector3 emission_position(0.0f, 0.0f, 0.0f);
+        if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_EMITTER)
         {
-            emitter->m_VertexIndex = vertex_index;
-            emitter->m_VertexCount = 0;
-
-            // texture animation
-            uint32_t total_frames = emitter->m_Prototype->m_DDF->m_Texture.m_TX * emitter->m_Prototype->m_DDF->m_Texture.m_TY;
-            float dU = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TX);
-            float dV = 1.0f / (float)(emitter->m_Prototype->m_DDF->m_Texture.m_TY);
-
-            // calculate emission space
-            Quat emission_rotation = Quat::identity();
-            Vector3 emission_position(0.0f, 0.0f, 0.0f);
-            if (emitter->m_Prototype->m_DDF->m_Space == EMISSION_SPACE_EMITTER)
-            {
-                emission_rotation = emitter->m_Rotation;
-                emission_position = Vector3(emitter->m_Position);
-            }
-
-            for (uint32_t j = 0; j < particle_count; j++)
-            {
-                Particle* particle = &emitter->m_Particles[j];
-
-                float size = particle_state[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_SIZE]];
-                float alpha = particle_state[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_ALPHA]];
-
-                // shrink dead particles
-                // TODO: Better to not render them?
-                size = dmMath::Select(particle->m_TimeLeft, size, 0.0f);
-
-                Vector3 particle_position = rotate(emission_rotation, Vector3(particle->m_Position)) + emission_position;
-                Quat particle_rotation = emission_rotation * particle->m_Rotation;
-
-                Vector3 x = rotate(particle_rotation, Vector3(size, 0.0f, 0.0f));
-                Vector3 y = rotate(particle_rotation, Vector3(0.0f, size, 0.0f));
-
-                Vector3 p0 = -x - y + particle_position;
-                Vector3 p1 = -x + y + particle_position;
-                Vector3 p2 = x + y + particle_position;
-                Vector3 p3 = x - y + particle_position;
-
-                // avoid wrapping for dead particles
-                float time_left = dmMath::Select(particle->m_TimeLeft, particle->m_TimeLeft, 0.0f);
-                uint32_t frame = (uint32_t)((float)total_frames * (1.0f - time_left * particle->m_ooMaxLifeTime) - 0.5f );
-                uint32_t uframe = frame % emitter->m_Prototype->m_DDF->m_Texture.m_TX;
-                uint32_t vframe = frame / emitter->m_Prototype->m_DDF->m_Texture.m_TX;
-
-                assert(uframe >= 0 && uframe < emitter->m_Prototype->m_DDF->m_Texture.m_TX);
-                assert(vframe >= 0 && vframe < emitter->m_Prototype->m_DDF->m_Texture.m_TY);
-
-                float u = uframe * dU;
-                float v = vframe * dV;
-                float u0 = u + 0.0f;
-                float v0 = v + 0.0f;
-                float u1 = u + 0.0f;
-                float v1 = v + dV;
-                float u2 = u + dU;
-                float v2 = v + dV;
-                float u3 = u + dU;
-                float v3 = v + 0.0f;
-
-                // store values in the buffer
-                uint32_t field_index = vertex_index * VERTEX_FIELD_COUNT;
-                vertex_buffer[field_index + 0] = p0.getX();
-                vertex_buffer[field_index + 1] = p0.getY();
-                vertex_buffer[field_index + 2] = p0.getZ();
-                vertex_buffer[field_index + 3] = u0;
-                vertex_buffer[field_index + 4] = v0;
-                vertex_buffer[field_index + 5] = alpha;
-                ++vertex_index;
-                field_index += VERTEX_FIELD_COUNT;
-                vertex_buffer[field_index + 0] = p1.getX();
-                vertex_buffer[field_index + 1] = p1.getY();
-                vertex_buffer[field_index + 2] = p1.getZ();
-                vertex_buffer[field_index + 3] = u1;
-                vertex_buffer[field_index + 4] = v1;
-                vertex_buffer[field_index + 5] = alpha;
-                ++vertex_index;
-                field_index += VERTEX_FIELD_COUNT;
-                vertex_buffer[field_index + 0] = p2.getX();
-                vertex_buffer[field_index + 1] = p2.getY();
-                vertex_buffer[field_index + 2] = p2.getZ();
-                vertex_buffer[field_index + 3] = u2;
-                vertex_buffer[field_index + 4] = v2;
-                vertex_buffer[field_index + 5] = alpha;
-                ++vertex_index;
-                field_index += VERTEX_FIELD_COUNT;
-                vertex_buffer[field_index + 0] = p3.getX();
-                vertex_buffer[field_index + 1] = p3.getY();
-                vertex_buffer[field_index + 2] = p3.getZ();
-                vertex_buffer[field_index + 3] = u3;
-                vertex_buffer[field_index + 4] = v3;
-                vertex_buffer[field_index + 5] = alpha;
-                ++vertex_index;
-            }
+            emission_rotation = emitter->m_Rotation;
+            emission_position = Vector3(emitter->m_Position);
         }
-        else
+
+        uint32_t tex_tx = emitter->m_Prototype->m_DDF->m_Texture.m_TX;
+        uint32_t tex_ty = emitter->m_Prototype->m_DDF->m_Texture.m_TY;
+        uint32_t max_vertex_count = vertex_buffer_size / sizeof(Vertex);
+        uint32_t j;
+        uint32_t particle_count = emitter->m_Particles.Size();
+        for (j = 0; j < particle_count && vertex_index + 6 < max_vertex_count; j++)
+        {
+            Particle* particle = &emitter->m_Particles[j];
+
+            float size = particle_state[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_SIZE]];
+            float alpha = particle_state[j * PARTICLE_PROPERTY_FIELD_COUNT + PARTICLE_PROPERTY_INDICES[PARTICLE_KEY_ALPHA]];
+
+            // invisible dead particles
+            // TODO: Better to not render them?
+            alpha = dmMath::Select(particle->m_TimeLeft, alpha, 0.0f);
+
+            Vector3 particle_position = rotate(emission_rotation, Vector3(particle->m_Position)) + emission_position;
+            Quat particle_rotation = emission_rotation * particle->m_Rotation;
+
+            Vector3 x = rotate(particle_rotation, Vector3(size, 0.0f, 0.0f));
+            Vector3 y = rotate(particle_rotation, Vector3(0.0f, size, 0.0f));
+
+            Vector3 p0 = -x - y + particle_position;
+            Vector3 p1 = -x + y + particle_position;
+            Vector3 p2 = x - y + particle_position;
+            Vector3 p3 = x + y + particle_position;
+
+            // avoid wrapping for dead particles
+            float time_left = dmMath::Select(particle->m_TimeLeft, particle->m_TimeLeft, 0.0f);
+            uint32_t frame = (uint32_t)((float)total_frames * (1.0f - time_left * particle->m_ooMaxLifeTime) - 0.5f );
+            uint32_t uframe = frame % tex_tx;
+            uint32_t vframe = frame / tex_ty;
+
+            assert(uframe >= 0 && uframe < tex_tx);
+            assert(vframe >= 0 && vframe < tex_ty);
+
+            float u = uframe * dU;
+            float v = vframe * dV;
+            float u0 = u + 0.0f;
+            float v0 = v + dV;
+            float u1 = u + 0.0f;
+            float v1 = v + 0.0f;
+            float u2 = u + dU;
+            float v2 = v + dV;
+            float u3 = u + dU;
+            float v3 = v + 0.0f;
+
+            // store values in the buffer
+            uint32_t field_index = vertex_index * VERTEX_FIELD_COUNT;
+
+            vertex_buffer[field_index + 0] = p0.getX();
+            vertex_buffer[field_index + 1] = p0.getY();
+            vertex_buffer[field_index + 2] = p0.getZ();
+            vertex_buffer[field_index + 3] = u0;
+            vertex_buffer[field_index + 4] = v0;
+            vertex_buffer[field_index + 5] = alpha;
+
+            field_index += VERTEX_FIELD_COUNT;
+            vertex_buffer[field_index + 0] = p1.getX();
+            vertex_buffer[field_index + 1] = p1.getY();
+            vertex_buffer[field_index + 2] = p1.getZ();
+            vertex_buffer[field_index + 3] = u1;
+            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 5] = alpha;
+
+            field_index += VERTEX_FIELD_COUNT;
+            vertex_buffer[field_index + 0] = p2.getX();
+            vertex_buffer[field_index + 1] = p2.getY();
+            vertex_buffer[field_index + 2] = p2.getZ();
+            vertex_buffer[field_index + 3] = u2;
+            vertex_buffer[field_index + 4] = v2;
+            vertex_buffer[field_index + 5] = alpha;
+
+            field_index += VERTEX_FIELD_COUNT;
+            vertex_buffer[field_index + 0] = p2.getX();
+            vertex_buffer[field_index + 1] = p2.getY();
+            vertex_buffer[field_index + 2] = p2.getZ();
+            vertex_buffer[field_index + 3] = u2;
+            vertex_buffer[field_index + 4] = v2;
+            vertex_buffer[field_index + 5] = alpha;
+
+            field_index += VERTEX_FIELD_COUNT;
+            vertex_buffer[field_index + 0] = p1.getX();
+            vertex_buffer[field_index + 1] = p1.getY();
+            vertex_buffer[field_index + 2] = p1.getZ();
+            vertex_buffer[field_index + 3] = u1;
+            vertex_buffer[field_index + 4] = v1;
+            vertex_buffer[field_index + 5] = alpha;
+
+            field_index += VERTEX_FIELD_COUNT;
+            vertex_buffer[field_index + 0] = p3.getX();
+            vertex_buffer[field_index + 1] = p3.getY();
+            vertex_buffer[field_index + 2] = p3.getZ();
+            vertex_buffer[field_index + 3] = u3;
+            vertex_buffer[field_index + 4] = v3;
+            vertex_buffer[field_index + 5] = alpha;
+
+            vertex_index += 6;
+        }
+        if (j < particle_count)
         {
             if (emitter->m_RenderWarning == 0)
             {

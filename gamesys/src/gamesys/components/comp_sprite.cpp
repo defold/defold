@@ -150,17 +150,17 @@ namespace dmGameSystem
 
         Point3 positions[] =
         {
-            Point3(-0.5f, 0.5f, 0.0f),
-            Point3(0.5f, 0.5f, 0.0f),
-            Point3(0.5f, -0.5f, 0.0f),
             Point3(-0.5f, -0.5f, 0.0f),
+            Point3(-0.5f, 0.5f, 0.0f),
+            Point3(0.5f, -0.5f, 0.0f),
+            Point3(0.5f, 0.5f, 0.0f),
         };
         float uvs[][2] =
         {
+            {0.0f, 1.0f},
             {0.0f, 0.0f},
-            {1.0f, 0.0f},
             {1.0f, 1.0f},
-            {0.0f, 1.0f}
+            {1.0f, 0.0f}
         };
         struct Vertex
         {
@@ -202,7 +202,7 @@ namespace dmGameSystem
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
                 ro.m_VertexDeclaration = sprite_world->m_VertexDeclaration;
                 ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
-                ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+                ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
                 ro.m_VertexStart = vertex_index;
                 ro.m_VertexCount = 4;
                 ro.m_Material = sprite_world->m_Material;
