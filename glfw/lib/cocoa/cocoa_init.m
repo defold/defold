@@ -231,6 +231,8 @@ int _glfwPlatformInit( void )
 
     NSString* resourcePath = [[NSBundle mainBundle] resourcePath];
 
+    char* prev_cwd = getcwd(0, 0);
+
     if( access( [resourcePath cStringUsingEncoding:NSUTF8StringEncoding], R_OK ) == 0 )
     {
         chdir( [resourcePath cStringUsingEncoding:NSUTF8StringEncoding] );
@@ -259,6 +261,12 @@ int _glfwPlatformInit( void )
 
     _glfwLibrary.DesktopMode =
 	(NSDictionary *)CGDisplayCurrentMode( CGMainDisplayID() );
+
+    // NOTE:
+    // Restore working directory. Don't know why glfw change directory above.
+    // It's unknown whehter its ok to restore the working directory here from glfw's point of view.
+    chdir(prev_cwd);
+    free(prev_cwd);
 
     return GL_TRUE;
 }
