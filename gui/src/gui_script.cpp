@@ -1145,6 +1145,10 @@ namespace dmGui
      *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true.</td></tr>
      *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true.</td></tr>
      *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down.</td></tr>
+     *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
      * </table>
      *
      * @name on_input

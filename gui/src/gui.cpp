@@ -408,6 +408,22 @@ namespace dmGui
                     lua_pushboolean(L, ia->m_Repeated);
                     lua_rawset(L, -3);
 
+                    lua_pushstring(L, "x");
+                    lua_pushboolean(L, ia->m_X);
+                    lua_rawset(L, -3);
+
+                    lua_pushstring(L, "y");
+                    lua_pushboolean(L, ia->m_Y);
+                    lua_rawset(L, -3);
+
+                    lua_pushstring(L, "dx");
+                    lua_pushboolean(L, ia->m_DX);
+                    lua_rawset(L, -3);
+
+                    lua_pushstring(L, "dy");
+                    lua_pushboolean(L, ia->m_DY);
+                    lua_rawset(L, -3);
+
                     arg_count += 2;
                 }
                 break;
@@ -790,6 +806,7 @@ namespace dmGui
 
             default:
                 assert(0);
+                break;
         }
 
         uint32_t animation_index = 0xffffffff;
@@ -861,6 +878,7 @@ namespace dmGui
 
             default:
                 assert(0);
+                break;
         }
 
         scene->m_Animations[animation_index] = animation;

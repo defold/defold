@@ -292,6 +292,22 @@ namespace dmGameObject
             lua_pushboolean(L, params.m_InputAction->m_Repeated);
             lua_settable(L, action_table);
 
+            lua_pushliteral(L, "x");
+            lua_pushnumber(L, params.m_InputAction->m_X);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "y");
+            lua_pushnumber(L, params.m_InputAction->m_Y);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "dx");
+            lua_pushnumber(L, params.m_InputAction->m_DX);
+            lua_settable(L, action_table);
+
+            lua_pushliteral(L, "dy");
+            lua_pushnumber(L, params.m_InputAction->m_DY);
+            lua_settable(L, action_table);
+
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);

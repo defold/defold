@@ -114,49 +114,62 @@ TEST_F(InputTest, Mouse)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
 
-    dmHID::SetMousePosition(0, 1);
+    dmHID::SetMouseButton(dmHID::MOUSE_BUTTON_LEFT, true);
 
     dmHID::Update();
 
-    dmhash_t mouse_up_id = dmHashString64("MOUSE_UP");
+    dmhash_t mouse_click_id = dmHashString64("MOUSE_CLICK");
 
-    float v = dmInput::GetValue(binding, mouse_up_id);
+    float v = dmInput::GetValue(binding, mouse_click_id);
     ASSERT_EQ(0.0f, v);
 
     dmInput::UpdateBinding(binding, m_DT);
 
-    v = dmInput::GetValue(binding, mouse_up_id);
+    v = dmInput::GetValue(binding, mouse_click_id);
     ASSERT_EQ(1.0f, v);
-    ASSERT_TRUE(dmInput::Pressed(binding, mouse_up_id));
-    ASSERT_FALSE(dmInput::Released(binding, mouse_up_id));
+    ASSERT_TRUE(dmInput::Pressed(binding, mouse_click_id));
+    ASSERT_FALSE(dmInput::Released(binding, mouse_click_id));
+
+    dmHID::SetMouseButton(dmHID::MOUSE_BUTTON_LEFT, false);
 
     dmHID::Update();
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_FALSE(dmInput::Pressed(binding, mouse_up_id));
-    ASSERT_TRUE(dmInput::Released(binding, mouse_up_id));
+    ASSERT_FALSE(dmInput::Pressed(binding, mouse_click_id));
+    ASSERT_TRUE(dmInput::Released(binding, mouse_click_id));
 
     dmHID::Update();
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_FALSE(dmInput::Pressed(binding, mouse_up_id));
-    ASSERT_FALSE(dmInput::Released(binding, mouse_up_id));
+    ASSERT_FALSE(dmInput::Pressed(binding, mouse_click_id));
+    ASSERT_FALSE(dmInput::Released(binding, mouse_click_id));
 
-    dmInput::SetBinding(binding, m_Test2DDF);
+    // Mouse movement
+
+    const dmInput::Action* action = dmInput::GetAction(binding, mouse_click_id);
+
+    ASSERT_EQ(0, action->m_X);
+    ASSERT_EQ(0, action->m_Y);
+    ASSERT_EQ(0, action->m_DX);
+    ASSERT_EQ(0, action->m_DY);
 
     dmHID::SetMousePosition(0, 1);
     dmHID::Update();
-
     dmInput::UpdateBinding(binding, m_DT);
-    v = dmInput::GetValue(binding, mouse_up_id);
-    ASSERT_EQ(0.0f, v);
+
+    ASSERT_EQ(0, action->m_X);
+    ASSERT_EQ(1, action->m_Y);
+    ASSERT_EQ(0, action->m_DX);
+    ASSERT_EQ(1, action->m_DY);
 
     dmHID::SetMousePosition(0, -1);
     dmHID::Update();
-
     dmInput::UpdateBinding(binding, m_DT);
-    v = dmInput::GetValue(binding, mouse_up_id);
-    ASSERT_EQ(1.0f, v);
+
+    ASSERT_EQ(0, action->m_X);
+    ASSERT_EQ(-1, action->m_Y);
+    ASSERT_EQ(0, action->m_DX);
+    ASSERT_EQ(-2, action->m_DY);
 
     dmInput::DeleteBinding(binding);
 }
