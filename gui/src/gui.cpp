@@ -570,7 +570,7 @@ namespace dmGui
         return scene->m_Script;
     }
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type)
+    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type)
     {
         if (scene->m_NodePool.Remaining() == 0)
         {
@@ -591,7 +591,7 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0);
             node->m_Node.m_Properties[PROPERTY_SCALE] = Vector4(1,1,1,0);
             node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,1);
-            node->m_Node.m_Properties[PROPERTY_EXTENTS] = Vector4(extents, 0);
+            node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Node.m_TextureHash = 0;
             node->m_Node.m_Texture = 0;
@@ -800,8 +800,8 @@ namespace dmGui
                 animation.m_Value = &n->m_Node.m_Properties[PROPERTY_COLOR];
                 break;
 
-            case PROPERTY_EXTENTS:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_EXTENTS];
+            case PROPERTY_SIZE:
+                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_SIZE];
                 break;
 
             default:

@@ -156,8 +156,8 @@ namespace dmGameSystem
             dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
 
             Vector4 position = node_desc->m_Position;
-            Vector4 extents = node_desc->m_Size;
-            dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(extents.getXYZ()), type);
+            Vector4 size = node_desc->m_Size;
+            dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(size.getXYZ()), type);
             if (n)
             {
                 if (node_desc->m_Type == dmGuiDDF::NodeDesc::TYPE_TEXT)
@@ -302,7 +302,7 @@ namespace dmGameSystem
             const dmGui::Node* n = &nodes[i];
             Vector4 position = n->m_Properties[dmGui::PROPERTY_POSITION];
             const Vector4& rotation = n->m_Properties[dmGui::PROPERTY_ROTATION];
-            const Vector4& extents = n->m_Properties[dmGui::PROPERTY_EXTENTS];
+            const Vector4& size = n->m_Properties[dmGui::PROPERTY_SIZE];
             const Vector4& scale = n->m_Properties[dmGui::PROPERTY_SCALE];
             const Vector4& color = n->m_Properties[dmGui::PROPERTY_COLOR];
             const dmGui::Pivot pivot = (dmGui::Pivot) n->m_Pivot;
@@ -361,13 +361,13 @@ namespace dmGameSystem
                     case dmGui::PIVOT_CENTER:
                     case dmGui::PIVOT_S:
                     case dmGui::PIVOT_N:
-                        dx = extents.getX() * 0.5;
+                        dx = size.getX() * 0.5;
                         break;
 
                     case dmGui::PIVOT_NE:
                     case dmGui::PIVOT_E:
                     case dmGui::PIVOT_SE:
-                        dx = extents.getX();
+                        dx = size.getX();
                         break;
 
                     case dmGui::PIVOT_SW:
@@ -380,13 +380,13 @@ namespace dmGameSystem
                     case dmGui::PIVOT_CENTER:
                     case dmGui::PIVOT_E:
                     case dmGui::PIVOT_W:
-                        dy = extents.getY() * 0.5;
+                        dy = size.getY() * 0.5;
                         break;
 
                     case dmGui::PIVOT_N:
                     case dmGui::PIVOT_NE:
                     case dmGui::PIVOT_NW:
-                        dy = extents.getY();
+                        dy = size.getY();
                         break;
 
                     case dmGui::PIVOT_S:
@@ -454,7 +454,7 @@ namespace dmGameSystem
                         Matrix4::translation(-delta_pivot.getXYZ());
             if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
             {
-                m *= Matrix4::scale(Vector3(extents.getX(), extents.getY(), 1));
+                m *= Matrix4::scale(Vector3(size.getX(), size.getY(), 1));
                 ro.m_WorldTransform = m;
                 ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
                 dmRender::EnableRenderObjectFragmentConstant(&ro, 0, color);

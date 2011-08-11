@@ -24,7 +24,7 @@ void MyRenderNode(dmGui::HScene scene,
 
         Vector4 pos = node->m_Properties[dmGui::PROPERTY_POSITION];
         Vector4 rot = node->m_Properties[dmGui::PROPERTY_ROTATION];
-        Vector4 ext = node->m_Properties[dmGui::PROPERTY_EXTENTS];
+        Vector4 size = node->m_Properties[dmGui::PROPERTY_SIZE];
         Vector4 color = node->m_Properties[dmGui::PROPERTY_COLOR];
         glColor4f(color.getX(), color.getY(), color.getZ(), color.getW());
 
@@ -79,8 +79,8 @@ void MyRenderNode(dmGui::HScene scene,
                     Matrix4::translation(-pos.getXYZ());
         glMultMatrixf((const GLfloat*) &m);
 
-        float dx = ext.getX() * 0.5f;
-        float dy = ext.getY() * 0.5f;
+        float dx = size.getX() * 0.5f;
+        float dy = size.getY() * 0.5f;
         glBegin(GL_TRIANGLE_STRIP);
 
         glTexCoord2f(0, 1);

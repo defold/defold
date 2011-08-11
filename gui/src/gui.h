@@ -67,17 +67,17 @@ namespace dmGui
 
     enum Property
     {
-        PROPERTY_POSITION  = 0,
-        PROPERTY_ROTATION  = 1,
-        PROPERTY_SCALE     = 2,
-        PROPERTY_COLOR     = 3,
-        PROPERTY_EXTENTS   = 4,
+        PROPERTY_POSITION   = 0,
+        PROPERTY_ROTATION   = 1,
+        PROPERTY_SCALE      = 2,
+        PROPERTY_COLOR      = 3,
+        PROPERTY_SIZE       = 4,
 
-        PROPERTY_RESERVED1 = 5,
-        PROPERTY_RESERVED2 = 6,
-        PROPERTY_RESERVED3 = 7,
+        PROPERTY_RESERVED1  = 5,
+        PROPERTY_RESERVED2  = 6,
+        PROPERTY_RESERVED3  = 7,
 
-        PROPERTY_COUNT     = 8,
+        PROPERTY_COUNT      = 8,
     };
 
     enum Easing
@@ -311,7 +311,7 @@ namespace dmGui
 
     HScript GetSceneScript(HScene scene);
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type);
+    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type);
 
     void SetNodeId(HScene scene, HNode node, const char* name);
 

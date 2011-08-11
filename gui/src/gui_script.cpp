@@ -286,7 +286,7 @@ namespace dmGui
      *   <li><code>gui.PROP_ROTATION</code></li>
      *   <li><code>gui.PROP_SCALE</code></li>
      *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_EXTENTS</code></li>
+     *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant)
@@ -395,7 +395,7 @@ namespace dmGui
      *   <li><code>gui.PROP_ROTATION</code></li>
      *   <li><code>gui.PROP_SCALE</code></li>
      *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_EXTENTS</code></li>
+     *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
@@ -424,7 +424,7 @@ namespace dmGui
         return 0;
     }
 
-    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 ext, NodeType node_type, const char* text)
+    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -433,7 +433,7 @@ namespace dmGui
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        HNode node = NewNode(scene, pos, ext, node_type);
+        HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
         {
             luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -456,29 +456,29 @@ namespace dmGui
      *
      * @name gui.new_box_node
      * @param pos node position (vector3)
-     * @param ext node extent (vector3)
+     * @param size node size (vector3)
      * @return new box node (node)
      */
     static int LuaNewBoxNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
-        Vector3 ext = *dmScript::CheckVector3(L, 2);
-        return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_BOX, 0);
+        Vector3 size = *dmScript::CheckVector3(L, 2);
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0);
     }
 
     /*# creates a new text node
      *
      * @name gui.new_text_node
      * @param pos node position (vector3)
-     * @param ext text node text (string)
+     * @param text node text (string)
      * @return new text node (node)
      */
     static int LuaNewTextNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
-        Vector3 ext = Vector3(1,1,1);
+        Vector3 size = Vector3(1,1,1);
         const char* text = luaL_checkstring(L, 2);
-        return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text);
     }
 
     /*# gets the node text
@@ -753,18 +753,18 @@ namespace dmGui
      * @param color new color (vector3|vector4)
      */
 
-    /*# gets the node extents
+    /*# gets the node size
      *
-     * @name gui.get_extents
-     * @param node node to get the extents from (node)
-     * @return node extents (vector4)
+     * @name gui.get_size
+     * @param node node to get the size from (node)
+     * @return node size (vector4)
      */
 
-    /*# sets the node extents
+    /*# sets the node size
      *
-     * @name gui.set_extents
-     * @param node node to set the extents for (node)
-     * @param extents new extents (vector3|vector4)
+     * @name gui.set_size
+     * @param node node to set the size for (node)
+     * @param size new size (vector3|vector4)
      */
 
 #define LUAGETSET(name, property) \
@@ -791,7 +791,7 @@ namespace dmGui
     LUAGETSET(Rotation, PROPERTY_ROTATION)
     LUAGETSET(Scale, PROPERTY_SCALE)
     LUAGETSET(Color, PROPERTY_COLOR)
-    LUAGETSET(Extents, PROPERTY_EXTENTS)
+    LUAGETSET(Size, PROPERTY_SIZE)
 
 #undef LUAGETSET
 
@@ -826,7 +826,7 @@ namespace dmGui
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
         REGGETSET(Color, color)
-        REGGETSET(Extents, extents)
+        REGGETSET(Size, size)
         {0, 0}
     };
 
@@ -880,9 +880,9 @@ namespace dmGui
      * @variable
      */
 
-    /*# extents property
+    /*# size property
      *
-     * @name gui.PROP_EXTENTS
+     * @name gui.PROP_SIZE
      * @variable
      */
 
@@ -969,7 +969,7 @@ namespace dmGui
         SETPROP(ROTATION)
         SETPROP(SCALE)
         SETPROP(COLOR)
-        SETPROP(EXTENTS)
+        SETPROP(SIZE)
 
 #undef SETPROP
 
