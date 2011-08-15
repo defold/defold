@@ -3,19 +3,19 @@ tags: "opaque"
 vertex_program: "/graphics/simple.vp"
 fragment_program: "/graphics/simple.fp"
 vertex_constants {
-  register: 0
+  name: "view_proj"
   type: CONSTANT_TYPE_VIEWPROJ
 }
 vertex_constants {
-  register: 4
+  name: "world"
   type: CONSTANT_TYPE_WORLD
 }
 vertex_constants {
-  register: 8
+  name: "texture"
   type: CONSTANT_TYPE_TEXTURE
 }
 fragment_constants {
-  register: 0
+  name: "my_const"
   type: CONSTANT_TYPE_USER
   value {
     x: 0.0
