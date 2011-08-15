@@ -270,7 +270,7 @@ def embed_build(task):
 
     cpp_str = """
 #include <stdint.h>
-char %s[] =
+unsigned char %s[] =
 """
     out_file.write(cpp_str % (symbol))
     out_file.write('{\n    ')
