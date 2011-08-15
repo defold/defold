@@ -47,6 +47,22 @@ namespace dmGameSystem
         return true;
     }
 
+    static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    {
+        dmRender::HMaterial material = (dmRender::HMaterial) user_data;
+
+        uint64_t vertex_name_hash = dmRender::GetMaterialUserData1(material);
+        uint64_t fragment_name_hash = dmRender::GetMaterialUserData2(material);
+
+        if (descriptor->m_NameHash == vertex_name_hash || descriptor->m_NameHash == fragment_name_hash)
+        {
+            dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+            dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+            dmGraphics::ReloadProgram(graphics_context, program);
+        }
+    }
+
     void SetMaterial(dmRender::HMaterial material, MaterialResources* resources)
     {
         for (uint32_t i = 0; i < resources->m_DDF->m_Tags.m_Count; ++i)
@@ -110,6 +126,20 @@ namespace dmGameSystem
         if (AcquireResources(factory, buffer, buffer_size, &resources, filename))
         {
             dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+
+            dmResource::SResourceDescriptor desc;
+            dmResource::FactoryResult factory_e;
+
+            factory_e = dmResource::GetDescriptor(factory, resources.m_DDF->m_VertexProgram, &desc);
+            assert(factory_e == dmResource::FACTORY_RESULT_OK); // Should not fail at this point
+            dmRender::SetMaterialUserData1(material, desc.m_NameHash);
+
+            factory_e = dmResource::GetDescriptor(factory, resources.m_DDF->m_FragmentProgram, &desc);
+            assert(factory_e == dmResource::FACTORY_RESULT_OK); // Should not fail at this point
+            dmRender::SetMaterialUserData2(material, desc.m_NameHash);
+
+            dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
+
             SetMaterial(material, &resources);
             resource->m_Resource = (void*) material;
             return dmResource::CREATE_RESULT_OK;
@@ -127,6 +157,7 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) context;
         dmRender::HMaterial material = (dmRender::HMaterial) resource->m_Resource;
+        dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
 
         dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
         dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));

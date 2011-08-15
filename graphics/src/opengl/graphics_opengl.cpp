@@ -735,20 +735,6 @@ namespace dmGraphics
         return s;
     }
 
-    static void LoadProgram(GLenum type, uint32_t program_id, const void* program, uint32_t program_size)
-    {
-        glEnable(type);
-
-        glBindProgramARB(type, program_id);
-        CHECK_GL_ERROR
-
-        glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
-        CHECK_GL_ERROR
-
-        glDisable(type);
-        CHECK_GL_ERROR
-    }
-
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
@@ -811,14 +797,22 @@ namespace dmGraphics
     {
         assert(program);
 
-        LoadProgram(GL_VERTEX_PROGRAM_ARB, prog, program, program_size);
+        GLint size = program_size;
+        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+        CHECK_GL_ERROR
+        glCompileShader(prog);
+        CHECK_GL_ERROR
     }
 
     void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
 
-        LoadProgram(GL_FRAGMENT_PROGRAM_ARB, prog, program, program_size);
+        GLint size = program_size;
+        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+        CHECK_GL_ERROR
+        glCompileShader(prog);
+        CHECK_GL_ERROR
     }
 
     void DeleteVertexProgram(HVertexProgram program)
@@ -846,6 +840,25 @@ namespace dmGraphics
     {
         (void) context;
         glUseProgram(0);
+    }
+
+    void ReloadProgram(HContext context, HProgram program)
+    {
+        glLinkProgram(program);
+
+#ifndef NDEBUG
+        GLint logLength;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+        if (logLength > 0)
+        {
+            GLchar *log = (GLchar *)malloc(logLength);
+            glGetProgramInfoLog(program, logLength, &logLength, log);
+            dmLogWarning("%s\n", log);
+            free(log);
+        }
+#endif
+
+        glGetError(); // Clear potential error
     }
 
     uint32_t GetUniformCount(HProgram prog)

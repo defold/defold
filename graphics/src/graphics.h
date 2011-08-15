@@ -355,6 +355,7 @@ namespace dmGraphics
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
+    void ReloadProgram(HContext context, HProgram program);
 
     uint32_t GetUniformCount(HProgram prog);
     void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);

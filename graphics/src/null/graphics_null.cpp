@@ -525,6 +525,12 @@ namespace dmGraphics
         context->m_Program = 0x0;
     }
 
+    void ReloadProgram(HContext context, HProgram program)
+    {
+        (void) context;
+        (void) program;
+    }
+
     uint32_t GetUniformCount(HProgram prog)
     {
         return 0;

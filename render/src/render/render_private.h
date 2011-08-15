@@ -44,6 +44,8 @@ namespace dmRender
         , m_VertexProgram(0)
         , m_FragmentProgram(0)
         , m_TagMask(0)
+        , m_UserData1(0)
+        , m_UserData2(0)
         {
         }
 
@@ -55,6 +57,8 @@ namespace dmRender
         dmArray<Constant>                       m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagMask;
+        uint64_t                                m_UserData1;
+        uint64_t                                m_UserData2;
     };
 
     enum DebugRenderType

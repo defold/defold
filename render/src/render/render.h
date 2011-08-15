@@ -213,6 +213,12 @@ namespace dmRender
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit);
+    HRenderContext                  GetMaterialRenderContext(HMaterial material);
+
+    uint64_t                        GetMaterialUserData1(HMaterial material);
+    void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
+    uint64_t                        GetMaterialUserData2(HMaterial material);
+    void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
 
     HNamedConstantBuffer            NewNamedConstantBuffer();
     void                            DeleteNamedConstantBuffer(HNamedConstantBuffer buffer);

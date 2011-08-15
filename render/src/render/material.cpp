@@ -215,6 +215,31 @@ namespace dmRender
         }
     }
 
+    HRenderContext GetMaterialRenderContext(HMaterial material)
+    {
+        return material->m_RenderContext;
+    }
+
+    uint64_t GetMaterialUserData1(HMaterial material)
+    {
+        return material->m_UserData1;
+    }
+
+    void SetMaterialUserData1(HMaterial material, uint64_t user_data)
+    {
+        material->m_UserData1 = user_data;
+    }
+
+    uint64_t GetMaterialUserData2(HMaterial material)
+    {
+        return material->m_UserData2;
+    }
+
+    void SetMaterialUserData2(HMaterial material, uint64_t user_data)
+    {
+        material->m_UserData2 = user_data;
+    }
+
     uint32_t GetMaterialTagMask(HMaterial material)
     {
         return material->m_TagMask;
