@@ -34,7 +34,7 @@ function update(self, dt)
 		p = p + self.direction * self.speed * dt
 		go.set_position(p)
 		if p.y < 0 then
-			msg.post("session:session#script", "ball_lost")
+			msg.post("session:/session#script", "ball_lost")
 		end
 	end
 end

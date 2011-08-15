@@ -32,7 +32,7 @@ local function fail_on_exit(self)
 end
 
 local function end_session(self)
-	msg.post("main:main#script", "session_done", {score = self.score})
+	msg.post("main:/main#script", "session_done", {score = self.score})
 end
 
 local function fail_update(self, dt)
