@@ -60,13 +60,22 @@ def default_flags(self):
 def default_install_staticlib(self):
     self.default_install_path = self.env.LIBDIR
 
-# objective-c support
+# objective-c++ support
 if sys.platform == "darwin":
-    EXT_OBJC = ['.mm']
-    @extension(EXT_OBJC)
+    EXT_OBJCXX = ['.mm']
+    @extension(EXT_OBJCXX)
     def objc_hook(self, node):
         tsk = cxx.cxx_hook(self, node)
         tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCXX'])
+        tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
+
+# objective-c support
+if sys.platform == "darwin":
+    EXT_OBJC = ['.m']
+    @extension(EXT_OBJC)
+    def objc_hook(self, node):
+        tsk = cc.c_hook(self, node)
+        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCC'])
         tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
 
 # iPhone bundle and signing support
@@ -96,6 +105,11 @@ RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 </dict>
 </plist>
 """
+
+# The following is removed info.plist
+# <key>NSMainNibFile</key>
+# <string>MainWindow</string>
+# We manage our own setup. At least for now
 
 INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -149,8 +163,6 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <true/>
         <key>MinimumOSVersion</key>
         <string>4.3</string>
-        <key>NSMainNibFile</key>
-        <string>MainWindow</string>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
