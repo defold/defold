@@ -80,5 +80,7 @@ def build(bld):
     bld.add_subdirs('src')
     bld.install_files('${PREFIX}/include/win32', 'include/win32/*.h')
 
+    bld.install_files('${PREFIX}/bin', 'bin/*', chmod=493)
+
 def shutdown():
     waf_dynamo.run_gtests(valgrind = True)

@@ -1,0 +1,3 @@
+set -e
+cgc -q -oglsl -profile arbfp1 $1 >/dev/null
+cp $1 $2

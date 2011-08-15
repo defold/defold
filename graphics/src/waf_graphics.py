@@ -4,6 +4,8 @@ from TaskGen import extension
 
 def configure(conf):
     conf.find_file('ddsc.py', var='DDSC', mandatory = True)
+    conf.find_file('glslvc', var='GLSLVC', mandatory = True)
+    conf.find_file('glslfc', var='GLSLFC', mandatory = True)
 
 # TODO: Target filename i .fixmejpg.
 # Waf doesn't seems to like when the source and target have identical extensions...
@@ -52,7 +54,7 @@ def dds_file(self, node):
     # Hackish... configure?
     #self.env["DDSC"] = os.path.join(os.environ["DYNAMO_HOME"], "bin", "ddsc.py")
 
-Task.simple_task_type('vertexprogram', 'cgc -q -oglsl -profile arbvp1 ${SRC} >/dev/null && cat < ${SRC} > ${TGT}',
+Task.simple_task_type('vertexprogram', '${GLSLVC} ${SRC} ${TGT}',
                       color='PINK',
                       shell=True)
 
@@ -64,7 +66,7 @@ def vp_file(self, node):
     out = node.change_ext(obj_ext)
     program.set_outputs(out)
 
-Task.simple_task_type('fragmentprogram', 'cgc -q -oglsl -profile arbfp1 ${SRC} >/dev/null && cat < ${SRC} > ${TGT}',
+Task.simple_task_type('fragmentprogram', '${GLSLFC} ${SRC} ${TGT}',
                       color='PINK',
                       shell=True)
 
