@@ -1,16 +1,16 @@
 local nodes = {}
 
-local function call_back2(node)
-    gui.animate(node, gui.PROP_COLOR, vmath.vector4(1,1,1,0), gui.EASING_OUT, 0.8, 0)
+local function call_back2(self, node)
+    gui.animate(node, gui.PROP_COLOR, vmath.vector4(1,1,1,0), gui.EASING_IN, 0.8, 0)
 end
 
-local function call_back1(node)
+local function call_back1(self, node)
     local d = 1.6 + math.random() * 0.4
     gui.animate(node, gui.PROP_COLOR, vmath.vector4(1,1,1,1), gui.EASING_IN, 0.6, 0.4, call_back2)
     local to = gui.get_position(node)
     to.y = to.y - 2
-    gui.animate(node, gui.PROP_POSITION, to, gui.EASING_OUT, 0.2 + d, 0.2)
-    gui.animate(node, gui.PROP_ROTATION, vmath.vector3(0, 0, 2*180-2*math.random()*360), gui.EASING_OUT, 0.1 + d, 0.2)
+    gui.animate(node, gui.PROP_POSITION, to, gui.EASING_IN, 0.2 + d, 0.2)
+    gui.animate(node, gui.PROP_ROTATION, vmath.vector3(0, 0, 2*180-2*math.random()*360), gui.EASING_IN, 0.1 + d, 0.2)
 end
 
 local function init1(self)
@@ -30,9 +30,9 @@ local function init1(self)
         gui.set_texture(n, "checker")
         gui.set_color(n, vmath.vector4(0, 0, 0, 0))
         local d = math.random() * 0.2
-        gui.animate(n, gui.PROP_POSITION, vmath.vector3(x, y, 0), gui.EASING_IN, 0.65 + d, 0.1, call_back1)
-        gui.animate(n, gui.PROP_EXTENTS, vmath.vector3(w, h, 0), gui.EASING_IN, 0.65 + d, 0.1)
-        gui.animate(n, gui.PROP_COLOR, vmath.vector4(math.random(), math.random(), math.random(),1), gui.EASING_IN, 0.65 + d, 0.1)
+        gui.animate(n, gui.PROP_POSITION, vmath.vector3(x, y, 0), gui.EASING_OUT, 0.65 + d, 0.1, call_back1)
+        gui.animate(n, gui.PROP_EXTENTS, vmath.vector3(w, h, 0), gui.EASING_OUT, 0.65 + d, 0.1)
+        gui.animate(n, gui.PROP_COLOR, vmath.vector4(math.random(), math.random(), math.random(),1), gui.EASING_OUT, 0.65 + d, 0.1)
     end
 end
 

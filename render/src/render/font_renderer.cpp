@@ -124,7 +124,7 @@ namespace dmRender
     {
         TextContext& text_context = render_context->m_TextContext;
 
-        text_context.m_MaxVertexCount = max_characters * 4 * 3; // 4 vertices per character and 3 passes
+        text_context.m_MaxVertexCount = max_characters * 6 * 3; // 6 vertices per character and 3 passes
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, 4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         text_context.m_VertexIndex = 0;
 
@@ -142,7 +142,7 @@ namespace dmRender
             RenderObject ro;
             ro.m_VertexBuffer = text_context.m_VertexBuffer;
             ro.m_VertexDeclaration = text_context.m_VertexDecl;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             text_context.m_RenderObjects.Push(ro);
         }
     }
@@ -226,7 +226,9 @@ namespace dmRender
                     TextVertex& v2 = *(&v1 + 1);
                     TextVertex& v3 = *(&v1 + 2);
                     TextVertex& v4 = *(&v1 + 3);
-                    text_context.m_VertexIndex += 4;
+                    TextVertex& v5 = *(&v1 + 4);
+                    TextVertex& v6 = *(&v1 + 5);
+                    text_context.m_VertexIndex += 6;
 
                     int16_t width = (int16_t)g.m_Width;
                     int16_t descent = (int16_t)g.m_Descent;
@@ -235,29 +237,32 @@ namespace dmRender
                     v1.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
                     v1.m_Position[1] = y - descent + y_offsets[i];
 
-                    v2.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
-                    v2.m_Position[1] = y - descent + y_offsets[i];
+                    v2.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
+                    v2.m_Position[1] = y + ascent + y_offsets[i];
 
                     v3.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
-                    v3.m_Position[1] = y + ascent + y_offsets[i];
+                    v3.m_Position[1] = y - descent + y_offsets[i];
 
-                    v4.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
-                    v4.m_Position[1] = y + ascent + y_offsets[i];
+                    v6.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
+                    v6.m_Position[1] = y + ascent + y_offsets[i];
 
                     float im_recip = 1.0f / font_map->m_TextureWidth;
                     float ih_recip = 1.0f / font_map->m_TextureHeight;
 
                     v1.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v3.m_UV[1] = (g.m_Y - ascent) * ih_recip;
-
-                    v2.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v4.m_UV[1] = (g.m_Y - ascent) * ih_recip;
-
-                    v3.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
                     v1.m_UV[1] = (g.m_Y + descent) * ih_recip;
 
-                    v4.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v2.m_UV[1] = (g.m_Y + descent) * ih_recip;
+                    v2.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
+                    v2.m_UV[1] = (g.m_Y - ascent) * ih_recip;
+
+                    v3.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
+                    v3.m_UV[1] = (g.m_Y + descent) * ih_recip;
+
+                    v6.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
+                    v6.m_UV[1] = (g.m_Y - ascent) * ih_recip;
+
+                    v4 = v3;
+                    v5 = v2;
                 }
                 x += (int16_t)g.m_Advance;
             }

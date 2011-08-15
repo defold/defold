@@ -14,7 +14,7 @@
 
 namespace dmGameSystem
 {
-    const uint32_t MAX_COUNT = 64;
+    const uint32_t MAX_EMITTER_COUNT = 64;
 
     struct EmitterWorld;
 
@@ -38,7 +38,9 @@ namespace dmGameSystem
 
     struct ParticleVertex
     {
-        Vector4 m_Position;
+        float m_Position[3];
+        float m_UV[2];
+        float m_Alpha;
     };
 
     dmGameObject::CreateResult CompEmitterNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -48,9 +50,9 @@ namespace dmGameSystem
         EmitterWorld* emitter_world = new EmitterWorld();
         emitter_world->m_EmitterContext = ctx;
         emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
-        emitter_world->m_Emitters.SetCapacity(MAX_COUNT);
-        emitter_world->m_RenderObjects.SetCapacity(MAX_COUNT);
-        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), ctx->m_MaxParticleCount * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        emitter_world->m_Emitters.SetCapacity(MAX_EMITTER_COUNT);
+        emitter_world->m_RenderObjects.SetCapacity(MAX_EMITTER_COUNT);
+        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
             {"position", 0, 3, dmGraphics::TYPE_FLOAT},
@@ -77,7 +79,7 @@ namespace dmGameSystem
         dmParticle::Prototype* prototype = (dmParticle::Prototype*)params.m_Resource;
         assert(prototype);
         EmitterWorld* w = (EmitterWorld*)params.m_World;
-        if (w->m_Emitters.Size() < MAX_COUNT)
+        if (w->m_Emitters.Size() < MAX_EMITTER_COUNT)
         {
             Emitter emitter;
             emitter.m_Instance = params.m_Instance;
@@ -89,7 +91,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Emitter buffer is full (%d), component disregarded.", MAX_COUNT);
+            dmLogError("Emitter buffer is full (%d), component disregarded.", MAX_EMITTER_COUNT);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
     }
@@ -110,16 +112,6 @@ namespace dmGameSystem
         dmLogError("Destroyed emitter could not be found, something is fishy.");
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
-
-    struct SParticleRenderData
-    {
-        dmRender::HMaterial   m_Material;
-        dmGraphics::HTexture    m_Texture;
-        float*                  m_VertexData;
-        uint32_t                m_VertexStride;
-        uint32_t                m_VertexIndex;
-        uint32_t                m_VertexCount;
-    };
 
     void RenderEmitterCallback(void* render_context, const Point3& position, void* material, void* texture, uint32_t vertex_index, uint32_t vertex_count);
     void RenderLineCallback(void* render_context, Vectormath::Aos::Point3 start, Vectormath::Aos::Point3 end, Vectormath::Aos::Vector4 color);
@@ -144,7 +136,7 @@ namespace dmGameSystem
         w->m_RenderObjects.SetSize(0);
 
         float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(w->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
-        uint32_t vertex_buffer_size = MAX_COUNT * ctx->m_MaxParticleCount * sizeof(ParticleVertex);
+        uint32_t vertex_buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
         dmParticle::Update(w->m_ParticleContext, params.m_UpdateContext->m_DT, vertex_buffer, vertex_buffer_size);
         dmGraphics::UnmapVertexBuffer(w->m_VertexBuffer);
         dmParticle::Render(w->m_ParticleContext, w, RenderEmitterCallback);
@@ -198,7 +190,7 @@ namespace dmGameSystem
         ro.m_VertexCount = vertex_count;
         ro.m_VertexBuffer = world->m_VertexBuffer;
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_QUADS;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_CalculateDepthKey = 1;
         world->m_RenderObjects.Push(ro);
     }
