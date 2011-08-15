@@ -19,6 +19,7 @@
 #include <GL/glu.h>
 #include <win32/glut.h>
 
+#include "win32/glext.h"
 #else
 #error "Platform not supported."
 #endif

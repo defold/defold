@@ -334,7 +334,9 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
     delete [] program_data;
     dmGraphics::DisableProgram(m_Context);
+    dmGraphics::DeleteProgram(m_Context, program);
     dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
 }
 
 TEST_F(dmGraphicsTest, TestViewport)
