@@ -4,20 +4,24 @@
 #include <string.h>
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
-
 #include <dlib/hash.h>
-
 #include <script/script.h>
-
 #include <graphics/graphics.h>
-
-#include "material.h"
+#include "render/material_ddf.h"
 
 namespace dmRender
 {
     using namespace Vectormath::Aos;
 
     extern const char* RENDER_SOCKET_NAME;
+
+    typedef struct RenderContext*           HRenderContext;
+    typedef struct RenderTargetSetup*       HRenderTargetSetup;
+    typedef uint32_t                        HRenderType;
+    typedef struct NamedConstantBuffer*     HNamedConstantBuffer;
+    typedef struct RenderScript*            HRenderScript;
+    typedef struct RenderScriptInstance*    HRenderScriptInstance;
+    typedef struct Material*                HMaterial;
 
     /**
      * Font map handle
@@ -46,7 +50,6 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
-
     struct RenderKey
     {
         RenderKey()
@@ -67,14 +70,28 @@ namespace dmRender
         };
     };
 
+    struct Constant
+    {
+        Vectormath::Aos::Vector4                m_Value;
+        dmhash_t                                m_NameHash;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
+        int32_t                                 m_Location;
+
+        Constant() {}
+        Constant(dmhash_t name_hash, int32_t location)
+            : m_Value(Vectormath::Aos::Vector4(0)), m_NameHash(name_hash), m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER), m_Location(location)
+        {
+        }
+    };
+
     struct RenderObject
     {
         RenderObject();
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
+        static const uint32_t MAX_CONSTANT_COUNT = 4;
         RenderKey                       m_RenderKey;
-        Vector4                         m_VertexConstants[MAX_CONSTANT_COUNT];
-        Vector4                         m_FragmentConstants[MAX_CONSTANT_COUNT];
+        Constant                        m_Constants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
         Matrix4                         m_TextureTransform;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -112,12 +129,6 @@ namespace dmRender
         uint32_t                        m_CommandBufferSize;
     };
 
-    typedef struct RenderContext*           HRenderContext;
-    typedef struct RenderTargetSetup*       HRenderTargetSetup;
-    typedef uint32_t                        HRenderType;
-    typedef struct RenderScript*            HRenderScript;
-    typedef struct RenderScriptInstance*    HRenderScriptInstance;
-
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -137,19 +148,12 @@ namespace dmRender
     Result AddToRender(HRenderContext context, RenderObject* ro);
     Result ClearRenderObjects(HRenderContext context);
 
-    Result Draw(HRenderContext context, Predicate* predicate);
+    Result Draw(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context);
     Result DrawDebug2d(HRenderContext context);
 
-    void EnableVertexConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void DisableVertexConstant(HRenderContext context, uint32_t reg);
-    void EnableFragmentConstant(HRenderContext context, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void DisableFragmentConstant(HRenderContext context, uint32_t reg);
-
-    void EnableRenderObjectVertexConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void DisableRenderObjectVertexConstant(RenderObject* ro, uint32_t reg);
-    void EnableRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg, const Vectormath::Aos::Vector4& value);
-    void DisableRenderObjectFragmentConstant(RenderObject* ro, uint32_t reg);
+    void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vectormath::Aos::Vector4& value);
+    void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
@@ -195,6 +199,38 @@ namespace dmRender
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
+
+    // Material
+    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
+    void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
+    void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
+    void                            ApplyMaterialSamplers(dmRender::HRenderContext render_context, HMaterial material);
+
+    dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
+    dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
+    dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
+    void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
+    void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
+    int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
+    void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit);
+    HRenderContext                  GetMaterialRenderContext(HMaterial material);
+
+    uint64_t                        GetMaterialUserData1(HMaterial material);
+    void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
+    uint64_t                        GetMaterialUserData2(HMaterial material);
+    void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
+
+    HNamedConstantBuffer            NewNamedConstantBuffer();
+    void                            DeleteNamedConstantBuffer(HNamedConstantBuffer buffer);
+    void                            SetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4 value);
+    bool                            GetNamedConstant(HNamedConstantBuffer buffer, const char* name, Vectormath::Aos::Vector4& value);
+    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
+
+    uint32_t                        GetMaterialTagMask(HMaterial material);
+    void                            AddMaterialTag(HMaterial material, uint32_t tag);
+    void                            ClearMaterialTags(HMaterial material);
+    uint32_t                        ConvertMaterialTagsToMask(uint32_t* tags, uint32_t tag_count);
+
 }
 
 #endif /* RENDER_H */

@@ -10,6 +10,7 @@ namespace dmGraphics
 {
     typedef uint32_t                  HVertexProgram;
     typedef uint32_t                  HFragmentProgram;
+    typedef uint32_t                  HProgram;
     typedef struct Context*           HContext;
     typedef struct Texture*           HTexture;
     typedef uint32_t                  HVertexBuffer;
@@ -65,6 +66,9 @@ namespace dmGraphics
         TYPE_INT            = DMGRAPHICS_TYPE_INT,
         TYPE_UNSIGNED_INT   = DMGRAPHICS_TYPE_UNSIGNED_INT,
         TYPE_FLOAT          = DMGRAPHICS_TYPE_FLOAT,
+        TYPE_FLOAT_VEC4     = DMGRAPHICS_TYPE_FLOAT_VEC4,
+        TYPE_FLOAT_MAT4     = DMGRAPHICS_TYPE_FLOAT_MAT4,
+        TYPE_SAMPLER_2D     = DMGRAPHICS_TYPE_SAMPLER_2D,
     };
 
     // Texture format
@@ -181,11 +185,10 @@ namespace dmGraphics
 
     struct VertexElement
     {
+        const char*     m_Name;
         uint32_t        m_Stream;
         uint32_t        m_Size;
         Type            m_Type;
-        uint32_t        m_Usage;
-        uint32_t        m_UsageIndex;
     };
 
     struct TextureParams
@@ -331,6 +334,7 @@ namespace dmGraphics
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
 
     void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer);
@@ -341,19 +345,25 @@ namespace dmGraphics
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size);
     HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size);
+    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    void DeleteProgram(HContext context, HProgram program);
+
     void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
     void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
-    void EnableVertexProgram(HContext context, HVertexProgram program);
-    void DisableVertexProgram(HContext context);
-    void EnableFragmentProgram(HContext context, HFragmentProgram program);
-    void DisableFragmentProgram(HContext context);
 
-    void SetVertexConstant(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
-    void SetFragmentConstant(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
-    void SetVertexConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
-    void SetFragmentConstantBlock(HContext context, const Vectormath::Aos::Vector4* data, int base_register, int num_vectors);
+    void EnableProgram(HContext context, HProgram program);
+    void DisableProgram(HContext context);
+    void ReloadProgram(HContext context, HProgram program);
+
+    uint32_t GetUniformCount(HProgram prog);
+    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
+    int32_t GetUniformLocation(HProgram prog, const char* name);
+
+    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
+    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
+    void SetSampler(HContext context, int32_t location, int32_t unit);
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 

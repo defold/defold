@@ -4,8 +4,9 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/log.h>
 
-#include <render/material.h>
+#include <render/render.h>
 #include <render/material_ddf.h>
 
 namespace dmGameSystem
@@ -23,29 +24,6 @@ namespace dmGameSystem
     {
         if (strlen(material_desc->m_Name) == 0)
             return false;
-
-        // check pre-set fragment constants
-        if (material_desc->m_FragmentConstants.m_Count < dmRender::MAX_CONSTANT_COUNT)
-        {
-            for (uint32_t i = 0; i < material_desc->m_FragmentConstants.m_Count; i++)
-            {
-                if (material_desc->m_FragmentConstants[i].m_Register >= dmRender::MAX_CONSTANT_COUNT)
-                {
-                    return false;
-                }
-            }
-        }
-        // do the same for vertex constants
-        if (material_desc->m_VertexConstants.m_Count < dmRender::MAX_CONSTANT_COUNT)
-        {
-            for (uint32_t i=0; i<material_desc->m_VertexConstants.m_Count; i++)
-            {
-                if (material_desc->m_VertexConstants[i].m_Register >= dmRender::MAX_CONSTANT_COUNT)
-                {
-                    return false;
-                }
-            }
-        }
         return true;
     }
 
@@ -69,39 +47,61 @@ namespace dmGameSystem
         return true;
     }
 
+    static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    {
+        dmRender::HMaterial material = (dmRender::HMaterial) user_data;
+
+        uint64_t vertex_name_hash = dmRender::GetMaterialUserData1(material);
+        uint64_t fragment_name_hash = dmRender::GetMaterialUserData2(material);
+
+        if (descriptor->m_NameHash == vertex_name_hash || descriptor->m_NameHash == fragment_name_hash)
+        {
+            dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+            dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+            dmGraphics::ReloadProgram(graphics_context, program);
+        }
+    }
+
     void SetMaterial(dmRender::HMaterial material, MaterialResources* resources)
     {
         for (uint32_t i = 0; i < resources->m_DDF->m_Tags.m_Count; ++i)
         {
             dmRender::AddMaterialTag(material, dmHashString32(resources->m_DDF->m_Tags[i]));
         }
-        dmRender::SetMaterialVertexProgram(material, resources->m_VertexProgram);
-        dmRender::SetMaterialFragmentProgram(material, resources->m_FragmentProgram);
+
+        dmRenderDDF::MaterialDesc::Constant* fragment_constant = resources->m_DDF->m_FragmentConstants.m_Data;
+        dmRenderDDF::MaterialDesc::Constant* vertex_constant = resources->m_DDF->m_VertexConstants.m_Data;
+
+        uint32_t fragment_count = resources->m_DDF->m_FragmentConstants.m_Count;
+        uint32_t vertex_count = resources->m_DDF->m_VertexConstants.m_Count;
 
         // save pre-set fragment constants
-        if (resources->m_DDF->m_FragmentConstants.m_Count < dmRender::MAX_CONSTANT_COUNT)
+        for (uint32_t i = 0; i < fragment_count; i++)
         {
-            for (uint32_t i = 0; i < resources->m_DDF->m_FragmentConstants.m_Count; i++)
-            {
-                uint32_t reg = resources->m_DDF->m_FragmentConstants[i].m_Register;
-                dmRender::SetMaterialFragmentProgramConstantType(material, reg, resources->m_DDF->m_FragmentConstants[i].m_Type);
-                dmRender::SetMaterialFragmentProgramConstant(material, reg, resources->m_DDF->m_FragmentConstants[i].m_Value);
-                uint32_t mask = dmRender::GetMaterialFragmentConstantMask(material);
-                dmRender::SetMaterialFragmentConstantMask(material, mask | 1 << reg);
-            }
+            const char* name = fragment_constant[i].m_Name;
+            dmhash_t name_hash = dmHashString64(name);
+            dmRender::SetMaterialProgramConstantType(material, name_hash, resources->m_DDF->m_FragmentConstants[i].m_Type);
+            dmRender::SetMaterialProgramConstant(material, name_hash, resources->m_DDF->m_FragmentConstants[i].m_Value);
         }
         // do the same for vertex constants
-        if (resources->m_DDF->m_VertexConstants.m_Count < dmRender::MAX_CONSTANT_COUNT)
+        for (uint32_t i = 0; i < vertex_count; i++)
         {
-            for (uint32_t i = 0; i < resources->m_DDF->m_VertexConstants.m_Count; i++)
-            {
-                uint32_t reg = resources->m_DDF->m_VertexConstants[i].m_Register;
-                dmRender::SetMaterialVertexProgramConstantType(material, reg, resources->m_DDF->m_VertexConstants[i].m_Type);
-                dmRender::SetMaterialVertexProgramConstant(material, reg, resources->m_DDF->m_VertexConstants[i].m_Value);
-                uint32_t mask = dmRender::GetMaterialVertexConstantMask(material);
-                dmRender::SetMaterialVertexConstantMask(material, mask | 1 << reg);
-            }
+            const char* name = vertex_constant[i].m_Name;
+            dmhash_t name_hash = dmHashString64(name);
+            dmRender::SetMaterialProgramConstantType(material, name_hash, resources->m_DDF->m_VertexConstants[i].m_Type);
+            dmRender::SetMaterialProgramConstant(material, name_hash, resources->m_DDF->m_VertexConstants[i].m_Value);
         }
+
+
+        const char** textures = resources->m_DDF->m_Textures.m_Data;
+        uint32_t texture_count = resources->m_DDF->m_Textures.m_Count;
+        for (uint32_t i = 0; i < texture_count; i++)
+        {
+            dmhash_t name_hash = dmHashString64(textures[i]);
+            dmRender::SetMaterialSampler(material, name_hash, i);
+        }
+
         dmDDF::FreeMessage(resources->m_DDF);
     }
 
@@ -121,10 +121,25 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) context;
         MaterialResources resources;
         if (AcquireResources(factory, buffer, buffer_size, &resources, filename))
         {
-            dmRender::HMaterial material = dmRender::NewMaterial();
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+
+            dmResource::SResourceDescriptor desc;
+            dmResource::FactoryResult factory_e;
+
+            factory_e = dmResource::GetDescriptor(factory, resources.m_DDF->m_VertexProgram, &desc);
+            assert(factory_e == dmResource::FACTORY_RESULT_OK); // Should not fail at this point
+            dmRender::SetMaterialUserData1(material, desc.m_NameHash);
+
+            factory_e = dmResource::GetDescriptor(factory, resources.m_DDF->m_FragmentProgram, &desc);
+            assert(factory_e == dmResource::FACTORY_RESULT_OK); // Should not fail at this point
+            dmRender::SetMaterialUserData2(material, desc.m_NameHash);
+
+            dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
+
             SetMaterial(material, &resources);
             resource->m_Resource = (void*) material;
             return dmResource::CREATE_RESULT_OK;
@@ -140,11 +155,13 @@ namespace dmGameSystem
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) context;
         dmRender::HMaterial material = (dmRender::HMaterial) resource->m_Resource;
+        dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
 
         dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
         dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));
-        dmRender::DeleteMaterial(material);
+        dmRender::DeleteMaterial(render_context, material);
 
         return dmResource::CREATE_RESULT_OK;
     }
@@ -162,8 +179,6 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
             dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));
             dmRender::ClearMaterialTags(material);
-            dmRender::SetMaterialFragmentConstantMask(material, 0);
-            dmRender::SetMaterialVertexConstantMask(material, 0);
             SetMaterial(material, &resources);
             return dmResource::CREATE_RESULT_OK;
         }

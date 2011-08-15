@@ -6,21 +6,19 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
-
 #include <graphics/graphics.h>
+#include <render/render.h>
+#include <render/font_renderer.h>
 
 #include "comp_gui.h"
-
-#include <render/material.h>
-#include <render/font_renderer.h>
 
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
 
-extern char GUI_VPC[];
+extern unsigned char GUI_VPC[];
 extern uint32_t GUI_VPC_SIZE;
 
-extern char GUI_FPC[];
+extern unsigned char GUI_FPC[];
 extern uint32_t GUI_FPC_SIZE;
 
 namespace dmGameSystem
@@ -55,19 +53,16 @@ namespace dmGameSystem
         gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_VPC, GUI_VPC_SIZE);
         gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_FPC, GUI_FPC_SIZE);
 
-        gui_world->m_Material = dmRender::NewMaterial();
-        SetMaterialVertexProgramConstantType(gui_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        SetMaterialVertexProgramConstantType(gui_world->m_Material, 4, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
+        gui_world->m_Material = dmRender::NewMaterial(gui_context->m_RenderContext, gui_world->m_VertexProgram, gui_world->m_FragmentProgram);
+        SetMaterialProgramConstantType(gui_world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
+        SetMaterialProgramConstantType(gui_world->m_Material, dmHashString64("world"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
 
         dmRender::AddMaterialTag(gui_world->m_Material, dmHashString32("gui"));
 
-        dmRender::SetMaterialVertexProgram(gui_world->m_Material, gui_world->m_VertexProgram);
-        dmRender::SetMaterialFragmentProgram(gui_world->m_Material, gui_world->m_FragmentProgram);
-
         dmGraphics::VertexElement ve[] =
         {
-                {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-                {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
+                {"position", 0, 3, dmGraphics::TYPE_FLOAT},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT},
         };
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -118,7 +113,7 @@ namespace dmGameSystem
                 delete gui_world->m_Components[i];
             }
         }
-        dmRender::DeleteMaterial(gui_world->m_Material);
+        dmRender::DeleteMaterial(gui_context->m_RenderContext, gui_world->m_Material);
         dmGraphics::DeleteVertexProgram(gui_world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(gui_world->m_FragmentProgram);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
@@ -282,6 +277,8 @@ namespace dmGameSystem
         GuiWorld*                m_GuiWorld;
         uint32_t                 m_NextZ;
     };
+
+    static dmhash_t DIFFUSE_COLOR_HASH = dmHashString64("diffuse_color");
 
     void RenderNode(dmGui::HScene scene,
                     const dmGui::Node* nodes,
@@ -457,7 +454,7 @@ namespace dmGameSystem
                 m *= Matrix4::scale(Vector3(size.getX(), size.getY(), 1));
                 ro.m_WorldTransform = m;
                 ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
-                dmRender::EnableRenderObjectFragmentConstant(&ro, 0, color);
+                dmRender::EnableRenderObjectConstant(&ro, DIFFUSE_COLOR_HASH, color);
                 gui_world->m_GuiRenderObjects.Push(ro);
 
                 dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);

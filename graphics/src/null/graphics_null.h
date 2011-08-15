@@ -64,13 +64,11 @@ namespace dmGraphics
         Context();
 
         VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
-        Vectormath::Aos::Vector4    m_VertexProgramRegisters[MAX_REGISTER_COUNT];
-        Vectormath::Aos::Vector4    m_FragmentProgramRegisters[MAX_REGISTER_COUNT];
+        Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer                 m_MainFrameBuffer;
         FrameBuffer*                m_CurrentFrameBuffer;
-        void*                       m_VertexProgram;
-        void*                       m_FragmentProgram;
+        void*                       m_Program;
         WindowResizeCallback        m_WindowResizeCallback;
         void*                       m_WindowResizeCallbackUserData;
         uint32_t                    m_WindowWidth;

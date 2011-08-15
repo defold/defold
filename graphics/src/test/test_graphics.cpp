@@ -232,8 +232,8 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
 
     dmGraphics::VertexElement ve[2] =
     {
-        {0, 3, dmGraphics::TYPE_FLOAT, 0, 0 },
-        {1, 2, dmGraphics::TYPE_FLOAT, 0, 0 }
+        {"position", 0, 3, dmGraphics::TYPE_FLOAT },
+        {"uv", 1, 2, dmGraphics::TYPE_FLOAT }
     };
     dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
 
@@ -296,8 +296,8 @@ TEST_F(dmGraphicsTest, Drawing)
 
     dmGraphics::VertexElement ve[] =
     {
-        {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-        {1, 2, dmGraphics::TYPE_FLOAT, 0, 0}
+        {"position", 0, 3, dmGraphics::TYPE_FLOAT },
+        {"uv", 1, 2, dmGraphics::TYPE_FLOAT }
     };
     dmGraphics::HVertexDeclaration vd = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
     dmGraphics::HVertexBuffer vb = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
@@ -316,35 +316,26 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexDeclaration(vd);
 }
 
-TEST_F(dmGraphicsTest, TestVertexProgram)
+TEST_F(dmGraphicsTest, TestProgram)
 {
     char* program_data = new char[1024];
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, program_data, 1024);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, program_data, 1024);
     delete [] program_data;
-    dmGraphics::EnableVertexProgram(m_Context, vp);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
+    dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetVertexConstant(m_Context, &constant, 0);
-    dmGraphics::SetVertexConstantBlock(m_Context, &constant, 1, 1);
+    dmGraphics::SetConstantV4(m_Context, &constant, 0);
+    dmGraphics::SetConstantM4(m_Context, &constant, 1);
     program_data = new char[1024];
     dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
     delete [] program_data;
-    dmGraphics::DisableVertexProgram(m_Context);
-    dmGraphics::DeleteVertexProgram(vp);
-}
-
-TEST_F(dmGraphicsTest, TestFragmentProgram)
-{
-    char* program_data = new char[1024];
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, program_data, 1024);
-    delete [] program_data;
-    dmGraphics::EnableFragmentProgram(m_Context, fp);
-    Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetFragmentConstant(m_Context, &constant, 0);
-    dmGraphics::SetFragmentConstantBlock(m_Context, &constant, 1, 1);
     program_data = new char[1024];
     dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
     delete [] program_data;
-    dmGraphics::DisableFragmentProgram(m_Context);
+    dmGraphics::DisableProgram(m_Context);
+    dmGraphics::DeleteProgram(m_Context, program);
+    dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
 }
 

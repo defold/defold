@@ -1,22 +1,14 @@
-struct Vertex
-{
-    float4 position : ATTR0;
-    float2 uv       : ATTR1;
-};
+uniform mat4 view_proj;
+uniform mat4 world;
 
-struct Fragment
-{
-    float4 position : POSITION;
-    float2 uv       : TEXCOORD0;
-};
+attribute vec4 position;
+attribute vec2 texcoord0;
 
-uniform float4x4 VIEW_PROJ  : (c0);
-uniform float4x4 WORLD      : (c4);
+varying vec2 var_texcoord0;
 
-void main(in Vertex v_in,
-          out Fragment f_out)
+void main()
 {
-    float4x4 mvp = mul(WORLD, VIEW_PROJ);
-    f_out.position = mul(float4(v_in.position.xyz, 1.0f), mvp);
-    f_out.uv = v_in.uv;
+    mat4 mvp = view_proj * world;
+    gl_Position = mvp * vec4(position.xyz, 1.0);
+    var_texcoord0 = texcoord0;
 }

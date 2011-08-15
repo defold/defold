@@ -6,12 +6,9 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
-
 #include <particle/particle.h>
-
 #include <graphics/graphics.h>
-
-#include <render/material.h>
+#include <render/render.h>
 
 #include "gamesys.h"
 
@@ -58,9 +55,9 @@ namespace dmGameSystem
         emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
-            {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-            {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
-            {2, 1, dmGraphics::TYPE_FLOAT, 0, 0}
+            {"position", 0, 3, dmGraphics::TYPE_FLOAT},
+            {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT},
+            {"alpha", 2, 1, dmGraphics::TYPE_FLOAT}
         };
         emitter_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
         *params.m_World = emitter_world;

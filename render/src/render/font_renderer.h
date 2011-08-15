@@ -7,8 +7,6 @@
 
 #include <graphics/graphics.h>
 
-#include "material.h"
-
 #include "render.h"
 
 namespace dmRender

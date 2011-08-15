@@ -1,19 +1,11 @@
-struct Vertex
-{
-    float4 position : ATTR0;
-    float3 normal : ATTR1;
-    float2 uv : ATTR2;
-};
+attribute vec4 position;
+attribute vec3 normal;
+attribute vec2 uv;
 
-struct Fragment
-{
-    float4 position : POSITION;
-    float2 uv : TEXCOORD0;
-};
+varying vec2 var_uv;
 
-void main(in Vertex v_in,
-          out Fragment f_out)
+void main()
 {
-    f_out.position = v_in.position;
-    f_out.uv = v_in.uv;
+    gl_Position = position;
+    var_uv = uv;
 }

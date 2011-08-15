@@ -18,7 +18,7 @@ message MaterialDesc
 
     message Constant
     {
-        required uint32 register = 1;
+        required string name = 1;
         required ConstantType type = 2;
         optional dmMath.Vector4 value = 3;
     }
@@ -29,4 +29,5 @@ message MaterialDesc
     required string fragment_program = 4 [(resource)=true];
     repeated Constant vertex_constants = 5;
     repeated Constant fragment_constants = 6;
+    repeated string textures = 7;
 }

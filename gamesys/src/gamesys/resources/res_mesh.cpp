@@ -34,9 +34,9 @@ namespace dmGameSystem
 
         dmGraphics::VertexElement ve[] =
         {
-                {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-                {1, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-                {2, 2, dmGraphics::TYPE_FLOAT, 0, 0}
+                {"position", 0, 3, dmGraphics::TYPE_FLOAT},
+                {"normal", 1, 3, dmGraphics::TYPE_FLOAT},
+                {"texcoord0", 2, 2, dmGraphics::TYPE_FLOAT}
         };
         mesh->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, 3);
 

@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include <assert.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
@@ -74,6 +75,27 @@ PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
 PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
 PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
 PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
+
+PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
+PFNGLCREATESHADERPROC glCreateShader = NULL;
+PFNGLSHADERSOURCEPROC glShaderSource = NULL;
+PFNGLCOMPILESHADERPROC glCompileShader = NULL;
+PFNGLGETSHADERIVPROC glGetShaderiv = NULL;
+PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = NULL;
+PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = NULL;
+PFNGLDELETESHADERPROC glDeleteShader = NULL;
+PFNGLCREATEPROGRAMPROC glCreateProgram = NULL;
+PFNGLATTACHSHADERPROC glAttachShader = NULL;
+PFNGLLINKPROGRAMPROC glLinkProgram = NULL;
+PFNGLDELETEPROGRAMPROC glDeleteProgram = NULL;
+PFNGLUSEPROGRAMPROC glUseProgram = NULL;
+PFNGLGETPROGRAMIVPROC glGetProgramiv = NULL;
+PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform = NULL;
+PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
+PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
+PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
+PFNGLUNIFORM1IPROC glUniform1i = NULL;
+
 #else
 #error "Platform not supported."
 #endif
@@ -136,6 +158,7 @@ namespace dmGraphics
     Context::Context()
     {
         memset(this, 0, sizeof(*this));
+        m_ModificationVersion = 1;
     }
 
     HContext NewContext()
@@ -222,6 +245,25 @@ namespace dmGraphics
         GET_PROC_ADDRESS(glUnmapBufferARB, PFNGLUNMAPBUFFERPROC);
         GET_PROC_ADDRESS(glActiveTexture, PFNGLACTIVETEXTUREPROC);
         GET_PROC_ADDRESS(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+        GET_PROC_ADDRESS(glGetAttribLocation, PFNGLGETATTRIBLOCATIONPROC);
+        GET_PROC_ADDRESS(glCreateShader, PFNGLCREATESHADERPROC);
+        GET_PROC_ADDRESS(glShaderSource, PFNGLSHADERSOURCEPROC);
+        GET_PROC_ADDRESS(glCompileShader, PFNGLCOMPILESHADERPROC);
+        GET_PROC_ADDRESS(glGetShaderiv, PFNGLGETSHADERIVPROC);
+        GET_PROC_ADDRESS(glGetShaderInfoLog, PFNGLGETSHADERINFOLOGPROC);
+        GET_PROC_ADDRESS(glGetProgramInfoLog, PFNGLGETPROGRAMINFOLOGPROC);
+        GET_PROC_ADDRESS(glDeleteShader, PFNGLDELETESHADERPROC);
+        GET_PROC_ADDRESS(glCreateProgram, PFNGLCREATEPROGRAMPROC);
+        GET_PROC_ADDRESS(glAttachShader, PFNGLATTACHSHADERPROC);
+        GET_PROC_ADDRESS(glLinkProgram, PFNGLLINKPROGRAMPROC);
+        GET_PROC_ADDRESS(glDeleteProgram, PFNGLDELETEPROGRAMPROC);
+        GET_PROC_ADDRESS(glUseProgram, PFNGLUSEPROGRAMPROC);
+        GET_PROC_ADDRESS(glGetProgramiv, PFNGLGETPROGRAMIVPROC);
+        GET_PROC_ADDRESS(glGetActiveUniform, PFNGLGETACTIVEUNIFORMPROC);
+        GET_PROC_ADDRESS(glGetUniformLocation, PFNGLGETUNIFORMLOCATIONPROC);
+        GET_PROC_ADDRESS(glUniform4fv, PFNGLUNIFORM4FVPROC);
+        GET_PROC_ADDRESS(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC);
+        GET_PROC_ADDRESS(glUniform1i, PFNGLUNIFORM1IPROC);
 
 #undef GET_PROC_ADDRESS
 #endif
@@ -482,11 +524,11 @@ namespace dmGraphics
 
         for (uint32_t i=0; i<count; i++)
         {
-            vd->m_Streams[i].m_Index = i;
+            vd->m_Streams[i].m_Name = element[i].m_Name;
+            vd->m_Streams[i].m_LogicalIndex = i;
+            vd->m_Streams[i].m_PhysicalIndex = -1;
             vd->m_Streams[i].m_Size = element[i].m_Size;
-            vd->m_Streams[i].m_Usage = element[i].m_Usage;
             vd->m_Streams[i].m_Type = element[i].m_Type;
-            vd->m_Streams[i].m_UsageIndex = element[i].m_UsageIndex;
             vd->m_Streams[i].m_Offset = vd->m_Stride;
 
             vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
@@ -512,10 +554,10 @@ namespace dmGraphics
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
-            glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_Index);
+            glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_LogicalIndex);
             CHECK_GL_ERROR
             glVertexAttribPointer(
-                    vertex_declaration->m_Streams[i].m_Index,
+                    vertex_declaration->m_Streams[i].m_LogicalIndex,
                     vertex_declaration->m_Streams[i].m_Size,
                     vertex_declaration->m_Streams[i].m_Type,
                     false,
@@ -523,6 +565,69 @@ namespace dmGraphics
             BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 
             CHECK_GL_ERROR
+        }
+
+        #undef BUFFER_OFFSET
+    }
+
+    static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
+    {
+
+        uint32_t n = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = &vertex_declaration->m_Streams[0];
+        for (uint32_t i=0; i < n; i++)
+        {
+            GLint location = glGetAttribLocation(program, streams[i].m_Name);
+            if (location != -1)
+            {
+                streams[i].m_PhysicalIndex = location;
+            }
+            else
+            {
+                // Clear error
+                glGetError();
+                // TODO: Disabled irritating warning? Should we care about not used streams?
+                //dmLogWarning("Vertex attribute %s is not active or defined", streams[i].m_Name);
+                streams[i].m_PhysicalIndex = -1;
+            }
+        }
+
+        vertex_declaration->m_BoundForProgram = program;
+        vertex_declaration->m_ModificationVersion = context->m_ModificationVersion;
+    }
+
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    {
+        assert(context);
+        assert(vertex_buffer);
+        assert(vertex_declaration);
+
+        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == program))
+        {
+            BindVertexDeclarationProgram(context, vertex_declaration, program);
+        }
+
+        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
+
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        CHECK_GL_ERROR
+
+        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
+        {
+            if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
+            {
+                glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
+                CHECK_GL_ERROR
+                glVertexAttribPointer(
+                        vertex_declaration->m_Streams[i].m_PhysicalIndex,
+                        vertex_declaration->m_Streams[i].m_Size,
+                        vertex_declaration->m_Streams[i].m_Type,
+                        false,
+                        vertex_declaration->m_Stride,
+                BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
+
+                CHECK_GL_ERROR
+            }
         }
 
         #undef BUFFER_OFFSET
@@ -597,65 +702,117 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    static uint32_t CreateProgram(GLenum type, const void* program, uint32_t program_size)
+    static uint32_t CreateShader(GLenum type, const void* program, uint32_t program_size)
     {
-        glEnable(type);
-        GLuint shader[1];
-        glGenProgramsARB(1, shader);
+        GLuint s = glCreateShader(type);
+        CHECK_GL_ERROR
+        GLint size = program_size;
+        glShaderSource(s, 1, (const GLchar**) &program, &size);
+        CHECK_GL_ERROR
+        glCompileShader(s);
         CHECK_GL_ERROR
 
-        glBindProgramARB(type, shader[0]);
-        CHECK_GL_ERROR
+#ifndef NDEBUG
+        GLint logLength;
+        glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
+        if (logLength > 0)
+        {
+            GLchar *log = (GLchar *)malloc(logLength);
+            glGetShaderInfoLog(s, logLength, &logLength, log);
+            dmLogWarning("%s\n", log);
+            free(log);
+        }
+#endif
 
-        glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
-        CHECK_GL_ERROR
+        GLint status;
+        glGetShaderiv(s, GL_COMPILE_STATUS, &status);
+        if (status == 0)
+        {
+            glDeleteShader(s);
+            return 0;
+        }
 
-        glDisable(type);
-        CHECK_GL_ERROR
-
-        return shader[0];
-    }
-
-    static void LoadProgram(GLenum type, uint32_t program_id, const void* program, uint32_t program_size)
-    {
-        glEnable(type);
-
-        glBindProgramARB(type, program_id);
-        CHECK_GL_ERROR
-
-        glProgramStringARB(type, GL_PROGRAM_FORMAT_ASCII_ARB, program_size, program);
-        CHECK_GL_ERROR
-
-        glDisable(type);
-        CHECK_GL_ERROR
+        return s;
     }
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
 
-        return CreateProgram(GL_VERTEX_PROGRAM_ARB, program, program_size);
+        return CreateShader(GL_VERTEX_SHADER, program, program_size);
     }
 
     HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
     {
         assert(program);
 
-        return CreateProgram(GL_FRAGMENT_PROGRAM_ARB, program, program_size);
+        return CreateShader(GL_FRAGMENT_SHADER, program, program_size);
+    }
+
+    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    {
+        IncreaseModificationVersion(context);
+
+        (void) context;
+        GLuint p = glCreateProgram();
+        CHECK_GL_ERROR
+        glAttachShader(p, vertex_program);
+        CHECK_GL_ERROR
+        glAttachShader(p, fragment_program);
+        CHECK_GL_ERROR
+        glLinkProgram(p);
+
+#ifndef NDEBUG
+        GLint logLength;
+        glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
+        if (logLength > 0)
+        {
+            GLchar *log = (GLchar *)malloc(logLength);
+            glGetProgramInfoLog(p, logLength, &logLength, log);
+            dmLogWarning("%s\n", log);
+            free(log);
+        }
+#endif
+
+        GLint status;
+        glGetProgramiv(p, GL_LINK_STATUS, &status);
+        if (status == 0)
+        {
+            glDeleteProgram(p);
+            CHECK_GL_ERROR
+            return 0;
+        }
+
+        CHECK_GL_ERROR
+        return p;
+    }
+
+    void DeleteProgram(HContext context, HProgram program)
+    {
+        (void) context;
+        glDeleteProgram(program);
     }
 
     void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
 
-        return LoadProgram(GL_VERTEX_PROGRAM_ARB, prog, program, program_size);
+        GLint size = program_size;
+        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+        CHECK_GL_ERROR
+        glCompileShader(prog);
+        CHECK_GL_ERROR
     }
 
     void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
 
-        return LoadProgram(GL_FRAGMENT_PROGRAM_ARB, prog, program, program_size);
+        GLint size = program_size;
+        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+        CHECK_GL_ERROR
+        glCompileShader(prog);
+        CHECK_GL_ERROR
     }
 
     void DeleteVertexProgram(HVertexProgram program)
@@ -668,44 +825,68 @@ namespace dmGraphics
     void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        glDeleteProgramsARB(1, &program);
+        glDeleteShader(program);
         CHECK_GL_ERROR
     }
 
-    static void EnableProgram(GLenum type, uint32_t program)
+    void EnableProgram(HContext context, HProgram program)
     {
-        glEnable(type);
-        CHECK_GL_ERROR
-        glBindProgramARB(type, program);
-        CHECK_GL_ERROR
-    }
-
-    void EnableVertexProgram(HContext context, HVertexProgram program)
-    {
-        assert(context);
-        assert(program);
-        EnableProgram(GL_VERTEX_PROGRAM_ARB, program);
-    }
-
-    void DisableVertexProgram(HContext context, HVertexProgram program)
-    {
-        assert(context);
-        glDisable(GL_VERTEX_PROGRAM_ARB);
+        (void) context;
+        glUseProgram(program);
         CHECK_GL_ERROR
     }
 
-    void EnableFragmentProgram(HContext context, HFragmentProgram program)
+    void DisableProgram(HContext context)
     {
-        assert(context);
-        assert(program);
-        EnableProgram(GL_FRAGMENT_PROGRAM_ARB, program);
+        (void) context;
+        glUseProgram(0);
     }
 
-    void DisableFragmentProgram(HContext context, HFragmentProgram program)
+    void ReloadProgram(HContext context, HProgram program)
     {
-        assert(context);
-        glDisable(GL_FRAGMENT_PROGRAM_ARB);
+        glLinkProgram(program);
+
+#ifndef NDEBUG
+        GLint logLength;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+        if (logLength > 0)
+        {
+            GLchar *log = (GLchar *)malloc(logLength);
+            glGetProgramInfoLog(program, logLength, &logLength, log);
+            dmLogWarning("%s\n", log);
+            free(log);
+        }
+#endif
+
+        glGetError(); // Clear potential error
+    }
+
+    uint32_t GetUniformCount(HProgram prog)
+    {
+        GLint count;
+        glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
         CHECK_GL_ERROR
+        return count;
+    }
+
+    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    {
+        GLint uniform_size;
+        GLenum uniform_type;
+        glGetActiveUniform(prog, index, buffer_size, 0, &uniform_size, &uniform_type, buffer);
+        *type = (Type) uniform_type;
+        CHECK_GL_ERROR
+    }
+
+    int32_t GetUniformLocation(HProgram prog, const char* name)
+    {
+        GLint location = glGetUniformLocation(prog, name);
+        if (location == -1)
+        {
+            // Clear error if uniform isn't found
+            glGetError();
+        }
+        return (uint32_t) location;
     }
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -716,53 +897,24 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    static void SetProgramConstantBlock(HContext context, GLenum type, const Vector4* data, int base_register, int num_vectors)
-    {
-        assert(context);
-        assert(data);
-        assert(base_register >= 0);
-        assert(num_vectors >= 0);
-
-        const float *f = (const float*)data;
-        int reg = 0;
-        for (int i=0; i<num_vectors; i++, reg+=4)
-        {
-            glProgramLocalParameter4fARB(type, base_register+i,  f[0+reg], f[1+reg], f[2+reg], f[3+reg]);
-            CHECK_GL_ERROR
-        }
-
-    }
-
-    void SetVertexConstant(HContext context, const Vector4* data, int base_register)
+    void SetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
 
-        SetProgramConstantBlock(context, GL_VERTEX_PROGRAM_ARB, data, base_register, 1);
+        glUniform4fv(base_register,  1, (const GLfloat*) data);
         CHECK_GL_ERROR
     }
 
-    void SetFragmentConstant(HContext context, const Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
-
-        SetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, 1);
+        glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
         CHECK_GL_ERROR
     }
 
-    void SetVertexConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
+    void SetSampler(HContext context, int32_t location, int32_t unit)
     {
-        assert(context);
-
-        SetProgramConstantBlock(context, GL_VERTEX_PROGRAM_ARB, data, base_register, num_vectors);
-        CHECK_GL_ERROR
-    }
-
-    void SetFragmentConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
-    {
-        assert(context);
-
-        SetProgramConstantBlock(context, GL_FRAGMENT_PROGRAM_ARB, data, base_register, num_vectors);
-        CHECK_GL_ERROR
+        glUniform1i(location, unit);
     }
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])

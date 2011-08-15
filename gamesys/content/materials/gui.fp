@@ -1,14 +1,11 @@
-struct pixel_in
-{
-    float4 position : POSITION;
-    float2 texcoord : TEXCOORD0;
-};
+varying vec4 position;
+varying vec2 var_texcoord0;
 
-void main(pixel_in IN,
-          uniform sampler2D texture : TEXUNIT0,
-          uniform float4 diffuse_color : C0,
-          out float4 oColor : COLOR)
+uniform vec4 diffuse_color;
+uniform sampler2D texture;
+
+void main()
 {
-    float4 tex = tex2D(texture, IN.texcoord.xy);
-    oColor = tex * diffuse_color;
+    vec4 tex = texture2D(texture, var_texcoord0.xy);
+    gl_FragColor = tex * diffuse_color;
 }

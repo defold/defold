@@ -12,7 +12,7 @@ def build(bld):
 
     test_material = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_material.cpp',
-                                    uselib = 'GTEST GRAPHICS_NULL SCRIPT DLIB LUA',
+                                    uselib = 'GTEST GRAPHICS_NULL DDF SCRIPT DLIB LUA',
                                     uselib_local = 'render',
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_material')

@@ -497,7 +497,16 @@ namespace dmScript
                 return 1;
             }
         }
-        return luaL_error(L, "%s.%s only has fields m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
+        else if (strlen(key) == 2)
+        {
+            int col = key[1] - (char)'0';
+            if (0 <= col && col < 4)
+            {
+                PushVector4(L, m->getCol(col));
+                return 1;
+            }
+        }
+        return luaL_error(L, "%s.%s only has fields c0, ..., c3 and m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
     }
 
     static int Matrix4_newindex(lua_State *L)
@@ -515,7 +524,17 @@ namespace dmScript
                 return 0;
             }
         }
-        return luaL_error(L, "%s.%s only has fields m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
+        else if (strlen(key) == 2)
+        {
+            int col = key[1] - (char)'0';
+            if (0 <= col && col < 4)
+            {
+                Vectormath::Aos::Vector4* vec = CheckVector4(L, -1);
+                m->setCol(col, *vec);
+                return 0;
+            }
+        }
+        return luaL_error(L, "%s.%s only has fields c0, ..., c3 and m00, m01, ..., m10, ..., m33.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4);
     }
 
     static int Matrix4_mul(lua_State *L)

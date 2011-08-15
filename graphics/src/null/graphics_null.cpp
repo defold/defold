@@ -82,8 +82,7 @@ namespace dmGraphics
         context->m_MainFrameBuffer.m_DepthBufferSize = buffer_size;
         context->m_MainFrameBuffer.m_StencilBufferSize = buffer_size;
         context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
-        context->m_VertexProgram = 0x0;
-        context->m_FragmentProgram = 0x0;
+        context->m_Program = 0x0;
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: null");
@@ -324,6 +323,11 @@ namespace dmGraphics
         }
     }
 
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    {
+        EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+    }
+
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         assert(context);
@@ -385,6 +389,9 @@ namespace dmGraphics
             case dmGraphics::TYPE_FLOAT:
                 result = ((float*)index_buffer)[index];
                 break;
+            default:
+                assert(0);
+                break;
         }
         return result;
     }
@@ -432,6 +439,27 @@ namespace dmGraphics
     {
         char* m_Data;
     };
+
+    struct Program
+    {
+        Program(VertexProgram* vp, FragmentProgram* fp)
+        {
+            m_VP = vp;
+            m_FP = fp;
+        }
+        VertexProgram* m_VP;
+        FragmentProgram* m_FP;
+    };
+
+    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    {
+        return (HProgram) new Program((VertexProgram*) vertex_program, (FragmentProgram*) fragment_program);
+    }
+
+    void DeleteProgram(HContext context, HProgram program)
+    {
+        delete (Program*) program;
+    }
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
     {
@@ -485,28 +513,37 @@ namespace dmGraphics
         delete p;
     }
 
-    void EnableVertexProgram(HContext context, HVertexProgram program)
+    void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
-        context->m_VertexProgram = (void*)program;
+        context->m_Program = (void*)program;
     }
 
-    void DisableVertexProgram(HContext context)
+    void DisableProgram(HContext context)
     {
         assert(context);
-        context->m_VertexProgram = 0x0;
+        context->m_Program = 0x0;
     }
 
-    void EnableFragmentProgram(HContext context, HFragmentProgram program)
+    void ReloadProgram(HContext context, HProgram program)
     {
-        assert(context);
-        context->m_FragmentProgram = (void*)program;
+        (void) context;
+        (void) program;
     }
 
-    void DisableFragmentProgram(HContext context)
+    uint32_t GetUniformCount(HProgram prog)
     {
-        assert(context);
-        context->m_FragmentProgram = 0x0;
+        return 0;
+    }
+
+    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    {
+        assert(false);
+    }
+
+    int32_t GetUniformLocation(HProgram prog, const char* name)
+    {
+        return -1;
     }
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -514,32 +551,22 @@ namespace dmGraphics
         assert(context);
     }
 
-    void SetVertexConstant(HContext context, const Vector4* data, int base_register)
+    void SetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
-        assert(context->m_VertexProgram != 0x0);
-        memcpy(&context->m_VertexProgramRegisters[base_register], data, sizeof(Vector4));
+        assert(context->m_Program != 0x0);
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
     }
 
-    void SetFragmentConstant(HContext context, const Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
-        assert(context->m_FragmentProgram != 0x0);
-        memcpy(&context->m_FragmentProgramRegisters[base_register], data, sizeof(Vector4));
+        assert(context->m_Program != 0x0);
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
     }
 
-    void SetVertexConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
+    void SetSampler(HContext context, int32_t location, int32_t unit)
     {
-        assert(context);
-        assert(context->m_VertexProgram != 0x0);
-        memcpy(&context->m_VertexProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
-    }
-
-    void SetFragmentConstantBlock(HContext context, const Vector4* data, int base_register, int num_vectors)
-    {
-        assert(context);
-        assert(context->m_FragmentProgram != 0x0);
-        memcpy(&context->m_FragmentProgramRegisters[base_register], data, sizeof(Vector4) * num_vectors);
     }
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])

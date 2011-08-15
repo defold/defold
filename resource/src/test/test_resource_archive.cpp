@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include "../resource_archive.h"
 
-extern char TEST_ARC[];
+extern unsigned char TEST_ARC[];
 extern uint32_t TEST_ARC_SIZE;
 
 TEST(dmResourceArchive, Wrap)

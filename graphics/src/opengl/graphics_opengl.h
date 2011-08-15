@@ -1,6 +1,7 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <dlib/math.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 namespace dmGraphics
@@ -13,8 +14,17 @@ namespace dmGraphics
         void*                   m_WindowResizeCallbackUserData;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
+        // Counter to keep track of various modifications. Used for cache flush etc
+        // Version zero is never used
+        uint32_t                m_ModificationVersion;
         uint32_t                m_WindowOpened : 1;
     };
+
+    static inline void IncreaseModificationVersion(Context* context)
+    {
+        ++context->m_ModificationVersion;
+        context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
+    }
 
     struct Texture
     {
@@ -27,17 +37,19 @@ namespace dmGraphics
     {
         struct Stream
         {
-            uint32_t    m_Index;
-            uint32_t    m_Size;
-            uint32_t    m_Usage;
+            const char* m_Name;
+            uint16_t    m_LogicalIndex;
+            int16_t     m_PhysicalIndex;
+            uint16_t    m_Size;
+            uint16_t    m_Offset;
             Type        m_Type;
-            uint32_t    m_UsageIndex;
-            uint32_t    m_Offset;
         };
 
         Stream      m_Streams[8];
-        uint32_t    m_StreamCount;
-        uint32_t    m_Stride;
+        uint16_t    m_StreamCount;
+        uint16_t    m_Stride;
+        HProgram    m_BoundForProgram;
+        uint32_t    m_ModificationVersion;
 
     };
     struct VertexBuffer
