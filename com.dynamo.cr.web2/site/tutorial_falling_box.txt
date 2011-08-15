@@ -9,8 +9,8 @@ Tutorial: Falling Box
 :project:   My Falling Box
 :branch:    my_branch
 
-Overview
---------
+Introduction
+------------
 This tutorial explains how to put together a simulation consisting of a box that falls down
 onto the ground and produces impact sound effects.
 
@@ -20,9 +20,9 @@ Here is a brief description of the format used in this tutorial:
 
 [grid="none", frame="none", width="75%"]
 |============================================================================================
-|*bold*   |user input, such as menu options, buttons and short-cut keys.
+|*bold*   |user input, such as menu options, buttons and short-cut keys
 |'italic' |Defold-specific terms and user interface names, such as different views and fields
-|+mono+   |user content, such as file names and user specified values.
+|+mono+   |user content, such as file names and user specified values
 |============================================================================================
 
 If you haven't already, please http://cr.defold.com/downloads/cr-editor/1.0[download the editor].
@@ -33,7 +33,7 @@ should be used instead of *Ctrl* for keyboard shortcuts.
 
 Creating the Project
 --------------------
-Start by creating a new project through the dashboard at the website.
+Start by creating a new project through the dashboard on the website.
 
 image:images/falling_box/new_project.png[The form to create new projects on the website]
 
@@ -64,6 +64,8 @@ present.
 Browse through the directories in the project explorer to familiarize yourself with the content.
 
 NOTE: The +builtins+-directory contains resources available to any project, whatever template it was created from.
+Since they are shared through all the projects, they can not be edited as is.
+You can however copy them to another directory and use them as a base for new resources.
 
 Setting up the simulation
 -------------------------
@@ -136,11 +138,11 @@ just created and click *OK*.
 Since the ground should never move, set 'type' to +COLLISION_OBJECT_TYPE_STATIC+.
 Set the 'mass' to +0+, since only dynamic collision objects can have a mass.
 
-The 'group' and 'mask' are used to divide the collision objects into groups and define which groups should
-collide with which.
-The 'group' is a bit specifying which group the object belongs to.
-The 'mask' is a bit-field specifying which groups the object will collide with.
-Leave the 'group' set to +1+. Add +2+ to the 'mask' by first *right-clicking* the 'mask'-field.
+To define which collision object should collide with which, each collision object is assigned to a 'group'.
+The group is nothing more than a user-defined name.
+A collision object only collides with the groups listed in its 'mask'.
+
+Set 'group' to +ground+. Add +box+ to the 'mask' by first *right-clicking* the 'mask'-field and then selecting *Add mask...*.
 If you add an incorrect mask field, you can *right-click* the added field and select *Remove*.
 
 Save the file when done.
@@ -160,9 +162,11 @@ image:images/falling_box/box_co_props.png[Properties for the ground game object]
 
 Add a 'Collision Object'-component too and set the +box.convexshape+ you just created as its 'collision_shape'.
 Since the box should start falling when simulation starts, leave 'collision_shape' set to +COLLISION_OBJECT_TYPE_DYNAMIC+.
-Set its 'group' to +2+ and add +1+ to the 'mask'.
-Since the ground has 'group' +1+ and collides with 'group' +2+ and the reverse hold for the box,
-the two objects will collide during the simulation.
+Set its 'group' to +box+ and add +ground+ to the 'mask'.
+Since both the ground and the box now have eachother's group in their masks, the collision objects will collide during the simulation.
+
+NOTE: For this example, it would have sufficed to leave each object's 'group' set to +default+ and to add +default+ to each object's 'mask' to make them collide.
+However, we hope different groups illustrate their use in a better way.
 
 image:images/falling_box/box_sprite_props.png[Properties for the box collision object]
 
