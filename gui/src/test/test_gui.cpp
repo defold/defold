@@ -14,7 +14,7 @@ extern "C"
 #include "lua/lauxlib.h"
 }
 
-extern char BUG352_LUA[];
+extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
 
 
@@ -1280,13 +1280,13 @@ TEST_F(dmGuiTest, Bug352)
     dmGui::AddTexture(m_Scene, "right_hud", 0);
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, BUG352_LUA, BUG352_LUA_SIZE, "file");
+    r = dmGui::SetScript(m_Script, (const char*) BUG352_LUA, BUG352_LUA_SIZE, "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::SetScript(m_Script, BUG352_LUA, BUG352_LUA_SIZE, "file");
+    r = dmGui::SetScript(m_Script, (const char*) BUG352_LUA, BUG352_LUA_SIZE, "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char buffer[256 + sizeof(dmMessage::Message)];

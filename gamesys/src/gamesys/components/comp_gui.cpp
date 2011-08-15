@@ -15,10 +15,10 @@
 #include "../resources/res_gui.h"
 #include "../gamesys.h"
 
-extern char GUI_VPC[];
+extern unsigned char GUI_VPC[];
 extern uint32_t GUI_VPC_SIZE;
 
-extern char GUI_FPC[];
+extern unsigned char GUI_FPC[];
 extern uint32_t GUI_FPC_SIZE;
 
 namespace dmGameSystem

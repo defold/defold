@@ -9,7 +9,7 @@
 #include "../resource.h"
 #include "test/test_resource_ddf.h"
 
-extern char TEST_ARC[];
+extern unsigned char TEST_ARC[];
 extern uint32_t TEST_ARC_SIZE;
 
 class ResourceTest : public ::testing::Test

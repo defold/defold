@@ -5,9 +5,9 @@
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 
-extern char TEST_EMBED[];
+extern unsigned char TEST_EMBED[];
 extern uint32_t TEST_EMBED_SIZE;
-extern char GENERATED_EMBED[];
+extern unsigned char GENERATED_EMBED[];
 
 TEST(dlib, Embed)
 {

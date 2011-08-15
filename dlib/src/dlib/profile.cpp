@@ -10,7 +10,7 @@
 #include "http_server.h"
 #include "dstrings.h"
 
-extern char PROFILER_HTML[];
+extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
 
 namespace dmProfile

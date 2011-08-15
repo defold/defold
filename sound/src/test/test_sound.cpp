@@ -8,15 +8,15 @@
 #include <dlib/time.h>
 #include "../sound.h"
 
-extern char CLICK_TRACK_OGG[];
+extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
-extern char DRUMLOOP_WAV[];
+extern unsigned char DRUMLOOP_WAV[];
 extern uint32_t DRUMLOOP_WAV_SIZE;
-extern char ONEFOOTSTEP_WAV[];
+extern unsigned char ONEFOOTSTEP_WAV[];
 extern uint32_t ONEFOOTSTEP_WAV_SIZE;
-extern char LAYER_GUITAR_A_OGG[];
+extern unsigned char LAYER_GUITAR_A_OGG[];
 extern uint32_t LAYER_GUITAR_A_OGG_SIZE;
-extern char OSC2_SIN_440HZ_WAV[];
+extern unsigned char OSC2_SIN_440HZ_WAV[];
 extern uint32_t OSC2_SIN_440HZ_WAV_SIZE;
 
 class dmSoundTest : public ::testing::Test

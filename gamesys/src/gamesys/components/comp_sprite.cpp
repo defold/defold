@@ -19,10 +19,10 @@
 
 #include "sprite_ddf.h"
 
-extern char SPRITE_VPC[];
+extern unsigned char SPRITE_VPC[];
 extern uint32_t SPRITE_VPC_SIZE;
 
-extern char SPRITE_FPC[];
+extern unsigned char SPRITE_FPC[];
 extern uint32_t SPRITE_FPC_SIZE;
 
 namespace dmGameSystem
