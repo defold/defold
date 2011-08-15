@@ -27,7 +27,7 @@ def configure(conf):
     platform = conf.env.PLATFORM
 
     if platform == "linux":
-        conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESSARB'])
+        conf.env.append_value('CCFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS', '-D_GLFW_USE_LINUX_JOYSTICKS'])
 
     dynamo_home = conf.env.DYNAMO_HOME
     if not dynamo_home:
