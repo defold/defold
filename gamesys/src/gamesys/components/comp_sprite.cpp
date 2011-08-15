@@ -11,11 +11,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
-
 #include <graphics/graphics.h>
-
 #include <render/render.h>
-#include <render/material.h>
 
 #include "../resources/res_sprite.h"
 #include "../gamesys.h"
@@ -75,19 +72,16 @@ namespace dmGameSystem
         sprite_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(render_context), SPRITE_VPC, SPRITE_VPC_SIZE);
         sprite_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(render_context), SPRITE_FPC, SPRITE_FPC_SIZE);
 
-        sprite_world->m_Material = dmRender::NewMaterial();
-        SetMaterialVertexProgramConstantType(sprite_world->m_Material, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        SetMaterialVertexProgramConstantType(sprite_world->m_Material, 4, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
+        sprite_world->m_Material = dmRender::NewMaterial(sprite_context->m_RenderContext, sprite_world->m_VertexProgram, sprite_world->m_FragmentProgram);
+        SetMaterialProgramConstantType(sprite_world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
+        SetMaterialProgramConstantType(sprite_world->m_Material, dmHashString64("world"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
 
         dmRender::AddMaterialTag(sprite_world->m_Material, dmHashString32("sprite"));
 
-        dmRender::SetMaterialVertexProgram(sprite_world->m_Material, sprite_world->m_VertexProgram);
-        dmRender::SetMaterialFragmentProgram(sprite_world->m_Material, sprite_world->m_FragmentProgram);
-
         dmGraphics::VertexElement ve[] =
         {
-                {0, 3, dmGraphics::TYPE_FLOAT, 0, 0},
-                {1, 2, dmGraphics::TYPE_FLOAT, 0, 0},
+                {"position", 0, 3, dmGraphics::TYPE_FLOAT},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT},
         };
 
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));

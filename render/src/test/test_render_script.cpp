@@ -18,6 +18,9 @@ protected:
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
     dmRender::HFontMap m_SystemFontMap;
+    dmRender::HMaterial m_FontMaterial;
+    dmGraphics::HVertexProgram m_VertexProgram;
+    dmGraphics::HFragmentProgram m_FragmentProgram;
 
     virtual void SetUp()
     {
@@ -40,6 +43,12 @@ protected:
         params.m_MaxInstances = 64;
         params.m_MaxCharacters = 32;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
+        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, "foo", 3);
+        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, "foo", 3);
+
+        m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
+        dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
+
         dmGraphics::WindowParams win_params;
         win_params.m_Width = 20;
         win_params.m_Height = 10;
@@ -48,6 +57,10 @@ protected:
 
     virtual void TearDown()
     {
+        dmGraphics::DeleteVertexProgram(m_VertexProgram);
+        dmGraphics::DeleteFragmentProgram(m_FragmentProgram);
+        dmRender::DeleteMaterial(m_FontMaterial);
+
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context);
         dmRender::DeleteFontMap(m_SystemFontMap);
@@ -135,7 +148,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    dmRender::HMaterial material = dmRender::NewMaterial();
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
     dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -423,87 +436,6 @@ TEST_F(dmRenderScriptTest, TestLuaWindowSize)
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
-
-    dmRender::DeleteRenderScriptInstance(render_script_instance);
-    dmRender::DeleteRenderScript(m_Context, render_script);
-}
-
-TEST_F(dmRenderScriptTest, TestLuaConstants)
-{
-    const char* script =
-    "function init(self)\n"
-    "    render.enable_vertex_constant(1, vmath.vector4(1, 2, 3, 4))\n"
-    "    render.disable_vertex_constant(1)\n"
-    "    render.enable_vertex_constant_block(1, vmath.matrix4() * 2)\n"
-    "    render.disable_vertex_constant_block(1)\n"
-    "    render.enable_fragment_constant(1, vmath.vector4(1, 2, 3, 4))\n"
-    "    render.disable_fragment_constant(1)\n"
-    "    render.enable_fragment_constant_block(1, vmath.matrix4() * 2)\n"
-    "    render.disable_fragment_constant_block(1)\n"
-    "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
-    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
-
-    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(8u, commands.Size());
-
-    Vector4 test_v(1, 2, 3, 4);
-    Matrix4 test_m = Matrix4::identity();
-    test_m *= 2;
-
-    dmRender::Command* command = &commands[0];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_VERTEX_CONSTANT, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-    Vector4* v = (Vector4*)command->m_Operands[1];
-    ASSERT_NE((void*)0, v);
-    for (int i = 0; i < 4; ++i)
-        ASSERT_EQ(test_v.getElem(i), v->getElem(i));
-
-    command = &commands[1];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_VERTEX_CONSTANT, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-
-    command = &commands[2];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_VERTEX_CONSTANT_BLOCK, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-    Matrix4* m = (Matrix4*)command->m_Operands[1];
-    ASSERT_NE((void*)0, m);
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            ASSERT_EQ(test_m.getElem(i, j), m->getElem(i, j));
-
-    command = &commands[3];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_VERTEX_CONSTANT_BLOCK, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-
-    command = &commands[4];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-    v = (Vector4*)command->m_Operands[1];
-    ASSERT_NE((void*)0, v);
-    for (int i = 0; i < 4; ++i)
-        ASSERT_EQ(test_v.getElem(i), v->getElem(i));
-
-    command = &commands[5];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-
-    command = &commands[6];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT_BLOCK, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-    m = (Matrix4*)command->m_Operands[1];
-    ASSERT_NE((void*)0, m);
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            ASSERT_EQ(test_m.getElem(i, j), m->getElem(i, j));
-
-    command = &commands[7];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT_BLOCK, command->m_Type);
-    ASSERT_EQ(1u, command->m_Operands[0]);
-
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

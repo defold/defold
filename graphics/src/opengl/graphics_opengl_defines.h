@@ -56,6 +56,10 @@
 #define DMGRAPHICS_TYPE_INT                                 (GL_INT)
 #define DMGRAPHICS_TYPE_UNSIGNED_INT                        (GL_UNSIGNED_INT)
 #define DMGRAPHICS_TYPE_FLOAT                               (GL_FLOAT)
+#define DMGRAPHICS_TYPE_FLOAT_VEC4                          (GL_FLOAT_VEC4)
+#define DMGRAPHICS_TYPE_FLOAT_MAT4                          (GL_FLOAT_MAT4)
+#define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
+
 
 // Texture format
 #define DMGRAPHICS_TEXTURE_FORMAT_ALPHA                     (GL_ALPHA)

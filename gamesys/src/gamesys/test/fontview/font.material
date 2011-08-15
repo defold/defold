@@ -2,6 +2,6 @@ name: "font"
 vertex_program: "/font.vp"
 fragment_program: "/font.fp"
 vertex_constants {
-  register: 0
+  name: "view_proj"
   type: CONSTANT_TYPE_VIEWPROJ
 }

@@ -18,6 +18,8 @@ namespace dmRender
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
     #define RENDER_SCRIPT_INSTANCE_SELF "__render_script_instance"
 
+    #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
+
     #define RENDER_SCRIPT_LIB_NAME "render"
     #define RENDER_SCRIPT_FORMAT_NAME "format"
     #define RENDER_SCRIPT_WIDTH_NAME "width"
@@ -26,6 +28,97 @@ namespace dmRender
     #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
+
+    static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
+    {
+        HNamedConstantBuffer* cb;
+        luaL_checktype(L, index, LUA_TUSERDATA);
+        cb = (HNamedConstantBuffer*)luaL_checkudata(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
+        if (cb == NULL) luaL_typerror(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
+        return cb;
+    }
+
+    static int RenderScriptConstantBuffer_gc (lua_State *L)
+    {
+        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        DeleteNamedConstantBuffer(*cb);
+        *cb = 0;
+        return 0;
+    }
+
+    static int RenderScriptConstantBuffer_tostring (lua_State *L)
+    {
+        lua_pushfstring(L, "ConstantBuffer: %p", lua_touserdata(L, 1));
+        return 1;
+    }
+
+    static int RenderScriptConstantBuffer_index(lua_State *L)
+    {
+        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        assert(cb);
+
+        const char* name = luaL_checkstring(L, 2);
+        Vectormath::Aos::Vector4 value;
+        if (GetNamedConstant(*cb, name, value))
+        {
+            dmScript::PushVector4(L, value);
+            return 1;
+        }
+        else
+        {
+            luaL_error(L, "Constant %s not set.", name);
+        }
+        assert(0); // Never reached
+        return 0;
+    }
+
+    static int RenderScriptConstantBuffer_newindex(lua_State *L)
+    {
+        int top = lua_gettop(L);
+        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        assert(cb);
+
+        const char* name = luaL_checkstring(L, 2);
+        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
+        SetNamedConstant(*cb, name, *value);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static const luaL_reg RenderScriptConstantBuffer_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg RenderScriptConstantBuffer_meta[] =
+    {
+        {"__gc",        RenderScriptConstantBuffer_gc},
+        {"__tostring",  RenderScriptConstantBuffer_tostring},
+        {"__index",     RenderScriptConstantBuffer_index},
+        {"__newindex",  RenderScriptConstantBuffer_newindex},
+        {0, 0}
+    };
+
+    /*# create a new constant buffer.
+     *
+     * Constant buffers are used to set shader program variables and are optionally passed to the render.draw function.
+     * @name render.constant_buffer
+     * @return new constant buffer
+     */
+    int RenderScript_ConstantBuffer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNamedConstantBuffer* p_buffer = (HNamedConstantBuffer*) lua_newuserdata(L, sizeof(HNamedConstantBuffer*));
+        *p_buffer = NewNamedConstantBuffer();
+
+        luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER);
+        lua_setmetatable(L, -2);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
 
     enum RenderScriptFunction
     {
@@ -87,7 +180,7 @@ namespace dmRender
 
     static int RenderScriptInstance_tostring (lua_State *L)
     {
-        lua_pushfstring(L, "GameObject: %p", lua_touserdata(L, 1));
+        lua_pushfstring(L, "RenderScript: %p", lua_touserdata(L, 1));
         return 1;
     }
 
@@ -694,7 +787,15 @@ namespace dmRender
         {
             predicate = (dmRender::Predicate*)lua_touserdata(L, 1);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint32_t)predicate)))
+
+        HNamedConstantBuffer constant_buffer = 0;
+        if (lua_isuserdata(L, 2))
+        {
+            HNamedConstantBuffer* tmp = RenderScriptConstantBuffer_Check(L, 2);
+            constant_buffer = *tmp;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint32_t)predicate, (uint32_t) constant_buffer)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1088,126 +1189,6 @@ namespace dmRender
         }
     }
 
-    /*# enables a vertex constant
-     *
-     * @name render.enable_vertex_constant
-     * @param register register number to enable (number)
-     * @param constant vertex constant (vector4)
-     */
-    int RenderScript_EnableVertexConstant(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 2);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_VERTEX_CONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# disables a vertex constant
-     *
-     * @name render.enable_vertex_constant
-     * @param register register number to disable (number)
-     */
-    int RenderScript_DisableVertexConstant(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_VERTEX_CONSTANT, (uint32_t)reg, (uint32_t)0)))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# enables a vertex constant block
-     *
-     * @name render.enable_vertex_constant_block
-     * @param register base register number to enable (number)
-     * @param matrix matrix of four constants (matrix4)
-     */
-    int RenderScript_EnableVertexConstantBlock(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 2);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_VERTEX_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# disables a vertex constant block
-     *
-     * @name render.disable_vertex_constant_block
-     * @param register base register number to disable (number)
-     */
-    int RenderScript_DisableVertexConstantBlock(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_VERTEX_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)0)))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# enables a fragment constant
-     *
-     * @name render.enable_fragment_constant
-     * @param register register number to enable (number)
-     * @param constant fragment constant (vector4)
-     */
-    int RenderScript_EnableFragmentConstant(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, 2);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Vector4(*v))))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# disables a fragment constant
-     *
-     * @name render.enable_fragment_constant
-     * @param register register number to disable (number)
-     */
-    int RenderScript_DisableFragmentConstant(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT, (uint32_t)reg, (uint32_t)0)))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# enables a fragment constant block
-     *
-     * @name render.enable_fragment_constant_block
-     * @param register base register number to enable (number)
-     * @param matrix matrix of four constant (matrix4)
-     */
-    int RenderScript_EnableFragmentConstantBlock(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        Vectormath::Aos::Matrix4* m = dmScript::CheckMatrix4(L, 2);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_FRAGMENT_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)new Vectormath::Aos::Matrix4(*m))))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
-    /*# disables fragment constant block
-     *
-     * @name render.disable_fragment_constant_block
-     * @param register base register number to disable (number)
-     */
-    int RenderScript_DisableFragmentConstantBlock(lua_State* L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t reg = luaL_checknumber(L, 1);
-        if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_FRAGMENT_CONSTANT_BLOCK, (uint32_t)reg, (uint32_t)0)))
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        return 0;
-    }
-
     /*# enables a material
      * If another material was already enabled, it will be automatically disabled.
      *
@@ -1282,14 +1263,7 @@ namespace dmRender
         {"get_window_width",                RenderScript_GetWindowWidth},
         {"get_window_height",               RenderScript_GetWindowHeight},
         {"predicate",                       RenderScript_Predicate},
-        {"enable_vertex_constant",          RenderScript_EnableVertexConstant},
-        {"disable_vertex_constant",         RenderScript_DisableVertexConstant},
-        {"enable_vertex_constant_block",    RenderScript_EnableVertexConstantBlock},
-        {"disable_vertex_constant_block",   RenderScript_DisableVertexConstantBlock},
-        {"enable_fragment_constant",        RenderScript_EnableFragmentConstant},
-        {"disable_fragment_constant",       RenderScript_DisableFragmentConstant},
-        {"enable_fragment_constant_block",  RenderScript_EnableFragmentConstantBlock},
-        {"disable_fragment_constant_block", RenderScript_DisableFragmentConstantBlock},
+        {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
         {0, 0}
@@ -1338,8 +1312,19 @@ namespace dmRender
         lua_pushliteral(L, "__metatable");
         lua_pushvalue(L, methods);                       // dup methods table
         lua_settable(L, metatable);
-
         lua_pop(L, 2);
+
+        luaL_register(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods);   // create methods table, add it to the globals
+        methods = lua_gettop(L);
+        luaL_newmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER);
+        metatable = lua_gettop(L);
+        luaL_register(L, 0, RenderScriptConstantBuffer_meta);                   // fill metatable
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushvalue(L, methods);                       // dup methods table
+        lua_settable(L, metatable);
+        lua_pop(L, 2);
+
 
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, RenderScript_methods);
 

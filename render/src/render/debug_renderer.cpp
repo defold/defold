@@ -32,8 +32,8 @@ namespace dmRender
         debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, MAX_VERTEX_COUNT * sizeof(DebugVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
-            {0, 4, dmGraphics::TYPE_FLOAT, 0, 0 },
-            {1, 4, dmGraphics::TYPE_FLOAT, 0, 0 }
+            {"position", 0, 4, dmGraphics::TYPE_FLOAT },
+            {"color", 1, 4, dmGraphics::TYPE_FLOAT }
         };
         debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, 2);
 
@@ -44,17 +44,13 @@ namespace dmRender
         if (fp_data_size > 0)
             fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, fp_data, fp_data_size);
 
-        HMaterial material3d = NewMaterial();
-        SetMaterialVertexProgramConstantType(material3d, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
+        HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
+        SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         AddMaterialTag(material3d, dmHashString32(DEBUG_3D_NAME));
-        SetMaterialVertexProgram(material3d, vertex_program);
-        SetMaterialFragmentProgram(material3d, fragment_program);
 
-        HMaterial material2d = NewMaterial();
-        SetMaterialVertexProgramConstantType(material2d, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
+        HMaterial material2d = NewMaterial(render_context, vertex_program, fragment_program);
+        SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         AddMaterialTag(material2d, dmHashString32(DEBUG_2D_NAME));
-        SetMaterialVertexProgram(material2d, vertex_program);
-        SetMaterialFragmentProgram(material2d, fragment_program);
 
         dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_QUADS, dmGraphics::PRIMITIVE_LINES};
 

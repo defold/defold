@@ -2,28 +2,19 @@
 #include "engine_private.h"
 
 #include <vectormath/cpp/vectormath_aos.h>
-
 #include <sys/stat.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
-
-#include <sound/sound.h>
-
-#include <render/material.h>
-
-#include <render/render_ddf.h>
-
-#include <particle/particle.h>
-
-#include <gameobject/gameobject_ddf.h>
-
-#include <render/render_ddf.h>
-
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
+#include <gameobject/gameobject_ddf.h>
+#include <sound/sound.h>
+#include <render/render.h>
+#include <render/render_ddf.h>
+#include <particle/particle.h>
 
 #include "physics_debug_render.h"
 #include "profile_render.h"
@@ -497,7 +488,7 @@ bail:
                 {
                     dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
                     dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
-                    dmRender::Draw(engine->m_RenderContext, 0x0);
+                    dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
                 }
 
                 dmGameObject::PostUpdate(engine->m_MainCollection);
@@ -513,7 +504,7 @@ bail:
                 dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
                 dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
                 dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                dmRender::Draw(engine->m_RenderContext, 0x0);
+                dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
                 dmRender::ClearRenderObjects(engine->m_RenderContext);
             }
             dmProfile::Pause(false);
@@ -580,10 +571,8 @@ bail:
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawText::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmRenderDDF::DrawLine::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetTexture::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetVertexConstant::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetVertexConstant::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetFragmentConstant::m_DDFDescriptor);
-        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetFragmentConstant::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::SetConstant::m_DDFDescriptor);
+        dmScript::RegisterDDFType(engine->m_ScriptContext, dmModelDDF::ResetConstant::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor);
         dmScript::RegisterDDFType(engine->m_ScriptContext, dmGameObjectDDF::RequestTransform::m_DDFDescriptor);

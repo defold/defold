@@ -83,7 +83,7 @@ int32_t Run(Context* context)
         dmGraphics::SetBlendFunc(context->m_GraphicsContext, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
         dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_BLEND);
         dmGraphics::DisableState(context->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
-        dmRender::Draw(context->m_RenderContext, 0x0);
+        dmRender::Draw(context->m_RenderContext, 0x0, 0x0);
         dmRender::ClearRenderObjects(context->m_RenderContext);
 
         dmGraphics::Flip(context->m_GraphicsContext);

@@ -75,6 +75,7 @@ namespace dmGameSystem
             component.m_Model = model;
             component.m_ModelWorld = model_world;
             component.m_Index = index;
+            component.m_RenderObject.m_Material = 0;
             *params.m_UserData = (uintptr_t)&component;
 
             return dmGameObject::CREATE_RESULT_OK;
@@ -127,25 +128,22 @@ namespace dmGameSystem
     {
         ModelComponent* component = (ModelComponent*)*params.m_UserData;
         dmRender::RenderObject* ro = &component->m_RenderObject;
-        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetVertexConstant::m_DDFDescriptor->m_Name))
+
+        // Return if pre first update.
+        // Perhaps we should initialize stuff in Create instead of Update?
+        // EnableRenderObjectConstant asserts on valid material
+        if (!ro->m_Material)
+            return dmGameObject::UPDATE_RESULT_OK;
+
+        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::SetVertexConstant* ddf = (dmModelDDF::SetVertexConstant*)params.m_Message->m_Data;
-            dmRender::EnableRenderObjectVertexConstant(ro, ddf->m_Register, ddf->m_Value);
+            dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
+            dmRender::EnableRenderObjectConstant(ro, ddf->m_NameHash, ddf->m_Value);
         }
-        else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::ResetVertexConstant::m_DDFDescriptor->m_Name))
+        else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::ResetConstant::m_DDFDescriptor->m_Name))
         {
-            dmModelDDF::ResetVertexConstant* ddf = (dmModelDDF::ResetVertexConstant*)params.m_Message->m_Data;
-            dmRender::DisableRenderObjectVertexConstant(ro, ddf->m_Register);
-        }
-        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetFragmentConstant::m_DDFDescriptor->m_Name))
-        {
-            dmModelDDF::SetFragmentConstant* ddf = (dmModelDDF::SetFragmentConstant*)params.m_Message->m_Data;
-            dmRender::EnableRenderObjectFragmentConstant(ro, ddf->m_Register, ddf->m_Value);
-        }
-        if (params.m_Message->m_Id == dmHashString64(dmModelDDF::ResetFragmentConstant::m_DDFDescriptor->m_Name))
-        {
-            dmModelDDF::ResetFragmentConstant* ddf = (dmModelDDF::ResetFragmentConstant*)params.m_Message->m_Data;
-            dmRender::DisableRenderObjectFragmentConstant(ro, ddf->m_Register);
+            dmModelDDF::ResetConstant* ddf = (dmModelDDF::ResetConstant*)params.m_Message->m_Data;
+            dmRender::DisableRenderObjectConstant(ro, ddf->m_NameHash);
         }
         else if (params.m_Message->m_Id == dmHashString64(dmModelDDF::SetTexture::m_DDFDescriptor->m_Name))
         {

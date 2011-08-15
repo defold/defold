@@ -1,19 +1,22 @@
-struct pixel_in
-{
-    float4 position : POSITION;
-    float2 texcoord : TEXCOORD0;
-};
+varying vec4 position;
+varying vec2 var_texcoord0;
 
-void main(pixel_in IN,
-          uniform sampler2D texture : TEXUNIT0,
-          uniform float4 face_color     : C0,
-          uniform float4 outline_color  : C1,
-          uniform float4 shadow_color   : C2,
-          out float4 out_color          : COLOR)
+uniform vec4 face_color;
+uniform vec4 outline_color;
+uniform vec4 shadow_color;
+uniform sampler2D texture;
+
+void main()
 {
-    float4 t = tex2D(texture, IN.texcoord.xy);
-    face_color.w *= t.x;
-    outline_color.w *= t.y;
-    shadow_color.w *= t.z;
-    out_color = face_color + outline_color + shadow_color;
+    vec4 t = texture2D(texture, var_texcoord0.xy);
+
+    vec4 fc = face_color;
+    vec4 oc = outline_color;
+    vec4 sc = shadow_color;
+
+    fc *= t.x;
+    oc *= t.y;
+    sc *= t.z;
+
+    gl_FragColor = fc + oc + sc;
 }

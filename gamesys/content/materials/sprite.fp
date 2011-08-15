@@ -1,13 +1,9 @@
-struct Fragment
-{
-    float4 position : POSITION;
-    float2 uv       : TEXCOORD0;
-};
+varying vec4 position;
+varying vec2 var_texcoord0;
 
-uniform sampler2D DIFFUSE_TEXTURE : TEXUNIT0;
+uniform sampler2D DIFFUSE_TEXTURE;
 
-void main(in Fragment f_in,
-          out float4 c_out : COLOR)
+void main()
 {
-    c_out = tex2D(DIFFUSE_TEXTURE, f_in.uv.xy);
+    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy);
 }

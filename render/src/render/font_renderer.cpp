@@ -11,6 +11,7 @@
 
 #include "render_private.h"
 #include "render/font_ddf.h"
+#include "render.h"
 
 using namespace Vectormath::Aos;
 
@@ -129,7 +130,7 @@ namespace dmRender
 
         dmGraphics::VertexElement ve[] =
         {
-                {0, 4, dmGraphics::TYPE_FLOAT, 0, 0}
+                {"position", 0, 4, dmGraphics::TYPE_FLOAT }
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -162,6 +163,8 @@ namespace dmRender
     , m_Depth(0)
     {
     }
+
+    static dmhash_t g_ConstantNameHashes[] = { dmHashString64("face_color"), dmHashString64("outline_color"), dmHashString64("shadow_color") };
 
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params)
     {
@@ -204,10 +207,10 @@ namespace dmRender
                 if (i == j)
                 {
                     if (colors[j].getW() >= 0.0f)
-                        EnableRenderObjectFragmentConstant(ro, j, colors[j]);
+                        EnableRenderObjectConstant(ro, g_ConstantNameHashes[j], colors[j]);
                 }
                 else
-                    EnableRenderObjectFragmentConstant(ro, j, clear_color);
+                    EnableRenderObjectConstant(ro, g_ConstantNameHashes[j], clear_color);
             }
             int16_t x = 0;
             int16_t y = 0;

@@ -1,11 +1,13 @@
-uniform float4x4 ViewProj   : (c0);
-uniform float4x4 World      : (c4);
+uniform mat4 view_proj;
+uniform mat4 world;
 
-void main(float4 vertex : ATTR0,
-          out float4 oPosition : POSITION,
-          out float2 oTexcoord0 : TEXCOORD0)
+varying vec2 var_texcoord0;
+
+attribute vec4 position;
+
+void main()
 {
-    float4x4 wvp = mul(World, ViewProj);
-    oPosition = mul(float4(vertex.x, vertex.y, 0, 1), wvp);
-    oTexcoord0 = vertex.zw;
+    mat4 mvp = view_proj * world;
+    gl_Position = mvp * vec4(position.x, position.y, 0, 1);
+    var_texcoord0 = position.zw;
 }

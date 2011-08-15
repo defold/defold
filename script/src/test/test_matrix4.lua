@@ -37,6 +37,16 @@ assert(m.m11 == 6, "q.m11 is not 6")
 assert(m.m12 == 7, "q.m12 is not 7")
 assert(m.m13 == 8, "q.m13 is not 8")
 
+m.c0 = vmath.vector4(0, 0, 0, 0)
+m.c3 = vmath.vector4(1,2,3,4)
+assert(m.c0.x == 0)
+assert(m.c3.x == 1)
+assert(m.c3 == vmath.vector4(1, 2, 3, 4))
+local tmp = m.c3
+tmp.x = 100
+-- ensure copy semantics
+assert(m.c3 == vmath.vector4(1, 2, 3, 4))
+
 -- mul by mat
 m = vmath.matrix4()
 m1 = vmath.matrix4(m)

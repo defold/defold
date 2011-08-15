@@ -5,8 +5,7 @@
 
 #include <dlib/array.h>
 #include <dlib/message.h>
-
-#include "material.h"
+#include <dlib/hashtable.h>
 
 #include "render.h"
 
@@ -23,6 +22,40 @@ namespace dmRender
 
 #define DEBUG_3D_NAME "_debug3d"
 #define DEBUG_2D_NAME "_debug2d"
+
+    struct Sampler
+    {
+        dmhash_t m_NameHash;
+        int16_t  m_Location;
+        int16_t  m_Unit;
+
+        Sampler(dmhash_t name_hash, int16_t location)
+            : m_NameHash(name_hash), m_Location(location), m_Unit(-1)
+        {
+        }
+    };
+
+    struct Material
+    {
+
+        Material()
+        : m_RenderContext(0)
+        , m_Program(0)
+        , m_VertexProgram(0)
+        , m_FragmentProgram(0)
+        , m_TagMask(0)
+        {
+        }
+
+        dmRender::HRenderContext                m_RenderContext;
+        dmGraphics::HProgram                    m_Program;
+        dmGraphics::HVertexProgram              m_VertexProgram;
+        dmGraphics::HFragmentProgram            m_FragmentProgram;
+        dmHashTable64<int32_t>                  m_NameHashToLocation;
+        dmArray<Constant>                       m_Constants;
+        dmArray<Sampler>                        m_Samplers;
+        uint32_t                                m_TagMask;
+    };
 
     enum DebugRenderType
     {
@@ -70,8 +103,6 @@ namespace dmRender
 
     struct RenderContext
     {
-        Vectormath::Aos::Vector4    m_VertexConstants[MAX_CONSTANT_COUNT];
-        Vectormath::Aos::Vector4    m_FragmentConstants[MAX_CONSTANT_COUNT];
         dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
@@ -89,9 +120,6 @@ namespace dmRender
         HMaterial                   m_Material;
 
         dmMessage::HSocket          m_Socket;
-
-        uint32_t                    m_VertexConstantMask;
-        uint32_t                    m_FragmentConstantMask;
 
         uint32_t                    m_OutOfResources : 1;
     };

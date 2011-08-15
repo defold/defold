@@ -3,10 +3,10 @@ tags: "text"
 vertex_program: "/builtins/fonts/font.vp"
 fragment_program: "/builtins/fonts/font.fp"
 vertex_constants {
-  register: 0
+  name: "view_proj"
   type: CONSTANT_TYPE_VIEWPROJ
 }
 vertex_constants {
-  register: 4
+  name: "world"
   type: CONSTANT_TYPE_WORLD
 }

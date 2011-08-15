@@ -52,10 +52,8 @@ def dds_file(self, node):
     # Hackish... configure?
     #self.env["DDSC"] = os.path.join(os.environ["DYNAMO_HOME"], "bin", "ddsc.py")
 
-Task.simple_task_type('vertexprogram', 'cgc -quiet -profile arbvp1 -o ${TGT} ${SRC} ',
+Task.simple_task_type('vertexprogram', 'cgc -q -oglsl -profile arbvp1 ${SRC} >/dev/null && cat < ${SRC} > ${TGT}',
                       color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
                       shell=True)
 
 @extension('.vp')
@@ -66,10 +64,8 @@ def vp_file(self, node):
     out = node.change_ext(obj_ext)
     program.set_outputs(out)
 
-Task.simple_task_type('fragmentprogram', 'cgc -quiet -profile arbfp1 -o ${TGT} ${SRC} ',
+Task.simple_task_type('fragmentprogram', 'cgc -q -oglsl -profile arbfp1 ${SRC} >/dev/null && cat < ${SRC} > ${TGT}',
                       color='PINK',
-                      after='proto_gen_py',
-                      before='cc cxx',
                       shell=True)
 
 @extension('.fp')

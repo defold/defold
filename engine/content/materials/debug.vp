@@ -1,10 +1,12 @@
-uniform float4x4 ViewProj   : (c0);
+uniform mat4 view_proj;
 
-void main(float4 position : ATTR0,
-          float4 color : ATTR1,
-          out float4 oPosition : POSITION,
-          out float4 oColor : COLOR)
+varying vec4 var_color;
+
+attribute vec4 position;
+attribute vec4 color;
+
+void main()
 {
-    oPosition = mul(float4(position.x, position.y, position.z, 1.0f), ViewProj);
-    oColor = color;
+    gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);
+    var_color = color;
 }

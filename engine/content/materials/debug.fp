@@ -1,11 +1,6 @@
-struct pixel_in
-{
-    float4 position : POSITION;
-    float4 color : COLOR;
-};
+varying vec4 var_color;
 
-void main(pixel_in IN,
-          out float4 oColor : COLOR)
+void main()
 {
-    oColor = IN.color;
+    gl_FragColor = var_color;
 }
