@@ -91,8 +91,10 @@ namespace dmRender
         return (HMaterial)m;
     }
 
-    void DeleteMaterial(HMaterial material)
+    void DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material)
     {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::DeleteProgram(graphics_context, material->m_Program);
         delete material;
     }
 

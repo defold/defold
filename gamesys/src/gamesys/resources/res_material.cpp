@@ -125,11 +125,12 @@ namespace dmGameSystem
             void* context,
             dmResource::SResourceDescriptor* resource)
     {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) context;
         dmRender::HMaterial material = (dmRender::HMaterial) resource->m_Resource;
 
         dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
         dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));
-        dmRender::DeleteMaterial(material);
+        dmRender::DeleteMaterial(render_context, material);
 
         return dmResource::CREATE_RESULT_OK;
     }

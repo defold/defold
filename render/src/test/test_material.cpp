@@ -27,7 +27,7 @@ TEST(dmMaterialTest, TestTags)
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
 
-    dmRender::DeleteMaterial(material);
+    dmRender::DeleteMaterial(render_context, material);
 
     dmGraphics::DeleteContext(context);
     dmRender::DeleteRenderContext(render_context);

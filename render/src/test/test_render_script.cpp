@@ -59,7 +59,7 @@ protected:
     {
         dmGraphics::DeleteVertexProgram(m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(m_FragmentProgram);
-        dmRender::DeleteMaterial(m_FontMaterial);
+        dmRender::DeleteMaterial(m_Context, m_FontMaterial);
 
         dmGraphics::CloseWindow(m_GraphicsContext);
         dmRender::DeleteRenderContext(m_Context);
@@ -168,7 +168,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
-    dmRender::DeleteMaterial(material);
+    dmRender::DeleteMaterial(m_Context, material);
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }

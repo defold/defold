@@ -113,7 +113,7 @@ namespace dmGameSystem
                 delete gui_world->m_Components[i];
             }
         }
-        dmRender::DeleteMaterial(gui_world->m_Material);
+        dmRender::DeleteMaterial(gui_context->m_RenderContext, gui_world->m_Material);
         dmGraphics::DeleteVertexProgram(gui_world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(gui_world->m_FragmentProgram);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);

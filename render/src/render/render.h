@@ -202,7 +202,7 @@ namespace dmRender
 
     // Material
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
-    void                            DeleteMaterial(HMaterial material);
+    void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
     void                            ApplyMaterialSamplers(dmRender::HRenderContext render_context, HMaterial material);
 

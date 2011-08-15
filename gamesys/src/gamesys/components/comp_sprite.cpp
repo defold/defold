@@ -94,8 +94,9 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
-        dmRender::DeleteMaterial(sprite_world->m_Material);
+        dmRender::DeleteMaterial(sprite_context->m_RenderContext, sprite_world->m_Material);
         dmGraphics::DeleteVertexProgram(sprite_world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(sprite_world->m_FragmentProgram);
         dmGraphics::DeleteVertexDeclaration(sprite_world->m_VertexDeclaration);

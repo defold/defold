@@ -91,9 +91,9 @@ namespace dmRender
         if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
             dmGraphics::DeleteFragmentProgram(fp);
 
-        DeleteMaterial(material);
+        DeleteMaterial(context, material);
         material = context->m_DebugRenderer.m_RenderObject2d[0].m_Material;
-        DeleteMaterial(material);
+        DeleteMaterial(context, material);
 
         dmGraphics::DeleteVertexBuffer(context->m_DebugRenderer.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(context->m_DebugRenderer.m_VertexDeclaration);
