@@ -13,33 +13,28 @@ def init():
     pass
 
 def set_options(opt):
+    opt.tool_options('waf_dynamo')
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
-    opt.tool_options('waf_dynamo')
 
 def configure(conf):
+    conf.check_tool('waf_dynamo')
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
-    conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
 
     conf.sub_config('src')
 
-    if sys.platform == "darwin":
-        platform = "darwin"
-    elif sys.platform == "linux2":
-        platform = "linux"
-    elif sys.platform == "win32":
-        platform = "win32"
-    else:
-        conf.fatal("Unable to determine platform")
+    platform = conf.env['PLATFORM']
 
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
-    if platform == "linux":
+    elif platform == "armv6-darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'IOKit'])
+    elif platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lX11', '-lGL'])
-    if platform == "win32":
+    elif platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
     conf.env.append_value('CPPPATH', "default/src")
