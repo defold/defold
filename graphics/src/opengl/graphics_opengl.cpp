@@ -651,26 +651,6 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
-    {
-        assert(context);
-        assert(vertex_buffer);
-        DM_PROFILE(Graphics, "SetVertexStream");
-
-        glEnableVertexAttribArray(stream);
-        CHECK_GL_ERROR
-        glVertexAttribPointer(stream, size, type, false, stride, vertex_buffer);
-        CHECK_GL_ERROR
-    }
-
-    void DisableVertexStream(HContext context, uint16_t stream)
-    {
-        assert(context);
-
-        glDisableVertexAttribArray(stream);
-        CHECK_GL_ERROR
-    }
-
     void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);

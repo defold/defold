@@ -302,6 +302,31 @@ namespace dmGraphics
         delete vertex_declaration;
     }
 
+    static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    {
+        assert(context);
+        assert(vertex_buffer);
+        VertexStream& s = context->m_VertexStreams[stream];
+        assert(s.m_Source == 0x0);
+        assert(s.m_Buffer == 0x0);
+        s.m_Source = vertex_buffer;
+        s.m_Size = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
+        s.m_Stride = stride;
+    }
+
+    static void DisableVertexStream(HContext context, uint16_t stream)
+    {
+        assert(context);
+        VertexStream& s = context->m_VertexStreams[stream];
+        s.m_Size = 0;
+        if (s.m_Buffer != 0x0)
+        {
+            delete [] (char*)s.m_Buffer;
+            s.m_Buffer = 0x0;
+        }
+        s.m_Source = 0x0;
+    }
+
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
@@ -335,32 +360,6 @@ namespace dmGraphics
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
             if (vertex_declaration->m_Elements[i].m_Size > 0)
                 DisableVertexStream(context, i);
-    }
-
-
-    void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
-    {
-        assert(context);
-        assert(vertex_buffer);
-        VertexStream& s = context->m_VertexStreams[stream];
-        assert(s.m_Source == 0x0);
-        assert(s.m_Buffer == 0x0);
-        s.m_Source = vertex_buffer;
-        s.m_Size = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
-        s.m_Stride = stride;
-    }
-
-    void DisableVertexStream(HContext context, uint16_t stream)
-    {
-        assert(context);
-        VertexStream& s = context->m_VertexStreams[stream];
-        s.m_Size = 0;
-        if (s.m_Buffer != 0x0)
-        {
-            delete [] (char*)s.m_Buffer;
-            s.m_Buffer = 0x0;
-        }
-        s.m_Source = 0x0;
     }
 
     static uint32_t GetIndex(Type type, const void* index_buffer, uint32_t index)

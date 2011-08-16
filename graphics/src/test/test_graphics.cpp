@@ -255,44 +255,10 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
 }
 
-TEST_F(dmGraphicsTest, VertexStream)
-{
-    float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
-
-    dmGraphics::EnableVertexStream(m_Context, 0, 3, dmGraphics::TYPE_FLOAT, 20, v);
-    dmGraphics::EnableVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
-
-    float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
-    ASSERT_EQ(sizeof(p) / 2, m_Context->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0, memcmp(p, m_Context->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
-    float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f };
-    ASSERT_EQ(sizeof(uv) / 2, m_Context->m_VertexStreams[1].m_Size);
-    ASSERT_EQ(0, memcmp(uv, m_Context->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
-
-    dmGraphics::DisableVertexStream(m_Context, 0);
-    dmGraphics::DisableVertexStream(m_Context, 1);
-
-    ASSERT_EQ(0u, m_Context->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0u, m_Context->m_VertexStreams[1].m_Size);
-}
-
 TEST_F(dmGraphicsTest, Drawing)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f };
     uint32_t i[] = { 0, 1, 2 };
-
-    dmGraphics::EnableVertexStream(m_Context, 0, 3, dmGraphics::TYPE_FLOAT, 20, v);
-    dmGraphics::EnableVertexStream(m_Context, 1, 2, dmGraphics::TYPE_FLOAT, 20, &v[3]);
-
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, dmGraphics::TYPE_UNSIGNED_INT, i);
-
-    float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f, 10.0f, 11.0f, 12.0f };
-    ASSERT_EQ(0, memcmp(p, m_Context->m_VertexStreams[0].m_Buffer, sizeof(p)));
-    float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f, 13.0f, 14.0f };
-    ASSERT_EQ(0, memcmp(uv, m_Context->m_VertexStreams[1].m_Buffer, sizeof(uv)));
-
-    dmGraphics::DisableVertexStream(m_Context, 0);
-    dmGraphics::DisableVertexStream(m_Context, 1);
 
     dmGraphics::VertexElement ve[] =
     {
