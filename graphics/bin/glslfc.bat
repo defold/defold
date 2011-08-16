@@ -1,3 +1,6 @@
-cgc -q -oglsl -profile arbfp1 %1 >NUL
+cgc -q -ogles -profile arbfp1 %1 >NUL
 if %errorlevel% GTR 0 exit %errorlevel%
-copy %1 %2
+echo #ifdef GL_ES > %2
+echo precision mediump float; >> %2
+echo #endif >> %2
+type %1 >> %2
