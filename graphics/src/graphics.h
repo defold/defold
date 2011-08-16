@@ -48,12 +48,12 @@ namespace dmGraphics
     enum State
     {
         STATE_DEPTH_TEST            = DMGRAPHICS_STATE_DEPTH_TEST,
+#ifndef GL_ES_VERSION_2_0
         STATE_ALPHA_TEST            = DMGRAPHICS_STATE_ALPHA_TEST,
+#endif
         STATE_BLEND                 = DMGRAPHICS_STATE_BLEND,
         STATE_CULL_FACE             = DMGRAPHICS_STATE_CULL_FACE,
         STATE_POLYGON_OFFSET_FILL   = DMGRAPHICS_STATE_POLYGON_OFFSET_FILL,
-        STATE_POLYGON_OFFSET_LINE   = DMGRAPHICS_STATE_POLYGON_OFFSET_LINE,
-        STATE_POLYGON_OFFSET_POINT  = DMGRAPHICS_STATE_POLYGON_OFFSET_POINT
     };
 
     // Types
@@ -337,8 +337,7 @@ namespace dmGraphics
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
 
-    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer);
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer);
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size);

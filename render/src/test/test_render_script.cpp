@@ -214,8 +214,8 @@ TEST_F(dmRenderScriptTest, TestLuaState)
 {
     const char* script =
     "function update(self)\n"
-    "    render.enable_state(render.STATE_ALPHA_TEST)\n"
-    "    render.disable_state(render.STATE_ALPHA_TEST)\n"
+    "    render.enable_state(render.STATE_BLEND)\n"
+    "    render.disable_state(render.STATE_BLEND)\n"
     "    render.set_blend_func(render.BLEND_ONE, render.BLEND_SRC_COLOR)\n"
     "    render.set_color_mask(true, true, true, true)\n"
     "    render.set_depth_mask(true)\n"
@@ -233,11 +233,11 @@ TEST_F(dmRenderScriptTest, TestLuaState)
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_STATE, command->m_Type);
-    ASSERT_EQ(dmGraphics::STATE_ALPHA_TEST, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::STATE_BLEND, (int32_t)command->m_Operands[0]);
 
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_STATE, command->m_Type);
-    ASSERT_EQ(dmGraphics::STATE_ALPHA_TEST, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::STATE_BLEND, (int32_t)command->m_Operands[0]);
 
     command = &commands[2];
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_BLEND_FUNC, command->m_Type);

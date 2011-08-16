@@ -266,16 +266,6 @@ namespace dmRender
      * @variable
      */
 
-    /*#
-     * @name render.STATE_POLYGON_OFFSET_LINE
-     * @variable
-     */
-
-    /*#
-     * @name render.STATE_POLYGON_OFFSET_POINT
-     * @variable
-     */
-
     /*# enables a render state
      *
      * @name render.enable_state
@@ -283,10 +273,9 @@ namespace dmRender
      * <ul>
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
+     *   <li><code>render.STATE_ALPHA_TEST</code>No available on iOS/Android</li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
      *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
-     *   <li><code>render.STATE_POLYGON_OFFSET_LINE</code></li>
-     *   <li><code>render.STATE_POLYGON_OFFSET_POINT</code></li>
      * </ul>
      */
     int RenderScript_EnableState(lua_State* L)
@@ -297,12 +286,12 @@ namespace dmRender
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
+#ifndef GL_ES_VERSION_2_0
             case dmGraphics::STATE_ALPHA_TEST:
+#endif
             case dmGraphics::STATE_BLEND:
             case dmGraphics::STATE_CULL_FACE:
             case dmGraphics::STATE_POLYGON_OFFSET_FILL:
-            case dmGraphics::STATE_POLYGON_OFFSET_LINE:
-            case dmGraphics::STATE_POLYGON_OFFSET_POINT:
                 break;
             default:
                 return luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
@@ -322,8 +311,6 @@ namespace dmRender
      *   <li><code>render.STATE_BLEND</code></li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
      *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
-     *   <li><code>render.STATE_POLYGON_OFFSET_LINE</code></li>
-     *   <li><code>render.STATE_POLYGON_OFFSET_POINT</code></li>
      * </ul>
      */
     int RenderScript_DisableState(lua_State* L)
@@ -333,12 +320,12 @@ namespace dmRender
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
+#ifndef GL_ES_VERSION_2_0
             case dmGraphics::STATE_ALPHA_TEST:
+#endif
             case dmGraphics::STATE_BLEND:
             case dmGraphics::STATE_CULL_FACE:
             case dmGraphics::STATE_POLYGON_OFFSET_FILL:
-            case dmGraphics::STATE_POLYGON_OFFSET_LINE:
-            case dmGraphics::STATE_POLYGON_OFFSET_POINT:
                 break;
             default:
                 luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
@@ -1333,12 +1320,12 @@ namespace dmRender
         lua_setfield(L, -2, #name);
 
         REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
+#ifndef GL_ES_VERSION_2_0
         REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
+#endif
         REGISTER_STATE_CONSTANT(STATE_BLEND);
         REGISTER_STATE_CONSTANT(STATE_CULL_FACE);
         REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_FILL);
-        REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_LINE);
-        REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_POINT);
 
 #undef REGISTER_STATE_CONSTANT
 

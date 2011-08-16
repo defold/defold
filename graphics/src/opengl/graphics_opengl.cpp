@@ -60,7 +60,6 @@ PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
 PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
 PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
 PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
-PFNGLDRAWRANGEELEMENTSPROC glDrawRangeElements = NULL;
 PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers = NULL;
 PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = NULL;
 PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = NULL;
@@ -102,51 +101,112 @@ PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
 using namespace Vectormath::Aos;
 
+// OpenGLES compatibility
+#ifdef GL_ES_VERSION_2_0
+#define glClearDepth glClearDepthf
+#define glGenBuffersARB glGenBuffers
+#define glDeleteBuffersARB glDeleteBuffers
+#define glBindBufferARB glBindBuffer
+#define glBufferDataARB glBufferData
+#define glBufferSubDataARB glBufferSubData
+#define glMapBufferARB glMapBufferOES
+#define glUnmapBufferARB glUnmapBufferOES
+#define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
+#define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
+#endif
+
 namespace dmGraphics
 {
+void LogGLError(GLint err)
+{
+#ifdef GL_ES_VERSION_2_0
+    dmLogError("gl error %d\n", err);
+#else
+#endif
+}
+
 #define CHECK_GL_ERROR \
     { \
         GLint err = glGetError(); \
         if (err != 0) \
         { \
-            dmLogError("gl error %d: %s\n", err, gluErrorString(err)); \
+            LogGLError(err); \
             assert(0); \
         } \
     }\
+
+
+static void LogFrameBufferError(GLenum status)
+{
+    switch (status)
+    {
+#ifdef GL_FRAMEBUFFER_UNDEFINED
+        case GL_FRAMEBUFFER_UNDEFINED:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED");
+            break;
+#endif
+        case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
+            break;
+// glDrawBuffer() not available in ES 2.0
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER
+        case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER");
+            break;
+#endif
+
+// glReadBuffer() not available in ES 2.0
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER
+        case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER");
+            break;
+#endif
+
+        case GL_FRAMEBUFFER_UNSUPPORTED:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED");
+            break;
+
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE
+        case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE");
+            break;
+#endif
+
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE
+        case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE");
+            break;
+#endif
+
+
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT
+        case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT");
+            break;
+#endif
+
+
+#ifdef GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS
+        case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
+            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS, "GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
+            break;
+#endif
+
+        default:
+            assert(0);
+            break;
+    }
+}
 
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
         if (status != GL_FRAMEBUFFER_COMPLETE) \
         { \
-            switch (status) \
-            { \
-                case GL_FRAMEBUFFER_UNDEFINED: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED"); \
-                    break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"); \
-                    break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"); \
-                    break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER"); \
-                    break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER"); \
-                    break; \
-                case GL_FRAMEBUFFER_UNSUPPORTED: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED"); \
-                    break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE"); \
-                    break; \
-                case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT: \
-                    dmLogError("gl error %d: %s\n", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT"); \
-                    break; \
-            } \
-            assert(0); \
+            LogFrameBufferError(status);\
         } \
     } \
 
@@ -230,7 +290,6 @@ namespace dmGraphics
         GET_PROC_ADDRESS(glDeleteBuffersARB, PFNGLDELETEBUFFERSPROC);
         GET_PROC_ADDRESS(glBindBufferARB, PFNGLBINDBUFFERPROC);
         GET_PROC_ADDRESS(glBufferDataARB, PFNGLBUFFERDATAPROC);
-        GET_PROC_ADDRESS(glDrawRangeElements, PFNGLDRAWRANGEELEMENTSPROC);
         GET_PROC_ADDRESS(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC);
         GET_PROC_ADDRESS(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC);
         GET_PROC_ADDRESS(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC);
@@ -651,26 +710,16 @@ namespace dmGraphics
         CHECK_GL_ERROR
     }
 
-    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
-    {
-        assert(context);
-        assert(index_buffer);
-        DM_PROFILE(Graphics, "DrawRangeElements");
-
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
-        CHECK_GL_ERROR
-
-        glDrawRangeElements(prim_type, start, start + count, count * 3, type, 0);
-        CHECK_GL_ERROR
-    }
-
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
 
-        glDrawElements(prim_type, count, type, index_buffer);
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+        CHECK_GL_ERROR
+
+        glDrawElements(prim_type, count, type, 0);
         CHECK_GL_ERROR
     }
 
@@ -798,7 +847,7 @@ namespace dmGraphics
     void DeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        glDeleteProgramsARB(1, &program);
+        glDeleteShader(program);
         CHECK_GL_ERROR
     }
 
@@ -929,10 +978,15 @@ namespace dmGraphics
         // Disable color buffer
         if ((buffer_type_flags & BUFFER_TYPE_COLOR_BIT) == 0)
         {
+#ifndef GL_ES_VERSION_2_0
+            // TODO: Not available in OpenGL ES.
+            // According to this thread it should not be required but honestly I don't quite understand
+            // https://devforums.apple.com/message/495216#495216
             glDrawBuffer(GL_NONE);
             CHECK_GL_ERROR
             glReadBuffer(GL_NONE);
             CHECK_GL_ERROR
+#endif
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1020,8 +1074,10 @@ namespace dmGraphics
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
 
+#ifndef GL_ES_VERSION_2_0
         glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE );
         CHECK_GL_ERROR
+#endif
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
         CHECK_GL_ERROR
@@ -1043,16 +1099,18 @@ namespace dmGraphics
         {
         case TEXTURE_FORMAT_LUMINANCE:
             gl_format = GL_LUMINANCE;
-            internal_format = 1;
+            internal_format = GL_LUMINANCE;
             break;
         case TEXTURE_FORMAT_RGB:
             gl_format = GL_RGB;
-            internal_format = 3;
+            internal_format = GL_RGB;
             break;
         case TEXTURE_FORMAT_RGBA:
             gl_format = GL_RGBA;
-            internal_format = 4;
+            internal_format = GL_RGBA;
             break;
+
+#ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
         case TEXTURE_FORMAT_RGB_DXT1:
             gl_format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
             break;
@@ -1066,6 +1124,7 @@ namespace dmGraphics
             gl_format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
             CHECK_GL_ERROR
             break;
+#endif
         case TEXTURE_FORMAT_DEPTH:
             gl_format = GL_DEPTH_COMPONENT;
             internal_format = GL_DEPTH_COMPONENT;
@@ -1112,8 +1171,10 @@ namespace dmGraphics
         assert(context);
         assert(texture);
 
+#ifndef GL_ES_VERSION_2_0
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
+#endif
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
@@ -1125,8 +1186,10 @@ namespace dmGraphics
     {
         assert(context);
 
+#ifndef GL_ES_VERSION_2_0
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
+#endif
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR

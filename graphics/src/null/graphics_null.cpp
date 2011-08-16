@@ -362,8 +362,9 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
-    static uint32_t GetIndex(Type type, const void* index_buffer, uint32_t index)
+    static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
     {
+        const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
         uint32_t result = ~0;
         switch (type)
         {
@@ -395,7 +396,7 @@ namespace dmGraphics
         return result;
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -417,11 +418,6 @@ namespace dmGraphics
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
         }
-    }
-
-    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
-    {
-        assert(context);
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
