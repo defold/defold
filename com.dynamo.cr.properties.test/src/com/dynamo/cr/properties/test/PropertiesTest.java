@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.vecmath.Vector4d;
+import javax.vecmath.Quat4d;
 
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.ui.views.properties.IPropertySource;
@@ -18,6 +19,7 @@ import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.cr.properties.Vector4dEmbeddedSource;
+import com.dynamo.cr.properties.Quat4dEmbeddedSource;
 import com.dynamo.cr.properties.proto.PropertiesTestProto;
 
 public class PropertiesTest {
@@ -71,6 +73,9 @@ public class PropertiesTest {
 
         @Property(embeddedSource = Vector4dEmbeddedSource.class, commandFactory = TestCommandFactory.class)
         Vector4d vector4ValueEmbedded = new Vector4d(10, 20, 30, 40);
+
+        @Property(embeddedSource = Quat4dEmbeddedSource.class, commandFactory = TestCommandFactory.class)
+        Quat4d quat4ValueEmbedded = new Quat4d(0, 0, 0, 1);
 
         @Property(commandFactory = TestCommandFactory.class)
         PropertiesTestProto.EnumType enumValue = PropertiesTestProto.EnumType.VAL_B;
@@ -133,6 +138,10 @@ public class PropertiesTest {
         public void setVector4ValueEmbedded(Vector4d vector4ValueEmbedded) {
             this.vector4ValueEmbedded = vector4ValueEmbedded;
         }
+
+        public Quat4d getQuat4ValueEmbedded() {
+            return quat4ValueEmbedded;
+        }
     }
 
     private TestWorld world;
@@ -156,15 +165,23 @@ public class PropertiesTest {
         assertEquals(test.getVector4Value(), source.getPropertyValue("vector4Value"));
         assertEquals(test.getEnumValue(), source.getPropertyValue("enumValue"));
 
-
         // vector4ValueEmbedded has sub-properties due to embeddedSource = Vector4dEmbeddedSource.class
         // test sub-properties here.
-        IPropertySource embeddedSource = (IPropertySource)  source.getPropertyValue("vector4ValueEmbedded");
+        IPropertySource embeddedVecSource = (IPropertySource)  source.getPropertyValue("vector4ValueEmbedded");
         Vector4d v = test.getVector4ValueEmbedded();
-        assertEquals(v.getX(), embeddedSource.getPropertyValue("x"));
-        assertEquals(v.getY(), embeddedSource.getPropertyValue("y"));
-        assertEquals(v.getZ(), embeddedSource.getPropertyValue("z"));
-        assertEquals(v.getW(), embeddedSource.getPropertyValue("w"));
+        assertEquals(v.getX(), embeddedVecSource.getPropertyValue("x"));
+        assertEquals(v.getY(), embeddedVecSource.getPropertyValue("y"));
+        assertEquals(v.getZ(), embeddedVecSource.getPropertyValue("z"));
+        assertEquals(v.getW(), embeddedVecSource.getPropertyValue("w"));
+
+        // quat4ValueEmbedded has sub-properties due to embeddedSource = Quat4dEmbeddedSource.class
+        // test sub-properties here.
+        IPropertySource embeddedQuatSource = (IPropertySource)  source.getPropertyValue("quat4ValueEmbedded");
+        Quat4d q = test.getQuat4ValueEmbedded();
+        assertEquals(q.getX(), embeddedQuatSource.getPropertyValue("x"));
+        assertEquals(q.getY(), embeddedQuatSource.getPropertyValue("y"));
+        assertEquals(q.getZ(), embeddedQuatSource.getPropertyValue("z"));
+        assertEquals(q.getW(), embeddedQuatSource.getPropertyValue("w"));
     }
 
     void doTestSet(IPropertySource testSource, String property, Object newValue) {
