@@ -12,6 +12,7 @@ import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.properties.Quat4dEmbeddedSource;
 import com.dynamo.cr.properties.Vector4dEmbeddedSource;
 import com.dynamo.cr.scene.math.AABB;
 import com.dynamo.cr.scene.math.Transform;
@@ -33,7 +34,7 @@ public abstract class Node implements IAdaptable
     @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
     protected Vector4d localTranslation = new Vector4d();
 
-    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Vector4dEmbeddedSource.class)
+    @Property(commandFactory = UndoableCommandFactory.class, embeddedSource = Quat4dEmbeddedSource.class)
     protected Quat4d localRotation = new Quat4d();
 
     protected Node m_Parent;
