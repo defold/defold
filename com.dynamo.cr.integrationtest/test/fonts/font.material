@@ -3,7 +3,7 @@ tags: "text"
 vertex_program: "/fonts/font.vp"
 fragment_program: "/fonts/font.fp"
 vertex_constants {
-  register: 0
+  name: "view_proj"
   type: CONSTANT_TYPE_VIEWPROJ
   value {
     x: 0.0

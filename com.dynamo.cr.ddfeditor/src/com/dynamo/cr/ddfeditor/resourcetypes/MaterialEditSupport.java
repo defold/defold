@@ -17,7 +17,7 @@ public class MaterialEditSupport implements IResourceTypeEditSupport {
         if (descriptor.getFullName().equals(MaterialDesc.Constant.getDescriptor().getFullName())) {
             return MaterialDesc.Constant.newBuilder()
                     .setType(ConstantType.CONSTANT_TYPE_USER)
-                    .setRegister(64)
+                    .setName("constant_name")
                     .setValue(Vector4.newBuilder().build()).build();
         }
         return null;
