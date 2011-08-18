@@ -28,9 +28,9 @@ namespace dmGameSystem
     struct GuiWorld;
     struct GuiRenderNode
     {
-        dmGui::Node m_GuiNode;
+        dmGui::HNode m_GuiNode;
         GuiWorld*   m_GuiWorld;
-        GuiRenderNode(const dmGui::Node& node, GuiWorld* gui_world) : m_GuiNode(node), m_GuiWorld(gui_world) {}
+        GuiRenderNode(dmGui::HNode node, GuiWorld* gui_world) : m_GuiNode(node), m_GuiWorld(gui_world) {}
     };
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -280,33 +280,31 @@ namespace dmGameSystem
 
     static dmhash_t DIFFUSE_COLOR_HASH = dmHashString64("diffuse_color");
 
-    void RenderNode(dmGui::HScene scene,
-                    const dmGui::Node* nodes,
+    void RenderNodes(dmGui::HScene scene,
+                    dmGui::HNode* nodes,
+                    const Matrix4* node_transforms,
                     uint32_t node_count,
                     void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
-        if (gui_world->m_GuiRenderObjects.Remaining() < node_count)
+        uint32_t remaining = gui_world->m_GuiRenderObjects.Remaining();
+        if (remaining < node_count)
         {
-            uint32_t extra = node_count - gui_world->m_GuiRenderObjects.Remaining() + 64;
+            uint32_t extra = node_count - remaining + 64;
             gui_world->m_GuiRenderObjects.OffsetCapacity(extra);
         }
 
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            const dmGui::Node* n = &nodes[i];
-            Vector4 position = n->m_Properties[dmGui::PROPERTY_POSITION];
-            const Vector4& rotation = n->m_Properties[dmGui::PROPERTY_ROTATION];
-            const Vector4& size = n->m_Properties[dmGui::PROPERTY_SIZE];
-            const Vector4& scale = n->m_Properties[dmGui::PROPERTY_SCALE];
-            const Vector4& color = n->m_Properties[dmGui::PROPERTY_COLOR];
-            const dmGui::Pivot pivot = (dmGui::Pivot) n->m_Pivot;
+            dmGui::HNode node = nodes[i];
+
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             dmRender::RenderObject ro;
 
-            dmGui::BlendMode blend_mode = (dmGui::BlendMode) n->m_BlendMode;
+            dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             switch (blend_mode)
             {
                 case dmGui::BLEND_MODE_ALPHA:
@@ -344,129 +342,29 @@ namespace dmGameSystem
             ro.m_Material = gui_world->m_Material;
 
             // Set default texture
-            if (n->m_Texture)
-                ro.m_Textures[0] = (dmGraphics::HTexture) n->m_Texture;
+            void* texture = dmGui::GetNodeTexture(scene, node);
+            if (texture)
+                ro.m_Textures[0] = (dmGraphics::HTexture) texture;
             else
                 ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-            float dx = 0;
-            float dy = 0;
-            if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
+            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_BOX)
             {
-                switch (pivot)
-                {
-                    case dmGui::PIVOT_CENTER:
-                    case dmGui::PIVOT_S:
-                    case dmGui::PIVOT_N:
-                        dx = size.getX() * 0.5;
-                        break;
-
-                    case dmGui::PIVOT_NE:
-                    case dmGui::PIVOT_E:
-                    case dmGui::PIVOT_SE:
-                        dx = size.getX();
-                        break;
-
-                    case dmGui::PIVOT_SW:
-                    case dmGui::PIVOT_W:
-                    case dmGui::PIVOT_NW:
-                        break;
-                }
-
-                switch (pivot) {
-                    case dmGui::PIVOT_CENTER:
-                    case dmGui::PIVOT_E:
-                    case dmGui::PIVOT_W:
-                        dy = size.getY() * 0.5;
-                        break;
-
-                    case dmGui::PIVOT_N:
-                    case dmGui::PIVOT_NE:
-                    case dmGui::PIVOT_NW:
-                        dy = size.getY();
-                        break;
-
-                    case dmGui::PIVOT_S:
-                    case dmGui::PIVOT_SW:
-                    case dmGui::PIVOT_SE:
-                        break;
-                }
-            }
-            else if (n->m_NodeType == dmGui::NODE_TYPE_TEXT)
-            {
-                dmRender::TextMetrics metrics;
-                dmRender::GetTextMetrics((dmRender::HFontMap) n->m_Font, n->m_Text, &metrics);
-
-                switch (pivot)
-                {
-                    case dmGui::PIVOT_CENTER:
-                    case dmGui::PIVOT_S:
-                    case dmGui::PIVOT_N:
-                        dx = metrics.m_Width * 0.5;
-                        break;
-
-                    case dmGui::PIVOT_NE:
-                    case dmGui::PIVOT_E:
-                    case dmGui::PIVOT_SE:
-                        dx = metrics.m_Width;
-                        break;
-
-                    case dmGui::PIVOT_SW:
-                    case dmGui::PIVOT_W:
-                    case dmGui::PIVOT_NW:
-                        break;
-                }
-
-                switch (pivot) {
-                    case dmGui::PIVOT_CENTER:
-                    case dmGui::PIVOT_E:
-                    case dmGui::PIVOT_W:
-                        dy = -metrics.m_MaxDescent * 0.5 + metrics.m_MaxAscent * 0.5;
-                        break;
-
-                    case dmGui::PIVOT_N:
-                    case dmGui::PIVOT_NE:
-                    case dmGui::PIVOT_NW:
-                        dy = metrics.m_MaxAscent;
-                        break;
-
-                    case dmGui::PIVOT_S:
-                    case dmGui::PIVOT_SW:
-                    case dmGui::PIVOT_SE:
-                        dy = -metrics.m_MaxDescent;
-                        break;
-                }
-
-            }
-            Vector4 delta_pivot = Vector4(dx, dy, 0, 0);
-            position -= delta_pivot;
-
-            const float deg_to_rad = 3.1415926f / 180.0f;
-            Matrix4 m = Matrix4::translation(delta_pivot.getXYZ()) *
-                        Matrix4::translation(position.getXYZ()) *
-                        Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
-                        Matrix4::rotationY(rotation.getY() * deg_to_rad) *
-                        Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                        Matrix4::scale(scale.getXYZ()) *
-                        Matrix4::translation(-delta_pivot.getXYZ());
-            if (n->m_NodeType == dmGui::NODE_TYPE_BOX)
-            {
-                m *= Matrix4::scale(Vector3(size.getX(), size.getY(), 1));
-                ro.m_WorldTransform = m;
+                ro.m_WorldTransform = node_transforms[i];
                 ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
                 dmRender::EnableRenderObjectConstant(&ro, DIFFUSE_COLOR_HASH, color);
                 gui_world->m_GuiRenderObjects.Push(ro);
 
                 dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);
             }
-            else if (n->m_NodeType == dmGui::NODE_TYPE_TEXT)
+            else if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT)
             {
                 dmRender::DrawTextParams params;
                 params.m_FaceColor = color;
-                params.m_Text = n->m_Text;
-                params.m_WorldTransform = m;
+                params.m_Text = dmGui::GetNodeText(scene, node);
+                params.m_WorldTransform = node_transforms[i];
                 params.m_Depth = gui_context->m_NextZ;
-                dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) n->m_Font, params);
+                dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
             }
             gui_context->m_NextZ++;
         }
@@ -494,7 +392,7 @@ namespace dmGameSystem
         {
             Component* c = gui_world->m_Components[i];
             if (c->m_Enabled)
-                dmGui::RenderScene(c->m_Scene, &RenderNode, &render_gui_context);
+                dmGui::RenderScene(c->m_Scene, &RenderNodes, &render_gui_context);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -607,5 +505,14 @@ namespace dmGameSystem
         {
             return dmGameObject::GetIdentifier(component->m_Instance);
         }
+    }
+
+    void GuiGetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetrics* out_metrics)
+    {
+        dmRender::TextMetrics metrics;
+        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, &metrics);
+        out_metrics->m_Width = metrics.m_Width;
+        out_metrics->m_MaxAscent = metrics.m_MaxAscent;
+        out_metrics->m_MaxDescent = metrics.m_MaxDescent;
     }
 }

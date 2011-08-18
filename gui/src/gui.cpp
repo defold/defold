@@ -1,6 +1,7 @@
 #include "gui.h"
 
 #include <string.h>
+
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/index_pool.h>
@@ -34,6 +35,11 @@ namespace dmGui
             m_FunctionReferences[i] = LUA_NOREF;
     }
 
+    TextMetrics::TextMetrics()
+    {
+        memset(this, 0, sizeof(TextMetrics));
+    }
+
     InternalNode* GetNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
@@ -51,6 +57,7 @@ namespace dmGui
         context->m_GetURLCallback = params->m_GetURLCallback;
         context->m_GetUserDataCallback = params->m_GetUserDataCallback;
         context->m_ResolvePathCallback = params->m_ResolvePathCallback;
+        context->m_GetTextMetricsCallback = params->m_GetTextMetricsCallback;
 
         return context;
     }
@@ -219,36 +226,30 @@ namespace dmGui
         }
     }
 
-    void RenderScene(HScene scene, RenderNode render_node, void* context)
+    HNode GetNodeHandle(InternalNode* node)
+    {
+        return ((uint32_t) node->m_Version) << 16 | node->m_Index;
+    }
+
+    Vector4 CalculateReferenceScale(HScene scene)
     {
         // NOTE: Currently width is the reference for scale factor
         float scale_factor = (float) scene->m_PhysicalWidth / (float) scene->m_ReferenceWidth;
+        return Vector4(scale_factor, scale_factor, 1, 1);
+    }
 
-        Vector4 scale(scale_factor, scale_factor, 1, 1);
-
+    void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
+    {
+        Vector4 scale = CalculateReferenceScale(scene);
+        Matrix4 node_transform;
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
             if (n->m_Index != 0xffff)
             {
-                Vector4 saved_position = n->m_Node.m_Properties[PROPERTY_POSITION];
-                Vector4 scaled_position = mulPerElem(saved_position, scale);
-
-                if (n->m_Node.m_XAnchor == XANCHOR_RIGHT)
-                {
-                    float distance = (scene->m_ReferenceWidth - saved_position.getX()) * scale_factor;
-                    scaled_position.setX(scene->m_PhysicalWidth - distance);
-                }
-
-                if (n->m_Node.m_YAnchor == YANCHOR_BOTTOM)
-                {
-                    float distance = (scene->m_ReferenceHeight - saved_position.getY()) * scale_factor;
-                    scaled_position.setY(scene->m_PhysicalHeight - distance);
-                }
-
-                n->m_Node.m_Properties[PROPERTY_POSITION] = scaled_position;
-                render_node(scene, &n->m_Node, 1, context);
-                n->m_Node.m_Properties[PROPERTY_POSITION] = saved_position;
+                CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
+                HNode node = GetNodeHandle(n);
+                render_nodes(scene, &node, &node_transform, 1, context);
             }
         }
     }
@@ -493,9 +494,7 @@ namespace dmGui
             InternalNode* node = &scene->m_Nodes[i];
             if (node->m_Deleted)
             {
-                uint16_t index = node->m_Index;
-                uint16_t version = node->m_Version;
-                HNode hnode = ((uint32_t) version) << 16 | index;
+                HNode hnode = GetNodeHandle(node);
                 DeleteNode(scene, hnode);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
             }
@@ -668,6 +667,12 @@ namespace dmGui
         scene->m_Animations.SetSize(0);
     }
 
+    NodeType GetNodeType(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return (NodeType)n->m_Node.m_NodeType;
+    }
+
     Point3 GetNodePosition(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -694,6 +699,12 @@ namespace dmGui
         n->m_Node.m_Properties[property] = value;
     }
 
+    const char* GetNodeText(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Text;
+    }
+
     void SetNodeText(HScene scene, HNode node, const char* text)
     {
         InternalNode* n = GetNode(scene, node);
@@ -704,6 +715,12 @@ namespace dmGui
             n->m_Node.m_Text = strdup(text);
         else
             n->m_Node.m_Text = 0;
+    }
+
+    void* GetNodeTexture(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Texture;
     }
 
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_name)
@@ -723,6 +740,12 @@ namespace dmGui
         }
     }
 
+    void* GetNodeFont(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Font;
+    }
+
     Result SetNodeFont(HScene scene, HNode node, const char* font_name)
     {
         uint64_t font_hash = dmHashString64(font_name);
@@ -738,6 +761,12 @@ namespace dmGui
         {
             return RESULT_RESOURCE_NOT_FOUND;
         }
+    }
+
+    BlendMode GetNodeBlendMode(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return (BlendMode)n->m_Node.m_BlendMode;
     }
 
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode)
@@ -900,6 +929,135 @@ namespace dmGui
                 anim->m_Cancelled = 1;
                 return;
             }
+        }
+    }
+
+    bool PickNode(HScene scene, HNode node, int32_t x, int32_t y)
+    {
+        Vector4 scale = CalculateReferenceScale(scene);
+        Matrix4 transform;
+        const Node& n = GetNode(scene, node)->m_Node;
+        CalculateNodeTransform(scene, n, scale, true, &transform);
+        transform = inverse(transform);
+        Vector4 screen_pos(x, y, 0.0f, 1.0f);
+        Vector4 node_pos = transform * screen_pos;
+        const float EPSILON = 0.0001f;
+        // check if we need to project the local position to the node plane
+        if (dmMath::Abs(node_pos.getZ()) > EPSILON)
+        {
+            Vector4 ray_dir = transform.getCol2();
+            // falsify if node is almost orthogonal to the screen plane, impossible to pick
+            if (dmMath::Abs(ray_dir.getZ()) < 0.0001f)
+            {
+                return false;
+            }
+            node_pos -= ray_dir * (node_pos.getZ() / ray_dir.getZ());
+        }
+        return node_pos.getX() >= 0.0f
+                && node_pos.getX() <= 1.0f
+                && node_pos.getY() >= 0.0f
+                && node_pos.getY() <= 1.0f;
+    }
+
+    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform)
+    {
+        Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
+        const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
+        const Vector4& size = node.m_Properties[dmGui::PROPERTY_SIZE];
+        const Vector4& scale = node.m_Properties[dmGui::PROPERTY_SCALE];
+        const dmGui::Pivot pivot = (dmGui::Pivot) node.m_Pivot;
+
+        // Apply anchoring
+        Vector4 scaled_position = mulPerElem(position, reference_scale);
+        if (node.m_XAnchor == XANCHOR_RIGHT)
+        {
+            float distance = (scene->m_ReferenceWidth - position.getX()) * reference_scale.getX();
+            scaled_position.setX(scene->m_PhysicalWidth - distance);
+        }
+        if (node.m_YAnchor == YANCHOR_BOTTOM)
+        {
+            float distance = (scene->m_ReferenceHeight - position.getY()) * reference_scale.getY();
+            scaled_position.setY(scene->m_PhysicalHeight - distance);
+        }
+        position = scaled_position;
+
+
+        float dx = 0.0f;
+        float dy = 0.0f;
+        float width = size.getX();
+        float height = size.getY();
+        TextMetrics metrics;
+        if (node.m_NodeType == dmGui::NODE_TYPE_TEXT)
+        {
+            if (scene->m_Context->m_GetTextMetricsCallback != 0x0)
+            {
+                scene->m_Context->m_GetTextMetricsCallback(node.m_Font, node.m_Text, &metrics);
+            }
+            width = metrics.m_Width;
+            height = metrics.m_MaxAscent + metrics.m_MaxDescent;
+        }
+
+        switch (pivot)
+        {
+            case dmGui::PIVOT_CENTER:
+            case dmGui::PIVOT_S:
+            case dmGui::PIVOT_N:
+                dx = width * 0.5f;
+                break;
+
+            case dmGui::PIVOT_NE:
+            case dmGui::PIVOT_E:
+            case dmGui::PIVOT_SE:
+                dx = width;
+                break;
+
+            case dmGui::PIVOT_SW:
+            case dmGui::PIVOT_W:
+            case dmGui::PIVOT_NW:
+                break;
+        }
+        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
+        switch (pivot) {
+            case dmGui::PIVOT_CENTER:
+            case dmGui::PIVOT_E:
+            case dmGui::PIVOT_W:
+                if (render_text)
+                    dy = -metrics.m_MaxDescent * 0.5f + metrics.m_MaxAscent * 0.5f;
+                else
+                    dy = height * 0.5f;
+                break;
+
+            case dmGui::PIVOT_N:
+            case dmGui::PIVOT_NE:
+            case dmGui::PIVOT_NW:
+                if (render_text)
+                    dy = metrics.m_MaxAscent;
+                else
+                    dy = height;
+                break;
+
+            case dmGui::PIVOT_S:
+            case dmGui::PIVOT_SW:
+            case dmGui::PIVOT_SE:
+                if (render_text)
+                    dy = -metrics.m_MaxDescent;
+                break;
+        }
+
+        Vector4 delta_pivot = Vector4(dx, dy, 0, 0);
+        position -= delta_pivot;
+
+        const float deg_to_rad = 3.1415926f / 180.0f;
+        *out_transform = Matrix4::translation(delta_pivot.getXYZ()) *
+                    Matrix4::translation(position.getXYZ()) *
+                    Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
+                    Matrix4::rotationY(rotation.getY() * deg_to_rad) *
+                    Matrix4::rotationX(rotation.getX() * deg_to_rad) *
+                    Matrix4::scale(scale.getXYZ()) *
+                    Matrix4::translation(-delta_pivot.getXYZ());
+        if (!render_text)
+        {
+            *out_transform *= Matrix4::scale(Vector3(width, height, 1));
         }
     }
 

@@ -307,9 +307,9 @@ namespace dmEngine
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
+        gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
-
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(config, "physics.type", "3D");

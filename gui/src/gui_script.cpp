@@ -671,6 +671,45 @@ namespace dmGui
         return 0;
     }
 
+    /*# sets the pivot of a node
+     * The pivot specifies how the node is drawn and rotated from its position.
+     *
+     * @name gui.set_pivot
+     * @param node node to set pivot for (node)
+     * @param pivot pivot constant (constant)
+     * <ul>
+     *   <li><code>gui.PIVOT_CENTER</code></lid>
+     *   <li><code>gui.PIVOT_N</code></lid>
+     *   <li><code>gui.PIVOT_NE</code></lid>
+     *   <li><code>gui.PIVOT_E</code></lid>
+     *   <li><code>gui.PIVOT_SE</code></lid>
+     *   <li><code>gui.PIVOT_S</code></lid>
+     *   <li><code>gui.PIVOT_SW</code></lid>
+     *   <li><code>gui.PIVOT_W</code></lid>
+     *   <li><code>gui.PIVOT_NW</code></lid>
+     * </ul>
+     */
+    static int LuaSetPivot(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int pivot = luaL_checknumber(L, 2);
+        if (pivot < PIVOT_CENTER || pivot > PIVOT_NW)
+        {
+            luaL_error(L, "Invalid pivot: %d", pivot);
+        }
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        SetNodePivot(scene, hnode, (Pivot) pivot);
+
+        return 0;
+    }
+
     /*# gets the scene width
      *
      * @name gui.get_width
@@ -694,6 +733,27 @@ namespace dmGui
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*)lua_touserdata(L, -1);
         lua_pushnumber(L, scene->m_ReferenceHeight);
+        return 1;
+    }
+
+    /*# determines if the node is pickable by the supplied coordinates
+     *
+     * @param node node to be tested for picking (node)
+     * @param x x-coordinate in screen-space
+     * @param y y-coordinate in screen-space
+     */
+    static int LuaPickNode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int32_t x = luaL_checknumber(L, 2);
+        int32_t y = luaL_checknumber(L, 3);
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*)lua_touserdata(L, -1);
+
+        lua_pushboolean(L, PickNode(scene, hnode, x, y));
         return 1;
     }
 
@@ -820,8 +880,10 @@ namespace dmGui
         {"set_font",        LuaSetFont},
         {"set_xanchor",     LuaSetXAnchor},
         {"set_yanchor",     LuaSetYAnchor},
+        {"set_pivot",       LuaSetPivot},
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
+        {"pick_node",       LuaPickNode},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -934,6 +996,52 @@ namespace dmGui
      * @variable
      */
 
+    /*# center pivor
+     *
+     * @name gui.PIVOT_CENTER
+     * @variable
+     */
+    /*# north pivot
+     *
+     * @name gui.PIVOT_N
+     * @variable
+     */
+    /*# north-east pivot
+     *
+     * @name gui.PIVOT_NE
+     * @variable
+     */
+    /*# east pivot
+     *
+     * @name gui.PIVOT_E
+     * @variable
+     */
+    /*# south-east pivot
+     *
+     * @name gui.PIVOT_SE
+     * @variable
+     */
+    /*# south pivot
+     *
+     * @name gui.PIVOT_S
+     * @variable
+     */
+    /*# south-west pivot
+     *
+     * @name gui.PIVOT_SW
+     * @variable
+     */
+    /*# west pivot
+     *
+     * @name gui.PIVOT_W
+     * @variable
+     */
+    /*# north-west pivot
+     *
+     * @name gui.PIVOT_NW
+     * @variable
+     */
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = lua_open();
@@ -1003,6 +1111,22 @@ namespace dmGui
         lua_setfield(L, -2, "ANCHOR_TOP");
         lua_pushnumber(L, (lua_Number) YANCHOR_BOTTOM);
         lua_setfield(L, -2, "ANCHOR_BOTTOM");
+
+#define SETPIVOT(name) \
+        lua_pushnumber(L, (lua_Number) PIVOT_##name); \
+        lua_setfield(L, -2, "PIVOT_"#name);\
+
+        SETPIVOT(CENTER)
+        SETPIVOT(N)
+        SETPIVOT(NE)
+        SETPIVOT(E)
+        SETPIVOT(SE)
+        SETPIVOT(S)
+        SETPIVOT(SW)
+        SETPIVOT(W)
+        SETPIVOT(NW)
+
+#undef SETPIVOT
 
         lua_pop(L, 1);
 
