@@ -70,6 +70,9 @@ public class EmbeddedPropertySourceProxy<T, U extends IPropertyObjectWorld, V> i
     @SuppressWarnings("unchecked")
     @Override
     public void setPropertyValue(Object id, Object value) {
+        if (value == null)
+            return;
+
         try {
             Object oldValue = this.accessor.getValue(parent, property, world);
             Object newValue = this.accessor.getValue(parent, property, world);

@@ -17,7 +17,13 @@ class IntegerCellEditor extends TextCellEditor {
 
     @Override
     protected Object doGetValue() {
+        // TODO: Tried validator but without luck
+        // Null value is handled in EmbeddedPropertySourceProxy#setPropertyValue
         String textValue = (String) super.doGetValue();
-        return Integer.parseInt(textValue);
+        try {
+            return Integer.parseInt(textValue);
+        } catch (Throwable e) {
+            return null;
+        }
     }
 }

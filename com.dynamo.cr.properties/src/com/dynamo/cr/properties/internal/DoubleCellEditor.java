@@ -17,7 +17,13 @@ public class DoubleCellEditor extends TextCellEditor {
 
     @Override
     protected Object doGetValue() {
+        // TODO: Tried validator but without luck
+        // Null value is handled in EmbeddedPropertySourceProxy#setPropertyValue
         String textValue = (String) super.doGetValue();
-        return Double.parseDouble(textValue);
+        try {
+            return Double.parseDouble(textValue);
+        } catch (Throwable e) {
+            return null;
+        }
     }
 }
