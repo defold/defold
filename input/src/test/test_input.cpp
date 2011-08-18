@@ -4,6 +4,7 @@
 
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 
 #include <ddf/ddf.h>
 
@@ -109,6 +110,12 @@ TEST_F(InputTest, Keyboard)
     dmInput::DeleteBinding(binding);
 }
 
+void MouseCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+{
+    dmHashTable64<dmInput::Action*>* actions = (dmHashTable64<dmInput::Action*>*)user_data;
+    actions->Put(action_id, action);
+}
+
 TEST_F(InputTest, Mouse)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -144,32 +151,84 @@ TEST_F(InputTest, Mouse)
     ASSERT_FALSE(dmInput::Pressed(binding, mouse_click_id));
     ASSERT_FALSE(dmInput::Released(binding, mouse_click_id));
 
-    // Mouse movement
+    // Action with mouse movement
 
-    const dmInput::Action* action = dmInput::GetAction(binding, mouse_click_id);
+    const dmInput::Action* click_action = dmInput::GetAction(binding, mouse_click_id);
 
-    ASSERT_EQ(0, action->m_X);
-    ASSERT_EQ(0, action->m_Y);
-    ASSERT_EQ(0, action->m_DX);
-    ASSERT_EQ(0, action->m_DY);
+    ASSERT_EQ(0, click_action->m_X);
+    ASSERT_EQ(0, click_action->m_Y);
+    ASSERT_EQ(0, click_action->m_DX);
+    ASSERT_EQ(0, click_action->m_DY);
+    ASSERT_EQ(1, click_action->m_PositionSet);
 
     dmHID::SetMousePosition(0, 1);
     dmHID::Update();
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(0, action->m_X);
-    ASSERT_EQ(1, action->m_Y);
-    ASSERT_EQ(0, action->m_DX);
-    ASSERT_EQ(1, action->m_DY);
+    ASSERT_EQ(0, click_action->m_X);
+    ASSERT_EQ(1, click_action->m_Y);
+    ASSERT_EQ(0, click_action->m_DX);
+    ASSERT_EQ(1, click_action->m_DY);
 
     dmHID::SetMousePosition(0, -1);
     dmHID::Update();
     dmInput::UpdateBinding(binding, m_DT);
 
-    ASSERT_EQ(0, action->m_X);
-    ASSERT_EQ(-1, action->m_Y);
-    ASSERT_EQ(0, action->m_DX);
-    ASSERT_EQ(-2, action->m_DY);
+    ASSERT_EQ(0, click_action->m_X);
+    ASSERT_EQ(-1, click_action->m_Y);
+    ASSERT_EQ(0, click_action->m_DX);
+    ASSERT_EQ(-2, click_action->m_DY);
+
+    // Mouse movement
+
+    dmHashTable64<dmInput::Action*> actions;
+    actions.SetCapacity(32, 64);
+
+    dmHID::SetMouseButton(dmHID::MOUSE_BUTTON_LEFT, false);
+    dmHID::SetMousePosition(0, 0);
+    dmHID::Update();
+    dmInput::UpdateBinding(binding, m_DT);
+    // make mouse movement come to a rest => no mouse movement
+    dmInput::UpdateBinding(binding, m_DT);
+    dmInput::ForEachActive(binding, MouseCallback, (void*)&actions);
+
+    dmInput::Action** move_action = actions.Get(0);
+    ASSERT_EQ((void*)0, (void*)move_action);
+
+    dmHID::SetMousePosition(1, 0);
+    dmHID::Update();
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.Clear();
+    dmInput::ForEachActive(binding, MouseCallback, (void*)&actions);
+
+    move_action = actions.Get(0);
+    ASSERT_NE((void*)0, (void*)move_action);
+
+    ASSERT_EQ(1, (*move_action)->m_X);
+    ASSERT_EQ(0, (*move_action)->m_Y);
+    ASSERT_EQ(1, (*move_action)->m_DX);
+    ASSERT_EQ(0, (*move_action)->m_DY);
+    ASSERT_EQ(1, (*move_action)->m_PositionSet);
+
+    dmHID::SetMousePosition(0, 0);
+    dmHID::Update();
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.Clear();
+    dmInput::ForEachActive(binding, MouseCallback, (void*)&actions);
+    move_action = actions.Get(0);
+
+    ASSERT_EQ(0, (*move_action)->m_X);
+    ASSERT_EQ(0, (*move_action)->m_Y);
+    ASSERT_EQ(-1, (*move_action)->m_DX);
+    ASSERT_EQ(0, (*move_action)->m_DY);
+
+    dmHID::Update();
+    dmInput::UpdateBinding(binding, m_DT);
+    actions.Clear();
+    dmInput::ForEachActive(binding, MouseCallback, (void*)&actions);
+    move_action = actions.Get(0);
+
+    ASSERT_EQ((void*)0, (void*)move_action);
 
     dmInput::DeleteBinding(binding);
 }

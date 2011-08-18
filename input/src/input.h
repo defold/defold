@@ -21,6 +21,7 @@ namespace dmInput
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
+        uint32_t m_PositionSet : 1;
     };
 
     typedef struct Context* HContext;

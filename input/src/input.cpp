@@ -111,6 +111,8 @@ namespace dmInput
                 binding->m_MouseBinding->m_Triggers.Push(trigger);
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
+            // Mouse move action
+            binding->m_Actions.Put(0, action);
         }
         else if (binding->m_MouseBinding != 0x0)
         {
@@ -232,6 +234,7 @@ namespace dmInput
     {
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
+        action->m_PositionSet = 0;
     }
 
     struct UpdateContext
@@ -247,6 +250,7 @@ namespace dmInput
         int32_t m_Y;
         int32_t m_DX;
         int32_t m_DY;
+        uint32_t m_PositionSet : 1;
     };
 
     void UpdateAction(void* context, const dmhash_t* id, Action* action)
@@ -277,6 +281,7 @@ namespace dmInput
         action->m_Y = update_context->m_Y;
         action->m_DX = update_context->m_DX;
         action->m_DY = update_context->m_DY;
+        action->m_PositionSet = update_context->m_PositionSet;
     }
 
     void UpdateBinding(HBinding binding, float dt)
@@ -313,6 +318,7 @@ namespace dmInput
             context.m_Y = packet->m_PositionY;
             context.m_DX = packet->m_PositionX - prev_packet->m_PositionX;
             context.m_DY = packet->m_PositionY - prev_packet->m_PositionY;
+            context.m_PositionSet = 1;
             const dmArray<MouseTrigger>& triggers = binding->m_MouseBinding->m_Triggers;
             for (uint32_t i = 0; i < triggers.Size(); ++i)
             {
@@ -337,10 +343,6 @@ namespace dmInput
                     if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
                     {
                         action->m_Value = v;
-                        action->m_X = packet->m_PositionX;
-                        action->m_Y = packet->m_PositionY;
-                        action->m_DX = packet->m_PositionX - prev_packet->m_PositionX;
-                        action->m_DY = packet->m_PositionY - prev_packet->m_PositionY;
                     }
                 }
             }
