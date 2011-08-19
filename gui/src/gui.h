@@ -174,7 +174,7 @@ namespace dmGui
         /// Action id, hashed action name
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
-        float    m_Value;
+        float m_Value;
         /// Cursor X coordinate
         int32_t m_X;
         /// Cursor Y coordinate
@@ -184,11 +184,13 @@ namespace dmGui
         /// Cursor dy since last frame
         int32_t m_DY;
         /// If the input was 0 last update
-        uint16_t m_Pressed;
+        uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint16_t m_Released;
+        uint16_t m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint16_t m_Repeated;
+        uint16_t m_Repeated : 1;
+        /// If the position fields (m_X, m_Y, m_DX, m_DY) are set and valid to read
+        uint16_t m_PositionSet : 1;
     };
 
     typedef void (*RenderNodes)(HScene scene,

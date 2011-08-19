@@ -818,6 +818,52 @@ TEST_F(dmGuiTest, ScriptInputConsume)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ScriptInputMouseMovement)
+{
+    // No mouse
+    const char* s = "function on_input(self, action_id, action)\n"
+                    "   assert(action.x == nil)\n"
+                    "   assert(action.y == nil)\n"
+                    "   assert(action.dx == nil)\n"
+                    "   assert(action.dy == nil)\n"
+                    "end\n";
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::InputAction input_action;
+    memset(&input_action, 0, sizeof(input_action));
+    input_action.m_ActionId = dmHashString64("SPACE");
+    bool consumed;
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Mouse movement
+    s = "function on_input(self, action_id, action)\n"
+        "   assert(action_id == nil)\n"
+        "   assert(action.value == nil)\n"
+        "   assert(action.pressed == nil)\n"
+        "   assert(action.released == nil)\n"
+        "   assert(action.repeated == nil)\n"
+        "   assert(action.x == 1)\n"
+        "   assert(action.y == 2)\n"
+        "   assert(action.dx == 3)\n"
+        "   assert(action.dy == 4)\n"
+        "end\n";
+    input_action.m_ActionId = 0;
+    input_action.m_PositionSet = true;
+    input_action.m_X = 1;
+    input_action.m_Y = 2;
+    input_action.m_DX = 3;
+    input_action.m_DY = 4;
+
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
 struct TestMessage
 {
     dmhash_t m_ComponentId;
@@ -1481,11 +1527,9 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_NE(dmGui::RESULT_OK, r);
     dmGui::InputAction action;
+    memset(&action, 0, sizeof(dmGui::InputAction));
     action.m_ActionId = 1;
     action.m_Value = 1.0f;
-    action.m_Pressed = 0;
-    action.m_Released = 0;
-    action.m_Repeated = 0;
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &action, 1, &consumed);
     ASSERT_NE(dmGui::RESULT_OK, r);

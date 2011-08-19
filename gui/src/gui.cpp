@@ -389,41 +389,55 @@ namespace dmGui
                 {
                     InputArgs* input_args = (InputArgs*)args;
                     const InputAction* ia = input_args->m_Action;
-                    dmScript::PushHash(L, ia->m_ActionId);
+                    // 0 is reserved for mouse movement
+                    if (ia->m_ActionId != 0)
+                    {
+                        dmScript::PushHash(L, ia->m_ActionId);
+                    }
+                    else
+                    {
+                        lua_pushnil(L);
+                    }
 
                     lua_newtable(L);
 
-                    lua_pushstring(L, "value");
-                    lua_pushnumber(L, ia->m_Value);
-                    lua_rawset(L, -3);
+                    if (ia->m_ActionId != 0)
+                    {
+                        lua_pushstring(L, "value");
+                        lua_pushnumber(L, ia->m_Value);
+                        lua_rawset(L, -3);
 
-                    lua_pushstring(L, "pressed");
-                    lua_pushboolean(L, ia->m_Pressed);
-                    lua_rawset(L, -3);
+                        lua_pushstring(L, "pressed");
+                        lua_pushboolean(L, ia->m_Pressed);
+                        lua_rawset(L, -3);
 
-                    lua_pushstring(L, "released");
-                    lua_pushboolean(L, ia->m_Released);
-                    lua_rawset(L, -3);
+                        lua_pushstring(L, "released");
+                        lua_pushboolean(L, ia->m_Released);
+                        lua_rawset(L, -3);
 
-                    lua_pushstring(L, "repeated");
-                    lua_pushboolean(L, ia->m_Repeated);
-                    lua_rawset(L, -3);
+                        lua_pushstring(L, "repeated");
+                        lua_pushboolean(L, ia->m_Repeated);
+                        lua_rawset(L, -3);
+                    }
 
-                    lua_pushstring(L, "x");
-                    lua_pushboolean(L, ia->m_X);
-                    lua_rawset(L, -3);
+                    if (ia->m_PositionSet)
+                    {
+                        lua_pushstring(L, "x");
+                        lua_pushnumber(L, ia->m_X);
+                        lua_rawset(L, -3);
 
-                    lua_pushstring(L, "y");
-                    lua_pushboolean(L, ia->m_Y);
-                    lua_rawset(L, -3);
+                        lua_pushstring(L, "y");
+                        lua_pushnumber(L, ia->m_Y);
+                        lua_rawset(L, -3);
 
-                    lua_pushstring(L, "dx");
-                    lua_pushboolean(L, ia->m_DX);
-                    lua_rawset(L, -3);
+                        lua_pushstring(L, "dx");
+                        lua_pushnumber(L, ia->m_DX);
+                        lua_rawset(L, -3);
 
-                    lua_pushstring(L, "dy");
-                    lua_pushboolean(L, ia->m_DY);
-                    lua_rawset(L, -3);
+                        lua_pushstring(L, "dy");
+                        lua_pushnumber(L, ia->m_DY);
+                        lua_rawset(L, -3);
+                    }
 
                     arg_count += 2;
                 }
