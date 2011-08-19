@@ -738,6 +738,7 @@ namespace dmGui
 
     /*# determines if the node is pickable by the supplied coordinates
      *
+     * @name gui.pick_node
      * @param node node to be tested for picking (node)
      * @param x x-coordinate in screen-space
      * @param y y-coordinate in screen-space
