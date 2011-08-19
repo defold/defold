@@ -781,7 +781,6 @@ TEST_F(dmGuiTest, ScriptInput)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -808,7 +807,6 @@ TEST_F(dmGuiTest, ScriptInputConsume)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -832,7 +830,6 @@ TEST_F(dmGuiTest, ScriptInputMouseMovement)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -910,7 +907,6 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -1527,7 +1523,6 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_NE(dmGui::RESULT_OK, r);
     dmGui::InputAction action;
-    memset(&action, 0, sizeof(dmGui::InputAction));
     action.m_ActionId = 1;
     action.m_Value = 1.0f;
     bool consumed;

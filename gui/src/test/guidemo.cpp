@@ -88,7 +88,6 @@ uint32_t g_CurrentScene = 0;
 void OnKey(int key, int state)
 {
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
 
     switch (key)
     {

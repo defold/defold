@@ -171,6 +171,8 @@ namespace dmGui
      */
     struct InputAction
     {
+        InputAction();
+
         /// Action id, hashed action name
         dmhash_t m_ActionId;
         /// Value of the input [0,1]

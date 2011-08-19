@@ -428,6 +428,11 @@ bail:
         input_action.m_Pressed = action->m_Pressed;
         input_action.m_Released = action->m_Released;
         input_action.m_Repeated = action->m_Repeated;
+        input_action.m_PositionSet = action->m_PositionSet;
+        input_action.m_X = action->m_X;
+        input_action.m_Y = action->m_Y;
+        input_action.m_DX = action->m_DX;
+        input_action.m_DY = action->m_DY;
         input_buffer->Push(input_action);
     }
 

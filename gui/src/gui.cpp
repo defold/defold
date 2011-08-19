@@ -40,6 +40,11 @@ namespace dmGui
         memset(this, 0, sizeof(TextMetrics));
     }
 
+    InputAction::InputAction()
+    {
+        memset(this, 0, sizeof(InputAction));
+    }
+
     InternalNode* GetNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);

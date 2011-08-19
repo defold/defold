@@ -434,6 +434,7 @@ namespace dmGameSystem
             gui_input_action.m_Y = params.m_InputAction->m_Y;
             gui_input_action.m_DX = params.m_InputAction->m_DX;
             gui_input_action.m_DY = params.m_InputAction->m_DY;
+            gui_input_action.m_PositionSet = params.m_InputAction->m_PositionSet;
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1, &consumed);
             if (gui_result != dmGui::RESULT_OK)
