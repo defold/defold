@@ -159,7 +159,7 @@ TEST_F(InputTest, Mouse)
     ASSERT_EQ(0, click_action->m_Y);
     ASSERT_EQ(0, click_action->m_DX);
     ASSERT_EQ(0, click_action->m_DY);
-    ASSERT_EQ(1, click_action->m_PositionSet);
+    ASSERT_TRUE(click_action->m_PositionSet);
 
     dmHID::SetMousePosition(0, 1);
     dmHID::Update();
@@ -208,7 +208,7 @@ TEST_F(InputTest, Mouse)
     ASSERT_EQ(0, (*move_action)->m_Y);
     ASSERT_EQ(1, (*move_action)->m_DX);
     ASSERT_EQ(0, (*move_action)->m_DY);
-    ASSERT_EQ(1, (*move_action)->m_PositionSet);
+    ASSERT_TRUE((*move_action)->m_PositionSet);
 
     dmHID::SetMousePosition(0, 0);
     dmHID::Update();
