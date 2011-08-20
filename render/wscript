@@ -24,23 +24,13 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('compiler_cxx')
     conf.check_tool('java')
-    conf.check_tool('python')
-    conf.check_python_version((2,5))
-    conf.check_python_headers()
 
     waf_ddf.configure(conf)
     conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
 
     conf.sub_config('src')
 
-    if sys.platform == "darwin":
-        platform = "darwin"
-    elif sys.platform == "linux2":
-        platform = "linux"
-    elif sys.platform == "win32":
-        platform = "win32"
-    else:
-        conf.fatal("Unable to determine platform")
+    platform = conf.env['PLATFORM']
 
     if platform == "linux":
         conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
@@ -51,12 +41,13 @@ def configure(conf):
         else:
             ddf_search_lst = os.getenv('PYTHONPATH').split(':')
 
-
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon'])
-    if platform == "linux":
+    elif platform == "armv6-darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'IOKit'])
+    elif platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    if platform == "win32":
+    elif platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
 
 

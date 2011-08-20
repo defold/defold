@@ -302,6 +302,31 @@ namespace dmGraphics
         delete vertex_declaration;
     }
 
+    static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    {
+        assert(context);
+        assert(vertex_buffer);
+        VertexStream& s = context->m_VertexStreams[stream];
+        assert(s.m_Source == 0x0);
+        assert(s.m_Buffer == 0x0);
+        s.m_Source = vertex_buffer;
+        s.m_Size = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
+        s.m_Stride = stride;
+    }
+
+    static void DisableVertexStream(HContext context, uint16_t stream)
+    {
+        assert(context);
+        VertexStream& s = context->m_VertexStreams[stream];
+        s.m_Size = 0;
+        if (s.m_Buffer != 0x0)
+        {
+            delete [] (char*)s.m_Buffer;
+            s.m_Buffer = 0x0;
+        }
+        s.m_Source = 0x0;
+    }
+
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
@@ -337,34 +362,9 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
-
-    void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
+    static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
     {
-        assert(context);
-        assert(vertex_buffer);
-        VertexStream& s = context->m_VertexStreams[stream];
-        assert(s.m_Source == 0x0);
-        assert(s.m_Buffer == 0x0);
-        s.m_Source = vertex_buffer;
-        s.m_Size = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
-        s.m_Stride = stride;
-    }
-
-    void DisableVertexStream(HContext context, uint16_t stream)
-    {
-        assert(context);
-        VertexStream& s = context->m_VertexStreams[stream];
-        s.m_Size = 0;
-        if (s.m_Buffer != 0x0)
-        {
-            delete [] (char*)s.m_Buffer;
-            s.m_Buffer = 0x0;
-        }
-        s.m_Source = 0x0;
-    }
-
-    static uint32_t GetIndex(Type type, const void* index_buffer, uint32_t index)
-    {
+        const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
         uint32_t result = ~0;
         switch (type)
         {
@@ -396,7 +396,7 @@ namespace dmGraphics
         return result;
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, const void* index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -418,11 +418,6 @@ namespace dmGraphics
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
         }
-    }
-
-    void DrawRangeElements(HContext context, PrimitiveType prim_type, uint32_t start, uint32_t count, Type type, HIndexBuffer index_buffer)
-    {
-        assert(context);
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
