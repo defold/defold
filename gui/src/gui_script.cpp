@@ -1259,17 +1259,22 @@ namespace dmGui
      * See the documentation of that message for more information.
      * </p>
      * <p>
-     * The <code>action</code> parameter is a table containing data about the input, such as the id of the action it corresponds to.
+     * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
+     * For mapped actions it specifies the value of the input and if it was just pressed or released.
      * Actions are mapped to input in an input_binding-file.
+     * </p>
+     * <p>
+     * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
+     * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
      * </p>
      * Here is a brief description of the available table fields:
      * <table>
      *   <th>Field</th>
      *   <th>Description</th>
-     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs.</td></tr>
-     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true.</td></tr>
-     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true.</td></tr>
-     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down.</td></tr>
+     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
      *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
