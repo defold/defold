@@ -958,7 +958,8 @@ namespace dmGui
         const Node& n = GetNode(scene, node)->m_Node;
         CalculateNodeTransform(scene, n, scale, true, &transform);
         transform = inverse(transform);
-        Vector4 screen_pos(x, y, 0.0f, 1.0f);
+        // TODO: Temporarily adjusting from screen space to gui space, should be solved in a more robust way
+        Vector4 screen_pos(x, scene->m_PhysicalHeight - y, 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
         const float EPSILON = 0.0001f;
         // check if we need to project the local position to the node plane

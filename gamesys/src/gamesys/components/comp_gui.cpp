@@ -424,19 +424,20 @@ namespace dmGameSystem
 
         if (gui_component->m_Enabled)
         {
+            dmGui::HScene scene = gui_component->m_Scene;
             dmGui::InputAction gui_input_action;
             gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
             gui_input_action.m_Value = params.m_InputAction->m_Value;
             gui_input_action.m_Pressed = params.m_InputAction->m_Pressed;
             gui_input_action.m_Released = params.m_InputAction->m_Released;
             gui_input_action.m_Repeated = params.m_InputAction->m_Repeated;
+            gui_input_action.m_PositionSet = params.m_InputAction->m_PositionSet;
             gui_input_action.m_X = params.m_InputAction->m_X;
             gui_input_action.m_Y = params.m_InputAction->m_Y;
             gui_input_action.m_DX = params.m_InputAction->m_DX;
             gui_input_action.m_DY = params.m_InputAction->m_DY;
-            gui_input_action.m_PositionSet = params.m_InputAction->m_PositionSet;
             bool consumed;
-            dmGui::Result gui_result = dmGui::DispatchInput(gui_component->m_Scene, &gui_input_action, 1, &consumed);
+            dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
             if (gui_result != dmGui::RESULT_OK)
             {
                 return dmGameObject::INPUT_RESULT_UNKNOWN_ERROR;

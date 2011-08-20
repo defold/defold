@@ -1535,40 +1535,49 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
 
 TEST_F(dmGuiTest, Picking)
 {
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+
     Vector3 size(10, 10, 0);
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), size, dmGui::NODE_TYPE_BOX);
 
     Vector3 ext = size * 0.5f;
 
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, ext.getX(), 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, ext.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, ext.getX(), ext.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(ext.getX() + 0.5f), 0));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, physical_height));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, ext.getX(), physical_height));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, physical_height - ext.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, ext.getX(), physical_height - ext.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(ext.getX() + 0.5f), physical_height));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
     ext.setX(ext.getX() / sqrt(2.0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, floor(ext.getX()), 0));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(ext.getX() + 0.5f), 0));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, floor(ext.getX()), physical_height));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(ext.getX() + 0.5f), physical_height));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, 0));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, 1, 0));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, physical_height));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, 1, physical_height));
 }
 
 TEST_F(dmGuiTest, ScriptPicking)
 {
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+    dmGui::SetReferenceResolution(m_Scene, physical_width, physical_height);
+
     char buffer[512];
     const char* s = "function init(self)\n"
                     "    local id = \"node_1\"\n"
                     "    local n1 = gui.new_text_node(vmath.vector3(0, 0, 0), id)\n"
-                    "    assert(gui.pick_node(n1, 0, 0))\n"
+                    "    assert(gui.pick_node(n1, 0, gui.get_height()))\n"
                     "    local ext_x = 0.5 * string.len(id) * %.2f\n"
-                    "    local ext_y = 0.5 * %.2f + %.2f\n"
-                    "    assert(gui.pick_node(n1, ext_x, 0))\n"
-                    "    assert(gui.pick_node(n1, 0, ext_y))\n"
-                    "    assert(gui.pick_node(n1, ext_x, ext_y))\n"
-                    "    assert(not gui.pick_node(n1, ext_x + 1, ext_y))\n"
+                    "    local ext_y = 0.5 * (%.2f + %.2f)\n"
+                    "    assert(gui.pick_node(n1, ext_x, gui.get_height()))\n"
+                    "    assert(gui.pick_node(n1, 0, gui.get_height()+ext_y))\n"
+                    "    assert(gui.pick_node(n1, ext_x, gui.get_height()+ext_y))\n"
+                    "    assert(not gui.pick_node(n1, ext_x + 1, gui.get_height()+ext_y))\n"
                     "end\n";
     snprintf(buffer, 512, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;

@@ -253,6 +253,28 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# constructs a ray in world space from a position in screen space
+     *
+     * NOTE! Don't use this function, WIP!
+     *
+     * @name go.screen_ray
+     * @param x x-coordinate of the screen space position (number)
+     * @param y y-coordinate of the screen space position (number)
+     * @return position and direction of the ray in world space (vmath.vector3, vmath.vector3)
+     */
+    int Script_ScreenRay(lua_State* L)
+    {
+        lua_Number x = luaL_checknumber(L, 1);
+        lua_Number y = luaL_checknumber(L, 2);
+        // TODO: This temporarily assumes the worldspace is simply screen space, with the modification that y spans (0,height) instead of (height, 0)
+        // Should be fixed in a more robust way.
+        Vector3 p(x, 960 - y, 1.0f);
+        Vector3 d(0.0f, 0.0f, -1.0f);
+        dmScript::PushVector3(L, p);
+        dmScript::PushVector3(L, d);
+        return 2;
+    }
+
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -292,6 +314,7 @@ namespace dmGameObject
         {"get_world_rotation",  Script_GetWorldRotation},
         {"get_id",              Script_GetId},
         {"delete",              Script_Delete},
+        {"screen_ray",          Script_ScreenRay},
         {0, 0}
     };
 
