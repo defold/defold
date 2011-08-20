@@ -1579,7 +1579,7 @@ TEST_F(dmGuiTest, ScriptPicking)
                     "    assert(gui.pick_node(n1, ext_x, gui.get_height()+ext_y))\n"
                     "    assert(not gui.pick_node(n1, ext_x + 1, gui.get_height()+ext_y))\n"
                     "end\n";
-    snprintf(buffer, 512, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, buffer, strlen(buffer), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
