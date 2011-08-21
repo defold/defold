@@ -48,10 +48,10 @@ int32_t Run(Context* context)
 {
     while (true)
     {
-        dmHID::Update();
+        dmHID::Update(context->m_HidContext);
 
         dmHID::KeyboardPacket keybdata;
-        dmHID::GetKeyboardPacket(&keybdata);
+        dmHID::GetKeyboardPacket(context->m_HidContext, &keybdata);
         if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC))
             break;
 
@@ -116,7 +116,8 @@ bool Init(Context* context, int argc, char* argv[])
         context->m_ScreenWidth = window_params.m_Width;
         context->m_ScreenHeight = window_params.m_Height;
 
-        dmHID::Initialize();
+        context->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(context->m_HidContext);
 
         context->m_GraphicsContext = dmGraphics::NewContext();
 
@@ -171,7 +172,8 @@ bool Init(Context* context, int argc, char* argv[])
 
 void Finalize(Context* context)
 {
-    dmHID::Finalize();
+    dmHID::Final(context->m_HidContext);
+    dmHID::DeleteContext(context->m_HidContext);
 
     if (context->m_Factory)
     {

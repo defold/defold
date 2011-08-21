@@ -52,12 +52,26 @@ namespace dmInput
         uint8_t m_NoMapWarning : 1;
     };
 
+    struct TouchTrigger
+    {
+        dmInputDDF::Touch m_Input;
+        dmhash_t m_ActionId;
+    };
+
+    struct TouchDeviceBinding
+    {
+        dmHID::TouchDevicePacket m_PreviousPacket;
+        dmHID::TouchDevicePacket m_Packet;
+        dmArray<TouchTrigger> m_Triggers;
+    };
+
     struct Binding
     {
         Context* m_Context;
         KeyboardBinding* m_KeyboardBinding;
         MouseBinding* m_MouseBinding;
         GamepadBinding* m_GamepadBinding;
+        TouchDeviceBinding* m_TouchDeviceBinding;
         dmHashTable64< Action > m_Actions;
     };
 
@@ -80,6 +94,7 @@ namespace dmInput
     {
         dmIndexPool8 m_GamepadIndices;
         dmHashTable32< GamepadConfig > m_GamepadMaps;
+        dmHID::HContext m_HidContext;
         float m_RepeatDelay;
         float m_RepeatInterval;
     };

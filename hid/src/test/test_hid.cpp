@@ -7,31 +7,36 @@ class HIDTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        dmHID::Initialize();
+        m_Context = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(m_Context);
     }
 
     virtual void TearDown()
     {
-        dmHID::Finalize();
+        dmHID::Final(m_Context);
+        dmHID::DeleteContext(m_Context);
     }
+
+    dmHID::HContext m_Context;
 };
 
 TEST_F(HIDTest, Connectedness)
 {
-    dmHID::Update();
+    dmHID::Update(m_Context);
 
-    ASSERT_TRUE(dmHID::IsKeyboardConnected());
-    ASSERT_TRUE(dmHID::IsMouseConnected());
-    dmHID::HGamepad gamepad = dmHID::GetGamepad(0);
+    ASSERT_TRUE(dmHID::IsKeyboardConnected(m_Context));
+    ASSERT_TRUE(dmHID::IsMouseConnected(m_Context));
+    dmHID::HGamepad gamepad = dmHID::GetGamepad(m_Context, 0);
     ASSERT_TRUE(dmHID::IsGamepadConnected(gamepad));
+    ASSERT_TRUE(dmHID::IsTouchDeviceConnected(m_Context));
 }
 
 TEST_F(HIDTest, Keyboard)
 {
-    dmHID::Update();
+    dmHID::Update(m_Context);
     dmHID::KeyboardPacket packet;
 
-    ASSERT_TRUE(dmHID::GetKeyboardPacket(&packet));
+    ASSERT_TRUE(dmHID::GetKeyboardPacket(m_Context, &packet));
 
     // Assert init values
     for (uint32_t i = 0; i < dmHID::MAX_KEY_COUNT; ++i)
@@ -39,9 +44,9 @@ TEST_F(HIDTest, Keyboard)
 
     // Press keys
     for (uint32_t i = 0; i < dmHID::MAX_KEY_COUNT; ++i)
-        dmHID::SetKey((dmHID::Key)i, true);
+        dmHID::SetKey(m_Context, (dmHID::Key)i, true);
 
-    ASSERT_TRUE(dmHID::GetKeyboardPacket(&packet));
+    ASSERT_TRUE(dmHID::GetKeyboardPacket(m_Context, &packet));
 
     // Assert pressed
     for (uint32_t i = 0; i < dmHID::MAX_KEY_COUNT; ++i)
@@ -49,21 +54,21 @@ TEST_F(HIDTest, Keyboard)
 
     // Release keys
     for (uint32_t i = 0; i < dmHID::MAX_KEY_COUNT; ++i)
-        dmHID::SetKey((dmHID::Key)i, false);
+        dmHID::SetKey(m_Context, (dmHID::Key)i, false);
 
-    ASSERT_TRUE(dmHID::GetKeyboardPacket(&packet));
+    ASSERT_TRUE(dmHID::GetKeyboardPacket(m_Context, &packet));
 
-    // Asser released
+    // Assert released
     for (uint32_t i = 0; i < dmHID::MAX_KEY_COUNT; ++i)
         ASSERT_FALSE(dmHID::GetKey(&packet, (dmHID::Key)i));
 }
 
 TEST_F(HIDTest, Mouse)
 {
-    dmHID::Update();
+    dmHID::Update(m_Context);
     dmHID::MousePacket packet;
 
-    ASSERT_TRUE(dmHID::GetMousePacket(&packet));
+    ASSERT_TRUE(dmHID::GetMousePacket(m_Context, &packet));
 
     // Assert init state
     for (uint32_t i = 0; i < dmHID::MAX_MOUSE_BUTTON_COUNT; ++i)
@@ -74,11 +79,11 @@ TEST_F(HIDTest, Mouse)
 
     // Touch all inputs
     for (uint32_t i = 0; i < dmHID::MAX_MOUSE_BUTTON_COUNT; ++i)
-        dmHID::SetMouseButton((dmHID::MouseButton)i, true);
-    dmHID::SetMousePosition(1, 2);
-    dmHID::SetMouseWheel(3);
+        dmHID::SetMouseButton(m_Context, (dmHID::MouseButton)i, true);
+    dmHID::SetMousePosition(m_Context, 1, 2);
+    dmHID::SetMouseWheel(m_Context, 3);
 
-    ASSERT_TRUE(dmHID::GetMousePacket(&packet));
+    ASSERT_TRUE(dmHID::GetMousePacket(m_Context, &packet));
 
     // Assert inputs
     for (uint32_t i = 0; i < dmHID::MAX_MOUSE_BUTTON_COUNT; ++i)
@@ -89,9 +94,9 @@ TEST_F(HIDTest, Mouse)
 
     // Release buttons
     for (uint32_t i = 0; i < dmHID::MAX_MOUSE_BUTTON_COUNT; ++i)
-        dmHID::SetMouseButton((dmHID::MouseButton)i, false);
+        dmHID::SetMouseButton(m_Context, (dmHID::MouseButton)i, false);
 
-    ASSERT_TRUE(dmHID::GetMousePacket(&packet));
+    ASSERT_TRUE(dmHID::GetMousePacket(m_Context, &packet));
 
     // Assert released
     for (uint32_t i = 0; i < dmHID::MAX_MOUSE_BUTTON_COUNT; ++i)
@@ -100,9 +105,9 @@ TEST_F(HIDTest, Mouse)
 
 TEST_F(HIDTest, Gamepad)
 {
-    dmHID::Update();
+    dmHID::Update(m_Context);
     dmHID::GamepadPacket packet;
-    dmHID::HGamepad gamepad = dmHID::GetGamepad(0);
+    dmHID::HGamepad gamepad = dmHID::GetGamepad(m_Context, 0);
     ASSERT_NE(dmHID::INVALID_GAMEPAD_HANDLE, gamepad);
 
     uint32_t button_count = dmHID::GetGamepadButtonCount(gamepad);
@@ -141,6 +146,81 @@ TEST_F(HIDTest, Gamepad)
     // Assert released
     for (uint32_t i = 0; i < button_count; ++i)
         ASSERT_FALSE(dmHID::GetGamepadButton(&packet, i));
+}
+
+TEST_F(HIDTest, TouchDevice)
+{
+    dmHID::Update(m_Context);
+    dmHID::TouchDevicePacket packet;
+
+    ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_Context, &packet));
+
+    // Assert init state
+    ASSERT_EQ(0u, packet.m_TouchCount);
+
+    // Touch all inputs
+    for (uint32_t i = 0; i < dmHID::MAX_TOUCH_COUNT; ++i)
+    {
+        dmHID::AddTouchPosition(m_Context, i*2, i*2+1);
+    }
+
+    ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_Context, &packet));
+
+    // Assert inputs
+    int32_t x, y;
+    for (uint32_t i = 0; i < dmHID::MAX_TOUCH_COUNT; ++i)
+    {
+        ASSERT_TRUE(dmHID::GetTouchPosition(&packet, i, &x, &y));
+        ASSERT_EQ((int32_t)i*2, x);
+        ASSERT_EQ((int32_t)i*2+1, y);
+    }
+
+    // Clear touches
+    dmHID::ClearTouchPositions(m_Context);
+
+    ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_Context, &packet));
+
+    ASSERT_EQ(0u, packet.m_TouchCount);
+}
+
+TEST_F(HIDTest, IgnoredDevices)
+{
+    dmHID::NewContextParams params;
+
+    params.m_IgnoreMouse = 1;
+    dmHID::HContext context = dmHID::NewContext(params);
+    ASSERT_TRUE(dmHID::Init(context));
+    dmHID::Update(context);
+    ASSERT_FALSE(dmHID::IsMouseConnected(context));
+    dmHID::Final(context);
+    dmHID::DeleteContext(context);
+
+    params.m_IgnoreMouse = 0;
+    params.m_IgnoreKeyboard = 1;
+    context = dmHID::NewContext(params);
+    ASSERT_TRUE(dmHID::Init(context));
+    dmHID::Update(context);
+    ASSERT_FALSE(dmHID::IsKeyboardConnected(context));
+    dmHID::Final(context);
+    dmHID::DeleteContext(context);
+
+    params.m_IgnoreKeyboard = 0;
+    params.m_IgnoreGamepads = 1;
+    context = dmHID::NewContext(params);
+    ASSERT_TRUE(dmHID::Init(context));
+    dmHID::Update(context);
+    ASSERT_FALSE(dmHID::IsGamepadConnected(dmHID::GetGamepad(context, 0)));
+    dmHID::Final(context);
+    dmHID::DeleteContext(context);
+
+    params.m_IgnoreGamepads = 0;
+    params.m_IgnoreTouchDevice = 1;
+    context = dmHID::NewContext(params);
+    ASSERT_TRUE(dmHID::Init(context));
+    dmHID::Update(context);
+    ASSERT_FALSE(dmHID::IsTouchDeviceConnected(context));
+    dmHID::Final(context);
+    dmHID::DeleteContext(context);
 }
 
 int main(int argc, char **argv)

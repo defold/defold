@@ -97,6 +97,7 @@ namespace dmEngine
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
     , m_SystemFontMap(0x0)
+    , m_HidContext(0x0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
     , m_RenderScriptPrototype(0x0)
@@ -146,7 +147,11 @@ namespace dmEngine
 
         dmRender::DeleteRenderContext(engine->m_RenderContext);
 
-        dmHID::Finalize();
+        if (engine->m_HidContext)
+        {
+            dmHID::Final(engine->m_HidContext);
+            dmHID::DeleteContext(engine->m_HidContext);
+        }
 
         dmGameObject::Finalize();
 
@@ -255,7 +260,8 @@ namespace dmEngine
 
         RegisterDDFTypes(engine);
 
-        dmHID::Initialize();
+        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(engine->m_HidContext);
 
         dmSound::InitializeParams sound_params;
         dmSound::Initialize(config, &sound_params);
@@ -291,9 +297,11 @@ namespace dmEngine
 
         engine->m_Factory = dmResource::NewFactory(&params, dmConfigFile::GetString(config, "resource.uri", content_root));
 
-        float repeat_delay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
-        float repeat_interval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
-        engine->m_InputContext = dmInput::NewContext(repeat_delay, repeat_interval);
+        dmInput::NewContextParams input_params;
+        input_params.m_HidContext = engine->m_HidContext;
+        input_params.m_RepeatDelay = dmConfigFile::GetFloat(config, "input.repeat_delay", 0.5f);
+        input_params.m_RepeatInterval = dmConfigFile::GetFloat(config, "input.repeat_interval", 0.2f);
+        engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
@@ -460,11 +468,11 @@ bail:
 
                 dmResource::UpdateFactory(engine->m_Factory);
 
-                dmHID::Update();
+                dmHID::Update(engine->m_HidContext);
                 dmSound::Update();
 
                 dmHID::KeyboardPacket keybdata;
-                dmHID::GetKeyboardPacket(&keybdata);
+                dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
 
                 if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                 {

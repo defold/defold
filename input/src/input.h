@@ -36,7 +36,14 @@ namespace dmInput
      */
     const HBinding INVALID_BINDING = 0;
 
-    HContext NewContext(float repeat_delay, float repeat_interval);
+    struct NewContextParams
+    {
+        dmHID::HContext m_HidContext;
+        float m_RepeatDelay;
+        float m_RepeatInterval;
+    };
+
+    HContext NewContext(const NewContextParams& params);
     void DeleteContext(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 

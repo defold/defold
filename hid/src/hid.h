@@ -8,13 +8,26 @@
 
 namespace dmHID
 {
+    /// Hid context handle
+    typedef struct Context* HContext;
+    /// Gamepad handle
     typedef struct Gamepad* HGamepad;
 
+    /// Constant that defines invalid context handles
+    const HContext INVALID_CONTEXT = 0;
+    /// Constant that defines invalid gamepad handles
     const HGamepad INVALID_GAMEPAD_HANDLE = 0;
 
+    /// Maximum number of gamepads supported
     const static uint32_t MAX_GAMEPAD_COUNT = HID_MAX_GAMEPAD_COUNT;
+    /// Maximum number of gamepad axis supported
     const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
+    /// Maximum number of gamepad buttons supported
     const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
+
+    /// Maximum number of simultaneous touches supported
+    // An iPad supports a maximum of 11 simultaneous touches
+    const static uint32_t MAX_TOUCH_COUNT = 11;
 
     enum Key
     {
@@ -182,74 +195,168 @@ namespace dmHID
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
     };
 
-    /**
-     * Start hid system.
-     */
-    void Initialize();
+    struct TouchDevicePacket
+    {
+        int32_t m_Touches[MAX_TOUCH_COUNT][2];
+        uint32_t m_TouchCount;
+    };
+
+    /// parameters to be passed to NewContext
+    struct NewContextParams
+    {
+        NewContextParams();
+
+        /// if mouse input should be ignored
+        uint32_t m_IgnoreMouse : 1;
+        /// if keyboard input should be ignored
+        uint32_t m_IgnoreKeyboard : 1;
+        /// if gamepad input should be ignored
+        uint32_t m_IgnoreGamepads : 1;
+        /// if touch device input should be ignored
+        uint32_t m_IgnoreTouchDevice : 1;
+    };
 
     /**
-     * Shut down hid system.
+     * Creates a new hid context.
+     *
+     * @params parameters to use for the new context
+     * @return a new hid context, or INVALID_CONTEXT if it could not be created
      */
-    void Finalize();
+    HContext NewContext(const NewContextParams& params);
 
     /**
-     * Poll input.
+     * Deletes a hid context.
+     *
+     * @param context context to be deleted
      */
-    void Update();
+    void DeleteContext(HContext context);
 
     /**
-     * Create/open a new gamepad
+     * Initializes a hid context.
+     *
+     * @param context context to initialize
+     * @return if the context was successfully initialized or not
+     */
+    bool Init(HContext context);
+
+    /**
+     * Finalizes a hid context.
+     *
+     * @param context context to finalize
+     */
+    void Final(HContext context);
+
+    /**
+     * Updates a hid context by polling input from the connected hid devices.
+     *
+     * @param context the context to poll from
+     */
+    void Update(HContext context);
+
+    /**
+     * Creates/opens a new gamepad.
+     *
+     * @param context context in which to find the gamepad
      * @param index Gamepad index
      * @return Handle to gamepad. NULL if not available
      */
-    HGamepad GetGamepad(uint8_t index);
+    HGamepad GetGamepad(HContext context, uint8_t index);
+
+    /**
+     * Retrieves the number of buttons on a given gamepad.
+     *
+     * @param gamepad gamepad handle
+     * @return the number of buttons
+     */
     uint32_t GetGamepadButtonCount(HGamepad gamepad);
+
+    /**
+     * Retrieves the number of axis on a given gamepad.
+     *
+     * @param gamepad gamepad handle
+     * @return the number of axis
+     */
     uint32_t GetGamepadAxisCount(HGamepad gamepad);
-    void GetGamepadDeviceName(HGamepad gamepad, const char** device_name);
+
+    /**
+     * Retrieves the platform-specific device name of a given gamepad.
+     *
+     * @param gamepad gamepad handle
+     * @param a pointer to the device name, or 0x0 if not specified
+     */
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
 
     /**
      * Check if a keyboard is connected.
+     *
+     * @param context context in which to search
      * @return If a keyboard is connected or not
      */
-    bool IsKeyboardConnected();
+    bool IsKeyboardConnected(HContext context);
 
     /**
      * Check if a mouse is connected.
+     *
+     * @param context context in which to search
      * @return If a mouse is connected or not
      */
-    bool IsMouseConnected();
+    bool IsMouseConnected(HContext context);
 
     /**
      * Check if the supplied gamepad is connected or not.
+     *
      * @param gamepad Handle to gamepad
      * @return If the gamepad is connected or not
      */
     bool IsGamepadConnected(HGamepad gamepad);
 
     /**
+     * Check if a touch device is connected.
+     *
+     * @param context context in which to search
+     * @return If a touch device is connected or not
+     */
+    bool IsTouchDeviceConnected(HContext context);
+
+    /**
      * Obtain a keyboard packet reflecting the current input state of a HID context.
-     * @param packet Keyboard packet out argument
+     *
+     * @param context context from which to retrieve the packet
+     * @param out_packet Keyboard packet out argument
      * @return If the packet was successfully updated or not.
      */
-    bool GetKeyboardPacket(KeyboardPacket* packet);
+    bool GetKeyboardPacket(HContext context, KeyboardPacket* out_packet);
 
     /**
      * Obtain a mouse packet reflecting the current input state of a HID context.
-     * @param packet Mouse packet out argument
+     *
+     * @param context context from which to retrieve the packet
+     * @param out_packet Mouse packet out argument
      * @return If the packet was successfully updated or not.
      */
-    bool GetMousePacket(MousePacket* packet);
+    bool GetMousePacket(HContext context, MousePacket* out_packet);
 
     /**
      * Obtain a gamepad packet reflecting the current input state of the gamepad in a  HID context.
-     * @param context HID context handle
-     * @param packet Gamepad packet out argument
+     *
+     * @param gamepad gamepad handle
+     * @param out_packet Gamepad packet out argument
      * @return If the packet was successfully updated or not.
      */
-    bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* packet);
+    bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* out_packet);
+
+    /**
+     * Obtain a touch device packet reflecting the current input state of a HID context.
+     *
+     * @param context context from which to retrieve the packet
+     * @param out_packet Touch device packet out argument
+     * @return If the packet was successfully updated or not.
+     */
+    bool GetTouchDevicePacket(HContext context, TouchDevicePacket* out_packet);
 
     /**
      * Convenience function to retrieve the state of a key from a keyboard packet.
+     *
      * @param packet Keyboard packet
      * @param key The requested key
      * @return If the key was pressed or not
@@ -257,15 +364,17 @@ namespace dmHID
     bool GetKey(KeyboardPacket* packet, Key key);
 
     /**
-     * Convenience function to set the state of a key from a keyboard packet.
-     * @param packet Keyboard packet
+     * Sets the state of a key.
+     *
+     * @param context context handle
      * @param key The requested key
      * @param value Key state
      */
-    void SetKey(Key key, bool value);
+    void SetKey(HContext context, Key key, bool value);
 
     /**
      * Convenience function to retrieve the state of a mouse button from a mouse packet.
+     *
      * @param packet Mouse packet
      * @param button The requested button
      * @return If the button was pressed or not
@@ -273,14 +382,30 @@ namespace dmHID
     bool GetMouseButton(MousePacket* packet, MouseButton button);
 
     /**
-     * Convenience function to set the state of a mouse button from a mouse packet.
-     * @param packet Mouse packet
+     * Sets the state of a mouse button.
+     *
+     * @param context context handle
      * @param button The requested button
      * @param value Button state
      */
-    void SetMouseButton(MouseButton button, bool value);
-    void SetMousePosition(int32_t x, int32_t y);
-    void SetMouseWheel(int32_t value);
+    void SetMouseButton(HContext context, MouseButton button, bool value);
+
+    /**
+     * Sets the position of a mouse.
+     *
+     * @param context context handle
+     * @param x x-coordinate of the position
+     * @param y y-coordinate of the position
+     */
+    void SetMousePosition(HContext context, int32_t x, int32_t y);
+
+    /**
+     * Sets the mouse wheel.
+     *
+     * @param context context handle
+     * @param value wheel value
+     */
+    void SetMouseWheel(HContext context, int32_t value);
 
     /**
      * Convenience function to retrieve the state of a gamepad button from a gamepad packet.
@@ -291,13 +416,48 @@ namespace dmHID
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
 
     /**
-     * Convenience function to set the state of a gamepad button from a gamepad packet.
+     * Sets the state of a gamepad button.
+     *
      * @param packet Gamepad packet
      * @param button The requested button
      * @param value Button state
      */
     void SetGamepadButton(HGamepad gamepad, uint32_t button, bool value);
+
+    /**
+     * Sets the state of a gamepad axis.
+     *
+     * @param packet Gamepad packet
+     * @param axis The requested axis
+     * @param value Button state
+     */
     void SetGamepadAxis(HGamepad gamepad, uint32_t axis, float value);
+
+    /**
+     * Convenience function to retrieve the position of a specific touch.
+     *
+     * @param touch_index which touch to get the position from
+     * @param x x-coordinate as out-parameter
+     * @param y y-coordinate as out-parameter
+     * @return if the position could be retrieved
+     */
+    bool GetTouchPosition(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y);
+
+    /**
+     * Adds the position of a touch.
+     *
+     * @param context context handle
+     * @param x x-coordinate of the position
+     * @param y y-coordinate of the position
+     */
+    void AddTouchPosition(HContext context, int32_t x, int32_t y);
+
+    /**
+     * Clears all touches.
+     *
+     * @param context context handle
+     */
+    void ClearTouchPositions(HContext context);
 
     /**
      * Get the name of a keyboard key.
