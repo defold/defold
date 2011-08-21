@@ -253,6 +253,28 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# constructs a ray in world space from a position in screen space
+     *
+     * NOTE! Don't use this function, WIP!
+     *
+     * @name go.screen_ray
+     * @param x x-coordinate of the screen space position (number)
+     * @param y y-coordinate of the screen space position (number)
+     * @return position and direction of the ray in world space (vmath.vector3, vmath.vector3)
+     */
+    int Script_ScreenRay(lua_State* L)
+    {
+        lua_Number x = luaL_checknumber(L, 1);
+        lua_Number y = luaL_checknumber(L, 2);
+        // TODO: This temporarily assumes the worldspace is simply screen space, with the modification that y spans (0,height) instead of (height, 0)
+        // Should be fixed in a more robust way.
+        Vector3 p(x, 960 - y, 1.0f);
+        Vector3 d(0.0f, 0.0f, -1.0f);
+        dmScript::PushVector3(L, p);
+        dmScript::PushVector3(L, d);
+        return 2;
+    }
+
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
@@ -292,6 +314,7 @@ namespace dmGameObject
         {"get_world_rotation",  Script_GetWorldRotation},
         {"get_id",              Script_GetId},
         {"delete",              Script_Delete},
+        {"screen_ray",          Script_ScreenRay},
         {0, 0}
     };
 
@@ -613,17 +636,26 @@ bail:
      * See the documentation of that message for more information.
      * </p>
      * <p>
-     * The <code>action</code> parameter is a table containing data about the input, such as the id of the action it corresponds to.
+     * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
+     * For mapped actions it specifies the value of the input and if it was just pressed or released.
      * Actions are mapped to input in an input_binding-file.
+     * </p>
+     * <p>
+     * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
+     * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
      * </p>
      * Here is a brief description of the available table fields:
      * <table>
      *   <th>Field</th>
      *   <th>Description</th>
-     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs.</td></tr>
-     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true.</td></tr>
-     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true.</td></tr>
-     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down.</td></tr>
+     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
      * </table>
      *
      * @name on_input

@@ -110,7 +110,8 @@ dmGameObject::InputResult InputTest::CompInputTargetOnInput(const dmGameObject::
 {
     InputTest* self = (InputTest*) params.m_Context;
 
-    if (params.m_InputAction->m_ActionId == dmHashString64("test_action"))
+    if (params.m_InputAction->m_ActionId == dmHashString64("test_action")
+            || params.m_InputAction->m_ActionId == 0)
     {
         self->m_InputCounter++;
         return dmGameObject::INPUT_RESULT_CONSUMED;
@@ -168,7 +169,6 @@ TEST_F(InputTest, TestComponentInput2)
     action.m_ActionId = dmHashString64("test_action");
     action.m_Value = 1.0f;
     action.m_Pressed = 1;
-    action.m_Released = 0;
     action.m_Repeated = 1;
 
     dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
@@ -193,6 +193,30 @@ TEST_F(InputTest, TestComponentInput3)
     dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, r);
+}
+
+TEST_F(InputTest, TestComponentInput4)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input4.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    dmGameObject::InputAction action;
+    action.m_ActionId = dmHashString64("test_action");
+
+    dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
+
+    action.m_ActionId = 0;
+    action.m_PositionSet = true;
+    action.m_X = 1;
+    action.m_Y = 2;
+    action.m_DX = 3;
+    action.m_DY = 4;
+
+    r = dmGameObject::DispatchInput(m_Collection, &action, 1);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 }
 
 TEST_F(InputTest, TestDeleteFocusInstance)

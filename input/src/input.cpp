@@ -20,7 +20,7 @@ namespace dmInput
     void InitMouseButtonMap();
     bool g_Init = false;
 
-    HContext NewContext(float repeat_delay, float repeat_interval)
+    HContext NewContext(const NewContextParams& params)
     {
         if (!g_Init)
         {
@@ -31,8 +31,9 @@ namespace dmInput
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
         context->m_GamepadMaps.SetCapacity(8, 16);
-        context->m_RepeatDelay = repeat_delay;
-        context->m_RepeatInterval = repeat_interval;
+        context->m_HidContext = params.m_HidContext;
+        context->m_RepeatDelay = params.m_RepeatDelay;
+        context->m_RepeatInterval = params.m_RepeatInterval;
         return context;
     }
 
@@ -61,6 +62,8 @@ namespace dmInput
         binding->m_Actions.Clear();
         Action action;
         memset(&action, 0, sizeof(Action));
+        // add null action for mouse movement
+        binding->m_Actions.Put(0, action);
         if (ddf->m_KeyTrigger.m_Count > 0)
         {
             if (binding->m_KeyboardBinding == 0x0)
@@ -109,6 +112,8 @@ namespace dmInput
                 binding->m_MouseBinding->m_Triggers.Push(trigger);
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
+            // Mouse move action
+            binding->m_Actions.Put(0, action);
         }
         else if (binding->m_MouseBinding != 0x0)
         {
@@ -120,7 +125,7 @@ namespace dmInput
             if (binding->m_GamepadBinding == 0x0)
             {
                 uint8_t gamepad_index = binding->m_Context->m_GamepadIndices.Pop();
-                dmHID::HGamepad gamepad = dmHID::GetGamepad(gamepad_index);
+                dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
                 const char* device_name = 0x0;
                 dmHID::GetGamepadDeviceName(gamepad, &device_name);
                 if (device_name == 0x0)
@@ -161,6 +166,35 @@ namespace dmInput
             delete binding->m_GamepadBinding;
             binding->m_GamepadBinding = 0x0;
         }
+        if (ddf->m_TouchTrigger.m_Count > 0)
+        {
+            if (binding->m_TouchDeviceBinding == 0x0)
+            {
+                binding->m_TouchDeviceBinding = new TouchDeviceBinding();
+                memset(binding->m_TouchDeviceBinding, 0, sizeof(*binding->m_TouchDeviceBinding));
+            }
+            else
+            {
+                binding->m_TouchDeviceBinding->m_Triggers.SetSize(0);
+            }
+            binding->m_TouchDeviceBinding->m_Triggers.SetCapacity(ddf->m_TouchTrigger.m_Count);
+            for (uint32_t i = 0; i < ddf->m_TouchTrigger.m_Count; ++i)
+            {
+                const dmInputDDF::TouchTrigger& ddf_trigger = ddf->m_TouchTrigger[i];
+                dmInput::TouchTrigger trigger;
+                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
+                trigger.m_Input = ddf_trigger.m_Input;
+                binding->m_TouchDeviceBinding->m_Triggers.Push(trigger);
+                binding->m_Actions.Put(trigger.m_ActionId, action);
+            }
+            // Mouse move action
+            binding->m_Actions.Put(0, action);
+        }
+        else if (binding->m_TouchDeviceBinding != 0x0)
+        {
+            delete binding->m_TouchDeviceBinding;
+            binding->m_TouchDeviceBinding = 0x0;
+        }
     }
 
     void DeleteBinding(HBinding binding)
@@ -174,6 +208,8 @@ namespace dmInput
             binding->m_Context->m_GamepadIndices.Push(binding->m_GamepadBinding->m_Index);
             delete binding->m_GamepadBinding;
         }
+        if (binding->m_TouchDeviceBinding != 0x0)
+            delete binding->m_TouchDeviceBinding;
         delete binding;
     }
 
@@ -230,12 +266,23 @@ namespace dmInput
     {
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
+        action->m_PositionSet = 0;
     }
 
     struct UpdateContext
     {
+        UpdateContext()
+        {
+            memset(this, 0, sizeof(UpdateContext));
+        }
+
         float m_DT;
         Context* m_Context;
+        int32_t m_X;
+        int32_t m_Y;
+        int32_t m_DX;
+        int32_t m_DY;
+        uint32_t m_PositionSet : 1;
     };
 
     void UpdateAction(void* context, const dmhash_t* id, Action* action)
@@ -243,6 +290,7 @@ namespace dmInput
         action->m_Pressed = (action->m_PrevValue == 0.0f && action->m_Value > 0.0f) ? 1 : 0;
         action->m_Released = (action->m_PrevValue > 0.0f && action->m_Value == 0.0f) ? 1 : 0;
         action->m_Repeated = false;
+        UpdateContext* update_context = (UpdateContext*)context;
         if (action->m_Value > 0.0f)
         {
             UpdateContext* update_context = (UpdateContext*)context;
@@ -261,91 +309,112 @@ namespace dmInput
                 }
             }
         }
+        if (action->m_PositionSet == 0)
+        {
+            action->m_X = update_context->m_X;
+            action->m_Y = update_context->m_Y;
+            action->m_DX = update_context->m_DX;
+            action->m_DY = update_context->m_DY;
+            action->m_PositionSet = update_context->m_PositionSet;
+        }
     }
 
     void UpdateBinding(HBinding binding, float dt)
     {
-        DM_PROFILE(Input, "UpdateContext");
+        DM_PROFILE(Input, "UpdateBinding");
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
 
+        dmHID::HContext hid_context = binding->m_Context->m_HidContext;
+        UpdateContext context;
         if (binding->m_KeyboardBinding != 0x0)
         {
-            dmHID::GetKeyboardPacket(&binding->m_KeyboardBinding->m_Packet);
-            for (uint32_t i = 0; i < binding->m_KeyboardBinding->m_Triggers.Size(); ++i)
+            KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
+            dmHID::KeyboardPacket* packet = &keyboard_binding->m_Packet;
+            dmHID::KeyboardPacket* prev_packet = &keyboard_binding->m_PreviousPacket;
+            if (dmHID::GetKeyboardPacket(hid_context, packet))
             {
-                const KeyTrigger& trigger = binding->m_KeyboardBinding->m_Triggers[i];
-                float v = dmHID::GetKey(&binding->m_KeyboardBinding->m_Packet, KEY_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
-                Action* action = binding->m_Actions.Get(trigger.m_ActionId);
-                if (action != 0x0)
+                const dmArray<KeyTrigger>& triggers = keyboard_binding->m_Triggers;
+                for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
-                    if (dmMath::Abs(action->m_Value) < v)
-                        action->m_Value = v;
+                    const KeyTrigger& trigger = triggers[i];
+                    float v = dmHID::GetKey(packet, KEY_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
+                    Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                    if (action != 0x0)
+                    {
+                        if (dmMath::Abs(action->m_Value) < v)
+                            action->m_Value = v;
+                    }
                 }
+                *prev_packet = *packet;
             }
-            binding->m_KeyboardBinding->m_PreviousPacket = binding->m_KeyboardBinding->m_Packet;
         }
         if (binding->m_MouseBinding != 0x0)
         {
-            dmHID::GetMousePacket(&binding->m_MouseBinding->m_Packet);
-            for (uint32_t i = 0; i < binding->m_MouseBinding->m_Triggers.Size(); ++i)
+            MouseBinding* mouse_binding = binding->m_MouseBinding;
+            dmHID::MousePacket* packet = &mouse_binding->m_Packet;
+            dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
+            if (dmHID::GetMousePacket(hid_context, packet))
             {
-                const MouseTrigger& trigger = binding->m_MouseBinding->m_Triggers[i];
-                float v = 0.0f;
-                switch (trigger.m_Input)
+                context.m_X = packet->m_PositionX;
+                context.m_Y = packet->m_PositionY;
+                context.m_DX = packet->m_PositionX - prev_packet->m_PositionX;
+                context.m_DY = packet->m_PositionY - prev_packet->m_PositionY;
+                context.m_PositionSet = 1;
+                const dmArray<MouseTrigger>& triggers = mouse_binding->m_Triggers;
+                for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
-                case dmInputDDF::MOUSE_RIGHT:
-                    v = binding->m_MouseBinding->m_Packet.m_PositionX - binding->m_MouseBinding->m_PreviousPacket.m_PositionX;
-                    break;
-                case dmInputDDF::MOUSE_LEFT:
-                    v = -(binding->m_MouseBinding->m_Packet.m_PositionX - binding->m_MouseBinding->m_PreviousPacket.m_PositionX);
-                    break;
-                case dmInputDDF::MOUSE_UP:
-                    v = binding->m_MouseBinding->m_Packet.m_PositionY - binding->m_MouseBinding->m_PreviousPacket.m_PositionY;
-                    break;
-                case dmInputDDF::MOUSE_DOWN:
-                    v = -(binding->m_MouseBinding->m_Packet.m_PositionY - binding->m_MouseBinding->m_PreviousPacket.m_PositionY);
-                    break;
-                case dmInputDDF::MOUSE_WHEEL_UP:
-                    v = binding->m_MouseBinding->m_Packet.m_Wheel - binding->m_MouseBinding->m_PreviousPacket.m_Wheel;
-                    break;
-                case dmInputDDF::MOUSE_WHEEL_DOWN:
-                    v = -(binding->m_MouseBinding->m_Packet.m_Wheel - binding->m_MouseBinding->m_PreviousPacket.m_Wheel);
-                    break;
-                default:
-                    v = dmHID::GetMouseButton(&binding->m_MouseBinding->m_Packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
-                    break;
+                    const MouseTrigger& trigger = triggers[i];
+                    float v = 0.0f;
+                    switch (trigger.m_Input)
+                    {
+                    case dmInputDDF::MOUSE_WHEEL_UP:
+                        v = packet->m_Wheel - prev_packet->m_Wheel;
+                        break;
+                    case dmInputDDF::MOUSE_WHEEL_DOWN:
+                        v = -(packet->m_Wheel - prev_packet->m_Wheel);
+                        break;
+                    default:
+                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
+                        break;
+                    }
+                    v = dmMath::Clamp(v, 0.0f, 1.0f);
+                    Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                    if (action != 0x0)
+                    {
+                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                        {
+                            action->m_Value = v;
+                        }
+                    }
                 }
-                v = dmMath::Clamp(v, 0.0f, 1.0f);
-                Action* action = binding->m_Actions.Get(trigger.m_ActionId);
-                if (action != 0x0)
-                {
-                    if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
-                        action->m_Value = v;
-                }
+                *prev_packet = *packet;
             }
-            binding->m_MouseBinding->m_PreviousPacket = binding->m_MouseBinding->m_Packet;
         }
         if (binding->m_GamepadBinding != 0x0)
         {
-            bool connected = dmHID::IsGamepadConnected(binding->m_GamepadBinding->m_Gamepad);
-            if (!binding->m_GamepadBinding->m_Connected)
+            GamepadBinding* gamepad_binding = binding->m_GamepadBinding;
+            dmHID::Gamepad* gamepad = gamepad_binding->m_Gamepad;
+            bool connected = dmHID::IsGamepadConnected(gamepad);
+            if (!gamepad_binding->m_Connected)
             {
                 if (connected)
                 {
                     const char* device_name;
-                    dmHID::GetGamepadDeviceName(binding->m_GamepadBinding->m_Gamepad, &device_name);
-                    binding->m_GamepadBinding->m_DeviceId = dmHashString32(device_name);
-                    binding->m_GamepadBinding->m_Connected = 1;
-                    binding->m_GamepadBinding->m_NoMapWarning = 0;
+                    dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                    gamepad_binding->m_DeviceId = dmHashString32(device_name);
+                    gamepad_binding->m_Connected = 1;
+                    gamepad_binding->m_NoMapWarning = 0;
                 }
             }
-            binding->m_GamepadBinding->m_Connected = connected;
-            if (binding->m_GamepadBinding->m_Connected)
+            gamepad_binding->m_Connected = connected;
+            if (gamepad_binding->m_Connected)
             {
-                GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(binding->m_GamepadBinding->m_DeviceId);
+                dmHID::GamepadPacket* packet = &gamepad_binding->m_Packet;
+                dmHID::GamepadPacket* prev_packet = &gamepad_binding->m_PreviousPacket;
+                GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(gamepad_binding->m_DeviceId);
                 if (config != 0x0)
                 {
-                    dmHID::GetGamepadPacket(binding->m_GamepadBinding->m_Gamepad, &binding->m_GamepadBinding->m_Packet);
+                    dmHID::GetGamepadPacket(gamepad, packet);
 
                     // Apply dead zone
                     uint32_t lstick_vert_axis = config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_UP].m_Index;
@@ -354,8 +423,8 @@ namespace dmInput
                     uint32_t rstick_hori_axis = config->m_Inputs[dmInputDDF::GAMEPAD_RSTICK_LEFT].m_Index;
                     if (lstick_vert_axis != ~0U && lstick_hori_axis != ~0U)
                     {
-                        float& lx = binding->m_GamepadBinding->m_Packet.m_Axis[lstick_hori_axis];
-                        float& ly = binding->m_GamepadBinding->m_Packet.m_Axis[lstick_vert_axis];
+                        float& lx = packet->m_Axis[lstick_hori_axis];
+                        float& ly = packet->m_Axis[lstick_vert_axis];
                         if (lx * lx + ly * ly <= config->m_DeadZone * config->m_DeadZone)
                         {
                             lx = 0.0f;
@@ -364,8 +433,8 @@ namespace dmInput
                     }
                     if (rstick_vert_axis != ~0U && rstick_hori_axis != ~0U)
                     {
-                        float& rx = binding->m_GamepadBinding->m_Packet.m_Axis[rstick_hori_axis];
-                        float& ry = binding->m_GamepadBinding->m_Packet.m_Axis[rstick_vert_axis];
+                        float& rx = packet->m_Axis[rstick_hori_axis];
+                        float& ry = packet->m_Axis[rstick_vert_axis];
                         if (rx * rx + ry * ry <= config->m_DeadZone * config->m_DeadZone)
                         {
                             rx = 0.0f;
@@ -373,13 +442,14 @@ namespace dmInput
                         }
                     }
 
-                    for (uint32_t i = 0; i < binding->m_GamepadBinding->m_Triggers.Size(); ++i)
+                    const dmArray<GamepadTrigger>& triggers = gamepad_binding->m_Triggers;
+                    for (uint32_t i = 0; i < triggers.Size(); ++i)
                     {
-                        const GamepadTrigger& trigger = binding->m_GamepadBinding->m_Triggers[i];
+                        const GamepadTrigger& trigger = triggers[i];
                         const GamepadInput& input = config->m_Inputs[trigger.m_Input];
                         if (input.m_Index != (uint16_t)~0)
                         {
-                            float v = ApplyGamepadModifiers(&binding->m_GamepadBinding->m_Packet, input);
+                            float v = ApplyGamepadModifiers(packet, input);
                             Action* action = binding->m_Actions.Get(trigger.m_ActionId);
                             if (action != 0x0)
                             {
@@ -388,22 +458,72 @@ namespace dmInput
                             }
                         }
                     }
-                    binding->m_GamepadBinding->m_PreviousPacket = binding->m_GamepadBinding->m_Packet;
+                    *prev_packet = *packet;
                 }
                 else
                 {
-                    if (!binding->m_GamepadBinding->m_NoMapWarning)
+                    if (!gamepad_binding->m_NoMapWarning)
                     {
-                        dmLogWarning("No gamepad map registered for gamepad %d, not used.", binding->m_GamepadBinding->m_Index);
-                        binding->m_GamepadBinding->m_NoMapWarning = 1;
+                        dmLogWarning("No gamepad map registered for gamepad %d, not used.", gamepad_binding->m_Index);
+                        gamepad_binding->m_NoMapWarning = 1;
                     }
                 }
             }
         }
-        UpdateContext context;
+        if (binding->m_TouchDeviceBinding != 0x0)
+        {
+            TouchDeviceBinding* touch_device_binding = binding->m_TouchDeviceBinding;
+            dmHID::TouchDevicePacket* packet = &touch_device_binding->m_Packet;
+            dmHID::TouchDevicePacket* prev_packet = &touch_device_binding->m_PreviousPacket;
+            if (dmHID::GetTouchDevicePacket(hid_context, packet))
+            {
+                const dmArray<TouchTrigger>& triggers = touch_device_binding->m_Triggers;
+                for (uint32_t i = 0; i < triggers.Size(); ++i)
+                {
+                    const TouchTrigger& trigger = triggers[i];
+                    Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                    if (action != 0x0)
+                    {
+                        // TODO: Given the packet and prev_packet we could re-map the trigger inputs such that the summed deltas
+                        // was minimized, giving continuous strokes of input
+                        int32_t x, y;
+                        bool has_current = dmHID::GetTouchPosition(packet, trigger.m_Input, &x, &y);
+                        int32_t x0, y0;
+                        bool has_prev = dmHID::GetTouchPosition(prev_packet, trigger.m_Input, &x0, &y0);
+                        float v = has_current ? 1.0f : 0.0f;
+                        if (has_current)
+                        {
+                            action->m_PositionSet = true;
+                            action->m_X = x;
+                            action->m_Y = y;
+                            if (has_prev)
+                            {
+                                action->m_DX = x - x0;
+                                action->m_DY = y - y0;
+                            }
+                            else
+                            {
+                                action->m_DX = 0;
+                                action->m_DY = 0;
+                            }
+                        }
+                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
+                        {
+                            action->m_Value = 1.0f;
+                        }
+                    }
+                }
+                *prev_packet = *packet;
+            }
+        }
         context.m_DT = dt;
         context.m_Context = binding->m_Context;
         binding->m_Actions.Iterate<void>(UpdateAction, &context);
+    }
+
+    const Action* GetAction(HBinding binding, dmhash_t action_id)
+    {
+        return binding->m_Actions.Get(action_id);
     }
 
     float GetValue(HBinding binding, dmhash_t action_id)
@@ -450,8 +570,13 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        if (action->m_Value != 0.0f || action->m_Pressed || action->m_Released)
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released;
+        // Mouse move action
+        active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0));
+        if (active)
+        {
             data->m_Callback(*key, action, data->m_UserData);
+        }
     }
 
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data)

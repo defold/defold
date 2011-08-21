@@ -8,10 +8,35 @@ namespace dmHID
     extern const char* KEY_NAMES[MAX_KEY_COUNT];
     extern const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT];
 
-    HGamepad GetGamepad(uint8_t index)
+    NewContextParams::NewContextParams()
+    {
+        memset(this, 0, sizeof(NewContextParams));
+    }
+
+    Context::Context()
+    {
+        memset(this, 0, sizeof(Context));
+    }
+
+    HContext NewContext(const NewContextParams& params)
+    {
+        HContext context = new Context();
+        context->m_IgnoreMouse = params.m_IgnoreMouse;
+        context->m_IgnoreKeyboard = params.m_IgnoreKeyboard;
+        context->m_IgnoreGamepads = params.m_IgnoreGamepads;
+        context->m_IgnoreTouchDevice = params.m_IgnoreTouchDevice;
+        return context;
+    }
+
+    void DeleteContext(HContext context)
+    {
+        delete context;
+    }
+
+    HGamepad GetGamepad(HContext context, uint8_t index)
     {
         if (index < MAX_GAMEPAD_COUNT)
-            return &s_Context->m_Gamepads[index];
+            return &context->m_Gamepads[index];
         else
             return INVALID_GAMEPAD_HANDLE;
     }
@@ -26,14 +51,14 @@ namespace dmHID
         return gamepad->m_AxisCount;
     }
 
-    bool IsKeyboardConnected()
+    bool IsKeyboardConnected(HContext context)
     {
-        return s_Context->m_KeyboardConnected;
+        return context->m_KeyboardConnected;
     }
 
-    bool IsMouseConnected()
+    bool IsMouseConnected(HContext context)
     {
-        return s_Context->m_MouseConnected;
+        return context->m_MouseConnected;
     }
 
     bool IsGamepadConnected(HGamepad gamepad)
@@ -44,11 +69,16 @@ namespace dmHID
             return false;
     }
 
-    bool GetKeyboardPacket(KeyboardPacket* packet)
+    bool IsTouchDeviceConnected(HContext context)
     {
-        if (packet != 0x0)
+        return context->m_TouchDeviceConnected;
+    }
+
+    bool GetKeyboardPacket(HContext context, KeyboardPacket* out_packet)
+    {
+        if (out_packet != 0x0 && context->m_KeyboardConnected)
         {
-            *packet = s_Context->m_KeyboardPacket;
+            *out_packet = context->m_KeyboardPacket;
             return true;
         }
         else
@@ -57,11 +87,11 @@ namespace dmHID
         }
     }
 
-    bool GetMousePacket(MousePacket* packet)
+    bool GetMousePacket(HContext context, MousePacket* out_packet)
     {
-        if (packet != 0x0)
+        if (out_packet != 0x0 && context->m_MouseConnected)
         {
-            *packet = s_Context->m_MousePacket;
+            *out_packet = context->m_MousePacket;
             return true;
         }
         else
@@ -70,11 +100,24 @@ namespace dmHID
         }
     }
 
-    bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* packet)
+    bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* out_packet)
     {
-        if (gamepad != 0x0 && packet != 0x0)
+        if (gamepad != 0x0 && out_packet != 0x0 && gamepad->m_Connected)
         {
-            *packet = gamepad->m_Packet;
+            *out_packet = gamepad->m_Packet;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool GetTouchDevicePacket(HContext context, TouchDevicePacket* out_packet)
+    {
+        if (out_packet != 0x0 && context->m_TouchDeviceConnected)
+        {
+            *out_packet = context->m_TouchDevicePacket;
             return true;
         }
         else
@@ -91,14 +134,14 @@ namespace dmHID
             return false;
     }
 
-    void SetKey(Key key, bool value)
+    void SetKey(HContext context, Key key, bool value)
     {
-        if (s_Context != 0x0)
+        if (context != 0x0)
         {
             if (value)
-                s_Context->m_KeyboardPacket.m_Keys[key / 32] |= (1 << (key % 32));
+                context->m_KeyboardPacket.m_Keys[key / 32] |= (1 << (key % 32));
             else
-                s_Context->m_KeyboardPacket.m_Keys[key / 32] &= ~(1 << (key % 32));
+                context->m_KeyboardPacket.m_Keys[key / 32] &= ~(1 << (key % 32));
         }
     }
 
@@ -110,31 +153,32 @@ namespace dmHID
             return false;
     }
 
-    void SetMouseButton(MouseButton button, bool value)
+    void SetMouseButton(HContext context, MouseButton button, bool value)
     {
-        if (s_Context != 0x0)
+        if (context != 0x0)
         {
             if (value)
-                s_Context->m_MousePacket.m_Buttons[button / 32] |= (1 << (button % 32));
+                context->m_MousePacket.m_Buttons[button / 32] |= (1 << (button % 32));
             else
-                s_Context->m_MousePacket.m_Buttons[button / 32] &= ~(1 << (button % 32));
+                context->m_MousePacket.m_Buttons[button / 32] &= ~(1 << (button % 32));
         }
     }
 
-    void SetMousePosition(int32_t x, int32_t y)
+    void SetMousePosition(HContext context, int32_t x, int32_t y)
     {
-        if (s_Context != 0x0)
+        if (context != 0x0)
         {
-            s_Context->m_MousePacket.m_PositionX = x;
-            s_Context->m_MousePacket.m_PositionY = y;
+            MousePacket& packet = context->m_MousePacket;
+            packet.m_PositionX = x;
+            packet.m_PositionY = y;
         }
     }
 
-    void SetMouseWheel(int32_t value)
+    void SetMouseWheel(HContext context, int32_t value)
     {
-        if (s_Context != 0x0)
+        if (context != 0x0)
         {
-            s_Context->m_MousePacket.m_Wheel = value;
+            context->m_MousePacket.m_Wheel = value;
         }
     }
 
@@ -162,6 +206,45 @@ namespace dmHID
         if (gamepad != 0x0)
         {
             gamepad->m_Packet.m_Axis[axis] = value;
+        }
+    }
+
+    bool GetTouchPosition(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y)
+    {
+        if (packet != 0x0
+                && x != 0x0
+                && y != 0x0)
+        {
+            if (touch_index < packet->m_TouchCount)
+            {
+                int32_t* position = packet->m_Touches[touch_index];
+                *x = position[0];
+                *y = position[1];
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void AddTouchPosition(HContext context, int32_t x, int32_t y)
+    {
+        if (context->m_TouchDeviceConnected)
+        {
+            TouchDevicePacket& packet = context->m_TouchDevicePacket;
+            if (packet.m_TouchCount < MAX_TOUCH_COUNT)
+            {
+                int32_t* position = packet.m_Touches[packet.m_TouchCount++];
+                position[0] = x;
+                position[1] = y;
+            }
+        }
+    }
+
+    void ClearTouchPositions(HContext context)
+    {
+        if (context->m_TouchDeviceConnected)
+        {
+            context->m_TouchDevicePacket.m_TouchCount = 0;
         }
     }
 

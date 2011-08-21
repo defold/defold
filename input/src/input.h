@@ -14,9 +14,14 @@ namespace dmInput
         float m_Value;
         float m_PrevValue;
         float m_RepeatTimer;
+        int32_t m_X;
+        int32_t m_Y;
+        int32_t m_DX;
+        int32_t m_DY;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
+        uint32_t m_PositionSet : 1;
     };
 
     typedef struct Context* HContext;
@@ -31,7 +36,14 @@ namespace dmInput
      */
     const HBinding INVALID_BINDING = 0;
 
-    HContext NewContext(float repeat_delay, float repeat_interval);
+    struct NewContextParams
+    {
+        dmHID::HContext m_HidContext;
+        float m_RepeatDelay;
+        float m_RepeatInterval;
+    };
+
+    HContext NewContext(const NewContextParams& params);
     void DeleteContext(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 
@@ -43,6 +55,7 @@ namespace dmInput
 
     void UpdateBinding(HBinding binding, float dt);
 
+    const Action* GetAction(HBinding binding, dmhash_t action_id);
     float GetValue(HBinding binding, dmhash_t action_id);
     bool Pressed(HBinding binding, dmhash_t action_id);
     bool Released(HBinding binding, dmhash_t action_id);

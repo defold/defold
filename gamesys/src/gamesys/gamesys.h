@@ -90,6 +90,7 @@ namespace dmGameSystem
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+    void GuiGetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetrics* out_metrics);
 }
 
 #endif // DM_GAMESYS_H

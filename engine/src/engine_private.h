@@ -12,6 +12,7 @@
 #include <render/render.h>
 #include <render/font_renderer.h>
 
+#include <hid/hid.h>
 #include <input/input.h>
 
 #include <gameobject/gameobject.h>
@@ -58,6 +59,7 @@ namespace dmEngine
         dmGameSystem::SpriteContext                 m_SpriteContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
+        dmHID::HContext                             m_HidContext;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
 

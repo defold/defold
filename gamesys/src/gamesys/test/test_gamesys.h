@@ -2,6 +2,8 @@
 
 #include <resource/resource.h>
 
+#include <hid/hid.h>
+
 #include <sound/sound.h>
 #include <gameobject/gameobject.h>
 
@@ -32,6 +34,7 @@ protected:
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::EmitterContext m_EmitterContext;
     dmGameSystem::GuiContext m_GuiContext;
+    dmHID::HContext m_HidContext;
     dmInput::HContext m_InputContext;
     dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
     dmGameSystem::SpriteContext m_SpriteContext;
@@ -39,7 +42,8 @@ protected:
 
 class ResourceTest : public GamesysTest<const char*>
 {
-
+public:
+    virtual ~ResourceTest() {}
 };
 
 struct ResourceFailParams
@@ -50,17 +54,20 @@ struct ResourceFailParams
 
 class ResourceFailTest : public GamesysTest<ResourceFailParams>
 {
-
+public:
+    virtual ~ResourceFailTest() {}
 };
 
 class ComponentTest : public GamesysTest<const char*>
 {
-
+public:
+    virtual ~ComponentTest() {}
 };
 
 class ComponentFailTest : public GamesysTest<const char*>
 {
-
+public:
+    virtual ~ComponentFailTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);
@@ -97,7 +104,13 @@ void GamesysTest<T>::SetUp()
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
 
-    m_InputContext = dmInput::NewContext(0.3f, 0.1f);
+    m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::Init(m_HidContext);
+    dmInput::NewContextParams input_params;
+    input_params.m_HidContext = m_HidContext;
+    input_params.m_RepeatDelay = 0.3f;
+    input_params.m_RepeatInterval = 0.1f;
+    m_InputContext = dmInput::NewContext(input_params);
 
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
     m_PhysicsContext.m_3D = true;
@@ -133,6 +146,8 @@ void GamesysTest<T>::TearDown()
     dmGameObject::Finalize();
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);
+    dmHID::Final(m_HidContext);
+    dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext3D(m_PhysicsContext.m_Context3D);
     dmScript::DeleteContext(m_ScriptContext);
 }

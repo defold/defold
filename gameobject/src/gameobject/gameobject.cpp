@@ -26,6 +26,11 @@ namespace dmGameObject
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
 
+    InputAction::InputAction()
+    {
+        memset(this, 0, sizeof(InputAction));
+    }
+
     Register::Register()
     {
         m_ComponentTypeCount = 0;
@@ -1308,10 +1313,10 @@ namespace dmGameObject
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
             InputAction& input_action = input_actions[i];
-            if (input_action.m_ActionId != 0)
+            if (input_action.m_ActionId != 0 || input_action.m_PositionSet)
             {
                 uint32_t stack_size = collection->m_InputFocusStack.Size();
-                for (uint32_t k = 0; k < stack_size && input_action.m_ActionId != 0; ++k)
+                for (uint32_t k = 0; k < stack_size; ++k)
                 {
                     HInstance instance = collection->m_InputFocusStack[stack_size - 1 - k];
                     Prototype* prototype = instance->m_Prototype;
@@ -1349,6 +1354,7 @@ namespace dmGameObject
                     if (res == INPUT_RESULT_CONSUMED)
                     {
                         memset(&input_action, 0, sizeof(InputAction));
+                        break;
                     }
                 }
             }

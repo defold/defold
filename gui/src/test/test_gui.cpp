@@ -48,7 +48,12 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene);
 
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
 
+void GetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetrics* out_metrics);
+
 static const float EPSILON = 0.000001f;
+static const float TEXT_GLYPH_WIDTH = 1.0f;
+static const float TEXT_MAX_ASCENT = 0.75f;
+static const float TEXT_MAX_DESCENT = 0.25f;
 
 class dmGuiTest : public ::testing::Test
 {
@@ -72,6 +77,7 @@ public:
         context_params.m_GetURLCallback = GetURLCallback;
         context_params.m_GetUserDataCallback = GetUserDataCallback;
         context_params.m_ResolvePathCallback = ResolvePathCallback;
+        context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
 
         m_Context = dmGui::NewContext(&context_params);
         dmGui::NewSceneParams params;
@@ -83,12 +89,19 @@ public:
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
 
-    static void RenderNode(dmGui::HScene scene, const dmGui::Node* nodes, uint32_t node_count, void* context)
+    static void RenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
     {
         dmGuiTest* self = (dmGuiTest*) context;
+        // The node is defined to completely cover the local space (0,1),(0,1)
+        Vector4 origin_pivot(0.f, 0.f, 0.0f, 1.0f);
+        Vector4 center_pivot(0.5f, 0.5f, 0.0f, 1.0f);
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            self->m_NodeTextToRenderedPosition[nodes[i].m_Text] = nodes[i].m_Properties[dmGui::PROPERTY_POSITION];
+            dmGui::HNode node = nodes[i];
+            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT)
+                self->m_NodeTextToRenderedPosition[dmGui::GetNodeText(scene, nodes[i])] = node_transforms[i] * origin_pivot;
+            else
+                self->m_NodeTextToRenderedPosition[dmGui::GetNodeText(scene, nodes[i])] = node_transforms[i] * center_pivot;
         }
     }
 
@@ -116,6 +129,13 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene)
 dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
 {
     return dmHashBuffer64(path, path_size);
+}
+
+void GetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetrics* out_metrics)
+{
+    out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
+    out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
+    out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
 }
 
 TEST_F(dmGuiTest, Basic)
@@ -761,7 +781,6 @@ TEST_F(dmGuiTest, ScriptInput)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -788,13 +807,57 @@ TEST_F(dmGuiTest, ScriptInputConsume)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
     ASSERT_EQ(dmGui::RESULT_OK, r);
     ASSERT_TRUE(consumed);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, ScriptInputMouseMovement)
+{
+    // No mouse
+    const char* s = "function on_input(self, action_id, action)\n"
+                    "   assert(action.x == nil)\n"
+                    "   assert(action.y == nil)\n"
+                    "   assert(action.dx == nil)\n"
+                    "   assert(action.dy == nil)\n"
+                    "end\n";
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::InputAction input_action;
+    input_action.m_ActionId = dmHashString64("SPACE");
+    bool consumed;
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // Mouse movement
+    s = "function on_input(self, action_id, action)\n"
+        "   assert(action_id == nil)\n"
+        "   assert(action.value == nil)\n"
+        "   assert(action.pressed == nil)\n"
+        "   assert(action.released == nil)\n"
+        "   assert(action.repeated == nil)\n"
+        "   assert(action.x == 1)\n"
+        "   assert(action.y == 2)\n"
+        "   assert(action.dx == 3)\n"
+        "   assert(action.dy == 4)\n"
+        "end\n";
+    input_action.m_ActionId = 0;
+    input_action.m_PositionSet = true;
+    input_action.m_X = 1;
+    input_action.m_Y = 2;
+    input_action.m_DX = 3;
+    input_action.m_DY = 4;
+
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -844,7 +907,6 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
     input_action.m_ActionId = dmHashString64("SPACE");
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -1329,7 +1391,7 @@ TEST_F(dmGuiTest, Scaling)
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(reference_width/2, reference_height/2,0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
-    dmGui::RenderScene(m_Scene, &RenderNode, this);
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
     Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
     ASSERT_EQ(physical_width/2, pos1.getX());
@@ -1361,7 +1423,7 @@ TEST_F(dmGuiTest, Anchoring)
     dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
     dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_BOTTOM);
 
-    dmGui::RenderScene(m_Scene, &RenderNode, this);
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
     Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
     ASSERT_EQ(10 * scale, pos1.getX());
@@ -1374,7 +1436,6 @@ TEST_F(dmGuiTest, Anchoring)
 
 TEST_F(dmGuiTest, ScriptAnchoring)
 {
-
     uint32_t reference_width = 1024;
     uint32_t reference_height = 768;
 
@@ -1409,15 +1470,15 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::RenderScene(m_Scene, &RenderNode, this);
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
     Vector4 pos1 = m_NodeTextToRenderedPosition["n1"];
-    ASSERT_EQ(10 * scale, pos1.getX());
-    ASSERT_EQ(10 * scale, pos1.getY());
+    ASSERT_EQ(10 * scale, pos1.getX() + TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(10 * scale, pos1.getY() + TEXT_MAX_DESCENT);
 
     Vector4 pos2 = m_NodeTextToRenderedPosition["n2"];
-    ASSERT_EQ(physical_width - 10 * scale, pos2.getX());
-    ASSERT_EQ(physical_height - 10 * scale, pos2.getY());
+    ASSERT_EQ(physical_width - 10 * scale, pos2.getX() + TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(physical_height - 10 * scale, pos2.getY() + TEXT_MAX_DESCENT);
 }
 
 TEST_F(dmGuiTest, ScriptErroneousReturnValues)
@@ -1464,15 +1525,67 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     dmGui::InputAction action;
     action.m_ActionId = 1;
     action.m_Value = 1.0f;
-    action.m_Pressed = 0;
-    action.m_Released = 0;
-    action.m_Repeated = 0;
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &action, 1, &consumed);
     ASSERT_NE(dmGui::RESULT_OK, r);
     r = dmGui::FinalScene(m_Scene);
     ASSERT_NE(dmGui::RESULT_OK, r);
     dmGui::DeleteNode(m_Scene, node);
+}
+
+TEST_F(dmGuiTest, Picking)
+{
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+
+    Vector3 size(10, 10, 0);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), size, dmGui::NODE_TYPE_BOX);
+
+    Vector3 ext = size * 0.5f;
+
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, physical_height));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, ext.getX(), physical_height));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, physical_height - ext.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, ext.getX(), physical_height - ext.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(ext.getX() + 0.5f), physical_height));
+
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
+    ext.setX(ext.getX() / sqrt(2.0));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, floor(ext.getX()), physical_height));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(ext.getX() + 0.5f), physical_height));
+
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, physical_height));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, 1, physical_height));
+}
+
+TEST_F(dmGuiTest, ScriptPicking)
+{
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+    dmGui::SetPhysicalResolution(m_Scene, physical_width, physical_height);
+    dmGui::SetReferenceResolution(m_Scene, physical_width, physical_height);
+
+    char buffer[512];
+    const char* s = "function init(self)\n"
+                    "    local id = \"node_1\"\n"
+                    "    local n1 = gui.new_text_node(vmath.vector3(0, 0, 0), id)\n"
+                    "    assert(gui.pick_node(n1, 0, gui.get_height()))\n"
+                    "    local ext_x = 0.5 * string.len(id) * %.2f\n"
+                    "    local ext_y = 0.5 * (%.2f + %.2f)\n"
+                    "    assert(gui.pick_node(n1, ext_x, gui.get_height()))\n"
+                    "    assert(gui.pick_node(n1, 0, gui.get_height()+ext_y))\n"
+                    "    assert(gui.pick_node(n1, ext_x, gui.get_height()+ext_y))\n"
+                    "    assert(not gui.pick_node(n1, ext_x + 1, gui.get_height()+ext_y))\n"
+                    "end\n";
+    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, buffer, strlen(buffer), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 int main(int argc, char **argv)

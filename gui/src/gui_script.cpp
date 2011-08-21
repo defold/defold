@@ -286,7 +286,7 @@ namespace dmGui
      *   <li><code>gui.PROP_ROTATION</code></li>
      *   <li><code>gui.PROP_SCALE</code></li>
      *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_EXTENTS</code></li>
+     *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant)
@@ -395,7 +395,7 @@ namespace dmGui
      *   <li><code>gui.PROP_ROTATION</code></li>
      *   <li><code>gui.PROP_SCALE</code></li>
      *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_EXTENTS</code></li>
+     *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
@@ -424,7 +424,7 @@ namespace dmGui
         return 0;
     }
 
-    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 ext, NodeType node_type, const char* text)
+    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -433,7 +433,7 @@ namespace dmGui
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        HNode node = NewNode(scene, pos, ext, node_type);
+        HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
         {
             luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -456,29 +456,29 @@ namespace dmGui
      *
      * @name gui.new_box_node
      * @param pos node position (vector3)
-     * @param ext node extent (vector3)
+     * @param size node size (vector3)
      * @return new box node (node)
      */
     static int LuaNewBoxNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
-        Vector3 ext = *dmScript::CheckVector3(L, 2);
-        return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_BOX, 0);
+        Vector3 size = *dmScript::CheckVector3(L, 2);
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0);
     }
 
     /*# creates a new text node
      *
      * @name gui.new_text_node
      * @param pos node position (vector3)
-     * @param ext text node text (string)
+     * @param text node text (string)
      * @return new text node (node)
      */
     static int LuaNewTextNode(lua_State* L)
     {
         Vector3 pos = *dmScript::CheckVector3(L, 1);
-        Vector3 ext = Vector3(1,1,1);
+        Vector3 size = Vector3(1,1,1);
         const char* text = luaL_checkstring(L, 2);
-        return LuaDoNewNode(L, Point3(pos), ext, NODE_TYPE_TEXT, text);
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text);
     }
 
     /*# gets the node text
@@ -671,6 +671,45 @@ namespace dmGui
         return 0;
     }
 
+    /*# sets the pivot of a node
+     * The pivot specifies how the node is drawn and rotated from its position.
+     *
+     * @name gui.set_pivot
+     * @param node node to set pivot for (node)
+     * @param pivot pivot constant (constant)
+     * <ul>
+     *   <li><code>gui.PIVOT_CENTER</code></lid>
+     *   <li><code>gui.PIVOT_N</code></lid>
+     *   <li><code>gui.PIVOT_NE</code></lid>
+     *   <li><code>gui.PIVOT_E</code></lid>
+     *   <li><code>gui.PIVOT_SE</code></lid>
+     *   <li><code>gui.PIVOT_S</code></lid>
+     *   <li><code>gui.PIVOT_SW</code></lid>
+     *   <li><code>gui.PIVOT_W</code></lid>
+     *   <li><code>gui.PIVOT_NW</code></lid>
+     * </ul>
+     */
+    static int LuaSetPivot(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int pivot = luaL_checknumber(L, 2);
+        if (pivot < PIVOT_CENTER || pivot > PIVOT_NW)
+        {
+            luaL_error(L, "Invalid pivot: %d", pivot);
+        }
+
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        SetNodePivot(scene, hnode, (Pivot) pivot);
+
+        return 0;
+    }
+
     /*# gets the scene width
      *
      * @name gui.get_width
@@ -694,6 +733,28 @@ namespace dmGui
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*)lua_touserdata(L, -1);
         lua_pushnumber(L, scene->m_ReferenceHeight);
+        return 1;
+    }
+
+    /*# determines if the node is pickable by the supplied coordinates
+     *
+     * @name gui.pick_node
+     * @param node node to be tested for picking (node)
+     * @param x x-coordinate in screen-space
+     * @param y y-coordinate in screen-space
+     */
+    static int LuaPickNode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int32_t x = luaL_checknumber(L, 2);
+        int32_t y = luaL_checknumber(L, 3);
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*)lua_touserdata(L, -1);
+
+        lua_pushboolean(L, PickNode(scene, hnode, x, y));
         return 1;
     }
 
@@ -753,18 +814,18 @@ namespace dmGui
      * @param color new color (vector3|vector4)
      */
 
-    /*# gets the node extents
+    /*# gets the node size
      *
-     * @name gui.get_extents
-     * @param node node to get the extents from (node)
-     * @return node extents (vector4)
+     * @name gui.get_size
+     * @param node node to get the size from (node)
+     * @return node size (vector4)
      */
 
-    /*# sets the node extents
+    /*# sets the node size
      *
-     * @name gui.set_extents
-     * @param node node to set the extents for (node)
-     * @param extents new extents (vector3|vector4)
+     * @name gui.set_size
+     * @param node node to set the size for (node)
+     * @param size new size (vector3|vector4)
      */
 
 #define LUAGETSET(name, property) \
@@ -791,7 +852,7 @@ namespace dmGui
     LUAGETSET(Rotation, PROPERTY_ROTATION)
     LUAGETSET(Scale, PROPERTY_SCALE)
     LUAGETSET(Color, PROPERTY_COLOR)
-    LUAGETSET(Extents, PROPERTY_EXTENTS)
+    LUAGETSET(Size, PROPERTY_SIZE)
 
 #undef LUAGETSET
 
@@ -820,13 +881,15 @@ namespace dmGui
         {"set_font",        LuaSetFont},
         {"set_xanchor",     LuaSetXAnchor},
         {"set_yanchor",     LuaSetYAnchor},
+        {"set_pivot",       LuaSetPivot},
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
+        {"pick_node",       LuaPickNode},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
         REGGETSET(Color, color)
-        REGGETSET(Extents, extents)
+        REGGETSET(Size, size)
         {0, 0}
     };
 
@@ -880,9 +943,9 @@ namespace dmGui
      * @variable
      */
 
-    /*# extents property
+    /*# size property
      *
-     * @name gui.PROP_EXTENTS
+     * @name gui.PROP_SIZE
      * @variable
      */
 
@@ -934,6 +997,52 @@ namespace dmGui
      * @variable
      */
 
+    /*# center pivor
+     *
+     * @name gui.PIVOT_CENTER
+     * @variable
+     */
+    /*# north pivot
+     *
+     * @name gui.PIVOT_N
+     * @variable
+     */
+    /*# north-east pivot
+     *
+     * @name gui.PIVOT_NE
+     * @variable
+     */
+    /*# east pivot
+     *
+     * @name gui.PIVOT_E
+     * @variable
+     */
+    /*# south-east pivot
+     *
+     * @name gui.PIVOT_SE
+     * @variable
+     */
+    /*# south pivot
+     *
+     * @name gui.PIVOT_S
+     * @variable
+     */
+    /*# south-west pivot
+     *
+     * @name gui.PIVOT_SW
+     * @variable
+     */
+    /*# west pivot
+     *
+     * @name gui.PIVOT_W
+     * @variable
+     */
+    /*# north-west pivot
+     *
+     * @name gui.PIVOT_NW
+     * @variable
+     */
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = lua_open();
@@ -969,7 +1078,7 @@ namespace dmGui
         SETPROP(ROTATION)
         SETPROP(SCALE)
         SETPROP(COLOR)
-        SETPROP(EXTENTS)
+        SETPROP(SIZE)
 
 #undef SETPROP
 
@@ -1003,6 +1112,22 @@ namespace dmGui
         lua_setfield(L, -2, "ANCHOR_TOP");
         lua_pushnumber(L, (lua_Number) YANCHOR_BOTTOM);
         lua_setfield(L, -2, "ANCHOR_BOTTOM");
+
+#define SETPIVOT(name) \
+        lua_pushnumber(L, (lua_Number) PIVOT_##name); \
+        lua_setfield(L, -2, "PIVOT_"#name);\
+
+        SETPIVOT(CENTER)
+        SETPIVOT(N)
+        SETPIVOT(NE)
+        SETPIVOT(E)
+        SETPIVOT(SE)
+        SETPIVOT(S)
+        SETPIVOT(SW)
+        SETPIVOT(W)
+        SETPIVOT(NW)
+
+#undef SETPIVOT
 
         lua_pop(L, 1);
 
@@ -1134,17 +1259,26 @@ namespace dmGui
      * See the documentation of that message for more information.
      * </p>
      * <p>
-     * The <code>action</code> parameter is a table containing data about the input, such as the id of the action it corresponds to.
+     * The <code>action</code> parameter is a table containing data about the input mapped to the <code>action_id</code>.
+     * For mapped actions it specifies the value of the input and if it was just pressed or released.
      * Actions are mapped to input in an input_binding-file.
+     * </p>
+     * <p>
+     * Mouse movement is specifically handled and uses <code>nil</code> as its <code>action_id</code>.
+     * The <code>action</code> only contains positional parameters in this case, such as x and y of the pointer.
      * </p>
      * Here is a brief description of the available table fields:
      * <table>
      *   <th>Field</th>
      *   <th>Description</th>
-     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs.</td></tr>
-     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true.</td></tr>
-     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true.</td></tr>
-     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down.</td></tr>
+     *   <tr><td><code>value</code></td><td>The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>pressed</code></td><td>If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>released</code></td><td>If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
+     *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
      * </table>
      *
      * @name on_input

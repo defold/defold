@@ -130,24 +130,20 @@ enum Key
 
 enum Mouse
 {
-    MOUSE_UP = 0;
-    MOUSE_DOWN = 1;
-    MOUSE_LEFT = 2;
-    MOUSE_RIGHT = 3;
-    MOUSE_WHEEL_UP = 4;
-    MOUSE_WHEEL_DOWN = 5;
-    MOUSE_BUTTON_LEFT = 6;
-    MOUSE_BUTTON_MIDDLE = 7;
-    MOUSE_BUTTON_RIGHT = 8;
-    MOUSE_BUTTON_1 = 9;
-    MOUSE_BUTTON_2 = 10;
-    MOUSE_BUTTON_3 = 11;
-    MOUSE_BUTTON_4 = 12;
-    MOUSE_BUTTON_5 = 13;
-    MOUSE_BUTTON_6 = 14;
-    MOUSE_BUTTON_7 = 15;
-    MOUSE_BUTTON_8 = 16;
-    MAX_MOUSE_COUNT = 17;
+    MOUSE_WHEEL_UP = 0;
+    MOUSE_WHEEL_DOWN = 1;
+    MOUSE_BUTTON_LEFT = 2;
+    MOUSE_BUTTON_MIDDLE = 3;
+    MOUSE_BUTTON_RIGHT = 4;
+    MOUSE_BUTTON_1 = 5;
+    MOUSE_BUTTON_2 = 6;
+    MOUSE_BUTTON_3 = 7;
+    MOUSE_BUTTON_4 = 8;
+    MOUSE_BUTTON_5 = 9;
+    MOUSE_BUTTON_6 = 10;
+    MOUSE_BUTTON_7 = 11;
+    MOUSE_BUTTON_8 = 12;
+    MAX_MOUSE_COUNT = 13;
 }
 
 enum Gamepad
@@ -220,6 +216,21 @@ message GamepadMaps
     repeated GamepadMap driver = 1;
 }
 
+enum Touch
+{
+    TOUCH_1 = 0;
+    TOUCH_2 = 1;
+    TOUCH_3 = 2;
+    TOUCH_4 = 3;
+    TOUCH_5 = 4;
+    TOUCH_6 = 5;
+    TOUCH_7 = 6;
+    TOUCH_8 = 7;
+    TOUCH_9 = 8;
+    TOUCH_10 = 9;
+    TOUCH_11 = 10;
+}
+
 message KeyTrigger
 {
     required Key input = 1;
@@ -238,9 +249,16 @@ message GamepadTrigger
     required string action = 2;
 }
 
+message TouchTrigger
+{
+    required Touch input = 1;
+    required string action = 2;
+}
+
 message InputBinding
 {
-    repeated KeyTrigger key_trigger = 2;
-    repeated MouseTrigger mouse_trigger = 3;
-    repeated GamepadTrigger gamepad_trigger = 4;
+    repeated KeyTrigger key_trigger = 1;
+    repeated MouseTrigger mouse_trigger = 2;
+    repeated GamepadTrigger gamepad_trigger = 3;
+    repeated TouchTrigger touch_trigger = 4;
 }

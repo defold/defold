@@ -13,23 +13,19 @@ using namespace Vectormath::Aos;
 
 GLuint checker_texture;
 
-void MyRenderNode(dmGui::HScene scene,
-                  const dmGui::Node* nodes,
+void MyRenderNodes(dmGui::HScene scene,
+                  dmGui::HNode* nodes,
+                  const Vectormath::Aos::Matrix4* node_transforms,
                   uint32_t node_count,
                   void* context)
 {
     for (uint32_t i = 0; i < node_count; ++i)
     {
-        const dmGui::Node* node = &nodes[i];
+        dmGui::HNode node = nodes[i];
+        Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+        glColor4fv((const GLfloat*)&color);
 
-        Vector4 pos = node->m_Properties[dmGui::PROPERTY_POSITION];
-        Vector4 rot = node->m_Properties[dmGui::PROPERTY_ROTATION];
-        Vector4 ext = node->m_Properties[dmGui::PROPERTY_EXTENTS];
-        Vector4 color = node->m_Properties[dmGui::PROPERTY_COLOR];
-        glColor4f(color.getX(), color.getY(), color.getZ(), color.getW());
-
-
-        dmGui::BlendMode blend_mode = (dmGui::BlendMode) node->m_BlendMode;
+        dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
         switch (blend_mode)
         {
             case dmGui::BLEND_MODE_ALPHA:
@@ -53,8 +49,7 @@ void MyRenderNode(dmGui::HScene scene,
                 break;
         }
 
-
-        if (node->m_Texture)
+        if (dmGui::GetNodeTexture(scene, node))
         {
             glEnable(GL_TEXTURE_2D);
             glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -66,31 +61,18 @@ void MyRenderNode(dmGui::HScene scene,
         }
 
         glPushMatrix();
+        glMultMatrixf((const GLfloat*) &node_transforms[i]);
 
-        float x = pos.getX();
-        float y = pos.getY();
-        float z = pos.getZ();
-
-        const float deg_to_rad = 3.1415926f / 180.0f;
-        Matrix4 m = Matrix4::translation(pos.getXYZ()) *
-                    Matrix4::rotationZ(rot.getZ() * deg_to_rad) *
-                    Matrix4::rotationY(rot.getY() * deg_to_rad) *
-                    Matrix4::rotationX(rot.getX() * deg_to_rad) *
-                    Matrix4::translation(-pos.getXYZ());
-        glMultMatrixf((const GLfloat*) &m);
-
-        float dx = ext.getX() * 0.5f;
-        float dy = ext.getY() * 0.5f;
         glBegin(GL_TRIANGLE_STRIP);
 
         glTexCoord2f(0, 1);
-        glVertex3f(x - dx, y - dy, z);
+        glVertex3f(0.0f, 0.0f, 0.0f);
         glTexCoord2f(0, 0);
-        glVertex3f(x - dx, y + dy, z);
+        glVertex3f(0.0f, 1.0f, 0.0f);
         glTexCoord2f(1, 1);
-        glVertex3f(x + dx, y - dy, z);
+        glVertex3f(1.0f, 0.0f, 0.0f);
         glTexCoord2f(1, 0);
-        glVertex3f(x + dx, y + dy, z);
+        glVertex3f(1.0f, 1.0f, 0.0f);
 
         glEnd();
 
@@ -98,34 +80,50 @@ void MyRenderNode(dmGui::HScene scene,
     }
 }
 
-dmGui::HScene g_Scene;
+const uint32_t SCENE_COUNT = 2;
+const char* SCRIPTS[SCENE_COUNT] = {"src/test/guidemo_align.lua", "src/test/guidemo_anim.lua"};
+dmGui::HScene g_Scenes[SCENE_COUNT];
+uint32_t g_CurrentScene = 0;
 
 void OnKey(int key, int state)
 {
     dmGui::InputAction input_action;
-    memset(&input_action, 0, sizeof(input_action));
 
-    if (key == GLFW_KEY_SPACE)
+    switch (key)
     {
-        input_action.m_ActionId = dmHashString64("SPACE");
+    case GLFW_KEY_TAB:
         if (state)
         {
-            input_action.m_Pressed = 1;
-            input_action.m_Released = 0;
+            g_CurrentScene = (g_CurrentScene + 1) % SCENE_COUNT;
         }
-        else
+        break;
+    case GLFW_KEY_SPACE:
         {
-            input_action.m_Pressed = 0;
-            input_action.m_Released = 1;
+            input_action.m_ActionId = dmHashString64("SPACE");
+            if (state)
+            {
+                input_action.m_Pressed = 1;
+                input_action.m_Released = 0;
+            }
+            else
+            {
+                input_action.m_Pressed = 0;
+                input_action.m_Released = 1;
+            }
+            bool consumed;
+            dmGui::DispatchInput(g_Scenes[g_CurrentScene], &input_action, 1, &consumed);
         }
-        bool consumed;
-        dmGui::DispatchInput(g_Scene, &input_action, 1, &consumed);
+        break;
     }
 }
 
 int main(void)
 {
-    int width, height, running, x, y;
+    int running, x, y;
+    int current_width = 700;
+    int current_height = 700;
+    const int ref_width = 100;
+    const int ref_height = 100;
     float t;
 
     uint8_t checker_texture_data[] = {64, 64, 64, 255,
@@ -135,7 +133,7 @@ int main(void)
 
     glfwInit();
 
-    if (!glfwOpenWindow(700, 700, 8, 8, 8, 8, 0, 0, GLFW_WINDOW))
+    if (!glfwOpenWindow(current_width, current_height, 8, 8, 8, 8, 0, 0, GLFW_WINDOW))
     {
         glfwTerminate();
         return 1;
@@ -143,17 +141,6 @@ int main(void)
 
     glfwEnable(GLFW_STICKY_KEYS);
     glfwSwapInterval(1);
-
-    dmGui::NewContextParams context_params;
-    context_params.m_ScriptContext = dmScript::NewContext();
-    dmGui::HContext context = dmGui::NewContext(&context_params);
-    dmGui::NewSceneParams params;
-    params.m_MaxNodes = 256;
-    params.m_MaxAnimations = 1024;
-    dmGui::HScene scene = dmGui::NewScene(context, &params);
-    dmGui::HScript script = dmGui::NewScript(context);
-    dmGui::SetSceneScript(scene, script);
-    g_Scene = scene;
 
     glGenTextures(1, &checker_texture);
     glBindTexture(GL_TEXTURE_2D, checker_texture);
@@ -165,22 +152,38 @@ int main(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0,
             GL_RGBA, GL_UNSIGNED_BYTE, &checker_texture_data[0]);
 
-    const char* script_file = "src/test/guidemo.lua";
-    FILE*f = fopen(script_file, "rb");
-    if (!f)
+    dmGui::NewContextParams context_params;
+    context_params.m_ScriptContext = dmScript::NewContext();
+    dmGui::HContext context = dmGui::NewContext(&context_params);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 256;
+    params.m_MaxAnimations = 1024;
+    for (uint32_t i = 0; i < SCENE_COUNT; ++i)
     {
-        printf("Unable to open: %s\n", script_file);
-        return 1;
-    }
-    fseek(f, 0, SEEK_END);
-    uint32_t file_size = (uint32_t) ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char* buf = new char[file_size];
-    fread(buf, 1, file_size, f);
-    fclose(f);
+        dmGui::HScene scene = dmGui::NewScene(context, &params);
+        dmGui::SetPhysicalResolution(scene, current_width, current_height);
+        dmGui::SetReferenceResolution(scene, ref_width, ref_height);
+        dmGui::HScript script = dmGui::NewScript(context);
+        dmGui::SetSceneScript(scene, script);
+        g_Scenes[i] = scene;
 
-    dmGui::AddTexture(scene, "checker", (void*) checker_texture);
-    dmGui::SetScript(script, buf, file_size, script_file);
+        const char* script_file = SCRIPTS[i];
+        FILE*f = fopen(script_file, "rb");
+        if (!f)
+        {
+            printf("Unable to open: %s\n", script_file);
+            return 1;
+        }
+        fseek(f, 0, SEEK_END);
+        uint32_t file_size = (uint32_t) ftell(f);
+        fseek(f, 0, SEEK_SET);
+        char* buf = new char[file_size];
+        fread(buf, 1, file_size, f);
+        fclose(f);
+
+        dmGui::AddTexture(scene, "checker", (void*) checker_texture);
+        dmGui::SetScript(script, buf, file_size, script_file);
+    }
 
 #ifdef __MACH__
     ProcessSerialNumber psn;
@@ -196,16 +199,27 @@ int main(void)
     running = GL_TRUE;
     while (running)
     {
+        dmGui::HScene scene = g_Scenes[g_CurrentScene];
         glfwSetKeyCallback(&OnKey);
         dmGui::UpdateScene(scene, 1.0f / 60.0f);
 
         t = glfwGetTime();
         glfwGetMousePos(&x, &y);
 
+        int width, height;
         glfwGetWindowSize(&width, &height);
         height = height > 0 ? height : 1;
+        if (width != current_width || height != current_height)
+        {
+            for (uint32_t i = 0; i < SCENE_COUNT; ++i)
+            {
+                dmGui::SetPhysicalResolution(g_Scenes[i], width, height);
+            }
+            current_width = width;
+            current_height = height;
+        }
 
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, current_width, current_height);
 
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear( GL_COLOR_BUFFER_BIT);
@@ -214,12 +228,12 @@ int main(void)
 
         glMatrixMode( GL_PROJECTION);
         glLoadIdentity();
-        gluOrtho2D(0, 1, 0, 1);
+        gluOrtho2D(0, current_width, 0, current_height);
 
         glMatrixMode( GL_MODELVIEW);
         glLoadIdentity();
 
-        dmGui::RenderScene(scene, &MyRenderNode, 0);
+        dmGui::RenderScene(scene, &MyRenderNodes, 0);
 
         glfwSwapBuffers();
 

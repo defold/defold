@@ -270,27 +270,57 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
-            dmScript::PushHash(L, params.m_InputAction->m_ActionId);
+            // 0 is reserved for pure mouse movement
+            if (params.m_InputAction->m_ActionId != 0)
+            {
+                dmScript::PushHash(L, params.m_InputAction->m_ActionId);
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
 
-            lua_createtable(L, 0, 5);
+            lua_createtable(L, 0, 8);
 
             int action_table = lua_gettop(L);
 
-            lua_pushliteral(L, "value");
-            lua_pushnumber(L, params.m_InputAction->m_Value);
-            lua_settable(L, action_table);
+            if (params.m_InputAction->m_ActionId != 0)
+            {
+                lua_pushliteral(L, "value");
+                lua_pushnumber(L, params.m_InputAction->m_Value);
+                lua_settable(L, action_table);
 
-            lua_pushliteral(L, "pressed");
-            lua_pushboolean(L, params.m_InputAction->m_Pressed);
-            lua_settable(L, action_table);
+                lua_pushliteral(L, "pressed");
+                lua_pushboolean(L, params.m_InputAction->m_Pressed);
+                lua_settable(L, action_table);
 
-            lua_pushliteral(L, "released");
-            lua_pushboolean(L, params.m_InputAction->m_Released);
-            lua_settable(L, action_table);
+                lua_pushliteral(L, "released");
+                lua_pushboolean(L, params.m_InputAction->m_Released);
+                lua_settable(L, action_table);
 
-            lua_pushliteral(L, "repeated");
-            lua_pushboolean(L, params.m_InputAction->m_Repeated);
-            lua_settable(L, action_table);
+                lua_pushliteral(L, "repeated");
+                lua_pushboolean(L, params.m_InputAction->m_Repeated);
+                lua_settable(L, action_table);
+            }
+
+            if (params.m_InputAction->m_PositionSet)
+            {
+                lua_pushliteral(L, "x");
+                lua_pushnumber(L, params.m_InputAction->m_X);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "y");
+                lua_pushnumber(L, params.m_InputAction->m_Y);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "dx");
+                lua_pushnumber(L, params.m_InputAction->m_DX);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "dy");
+                lua_pushnumber(L, params.m_InputAction->m_DY);
+                lua_settable(L, action_table);
+            }
 
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;

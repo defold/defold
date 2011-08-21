@@ -2,9 +2,5 @@
 .lock-wscript
 build
 *.pyc
-
-
-
-
-
+.settings
 

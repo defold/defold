@@ -16,14 +16,20 @@ namespace dmHID
 
     struct Context
     {
+        Context();
+
         KeyboardPacket m_KeyboardPacket;
         MousePacket m_MousePacket;
         Gamepad m_Gamepads[MAX_GAMEPAD_COUNT];
+        TouchDevicePacket m_TouchDevicePacket;
         uint32_t m_KeyboardConnected : 1;
         uint32_t m_MouseConnected : 1;
+        uint32_t m_TouchDeviceConnected : 1;
+        uint32_t m_IgnoreMouse : 1;
+        uint32_t m_IgnoreKeyboard : 1;
+        uint32_t m_IgnoreGamepads : 1;
+        uint32_t m_IgnoreTouchDevice : 1;
     };
-
-    extern Context* s_Context;
 }
 
 #endif

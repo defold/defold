@@ -40,6 +40,30 @@ namespace dmGui
     typedef uintptr_t (*GetUserDataCallback)(HScene scene);
     typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path, uint32_t path_size);
 
+    /**
+     * Font metrics of a text string
+     */
+    struct TextMetrics
+    {
+        /// Default constructor, initializes everything to 0
+        TextMetrics();
+
+        /// Total string width
+        float m_Width;
+        /// Max ascent of font
+        float m_MaxAscent;
+        /// Max descent of font, positive value
+        float m_MaxDescent;
+    };
+    /** callback for retrieving text metrics
+     * The function is expected to fill out the supplied metrics struct with metrics of the supplied font and text.
+     *
+     * @param font font to measure
+     * @param text text to measure
+     * @param out_metrics the metrics of the supplied text
+     */
+    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, TextMetrics* out_metrics);
+
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
@@ -49,6 +73,7 @@ namespace dmGui
         GetURLCallback m_GetURLCallback;
         GetUserDataCallback m_GetUserDataCallback;
         ResolvePathCallback m_ResolvePathCallback;
+        GetTextMetricsCallback m_GetTextMetricsCallback;
 
         NewContextParams()
         {
@@ -67,17 +92,17 @@ namespace dmGui
 
     enum Property
     {
-        PROPERTY_POSITION  = 0,
-        PROPERTY_ROTATION  = 1,
-        PROPERTY_SCALE     = 2,
-        PROPERTY_COLOR     = 3,
-        PROPERTY_EXTENTS   = 4,
+        PROPERTY_POSITION   = 0,
+        PROPERTY_ROTATION   = 1,
+        PROPERTY_SCALE      = 2,
+        PROPERTY_COLOR      = 3,
+        PROPERTY_SIZE       = 4,
 
-        PROPERTY_RESERVED1 = 5,
-        PROPERTY_RESERVED2 = 6,
-        PROPERTY_RESERVED3 = 7,
+        PROPERTY_RESERVED1  = 5,
+        PROPERTY_RESERVED2  = 6,
+        PROPERTY_RESERVED3  = 7,
 
-        PROPERTY_COUNT     = 8,
+        PROPERTY_COUNT      = 8,
     };
 
     enum Easing
@@ -106,22 +131,6 @@ namespace dmGui
     {
         NODE_TYPE_BOX  = 0,
         NODE_TYPE_TEXT = 1,
-    };
-
-    struct Node
-    {
-        Vector4     m_Properties[PROPERTY_COUNT];
-        uint32_t    m_BlendMode : 4;
-        uint32_t    m_NodeType : 4;
-        uint32_t    m_XAnchor : 2;
-        uint32_t    m_YAnchor : 2;
-        uint32_t    m_Pivot : 4;
-        uint32_t    m_Reserved : 16;
-        const char* m_Text;
-        uint64_t    m_TextureHash;
-        void*       m_Texture;
-        uint64_t    m_FontHash;
-        void*       m_Font;
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -162,20 +171,33 @@ namespace dmGui
      */
     struct InputAction
     {
+        InputAction();
+
         /// Action id, hashed action name
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
-        float    m_Value;
+        float m_Value;
+        /// Cursor X coordinate
+        int32_t m_X;
+        /// Cursor Y coordinate
+        int32_t m_Y;
+        /// Cursor dx since last frame
+        int32_t m_DX;
+        /// Cursor dy since last frame
+        int32_t m_DY;
         /// If the input was 0 last update
-        uint16_t m_Pressed;
+        uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint16_t m_Released;
+        uint16_t m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint16_t m_Repeated;
+        uint16_t m_Repeated : 1;
+        /// If the position fields (m_X, m_Y, m_DX, m_DY) are set and valid to read
+        uint16_t m_PositionSet : 1;
     };
 
-    typedef void (*RenderNode)(HScene scene,
-                               const Node* nodes,
+    typedef void (*RenderNodes)(HScene scene,
+                               HNode* nodes,
+                               const Vectormath::Aos::Matrix4* node_transforms,
                                uint32_t node_count,
                                void* context);
 
@@ -239,6 +261,7 @@ namespace dmGui
      * @param font_name Name of the font that will be used in the gui scripts
      */
     void RemoveFont(HScene scene, const char* font_name);
+
     /**
      * Remove all fonts from the scene.
      * @note Every node will also be disconnected from the font they are already connected to, if any. This makes this function O(n), where n is #nodes.
@@ -246,7 +269,14 @@ namespace dmGui
      */
     void ClearFonts(HScene scene);
 
-    void RenderScene(HScene scene, RenderNode render_node, void* context);
+    /** Renders a gui scene
+     * Renders a gui scene by calling the callback function render_nodes and supplying an array of nodes.
+     *
+     * @param scene Scene to render
+     * @param render_nodes Callback function to perform the actual rendering
+     * @param context User-defined context that will be passed to the callback function
+     */
+    void RenderScene(HScene scene, RenderNodes render_nodes, void* context);
 
     /**
      * Run the init-function of the scene script.
@@ -303,7 +333,7 @@ namespace dmGui
 
     HScript GetSceneScript(HScene scene);
 
-    HNode NewNode(HScene scene, const Point3& position, const Vector3& extents, NodeType node_type);
+    HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type);
 
     void SetNodeId(HScene scene, HNode node, const char* name);
 
@@ -315,6 +345,8 @@ namespace dmGui
 
     void ClearNodes(HScene scene);
 
+    NodeType GetNodeType(HScene scene, HNode node);
+
     Point3 GetNodePosition(HScene scene, HNode node);
 
     void SetNodePosition(HScene scene, HNode node, const Point3& position);
@@ -323,12 +355,16 @@ namespace dmGui
 
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value);
 
+    const char* GetNodeText(HScene scene, HNode node);
     void SetNodeText(HScene scene, HNode node, const char* text);
 
+    void* GetNodeTexture(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture);
 
+    void* GetNodeFont(HScene scene, HNode node);
     Result SetNodeFont(HScene scene, HNode node, const char* font);
 
+    BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
 
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
@@ -346,6 +382,17 @@ namespace dmGui
                      void* userdata2);
 
     void CancelAnimation(HScene scene, HNode node, Property property);
+
+    /** determines if a node can be picked
+     * Reports if a node is picked by the supplied screen-space coordinates.
+     *
+     * @param scene the scene the node exists in
+     * @param node node to be picked
+     * @param x x-coordinate in screen-space
+     * @param y y-coordinate in screen-space
+     * @return true if the node was picked, false otherwise
+     */
+    bool PickNode(HScene scene, HNode node, int32_t x, int32_t y);
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);

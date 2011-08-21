@@ -7,6 +7,8 @@
 
 #include <graphics/graphics.h>
 
+#include <hid/hid.h>
+
 #include <render/render.h>
 #include <render/font_renderer.h>
 
@@ -17,6 +19,7 @@ struct Context
     const char* m_TestString;
     dmGraphics::HContext m_GraphicsContext;
     dmResource::HFactory m_Factory;
+    dmHID::HContext m_HidContext;
     dmRender::HFontMap m_FontMap;
     dmRender::HRenderContext m_RenderContext;
     uint32_t m_ScreenWidth;
