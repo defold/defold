@@ -38,6 +38,8 @@ struct Driver
 void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, bool* axis, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
 
+dmHID::HContext g_HidContext = 0;
+
 int main(int argc, char *argv[])
 {
     int result = 0;
@@ -57,12 +59,13 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmHID::Initialize();
-    dmHID::Update();
+    g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::Init(g_HidContext);
+    dmHID::Update(g_HidContext);
 
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
     {
-        gamepad = dmHID::GetGamepad(i);
+        gamepad = dmHID::GetGamepad(g_HidContext, i);
         if (dmHID::IsGamepadConnected(gamepad))
         {
             gamepads[gamepad_count++] = gamepad;
@@ -124,7 +127,7 @@ int main(int argc, char *argv[])
     timer = wait_delay;
     while (true)
     {
-        dmHID::Update();
+        dmHID::Update(g_HidContext);
         dmHID::GetGamepadPacket(gamepad, &packet);
         GetDelta(&prev_packet, &packet, &axis, &index, &value, &delta);
         if (dmMath::Abs(delta) < 0.01f)
@@ -149,7 +152,7 @@ int main(int argc, char *argv[])
         bool run = true;
         while (run)
         {
-            dmHID::Update();
+            dmHID::Update(g_HidContext);
             dmHID::GetGamepadPacket(gamepad, &packet);
             GetDelta(&prev_packet, &packet, &axis, &index, &value, &delta);
             switch (state)
@@ -204,7 +207,8 @@ int main(int argc, char *argv[])
     printf("Bye!\n");
 
 bail:
-    dmHID::Finalize();
+    dmHID::Final(g_HidContext);
+    dmHID::DeleteContext(g_HidContext);
     if (out != 0x0)
         fclose(out);
 
