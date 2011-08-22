@@ -7,6 +7,8 @@ import com.dynamo.input.proto.Input.Key;
 import com.dynamo.input.proto.Input.KeyTrigger;
 import com.dynamo.input.proto.Input.Mouse;
 import com.dynamo.input.proto.Input.MouseTrigger;
+import com.dynamo.input.proto.Input.Touch;
+import com.dynamo.input.proto.Input.TouchTrigger;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Message;
 
@@ -26,6 +28,9 @@ public class InputBindingEditSupport implements IResourceTypeEditSupport {
         else if (descriptor.getFullName().equals(MouseTrigger.getDescriptor().getFullName())) {
             return MouseTrigger.newBuilder().setAction("unnamed").setInput(Mouse.MOUSE_BUTTON_1).build();
         }
+        else if (descriptor.getFullName().equals(TouchTrigger.getDescriptor().getFullName())) {
+            return TouchTrigger.newBuilder().setAction("unnamed").setInput(Touch.TOUCH_1).build();
+        }
         return null;
     }
 
@@ -42,6 +47,10 @@ public class InputBindingEditSupport implements IResourceTypeEditSupport {
         else if (message instanceof MouseTrigger) {
             MouseTrigger mouseTrigger =  (MouseTrigger) message;
             return mouseTrigger.getAction();
+        }
+        else if (message instanceof TouchTrigger) {
+            TouchTrigger touchTrigger =  (TouchTrigger) message;
+            return touchTrigger.getAction();
         }
 
         return "";
