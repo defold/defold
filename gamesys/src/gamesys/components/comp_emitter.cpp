@@ -32,6 +32,7 @@ namespace dmGameSystem
         EmitterContext* m_EmitterContext;
         dmParticle::HContext m_ParticleContext;
         dmGraphics::HVertexBuffer m_VertexBuffer;
+        void* m_ClientBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         uint32_t m_VertexCount;
     };
@@ -52,7 +53,9 @@ namespace dmGameSystem
         emitter_world->m_ParticleContext = dmParticle::CreateContext(ctx->m_MaxEmitterCount, ctx->m_MaxParticleCount);
         emitter_world->m_Emitters.SetCapacity(MAX_EMITTER_COUNT);
         emitter_world->m_RenderObjects.SetCapacity(MAX_EMITTER_COUNT);
-        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        uint32_t buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
+        emitter_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        emitter_world->m_ClientBuffer = new char[buffer_size];
         dmGraphics::VertexElement ve[] =
         {
             {"position", 0, 3, dmGraphics::TYPE_FLOAT},
@@ -68,6 +71,7 @@ namespace dmGameSystem
     {
         EmitterWorld* emitter_world = (EmitterWorld*)params.m_World;
         dmParticle::DestroyContext(emitter_world->m_ParticleContext);
+        delete [] (char*)emitter_world->m_ClientBuffer;
         dmGraphics::DeleteVertexBuffer(emitter_world->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(emitter_world->m_VertexDeclaration);
         delete emitter_world;
@@ -118,40 +122,41 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompEmitterUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-
         EmitterWorld* w = (EmitterWorld*)params.m_World;
         if (w->m_Emitters.Size() == 0)
             return dmGameObject::UPDATE_RESULT_OK;
 
+        dmParticle::HContext particle_context = w->m_ParticleContext;
         for (uint32_t i = 0; i < w->m_Emitters.Size(); ++i)
         {
             Emitter& emitter = w->m_Emitters[i];
             Point3 position = dmGameObject::GetWorldPosition(emitter.m_Instance);
-            dmParticle::SetPosition(w->m_ParticleContext, emitter.m_Emitter, position);
-            dmParticle::SetRotation(w->m_ParticleContext, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
+            dmParticle::SetPosition(particle_context, emitter.m_Emitter, position);
+            dmParticle::SetRotation(particle_context, emitter.m_Emitter, dmGameObject::GetWorldRotation(emitter.m_Instance));
         }
         EmitterContext* ctx = (EmitterContext*)params.m_Context;
 
         // NOTE: Objects are added in RenderEmitterCallback
         w->m_RenderObjects.SetSize(0);
 
-        float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(w->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
-        uint32_t vertex_buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
-        dmParticle::Update(w->m_ParticleContext, params.m_UpdateContext->m_DT, vertex_buffer, vertex_buffer_size);
-        dmGraphics::UnmapVertexBuffer(w->m_VertexBuffer);
-        dmParticle::Render(w->m_ParticleContext, w, RenderEmitterCallback);
+        float* vertex_buffer = (float*)w->m_ClientBuffer;
+        uint32_t max_vertex_buffer_size = ctx->m_MaxParticleCount * 6 * sizeof(ParticleVertex);
+        uint32_t vertex_buffer_size;
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, vertex_buffer, max_vertex_buffer_size, &vertex_buffer_size);
+        dmParticle::Render(particle_context, w, RenderEmitterCallback);
+        dmGraphics::SetVertexBufferData(w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmRender::HRenderContext render_context = ctx->m_RenderContext;
         uint32_t n = w->m_RenderObjects.Size();
         dmArray<dmRender::RenderObject>& render_objects = w->m_RenderObjects;
-
         for (uint32_t i = 0; i < n; ++i)
         {
-            dmRender::AddToRender(ctx->m_RenderContext, &render_objects[i]);
+            dmRender::AddToRender(render_context, &render_objects[i]);
         }
 
         if (ctx->m_Debug)
         {
-            EmitterContext* emitter_context = (EmitterContext*)params.m_Context;
-            dmParticle::DebugRender(w->m_ParticleContext, emitter_context->m_RenderContext, RenderLineCallback);
+            dmParticle::DebugRender(particle_context, render_context, RenderLineCallback);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

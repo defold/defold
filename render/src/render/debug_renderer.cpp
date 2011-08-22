@@ -29,7 +29,9 @@ namespace dmRender
 
         debug_renderer.m_RenderContext = render_context;
         debug_renderer.m_VertexIndex = 0;
-        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, MAX_VERTEX_COUNT * sizeof(DebugVertex), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        uint32_t buffer_size = MAX_VERTEX_COUNT * sizeof(DebugVertex);
+        debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        debug_renderer.m_ClientBuffer = new char[buffer_size];
         dmGraphics::VertexElement ve[] =
         {
             {"position", 0, 4, dmGraphics::TYPE_FLOAT },
@@ -95,6 +97,7 @@ namespace dmRender
         material = context->m_DebugRenderer.m_RenderObject2d[0].m_Material;
         DeleteMaterial(context, material);
 
+        delete [] (char*)context->m_DebugRenderer.m_ClientBuffer;
         dmGraphics::DeleteVertexBuffer(context->m_DebugRenderer.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(context->m_DebugRenderer.m_VertexDeclaration);
     }
@@ -132,7 +135,8 @@ namespace dmRender
             v[4].m_Position = v[1].m_Position;
             for (uint32_t i = 0; i < 6; ++i)
                 v[i].m_Color = color;
-            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 6 * sizeof(DebugVertex), (const void*)v);
+            char* buffer = (char*)context->m_DebugRenderer.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, 6 * sizeof(DebugVertex));
             ro.m_VertexCount += 6;
             context->m_DebugRenderer.m_VertexIndex += 6;
         }
@@ -153,7 +157,8 @@ namespace dmRender
             v[0].m_Color = color0;
             v[1].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
             v[1].m_Color = color1;
-            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 2 * sizeof(DebugVertex), (const void*)v);
+            char* buffer = (char*)context->m_DebugRenderer.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, 2 * sizeof(DebugVertex));
             ro.m_VertexCount += 2;
             context->m_DebugRenderer.m_VertexIndex += 2;
         }
@@ -174,13 +179,25 @@ namespace dmRender
             v[0].m_Color = start_color;
             v[1].m_Position = Vector4(end);
             v[1].m_Color = end_color;
-            dmGraphics::SetVertexBufferSubData(ro.m_VertexBuffer, ro.m_VertexCount * sizeof(DebugVertex), 2 * sizeof(DebugVertex), (const void*)v);
+            char* buffer = (char*)context->m_DebugRenderer.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, 2 * sizeof(DebugVertex));
             ro.m_VertexCount += 2;
             context->m_DebugRenderer.m_VertexIndex += 2;
         }
         else
         {
             dmLogWarning("Out of Line3D vertex data");
+        }
+    }
+
+    void FlushDebug(HRenderContext render_context)
+    {
+        DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
+        if (debug_renderer.m_VertexIndex > 0)
+        {
+            uint32_t buffer_size = sizeof(DebugVertex) * debug_renderer.m_VertexIndex;
+            dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, buffer_size, debug_renderer.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
     }
 

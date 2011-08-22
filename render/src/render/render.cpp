@@ -243,6 +243,9 @@ namespace dmRender
                       &SortPred);
         }
 
+        FlushTexts(render_context);
+        FlushDebug(render_context);
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];

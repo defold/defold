@@ -148,6 +148,13 @@ namespace dmRender
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params);
 
     /**
+     * Flushes the drawn texts, i.e. sends them to gpu-memory.
+     *
+     * @param render_context Context to use when rendering
+     */
+    void FlushTexts(HRenderContext render_context);
+
+    /**
      * Get text metrics for string
      * @param font_map Font map handle
      * @param text Text to get metrics for

@@ -161,8 +161,9 @@ namespace dmParticle
      * @param dt Time step.
      * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no rendering will occur.
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
-    void                    Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size);
+    void                    Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Render the emitters within the specified context.

@@ -125,7 +125,9 @@ namespace dmRender
         TextContext& text_context = render_context->m_TextContext;
 
         text_context.m_MaxVertexCount = max_characters * 6 * 3; // 6 vertices per character and 3 passes
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, 4 * sizeof(float) * text_context.m_MaxVertexCount, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        uint32_t buffer_size = 4 * sizeof(float) * text_context.m_MaxVertexCount;
+        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_ClientBuffer = new char[buffer_size];
         text_context.m_VertexIndex = 0;
 
         dmGraphics::VertexElement ve[] =
@@ -150,6 +152,7 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        delete [] (char*)text_context.m_ClientBuffer;
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
@@ -188,7 +191,7 @@ namespace dmRender
             float m_Position[2];
             float m_UV[2];
         };
-        TextVertex* vertices = (TextVertex*)dmGraphics::MapVertexBuffer(text_context.m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
+        TextVertex* vertices = (TextVertex*)text_context.m_ClientBuffer;
 
         for (int i = 2; i >= 0; --i)
         {
@@ -269,7 +272,14 @@ namespace dmRender
             ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
             AddToRender(render_context, ro);
         }
-        dmGraphics::UnmapVertexBuffer(text_context.m_VertexBuffer);
+    }
+
+    void FlushTexts(HRenderContext render_context)
+    {
+        TextContext& text_context = render_context->m_TextContext;
+        uint32_t buffer_size = 4 * sizeof(float) * text_context.m_VertexIndex;
+        dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextMetrics* metrics)

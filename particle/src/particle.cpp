@@ -12,6 +12,13 @@ namespace dmParticle
 {
     using namespace dmParticleDDF;
 
+    struct Vertex
+    {
+        float m_Position[3];
+        float m_UV[2];
+        float m_Alpha;
+    };
+
     /// Config key to use for tweaking maximum number of emitters in a context.
     const char* MAX_EMITTER_COUNT_KEY        = "particle_system.max_emitter_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
@@ -197,7 +204,7 @@ namespace dmParticle
     static void ApplyParticleModifiers(Emitter* emitter, float* particle_states);
     static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size);
 
-    void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size)
+    void Update(HContext context, float dt, float* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
         DM_PROFILE(Particle, "Update");
 
@@ -299,6 +306,11 @@ namespace dmParticle
             }
             if (emitter->m_ParticleTimeLeft > 0.0f)
                 emitter->m_ParticleTimeLeft -= dt;
+        }
+
+        if (out_vertex_buffer_size != 0x0)
+        {
+            *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
         }
     }
 
@@ -455,13 +467,6 @@ namespace dmParticle
         float particle_alpha = emitter->m_Properties[EMITTER_KEY_PARTICLE_ALPHA] * key_weights[EMITTER_KEY_PARTICLE_ALPHA];
         SetParticleProperty(particle->m_Properties, PARTICLE_KEY_ALPHA, &particle_alpha);
     }
-
-    struct Vertex
-    {
-        float m_Position[3];
-        float m_UV[2];
-        float m_Alpha;
-    };
 
     static uint32_t UpdateRenderData(HContext context, Emitter* emitter, uint32_t vertex_index, float* particle_state, float* vertex_buffer, uint32_t vertex_buffer_size)
     {

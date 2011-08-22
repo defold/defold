@@ -76,6 +76,7 @@ namespace dmRender
         dmRender::RenderObject          m_RenderObject3d[MAX_DEBUG_RENDER_TYPE_COUNT];
         dmRender::RenderObject          m_RenderObject2d[MAX_DEBUG_RENDER_TYPE_COUNT];
         dmGraphics::HVertexBuffer       m_VertexBuffer;
+        void*                           m_ClientBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_VertexIndex;
         uint32_t                        m_NextZ;
@@ -85,6 +86,7 @@ namespace dmRender
     {
         dmArray<dmRender::RenderObject>     m_RenderObjects;
         dmGraphics::HVertexBuffer           m_VertexBuffer;
+        void*                               m_ClientBuffer;
         dmGraphics::HVertexDeclaration      m_VertexDecl;
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
