@@ -122,6 +122,7 @@ void LogGLError(GLint err)
 #ifdef GL_ES_VERSION_2_0
     dmLogError("gl error %d\n", err);
 #else
+    dmLogError("gl error %d: %s\n", err, gluErrorString(err));
 #endif
 }
 
