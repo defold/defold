@@ -244,7 +244,7 @@ namespace dmEngine
         window_params.m_Height = dmConfigFile::GetInt(config, "display.height", 540);
         window_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(config, "project.title", "TestTitle");
-        window_params.m_Fullscreen = false;
+        window_params.m_Fullscreen = dmConfigFile::GetInt(config, "display.fullscreen", 0);
         window_params.m_PrintDeviceInfo = false;
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);

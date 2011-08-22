@@ -264,7 +264,10 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
 
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, GLFW_WINDOW))
+        int mode = GLFW_WINDOW;
+        if (params->m_Fullscreen)
+            mode = GLFW_FULLSCREEN;
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, mode))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
@@ -335,9 +338,12 @@ static void LogFrameBufferError(GLenum status)
 
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowWidth = params->m_Width;
-        context->m_WindowHeight = params->m_Height;
         context->m_WindowOpened = 1;
+        // read back actual window size
+        int width, height;
+        glfwGetWindowSize(&width, &height);
+        context->m_WindowWidth = (uint32_t)width;
+        context->m_WindowHeight = (uint32_t)height;
 
         if (params->m_PrintDeviceInfo)
         {
