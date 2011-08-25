@@ -71,6 +71,8 @@ namespace dmGraphics
             return WINDOW_RESULT_ALREADY_OPENED;
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
+        context->m_Width = params->m_Width;
+        context->m_Height = params->m_Height;
         context->m_WindowWidth = params->m_Width;
         context->m_WindowHeight = params->m_Height;
         context->m_WindowOpened = 1;
@@ -100,6 +102,10 @@ namespace dmGraphics
             delete [] (char*)main.m_DepthBuffer;
             delete [] (char*)main.m_StencilBuffer;
             context->m_WindowOpened = 0;
+            context->m_Width = 0;
+            context->m_Height = 0;
+            context->m_WindowWidth = 0;
+            context->m_WindowHeight = 0;
         }
     }
 
@@ -112,6 +118,16 @@ namespace dmGraphics
             default:
                 return 0;
         }
+    }
+
+    uint32_t GetWidth(HContext context)
+    {
+        return context->m_Width;
+    }
+
+    uint32_t GetHeight(HContext context)
+    {
+        return context->m_Height;
     }
 
     uint32_t GetWindowWidth(HContext context)
@@ -133,6 +149,8 @@ namespace dmGraphics
             delete [] (char*)main.m_ColorBuffer;
             delete [] (char*)main.m_DepthBuffer;
             delete [] (char*)main.m_StencilBuffer;
+            context->m_Width = width;
+            context->m_Height = height;
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
             uint32_t buffer_size = 4 * width * height;

@@ -75,6 +75,12 @@ namespace dmEngine
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
             }
         }
+
+        Engine* engine = (Engine*)user_data;
+        engine->m_InvPhysicalWidth = 1.0f / width;
+        engine->m_InvPhysicalHeight = 1.0f / height;
+        // update gui context
+        dmGui::SetPhysicalResolution(engine->m_GuiContext.m_GuiContext, width, height);
     }
 
     void Dispatch(dmMessage::Message *message_object, void* user_ptr);
@@ -102,6 +108,10 @@ namespace dmEngine
     , m_GameInputBinding(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
+    , m_Width(960)
+    , m_Height(640)
+    , m_InvPhysicalWidth(1.0f/960)
+    , m_InvPhysicalHeight(1.0f/640)
     {
         m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
@@ -237,11 +247,14 @@ namespace dmEngine
             return false;
         }
 
+        engine->m_Width = dmConfigFile::GetInt(config, "display.width", 960);
+        engine->m_Height = dmConfigFile::GetInt(config, "display.height", 540);
+
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
-        window_params.m_Width = dmConfigFile::GetInt(config, "display.width", 960);
-        window_params.m_Height = dmConfigFile::GetInt(config, "display.height", 540);
+        window_params.m_Width = engine->m_Width;
+        window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(config, "project.title", "TestTitle");
         window_params.m_Fullscreen = dmConfigFile::GetInt(config, "display.fullscreen", 0);
@@ -253,6 +266,9 @@ namespace dmEngine
             dmLogFatal("Could not open window (%d).", window_result);
             return false;
         }
+
+        uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+        uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 
         engine->m_ScriptContext = dmScript::NewContext();
 
@@ -316,6 +332,10 @@ namespace dmEngine
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
+        gui_params.m_Width = engine->m_Width;
+        gui_params.m_Height = engine->m_Height;
+        gui_params.m_PhysicalWidth = physical_width;
+        gui_params.m_PhysicalHeight = physical_height;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         dmPhysics::NewContextParams physics_params;
@@ -429,7 +449,8 @@ bail:
 
     void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
-        dmArray<dmGameObject::InputAction>* input_buffer = (dmArray<dmGameObject::InputAction>*)user_data;
+        Engine* engine = (Engine*)user_data;
+        dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
         input_action.m_Value = action->m_Value;
@@ -437,10 +458,12 @@ bail:
         input_action.m_Released = action->m_Released;
         input_action.m_Repeated = action->m_Repeated;
         input_action.m_PositionSet = action->m_PositionSet;
-        input_action.m_X = action->m_X;
-        input_action.m_Y = action->m_Y;
-        input_action.m_DX = action->m_DX;
-        input_action.m_DY = action->m_DY;
+        float width_ratio = engine->m_InvPhysicalWidth * engine->m_Width;
+        float height_ratio = engine->m_InvPhysicalHeight * engine->m_Height;
+        input_action.m_X = action->m_X * width_ratio;
+        input_action.m_Y = engine->m_Height - action->m_Y * height_ratio;
+        input_action.m_DX = action->m_DX * width_ratio;
+        input_action.m_DY = -action->m_DY * height_ratio;
         input_buffer->Push(input_action);
     }
 
@@ -483,10 +506,12 @@ bail:
                 dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
 
                 engine->m_InputBuffer.SetSize(0);
-                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, &engine->m_InputBuffer);
-                if (engine->m_InputBuffer.Size() > 0)
+                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
+                uint32_t input_buffer_size = input_buffer.Size();
+                if (input_buffer_size > 0)
                 {
-                    dmGameObject::DispatchInput(engine->m_MainCollection, &engine->m_InputBuffer[0], engine->m_InputBuffer.Size());
+                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
                 }
 
                 dmGameObject::UpdateContext update_context;

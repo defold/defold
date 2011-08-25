@@ -1242,6 +1242,14 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 
     initWGLExtensions();
 
+    // Read back window size
+    RECT rect;
+    if (GetClientRect(hwnd, &rect))
+    {
+        _glfwWin.width = rect.right - rect.left;
+        _glfwWin.height = rect.bottom - rect.top;
+    }
+
     // Initialize mouse position data
     GetCursorPos( &pos );
     ScreenToClient( _glfwWin.window, &pos );

@@ -266,9 +266,9 @@ namespace dmGameObject
     {
         lua_Number x = luaL_checknumber(L, 1);
         lua_Number y = luaL_checknumber(L, 2);
-        // TODO: This temporarily assumes the worldspace is simply screen space, with the modification that y spans (0,height) instead of (height, 0)
+        // TODO: This temporarily assumes the worldspace is simply screen space
         // Should be fixed in a more robust way.
-        Vector3 p(x, 960 - y, 1.0f);
+        Vector3 p(x, y, 1.0f);
         Vector3 d(0.0f, 0.0f, -1.0f);
         dmScript::PushVector3(L, p);
         dmScript::PushVector3(L, d);

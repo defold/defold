@@ -253,7 +253,7 @@ static void LogFrameBufferError(GLenum status)
         g_Context->m_WindowWidth = (uint32_t)width;
         g_Context->m_WindowHeight = (uint32_t)height;
         if (g_Context->m_WindowResizeCallback != 0x0)
-            g_Context->m_WindowResizeCallback(g_Context, (uint32_t)width, (uint32_t)height);
+            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
     }
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
@@ -339,6 +339,8 @@ static void LogFrameBufferError(GLenum status)
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
         context->m_WindowOpened = 1;
+        context->m_Width = params->m_Width;
+        context->m_Height = params->m_Height;
         // read back actual window size
         int width, height;
         glfwGetWindowSize(&width, &height);
@@ -364,6 +366,8 @@ static void LogFrameBufferError(GLenum status)
         {
             glfwCloseWindow();
             context->m_WindowResizeCallback = 0x0;
+            context->m_Width = 0;
+            context->m_Height = 0;
             context->m_WindowWidth = 0;
             context->m_WindowHeight = 0;
             context->m_WindowOpened = 0;
@@ -377,6 +381,18 @@ static void LogFrameBufferError(GLenum status)
             return glfwGetWindowParam(state);
         else
             return 0;
+    }
+
+    uint32_t GetWidth(HContext context)
+    {
+        assert(context);
+        return context->m_Width;
+    }
+
+    uint32_t GetHeight(HContext context)
+    {
+        assert(context);
+        return context->m_Height;
     }
 
     uint32_t GetWindowWidth(HContext context)
@@ -396,11 +412,17 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         if (context->m_WindowOpened)
         {
+            context->m_Width = width;
+            context->m_Height = height;
             glfwSetWindowSize((int)width, (int)height);
+            int window_width, window_height;
+            glfwGetWindowSize(&window_width, &window_height);
+            context->m_WindowWidth = window_width;
+            context->m_WindowHeight = window_height;
             // The callback is not called from glfw when the size is set manually
             if (context->m_WindowResizeCallback)
             {
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
             }
         }
     }
@@ -577,6 +599,7 @@ static void LogFrameBufferError(GLenum status)
 
             default:
                 assert(0);
+                break;
         }
         return size;
     }
@@ -1139,6 +1162,7 @@ static void LogFrameBufferError(GLenum status)
             break;
         default:
             assert(0);
+            break;
         }
         switch (params.m_Format)
         {
@@ -1160,6 +1184,7 @@ static void LogFrameBufferError(GLenum status)
             break;
         default:
             assert(0);
+            break;
         }
     }
 

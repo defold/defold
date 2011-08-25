@@ -63,6 +63,10 @@ namespace dmGui
         context->m_GetUserDataCallback = params->m_GetUserDataCallback;
         context->m_ResolvePathCallback = params->m_ResolvePathCallback;
         context->m_GetTextMetricsCallback = params->m_GetTextMetricsCallback;
+        context->m_Width = params->m_Width;
+        context->m_Height = params->m_Height;
+        context->m_PhysicalWidth = params->m_PhysicalWidth;
+        context->m_PhysicalHeight = params->m_PhysicalHeight;
 
         return context;
     }
@@ -71,6 +75,18 @@ namespace dmGui
     {
         FinalizeScript(context->m_LuaState);
         delete context;
+    }
+
+    void SetResolution(HContext context, uint32_t width, uint32_t height)
+    {
+        context->m_Width = width;
+        context->m_Height = height;
+    }
+
+    void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height)
+    {
+        context->m_PhysicalWidth = width;
+        context->m_PhysicalHeight = height;
     }
 
     void SetDefaultNewSceneParams(NewSceneParams* params)
@@ -98,11 +114,6 @@ namespace dmGui
         scene->m_UserData = params->m_UserData;
 
         scene->m_NextVersionNumber = 0;
-
-        scene->m_ReferenceWidth = 640;
-        scene->m_ReferenceHeight = 480;
-        scene->m_PhysicalWidth = scene->m_ReferenceWidth;
-        scene->m_PhysicalHeight = scene->m_ReferenceHeight;
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -134,18 +145,6 @@ namespace dmGui
 
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         delete scene;
-    }
-
-    void SetReferenceResolution(HScene scene, uint32_t width, uint32_t height)
-    {
-        scene->m_ReferenceWidth = width;
-        scene->m_ReferenceHeight = height;
-    }
-
-    void SetPhysicalResolution(HScene scene, uint32_t width, uint32_t height)
-    {
-        scene->m_PhysicalWidth = width;
-        scene->m_PhysicalHeight = height;
     }
 
     void SetSceneUserData(HScene scene, void* user_data)
@@ -236,16 +235,16 @@ namespace dmGui
         return ((uint32_t) node->m_Version) << 16 | node->m_Index;
     }
 
-    Vector4 CalculateReferenceScale(HScene scene)
+    Vector4 CalculateReferenceScale(HContext context)
     {
-        // NOTE: Currently width is the reference for scale factor
-        float scale_factor = (float) scene->m_PhysicalWidth / (float) scene->m_ReferenceWidth;
-        return Vector4(scale_factor, scale_factor, 1, 1);
+        float scale_x = (float) context->m_PhysicalWidth / (float) context->m_Width;
+        float scale_y = (float) context->m_PhysicalHeight / (float) context->m_Height;
+        return Vector4(scale_x, scale_y, 1, 1);
     }
 
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
     {
-        Vector4 scale = CalculateReferenceScale(scene);
+        Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 node_transform;
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -951,15 +950,14 @@ namespace dmGui
         }
     }
 
-    bool PickNode(HScene scene, HNode node, int32_t x, int32_t y)
+    bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        Vector4 scale = CalculateReferenceScale(scene);
+        Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 transform;
         const Node& n = GetNode(scene, node)->m_Node;
         CalculateNodeTransform(scene, n, scale, true, &transform);
         transform = inverse(transform);
-        // TODO: Temporarily adjusting from screen space to gui space, should be solved in a more robust way
-        Vector4 screen_pos(x, scene->m_PhysicalHeight - y, 0.0f, 1.0f);
+        Vector4 screen_pos(x, y, 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
         const float EPSILON = 0.0001f;
         // check if we need to project the local position to the node plane
@@ -988,22 +986,20 @@ namespace dmGui
         const dmGui::Pivot pivot = (dmGui::Pivot) node.m_Pivot;
 
         // Apply anchoring
+        HContext context = scene->m_Context;
         Vector4 scaled_position = mulPerElem(position, reference_scale);
         if (node.m_XAnchor == XANCHOR_RIGHT)
         {
-            float distance = (scene->m_ReferenceWidth - position.getX()) * reference_scale.getX();
-            scaled_position.setX(scene->m_PhysicalWidth - distance);
+            float distance = (context->m_Width - position.getX()) * reference_scale.getX();
+            scaled_position.setX(context->m_PhysicalWidth - distance);
         }
         if (node.m_YAnchor == YANCHOR_BOTTOM)
         {
-            float distance = (scene->m_ReferenceHeight - position.getY()) * reference_scale.getY();
-            scaled_position.setY(scene->m_PhysicalHeight - distance);
+            float distance = (context->m_Height - position.getY()) * reference_scale.getY();
+            scaled_position.setY(context->m_PhysicalHeight - distance);
         }
         position = scaled_position;
 
-
-        float dx = 0.0f;
-        float dy = 0.0f;
         float width = size.getX();
         float height = size.getY();
         TextMetrics metrics;
@@ -1017,18 +1013,20 @@ namespace dmGui
             height = metrics.m_MaxAscent + metrics.m_MaxDescent;
         }
 
+        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+
         switch (pivot)
         {
             case dmGui::PIVOT_CENTER:
             case dmGui::PIVOT_S:
             case dmGui::PIVOT_N:
-                dx = width * 0.5f;
+                delta_pivot.setX(width * 0.5f);
                 break;
 
             case dmGui::PIVOT_NE:
             case dmGui::PIVOT_E:
             case dmGui::PIVOT_SE:
-                dx = width;
+                delta_pivot.setX(width);
                 break;
 
             case dmGui::PIVOT_SW:
@@ -1042,38 +1040,37 @@ namespace dmGui
             case dmGui::PIVOT_E:
             case dmGui::PIVOT_W:
                 if (render_text)
-                    dy = -metrics.m_MaxDescent * 0.5f + metrics.m_MaxAscent * 0.5f;
+                    delta_pivot.setY(-metrics.m_MaxDescent * 0.5f + metrics.m_MaxAscent * 0.5f);
                 else
-                    dy = height * 0.5f;
+                    delta_pivot.setY(height * 0.5f);
                 break;
 
             case dmGui::PIVOT_N:
             case dmGui::PIVOT_NE:
             case dmGui::PIVOT_NW:
                 if (render_text)
-                    dy = metrics.m_MaxAscent;
+                    delta_pivot.setY(metrics.m_MaxAscent);
                 else
-                    dy = height;
+                    delta_pivot.setY(height);
                 break;
 
             case dmGui::PIVOT_S:
             case dmGui::PIVOT_SW:
             case dmGui::PIVOT_SE:
                 if (render_text)
-                    dy = -metrics.m_MaxDescent;
+                    delta_pivot.setY(-metrics.m_MaxDescent);
                 break;
         }
 
-        Vector4 delta_pivot = Vector4(dx, dy, 0, 0);
-        position -= delta_pivot;
+        // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
+        float uniform_ref_scale = dmMath::Min(reference_scale.getX(), reference_scale.getY());
 
         const float deg_to_rad = 3.1415926f / 180.0f;
-        *out_transform = Matrix4::translation(delta_pivot.getXYZ()) *
-                    Matrix4::translation(position.getXYZ()) *
+        *out_transform = Matrix4::translation(position.getXYZ()) *
                     Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
                     Matrix4::rotationY(rotation.getY() * deg_to_rad) *
                     Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                    Matrix4::scale(scale.getXYZ()) *
+                    Matrix4::scale(mulPerElem(scale.getXYZ(), Vector3(uniform_ref_scale, uniform_ref_scale, 1))) *
                     Matrix4::translation(-delta_pivot.getXYZ());
         if (!render_text)
         {

@@ -821,6 +821,10 @@ static GLboolean createWindow( int width, int height,
             _glfwPlatformCloseWindow();
             return GL_FALSE;
         }
+        XWindowAttributes attributes;
+        XGetWindowAttributes(_glfwLibrary.display, _glfwWin.root, &attributes);
+        _glfwWin.width = attributes.width;
+        _glfwWin.height = attributes.height;
     }
 
     // Check whether an EWMH-compliant window manager is running

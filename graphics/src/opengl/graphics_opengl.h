@@ -12,6 +12,8 @@ namespace dmGraphics
 
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;
+        uint32_t                m_Width;
+        uint32_t                m_Height;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
         // Counter to keep track of various modifications. Used for cache flush etc

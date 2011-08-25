@@ -210,10 +210,10 @@ TEST_F(InputTest, TestComponentInput4)
 
     action.m_ActionId = 0;
     action.m_PositionSet = true;
-    action.m_X = 1;
-    action.m_Y = 2;
-    action.m_DX = 3;
-    action.m_DY = 4;
+    action.m_X = 1.0f;
+    action.m_Y = 2.0f;
+    action.m_DX = 3.0f;
+    action.m_DY = 4.0f;
 
     r = dmGameObject::DispatchInput(m_Collection, &action, 1);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);

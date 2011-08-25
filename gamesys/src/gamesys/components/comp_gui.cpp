@@ -128,7 +128,6 @@ namespace dmGameSystem
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
-        dmGui::SetReferenceResolution(scene, scene_desc->m_ReferenceWidth, scene_desc->m_ReferenceHeight);
 
         bool result = true;
 
@@ -193,8 +192,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiCreate(const dmGameObject::ComponentCreateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
 
@@ -209,10 +206,6 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
-
-        uint32_t physical_width = dmGraphics::GetWindowWidth(graphics_context);
-        uint32_t physical_height = dmGraphics::GetWindowHeight(graphics_context);
-        dmGui::SetPhysicalResolution(scene, physical_width, physical_height);
 
         if (!SetupGuiScene(scene, scene_resource))
         {

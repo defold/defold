@@ -34,6 +34,10 @@ namespace dmGui
         GetUserDataCallback     m_GetUserDataCallback;
         ResolvePathCallback     m_ResolvePathCallback;
         GetTextMetricsCallback  m_GetTextMetricsCallback;
+        uint32_t                m_Width;
+        uint32_t                m_Height;
+        uint32_t                m_PhysicalWidth;
+        uint32_t                m_PhysicalHeight;
     };
 
     struct Node
@@ -106,11 +110,6 @@ namespace dmGui
         void*                   m_DefaultFont;
         void*                   m_UserData;
         uint16_t                m_NextVersionNumber;
-
-        uint32_t                m_ReferenceWidth;
-        uint32_t                m_ReferenceHeight;
-        uint32_t                m_PhysicalWidth;
-        uint32_t                m_PhysicalHeight;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
@@ -129,6 +128,14 @@ namespace dmGui
      * @param out_transform out-parameter to write the calculated transform to
      */
     void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform);
+
+    /** calculates the reference scale for a context
+     * The reference scale is defined as scaling from the predefined screen space to the actual screen space.
+     *
+     * @param context context for which to calculate the reference scale
+     * @return a scaling vector (ref_scale, ref_scale, 1, 1)
+     */
+    Vector4 CalculateReferenceScale(HContext context);
 }
 
 #endif

@@ -275,6 +275,22 @@ namespace dmGraphics
     uint32_t GetWindowState(HContext context, WindowState state);
 
     /**
+     * Returns the specified width of the opened window, which might differ from the actual window width.
+     *
+     * @param context Graphics context handle
+     * @return Specified width of the window. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetWidth(HContext context);
+
+    /**
+     * Returns the specified height of the opened window, which might differ from the actual window width.
+     *
+     * @param context Graphics context handle
+     * @return Specified height of the window. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetHeight(HContext context);
+
+    /**
      * Return the width of the opened window, if any.
      * @param context Graphics context handle
      * @return Width of the window. If no window is opened, 0 is always returned.

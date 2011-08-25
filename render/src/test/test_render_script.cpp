@@ -429,6 +429,8 @@ TEST_F(dmRenderScriptTest, TestLuaWindowSize)
 {
     const char* script =
     "function update(self)\n"
+    "    assert(render.get_width() == 20)\n"
+    "    assert(render.get_height() == 10)\n"
     "    assert(render.get_window_width() == 20)\n"
     "    assert(render.get_window_height() == 10)\n"
     "end\n";

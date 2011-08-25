@@ -107,11 +107,15 @@ TEST_F(dmGraphicsTest, TestWindowState)
 
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
+    ASSERT_EQ(m_Context->m_Width, dmGraphics::GetWidth(m_Context));
+    ASSERT_EQ(m_Context->m_Height, dmGraphics::GetHeight(m_Context));
     ASSERT_EQ(m_Context->m_WindowWidth, dmGraphics::GetWindowWidth(m_Context));
     ASSERT_EQ(m_Context->m_WindowHeight, dmGraphics::GetWindowHeight(m_Context));
     uint32_t width = WIDTH * 2;
     uint32_t height = HEIGHT * 2;
     dmGraphics::SetWindowSize(m_Context, width, height);
+    ASSERT_EQ(width, dmGraphics::GetWidth(m_Context));
+    ASSERT_EQ(height, dmGraphics::GetHeight(m_Context));
     ASSERT_EQ(width, dmGraphics::GetWindowWidth(m_Context));
     ASSERT_EQ(height, dmGraphics::GetWindowHeight(m_Context));
     ASSERT_EQ(width, m_ResizeData.m_Width);

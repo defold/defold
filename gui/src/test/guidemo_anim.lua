@@ -14,7 +14,6 @@ local function call_back1(self, node)
 end
 
 local function init1(self)
-    -- scale is not yet modified by ref-physical-resolution
     local width = gui.get_width()
     local height = gui.get_height()
     local margin = 4
@@ -25,15 +24,14 @@ local function init1(self)
         local y = (nh + margin) * math.floor((i - 1) / 8) + margin + nh * 0.5
 
         local p = vmath.vector3(x, y-height, 0)
-        -- scale is not yet modified by ref-size, so multiply by 7
-        local s = vmath.vector3(nw*6, nh*6, 0) * 7
+        local s = vmath.vector3(nw*6, nh*6, 0)
         nodes[i] = gui.new_box_node(p, s)
         local n = nodes[i]
         gui.set_texture(n, "checker")
         gui.set_color(n, vmath.vector4(0, 0, 0, 0))
         local d = math.random() * 0.2
         gui.animate(n, gui.PROP_POSITION, vmath.vector3(x, y, 0), gui.EASING_OUT, 0.65 + d, 0.1, call_back1)
-        gui.animate(n, gui.PROP_SIZE, vmath.vector3(nw, nh, 0) * 7, gui.EASING_OUT, 0.65 + d, 0.1)
+        gui.animate(n, gui.PROP_SIZE, vmath.vector3(nw, nh, 0), gui.EASING_OUT, 0.65 + d, 0.1)
         gui.animate(n, gui.PROP_COLOR, vmath.vector4(math.random(), math.random(), math.random(),1), gui.EASING_OUT, 0.65 + d, 0.1)
     end
 end

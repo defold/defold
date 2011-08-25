@@ -9,7 +9,6 @@ function update(self)
 
     render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
     render.set_view(vmath.matrix4())
-    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
 
     render.set_depth_mask(false)
     render.disable_state(render.STATE_DEPTH_TEST)
@@ -17,8 +16,12 @@ function update(self)
     render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
     render.disable_state(render.STATE_CULL_FACE)
 
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1, 1))
+
     render.draw(self.sprite_pred)
     render.draw_debug3d()
+
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
 
     render.draw(self.gui_pred)
     render.draw(self.text_pred)

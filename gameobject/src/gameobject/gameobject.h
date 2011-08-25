@@ -100,14 +100,14 @@ namespace dmGameObject
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
         float m_Value;
-        /// Cursor X coordinate
-        int32_t m_X;
-        /// Cursor Y coordinate
-        int32_t m_Y;
-        /// Cursor dx since last frame
-        int32_t m_DX;
-        /// Cursor dy since last frame
-        int32_t m_DY;
+        /// Cursor X coordinate, in virtual screen space
+        float m_X;
+        /// Cursor Y coordinate, in virtual screen space
+        float m_Y;
+        /// Cursor dx since last frame, in virtual screen space
+        float m_DX;
+        /// Cursor dy since last frame, in virtual screen space
+        float m_DY;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update

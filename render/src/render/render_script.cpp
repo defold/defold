@@ -328,7 +328,7 @@ namespace dmRender
             case dmGraphics::STATE_POLYGON_OFFSET_FILL:
                 break;
             default:
-                luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
+                return luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state)))
             return 0;
@@ -978,7 +978,7 @@ namespace dmRender
                 case dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA:
                     break;
                 default:
-                    luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
+                    return luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC, factors[0], factors[1])))
@@ -1114,10 +1114,36 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# gets the window width
+    /*# gets the window width, as specified for the project
+     *
+     * @name render.get_width
+     * @return specified window width (number)
+     */
+    int RenderScript_GetWidth(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
+        lua_pushnumber(L, dmGraphics::GetWidth(i->m_RenderContext->m_GraphicsContext));
+        return 1;
+    }
+
+    /*# gets the window height, as specified for the project
+     *
+     * @name render.get_height
+     * @return specified window height (number)
+     */
+    int RenderScript_GetHeight(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
+        lua_pushnumber(L, dmGraphics::GetHeight(i->m_RenderContext->m_GraphicsContext));
+        return 1;
+    }
+
+    /*# gets the actual window width
      *
      * @name render.get_window_width
-     * @return window width (number)
+     * @return actual window width (number)
      */
     int RenderScript_GetWindowWidth(lua_State* L)
     {
@@ -1130,7 +1156,7 @@ namespace dmRender
     /*# gets the window height
      *
      * @name render.get_window_height
-     * @return window height (number)
+     * @return actual window height (number)
      */
     int RenderScript_GetWindowHeight(lua_State* L)
     {
@@ -1192,22 +1218,29 @@ namespace dmRender
             dmRender::HMaterial* mat = i->m_Materials.Get(dmHashString64(material_id));
             if (mat == 0x0)
             {
+                assert(top == lua_gettop(L));
                 return luaL_error(L, "Could not find material '%s'.", material_id);
             }
             else
             {
                 HMaterial material = *mat;
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint32_t)material)))
+                {
+                    assert(top == lua_gettop(L));
                     return 0;
+                }
                 else
+                {
+                    assert(top == lua_gettop(L));
                     return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                }
             }
         }
         else
         {
+            assert(top == lua_gettop(L));
             return luaL_error(L, "%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
         }
-        assert(top == lua_gettop(L));
     }
 
     /*# disables the currently enabled material
@@ -1247,6 +1280,8 @@ namespace dmRender
         {"draw",                            RenderScript_Draw},
         {"draw_debug3d",                    RenderScript_DrawDebug3d},
         {"draw_debug2d",                    RenderScript_DrawDebug2d},
+        {"get_width",                       RenderScript_GetWidth},
+        {"get_height",                      RenderScript_GetHeight},
         {"get_window_width",                RenderScript_GetWindowWidth},
         {"get_window_height",               RenderScript_GetWindowHeight},
         {"predicate",                       RenderScript_Predicate},

@@ -12,6 +12,12 @@ using namespace Vectormath::Aos;
 #endif
 
 GLuint checker_texture;
+dmGui::HContext g_GuiContext;
+
+void OnWindowResize(int width, int height)
+{
+    dmGui::SetPhysicalResolution(g_GuiContext, (uint32_t)width, (uint32_t)height);
+}
 
 void MyRenderNodes(dmGui::HScene scene,
                   dmGui::HNode* nodes,
@@ -122,8 +128,8 @@ int main(void)
     int running, x, y;
     int current_width = 700;
     int current_height = 700;
-    const int ref_width = 100;
-    const int ref_height = 100;
+    const int width = 100;
+    const int height = 100;
     float t;
 
     uint8_t checker_texture_data[] = {64, 64, 64, 255,
@@ -139,6 +145,13 @@ int main(void)
         return 1;
     }
 
+    dmGui::NewContextParams context_params;
+    context_params.m_ScriptContext = dmScript::NewContext();
+    g_GuiContext = dmGui::NewContext(&context_params);
+    dmGui::HContext context = g_GuiContext;
+
+    glfwSetWindowSizeCallback(OnWindowResize);
+
     glfwEnable(GLFW_STICKY_KEYS);
     glfwSwapInterval(1);
 
@@ -152,17 +165,15 @@ int main(void)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0,
             GL_RGBA, GL_UNSIGNED_BYTE, &checker_texture_data[0]);
 
-    dmGui::NewContextParams context_params;
-    context_params.m_ScriptContext = dmScript::NewContext();
-    dmGui::HContext context = dmGui::NewContext(&context_params);
+    dmGui::SetPhysicalResolution(context, current_width, current_height);
+    dmGui::SetResolution(context, width, height);
+
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 256;
     params.m_MaxAnimations = 1024;
     for (uint32_t i = 0; i < SCENE_COUNT; ++i)
     {
         dmGui::HScene scene = dmGui::NewScene(context, &params);
-        dmGui::SetPhysicalResolution(scene, current_width, current_height);
-        dmGui::SetReferenceResolution(scene, ref_width, ref_height);
         dmGui::HScript script = dmGui::NewScript(context);
         dmGui::SetSceneScript(scene, script);
         g_Scenes[i] = scene;
@@ -183,6 +194,8 @@ int main(void)
 
         dmGui::AddTexture(scene, "checker", (void*) checker_texture);
         dmGui::SetScript(script, buf, file_size, script_file);
+
+        delete [] buf;
     }
 
 #ifdef __MACH__
@@ -211,10 +224,7 @@ int main(void)
         height = height > 0 ? height : 1;
         if (width != current_width || height != current_height)
         {
-            for (uint32_t i = 0; i < SCENE_COUNT; ++i)
-            {
-                dmGui::SetPhysicalResolution(g_Scenes[i], width, height);
-            }
+            dmGui::SetPhysicalResolution(context, width, height);
             current_width = width;
             current_height = height;
         }
@@ -239,6 +249,16 @@ int main(void)
 
         running = !glfwGetKey(GLFW_KEY_ESC) && glfwGetWindowParam(GLFW_OPENED);
     }
+
+    for (uint32_t i = 0; i < SCENE_COUNT; ++i)
+    {
+        dmGui::DeleteScript(dmGui::GetSceneScript(g_Scenes[i]));
+        dmGui::DeleteScene(g_Scenes[i]);
+    }
+    dmGui::DeleteContext(context);
+    dmScript::DeleteContext(context_params.m_ScriptContext);
+
+    glfwCloseWindow();
 
     glfwTerminate();
 

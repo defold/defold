@@ -66,6 +66,11 @@ namespace dmEngine
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
         Stats                                       m_Stats;
+
+        uint32_t                                    m_Width;
+        uint32_t                                    m_Height;
+        float                                       m_InvPhysicalWidth;
+        float                                       m_InvPhysicalHeight;
     };
 
     void ReloadResources(HEngine engine, const char* extension);

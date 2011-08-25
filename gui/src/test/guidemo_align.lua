@@ -10,11 +10,13 @@ function rotate_end(self, n)
 end
 
 local function init1(self)
-    local w = 140
-    local h = 140
+    local w = 20
+    local h = 20
     local xs = {20, 50, 80}
     local ys = {80, 50, 20}
     local pivots = {gui.PIVOT_NW, gui.PIVOT_N, gui.PIVOT_NE, gui.PIVOT_W, gui.PIVOT_CENTER, gui.PIVOT_E, gui.PIVOT_SW, gui.PIVOT_S, gui.PIVOT_SE}
+    local xanchors = {gui.ANCHOR_LEFT, nil, gui.ANCHOR_RIGHT}
+    local yanchors = {gui.ANCHOR_TOP, nil, gui.ANCHOR_BOTTOM}
     for y=1,3 do
         for x=1,3 do
             i = x + (y-1) * 3
@@ -26,6 +28,12 @@ local function init1(self)
             local d = i/9
             gui.set_color(n, vmath.vector4(d, d, d, 1))
             gui.set_pivot(n, pivots[i])
+            if xanchors[x] then
+                gui.set_xanchor(n, xanchors[x])
+            end
+            if yanchors[y] then
+                gui.set_yanchor(n, yanchors[y])
+            end
             rotate_start(self, n)
         end
     end

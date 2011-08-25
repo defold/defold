@@ -69,11 +69,15 @@ namespace dmGui
 
     struct NewContextParams
     {
-        dmScript::HContext m_ScriptContext;
-        GetURLCallback m_GetURLCallback;
-        GetUserDataCallback m_GetUserDataCallback;
-        ResolvePathCallback m_ResolvePathCallback;
-        GetTextMetricsCallback m_GetTextMetricsCallback;
+        dmScript::HContext      m_ScriptContext;
+        GetURLCallback          m_GetURLCallback;
+        GetUserDataCallback     m_GetUserDataCallback;
+        ResolvePathCallback     m_ResolvePathCallback;
+        GetTextMetricsCallback  m_GetTextMetricsCallback;
+        uint32_t                m_Width;
+        uint32_t                m_Height;
+        uint32_t                m_PhysicalWidth;
+        uint32_t                m_PhysicalHeight;
 
         NewContextParams()
         {
@@ -177,14 +181,14 @@ namespace dmGui
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
         float m_Value;
-        /// Cursor X coordinate
-        int32_t m_X;
-        /// Cursor Y coordinate
-        int32_t m_Y;
-        /// Cursor dx since last frame
-        int32_t m_DX;
-        /// Cursor dy since last frame
-        int32_t m_DY;
+        /// Cursor X coordinate, in virtual screen space
+        float m_X;
+        /// Cursor Y coordinate, in virtual screen space
+        float m_Y;
+        /// Cursor dx since last frame, in virtual screen space
+        float m_DX;
+        /// Cursor dy since last frame, in virtual screen space
+        float m_DY;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
@@ -210,13 +214,13 @@ namespace dmGui
 
     void DeleteContext(HContext context);
 
+    void SetResolution(HContext context, uint32_t width, uint32_t height);
+
+    void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
+
     HScene NewScene(HContext context, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
-
-    void SetReferenceResolution(HScene scene, uint32_t width, uint32_t height);
-
-    void SetPhysicalResolution(HScene scene, uint32_t width, uint32_t height);
 
     void SetSceneUserData(HScene scene, void* user_data);
 
@@ -388,11 +392,11 @@ namespace dmGui
      *
      * @param scene the scene the node exists in
      * @param node node to be picked
-     * @param x x-coordinate in screen-space
-     * @param y y-coordinate in screen-space
+     * @param x x-coordinate in predefined screen-space
+     * @param y y-coordinate in predefined screen-space
      * @return true if the node was picked, false otherwise
      */
-    bool PickNode(HScene scene, HNode node, int32_t x, int32_t y);
+    bool PickNode(HScene scene, HNode node, float x, float y);
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);

@@ -719,7 +719,7 @@ namespace dmGui
     {
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*)lua_touserdata(L, -1);
-        lua_pushnumber(L, scene->m_ReferenceWidth);
+        lua_pushnumber(L, scene->m_Context->m_Width);
         return 1;
     }
 
@@ -732,7 +732,7 @@ namespace dmGui
     {
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*)lua_touserdata(L, -1);
-        lua_pushnumber(L, scene->m_ReferenceHeight);
+        lua_pushnumber(L, scene->m_Context->m_Height);
         return 1;
     }
 
@@ -749,8 +749,8 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        int32_t x = luaL_checknumber(L, 2);
-        int32_t y = luaL_checknumber(L, 3);
+        lua_Number x = luaL_checknumber(L, 2);
+        lua_Number y = luaL_checknumber(L, 3);
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*)lua_touserdata(L, -1);
 
@@ -859,6 +859,10 @@ namespace dmGui
     void SetDefaultNewContextParams(NewContextParams* params)
     {
         memset(params, 0, sizeof(*params));
+        params->m_Width = 640;
+        params->m_Height = 960;
+        params->m_PhysicalWidth = 640;
+        params->m_PhysicalHeight = 960;
     }
 
 #define REGGETSET(name, luaname) \

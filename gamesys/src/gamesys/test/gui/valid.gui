@@ -7,8 +7,6 @@ textures {
   name: "test_texture"
   texture: "/texture/valid_png.png"
 }
-reference_width: 960
-reference_height: 640
 nodes {
   position {
     x: 1.0
