@@ -1540,7 +1540,8 @@ TEST_F(dmGuiTest, Picking)
 {
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
-    dmGui::SetResolution(m_Context, physical_width, physical_height);
+    float ref_scale = 0.5f;
+    dmGui::SetResolution(m_Context, physical_width * ref_scale, physical_height * ref_scale);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
 
     Vector3 size(10, 10, 0);

@@ -269,6 +269,8 @@ namespace dmEngine
 
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+        engine->m_InvPhysicalWidth = 1.0f / physical_width;
+        engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
         engine->m_ScriptContext = dmScript::NewContext();
 
