@@ -55,12 +55,6 @@ import com.google.protobuf.TextFormat;
 
 public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChangeListener, IDisposable {
 
-    @Property(commandFactory = UndoableCommandFactory.class)
-    private int referenceWidth;
-
-    @Property(commandFactory = UndoableCommandFactory.class)
-    private int referenceHeight;
-
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     private String script;
 
@@ -92,8 +86,6 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
     public GuiScene(IGuiEditor editor, SceneDesc sceneDesc) {
         this.editor = editor;
         this.sceneDesc = sceneDesc;
-        this.referenceWidth = sceneDesc.getReferenceWidth();
-        this.referenceHeight = sceneDesc.getReferenceHeight();
         this.script = sceneDesc.getScript();
 
         nodes = new ArrayList<GuiNode>();
@@ -277,22 +269,6 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
         }
     }
 
-    public int getReferenceWidth() {
-        return referenceWidth;
-    }
-
-    public void setReferenceWidth(int referenceWidth) {
-        this.referenceWidth = referenceWidth;
-    }
-
-    public int getReferenceHeight() {
-        return referenceHeight;
-    }
-
-    public void setReferenceHeight(int referenceHeight) {
-        this.referenceHeight = referenceHeight;
-    }
-
     public String getScript() {
         return script;
     }
@@ -343,8 +319,6 @@ public class GuiScene implements IPropertyObjectWorld, IAdaptable, IResourceChan
             builder.addFonts(font.buildDesc());
         }
 
-        builder.setReferenceWidth(referenceWidth);
-        builder.setReferenceHeight(referenceHeight);
         builder.setScript(script);
 
         return builder.build();

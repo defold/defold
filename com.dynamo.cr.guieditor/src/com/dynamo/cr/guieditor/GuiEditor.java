@@ -83,6 +83,7 @@ import org.eclipse.ui.views.properties.IPropertySheetPage;
 import org.eclipse.ui.views.properties.PropertySheetPage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.guieditor.operations.SelectOperation;
 import com.dynamo.cr.guieditor.render.GuiRenderer;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
@@ -118,6 +119,8 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
     private GuiEditorOutlinePage outlinePage;
     private int undoRedoCounter = 0;
     private boolean inSave = false;
+    private int width = 0;
+    private int height = 0;
 
     public GuiEditor() {
         selectionProvider = new GuiSelectionProvider();
@@ -244,6 +247,27 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         if (this.contentRoot == null) {
             throw new PartInitException(
                     "Unable to locate content root for project");
+        }
+        IFile projectPropertiesFile = EditorUtil.findGameProjectFile(this.contentRoot);
+        ProjectProperties projectProperties = new ProjectProperties();
+        try {
+            projectProperties.load(projectPropertiesFile.getContents());
+            Integer width = projectProperties.getIntValue("display", "width");
+            Integer height = projectProperties.getIntValue("display", "height");
+            if (width != null) {
+                this.width = width.intValue();
+            } else {
+            	this.width = 960;
+            }
+            if (height != null) {
+                this.height = height.intValue();
+            } else {
+                this.height = 640;
+            }
+        } catch (CoreException e) {
+            StatusManager.getManager().handle(e, getEditorSite().getPluginId());
+        } catch (Exception e) {
+            StatusManager.getManager().handle(new Status(IStatus.ERROR, getEditorSite().getPluginId(), e.getMessage()));
         }
 
         IProgressService service = PlatformUI.getWorkbench()
@@ -450,17 +474,14 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         ScrollBar vertical = canvas.getVerticalBar();
         gl.glPushMatrix();
 
-        int refWidth = guiScene.getReferenceWidth();
-        int refHeight = guiScene.getReferenceHeight();
-
-        gl.glTranslatef(-horizontal.getSelection(), -(refHeight - canvas.getClientArea().height) + vertical.getSelection(), 0);
+        gl.glTranslatef(-horizontal.getSelection(), -(this.height - canvas.getClientArea().height) + vertical.getSelection(), 0);
 
         gl.glColor3f(0.5f, 0.5f, 0.5f);
         gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
 
         gl.glDisable(GL.GL_TEXTURE_2D);
         gl.glDisable(GL.GL_BLEND);
-        DrawUtil.drawRectangle(gl, 0, 0, refWidth, refHeight);
+        DrawUtil.drawRectangle(gl, 0, 0, this.width, this.height);
 
         renderer.begin(gl);
         DrawContext drawContext = new DrawContext(renderer, guiScene.getRenderResourceCollection(), selectionProvider.getSelectionList());
@@ -515,18 +536,15 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         horizontal.setIncrement(16);
         vertical.setIncrement(16);
 
-        int refWidth = guiScene.getReferenceWidth();
-        int refHeight = guiScene.getReferenceHeight();
-
         Rectangle clientArea = canvas.getClientArea();
-        int hThumb = clientArea.width - (refWidth - clientArea.width);
+        int hThumb = clientArea.width - (this.width - clientArea.width);
         horizontal.setMinimum(0);
-        horizontal.setMaximum(refWidth);
+        horizontal.setMaximum(this.width);
         horizontal.setThumb(hThumb);
 
-        int vThumb = clientArea.height - (refHeight - clientArea.height);
+        int vThumb = clientArea.height - (this.height - clientArea.height);
         vertical.setMinimum(0);
-        vertical.setMaximum(refHeight);
+        vertical.setMaximum(this.height);
         vertical.setThumb(vThumb);
     }
 
@@ -577,8 +595,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
             ScrollBar horizontal = canvas.getHorizontalBar();
             ScrollBar vertical = canvas.getVerticalBar();
-            int refHeight = guiScene.getReferenceHeight();
-            gl.glTranslatef(-horizontal.getSelection(), -(refHeight - canvas.getClientArea().height) + vertical.getSelection(), 0);
+            gl.glTranslatef(-horizontal.getSelection(), -(this.height - canvas.getClientArea().height) + vertical.getSelection(), 0);
 
             guiScene.drawSelect(drawContext);
             SelectResult result = renderer.endSelect();

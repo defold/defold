@@ -10,21 +10,32 @@ import org.eclipse.core.runtime.Path;
 public class EditorUtil {
 
     /**
+     * Get the game.project file by searching downwards in the file system.
+     * @param container the container to start searching
+     * @return game.project file. null if the directory structure does not contain it
+     */
+    public static IFile findGameProjectFile(IContainer container) {
+        IContainer c = container;
+        while (c != null) {
+            IFile f = c.getFile(new Path("game.project"));
+            if (f.exists()) {
+                return f;
+            }
+            c = c.getParent();
+        }
+        return null;
+    }
+
+    /**
      * Get the content-root, ie the container that contains the file game.project given a file within the content directory structure.
      * @param file the file to the content root for
      * @return content-root container. null of game.project doesn't exists within the directory structure.
      */
     public static IContainer findContentRoot(IResource file) {
         IContainer c = file.getParent();
-        while (c != null) {
-            if (c instanceof IContainer) {
-                IContainer folder = (IContainer) c;
-                IFile f = folder.getFile(new Path("game.project"));
-                if (f.exists()) {
-                    return c;
-                }
-            }
-            c = c.getParent();
+        IFile f = findGameProjectFile(c);
+        if (f != null) {
+            return f.getParent();
         }
         return null;
     }
