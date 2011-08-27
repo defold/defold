@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Tileeditor
+Bundle-SymbolicName: com.dynamo.cr.tileeditor
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.dynamo.cr.tileeditor.Activator
+Bundle-Vendor: DYNAMO
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
