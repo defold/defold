@@ -20,7 +20,7 @@ public class DeleteTexturesOperation extends AbstractOperation {
     private List<EditorTextureDesc> textures;
 
     public DeleteTexturesOperation(IGuiEditor editor, List<EditorTextureDesc> textures) {
-        super("Delete Node(s)");
+        super("Delete Texture(s)");
         this.editor = editor;
         this.textures = textures;
     }

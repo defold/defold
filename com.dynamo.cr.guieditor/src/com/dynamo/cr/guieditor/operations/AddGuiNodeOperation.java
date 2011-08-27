@@ -19,7 +19,7 @@ public class AddGuiNodeOperation extends AbstractOperation {
     private GuiNode node;
 
     public AddGuiNodeOperation(IGuiEditor editor, GuiNode node) {
-        super("Add Box Node");
+        super("Add Node");
         this.editor = editor;
         this.node = node;
     }

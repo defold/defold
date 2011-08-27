@@ -20,7 +20,7 @@ public class DeleteFontsOperation extends AbstractOperation {
     private List<EditorFontDesc> fonts;
 
     public DeleteFontsOperation(IGuiEditor editor, List<EditorFontDesc> fonts) {
-        super("Delete Node(s)");
+        super("Delete Font(s)");
         this.editor = editor;
         this.fonts = fonts;
     }
