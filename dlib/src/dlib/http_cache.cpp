@@ -176,7 +176,7 @@ namespace dmHttpCache
             dmSys::Result r = dmSys::Mkdir(path, 0755);
             if (r != dmSys::RESULT_OK)
             {
-                dmLogError("Unable to create directory '%s'", path);
+                dmLogError("Unable to create directory '%s' (%d)", path, r);
                 return RESULT_IO_ERROR;
             }
         }
