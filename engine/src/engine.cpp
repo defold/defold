@@ -248,7 +248,7 @@ namespace dmEngine
         }
 
         engine->m_Width = dmConfigFile::GetInt(config, "display.width", 960);
-        engine->m_Height = dmConfigFile::GetInt(config, "display.height", 540);
+        engine->m_Height = dmConfigFile::GetInt(config, "display.height", 640);
 
         dmGraphics::WindowParams window_params;
         window_params.m_ResizeCallback = OnWindowResize;
