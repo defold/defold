@@ -24,6 +24,7 @@ def compile_uncompressed(source_name, source_image, texture_image):
 
 def compile_dds(source_name, source_image, texture_image):
     dds_file_no, dds_file = tempfile.mkstemp('.dds')
+    os.close(dds_file_no)
     if sys.platform != 'win32':
         # TODO:
         # We get "The process cannot access the file because it is being used by another process"
@@ -65,6 +66,7 @@ def compile_dds(source_name, source_image, texture_image):
 
 def compile_pvrtc(source_name, source_image, texture_image):
     pvrtc_file_no, pvrtc_file = tempfile.mkstemp('.pvr')
+    os.close(pvrtc_file_no)
 
     if sys.platform != 'win32':
         # TODO:
