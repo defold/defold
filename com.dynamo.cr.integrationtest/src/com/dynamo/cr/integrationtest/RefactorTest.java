@@ -13,6 +13,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
@@ -29,6 +30,7 @@ import org.eclipse.ltk.core.refactoring.RefactoringCore;
 import org.eclipse.ltk.core.refactoring.RefactoringDescriptor;
 import org.eclipse.ltk.core.refactoring.RefactoringStatus;
 import org.eclipse.ltk.core.refactoring.resource.DeleteResourcesDescriptor;
+import org.eclipse.ltk.core.refactoring.resource.MoveResourcesDescriptor;
 import org.eclipse.ltk.core.refactoring.resource.RenameResourceDescriptor;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,7 +72,6 @@ public class RefactorTest {
         project.setDescription(pd, monitor);
 
         Bundle bundle = Platform.getBundle("com.dynamo.cr.integrationtest");
-        @SuppressWarnings("unchecked")
         Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
         while (entries.hasMoreElements()) {
             URL url = entries.nextElement();
@@ -611,5 +612,24 @@ public class RefactorTest {
         perform(undoChange);
     }
 
+    @Test
+    public void testDependentMove() throws CoreException, IOException {
+        IFolder newDest = project.getFolder("logic/session/new_dest");
+        newDest.create(true, true, new NullProgressMonitor());
+
+        IFile ballGo = project.getFile("logic/session/ball.go");
+        IFile ballScript = project.getFile("logic/session/ball.script");
+
+        RefactoringContribution contribution = RefactoringCore.getRefactoringContribution(MoveResourcesDescriptor.ID);
+        MoveResourcesDescriptor descriptor = (MoveResourcesDescriptor) contribution.createDescriptor();
+        descriptor.setResourcesToMove(new IResource[] {ballScript, ballGo});
+        descriptor.setDestination(newDest);
+        descriptor.setUpdateReferences(true);
+
+        perform(descriptor);
+
+        PrototypeDesc ballGoPrototypeDesc = (PrototypeDesc) loadMessageFile("logic/session/new_dest/ball.go", PrototypeDesc.newBuilder());
+        assertEquals("/logic/session/new_dest/ball.script", ballGoPrototypeDesc.getComponents(1).getComponent());
+    }
 }
 

@@ -79,23 +79,31 @@ public class ResourceMoveParticipant extends MoveParticipant implements ISharabl
     @Override
     public Change createChange(IProgressMonitor pm) throws CoreException,
             OperationCanceledException {
+        return null;
+    }
 
-        refactorFiles(pm);
-        if (refactoredFiles.size() > 0) {
-            CompositeChange change = new CompositeChange("References");
-            for (IFile file : refactoredFiles.keySet()) {
-                RefactoredFile refactoredFile = refactoredFiles.get(file);
-                if (!refactoredFile.originalContent.equals(refactoredFile.newContent)) {
-                    String originalText = refactoredFile.originalContent;
-                    String newText = refactoredFile.newContent;
+    @Override
+    public Change createPreChange(IProgressMonitor pm) throws CoreException,
+            OperationCanceledException {
 
-                    TextFileChange textFileChange = new TextFileChange(file.getName(), file);
-                    ReplaceEdit edit = new ReplaceEdit(0, originalText.length(), newText);
-                    textFileChange.setEdit(edit);
-                    change.add(textFileChange);
+        if (getArguments().getUpdateReferences()) {
+            refactorFiles(pm);
+            if (refactoredFiles.size() > 0) {
+                CompositeChange change = new CompositeChange("References");
+                for (IFile file : refactoredFiles.keySet()) {
+                    RefactoredFile refactoredFile = refactoredFiles.get(file);
+                    if (!refactoredFile.originalContent.equals(refactoredFile.newContent)) {
+                        String originalText = refactoredFile.originalContent;
+                        String newText = refactoredFile.newContent;
+
+                        TextFileChange textFileChange = new TextFileChange(file.getName(), file);
+                        ReplaceEdit edit = new ReplaceEdit(0, originalText.length(), newText);
+                        textFileChange.setEdit(edit);
+                        change.add(textFileChange);
+                    }
                 }
+                return change;
             }
-            return change;
         }
         return null;
     }
