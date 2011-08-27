@@ -95,7 +95,7 @@ class BlendComposite implements Composite {
 }
 
 public class Fontc {
-    int imageWidth = 512;
+    int imageWidth = 1024;
     int imageHeight = 2048; // Enough. Will be cropped later
     Stroke outlineStroke = null;
     private StringBuffer characters;
