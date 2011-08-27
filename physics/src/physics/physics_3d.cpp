@@ -313,7 +313,7 @@ namespace dmPhysics
                             const btVector3& v = body_b->getLinearVelocity();
                             vel_b = Vectormath::Aos::Vector3(v.getX(), v.getY(), v.getZ());
                         }
-                        point.m_RelativeVelocity = vel_b - vel_a;
+                        point.m_RelativeVelocity = vel_a - vel_b;
                         requests_contact_callbacks = contact_point_callback(point, context.m_ContactPointUserData);
                         if (!requests_collision_callbacks && !requests_contact_callbacks)
                             return;
