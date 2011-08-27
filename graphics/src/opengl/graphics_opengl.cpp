@@ -747,22 +747,21 @@ static void LogFrameBufferError(GLenum status)
         glCompileShader(s);
         CHECK_GL_ERROR
 
-#ifndef NDEBUG
-        GLint logLength;
-        glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0)
-        {
-            GLchar *log = (GLchar *)malloc(logLength);
-            glGetShaderInfoLog(s, logLength, &logLength, log);
-            dmLogWarning("%s\n", log);
-            free(log);
-        }
-#endif
-
         GLint status;
         glGetShaderiv(s, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
+#ifndef NDEBUG
+            GLint logLength;
+            glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetShaderInfoLog(s, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
             glDeleteShader(s);
             return 0;
         }
@@ -797,22 +796,21 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glLinkProgram(p);
 
-#ifndef NDEBUG
-        GLint logLength;
-        glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0)
-        {
-            GLchar *log = (GLchar *)malloc(logLength);
-            glGetProgramInfoLog(p, logLength, &logLength, log);
-            dmLogWarning("%s\n", log);
-            free(log);
-        }
-#endif
-
         GLint status;
         glGetProgramiv(p, GL_LINK_STATUS, &status);
         if (status == 0)
         {
+#ifndef NDEBUG
+            GLint logLength;
+            glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetProgramInfoLog(p, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
             glDeleteProgram(p);
             CHECK_GL_ERROR
             return 0;
@@ -882,18 +880,22 @@ static void LogFrameBufferError(GLenum status)
         glLinkProgram(program);
 
 #ifndef NDEBUG
-        GLint logLength;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0)
+        if (glGetError() != 0)
         {
-            GLchar *log = (GLchar *)malloc(logLength);
-            glGetProgramInfoLog(program, logLength, &logLength, log);
-            dmLogWarning("%s\n", log);
-            free(log);
+            GLint logLength;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetProgramInfoLog(program, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
         }
-#endif
-
+#else
         glGetError(); // Clear potential error
+        // NOTE: We call glGetError in if-clause above
+#endif
     }
 
     uint32_t GetUniformCount(HProgram prog)
