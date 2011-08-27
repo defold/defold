@@ -1243,11 +1243,11 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
     initWGLExtensions();
 
     // Read back window size
-    RECT rect;
-    if (GetClientRect(hwnd, &rect))
+    RECT client_rect;
+    if (GetClientRect(_glfwWin.window, &client_rect))
     {
-        _glfwWin.width = rect.right - rect.left;
-        _glfwWin.height = rect.bottom - rect.top;
+        _glfwWin.width = client_rect.right - client_rect.left;
+        _glfwWin.height = client_rect.bottom - client_rect.top;
     }
 
     // Initialize mouse position data
