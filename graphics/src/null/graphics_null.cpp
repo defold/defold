@@ -638,6 +638,11 @@ namespace dmGraphics
         }
     }
 
+    bool IsTextureFormatSupported(TextureFormat format)
+    {
+        return true;
+    }
+
     HTexture NewTexture(HContext context, const TextureParams& params)
     {
         Texture* tex = new Texture();

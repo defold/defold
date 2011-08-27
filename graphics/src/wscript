@@ -28,8 +28,9 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
 
-    bld.install_files('${PREFIX}/bin', 'ddsc.py')
+    bld.install_files('${PREFIX}/bin', 'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
+    bld.install_files('${PREFIX}/lib/python', 'pvrtc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
 def configure(conf):
