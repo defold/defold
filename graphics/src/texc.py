@@ -24,7 +24,11 @@ def compile_uncompressed(source_name, source_image, texture_image):
 
 def compile_dds(source_name, source_image, texture_image):
     dds_file_no, dds_file = tempfile.mkstemp('.dds')
-    atexit.register(lambda: os.remove(dds_file))
+    if sys.platform != 'win32':
+        # TODO:
+        # We get "The process cannot access the file because it is being used by another process"
+        # on windows...
+        atexit.register(lambda: os.remove(dds_file))
 
     p = Popen('nvcompress -bc3 -fast'.split() + [source_name, dds_file], stdout = PIPE, stderr = PIPE)
     out, err = p.communicate()
@@ -61,7 +65,12 @@ def compile_dds(source_name, source_image, texture_image):
 
 def compile_pvrtc(source_name, source_image, texture_image):
     pvrtc_file_no, pvrtc_file = tempfile.mkstemp('.pvr')
-    atexit.register(lambda: os.remove(pvrtc_file))
+
+    if sys.platform != 'win32':
+        # TODO:
+        # We get "The process cannot access the file because it is being used by another process"
+        # on windows...
+        atexit.register(lambda: os.remove(pvrtc_file))
 
     p = Popen('PVRTexTool -m -fOGLPVRTC4 '.split() + ['-i' + source_name, '-o' + pvrtc_file], stdout = PIPE, stderr = PIPE)
     out, err = p.communicate()
