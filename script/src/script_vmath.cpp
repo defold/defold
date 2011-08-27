@@ -756,20 +756,20 @@ namespace dmScript
 
     /*# creates a new identity quaternion
      *
-     * @name vmath.quaternion
+     * @name vmath.quat
      * @return new identity quaternion (quaternion)
      */
 
     /*# creates a new quaternion from another existing quaternion
      *
-     * @name vmath.quaternion
+     * @name vmath.quat
      * @param q existing quaternion (quaternion)
      * @return new quaternion (quaternion)
      */
 
     /*# creates a new quaternion from its coordinates
      *
-     * @name vmath.quaternion
+     * @name vmath.quat
      * @param x x coordinate (number)
      * @param y y coordinate (number)
      * @param z z coordinate (number)
