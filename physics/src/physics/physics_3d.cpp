@@ -299,7 +299,7 @@ namespace dmPhysics
                             point.m_InvMassB = body_b->getInvMass();
                         const btVector3& normal = pt.m_normalWorldOnB;
                         point.m_Normal = -Vectormath::Aos::Vector3(normal.getX(), normal.getY(), normal.getZ());
-                        point.m_Distance = pt.getDistance();
+                        point.m_Distance = -pt.getDistance();
                         point.m_AppliedImpulse = pt.getAppliedImpulse();
                         Vectormath::Aos::Vector3 vel_a(0.0f, 0.0f, 0.0f);
                         if (body_a)
