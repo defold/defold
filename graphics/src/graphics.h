@@ -81,7 +81,11 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_DXT1    = 4,
         TEXTURE_FORMAT_RGBA_DXT3    = 5,
         TEXTURE_FORMAT_RGBA_DXT5    = 6,
-        TEXTURE_FORMAT_DEPTH        = 7
+        TEXTURE_FORMAT_DEPTH        = 7,
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1  = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1  = 9,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 = 11,
     };
 
     // Texture format
@@ -397,6 +401,7 @@ namespace dmGraphics
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
 
+    bool IsTextureFormatSupported(TextureFormat format);
     HTexture NewTexture(HContext context, const TextureParams& params);
     void DeleteTexture(HTexture t);
     void SetTexture(HTexture texture, const TextureParams& params);

@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "../graphics.h"
@@ -740,11 +741,14 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    uint32_t g_DrawCallsHash = dmHashString32("DrawCalls");
+
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
+        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
@@ -757,6 +761,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
         DM_PROFILE(Graphics, "Draw");
+        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
         glDrawArrays(prim_type, first, count);
         CHECK_GL_ERROR
     }
@@ -771,22 +776,21 @@ static void LogFrameBufferError(GLenum status)
         glCompileShader(s);
         CHECK_GL_ERROR
 
-#ifndef NDEBUG
-        GLint logLength;
-        glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0)
-        {
-            GLchar *log = (GLchar *)malloc(logLength);
-            glGetShaderInfoLog(s, logLength, &logLength, log);
-            dmLogWarning("%s\n", log);
-            free(log);
-        }
-#endif
-
         GLint status;
         glGetShaderiv(s, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
+#ifndef NDEBUG
+            GLint logLength;
+            glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetShaderInfoLog(s, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
             glDeleteShader(s);
             return 0;
         }
@@ -821,22 +825,21 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glLinkProgram(p);
 
-#ifndef NDEBUG
-        GLint logLength;
-        glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0)
-        {
-            GLchar *log = (GLchar *)malloc(logLength);
-            glGetProgramInfoLog(p, logLength, &logLength, log);
-            dmLogWarning("%s\n", log);
-            free(log);
-        }
-#endif
-
         GLint status;
         glGetProgramiv(p, GL_LINK_STATUS, &status);
         if (status == 0)
         {
+#ifndef NDEBUG
+            GLint logLength;
+            glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetProgramInfoLog(p, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
             glDeleteProgram(p);
             CHECK_GL_ERROR
             return 0;
@@ -906,18 +909,22 @@ static void LogFrameBufferError(GLenum status)
         glLinkProgram(program);
 
 #ifndef NDEBUG
-        GLint logLength;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0)
+        if (glGetError() != 0)
         {
-            GLchar *log = (GLchar *)malloc(logLength);
-            glGetProgramInfoLog(program, logLength, &logLength, log);
-            dmLogWarning("%s\n", log);
-            free(log);
+            GLint logLength;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetProgramInfoLog(program, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
         }
-#endif
-
+#else
         glGetError(); // Clear potential error
+        // NOTE: We call glGetError in if-clause above
+#endif
     }
 
     uint32_t GetUniformCount(HProgram prog)
@@ -1069,6 +1076,49 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    bool IsTextureFormatSupported(TextureFormat format)
+    {
+        switch (format)
+        {
+        // Supported on all platforms
+        case TEXTURE_FORMAT_LUMINANCE:
+        case TEXTURE_FORMAT_RGB:
+        case TEXTURE_FORMAT_RGBA:
+        case TEXTURE_FORMAT_DEPTH:
+            return true;
+
+#ifndef __arm__
+        // Non arm platform. We currently assume that DXT* is supported
+        case TEXTURE_FORMAT_RGB_DXT1:
+        case TEXTURE_FORMAT_RGBA_DXT1:
+        case TEXTURE_FORMAT_RGBA_DXT3:
+        case TEXTURE_FORMAT_RGBA_DXT5:
+            return true;
+
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            return false;
+#else
+        // Arm platforms. We assume PVRTC* support
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            return true;
+
+        case TEXTURE_FORMAT_RGB_DXT1:
+        case TEXTURE_FORMAT_RGBA_DXT1:
+        case TEXTURE_FORMAT_RGBA_DXT3:
+        case TEXTURE_FORMAT_RGBA_DXT5:
+            return false;
+
+#endif
+        }
+        return false;
+    }
+
     HTexture NewTexture(HContext context, const TextureParams& params)
     {
         GLuint t;
@@ -1155,6 +1205,22 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR
             break;
 #endif
+
+#ifdef GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            gl_format = GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG;
+            break;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            gl_format = GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG;
+            break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            gl_format = GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG;
+            break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            gl_format = GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG;
+            break;
+#endif
+
         case TEXTURE_FORMAT_DEPTH:
             gl_format = GL_DEPTH_COMPONENT;
             internal_format = GL_DEPTH_COMPONENT;
@@ -1178,6 +1244,10 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGBA_DXT1:
         case TEXTURE_FORMAT_RGBA_DXT3:
         case TEXTURE_FORMAT_RGBA_DXT5:
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             if (params.m_DataSize > 0)
                 glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
             CHECK_GL_ERROR

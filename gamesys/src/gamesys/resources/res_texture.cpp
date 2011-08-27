@@ -1,74 +1,96 @@
 #include "res_texture.h"
 
+#include <dlib/log.h>
 #include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
-    static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage* image)
+    static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::Image* image)
     {
         switch (image->m_Format)
         {
         case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-            break;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
             return dmGraphics::TEXTURE_FORMAT_RGB;
-            break;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
             return dmGraphics::TEXTURE_FORMAT_RGBA;
-            break;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
             return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
-            break;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
             return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
-            break;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
             return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
-            break;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
             return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
-            break;
-
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         default:
             assert(0);
         }
-
     }
 
     dmGraphics::HTexture AcquireResources(dmGraphics::HContext context, const void* buffer, uint32_t buffer_size, dmGraphics::HTexture texture)
     {
-        dmGraphics::TextureImage* image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&image));
+        dmGraphics::TextureImage* texture_image;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
             return 0;
         }
 
-        dmGraphics::TextureParams params;
-        params.m_Format = TextureImageToTextureFormat(image);
-        params.m_Width = image->m_Width;
-        params.m_Height = image->m_Height;
-        if (!texture)
-            texture = dmGraphics::NewTexture(context, params);
-
-        for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
+        bool found_match = false;
+        for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
         {
-            params.m_MipMap = i;
-            params.m_Data = &image->m_Data[image->m_MipMapOffset[i]];
-            params.m_DataSize = image->m_MipMapSize[i];
+            dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
+            dmGraphics::TextureFormat format = TextureImageToTextureFormat(image);
 
-            dmGraphics::SetTexture(texture, params);
-            params.m_Width >>= 1;
-            params.m_Height >>= 1;
-            if (params.m_Width == 0) params.m_Width = 1;
-            if (params.m_Height == 0) params.m_Height = 1;
+            if (!dmGraphics::IsTextureFormatSupported(format))
+            {
+                continue;
+            }
+
+            found_match = true;
+            dmGraphics::TextureParams params;
+            params.m_Format = format;
+            params.m_Width = image->m_Width;
+            params.m_Height = image->m_Height;
+            if (!texture)
+                texture = dmGraphics::NewTexture(context, params);
+
+            for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
+            {
+                params.m_MipMap = i;
+                params.m_Data = &image->m_Data[image->m_MipMapOffset[i]];
+                params.m_DataSize = image->m_MipMapSize[i];
+
+                dmGraphics::SetTexture(texture, params);
+                params.m_Width >>= 1;
+                params.m_Height >>= 1;
+                if (params.m_Width == 0) params.m_Width = 1;
+                if (params.m_Height == 0) params.m_Height = 1;
+            }
+            break;
         }
 
-        dmDDF::FreeMessage(image);
+        dmDDF::FreeMessage(texture_image);
 
-        return texture;
+        if (found_match)
+        {
+            return texture;
+        }
+        else
+        {
+            dmLogWarning("No matching texture format found");
+            return 0;
+        }
     }
 
     dmResource::CreateResult ResTextureCreate(dmResource::HFactory factory,
