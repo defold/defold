@@ -79,3 +79,8 @@ assert(m2.m00 == 2, "mul by num")
 assert(m2.m11 == 4, "mul by num")
 assert(m2.m22 == 6, "mul by num")
 assert(m2.m33 == 8, "mul by num")
+m2 = 2 * m
+assert(m2.m00 == 2, "mul by num")
+assert(m2.m11 == 4, "mul by num")
+assert(m2.m22 == 6, "mul by num")
+assert(m2.m33 == 8, "mul by num")
