@@ -4,6 +4,7 @@ function init(self)
     self.speed = 18
     self.impact_damage = 0.2
     self.hit_response = nil
+    msg.post("attacker", "dummy_msg")
 end
 
 function update(self, dt)

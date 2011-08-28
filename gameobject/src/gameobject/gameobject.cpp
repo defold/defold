@@ -431,6 +431,10 @@ namespace dmGameObject
         {
             SetPosition(instance, position);
             SetRotation(instance, rotation);
+
+            dmHashInit64(&instance->m_CollectionPathHashState);
+            dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
+
             Result result = SetIdentifier(collection, instance, id);
             if (result == RESULT_IDENTIFIER_IN_USE)
             {
