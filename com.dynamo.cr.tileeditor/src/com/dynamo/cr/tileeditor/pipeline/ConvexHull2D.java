@@ -102,6 +102,55 @@ public class ConvexHull2D {
         return maxValue;
     }
 
+    static boolean validHull(Point[] points, int[] mask, int width, int height) {
+        int n = points.length;
+        for (int i = 0; i < n; ++i) {
+            Point p0 = points[(i+1) % n];
+            Point p1 = points[i];
+            Vector2d normal = new Vector2d(-(p1.y - p0.y), p1.x - p0.x);
+            Vector2d p = new Vector2d();
+
+            for (int y = height-1; y >= 0; --y) {
+                for (int x = 0; x < width; ++x) {
+                    if (mask[x + (height - y - 1) * width] != 0) {
+                        p.x = p0.x - x;
+                        p.y = p0.y - y;
+                        double distance = p.dot(normal);
+                        //System.out.println(distance);
+                        if (distance < -0.01) // TODO: Epsilon for floats...
+                            return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    static Point[] refine(Point[] points, int[] mask, int width, int height) {
+        int n = points.length;
+
+        boolean wasRefined;
+        do {
+            wasRefined = false;
+            for (int i = 0; i < n; ++i) {
+                Point[] refined = new Point[n-1];
+                System.arraycopy(points, 0, refined, 0, i);
+                System.arraycopy(points, i + 1, refined, i, n - i - 1);
+                if (validHull(refined, mask, width, height)) {
+                    // Successfully removed a point
+                    points = refined;
+                    --n;
+                    --i;
+                    wasRefined = true;
+                }
+                n = points.length;
+            }
+        } while (n > 3 && wasRefined);
+
+        return points;
+    }
+
     /**
      * Get convex shape for a single image
      * @param mask image mask. 0 is interpreted as background. != 0 is interpreted as foreground
@@ -158,7 +207,8 @@ public class ConvexHull2D {
             }
         }
 
-        return Arrays.copyOf(result, npoints);
+        Point[] distinct = Arrays.copyOf(result, npoints);
+        return refine(distinct, mask, width, height);
     }
 
 }
