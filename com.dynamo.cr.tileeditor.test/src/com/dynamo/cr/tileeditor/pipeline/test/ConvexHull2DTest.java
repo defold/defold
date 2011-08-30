@@ -18,7 +18,7 @@ import org.junit.Test;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D.Point;
 
-public class ConvexShapeFitterTest {
+public class ConvexHull2DTest {
 
     @Before
     public void setUp() {
