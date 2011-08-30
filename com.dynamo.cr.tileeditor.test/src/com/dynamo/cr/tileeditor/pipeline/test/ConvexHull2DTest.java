@@ -114,12 +114,8 @@ public class ConvexHull2DTest {
             HashSet<Point> points = calc("test/test_points.png", planeCount);
             assertEquals(3, points.size());
 
-
             assertThat(points, hasItem(new Point(1, 1)));
-            //assertThat(points, hasItem(new Point(2, 0)));
-            //assertThat(points, hasItem(new Point(1, 4)));
             assertThat(points, hasItem(new Point(3, 6)));
-            //assertThat(points, hasItem(new Point(7, 2)));
             assertThat(points, hasItem(new Point(7, 0)));
         }
     }
