@@ -108,6 +108,7 @@ public class ConvexHull2D {
             Point p0 = points[(i+1) % n];
             Point p1 = points[i];
             Vector2d normal = new Vector2d(-(p1.y - p0.y), p1.x - p0.x);
+            normal.normalize();
             Vector2d p = new Vector2d();
 
             for (int y = height-1; y >= 0; --y) {
@@ -116,7 +117,6 @@ public class ConvexHull2D {
                         p.x = p0.x - x;
                         p.y = p0.y - y;
                         double distance = p.dot(normal);
-                        //System.out.println(distance);
                         if (distance < -0.01) // TODO: Epsilon for floats...
                             return false;
                     }
