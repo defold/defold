@@ -123,8 +123,18 @@ namespace dmScript
 
     static int Vector3_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-        float s = luaL_checknumber(L, 2);
+        Vectormath::Aos::Vector3* v;
+        float s;
+        if (IsVector3(L, 1))
+        {
+            v = CheckVector3(L, 1);
+            s = luaL_checknumber(L, 2);
+        }
+        else
+        {
+            s = luaL_checknumber(L, 1);
+            v = CheckVector3(L, 2);
+        }
         PushVector3(L, *v * s);
         return 1;
     }
@@ -269,6 +279,47 @@ namespace dmScript
         return 0;
     }
 
+    static int Vector4_add(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+        PushVector4(L, *v1 + *v2);
+        return 1;
+    }
+
+    static int Vector4_sub(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+        PushVector4(L, *v1 - *v2);
+        return 1;
+    }
+
+    static int Vector4_mul(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v;
+        float s;
+        if (IsVector4(L, 1))
+        {
+            v = CheckVector4(L, 1);
+            s = luaL_checknumber(L, 2);
+        }
+        else
+        {
+            s = luaL_checknumber(L, 1);
+            v = CheckVector4(L, 2);
+        }
+        PushVector4(L, *v * s);
+        return 1;
+    }
+
+    static int Vector4_unm(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        PushVector4(L, - *v);
+        return 1;
+    }
+
     static int Vector4_concat(lua_State *L)
     {
         const char* s = luaL_checkstring(L, 1);
@@ -299,6 +350,10 @@ namespace dmScript
         {"__tostring",  Vector4_tostring},
         {"__index",     Vector4_index},
         {"__newindex",  Vector4_newindex},
+        {"__add",       Vector4_add},
+        {"__sub",       Vector4_sub},
+        {"__mul",       Vector4_mul},
+        {"__unm",       Vector4_unm},
         {"__concat",    Vector4_concat},
         {"__eq",        Vector4_eq},
         {0,0}
@@ -539,25 +594,35 @@ namespace dmScript
 
     static int Matrix4_mul(lua_State *L)
     {
-        Vectormath::Aos::Matrix4 m1 = *CheckMatrix4(L, 1);
-        if (IsMatrix4(L, 2))
+        Vectormath::Aos::Matrix4 m1;
+        if (lua_isnumber(L, 1))
         {
-            Vectormath::Aos::Matrix4 m2 = *CheckMatrix4(L, 2);
-            PushMatrix4(L, m1 * m2);
-        }
-        else if (IsVector4(L, 2))
-        {
-            Vectormath::Aos::Vector4 v = *CheckVector4(L, 2);
-            PushVector4(L, m1 * v);
-        }
-        else if (lua_isnumber(L, 2))
-        {
-            float f = luaL_checknumber(L, 2);
+            float f = lua_tonumber(L, 1);
+            m1 = *CheckMatrix4(L, 2);
             PushMatrix4(L, m1 * f);
         }
         else
         {
-            return luaL_error(L, "%s.%s can only be multiplied with a number, another %s or a %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR4);
+            m1 = *CheckMatrix4(L, 1);
+            if (IsMatrix4(L, 2))
+            {
+                Vectormath::Aos::Matrix4 m2 = *CheckMatrix4(L, 2);
+                PushMatrix4(L, m1 * m2);
+            }
+            else if (IsVector4(L, 2))
+            {
+                Vectormath::Aos::Vector4 v = *CheckVector4(L, 2);
+                PushVector4(L, m1 * v);
+            }
+            else if (lua_isnumber(L, 2))
+            {
+                float f = luaL_checknumber(L, 2);
+                PushMatrix4(L, m1 * f);
+            }
+            else
+            {
+                return luaL_error(L, "%s.%s can only be multiplied with a number, another %s or a %s.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR4);
+            }
         }
         return 1;
     }
@@ -691,20 +756,20 @@ namespace dmScript
 
     /*# creates a new identity quaternion
      *
-     * @name vmath.quaternion
+     * @name vmath.quat
      * @return new identity quaternion (quaternion)
      */
 
     /*# creates a new quaternion from another existing quaternion
      *
-     * @name vmath.quaternion
+     * @name vmath.quat
      * @param q existing quaternion (quaternion)
      * @return new quaternion (quaternion)
      */
 
     /*# creates a new quaternion from its coordinates
      *
-     * @name vmath.quaternion
+     * @name vmath.quat
      * @param x x coordinate (number)
      * @param y y coordinate (number)
      * @param z z coordinate (number)
@@ -1006,41 +1071,66 @@ namespace dmScript
     /*# calculates the dot-product of two vectors
      *
      * @name vmath.dot
-     * @param v1 first vector (vector3)
-     * @param v1 second vector (vector3)
+     * @param v1 first vector (vector3 or vector4)
+     * @param v1 second vector (vector3 or vector4)
      * @return dot product (number)
      */
     static int Dot(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
-        lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
+        if (IsVector4(L, 1) && IsVector4(L, 2))
+        {
+            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
+            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+            lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
+        }
+        else
+        {
+            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+            lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
+        }
         return 1;
     }
 
     /*# calculates the squared vector length
      *
      * @name vmath.length_sqr
-     * @param v vector of which to calculate the squared length (vector3)
+     * @param v vector of which to calculate the squared length (vector3 or vector4)
      * @return squared vector length (number)
      */
     static int LengthSqr(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-        lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
+        if (IsVector4(L, 1))
+        {
+            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
+        }
+        else
+        {
+            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
+        }
         return 1;
     }
 
     /*# calculates the vector length
      *
      * @name vmath.length
-     * @param v vector of which to calculate the length (vector3)
+     * @param v vector of which to calculate the length (vector3 or vector4)
      * @return vector length (number)
      */
     static int Length(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-        lua_pushnumber(L, Vectormath::Aos::length(*v));
+        if (IsVector4(L, 1))
+        {
+            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::length(*v));
+        }
+        else
+        {
+            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::length(*v));
+        }
         return 1;
     }
 
@@ -1048,13 +1138,21 @@ namespace dmScript
      * The length of the vector must be above 0, otherwise a div-by-zero will occur.
      *
      * @name vmath.normalize
-     * @param v vector to normalize (vector3)
-     * @return new normalized vector (vector3)
+     * @param v vector to normalize (vector3 or vector4)
+     * @return new normalized vector (vector3 or vector4)
      */
     static int Normalize(lua_State* L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-        PushVector3(L, Vectormath::Aos::normalize(*v));
+        if (IsVector4(L, 1))
+        {
+            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            PushVector4(L, Vectormath::Aos::normalize(*v));
+        }
+        else
+        {
+            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            PushVector3(L, Vectormath::Aos::normalize(*v));
+        }
         return 1;
     }
 
@@ -1077,9 +1175,9 @@ namespace dmScript
      *
      * @name vmath.lerp
      * @param t interpolation parameter, 0-1 (number)
-     * @param v1 vector to lerp from (vector3)
-     * @param v2 vector to lerp to (vector3)
-     * @return the lerped vector (vector3)
+     * @param v1 vector to lerp from (vector3 or vector4)
+     * @param v2 vector to lerp to (vector3 or vector4)
+     * @return the lerped vector (vector3 or vector4)
      */
 
     /*# lerps between two quaternions
@@ -1094,7 +1192,14 @@ namespace dmScript
     static int Lerp(lua_State* L)
     {
         float t = luaL_checknumber(L, 1);
-        if (IsVector3(L, 2) && IsVector3(L, 3))
+        if (IsVector4(L, 2) && IsVector4(L, 3))
+        {
+            Vectormath::Aos::Vector4* v1 = (Vectormath::Aos::Vector4*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_VECTOR4);
+            Vectormath::Aos::Vector4* v2 = (Vectormath::Aos::Vector4*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_VECTOR4);
+            PushVector4(L, Vectormath::Aos::lerp(t, *v1, *v2));
+            return 1;
+        }
+        else if (IsVector3(L, 2) && IsVector3(L, 3))
         {
             Vectormath::Aos::Vector3* v1 = (Vectormath::Aos::Vector3*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_VECTOR3);
             Vectormath::Aos::Vector3* v2 = (Vectormath::Aos::Vector3*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_VECTOR3);
@@ -1115,9 +1220,9 @@ namespace dmScript
      *
      * @name vmath.slerp
      * @param t interpolation parameter, 0-1 (number)
-     * @param v1 vector to slerp from (vector3)
-     * @param v2 vector to slerp to (vector3)
-     * @return the slerped vector (vector3)
+     * @param v1 vector to slerp from (vector3 or vector4)
+     * @param v2 vector to slerp to (vector3 or vector4)
+     * @return the slerped vector (vector3 or vector4)
      */
 
     /*# slerps between two quaternions
@@ -1131,7 +1236,14 @@ namespace dmScript
     static int Slerp(lua_State* L)
     {
         float t = luaL_checknumber(L, 1);
-        if (IsVector3(L, 2) && IsVector3(L, 3))
+        if (IsVector4(L, 2) && IsVector4(L, 3))
+        {
+            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
+            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
+            PushVector4(L, Vectormath::Aos::slerp(t, *v1, *v2));
+            return 1;
+        }
+        else if (IsVector3(L, 2) && IsVector3(L, 3))
         {
             Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
             Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);

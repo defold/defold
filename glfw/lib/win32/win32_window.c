@@ -1138,7 +1138,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 {
     DWORD dwStyle, dwExStyle;
     int pixelFormat, fullWidth, fullHeight;
-    RECT wa;
+    RECT wa, client_rect;
     POINT pos;
 
     _glfwWin.DC  = NULL;
@@ -1243,7 +1243,6 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
     initWGLExtensions();
 
     // Read back window size
-    RECT client_rect;
     if (GetClientRect(_glfwWin.window, &client_rect))
     {
         _glfwWin.width = client_rect.right - client_rect.left;
