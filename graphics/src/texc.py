@@ -118,6 +118,8 @@ if __name__ == "__main__":
 
     texture_image = graphics_ddf_pb2.TextureImage()
     source_image = Image.open(args[0])
+    if source_image.mode == 'P':
+        source_image = source_image.convert('RGBA')
     width, height = source_image.size
 
     compile_dds(args[0], source_image, texture_image)
