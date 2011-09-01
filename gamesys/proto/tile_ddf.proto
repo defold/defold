@@ -1,0 +1,19 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.tile.proto";
+option java_outer_classname = "Tile";
+
+message TileMap
+{
+    required string image           = 1 [(resource)=true];
+    required uint32 tile_width      = 2 [default = 0];
+    required uint32 tile_height     = 3 [default = 0];
+    required uint32 tile_count      = 4 [default = 0];
+    required uint32 tile_margin     = 5 [default = 0];
+    required uint32 tile_spacing    = 6 [default = 0];
+    optional string collision       = 7 [(resource)=true];
+    required string material_tag    = 8 [default = "tile"];
+}
