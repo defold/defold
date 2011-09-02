@@ -2,21 +2,21 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.util.Set;
 
-import com.dynamo.cr.tileeditor.core.MapModel.Tile;
-import com.dynamo.tile.proto.Tile.TileMap;
+import com.dynamo.cr.tileeditor.core.TileSetModel.Tile;
+import com.dynamo.tile.proto.Tile.TileSet;
 
-public class MapPresenter {
-    MapModel model;
-    IMapView view;
+public class TileSetPresenter {
+    TileSetModel model;
+    ITileSetView view;
     private int imageWidth;
     private int imageHeight;
 
-    public MapPresenter(MapModel model, IMapView view) {
+    public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
         this.view = view;
     }
 
-    public void load(TileMap tileMap) {
+    public void load(TileSet tileMap) {
         this.model.setImage(tileMap.getImage());
         this.view.setImage(tileMap.getImage());
 
@@ -89,7 +89,7 @@ public class MapPresenter {
     }
 
     public void setTileCollisionGroup(String collisionGroup) {
-        for (MapModel.Tile tile : this.model.getSelectedTiles()) {
+        for (TileSetModel.Tile tile : this.model.getSelectedTiles()) {
             tile.setCollisionGroup(collisionGroup);
         }
     }

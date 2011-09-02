@@ -14,30 +14,30 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.cr.tileeditor.core.IMapView;
-import com.dynamo.cr.tileeditor.core.MapModel;
-import com.dynamo.cr.tileeditor.core.MapPresenter;
-import com.dynamo.tile.proto.Tile.TileMap;
+import com.dynamo.cr.tileeditor.core.ITileSetView;
+import com.dynamo.cr.tileeditor.core.TileSetModel;
+import com.dynamo.cr.tileeditor.core.TileSetPresenter;
+import com.dynamo.tile.proto.Tile.TileSet;
 
-public class MapTest {
-    IMapView view;
-    MapModel model;
-    MapPresenter presenter;
+public class TileSetTest {
+    ITileSetView view;
+    TileSetModel model;
+    TileSetPresenter presenter;
 
     @Before
     public void setup() {
-        this.view = mock(IMapView.class);
-        this.model = new MapModel();
-        this.presenter = new MapPresenter(this.model, this.view);
+        this.view = mock(ITileSetView.class);
+        this.model = new TileSetModel();
+        this.presenter = new TileSetPresenter(this.model, this.view);
     }
 
     /**
      * Use Case 1.1
      */
     @Test
-    public void testSuperMarioMap() {
+    public void testSuperMarioTileSet() {
         // new file
-        TileMap tileMap = TileMap.newBuilder()
+        TileSet tileSet = TileSet.newBuilder()
                 .setImage("")
                 .setTileWidth(0)
                 .setTileHeight(0)
@@ -47,7 +47,7 @@ public class MapTest {
                 .setCollision("")
                 .setMaterialTag("tile")
                 .build();
-        this.presenter.load(tileMap);
+        this.presenter.load(tileSet);
 
         verify(this.view).setImage(eq(""));
         assertEquals("", this.model.getImage());
@@ -67,7 +67,7 @@ public class MapTest {
         assertEquals("tile", this.model.getMaterialTag());
 
         // set properties
-        this.presenter.setImage("my_mario_map.png");
+        this.presenter.setImage("my_mario_set.png");
         assertEquals("my_mario_map.png", this.model.getImage());
         this.presenter.setTileWidth(16);
         assertEquals(16, this.model.getTileWidth());
@@ -95,7 +95,7 @@ public class MapTest {
         verify(this.view, times(1)).setSelectedTiles(any(Set.class));
 
         this.presenter.setTileCollisionGroup("obstruction");
-        for (MapModel.Tile tile : this.model.getSelectedTiles()) {
+        for (TileSetModel.Tile tile : this.model.getSelectedTiles()) {
             assertEquals("obstruction", tile.getCollisionGroup());
         }
 
@@ -105,7 +105,7 @@ public class MapTest {
         verify(this.view, times(2)).setSelectedTiles(any(Set.class));
 
         this.presenter.setTileCollisionGroup("hazard");
-        for (MapModel.Tile tile : this.model.getSelectedTiles()) {
+        for (TileSetModel.Tile tile : this.model.getSelectedTiles()) {
             assertEquals("hazard", tile.getCollisionGroup());
         }
 

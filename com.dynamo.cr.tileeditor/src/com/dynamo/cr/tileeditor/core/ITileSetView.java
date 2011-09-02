@@ -2,7 +2,7 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.util.Set;
 
-public interface IMapView {
+public interface ITileSetView {
 
     void setImage(String eq);
 
@@ -20,5 +20,5 @@ public interface IMapView {
 
     void setMaterialTag(String eq);
 
-    void setSelectedTiles(Set<MapModel.Tile> anyCollection);
+    void setSelectedTiles(Set<TileSetModel.Tile> anyCollection);
 }

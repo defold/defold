@@ -6,7 +6,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 
-public class MapModel {
+public class TileSetModel {
     // properties
     String image;
     int tileWidth;
@@ -49,7 +49,7 @@ public class MapModel {
     List<Tile> tiles;
     Set<Tile> selectedTiles;
 
-    public MapModel() {
+    public TileSetModel() {
         this.tiles = new ArrayList<Tile>();
         this.selectedTiles = new TreeSet<Tile>();
     }
