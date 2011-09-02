@@ -2,45 +2,77 @@ package com.dynamo.cr.tileeditor.core;
 
 
 public class MapModel {
+    String image;
+    int tileWidth;
+    int tileHeight;
+    int tileCount;
+    int tileMargin;
+    int tileSpacing;
+    String collision;
+    String materialTag;
+
+    public String getImage() {
+        return this.image;
+    }
 
     public void setImage(String image) {
-        // TODO Auto-generated method stub
+        this.image = image;
+    }
 
+    public int getTileWidth() {
+        return this.tileWidth;
     }
 
     public void setTileWidth(int tileWidth) {
-        // TODO Auto-generated method stub
+        this.tileWidth = tileWidth;
+    }
 
+    public int getTileHeight() {
+        return this.tileHeight;
     }
 
     public void setTileHeight(int tileHeight) {
-        // TODO Auto-generated method stub
+        this.tileHeight = tileHeight;
+    }
 
+    public int getTileCount() {
+        return this.tileCount;
     }
 
     public void setTileCount(int tileCount) {
-        // TODO Auto-generated method stub
+        this.tileCount = tileCount;
+    }
 
+    public int getTileMargin() {
+        return this.tileMargin;
     }
 
     public void setTileMargin(int tileMargin) {
-        // TODO Auto-generated method stub
+        this.tileMargin = tileMargin;
+    }
 
+    public int getTileSpacing() {
+        return this.tileSpacing;
     }
 
     public void setTileSpacing(int tileSpacing) {
-        // TODO Auto-generated method stub
+        this.tileSpacing = tileSpacing;
+    }
 
+    public String getCollision() {
+        return this.collision;
     }
 
     public void setCollision(String collision) {
-        // TODO Auto-generated method stub
+        this.collision = collision;
+    }
 
+    public String getMaterialTag() {
+        return this.materialTag;
     }
 
     public void setMaterialTag(String materialTag) {
-        // TODO Auto-generated method stub
-
+        this.materialTag = materialTag;
     }
 
 }

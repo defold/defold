@@ -11,10 +11,6 @@ public class MapPresenter {
         this.view = view;
     }
 
-    public void setImage(String string) {
-
-    }
-
     public void init(TileMap tileMap) {
         this.model.setImage(tileMap.getImage());
         this.view.setImage(tileMap.getImage());
@@ -39,6 +35,43 @@ public class MapPresenter {
 
         this.model.setMaterialTag(tileMap.getMaterialTag());
         this.view.setMaterialTag(tileMap.getMaterialTag());
+    }
+
+    public void setImage(String image) {
+        this.model.setImage(image);
+    }
+
+    public void setTileWidth(int tileWidth) {
+        this.model.setTileWidth(tileWidth);
+    }
+
+    public void setTileHeight(int tileHeight) {
+        this.model.setTileHeight(tileHeight);
+    }
+
+    public void setTileCount(int tileCount) {
+        this.model.setTileCount(tileCount);
+    }
+
+    public void setTileMargin(int tileMargin) {
+        this.model.setTileMargin(tileMargin);
+    }
+
+    public void setTileSpacing(int tileSpacing) {
+        this.model.setTileSpacing(tileSpacing);
+    }
+
+    public void setCollision(String collision) {
+        this.model.setCollision(collision);
+    }
+
+    public void setMaterialTag(String materialTag) {
+        this.model.setMaterialTag(materialTag);
+    }
+
+    public void selectTile(int row, int column) {
+        // TODO Auto-generated method stub
+
     }
 
 }
