@@ -1,7 +1,13 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
 
 public class MapModel {
+    // properties
     String image;
     int tileWidth;
     int tileHeight;
@@ -10,6 +16,43 @@ public class MapModel {
     int tileSpacing;
     String collision;
     String materialTag;
+
+    public class Tile {
+        int row;
+        int column;
+        String collisionGroup;
+
+        public Tile(int row, int column) {
+            this.row = row;
+            this.column = column;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o instanceof Tile) {
+                Tile tile = (Tile)o;
+                return this.row == tile.row && this.column == tile.column;
+            } else {
+                return super.equals(o);
+            }
+        }
+
+        public String getCollisionGroup() {
+            return this.collisionGroup;
+        }
+
+        public void setCollisionGroup(String collisionGroup) {
+            this.collisionGroup = collisionGroup;
+        }
+    }
+
+    List<Tile> tiles;
+    Set<Tile> selectedTiles;
+
+    public MapModel() {
+        this.tiles = new ArrayList<Tile>();
+        this.selectedTiles = new TreeSet<Tile>();
+    }
 
     public String getImage() {
         return this.image;
@@ -73,6 +116,22 @@ public class MapModel {
 
     public void setMaterialTag(String materialTag) {
         this.materialTag = materialTag;
+    }
+
+    public List<Tile> getTiles() {
+        return this.tiles;
+    }
+
+    public void setTiles(List<Tile> tiles) {
+        this.tiles = tiles;
+    }
+
+    public Set<Tile> getSelectedTiles() {
+        return this.selectedTiles;
+    }
+
+    public void setSelectedTiles(Set<Tile> selectedTiles) {
+        this.selectedTiles = selectedTiles;
     }
 
 }

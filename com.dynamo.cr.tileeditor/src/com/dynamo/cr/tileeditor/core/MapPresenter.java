@@ -1,17 +1,22 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.util.Set;
+
+import com.dynamo.cr.tileeditor.core.MapModel.Tile;
 import com.dynamo.tile.proto.Tile.TileMap;
 
 public class MapPresenter {
     MapModel model;
     IMapView view;
+    private int imageWidth;
+    private int imageHeight;
 
     public MapPresenter(MapModel model, IMapView view) {
         this.model = model;
         this.view = view;
     }
 
-    public void init(TileMap tileMap) {
+    public void load(TileMap tileMap) {
         this.model.setImage(tileMap.getImage());
         this.view.setImage(tileMap.getImage());
 
@@ -39,6 +44,9 @@ public class MapPresenter {
 
     public void setImage(String image) {
         this.model.setImage(image);
+        // temp, to be read from file
+        this.imageWidth = 32;
+        this.imageHeight = 64;
     }
 
     public void setTileWidth(int tileWidth) {
@@ -70,8 +78,20 @@ public class MapPresenter {
     }
 
     public void selectTile(int row, int column) {
-        // TODO Auto-generated method stub
+        int tilesPerRow = this.imageWidth / this.model.getTileWidth();
+        if (0 <= column && column < tilesPerRow && 0 <= row && row * tilesPerRow + column < this.model.getTileCount()) {
+            Set<Tile> selectedTiles = this.model.getSelectedTiles();
+            selectedTiles.clear();
+            selectedTiles.add(this.model.new Tile(row, column));
+            this.model.setSelectedTiles(selectedTiles);
+            this.view.setSelectedTiles(selectedTiles);
+        }
+    }
 
+    public void setTileCollisionGroup(String collisionGroup) {
+        for (MapModel.Tile tile : this.model.getSelectedTiles()) {
+            tile.setCollisionGroup(collisionGroup);
+        }
     }
 
 }

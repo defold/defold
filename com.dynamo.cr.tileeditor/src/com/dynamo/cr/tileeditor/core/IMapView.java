@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.util.Set;
+
 public interface IMapView {
 
     void setImage(String eq);
@@ -17,4 +19,6 @@ public interface IMapView {
     void setCollision(String eq);
 
     void setMaterialTag(String eq);
+
+    void setSelectedTiles(Set<MapModel.Tile> anyCollection);
 }

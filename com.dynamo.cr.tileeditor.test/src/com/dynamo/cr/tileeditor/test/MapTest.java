@@ -1,9 +1,15 @@
 package com.dynamo.cr.tileeditor.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +47,7 @@ public class MapTest {
                 .setCollision("")
                 .setMaterialTag("tile")
                 .build();
-        this.presenter.init(tileMap);
+        this.presenter.load(tileMap);
 
         verify(this.view).setImage(eq(""));
         assertEquals("", this.model.getImage());
@@ -74,13 +80,34 @@ public class MapTest {
         this.presenter.setTileSpacing(2);
         assertEquals(2, this.model.getTileSpacing());
 
-        //        // select tiles
-        //
-        //        assertEquals(2, this.model.getSelectedTiles());
-        //
-        //        //   select tile outside the map
-        //        this.presenter.selectTile(0, 2);
-        //        verify(this.view, never()).setSelectedTiles(anyCollection());
+        // select tiles
+
+        assertTrue(this.model.getSelectedTiles().isEmpty());
+
+        //   select tile outside the map
+        this.presenter.selectTile(0, 2);
+        assertTrue(this.model.getSelectedTiles().isEmpty());
+        verify(this.view, never()).setSelectedTiles(any(Set.class));
+
+        //   select obstruction tile
+        this.presenter.selectTile(0, 1);
+        assertEquals(1, this.model.getSelectedTiles().size());
+        verify(this.view, times(1)).setSelectedTiles(any(Set.class));
+
+        this.presenter.setTileCollisionGroup("obstruction");
+        for (MapModel.Tile tile : this.model.getSelectedTiles()) {
+            assertEquals("obstruction", tile.getCollisionGroup());
+        }
+
+        //   select hazard
+        this.presenter.selectTile(1, 0);
+        assertEquals(1, this.model.getSelectedTiles().size());
+        verify(this.view, times(2)).setSelectedTiles(any(Set.class));
+
+        this.presenter.setTileCollisionGroup("hazard");
+        for (MapModel.Tile tile : this.model.getSelectedTiles()) {
+            assertEquals("hazard", tile.getCollisionGroup());
+        }
 
     }
 }
