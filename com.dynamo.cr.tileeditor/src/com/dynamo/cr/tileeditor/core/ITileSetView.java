@@ -4,21 +4,21 @@ import java.util.Set;
 
 public interface ITileSetView {
 
-    void setImage(String eq);
+    void setImage(String image);
 
-    void setTileWidth(int eq);
+    void setTileWidth(int tileWidth);
 
-    void setTileHeight(int eq);
+    void setTileHeight(int tileHeight);
 
-    void setTileCount(int eq);
+    void setTileCount(int tileCount);
 
-    void setTileMargin(int eq);
+    void setTileMargin(int tileMargin);
 
-    void setTileSpacing(int eq);
+    void setTileSpacing(int tileSpacing);
 
-    void setCollision(String eq);
+    void setCollision(String collision);
 
-    void setMaterialTag(String eq);
+    void setMaterialTag(String materialTag);
 
-    void setSelectedTiles(Set<TileSetModel.Tile> anyCollection);
+    void setSelectedTiles(Set<TileSetModel.Tile> selectedTiles);
 }

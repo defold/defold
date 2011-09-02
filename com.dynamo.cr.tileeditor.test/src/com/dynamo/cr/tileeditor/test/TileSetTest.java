@@ -68,7 +68,7 @@ public class TileSetTest {
 
         // set properties
         this.presenter.setImage("my_mario_set.png");
-        assertEquals("my_mario_map.png", this.model.getImage());
+        assertEquals("my_mario_set.png", this.model.getImage());
         this.presenter.setTileWidth(16);
         assertEquals(16, this.model.getTileWidth());
         this.presenter.setTileHeight(32);
@@ -84,7 +84,7 @@ public class TileSetTest {
 
         assertTrue(this.model.getSelectedTiles().isEmpty());
 
-        //   select tile outside the map
+        //   select tile outside the set
         this.presenter.selectTile(0, 2);
         assertTrue(this.model.getSelectedTiles().isEmpty());
         verify(this.view, never()).setSelectedTiles(any(Set.class));

@@ -16,30 +16,30 @@ public class TileSetPresenter {
         this.view = view;
     }
 
-    public void load(TileSet tileMap) {
-        this.model.setImage(tileMap.getImage());
-        this.view.setImage(tileMap.getImage());
+    public void load(TileSet tileSet) {
+        this.model.setImage(tileSet.getImage());
+        this.view.setImage(tileSet.getImage());
 
-        this.model.setTileWidth(tileMap.getTileWidth());
-        this.view.setTileWidth(tileMap.getTileWidth());
+        this.model.setTileWidth(tileSet.getTileWidth());
+        this.view.setTileWidth(tileSet.getTileWidth());
 
-        this.model.setTileHeight(tileMap.getTileHeight());
-        this.view.setTileHeight(tileMap.getTileHeight());
+        this.model.setTileHeight(tileSet.getTileHeight());
+        this.view.setTileHeight(tileSet.getTileHeight());
 
-        this.model.setTileCount(tileMap.getTileCount());
-        this.view.setTileCount(tileMap.getTileCount());
+        this.model.setTileCount(tileSet.getTileCount());
+        this.view.setTileCount(tileSet.getTileCount());
 
-        this.model.setTileMargin(tileMap.getTileMargin());
-        this.view.setTileMargin(tileMap.getTileMargin());
+        this.model.setTileMargin(tileSet.getTileMargin());
+        this.view.setTileMargin(tileSet.getTileMargin());
 
-        this.model.setTileSpacing(tileMap.getTileSpacing());
-        this.view.setTileSpacing(tileMap.getTileSpacing());
+        this.model.setTileSpacing(tileSet.getTileSpacing());
+        this.view.setTileSpacing(tileSet.getTileSpacing());
 
-        this.model.setCollision(tileMap.getCollision());
-        this.view.setCollision(tileMap.getCollision());
+        this.model.setCollision(tileSet.getCollision());
+        this.view.setCollision(tileSet.getCollision());
 
-        this.model.setMaterialTag(tileMap.getMaterialTag());
-        this.view.setMaterialTag(tileMap.getMaterialTag());
+        this.model.setMaterialTag(tileSet.getMaterialTag());
+        this.view.setMaterialTag(tileSet.getMaterialTag());
     }
 
     public void setImage(String image) {
