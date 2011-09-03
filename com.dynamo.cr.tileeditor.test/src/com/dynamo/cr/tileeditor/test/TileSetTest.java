@@ -1,15 +1,9 @@
 package com.dynamo.cr.tileeditor.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
-import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +35,6 @@ public class TileSetTest {
                 .setImage("")
                 .setTileWidth(0)
                 .setTileHeight(0)
-                .setTileCount(0)
                 .setTileSpacing(0)
                 .setTileMargin(0)
                 .setCollision("")
@@ -55,8 +48,6 @@ public class TileSetTest {
         assertEquals(0, this.model.getTileWidth());
         verify(this.view).setTileHeight(eq(0));
         assertEquals(0, this.model.getTileHeight());
-        verify(this.view).setTileCount(eq(0));
-        assertEquals(0, this.model.getTileCount());
         verify(this.view).setTileMargin(eq(0));
         assertEquals(0, this.model.getTileMargin());
         verify(this.view).setTileSpacing(eq(0));
@@ -67,47 +58,39 @@ public class TileSetTest {
         assertEquals("tile", this.model.getMaterialTag());
 
         // set properties
-        this.presenter.setImage("my_mario_set.png");
-        assertEquals("my_mario_set.png", this.model.getImage());
+        this.presenter.setImage("test/mario_tileset.png");
+        assertEquals("test/mario_tileset.png", this.model.getImage());
         this.presenter.setTileWidth(16);
         assertEquals(16, this.model.getTileWidth());
-        this.presenter.setTileHeight(32);
-        assertEquals(32, this.model.getTileHeight());
-        this.presenter.setTileCount(4);
-        assertEquals(4, this.model.getTileCount());
-        this.presenter.setTileMargin(1);
-        assertEquals(1, this.model.getTileMargin());
-        this.presenter.setTileSpacing(2);
-        assertEquals(2, this.model.getTileSpacing());
+        this.presenter.setTileHeight(16);
+        assertEquals(16, this.model.getTileHeight());
+        this.presenter.setTileMargin(0);
+        assertEquals(0, this.model.getTileMargin());
+        this.presenter.setTileSpacing(1);
+        assertEquals(1, this.model.getTileSpacing());
 
-        // select tiles
+        assertEquals(20, this.model.getTiles().size());
 
-        assertTrue(this.model.getSelectedTiles().isEmpty());
-
-        //   select tile outside the set
-        this.presenter.selectTile(0, 2);
-        assertTrue(this.model.getSelectedTiles().isEmpty());
-        verify(this.view, never()).setSelectedTiles(any(Set.class));
-
-        //   select obstruction tile
-        this.presenter.selectTile(0, 1);
-        assertEquals(1, this.model.getSelectedTiles().size());
-        verify(this.view, times(1)).setSelectedTiles(any(Set.class));
-
-        this.presenter.setTileCollisionGroup("obstruction");
-        for (TileSetModel.Tile tile : this.model.getSelectedTiles()) {
-            assertEquals("obstruction", tile.getCollisionGroup());
+        for (TileSetModel.Tile tile : this.model.getTiles()) {
+            assertEquals(0, tile.getConvexHullCount());
+        }
+        this.presenter.setCollision("test/mario_tileset.png");
+        assertEquals("test/mario_tileset.png", this.model.getCollision());
+        for (int i = 0; i < 10; ++i) {
+            assertEquals(8, this.model.getTiles().get(i).getConvexHullCount());
+        }
+        for (int i = 10; i < 14; ++i) {
+            assertEquals(4, this.model.getTiles().get(i).getConvexHullCount());
+        }
+        for (int i = 14; i < 20; ++i) {
+            assertEquals(8, this.model.getTiles().get(i).getConvexHullCount());
         }
 
-        //   select hazard
-        this.presenter.selectTile(1, 0);
-        assertEquals(1, this.model.getSelectedTiles().size());
-        verify(this.view, times(2)).setSelectedTiles(any(Set.class));
+        this.presenter.setTileCollisionGroup(1, "obstruction");
+        assertEquals("obstruction", this.model.getTiles().get(1).getCollisionGroup());
 
-        this.presenter.setTileCollisionGroup("hazard");
-        for (TileSetModel.Tile tile : this.model.getSelectedTiles()) {
-            assertEquals("hazard", tile.getCollisionGroup());
-        }
+        this.presenter.setTileCollisionGroup(2, "hazard");
+        assertEquals("hazard", this.model.getTiles().get(2).getCollisionGroup());
 
     }
 }
