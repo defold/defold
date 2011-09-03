@@ -10,7 +10,7 @@ import javax.imageio.ImageIO;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.tile.proto.Tile.TileSet;
 
-public class TileSetPresenter {
+public class TileSetPresenter implements IModelChangedListener {
     TileSetModel model;
     ITileSetView view;
     private BufferedImage image;
@@ -22,29 +22,11 @@ public class TileSetPresenter {
     public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
         this.view = view;
+        this.model.addModelChangedListener(this);
     }
 
     public void load(TileSet tileSet) {
-        this.model.setImage(tileSet.getImage());
-        this.view.setImage(tileSet.getImage());
-
-        this.model.setTileWidth(tileSet.getTileWidth());
-        this.view.setTileWidth(tileSet.getTileWidth());
-
-        this.model.setTileHeight(tileSet.getTileHeight());
-        this.view.setTileHeight(tileSet.getTileHeight());
-
-        this.model.setTileMargin(tileSet.getTileMargin());
-        this.view.setTileMargin(tileSet.getTileMargin());
-
-        this.model.setTileSpacing(tileSet.getTileSpacing());
-        this.view.setTileSpacing(tileSet.getTileSpacing());
-
-        this.model.setCollision(tileSet.getCollision());
-        this.view.setCollision(tileSet.getCollision());
-
-        this.model.setMaterialTag(tileSet.getMaterialTag());
-        this.view.setMaterialTag(tileSet.getMaterialTag());
+        this.model.load(tileSet);
     }
 
     public void setImage(String image) {
@@ -96,6 +78,29 @@ public class TileSetPresenter {
 
     public void setMaterialTag(String materialTag) {
         this.model.setMaterialTag(materialTag);
+    }
+
+    public void setTileCollisionGroup(int index, String collisionGroup) {
+        this.model.tiles.get(index).setCollisionGroup(collisionGroup);
+    }
+
+    @Override
+    public void onModelChanged(ModelChangedEvent e) {
+        if (e.key.equals(TileSetModel.KEY_IMAGE)) {
+            this.view.setImage((String)e.value);
+        } else if (e.key.equals(TileSetModel.KEY_TILE_WIDTH)) {
+            this.view.setTileWidth(((Integer)e.value).intValue());
+        } else if (e.key.equals(TileSetModel.KEY_TILE_HEIGHT)) {
+            this.view.setTileHeight(((Integer)e.value).intValue());
+        } else if (e.key.equals(TileSetModel.KEY_TILE_MARGIN)) {
+            this.view.setTileMargin(((Integer)e.value).intValue());
+        } else if (e.key.equals(TileSetModel.KEY_TILE_SPACING)) {
+            this.view.setTileSpacing(((Integer)e.value).intValue());
+        } else if (e.key.equals(TileSetModel.KEY_COLLISION)) {
+            this.view.setCollision((String)e.value);
+        } else if (e.key.equals(TileSetModel.KEY_MATERIAL_TAG)) {
+            this.view.setMaterialTag((String)e.value);
+        }
     }
 
     private int calcTileCount(int tileSize, int imageSize) {
@@ -189,10 +194,6 @@ public class TileSetPresenter {
             }
         }
         this.model.setConvexHulls(convexHulls);
-    }
-
-    public void setTileCollisionGroup(int index, String collisionGroup) {
-        this.model.tiles.get(index).setCollisionGroup(collisionGroup);
     }
 
 }
