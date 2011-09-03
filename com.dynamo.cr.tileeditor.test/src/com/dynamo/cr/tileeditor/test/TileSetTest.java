@@ -30,6 +30,7 @@ public class TileSetTest {
 
     @Before
     public void setup() {
+        System.setProperty("java.awt.headless", "true");
         this.view = mock(ITileSetView.class);
         this.history = new DefaultOperationHistory();
         this.undoContext = new UndoContext();
