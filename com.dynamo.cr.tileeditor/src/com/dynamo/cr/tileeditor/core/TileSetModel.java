@@ -2,8 +2,6 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 
 
 public class TileSetModel {
@@ -11,31 +9,15 @@ public class TileSetModel {
     String image;
     int tileWidth;
     int tileHeight;
-    int tileCount;
     int tileMargin;
     int tileSpacing;
     String collision;
     String materialTag;
 
     public class Tile {
-        int row;
-        int column;
-        String collisionGroup;
-
-        public Tile(int row, int column) {
-            this.row = row;
-            this.column = column;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o instanceof Tile) {
-                Tile tile = (Tile)o;
-                return this.row == tile.row && this.column == tile.column;
-            } else {
-                return super.equals(o);
-            }
-        }
+        String collisionGroup = null;
+        int convexHullIndex = 0;
+        int convexHullCount = 0;
 
         public String getCollisionGroup() {
             return this.collisionGroup;
@@ -44,14 +26,29 @@ public class TileSetModel {
         public void setCollisionGroup(String collisionGroup) {
             this.collisionGroup = collisionGroup;
         }
+
+        public int getConvexHullIndex() {
+            return this.convexHullIndex;
+        }
+
+        public void setConvexHullIndex(int convexHullIndex) {
+            this.convexHullIndex = convexHullIndex;
+        }
+
+        public int getConvexHullCount() {
+            return this.convexHullCount;
+        }
+
+        public void setConvexHullCount(int convexHullCount) {
+            this.convexHullCount = convexHullCount;
+        }
     }
 
     List<Tile> tiles;
-    Set<Tile> selectedTiles;
+    float[] convexHulls;
 
     public TileSetModel() {
         this.tiles = new ArrayList<Tile>();
-        this.selectedTiles = new TreeSet<Tile>();
     }
 
     public String getImage() {
@@ -76,14 +73,6 @@ public class TileSetModel {
 
     public void setTileHeight(int tileHeight) {
         this.tileHeight = tileHeight;
-    }
-
-    public int getTileCount() {
-        return this.tileCount;
-    }
-
-    public void setTileCount(int tileCount) {
-        this.tileCount = tileCount;
     }
 
     public int getTileMargin() {
@@ -126,12 +115,12 @@ public class TileSetModel {
         this.tiles = tiles;
     }
 
-    public Set<Tile> getSelectedTiles() {
-        return this.selectedTiles;
+    public float[] getConvexHulls() {
+        return this.convexHulls;
     }
 
-    public void setSelectedTiles(Set<Tile> selectedTiles) {
-        this.selectedTiles = selectedTiles;
+    public void setConvexHulls(float[] convexHulls) {
+        this.convexHulls = convexHulls;
     }
 
 }

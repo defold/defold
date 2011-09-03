@@ -10,8 +10,6 @@ public interface ITileSetView {
 
     void setTileHeight(int tileHeight);
 
-    void setTileCount(int tileCount);
-
     void setTileMargin(int tileMargin);
 
     void setTileSpacing(int tileSpacing);
