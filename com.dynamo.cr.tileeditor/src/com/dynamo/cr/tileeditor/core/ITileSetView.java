@@ -6,5 +6,10 @@ public interface ITileSetView {
 
     void refreshProperties();
 
+    void refreshOutline();
+
+    void refreshEditingView();
+
     void setSelectedTiles(Set<TileSetModel.Tile> selectedTiles);
+
 }

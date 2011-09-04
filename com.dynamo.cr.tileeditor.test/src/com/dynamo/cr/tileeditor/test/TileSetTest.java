@@ -50,6 +50,7 @@ public class TileSetTest {
                 .setTileMargin(0)
                 .setCollision("")
                 .setMaterialTag("tile")
+                .addCollisionGroups("tile")
                 .build();
         this.presenter.load(tileSet);
         return tileSet;
@@ -70,7 +71,9 @@ public class TileSetTest {
         assertEquals(tileSet.getCollision(), this.model.getCollision());
         assertEquals(tileSet.getMaterialTag(), this.model.getMaterialTag());
 
-        verify(this.view).refreshProperties();
+        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(1)).refreshOutline();
+        verify(this.view, times(1)).refreshEditingView();
     }
 
     /**
@@ -127,7 +130,8 @@ public class TileSetTest {
 
         String tileSetFile = "test/mario_tileset.png";
 
-        // set properties
+        // set properties (1.1.1)
+
         propertySource.setPropertyValue("image", tileSetFile);
         assertEquals(tileSetFile, this.model.getImage());
         verify(this.view, times(2)).refreshProperties();
@@ -165,10 +169,25 @@ public class TileSetTest {
             assertEquals(8, this.model.getTiles().get(i).getConvexHullCount());
         }
 
-        this.presenter.setTileCollisionGroup(1, "obstruction");
-        assertEquals("obstruction", this.model.getTiles().get(1).getCollisionGroup());
+        // set properties (1.1.4)
 
-        this.presenter.setTileCollisionGroup(2, "hazard");
-        assertEquals("hazard", this.model.getTiles().get(2).getCollisionGroup());
+        assertEquals(1, this.model.getCollisionGroups().size());
+
+        this.presenter.addCollisionGroup("hazard");
+        assertEquals(2, this.model.getCollisionGroups().size());
+        assertEquals("hazard", this.model.getCollisionGroups().get(1));
+        verify(this.view, times(2)).refreshOutline();
+
+        this.presenter.setTileCollisionGroup(1, "hazard");
+        assertEquals("hazard", this.model.getTiles().get(1).getCollisionGroup());
+        verify(this.view, times(2)).refreshEditingView();
+
+        // set properties (1.1.5)
+
+        this.presenter.renameCollisionGroup("tile", "obstruction");
+        assertEquals("obstruction", this.model.getCollisionGroups().get(0));
+        assertEquals("obstruction", this.model.getTiles().get(0).getCollisionGroup());
+        verify(this.view, times(3)).refreshOutline();
+        verify(this.view, times(3)).refreshEditingView();
     }
 }

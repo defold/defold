@@ -31,6 +31,10 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
+    public static final int CHANGE_FLAG_PROPERTIES = (1 << 0);
+    public static final int CHANGE_FLAG_COLLISION_GROUPS = (1 << 1);
+    public static final int CHANGE_FLAG_TILES = (1 << 2);
+
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     String image;
     @Property(commandFactory = UndoableCommandFactory.class)
@@ -48,6 +52,7 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
 
     List<Tile> tiles;
     float[] convexHulls;
+    List<String> collisionGroups;
 
     IOperationHistory undoHistory;
     IUndoContext undoContext;
@@ -91,6 +96,7 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
 
     public TileSetModel(IOperationHistory undoHistory, IUndoContext undoContext) {
         this.tiles = new ArrayList<Tile>();
+        this.collisionGroups = new ArrayList<String>();
         this.undoHistory = undoHistory;
         this.undoContext = undoContext;
         this.undoHistory.addOperationHistoryListener(this);
@@ -181,6 +187,36 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         this.convexHulls = convexHulls;
     }
 
+    public List<String> getCollisionGroups() {
+        return this.collisionGroups;
+    }
+
+    public void addCollisionGroup(String collisionGroup) {
+        this.collisionGroups.add(collisionGroup);
+        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_COLLISION_GROUPS));
+    }
+
+    public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
+        this.collisionGroups.set(this.collisionGroups.indexOf(collisionGroup), newCollisionGroup);
+        boolean changedTiles = false;
+        for (Tile tile : this.tiles) {
+            if (tile.getCollisionGroup().equals(collisionGroup)) {
+                changedTiles = true;
+                tile.setCollisionGroup(newCollisionGroup);
+            }
+        }
+        int changeFlags = CHANGE_FLAG_COLLISION_GROUPS;
+        if (changedTiles) {
+            changeFlags |= CHANGE_FLAG_TILES;
+        }
+        fireModelChangedEvent(new ModelChangedEvent(changeFlags));
+    }
+
+    public void setTileCollisionGroup(int index, String collisionGroup) {
+        this.tiles.get(index).setCollisionGroup(collisionGroup);
+        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_TILES));
+    }
+
     public void addModelChangedListener(IModelChangedListener listener) {
         listeners.add(listener);
     }
@@ -197,6 +233,10 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         this.tileSpacing = tileSet.getTileSpacing();
         this.collision = tileSet.getCollision();
         this.materialTag = tileSet.getMaterialTag();
+        this.collisionGroups = new ArrayList<String>(tileSet.getCollisionGroupsCount());
+        for (String collisionGroup : tileSet.getCollisionGroupsList()) {
+            this.collisionGroups.add(collisionGroup);
+        }
         try {
             if (this.image != null && !this.image.equals("")) {
                 this.loadedImage = ImageIO.read(new FileInputStream(image));
@@ -212,7 +252,7 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             // TODO: Fix logging
             e.printStackTrace();
         }
-        fireModelChangedEvent(new ModelChangedEvent(ModelChangedEvent.CHANGE_FLAG_PROPERTIES));
+        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES | CHANGE_FLAG_COLLISION_GROUPS | CHANGE_FLAG_TILES));
     }
 
     public <T> void executeOperation(SetPropertiesOperation<T> operation) {
@@ -266,7 +306,7 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             }
             updateTiles();
             updateConvexHulls();
-            fireModelChangedEvent(new ModelChangedEvent(ModelChangedEvent.CHANGE_FLAG_PROPERTIES));
+            fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES));
         }
     }
 

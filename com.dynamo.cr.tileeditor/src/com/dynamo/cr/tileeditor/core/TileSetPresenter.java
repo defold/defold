@@ -21,14 +21,28 @@ public class TileSetPresenter implements IModelChangedListener {
     }
 
     public void setTileCollisionGroup(int index, String collisionGroup) {
-        this.model.tiles.get(index).setCollisionGroup(collisionGroup);
+        this.model.setTileCollisionGroup(index, collisionGroup);
     }
 
     @Override
     public void onModelChanged(ModelChangedEvent e) {
-        if ((e.changes & ModelChangedEvent.CHANGE_FLAG_PROPERTIES) != 0) {
+        if ((e.changes & TileSetModel.CHANGE_FLAG_PROPERTIES) != 0) {
             this.view.refreshProperties();
         }
+        if ((e.changes & TileSetModel.CHANGE_FLAG_COLLISION_GROUPS) != 0) {
+            this.view.refreshOutline();
+        }
+        if ((e.changes & TileSetModel.CHANGE_FLAG_TILES) != 0) {
+            this.view.refreshEditingView();
+        }
+    }
+
+    public void addCollisionGroup(String collisionGroup) {
+        this.model.addCollisionGroup(collisionGroup);
+    }
+
+    public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
+        this.model.renameCollisionGroup(collisionGroup, newCollisionGroup);
     }
 
 }
