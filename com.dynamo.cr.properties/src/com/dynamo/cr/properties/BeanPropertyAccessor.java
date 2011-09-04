@@ -12,7 +12,7 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
     private void init(Object obj, String property) {
 
-        if (propertyDescriptor != null)
+        if (propertyDescriptor != null && propertyDescriptor.getName().equals(property))
             return;
 
         try {
@@ -31,9 +31,12 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     @Override
     public void setValue(Object obj, String property, Object value,
             IPropertyObjectWorld world)
-            throws IllegalArgumentException, IllegalAccessException,
-            InvocationTargetException {
+                    throws IllegalArgumentException, IllegalAccessException,
+                    InvocationTargetException {
         init(obj, property);
+        if (propertyDescriptor == null) {
+            throw new RuntimeException(String.format("Missing setter for %s#%s", obj.getClass().getName(), property));
+        }
         propertyDescriptor.getWriteMethod().invoke(obj, value);
 
     }
@@ -41,8 +44,8 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     @Override
     public Object getValue(Object obj, String property,
             IPropertyObjectWorld world)
-            throws IllegalArgumentException, IllegalAccessException,
-            InvocationTargetException {
+                    throws IllegalArgumentException, IllegalAccessException,
+                    InvocationTargetException {
         init(obj, property);
         if (propertyDescriptor == null) {
             throw new RuntimeException(String.format("Missing getter for %s#%s", obj.getClass().getName(), property));

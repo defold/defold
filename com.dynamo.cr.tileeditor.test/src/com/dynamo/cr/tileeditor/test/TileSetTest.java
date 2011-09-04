@@ -2,7 +2,6 @@ package com.dynamo.cr.tileeditor.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -16,9 +15,13 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.cr.properties.BeanPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
+import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetTest {
@@ -60,20 +63,15 @@ public class TileSetTest {
     public void testNewFile() {
         TileSet tileSet = loadNewFile();
 
-        verify(this.view).setImage(eq(tileSet.getImage()));
         assertEquals(tileSet.getImage(), this.model.getImage());
-        verify(this.view).setTileWidth(eq(tileSet.getTileWidth()));
         assertEquals(tileSet.getTileWidth(), this.model.getTileWidth());
-        verify(this.view).setTileHeight(eq(tileSet.getTileHeight()));
         assertEquals(tileSet.getTileHeight(), this.model.getTileHeight());
-        verify(this.view).setTileMargin(eq(tileSet.getTileMargin()));
         assertEquals(tileSet.getTileMargin(), this.model.getTileMargin());
-        verify(this.view).setTileSpacing(eq(tileSet.getTileSpacing()));
         assertEquals(tileSet.getTileSpacing(), this.model.getTileSpacing());
-        verify(this.view).setCollision(eq(tileSet.getCollision()));
         assertEquals(tileSet.getCollision(), this.model.getCollision());
-        verify(this.view).setMaterialTag(eq(tileSet.getMaterialTag()));
         assertEquals(tileSet.getMaterialTag(), this.model.getMaterialTag());
+
+        verify(this.view).refreshProperties();
     }
 
     /**
@@ -89,29 +87,39 @@ public class TileSetTest {
         assertEquals(prevTileSetFile, this.model.getImage());
         assertEquals(prevTileSetFile, this.model.getCollision());
 
-        this.presenter.setImage(tileSetFile);
-        assertEquals(tileSetFile, this.model.getImage());
+        IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
+        @SuppressWarnings("unchecked")
+        IPropertyAccessor<Object, TileSetModel> accessor = (IPropertyAccessor<Object, TileSetModel>) tmp;
 
-        this.presenter.setCollision(tileSetFile);
+        SetPropertiesOperation<String> operation = null;
+
+        operation = new SetPropertiesOperation<String>(model, "image", accessor, this.model.getImage(), tileSetFile, this.model);
+        this.model.executeOperation(operation);
+        assertEquals(tileSetFile, this.model.getImage());
+        verify(this.view, times(2)).refreshProperties();
+
+        operation = new SetPropertiesOperation<String>(model, "collision", accessor, this.model.getCollision(), tileSetFile, this.model);
+        this.model.executeOperation(operation);
         assertEquals(tileSetFile, this.model.getCollision());
+        verify(this.view, times(3)).refreshProperties();
 
         try {
             this.history.undo(this.undoContext, new NullProgressMonitor(), null);
 
             assertEquals(tileSetFile, this.model.getImage());
             assertEquals(prevTileSetFile, this.model.getCollision());
-            verify(this.view, times(2)).setCollision(prevTileSetFile);
+            verify(this.view, times(4)).refreshProperties();
 
             this.history.undo(this.undoContext, new NullProgressMonitor(), null);
 
             assertEquals(prevTileSetFile, this.model.getImage());
-            verify(this.view, times(2)).setImage(prevTileSetFile);
+            verify(this.view, times(5)).refreshProperties();
 
             this.history.redo(this.undoContext, new NullProgressMonitor(), null);
 
             assertEquals(tileSetFile, this.model.getImage());
             assertEquals(prevTileSetFile, this.model.getCollision());
-            verify(this.view, times(2)).setImage(tileSetFile);
+            verify(this.view, times(6)).refreshProperties();
         } catch (ExecutionException e) {
             // fail
             assertTrue(false);
@@ -127,24 +135,44 @@ public class TileSetTest {
         testNewFile();
 
         String tileSetFile = "test/mario_tileset.png";
+
         // set properties
-        this.presenter.setImage(tileSetFile);
+
+        IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
+        @SuppressWarnings("unchecked")
+        IPropertyAccessor<Object, TileSetModel> accessor = (IPropertyAccessor<Object, TileSetModel>) tmp;
+
+        SetPropertiesOperation<String> stringOperation = new SetPropertiesOperation<String>(model, "image", accessor, this.model.getImage(), tileSetFile, this.model);
+        this.model.executeOperation(stringOperation);
         assertEquals(tileSetFile, this.model.getImage());
-        this.presenter.setTileWidth(16);
+        verify(this.view, times(1)).refreshProperties();
+
+        SetPropertiesOperation<Integer> intOperation = new SetPropertiesOperation<Integer>(model, "tileWidth", accessor, this.model.getTileWidth(), 16, this.model);
+        this.model.executeOperation(intOperation);
         assertEquals(16, this.model.getTileWidth());
-        this.presenter.setTileHeight(16);
+        verify(this.view, times(1)).refreshProperties();
+
+        intOperation = new SetPropertiesOperation<Integer>(model, "tileHeight", accessor, this.model.getTileHeight(), 16, this.model);
+        this.model.executeOperation(intOperation);
         assertEquals(16, this.model.getTileHeight());
-        this.presenter.setTileMargin(0);
-        assertEquals(0, this.model.getTileMargin());
-        this.presenter.setTileSpacing(1);
+        verify(this.view, times(1)).refreshProperties();
+
+        intOperation = new SetPropertiesOperation<Integer>(model, "tileSpacing", accessor, this.model.getTileSpacing(), 1, this.model);
+        this.model.executeOperation(intOperation);
         assertEquals(1, this.model.getTileSpacing());
+        verify(this.view, times(1)).refreshProperties();
 
         assertEquals(20, this.model.getTiles().size());
 
         for (TileSetModel.Tile tile : this.model.getTiles()) {
             assertEquals(0, tile.getConvexHullCount());
         }
-        this.presenter.setCollision(tileSetFile);
+
+        stringOperation = new SetPropertiesOperation<String>(model, "collision", accessor, this.model.getCollision(), tileSetFile, this.model);
+        this.model.executeOperation(stringOperation);
+        assertEquals(tileSetFile, this.model.getCollision());
+        verify(this.view, times(1)).refreshProperties();
+
         assertEquals(tileSetFile, this.model.getCollision());
         for (int i = 0; i < 10; ++i) {
             assertEquals(8, this.model.getTiles().get(i).getConvexHullCount());
