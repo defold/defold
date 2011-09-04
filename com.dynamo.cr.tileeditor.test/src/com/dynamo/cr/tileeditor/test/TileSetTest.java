@@ -145,22 +145,22 @@ public class TileSetTest {
         SetPropertiesOperation<String> stringOperation = new SetPropertiesOperation<String>(model, "image", accessor, this.model.getImage(), tileSetFile, this.model);
         this.model.executeOperation(stringOperation);
         assertEquals(tileSetFile, this.model.getImage());
-        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(2)).refreshProperties();
 
         SetPropertiesOperation<Integer> intOperation = new SetPropertiesOperation<Integer>(model, "tileWidth", accessor, this.model.getTileWidth(), 16, this.model);
         this.model.executeOperation(intOperation);
         assertEquals(16, this.model.getTileWidth());
-        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(3)).refreshProperties();
 
         intOperation = new SetPropertiesOperation<Integer>(model, "tileHeight", accessor, this.model.getTileHeight(), 16, this.model);
         this.model.executeOperation(intOperation);
         assertEquals(16, this.model.getTileHeight());
-        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(4)).refreshProperties();
 
         intOperation = new SetPropertiesOperation<Integer>(model, "tileSpacing", accessor, this.model.getTileSpacing(), 1, this.model);
         this.model.executeOperation(intOperation);
         assertEquals(1, this.model.getTileSpacing());
-        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(5)).refreshProperties();
 
         assertEquals(20, this.model.getTiles().size());
 
@@ -171,7 +171,7 @@ public class TileSetTest {
         stringOperation = new SetPropertiesOperation<String>(model, "collision", accessor, this.model.getCollision(), tileSetFile, this.model);
         this.model.executeOperation(stringOperation);
         assertEquals(tileSetFile, this.model.getCollision());
-        verify(this.view, times(1)).refreshProperties();
+        verify(this.view, times(6)).refreshProperties();
 
         assertEquals(tileSetFile, this.model.getCollision());
         for (int i = 0; i < 10; ++i) {

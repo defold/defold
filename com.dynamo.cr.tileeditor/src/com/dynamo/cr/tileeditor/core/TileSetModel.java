@@ -232,7 +232,6 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
                         if (!verifyImageDimensions()) {
                             this.loadedImage = null;
                         }
-                        updateTiles();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -244,12 +243,13 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
                         if (!verifyImageDimensions()) {
                             this.loadedCollision = null;
                         }
-                        updateConvexHulls();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
                 }
             }
+            updateTiles();
+            updateConvexHulls();
             fireModelChangedEvent(new ModelChangedEvent(ModelChangedEvent.CHANGE_FLAG_PROPERTIES));
         }
     }
@@ -338,10 +338,10 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             }
         }
         this.convexHulls = new float[pointCount * 2];
-        for (int row = 0; row < tilesPerRow; ++row) {
-            for (int col = 0; col < tilesPerColumn; ++col) {
+        for (int row = 0; row < tilesPerColumn; ++row) {
+            for (int col = 0; col < tilesPerRow; ++col) {
                 int index = col + row * tilesPerRow;
-                for (int i = 0; i < points.length; ++i) {
+                for (int i = 0; i < points[index].length; ++i) {
                     this.convexHulls[i*2 + 0] = points[index][i].getX();
                     this.convexHulls[i*2 + 1] = points[index][i].getY();
                 }
