@@ -14,16 +14,19 @@ import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
+import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.ui.views.properties.IPropertySource;
 
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.tile.proto.Tile.TileSet;
 
-public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryListener {
+public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryListener, IAdaptable {
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
@@ -53,6 +56,8 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
     BufferedImage loadedCollision;
 
     List<IModelChangedListener> listeners;
+
+    private IPropertySource propertySource;
 
     public class Tile {
         String collisionGroup = null;
@@ -91,6 +96,17 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         this.undoHistory.addOperationHistoryListener(this);
         this.undoHistory.setLimit(this.undoContext, 100);
         this.listeners = new ArrayList<IModelChangedListener>();
+    }
+
+    @Override
+    public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+        if (adapter == IPropertySource.class) {
+            if (this.propertySource == null) {
+                this.propertySource = new PropertyIntrospectorSource<TileSetModel, TileSetModel>(this, this, null);
+            }
+            return this.propertySource;
+        }
+        return null;
     }
 
     public String getImage() {
