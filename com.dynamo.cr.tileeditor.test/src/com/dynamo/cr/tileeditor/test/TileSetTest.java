@@ -40,7 +40,7 @@ public class TileSetTest {
         this.propertySource = (IPropertySource) this.model.getAdapter(IPropertySource.class);
     }
 
-    private TileSet loadNewFile() {
+    private TileSet loadEmptyFile() {
         // new file
         TileSet tileSet = TileSet.newBuilder()
                 .setImage("")
@@ -59,8 +59,8 @@ public class TileSetTest {
      * Test load
      */
     @Test
-    public void testNewFile() {
-        TileSet tileSet = loadNewFile();
+    public void testLoad() {
+        TileSet tileSet = loadEmptyFile();
 
         assertEquals(tileSet.getImage(), this.model.getImage());
         assertEquals(tileSet.getTileWidth(), this.model.getTileWidth());
@@ -78,14 +78,13 @@ public class TileSetTest {
      */
     @Test
     public void testUndoRedo() {
-        TileSet tileSet = loadNewFile();
+        TileSet tileSet = loadEmptyFile();
 
         String prevTileSetFile = tileSet.getImage();
         String tileSetFile = "test/mario_tileset.png";
 
         assertEquals(prevTileSetFile, this.model.getImage());
         assertEquals(prevTileSetFile, this.model.getCollision());
-
 
         propertySource.setPropertyValue("image", tileSetFile);
         assertEquals(tileSetFile, this.model.getImage());
@@ -124,7 +123,7 @@ public class TileSetTest {
      */
     @Test
     public void testSuperMarioTileSet() {
-        testNewFile();
+        loadEmptyFile();
 
         String tileSetFile = "test/mario_tileset.png";
 
