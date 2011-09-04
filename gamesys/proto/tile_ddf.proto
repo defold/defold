@@ -6,13 +6,25 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.tile.proto";
 option java_outer_classname = "Tile";
 
+message ConvexHull
+{
+    // index into an array of points (x0, y0, x1, y1, ...)
+    // in “points” unit, ie effectively divided by 2
+    required uint32 index           = 1 [default = 0];
+    required uint32 count           = 2 [default = 0];
+    required string collision_group = 3 [default = "tile"];
+}
+
 message TileSet
 {
-    required string image           = 1 [(resource)=true];
-    required uint32 tile_width      = 2 [default = 0];
-    required uint32 tile_height     = 3 [default = 0];
-    required uint32 tile_margin     = 5 [default = 0];
-    required uint32 tile_spacing    = 6 [default = 0];
-    optional string collision       = 7 [(resource)=true];
-    required string material_tag    = 8 [default = "tile"];
+    required string image               = 1 [(resource)=true];
+    required uint32 tile_width          = 2 [default = 0];
+    required uint32 tile_height         = 3 [default = 0];
+    required uint32 tile_margin         = 4 [default = 0];
+    required uint32 tile_spacing        = 5 [default = 0];
+    optional string collision           = 6 [(resource)=true];
+    required string material_tag        = 7 [default = "tile"];
+    repeated ConvexHull convex_hulls    = 8;
+    repeated float convex_hull_points   = 9;
+    repeated string collision_groups    = 10;
 }
