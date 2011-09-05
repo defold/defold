@@ -5,6 +5,10 @@ import java.io.OutputStream;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 
+import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
+import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupOperation;
+import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupOperation;
+import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetPresenter implements IModelChangedListener {
@@ -29,8 +33,20 @@ public class TileSetPresenter implements IModelChangedListener {
         return this.model;
     }
 
-    public void setTileCollisionGroup(int index, String collisionGroup) {
-        this.model.setTileCollisionGroup(index, collisionGroup);
+    public void setConvexHullCollisionGroup(int index, String collisionGroup) {
+        this.model.executeOperation(new SetConvexHullCollisionGroupOperation(this.model, index, collisionGroup));
+    }
+
+    public void addCollisionGroup(String collisionGroup) {
+        this.model.executeOperation(new AddCollisionGroupOperation(this.model, collisionGroup));
+    }
+
+    public void removeCollisionGroup(String collisionGroup) {
+        this.model.executeOperation(new RemoveCollisionGroupOperation(this.model, collisionGroup));
+    }
+
+    public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
+        this.model.executeOperation(new RenameCollisionGroupOperation(this.model, collisionGroup, newCollisionGroup));
     }
 
     @Override
@@ -41,17 +57,9 @@ public class TileSetPresenter implements IModelChangedListener {
         if ((e.changes & TileSetModel.CHANGE_FLAG_COLLISION_GROUPS) != 0) {
             this.view.refreshOutline();
         }
-        if ((e.changes & TileSetModel.CHANGE_FLAG_TILES) != 0) {
+        if ((e.changes & TileSetModel.CHANGE_FLAG_CONVEX_HULLS) != 0) {
             this.view.refreshEditingView();
         }
-    }
-
-    public void addCollisionGroup(String collisionGroup) {
-        this.model.addCollisionGroup(collisionGroup);
-    }
-
-    public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
-        this.model.renameCollisionGroup(collisionGroup, newCollisionGroup);
     }
 
 }

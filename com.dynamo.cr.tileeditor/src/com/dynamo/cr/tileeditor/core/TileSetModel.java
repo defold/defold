@@ -8,11 +8,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.imageio.ImageIO;
 
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
 import org.eclipse.core.commands.operations.IUndoContext;
@@ -41,7 +43,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IOperat
 
     public static final int CHANGE_FLAG_PROPERTIES = (1 << 0);
     public static final int CHANGE_FLAG_COLLISION_GROUPS = (1 << 1);
-    public static final int CHANGE_FLAG_TILES = (1 << 2);
+    public static final int CHANGE_FLAG_CONVEX_HULLS = (1 << 2);
 
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     String image;
@@ -210,29 +212,48 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IOperat
     }
 
     public void addCollisionGroup(String collisionGroup) {
-        this.collisionGroups.add(collisionGroup);
-        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_COLLISION_GROUPS));
+        if (this.collisionGroups.contains(collisionGroup)) {
+            // TODO: Report error
+        } else {
+            this.collisionGroups.add(collisionGroup);
+            Collections.sort(this.collisionGroups);
+            fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_COLLISION_GROUPS));
+        }
+    }
+
+    public void removeCollisionGroup(String collisionGroup) {
+        if (!this.collisionGroups.contains(collisionGroup)) {
+            // TODO: Report error
+        } else {
+            this.collisionGroups.remove(collisionGroup);
+            fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_COLLISION_GROUPS));
+        }
     }
 
     public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
-        this.collisionGroups.set(this.collisionGroups.indexOf(collisionGroup), newCollisionGroup);
-        boolean changedTiles = false;
-        for (ConvexHull convexHull : this.convexHulls) {
-            if (convexHull.getCollisionGroup().equals(collisionGroup)) {
-                changedTiles = true;
-                convexHull.setCollisionGroup(newCollisionGroup);
+        if (this.collisionGroups.contains(newCollisionGroup)) {
+            // TODO: Report error
+        } else {
+            this.collisionGroups.set(this.collisionGroups.indexOf(collisionGroup), newCollisionGroup);
+            Collections.sort(this.collisionGroups);
+            boolean changedTiles = false;
+            for (ConvexHull convexHull : this.convexHulls) {
+                if (convexHull.getCollisionGroup().equals(collisionGroup)) {
+                    changedTiles = true;
+                    convexHull.setCollisionGroup(newCollisionGroup);
+                }
             }
+            int changeFlags = CHANGE_FLAG_COLLISION_GROUPS;
+            if (changedTiles) {
+                changeFlags |= CHANGE_FLAG_CONVEX_HULLS;
+            }
+            fireModelChangedEvent(new ModelChangedEvent(changeFlags));
         }
-        int changeFlags = CHANGE_FLAG_COLLISION_GROUPS;
-        if (changedTiles) {
-            changeFlags |= CHANGE_FLAG_TILES;
-        }
-        fireModelChangedEvent(new ModelChangedEvent(changeFlags));
     }
 
-    public void setTileCollisionGroup(int index, String collisionGroup) {
+    public void setConvexHullCollisionGroup(int index, String collisionGroup) {
         this.convexHulls.get(index).setCollisionGroup(collisionGroup);
-        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_TILES));
+        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_CONVEX_HULLS));
     }
 
     private BufferedImage loadImage(String fileName) throws IOException {
@@ -278,7 +299,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IOperat
             updateTiles();
             updateConvexHulls();
         }
-        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES | CHANGE_FLAG_COLLISION_GROUPS | CHANGE_FLAG_TILES));
+        fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES | CHANGE_FLAG_COLLISION_GROUPS | CHANGE_FLAG_CONVEX_HULLS));
     }
 
     public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
@@ -314,7 +335,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IOperat
         }
     }
 
-    public <T> void executeOperation(SetPropertiesOperation<T> operation) {
+    public void executeOperation(AbstractOperation operation) {
         operation.addContext(this.undoContext);
         IStatus status = null;
         try {
