@@ -34,7 +34,7 @@ import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryListener, IAdaptable {
+public class TileSetModel extends Model implements IPropertyObjectWorld, IOperationHistoryListener, IAdaptable {
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
@@ -67,8 +67,6 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
 
     BufferedImage loadedImage;
     BufferedImage loadedCollision;
-
-    List<IModelChangedListener> listeners;
 
     private IPropertySource propertySource;
 
@@ -122,7 +120,6 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         this.undoContext = undoContext;
         this.undoHistory.addOperationHistoryListener(this);
         this.undoHistory.setLimit(this.undoContext, 100);
-        this.listeners = new ArrayList<IModelChangedListener>();
     }
 
     @Override
@@ -236,14 +233,6 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
     public void setTileCollisionGroup(int index, String collisionGroup) {
         this.convexHulls.get(index).setCollisionGroup(collisionGroup);
         fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_TILES));
-    }
-
-    public void addModelChangedListener(IModelChangedListener listener) {
-        listeners.add(listener);
-    }
-
-    public void removeModelChangedListener(IModelChangedListener listener) {
-        listeners.remove(listener);
     }
 
     private BufferedImage loadImage(String fileName) throws IOException {
@@ -375,12 +364,6 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             updateTiles();
             updateConvexHulls();
             fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES));
-        }
-    }
-
-    private void fireModelChangedEvent(ModelChangedEvent e) {
-        for (IModelChangedListener listener : listeners) {
-            listener.onModelChanged(e);
         }
     }
 
