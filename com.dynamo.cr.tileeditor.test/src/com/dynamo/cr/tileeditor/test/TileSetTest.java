@@ -1,7 +1,6 @@
 package com.dynamo.cr.tileeditor.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,7 +11,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
@@ -89,7 +87,7 @@ public class TileSetTest {
      * @throws IOException
      */
     @Test
-    public void testUndoRedo() throws IOException {
+    public void testUndoRedo() throws Exception {
         TileSet tileSet = loadEmptyFile();
 
         String prevTileSetFile = tileSet.getImage();
@@ -106,27 +104,22 @@ public class TileSetTest {
         assertEquals(tileSetFile, this.model.getCollision());
         verify(this.view, times(3)).refreshProperties();
 
-        try {
-            this.history.undo(this.undoContext, new NullProgressMonitor(), null);
+        this.history.undo(this.undoContext, new NullProgressMonitor(), null);
 
-            assertEquals(tileSetFile, this.model.getImage());
-            assertEquals(prevTileSetFile, this.model.getCollision());
-            verify(this.view, times(4)).refreshProperties();
+        assertEquals(tileSetFile, this.model.getImage());
+        assertEquals(prevTileSetFile, this.model.getCollision());
+        verify(this.view, times(4)).refreshProperties();
 
-            this.history.undo(this.undoContext, new NullProgressMonitor(), null);
+        this.history.undo(this.undoContext, new NullProgressMonitor(), null);
 
-            assertEquals(prevTileSetFile, this.model.getImage());
-            verify(this.view, times(5)).refreshProperties();
+        assertEquals(prevTileSetFile, this.model.getImage());
+        verify(this.view, times(5)).refreshProperties();
 
-            this.history.redo(this.undoContext, new NullProgressMonitor(), null);
+        this.history.redo(this.undoContext, new NullProgressMonitor(), null);
 
-            assertEquals(tileSetFile, this.model.getImage());
-            assertEquals(prevTileSetFile, this.model.getCollision());
-            verify(this.view, times(6)).refreshProperties();
-        } catch (ExecutionException e) {
-            // fail
-            assertTrue(false);
-        }
+        assertEquals(tileSetFile, this.model.getImage());
+        assertEquals(prevTileSetFile, this.model.getCollision());
+        verify(this.view, times(6)).refreshProperties();
 
     }
 
@@ -204,34 +197,30 @@ public class TileSetTest {
 
         String newTileSetPath = "test/tmp.tileset";
         File newTileSetFile = new File(newTileSetPath);
-        try {
-            FileOutputStream outputStream = new FileOutputStream(newTileSetFile);
-            this.presenter.save(outputStream, new NullProgressMonitor());
-            TileSet.Builder tileSetBuilder = TileSet.newBuilder();
-            TextFormat.merge(new InputStreamReader(new FileInputStream(newTileSetPath)), tileSetBuilder);
-            TileSet tileSet = tileSetBuilder.build();
-            newTileSetFile = new File(newTileSetPath);
-            newTileSetFile.delete();
-            TileSetModel newModel = new TileSetModel(this.history, this.undoContext);
-            newModel.load(tileSet);
-            assertEquals(this.model.getImage(), newModel.getImage());
-            assertEquals(this.model.getTileWidth(), newModel.getTileWidth());
-            assertEquals(this.model.getTileHeight(), newModel.getTileHeight());
-            assertEquals(this.model.getTileMargin(), newModel.getTileMargin());
-            assertEquals(this.model.getTileSpacing(), newModel.getTileSpacing());
-            assertEquals(this.model.getCollision(), newModel.getCollision());
-            assertEquals(this.model.getMaterialTag(), newModel.getMaterialTag());
-            assertEquals(this.model.getConvexHulls(), newModel.getConvexHulls());
-            assertEquals(this.model.getConvexHullPoints().length, newModel.getConvexHullPoints().length);
-            for (int i = 0; i < this.model.getConvexHullPoints().length; ++i) {
-                assertEquals(this.model.getConvexHullPoints()[i], newModel.getConvexHullPoints()[i], 0.000001);
-            }
-            assertEquals(this.model.getCollisionGroups(), newModel.getCollisionGroups());
 
-        } catch (Exception e) {
-            // TODO: Logging
-            e.printStackTrace();
+        FileOutputStream outputStream = new FileOutputStream(newTileSetFile);
+        this.presenter.save(outputStream, new NullProgressMonitor());
+        TileSet.Builder tileSetBuilder = TileSet.newBuilder();
+        TextFormat.merge(new InputStreamReader(new FileInputStream(newTileSetPath)), tileSetBuilder);
+        TileSet tileSet = tileSetBuilder.build();
+        newTileSetFile = new File(newTileSetPath);
+        newTileSetFile.delete();
+        TileSetModel newModel = new TileSetModel(this.history, this.undoContext);
+        newModel.load(tileSet);
+        assertEquals(this.model.getImage(), newModel.getImage());
+        assertEquals(this.model.getTileWidth(), newModel.getTileWidth());
+        assertEquals(this.model.getTileHeight(), newModel.getTileHeight());
+        assertEquals(this.model.getTileMargin(), newModel.getTileMargin());
+        assertEquals(this.model.getTileSpacing(), newModel.getTileSpacing());
+        assertEquals(this.model.getCollision(), newModel.getCollision());
+        assertEquals(this.model.getMaterialTag(), newModel.getMaterialTag());
+        assertEquals(this.model.getConvexHulls(), newModel.getConvexHulls());
+        assertEquals(this.model.getConvexHullPoints().length, newModel.getConvexHullPoints().length);
+        for (int i = 0; i < this.model.getConvexHullPoints().length; ++i) {
+            assertEquals(this.model.getConvexHullPoints()[i], newModel.getConvexHullPoints()[i], 0.000001);
         }
+        assertEquals(this.model.getCollisionGroups(), newModel.getCollisionGroups());
+
 
     }
 }
