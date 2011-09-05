@@ -2,7 +2,9 @@ package com.dynamo.cr.tileeditor.core;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
@@ -23,20 +25,62 @@ public class GridModel extends Model implements IPropertyObjectWorld, IOperation
     public static final int CHANGE_FLAG_LAYERS = (1 << 1);
     public static final int CHANGE_FLAG_CELLS = (1 << 2);
 
-    public class Cell {
-        @Property(commandFactory = UndoableCommandFactory.class)
-        private int x;
-        @Property(commandFactory = UndoableCommandFactory.class)
-        private int y;
+    public class Cell implements IAdaptable {
+
+        private PropertyIntrospectorSource<Cell, GridModel> propertySource;
+        @Override
+        public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+            if (adapter == IPropertySource.class) {
+                if (this.propertySource == null) {
+                    this.propertySource = new PropertyIntrospectorSource<Cell, GridModel>(this, GridModel.this, null);
+                }
+                return this.propertySource;
+            }
+            return null;
+        }
+
         @Property(commandFactory = UndoableCommandFactory.class)
         private int tile;
         @Property(commandFactory = UndoableCommandFactory.class)
-        private boolean h_flip;
+        private boolean hFlip;
         @Property(commandFactory = UndoableCommandFactory.class)
-        private boolean v_flip;
+        private boolean vFlip;
+
+        public int getTile() {
+            return tile;
+        }
+        public void setTile(int tile) {
+            this.tile = tile;
+        }
+        public boolean ishFlip() {
+            return hFlip;
+        }
+        public void sethFlip(boolean hFlip) {
+            this.hFlip = hFlip;
+        }
+        public boolean isvFlip() {
+            return vFlip;
+        }
+        public void setvFlip(boolean vFlip) {
+            this.vFlip = vFlip;
+        }
+
     }
 
-    public class Layer {
+    public class Layer implements IAdaptable {
+
+        private PropertyIntrospectorSource<Layer, GridModel> propertySource;
+        @Override
+        public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+            if (adapter == IPropertySource.class) {
+                if (this.propertySource == null) {
+                    this.propertySource = new PropertyIntrospectorSource<Layer, GridModel>(this, GridModel.this, null);
+                }
+                return this.propertySource;
+            }
+            return null;
+        }
+
         @Property(commandFactory = UndoableCommandFactory.class)
         private String id;
         @Property(commandFactory = UndoableCommandFactory.class)
@@ -44,10 +88,10 @@ public class GridModel extends Model implements IPropertyObjectWorld, IOperation
         @Property(commandFactory = UndoableCommandFactory.class)
         private boolean visible;
 
-        private final List<Cell> cells;
+        // upper 32-bits y, lower 32-bits x
+        private final Map<Long, Cell> cells = new HashMap<Long, GridModel.Cell>();
 
         public Layer() {
-            cells = new ArrayList<Cell>();
         }
 
         public String getId() {
