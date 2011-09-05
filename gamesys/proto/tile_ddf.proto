@@ -28,3 +28,28 @@ message TileSet
     repeated float convex_hull_points   = 9;
     repeated string collision_groups    = 10;
 }
+
+message TileCell
+{
+    required int32 x            = 1 [default = 0];
+    required int32 y            = 2 [default = 0];
+    required uint32 tile        = 3 [default = 0];
+    optional uint32 h_flip      = 4 [default = 0];
+    optional uint32 v_flip      = 5 [default = 0];
+}
+
+message TileLayer
+{
+    required string id          = 1 [default = "layer1"];
+    required float z            = 2 [default = 0.0];
+    required uint32 is_visible  = 3 [default = 1];
+    repeated TileCell cell      = 6;
+}
+
+message TileGrid
+{
+    required string tile_set    = 1 [(resource)=true];
+    required uint32 cell_width  = 2 [default = 0];
+    required uint32 cell_height = 3 [default = 0];
+    repeated TileLayer layers   = 4;
+}
