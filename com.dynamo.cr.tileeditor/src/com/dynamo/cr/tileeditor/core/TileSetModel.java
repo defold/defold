@@ -341,7 +341,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IOperat
             if (setOp.getProperty().equals("image")) {
                 if (this.image != null && !this.image.equals("")) {
                     try {
-                        this.loadedImage = ImageIO.read(new FileInputStream(this.image));
+                        this.loadedImage = loadImage(this.image);
                         if (!verifyImageDimensions()) {
                             this.loadedImage = null;
                         }
@@ -352,7 +352,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IOperat
             } else if (setOp.getProperty().equals("collision")) {
                 if (this.collision != null && !this.collision.equals("")) {
                     try {
-                        this.loadedCollision = ImageIO.read(new FileInputStream(this.collision));
+                        this.loadedCollision = loadImage(this.collision);
                         if (!verifyImageDimensions()) {
                             this.loadedCollision = null;
                         }
