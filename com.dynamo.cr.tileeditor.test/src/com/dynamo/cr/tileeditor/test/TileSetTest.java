@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -46,7 +47,7 @@ public class TileSetTest {
         this.propertySource = (IPropertySource) this.model.getAdapter(IPropertySource.class);
     }
 
-    private TileSet loadEmptyFile() {
+    private TileSet loadEmptyFile() throws IOException {
         // new file
         TileSet tileSet = TileSet.newBuilder()
                 .setImage("")
@@ -64,9 +65,10 @@ public class TileSetTest {
 
     /**
      * Test load
+     * @throws IOException
      */
     @Test
-    public void testLoad() {
+    public void testLoad() throws IOException {
         TileSet tileSet = loadEmptyFile();
 
         assertEquals(tileSet.getImage(), this.model.getImage());
@@ -84,9 +86,10 @@ public class TileSetTest {
 
     /**
      * Test undo/redo
+     * @throws IOException
      */
     @Test
-    public void testUndoRedo() {
+    public void testUndoRedo() throws IOException {
         TileSet tileSet = loadEmptyFile();
 
         String prevTileSetFile = tileSet.getImage();
@@ -129,9 +132,10 @@ public class TileSetTest {
 
     /**
      * Use Case 1.1
+     * @throws IOException
      */
     @Test
-    public void testSuperMarioTileSet() {
+    public void testSuperMarioTileSet() throws IOException {
         loadEmptyFile();
 
         String tileSetFile = "test/mario_tileset.png";

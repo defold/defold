@@ -1,8 +1,11 @@
 package com.dynamo.cr.tileeditor.core;
 
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -243,7 +246,20 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         listeners.remove(listener);
     }
 
-    public void load(TileSet tileSet) {
+    private BufferedImage loadImage(String fileName) throws IOException {
+        try {
+            InputStream is = new BufferedInputStream(new FileInputStream(fileName));
+            try {
+                return ImageIO.read(is);
+            } finally {
+                is.close();
+            }
+        } catch (IOException e) {
+            throw e;
+        }
+    }
+
+    public void load(TileSet tileSet) throws IOException {
         this.image = tileSet.getImage();
         this.tileWidth = tileSet.getTileWidth();
         this.tileHeight = tileSet.getTileHeight();
@@ -263,25 +279,20 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             convexHull.setCollisionGroup(convexHullDDF.getCollisionGroup());
             this.convexHulls.add(convexHull);
         }
-        try {
-            if (this.image != null && !this.image.equals("")) {
-                this.loadedImage = ImageIO.read(new FileInputStream(image));
-            }
-            if (this.collision != null && !this.collision.equals("")) {
-                this.loadedCollision = ImageIO.read(new FileInputStream(collision));
-            }
-            if (verifyImageDimensions()) {
-                updateTiles();
-                updateConvexHulls();
-            }
-        } catch (IOException e) {
-            // TODO: Fix logging
-            e.printStackTrace();
+        if (this.image != null && !this.image.equals("")) {
+            this.loadedImage = loadImage(image);
+        }
+        if (this.collision != null && !this.collision.equals("")) {
+            this.loadedCollision = loadImage(collision);
+        }
+        if (verifyImageDimensions()) {
+            updateTiles();
+            updateConvexHulls();
         }
         fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES | CHANGE_FLAG_COLLISION_GROUPS | CHANGE_FLAG_TILES));
     }
 
-    public void save(OutputStream outputStream, IProgressMonitor monitor) {
+    public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
         TileSet.Builder tileSetBuilder = TileSet.newBuilder()
                 .setImage(this.image)
                 .setTileWidth(this.tileWidth)
@@ -301,13 +312,16 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             tileSetBuilder.addConvexHulls(convexHullBuilder);
         }
         TileSet tileSet = tileSetBuilder.build();
-        OutputStreamWriter writer = new OutputStreamWriter(outputStream);
         try {
-            TextFormat.print(tileSet, writer);
-            writer.flush();
+            OutputStreamWriter writer = new OutputStreamWriter(outputStream);
+            try {
+                TextFormat.print(tileSet, writer);
+                writer.flush();
+            } finally {
+                writer.close();
+            }
         } catch (IOException e) {
-            // TODO: Logging
-            e.printStackTrace();
+            throw e;
         }
     }
 

@@ -1,5 +1,6 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.io.IOException;
 import java.io.OutputStream;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -16,11 +17,11 @@ public class TileSetPresenter implements IModelChangedListener {
         this.model.addModelChangedListener(this);
     }
 
-    public void load(TileSet tileSet) {
+    public void load(TileSet tileSet) throws IOException {
         this.model.load(tileSet);
     }
 
-    public void save(OutputStream outputStream, IProgressMonitor monitor) {
+    public void save(OutputStream outputStream, IProgressMonitor monitor) throws IOException {
         this.model.save(outputStream, monitor);
     }
 
