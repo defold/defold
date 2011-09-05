@@ -1,6 +1,5 @@
 package com.dynamo.cr.tileeditor.core;
 
-import java.util.Set;
 
 public interface ITileSetView {
 
@@ -9,7 +8,5 @@ public interface ITileSetView {
     void refreshOutline();
 
     void refreshEditingView();
-
-    void setSelectedTiles(Set<TileSetModel.Tile> selectedTiles);
 
 }

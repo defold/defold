@@ -3,6 +3,8 @@ package com.dynamo.cr.tileeditor.core;
 import java.awt.image.BufferedImage;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +17,7 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.IUndoableOperation;
 import org.eclipse.core.commands.operations.OperationHistoryEvent;
 import org.eclipse.core.runtime.IAdaptable;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.ui.views.properties.IPropertySource;
@@ -24,7 +27,9 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorSource;
 import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
+import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
+import com.google.protobuf.TextFormat;
 
 public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryListener, IAdaptable {
 
@@ -50,8 +55,8 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
     @Property(commandFactory = UndoableCommandFactory.class)
     String materialTag;
 
-    List<Tile> tiles;
-    float[] convexHulls;
+    List<ConvexHull> convexHulls;
+    float[] convexHullPoints;
     List<String> collisionGroups;
 
     IOperationHistory undoHistory;
@@ -64,10 +69,10 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
 
     private IPropertySource propertySource;
 
-    public class Tile {
+    public class ConvexHull {
         String collisionGroup = null;
-        int convexHullIndex = 0;
-        int convexHullCount = 0;
+        int index = 0;
+        int count = 0;
 
         public String getCollisionGroup() {
             return this.collisionGroup;
@@ -77,25 +82,38 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             this.collisionGroup = collisionGroup;
         }
 
-        public int getConvexHullIndex() {
-            return this.convexHullIndex;
+        public int getIndex() {
+            return this.index;
         }
 
-        public void setConvexHullIndex(int convexHullIndex) {
-            this.convexHullIndex = convexHullIndex;
+        public void setIndex(int index) {
+            this.index = index;
         }
 
-        public int getConvexHullCount() {
-            return this.convexHullCount;
+        public int getCount() {
+            return this.count;
         }
 
-        public void setConvexHullCount(int convexHullCount) {
-            this.convexHullCount = convexHullCount;
+        public void setCount(int count) {
+            this.count = count;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o instanceof ConvexHull) {
+                ConvexHull tile = (ConvexHull)o;
+                return ((this.collisionGroup == tile.collisionGroup)
+                        || (this.collisionGroup != null && this.collisionGroup.equals(tile.collisionGroup)))
+                        && this.index == tile.index
+                        && this.count == tile.count;
+            } else {
+                return super.equals(o);
+            }
         }
     }
 
     public TileSetModel(IOperationHistory undoHistory, IUndoContext undoContext) {
-        this.tiles = new ArrayList<Tile>();
+        this.convexHulls = new ArrayList<ConvexHull>();
         this.collisionGroups = new ArrayList<String>();
         this.undoHistory = undoHistory;
         this.undoContext = undoContext;
@@ -171,20 +189,20 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         this.materialTag = materialTag;
     }
 
-    public List<Tile> getTiles() {
-        return this.tiles;
-    }
-
-    public void setTiles(List<Tile> tiles) {
-        this.tiles = tiles;
-    }
-
-    public float[] getConvexHulls() {
+    public List<ConvexHull> getConvexHulls() {
         return this.convexHulls;
     }
 
-    public void setConvexHulls(float[] convexHulls) {
+    public void setConvexHulls(List<ConvexHull> convexHulls) {
         this.convexHulls = convexHulls;
+    }
+
+    public float[] getConvexHullPoints() {
+        return this.convexHullPoints;
+    }
+
+    public void setConvexHullPoints(float[] convexHullPoints) {
+        this.convexHullPoints = convexHullPoints;
     }
 
     public List<String> getCollisionGroups() {
@@ -199,10 +217,10 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
     public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
         this.collisionGroups.set(this.collisionGroups.indexOf(collisionGroup), newCollisionGroup);
         boolean changedTiles = false;
-        for (Tile tile : this.tiles) {
-            if (tile.getCollisionGroup().equals(collisionGroup)) {
+        for (ConvexHull convexHull : this.convexHulls) {
+            if (convexHull.getCollisionGroup().equals(collisionGroup)) {
                 changedTiles = true;
-                tile.setCollisionGroup(newCollisionGroup);
+                convexHull.setCollisionGroup(newCollisionGroup);
             }
         }
         int changeFlags = CHANGE_FLAG_COLLISION_GROUPS;
@@ -213,7 +231,7 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
     }
 
     public void setTileCollisionGroup(int index, String collisionGroup) {
-        this.tiles.get(index).setCollisionGroup(collisionGroup);
+        this.convexHulls.get(index).setCollisionGroup(collisionGroup);
         fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_TILES));
     }
 
@@ -237,6 +255,14 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         for (String collisionGroup : tileSet.getCollisionGroupsList()) {
             this.collisionGroups.add(collisionGroup);
         }
+        this.convexHulls = new ArrayList<ConvexHull>(tileSet.getConvexHullsCount());
+        for (Tile.ConvexHull convexHullDDF : tileSet.getConvexHullsList()) {
+            ConvexHull convexHull = new ConvexHull();
+            convexHull.setIndex(convexHullDDF.getIndex());
+            convexHull.setCount(convexHullDDF.getCount());
+            convexHull.setCollisionGroup(convexHullDDF.getCollisionGroup());
+            this.convexHulls.add(convexHull);
+        }
         try {
             if (this.image != null && !this.image.equals("")) {
                 this.loadedImage = ImageIO.read(new FileInputStream(image));
@@ -253,6 +279,36 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
             e.printStackTrace();
         }
         fireModelChangedEvent(new ModelChangedEvent(CHANGE_FLAG_PROPERTIES | CHANGE_FLAG_COLLISION_GROUPS | CHANGE_FLAG_TILES));
+    }
+
+    public void save(OutputStream outputStream, IProgressMonitor monitor) {
+        TileSet.Builder tileSetBuilder = TileSet.newBuilder()
+                .setImage(this.image)
+                .setTileWidth(this.tileWidth)
+                .setTileHeight(this.tileHeight)
+                .setTileMargin(this.tileMargin)
+                .setTileSpacing(this.tileSpacing)
+                .setCollision(this.collision)
+                .setMaterialTag(this.materialTag);
+        for (String collisionGroup : this.collisionGroups) {
+            tileSetBuilder.addCollisionGroups(collisionGroup);
+        }
+        for (ConvexHull convexHull : this.convexHulls) {
+            Tile.ConvexHull.Builder convexHullBuilder = Tile.ConvexHull.newBuilder();
+            convexHullBuilder.setIndex(convexHull.getIndex());
+            convexHullBuilder.setCount(convexHull.getCount());
+            convexHullBuilder.setCollisionGroup(convexHull.getCollisionGroup());
+            tileSetBuilder.addConvexHulls(convexHullBuilder);
+        }
+        TileSet tileSet = tileSetBuilder.build();
+        OutputStreamWriter writer = new OutputStreamWriter(outputStream);
+        try {
+            TextFormat.print(tileSet, writer);
+            writer.flush();
+        } catch (IOException e) {
+            // TODO: Logging
+            e.printStackTrace();
+        }
     }
 
     public <T> void executeOperation(SetPropertiesOperation<T> operation) {
@@ -341,19 +397,19 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         int tilesPerRow = calcTileCount(this.tileWidth, imageWidth);
         int tilesPerColumn = calcTileCount(this.tileHeight, imageHeight);
         int tileCount = tilesPerRow * tilesPerColumn;
-        int prevTileCount = this.tiles.size();
+        int prevTileCount = this.convexHulls.size();
         if (tileCount != prevTileCount) {
-            List<TileSetModel.Tile> newTiles = new ArrayList<TileSetModel.Tile>(tileCount);
+            List<TileSetModel.ConvexHull> newTiles = new ArrayList<TileSetModel.ConvexHull>(tileCount);
             int i;
             for (i = 0; i < tileCount && i < prevTileCount; ++i) {
-                newTiles.add(this.tiles.get(i));
+                newTiles.add(this.convexHulls.get(i));
             }
             for (; i < tileCount; ++i) {
-                TileSetModel.Tile tile = new Tile();
+                TileSetModel.ConvexHull tile = new ConvexHull();
                 tile.setCollisionGroup("tile");
                 newTiles.add(tile);
             }
-            this.tiles = newTiles;
+            this.convexHulls = newTiles;
         }
     }
 
@@ -387,19 +443,19 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
                 mask = loadedCollision.getAlphaRaster().getPixels(x, y, this.tileWidth, this.tileHeight, mask);
                 int index = col + row * tilesPerRow;
                 points[index] = ConvexHull2D.imageConvexHull(mask, this.tileWidth, this.tileHeight, PLANE_COUNT);
-                TileSetModel.Tile tile = this.tiles.get(index);
-                tile.setConvexHullIndex(pointCount);
-                tile.setConvexHullCount(points[index].length);
+                TileSetModel.ConvexHull tile = this.convexHulls.get(index);
+                tile.setIndex(pointCount);
+                tile.setCount(points[index].length);
                 pointCount += points[index].length;
             }
         }
-        this.convexHulls = new float[pointCount * 2];
+        this.convexHullPoints = new float[pointCount * 2];
         for (int row = 0; row < tilesPerColumn; ++row) {
             for (int col = 0; col < tilesPerRow; ++col) {
                 int index = col + row * tilesPerRow;
                 for (int i = 0; i < points[index].length; ++i) {
-                    this.convexHulls[i*2 + 0] = points[index][i].getX();
-                    this.convexHulls[i*2 + 1] = points[index][i].getY();
+                    this.convexHullPoints[i*2 + 0] = points[index][i].getX();
+                    this.convexHullPoints[i*2 + 1] = points[index][i].getY();
                 }
             }
         }

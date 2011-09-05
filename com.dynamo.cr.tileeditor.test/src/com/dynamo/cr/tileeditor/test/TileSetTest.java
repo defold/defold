@@ -6,6 +6,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -20,6 +25,7 @@ import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
 import com.dynamo.tile.proto.Tile.TileSet;
+import com.google.protobuf.TextFormat;
 
 public class TileSetTest {
     ITileSetView view;
@@ -148,10 +154,10 @@ public class TileSetTest {
         assertEquals(1, this.model.getTileSpacing());
         verify(this.view, times(5)).refreshProperties();
 
-        assertEquals(20, this.model.getTiles().size());
+        assertEquals(20, this.model.getConvexHulls().size());
 
-        for (TileSetModel.Tile tile : this.model.getTiles()) {
-            assertEquals(0, tile.getConvexHullCount());
+        for (TileSetModel.ConvexHull convexHull : this.model.getConvexHulls()) {
+            assertEquals(0, convexHull.getCount());
         }
 
         propertySource.setPropertyValue("collision", tileSetFile);
@@ -160,13 +166,13 @@ public class TileSetTest {
 
         assertEquals(tileSetFile, this.model.getCollision());
         for (int i = 0; i < 10; ++i) {
-            assertEquals(8, this.model.getTiles().get(i).getConvexHullCount());
+            assertEquals(8, this.model.getConvexHulls().get(i).getCount());
         }
         for (int i = 10; i < 14; ++i) {
-            assertEquals(4, this.model.getTiles().get(i).getConvexHullCount());
+            assertEquals(4, this.model.getConvexHulls().get(i).getCount());
         }
         for (int i = 14; i < 20; ++i) {
-            assertEquals(8, this.model.getTiles().get(i).getConvexHullCount());
+            assertEquals(8, this.model.getConvexHulls().get(i).getCount());
         }
 
         // set properties (1.1.4)
@@ -179,15 +185,49 @@ public class TileSetTest {
         verify(this.view, times(2)).refreshOutline();
 
         this.presenter.setTileCollisionGroup(1, "hazard");
-        assertEquals("hazard", this.model.getTiles().get(1).getCollisionGroup());
+        assertEquals("hazard", this.model.getConvexHulls().get(1).getCollisionGroup());
         verify(this.view, times(2)).refreshEditingView();
 
         // set properties (1.1.5)
 
         this.presenter.renameCollisionGroup("tile", "obstruction");
         assertEquals("obstruction", this.model.getCollisionGroups().get(0));
-        assertEquals("obstruction", this.model.getTiles().get(0).getCollisionGroup());
+        assertEquals("obstruction", this.model.getConvexHulls().get(0).getCollisionGroup());
         verify(this.view, times(3)).refreshOutline();
         verify(this.view, times(3)).refreshEditingView();
+
+        // saving
+
+        String newTileSetPath = "test/tmp.tileset";
+        File newTileSetFile = new File(newTileSetPath);
+        try {
+            FileOutputStream outputStream = new FileOutputStream(newTileSetFile);
+            this.presenter.save(outputStream, new NullProgressMonitor());
+            TileSet.Builder tileSetBuilder = TileSet.newBuilder();
+            TextFormat.merge(new InputStreamReader(new FileInputStream(newTileSetPath)), tileSetBuilder);
+            TileSet tileSet = tileSetBuilder.build();
+            newTileSetFile = new File(newTileSetPath);
+            newTileSetFile.delete();
+            TileSetModel newModel = new TileSetModel(this.history, this.undoContext);
+            newModel.load(tileSet);
+            assertEquals(this.model.getImage(), newModel.getImage());
+            assertEquals(this.model.getTileWidth(), newModel.getTileWidth());
+            assertEquals(this.model.getTileHeight(), newModel.getTileHeight());
+            assertEquals(this.model.getTileMargin(), newModel.getTileMargin());
+            assertEquals(this.model.getTileSpacing(), newModel.getTileSpacing());
+            assertEquals(this.model.getCollision(), newModel.getCollision());
+            assertEquals(this.model.getMaterialTag(), newModel.getMaterialTag());
+            assertEquals(this.model.getConvexHulls(), newModel.getConvexHulls());
+            assertEquals(this.model.getConvexHullPoints().length, newModel.getConvexHullPoints().length);
+            for (int i = 0; i < this.model.getConvexHullPoints().length; ++i) {
+                assertEquals(this.model.getConvexHullPoints()[i], newModel.getConvexHullPoints()[i], 0.000001);
+            }
+            assertEquals(this.model.getCollisionGroups(), newModel.getCollisionGroups());
+
+        } catch (Exception e) {
+            // TODO: Logging
+            e.printStackTrace();
+        }
+
     }
 }

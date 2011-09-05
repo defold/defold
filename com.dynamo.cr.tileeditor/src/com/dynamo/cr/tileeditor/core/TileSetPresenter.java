@@ -1,5 +1,9 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.io.OutputStream;
+
+import org.eclipse.core.runtime.IProgressMonitor;
+
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetPresenter implements IModelChangedListener {
@@ -14,6 +18,10 @@ public class TileSetPresenter implements IModelChangedListener {
 
     public void load(TileSet tileSet) {
         this.model.load(tileSet);
+    }
+
+    public void save(OutputStream outputStream, IProgressMonitor monitor) {
+        this.model.save(outputStream, monitor);
     }
 
     public TileSetModel getModel() {
