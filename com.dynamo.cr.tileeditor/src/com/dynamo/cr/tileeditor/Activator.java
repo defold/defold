@@ -1,6 +1,9 @@
 package com.dynamo.cr.tileeditor;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.eclipse.ui.statushandlers.StatusManager;
 import org.osgi.framework.BundleContext;
 
 /**
@@ -13,7 +16,7 @@ public class Activator extends AbstractUIPlugin {
 
 	// The shared instance
 	private static Activator plugin;
-	
+
 	/**
 	 * The constructor
 	 */
@@ -37,6 +40,11 @@ public class Activator extends AbstractUIPlugin {
 		plugin = null;
 		super.stop(context);
 	}
+
+    public static void logException(Throwable e) {
+        Status status = new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e);
+        StatusManager.getManager().handle(status, StatusManager.LOG);
+    }
 
 	/**
 	 * Returns the shared instance

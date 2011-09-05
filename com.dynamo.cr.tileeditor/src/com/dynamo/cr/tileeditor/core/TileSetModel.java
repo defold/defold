@@ -3,7 +3,6 @@ package com.dynamo.cr.tileeditor.core;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,6 +27,7 @@ import org.eclipse.ui.views.properties.IPropertySource;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospectorSource;
+import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.operations.SetPropertiesOperation;
 import com.dynamo.cr.tileeditor.pipeline.ConvexHull2D;
 import com.dynamo.tile.proto.Tile;
@@ -330,14 +330,12 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         IStatus status = null;
         try {
             status = this.undoHistory.execute(operation, null, null);
-
         } catch (final ExecutionException e) {
-            // TODO: Logging
-            e.printStackTrace();
+            Activator.logException(e);
         }
 
         if (status != Status.OK_STATUS) {
-            // TODO: Logging
+            // TODO: Logging or dialog?
         }
     }
 
@@ -431,6 +429,7 @@ public class TileSetModel implements IPropertyObjectWorld, IOperationHistoryList
         if (this.loadedImage != null && this.loadedCollision != null) {
             if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
                 // TODO: Report error
+                // We should have to and verification of this
                 return false;
             }
         }
