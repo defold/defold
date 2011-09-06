@@ -1,10 +1,13 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.util.List;
 
 import com.dynamo.tile.proto.Tile.TileGrid;
 
-public class GridPresenter implements IModelChangedListener {
+public class GridPresenter implements PropertyChangeListener {
 
     private final GridModel model;
     private final IGridView view;
@@ -12,7 +15,7 @@ public class GridPresenter implements IModelChangedListener {
     public GridPresenter(GridModel model, IGridView view) {
         this.model = model;
         this.view = view;
-        this.model.addModelChangedListener(this);
+        this.model.addPropertyChangeListener(this);
     }
 
     public void load(TileGrid tileGrid) throws IOException {
@@ -20,15 +23,18 @@ public class GridPresenter implements IModelChangedListener {
     }
 
     @Override
-    public void onModelChanged(ModelChangedEvent e) {
-        if ((e.changes & GridModel.CHANGE_FLAG_PROPERTIES) != 0) {
-            this.view.refreshProperties();
-        }
-        if ((e.changes & GridModel.CHANGE_FLAG_LAYERS) != 0) {
-            this.view.refreshOutline();
-        }
-        if ((e.changes & GridModel.CHANGE_FLAG_CELLS) != 0) {
-            this.view.refreshEditingView();
+    public void propertyChange(PropertyChangeEvent evt) {
+        // TODO: Control event storm?
+        if (evt.getSource() instanceof GridModel) {
+            if (evt.getPropertyName().equals("tileSet")) {
+                view.setTileSetProperty((String)evt.getNewValue());
+            } else if (evt.getPropertyName().equals("cellWidth")) {
+                view.setCellWidthProperty((Float)evt.getNewValue());
+            } else if (evt.getPropertyName().equals("cellHeight")) {
+                view.setCellHeightProperty((Float)evt.getNewValue());
+            } else if (evt.getPropertyName().equals("layers")) {
+                view.setLayers((List<GridModel.Layer>)evt.getNewValue());
+            }
         }
     }
 

@@ -1,27 +1,29 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Model {
 
-    private final List<IModelChangedListener> listeners;
+    private final List<PropertyChangeListener> listeners;
 
     public Model() {
-        this.listeners = new ArrayList<IModelChangedListener>();
+        this.listeners = new ArrayList<PropertyChangeListener>();
     }
 
-    public void addModelChangedListener(IModelChangedListener listener) {
+    public void addPropertyChangeListener(PropertyChangeListener listener) {
         this.listeners.add(listener);
     }
 
-    public void removeModelChangedListener(IModelChangedListener listener) {
+    public void removePropertyChangeListener(PropertyChangeListener listener) {
         this.listeners.remove(listener);
     }
 
-    protected void fireModelChangedEvent(ModelChangedEvent e) {
-        for (IModelChangedListener listener : this.listeners) {
-            listener.onModelChanged(e);
+    protected void firePropertyChangeEvent(PropertyChangeEvent e) {
+        for (PropertyChangeListener listener : this.listeners) {
+            listener.propertyChange(e);
         }
     }
 

@@ -2,11 +2,15 @@ package com.dynamo.cr.tileeditor.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyFloat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -61,6 +65,7 @@ public class GridTest {
     /**
      * Test load
      */
+    @SuppressWarnings("unchecked")
     @Test
     public void testLoad() throws IOException {
         TileGrid tileGrid = loadEmptyFile();
@@ -74,8 +79,9 @@ public class GridTest {
         assertEquals(0.0f, layer.getZ(), 0.000001f);
         assertTrue(layer.isVisible());
 
-        verify(this.view, times(1)).refreshProperties();
-        verify(this.view, times(1)).refreshOutline();
-        verify(this.view, times(1)).refreshEditingView();
+        verify(this.view, times(1)).setTileSetProperty(any(String.class));
+        verify(this.view, never()).setCellWidthProperty(anyFloat());
+        verify(this.view, never()).setCellHeightProperty(anyFloat());
+        verify(this.view, times(1)).setLayers(any(List.class));
     }
 }

@@ -26,21 +26,21 @@ public class SetConvexHullCollisionGroupOperation extends AbstractOperation {
     @Override
     public IStatus execute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.model.setConvexHullCollisionGroup(this.index, this.collisionGroup);
+        this.model.getConvexHulls().get(this.index).setCollisionGroup(this.collisionGroup);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus redo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.model.setConvexHullCollisionGroup(this.index, this.collisionGroup);
+        this.model.getConvexHulls().get(this.index).setCollisionGroup(this.collisionGroup);
         return Status.OK_STATUS;
     }
 
     @Override
     public IStatus undo(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
-        this.model.setConvexHullCollisionGroup(this.index, this.oldCollisionGroup);
+        this.model.getConvexHulls().get(this.index).setCollisionGroup(this.oldCollisionGroup);
         return Status.OK_STATUS;
     }
 

@@ -1,11 +1,17 @@
 package com.dynamo.cr.tileeditor.core;
 
+import java.util.List;
+
+import com.dynamo.cr.tileeditor.core.GridModel.Layer;
+
 public interface IGridView {
 
-    void refreshProperties();
+    void setTileSetProperty(String newValue);
 
-    void refreshOutline();
+    void setCellWidthProperty(float newValue);
 
-    void refreshEditingView();
+    void setCellHeightProperty(float newValue);
+
+    void setLayers(List<Layer> newValue);
 
 }

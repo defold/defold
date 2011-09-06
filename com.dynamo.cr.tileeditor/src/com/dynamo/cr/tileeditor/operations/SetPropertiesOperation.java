@@ -32,8 +32,16 @@ public class SetPropertiesOperation<T> extends AbstractOperation {
         this.model = model;
     }
 
+    public List<Object> getNodes() {
+        return this.nodes;
+    }
+
     public String getProperty() {
         return this.property;
+    }
+
+    public List<T> getOldValues() {
+        return this.oldValues;
     }
 
     public List<T> getNewValues() {
