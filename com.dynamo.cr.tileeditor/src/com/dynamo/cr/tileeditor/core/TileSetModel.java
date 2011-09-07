@@ -11,10 +11,8 @@ import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.imageio.ImageIO;
 
@@ -42,15 +40,15 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
-    public static final Tag TAG_11 = new Tag("11", Tag.TYPE_INFO, "No image has been specified");
-    public static final Tag TAG_12 = new Tag("12", Tag.TYPE_ERROR, "The specified image {0} could not be found");
-    public static final Tag TAG_13 = new Tag("13", Tag.TYPE_ERROR, "The specified collision image {0} could not be found");
-    public static final Tag TAG_14 = new Tag("14", Tag.TYPE_ERROR, "Both images must have the same dimensions");
-    public static final Tag TAG_15 = new Tag("15", Tag.TYPE_ERROR, "Tile width must be above 0");
-    public static final Tag TAG_16 = new Tag("16", Tag.TYPE_ERROR, "Tile height must be above 0");
-    public static final Tag TAG_17 = new Tag("17", Tag.TYPE_ERROR, "The specified tile width is greater than the image width, which is {0}");
-    public static final Tag TAG_18 = new Tag("18", Tag.TYPE_ERROR, "The specified tile height is greater than the image height, which is {0}");
-    public static final Tag TAG_19 = new Tag("19", Tag.TYPE_ERROR, "No material tag has been specified");
+    public static final Tag TAG_1 = new Tag("1", Tag.TYPE_INFO, Messages.TileSetModel_TAG_1);
+    public static final Tag TAG_2 = new Tag("2", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_2);
+    public static final Tag TAG_3 = new Tag("3", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_3);
+    public static final Tag TAG_4 = new Tag("4", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_4);
+    public static final Tag TAG_5 = new Tag("5", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_5);
+    public static final Tag TAG_6 = new Tag("6", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_6);
+    public static final Tag TAG_7 = new Tag("7", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_7);
+    public static final Tag TAG_8 = new Tag("8", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_8);
+    public static final Tag TAG_9 = new Tag("9", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_9);
 
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     String image;
@@ -166,14 +164,14 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 try {
                     this.loadedImage = loadImage(image);
                     updateConvexHulls();
-                    clearPropertyTag("image", TAG_12);
+                    clearPropertyTag("image", TAG_2);
                 } catch (IOException e) {
                     this.loadedImage = null;
-                    setPropertyTag("image", TAG_12);
+                    setPropertyTag("image", Tag.bind(TAG_2, image));
                 }
-                clearPropertyTag("image", TAG_11);
+                clearPropertyTag("image", TAG_1);
             } else {
-                setPropertyTag("image", TAG_11);
+                setPropertyTag("image", TAG_1);
             }
         }
     }
@@ -188,9 +186,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.tileWidth = tileWidth;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileWidth", new Integer(oldTileWidth), new Integer(tileWidth)));
             if (tileWidth > 0) {
-                clearPropertyTag("tileWidth", TAG_15);
+                clearPropertyTag("tileWidth", TAG_5);
             } else {
-                setPropertyTag("tileWidth", TAG_15);
+                setPropertyTag("tileWidth", TAG_5);
             }
             updateConvexHulls();
         }
@@ -206,9 +204,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.tileHeight = tileHeight;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileHeight", new Integer(oldTileHeight), new Integer(tileHeight)));
             if (tileHeight > 0) {
-                clearPropertyTag("tileHeight", TAG_16);
+                clearPropertyTag("tileHeight", TAG_6);
             } else {
-                setPropertyTag("tileHeight", TAG_16);
+                setPropertyTag("tileHeight", TAG_6);
             }
             updateConvexHulls();
         }
@@ -253,10 +251,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 try {
                     this.loadedCollision = loadImage(collision);
                     updateConvexHulls();
-                    clearPropertyTag("collision", TAG_13);
+                    clearPropertyTag("collision", TAG_3);
                 } catch (IOException e) {
                     this.loadedCollision = null;
-                    setPropertyTag("collision", TAG_13);
+                    setPropertyTag("collision", Tag.bind(TAG_3, collision));
                 }
             }
         }
@@ -272,9 +270,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             this.materialTag = materialTag;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "materialTag", oldMaterialTag, materialTag));
             if (materialTag == null || materialTag.equals("")) {
-                setPropertyTag("materialTag", TAG_19);
+                setPropertyTag("materialTag", TAG_9);
             } else {
-                clearPropertyTag("materialTag", TAG_19);
+                clearPropertyTag("materialTag", TAG_9);
             }
         }
     }
@@ -483,13 +481,14 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     private boolean verifyImageDimensions() {
         if (this.loadedImage != null && this.loadedCollision != null) {
             if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
-                setPropertyTag("image", TAG_14);
-                setPropertyTag("collision", TAG_14);
+                Tag tag = Tag.bind(TAG_4, new Object[] {this.loadedImage.getWidth(), this.loadedImage.getHeight(), this.loadedCollision.getWidth(), this.loadedCollision.getHeight()});
+                setPropertyTag("image", tag);
+                setPropertyTag("collision", tag);
                 return false;
             }
         }
-        clearPropertyTag("image", TAG_14);
-        clearPropertyTag("collision", TAG_14);
+        clearPropertyTag("image", TAG_4);
+        clearPropertyTag("collision", TAG_4);
         return true;
     }
 
@@ -506,30 +505,32 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 imageHeight = this.loadedCollision.getHeight();
             }
             if (this.tileWidth > imageWidth) {
+                Tag tag = Tag.bind(TAG_7, imageWidth);
                 if (this.loadedImage != null) {
-                    setPropertyTag("image", TAG_17);
+                    setPropertyTag("image", tag);
                 } else {
-                    setPropertyTag("collision", TAG_17);
+                    setPropertyTag("collision", tag);
                 }
-                setPropertyTag("tileWidth", TAG_17);
+                setPropertyTag("tileWidth", tag);
                 result = false;
             } else {
-                clearPropertyTag("image", TAG_17);
-                clearPropertyTag("collision", TAG_17);
-                clearPropertyTag("tileWidth", TAG_17);
+                clearPropertyTag("image", TAG_7);
+                clearPropertyTag("collision", TAG_7);
+                clearPropertyTag("tileWidth", TAG_7);
             }
             if (this.tileHeight > imageHeight) {
+                Tag tag = Tag.bind(TAG_8, imageHeight);
                 if (this.loadedImage != null) {
-                    setPropertyTag("image", TAG_18);
+                    setPropertyTag("image", tag);
                 } else {
-                    setPropertyTag("collision", TAG_18);
+                    setPropertyTag("collision", tag);
                 }
-                setPropertyTag("tileHeight", TAG_18);
+                setPropertyTag("tileHeight", tag);
                 result = false;
             } else {
-                clearPropertyTag("image", TAG_18);
-                clearPropertyTag("collision", TAG_18);
-                clearPropertyTag("tileHeight", TAG_18);
+                clearPropertyTag("image", TAG_8);
+                clearPropertyTag("collision", TAG_8);
+                clearPropertyTag("tileHeight", TAG_8);
             }
         }
         return result;
@@ -609,20 +610,29 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
     }
 
-    Map<String, Set<Tag>> propertyTags = new HashMap<String, Set<Tag>>();
+    Map<String, List<Tag>> propertyTags = new HashMap<String, List<Tag>>();
 
     public boolean hasPropertyAnnotation(String property, Tag tag) {
-        Set<Tag> tags = propertyTags.get(property);
+        List<Tag> tags = propertyTags.get(property);
         if (tags != null && !tags.isEmpty()) {
             return tags.contains(tag);
         }
         return false;
     }
 
+    public Tag getPropertyTag(String property, Tag tag) {
+        List<Tag> tags = propertyTags.get(property);
+        if (tags != null && !tags.isEmpty()) {
+            int index = tags.indexOf(tag);
+            return tags.get(index);
+        }
+        return null;
+    }
+
     private void setPropertyTag(String property, Tag tag) {
-        Set<Tag> tags = propertyTags.get(property);
+        List<Tag> tags = propertyTags.get(property);
         if (tags == null) {
-            tags = new HashSet<Tag>();
+            tags = new ArrayList<Tag>();
             propertyTags.put(property, tags);
         }
         if (!tags.contains(tag)) {
@@ -632,7 +642,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     private void clearPropertyTag(String property, Tag tag) {
-        Set<Tag> tags = propertyTags.get(property);
+        List<Tag> tags = propertyTags.get(property);
         if (tags != null && tags.contains(tag)) {
             tags.remove(tag);
             firePropertyTagEvent(new PropertyTagEvent(this, property, tags));

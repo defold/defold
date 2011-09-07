@@ -3,7 +3,6 @@ package com.dynamo.cr.tileeditor.core;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.List;
-import java.util.Set;
 
 import javax.vecmath.Vector3f;
 
@@ -12,15 +11,15 @@ public interface ITileSetView {
 
     void setImageProperty(String newValue);
 
-    void setImageTags(Set<Tag> tags);
+    void setImageTags(List<Tag> tags);
 
     void setTileWidthProperty(int tileWidth);
 
-    void setTileWidthTags(Set<Tag> tags);
+    void setTileWidthTags(List<Tag> tags);
 
     void setTileHeightProperty(int tileHeight);
 
-    void setTileHeightTags(Set<Tag> tags);
+    void setTileHeightTags(List<Tag> tags);
 
     void setTileMarginProperty(int tileMargin);
 
@@ -28,11 +27,11 @@ public interface ITileSetView {
 
     void setCollisionProperty(String newValue);
 
-    void setCollisionTags(Set<Tag> tags);
+    void setCollisionTags(List<Tag> tags);
 
     void setMaterialTagProperty(String newValue);
 
-    void setMaterialTagTags(Set<Tag> tags);
+    void setMaterialTagTags(List<Tag> tags);
 
     void setCollisionGroups(List<String> collisionGroups, List<Color> colors);
 

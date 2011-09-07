@@ -18,13 +18,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.osgi.util.NLS;
 import org.eclipse.ui.views.properties.IPropertySource;
 import org.junit.Before;
 import org.junit.Test;
@@ -374,190 +374,217 @@ public class TileSetTest {
     }
 
     /**
-     * Tag 1.1
+     * Tag 1
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag11() throws IOException {
+    public void testTag1() throws IOException {
         loadEmptyFile();
 
-        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_11));
-        verify(this.view, times(1)).setImageTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_1));
+        assertEquals(TileSetModel.TAG_1.getMessage(), this.model.getPropertyTag("image", TileSetModel.TAG_1).getMessage());
+        verify(this.view, times(1)).setImageTags(any(List.class));
 
         propertySource.setPropertyValue("image", "test/mario_tileset.png");
-        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_11));
-        verify(this.view, times(2)).setImageTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_1));
+        verify(this.view, times(2)).setImageTags(any(List.class));
     }
 
     /**
-     * Tag 1.2
+     * Tag 2
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag12() throws IOException {
+    public void testTag2() throws IOException {
         loadEmptyFile();
 
-        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_12));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
 
-        propertySource.setPropertyValue("image", "test");
-        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_12));
-        verify(this.view, times(3)).setImageTags(any(Set.class));
+        String invalidPath = "test";
+        propertySource.setPropertyValue("image", invalidPath);
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
+        assertEquals(NLS.bind(TileSetModel.TAG_2.getMessage(), invalidPath), this.model.getPropertyTag("image", TileSetModel.TAG_2).getMessage());
+        verify(this.view, times(3)).setImageTags(any(List.class));
 
         propertySource.setPropertyValue("image", "test/mario_tileset.png");
-        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_12));
-        verify(this.view, times(4)).setImageTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_2));
+        verify(this.view, times(4)).setImageTags(any(List.class));
     }
 
     /**
-     * Tag 1.3
+     * Tag 3
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag13() throws IOException {
+    public void testTag3() throws IOException {
         loadEmptyFile();
 
-        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_13));
+        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
 
-        propertySource.setPropertyValue("collision", "test");
-        assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_13));
-        verify(this.view, times(1)).setCollisionTags(any(Set.class));
+        String invalidPath = "test";
+        propertySource.setPropertyValue("collision", invalidPath);
+        assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
+        assertEquals(NLS.bind(TileSetModel.TAG_3.getMessage(), invalidPath), this.model.getPropertyTag("collision", TileSetModel.TAG_3).getMessage());
+        verify(this.view, times(1)).setCollisionTags(any(List.class));
 
         propertySource.setPropertyValue("collision", "test/mario_tileset.png");
-        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_13));
-        verify(this.view, times(2)).setCollisionTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_3));
+        verify(this.view, times(2)).setCollisionTags(any(List.class));
     }
 
     /**
-     * Tag 1.4
+     * Tag 4
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag14() throws IOException {
+    public void testTag4() throws IOException {
         loadEmptyFile();
 
-        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_14));
-        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_14));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
+        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
 
         propertySource.setPropertyValue("image", "test/mario_tileset.png");
         propertySource.setPropertyValue("collision", "test/mario_half_tileset.png");
-        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_14));
-        assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_14));
-        verify(this.view, times(3)).setImageTags(any(Set.class));
-        verify(this.view, times(1)).setCollisionTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
+        String message = NLS.bind(TileSetModel.TAG_4.getMessage(), new Object[] {84, 67, 84, 33});
+        assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_4).getMessage());
+        assertTrue(this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
+        assertEquals(message, this.model.getPropertyTag("collision", TileSetModel.TAG_4).getMessage());
+        verify(this.view, times(3)).setImageTags(any(List.class));
+        verify(this.view, times(1)).setCollisionTags(any(List.class));
 
         propertySource.setPropertyValue("collision", "test/mario_tileset.png");
-        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_14));
-        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_14));
-        verify(this.view, times(4)).setImageTags(any(Set.class));
-        verify(this.view, times(2)).setCollisionTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_4));
+        assertTrue(!this.model.hasPropertyAnnotation("collision", TileSetModel.TAG_4));
+        verify(this.view, times(4)).setImageTags(any(List.class));
+        verify(this.view, times(2)).setCollisionTags(any(List.class));
     }
 
     /**
-     * Tag 1.5
+     * Tag 5
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag15() throws IOException {
+    public void testTag5() throws IOException {
         loadEmptyFile();
 
-        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_15));
+        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
 
         propertySource.setPropertyValue("tileWidth", 0);
-        assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_15));
-        verify(this.view, times(1)).setTileWidthTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
+        assertEquals(TileSetModel.TAG_5.getMessage(), this.model.getPropertyTag("tileWidth", TileSetModel.TAG_5).getMessage());
+        verify(this.view, times(1)).setTileWidthTags(any(List.class));
 
         propertySource.setPropertyValue("tileWidth", 16);
-        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_15));
-        verify(this.view, times(2)).setTileWidthTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_5));
+        verify(this.view, times(2)).setTileWidthTags(any(List.class));
     }
 
     /**
-     * Tag 1.6
+     * Tag 6
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag16() throws IOException {
+    public void testTag6() throws IOException {
         loadEmptyFile();
 
-        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_16));
+        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
 
         propertySource.setPropertyValue("tileHeight", 0);
-        assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_16));
-        verify(this.view, times(1)).setTileHeightTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
+        assertEquals(TileSetModel.TAG_6.getMessage(), this.model.getPropertyTag("tileHeight", TileSetModel.TAG_6).getMessage());
+        verify(this.view, times(1)).setTileHeightTags(any(List.class));
 
         propertySource.setPropertyValue("tileHeight", 16);
-        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_16));
-        verify(this.view, times(2)).setTileHeightTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_6));
+        verify(this.view, times(2)).setTileHeightTags(any(List.class));
     }
 
     /**
-     * Tag 1.7
+     * Tag 7
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag17() throws IOException {
+    public void testTag7() throws IOException {
         loadEmptyFile();
 
         propertySource.setPropertyValue("image", "test/mario_tileset.png");
 
-        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_17));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
+        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
 
+        String message = NLS.bind(TileSetModel.TAG_7.getMessage(), 84);
         propertySource.setPropertyValue("tileWidth", 85);
-        assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_17));
-        verify(this.view, times(1)).setTileWidthTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
+        assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_7).getMessage());
+        verify(this.view, times(3)).setImageTags(any(List.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
+        assertEquals(message, this.model.getPropertyTag("tileWidth", TileSetModel.TAG_7).getMessage());
+        verify(this.view, times(1)).setTileWidthTags(any(List.class));
 
         propertySource.setPropertyValue("tileWidth", 16);
-        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_17));
-        verify(this.view, times(2)).setTileWidthTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
+        verify(this.view, times(4)).setImageTags(any(List.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
+        verify(this.view, times(2)).setTileWidthTags(any(List.class));
     }
 
     /**
-     * Tag 1.8
+     * Tag 8
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag18() throws IOException {
+    public void testTag8() throws IOException {
         loadEmptyFile();
 
         propertySource.setPropertyValue("image", "test/mario_tileset.png");
 
-        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_18));
+        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
+        assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_8));
 
+        String message = NLS.bind(TileSetModel.TAG_8.getMessage(), 67);
         propertySource.setPropertyValue("tileHeight", 68);
-        assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_18));
-        verify(this.view, times(1)).setTileHeightTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
+        assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_8).getMessage());
+        verify(this.view, times(3)).setImageTags(any(List.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
+        assertEquals(message, this.model.getPropertyTag("tileHeight", TileSetModel.TAG_8).getMessage());
+        verify(this.view, times(1)).setTileHeightTags(any(List.class));
 
         propertySource.setPropertyValue("tileHeight", 16);
-        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_18));
-        verify(this.view, times(2)).setTileHeightTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
+        verify(this.view, times(4)).setImageTags(any(List.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
+        verify(this.view, times(2)).setTileHeightTags(any(List.class));
     }
 
     /**
-     * Tag 1.9
+     * Tag 9
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testTag19() throws IOException {
+    public void testTag9() throws IOException {
         loadEmptyFile();
 
-        assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_19));
+        assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
 
         propertySource.setPropertyValue("materialTag", "");
-        assertTrue(this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_19));
-        verify(this.view, times(1)).setMaterialTagTags(any(Set.class));
+        assertTrue(this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
+        assertEquals(TileSetModel.TAG_9.getMessage(), this.model.getPropertyTag("materialTag", TileSetModel.TAG_9).getMessage());
+        verify(this.view, times(1)).setMaterialTagTags(any(List.class));
 
         propertySource.setPropertyValue("materialTag", "tile");
-        assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_19));
-        verify(this.view, times(2)).setMaterialTagTags(any(Set.class));
+        assertTrue(!this.model.hasPropertyAnnotation("materialTag", TileSetModel.TAG_9));
+        verify(this.view, times(2)).setMaterialTagTags(any(List.class));
     }
 
 }

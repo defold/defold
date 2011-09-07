@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.core;
 
+import org.eclipse.osgi.util.NLS;
+
 public class Tag {
     public static final int TYPE_INFO = 0;
     public static final int TYPE_WARNING = 0;
@@ -37,5 +39,13 @@ public class Tag {
         } else {
             return super.equals(obj);
         }
+    }
+
+    public static Tag bind(Tag tag, Object[] bindings) {
+        return new Tag(tag.id, tag.type, NLS.bind(tag.message, bindings));
+    }
+
+    public static Tag bind(Tag tag, Object binding) {
+        return bind(tag, new Object[] {binding});
     }
 }

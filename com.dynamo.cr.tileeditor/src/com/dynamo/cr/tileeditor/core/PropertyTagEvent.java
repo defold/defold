@@ -1,13 +1,13 @@
 package com.dynamo.cr.tileeditor.core;
 
-import java.util.Set;
+import java.util.List;
 
 public class PropertyTagEvent {
     private final Object source;
     private final String propertyName;
-    private final Set<Tag> tags;
+    private final List<Tag> tags;
 
-    public PropertyTagEvent(Object source, String propertyName, Set<Tag> tags) {
+    public PropertyTagEvent(Object source, String propertyName, List<Tag> tags) {
         this.source = source;
         this.propertyName = propertyName;
         this.tags = tags;
@@ -21,7 +21,7 @@ public class PropertyTagEvent {
         return this.propertyName;
     }
 
-    public Set<Tag> getTags() {
+    public List<Tag> getTags() {
         return this.tags;
     }
 }
