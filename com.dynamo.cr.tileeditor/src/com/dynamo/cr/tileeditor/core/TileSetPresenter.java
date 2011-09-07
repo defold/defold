@@ -3,7 +3,6 @@ package com.dynamo.cr.tileeditor.core;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -20,7 +19,7 @@ import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
-public class TileSetPresenter implements PropertyChangeListener {
+public class TileSetPresenter implements TaggedPropertyListener {
     private final TileSetModel model;
     private final ITileSetView view;
     private List<Color> collisionGroupColors;
@@ -28,7 +27,7 @@ public class TileSetPresenter implements PropertyChangeListener {
     public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
         this.view = view;
-        this.model.addPropertyChangeListener(this);
+        this.model.addTaggedPropertyListener(this);
         this.collisionGroupColors = new ArrayList<Color>();
     }
 
@@ -86,6 +85,15 @@ public class TileSetPresenter implements PropertyChangeListener {
         } else if (evt.getSource() instanceof TileSetModel.ConvexHull) {
             if (evt.getPropertyName().equals("collisionGroup")) {
                 setViewHullColor((TileSetModel.ConvexHull)evt.getSource(), (String)evt.getNewValue());
+            }
+        }
+    }
+
+    @Override
+    public void propertyTag(PropertyTagEvent evt) {
+        if (evt.getSource() instanceof TileSetModel) {
+            if (evt.getPropertyName().equals("image")) {
+                this.view.setImageTags(evt.getTags());
             }
         }
     }
@@ -211,4 +219,5 @@ public class TileSetPresenter implements PropertyChangeListener {
         }
         return new Color(r, g, b);
     }
+
 }

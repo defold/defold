@@ -10,7 +10,11 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 
@@ -37,6 +41,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
+
+    public static final Tag TAG_11 = new Tag("11", Tag.TYPE_INFO, "11_message");
 
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     String image;
@@ -156,6 +162,9 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                     this.loadedImage = null;
                     // TODO: Report error
                 }
+                clearPropertyTag("image", TAG_11);
+            } else {
+                setPropertyTag("image", TAG_11);
             }
         }
     }
@@ -528,6 +537,36 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                     this.convexHullPoints[i*2 + 1] = points[index][i].getY();
                 }
             }
+        }
+    }
+
+    Map<String, Set<Tag>> propertyTags = new HashMap<String, Set<Tag>>();
+
+    public boolean hasPropertyAnnotation(String property, Tag tag) {
+        Set<Tag> tags = propertyTags.get(property);
+        if (tags != null && !tags.isEmpty()) {
+            return tags.contains(tag);
+        }
+        return false;
+    }
+
+    private void setPropertyTag(String property, Tag tag) {
+        Set<Tag> tags = propertyTags.get(property);
+        if (tags == null) {
+            tags = new HashSet<Tag>();
+            propertyTags.put(property, tags);
+        }
+        if (!tags.contains(tag)) {
+            tags.add(tag);
+            firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
+        }
+    }
+
+    private void clearPropertyTag(String property, Tag tag) {
+        Set<Tag> tags = propertyTags.get(property);
+        if (tags != null && tags.contains(tag)) {
+            tags.remove(tag);
+            firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
         }
     }
 

@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor.core;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.Set;
 
 import javax.vecmath.Vector3f;
 
@@ -10,6 +11,8 @@ import javax.vecmath.Vector3f;
 public interface ITileSetView {
 
     void setImageProperty(String newValue);
+
+    void setImageTags(Set<Tag> tags);
 
     void setTileWidthProperty(int tileWidth);
 

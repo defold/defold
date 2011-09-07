@@ -1,13 +1,12 @@
 package com.dynamo.cr.tileeditor.core;
 
 import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.util.List;
 
 import com.dynamo.tile.proto.Tile.TileGrid;
 
-public class GridPresenter implements PropertyChangeListener {
+public class GridPresenter implements TaggedPropertyListener {
 
     private final GridModel model;
     private final IGridView view;
@@ -15,7 +14,7 @@ public class GridPresenter implements PropertyChangeListener {
     public GridPresenter(GridModel model, IGridView view) {
         this.model = model;
         this.view = view;
-        this.model.addPropertyChangeListener(this);
+        this.model.addTaggedPropertyListener(this);
     }
 
     public void load(TileGrid tileGrid) throws IOException {
@@ -36,6 +35,12 @@ public class GridPresenter implements PropertyChangeListener {
                 view.setLayers((List<GridModel.Layer>)evt.getNewValue());
             }
         }
+    }
+
+    @Override
+    public void propertyTag(PropertyTagEvent evt) {
+        // TODO Auto-generated method stub
+
     }
 
 }

@@ -7,23 +7,29 @@ import java.util.List;
 
 public class Model {
 
-    private final List<PropertyChangeListener> listeners;
+    private final List<TaggedPropertyListener> listeners;
 
     public Model() {
-        this.listeners = new ArrayList<PropertyChangeListener>();
+        this.listeners = new ArrayList<TaggedPropertyListener>();
     }
 
-    public void addPropertyChangeListener(PropertyChangeListener listener) {
+    public void addTaggedPropertyListener(TaggedPropertyListener listener) {
         this.listeners.add(listener);
     }
 
-    public void removePropertyChangeListener(PropertyChangeListener listener) {
+    public void removeTaggedPropertyListener(TaggedPropertyListener listener) {
         this.listeners.remove(listener);
     }
 
     protected void firePropertyChangeEvent(PropertyChangeEvent e) {
         for (PropertyChangeListener listener : this.listeners) {
             listener.propertyChange(e);
+        }
+    }
+
+    protected void firePropertyTagEvent(PropertyTagEvent e) {
+        for (TaggedPropertyListener listener : this.listeners) {
+            listener.propertyTag(e);
         }
     }
 

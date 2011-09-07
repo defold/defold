@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -370,7 +371,22 @@ public class TileSetTest {
             assertEquals(this.model.getConvexHullPoints()[i], newModel.getConvexHullPoints()[i], 0.000001);
         }
         assertEquals(this.model.getCollisionGroups(), newModel.getCollisionGroups());
+    }
 
+    /**
+     * Tag 1.1
+     * @throws IOException
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testTag11() throws IOException {
+        loadEmptyFile();
 
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_11));
+        verify(this.view, times(1)).setImageTags(any(Set.class));
+
+        propertySource.setPropertyValue("image", "test");
+        assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_11));
+        verify(this.view, times(2)).setImageTags(any(Set.class));
     }
 }
