@@ -42,7 +42,15 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
 
-    public static final Tag TAG_11 = new Tag("11", Tag.TYPE_INFO, "11_message");
+    public static final Tag TAG_11 = new Tag("11", Tag.TYPE_INFO, "No image has been specified");
+    public static final Tag TAG_12 = new Tag("12", Tag.TYPE_ERROR, "The specified image {0} could not be found");
+    public static final Tag TAG_13 = new Tag("13", Tag.TYPE_ERROR, "The specified collision image {0} could not be found");
+    public static final Tag TAG_14 = new Tag("14", Tag.TYPE_ERROR, "Both images must have the same dimensions");
+    public static final Tag TAG_15 = new Tag("15", Tag.TYPE_ERROR, "Tile width must be above 0");
+    public static final Tag TAG_16 = new Tag("16", Tag.TYPE_ERROR, "Tile height must be above 0");
+    public static final Tag TAG_17 = new Tag("17", Tag.TYPE_ERROR, "The specified tile width is greater than the image width, which is {0}");
+    public static final Tag TAG_18 = new Tag("18", Tag.TYPE_ERROR, "The specified tile height is greater than the image height, which is {0}");
+    public static final Tag TAG_19 = new Tag("19", Tag.TYPE_ERROR, "No material tag has been specified");
 
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     String image;
@@ -158,9 +166,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 try {
                     this.loadedImage = loadImage(image);
                     updateConvexHulls();
+                    clearPropertyTag("image", TAG_12);
                 } catch (IOException e) {
                     this.loadedImage = null;
-                    // TODO: Report error
+                    setPropertyTag("image", TAG_12);
                 }
                 clearPropertyTag("image", TAG_11);
             } else {
@@ -178,6 +187,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             int oldTileWidth = tileWidth;
             this.tileWidth = tileWidth;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileWidth", new Integer(oldTileWidth), new Integer(tileWidth)));
+            if (tileWidth > 0) {
+                clearPropertyTag("tileWidth", TAG_15);
+            } else {
+                setPropertyTag("tileWidth", TAG_15);
+            }
             updateConvexHulls();
         }
     }
@@ -191,6 +205,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             int oldTileHeight = this.tileHeight;
             this.tileHeight = tileHeight;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileHeight", new Integer(oldTileHeight), new Integer(tileHeight)));
+            if (tileHeight > 0) {
+                clearPropertyTag("tileHeight", TAG_16);
+            } else {
+                setPropertyTag("tileHeight", TAG_16);
+            }
             updateConvexHulls();
         }
     }
@@ -234,9 +253,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 try {
                     this.loadedCollision = loadImage(collision);
                     updateConvexHulls();
+                    clearPropertyTag("collision", TAG_13);
                 } catch (IOException e) {
                     this.loadedCollision = null;
-                    // TODO: Report error
+                    setPropertyTag("collision", TAG_13);
                 }
             }
         }
@@ -251,6 +271,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             String oldMaterialTag = this.materialTag;
             this.materialTag = materialTag;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "materialTag", oldMaterialTag, materialTag));
+            if (materialTag == null || materialTag.equals("")) {
+                setPropertyTag("materialTag", TAG_19);
+            } else {
+                clearPropertyTag("materialTag", TAG_19);
+            }
         }
     }
 
@@ -440,7 +465,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     private void updateConvexHulls() {
-        if (verifyImageDimensions()) {
+        if (verifyImageDimensions() && verifyTileDimensions()) {
             updateConvexHullsList();
             updateConvexHullsData();
         }
@@ -458,12 +483,56 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     private boolean verifyImageDimensions() {
         if (this.loadedImage != null && this.loadedCollision != null) {
             if (this.loadedImage.getWidth() != this.loadedCollision.getWidth() || this.loadedImage.getHeight() != this.loadedCollision.getHeight()) {
-                // TODO: Report error
-                // We should have to and verification of this
+                setPropertyTag("image", TAG_14);
+                setPropertyTag("collision", TAG_14);
                 return false;
             }
         }
+        clearPropertyTag("image", TAG_14);
+        clearPropertyTag("collision", TAG_14);
         return true;
+    }
+
+    private boolean verifyTileDimensions() {
+        boolean result = true;
+        if (this.loadedImage != null || this.loadedCollision != null) {
+            int imageWidth = 0;
+            int imageHeight = 0;
+            if (this.loadedImage != null) {
+                imageWidth = this.loadedImage.getWidth();
+                imageHeight = this.loadedImage.getHeight();
+            } else {
+                imageWidth = this.loadedCollision.getWidth();
+                imageHeight = this.loadedCollision.getHeight();
+            }
+            if (this.tileWidth > imageWidth) {
+                if (this.loadedImage != null) {
+                    setPropertyTag("image", TAG_17);
+                } else {
+                    setPropertyTag("collision", TAG_17);
+                }
+                setPropertyTag("tileWidth", TAG_17);
+                result = false;
+            } else {
+                clearPropertyTag("image", TAG_17);
+                clearPropertyTag("collision", TAG_17);
+                clearPropertyTag("tileWidth", TAG_17);
+            }
+            if (this.tileHeight > imageHeight) {
+                if (this.loadedImage != null) {
+                    setPropertyTag("image", TAG_18);
+                } else {
+                    setPropertyTag("collision", TAG_18);
+                }
+                setPropertyTag("tileHeight", TAG_18);
+                result = false;
+            } else {
+                clearPropertyTag("image", TAG_18);
+                clearPropertyTag("collision", TAG_18);
+                clearPropertyTag("tileHeight", TAG_18);
+            }
+        }
+        return result;
     }
 
     private void updateConvexHullsList() {
@@ -472,7 +541,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         }
         int imageWidth = 0;
         int imageHeight = 0;
-        if (this.image != null) {
+        if (this.loadedImage != null) {
             imageWidth = this.loadedImage.getWidth();
             imageHeight = this.loadedImage.getHeight();
         } else {

@@ -16,7 +16,11 @@ public interface ITileSetView {
 
     void setTileWidthProperty(int tileWidth);
 
+    void setTileWidthTags(Set<Tag> tags);
+
     void setTileHeightProperty(int tileHeight);
+
+    void setTileHeightTags(Set<Tag> tags);
 
     void setTileMarginProperty(int tileMargin);
 
@@ -24,7 +28,11 @@ public interface ITileSetView {
 
     void setCollisionProperty(String newValue);
 
+    void setCollisionTags(Set<Tag> tags);
+
     void setMaterialTagProperty(String newValue);
+
+    void setMaterialTagTags(Set<Tag> tags);
 
     void setCollisionGroups(List<String> collisionGroups, List<Color> colors);
 

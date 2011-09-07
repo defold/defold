@@ -94,6 +94,14 @@ public class TileSetPresenter implements TaggedPropertyListener {
         if (evt.getSource() instanceof TileSetModel) {
             if (evt.getPropertyName().equals("image")) {
                 this.view.setImageTags(evt.getTags());
+            } else if (evt.getPropertyName().equals("tileWidth")) {
+                this.view.setTileWidthTags(evt.getTags());
+            } else if (evt.getPropertyName().equals("tileHeight")) {
+                this.view.setTileHeightTags(evt.getTags());
+            } else if (evt.getPropertyName().equals("collision")) {
+                this.view.setCollisionTags(evt.getTags());
+            } else if (evt.getPropertyName().equals("materialTag")) {
+                this.view.setMaterialTagTags(evt.getTags());
             }
         }
     }
