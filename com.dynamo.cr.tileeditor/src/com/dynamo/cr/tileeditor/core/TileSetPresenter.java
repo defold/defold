@@ -257,14 +257,15 @@ public class TileSetPresenter implements TaggedPropertyListener {
         if (this.collisionGroupColors.size() != size) {
             this.collisionGroupColors = new ArrayList<Color>(size);
             float recip_size = 1.0f/size;
+            float alpha = 0.7f;
             for (int i = 0; i < size; ++i) {
                 float h = i * recip_size * 360;
-                this.collisionGroupColors.add(generateColorFromHue(h));
+                this.collisionGroupColors.add(generateColorFromHue(h, alpha));
             }
         }
     }
 
-    private Color generateColorFromHue(float hue) {
+    private Color generateColorFromHue(float hue, float alpha) {
         float r = 0.0f, g = 0.0f, b = 0.0f;
         float h_p = hue / 60.0f;
         float c = 1.0f;
@@ -278,7 +279,7 @@ public class TileSetPresenter implements TaggedPropertyListener {
         case 4: r = x; b = c; break;
         case 5: r = c; b = x; break;
         }
-        return new Color(r, g, b);
+        return new Color(r, g, b, alpha);
     }
 
 }

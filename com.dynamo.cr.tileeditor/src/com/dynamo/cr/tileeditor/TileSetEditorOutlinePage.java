@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor;
 import java.awt.Color;
 import java.util.List;
 
+import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
 import org.eclipse.jface.viewers.ISelection;
@@ -11,6 +12,7 @@ import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.IEditorRegistry;
 import org.eclipse.ui.ISelectionListener;
@@ -27,16 +29,26 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
 
     private final TileSetPresenter presenter;
     private final RootItem root;
+    private final Image collisionGroupImage;
+    private Image[] collisionGroupImages;
 
     public TileSetEditorOutlinePage(TileSetPresenter presenter) {
         this.presenter = presenter;
         this.root = new RootItem();
+
+        ImageRegistry imageRegist = Activator.getDefault()
+                .getImageRegistry();
+        this.collisionGroupImage = imageRegist
+                .getDescriptor(Activator.COLLISION_GROUP_IMAGE_ID).createImage();
     }
 
     @Override
     public void dispose() {
         super.dispose();
         getSite().getPage().removeSelectionListener(this);
+        for (Image image : this.collisionGroupImages) {
+            image.dispose();
+        }
     }
 
     public void setInput(List<String> collisionGroups, List<Color> collisionGroupColors) {
@@ -44,6 +56,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         this.root.collisionGroups.collisionGroupColors = collisionGroupColors.toArray(new Color[collisionGroupColors.size()]);
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
+            updateCollisionGroupImages();
             viewer.setInput(this.root);
             viewer.expandToLevel(2);
         }
@@ -127,6 +140,18 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
                 image = this.registry.getImageDescriptor(".tileset").createImage();
             } else if (element instanceof CollisionGroupsItem) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
+            } else if (element instanceof String) {
+                int n = root.collisionGroups.collisionGroups.length;
+                if (collisionGroupImages != null && collisionGroupImages.length == n) {
+                    for (int i = 0; i < n; ++i) {
+                        if (root.collisionGroups.collisionGroups[i].equals(element)) {
+                            image = collisionGroupImages[i];
+                            break;
+                        }
+                    }
+                } else {
+                    image = collisionGroupImage;
+                }
             }
 
             if (image != null)
@@ -176,6 +201,43 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         if (! (part instanceof ContentOutline)) {
             TreeViewer viewer = getTreeViewer();
             viewer.setSelection(selection);
+        }
+    }
+
+    private void updateCollisionGroupImages() {
+        int n = this.root.collisionGroups.collisionGroups.length;
+        Color[] colors = this.root.collisionGroups.collisionGroupColors;
+        Image[] images = new Image[n];
+        float f = 1.0f / 255.0f;
+        for (int i = 0; i < n; ++i) {
+            ImageData data = this.collisionGroupImage.getImageData();
+            Color color = colors[i];
+            float s_r = color.getRed() * f;
+            float s_g = color.getGreen() * f;
+            float s_b = color.getBlue() * f;
+            float s_a = color.getAlpha() * f;
+            int width = data.width;
+            int height = data.height;
+            for(int y = 0; y < height; ++y) {
+                for(int x = 0; x < width; ++x) {
+                    int p = x + y * width;
+                    float t_r = (data.data[p * 3 + 0] & 255) * f;
+                    float t_g = (data.data[p * 3 + 1] & 255) * f;
+                    float t_b = (data.data[p * 3 + 2] & 255) * f;
+                    t_r = t_r * (1.0f - s_a) + s_r * s_a;
+                    t_g = t_g * (1.0f - s_a) + s_g * s_a;
+                    t_b = t_b * (1.0f - s_a) + s_b * s_a;
+                    data.data[p * 3 + 0] = (byte)(t_r * 255.0f);
+                    data.data[p * 3 + 1] = (byte)(t_g * 255.0f);
+                    data.data[p * 3 + 2] = (byte)(t_b * 255.0f);
+                }
+            }
+            images[i] = new Image(getSite().getShell().getDisplay(), data);
+        }
+        Image[] oldImages = this.collisionGroupImages;
+        this.collisionGroupImages = images;
+        for (Image image : oldImages) {
+            image.dispose();
         }
     }
 
