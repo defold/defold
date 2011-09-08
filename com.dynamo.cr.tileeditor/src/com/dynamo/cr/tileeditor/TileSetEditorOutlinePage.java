@@ -236,8 +236,10 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         }
         Image[] oldImages = this.collisionGroupImages;
         this.collisionGroupImages = images;
-        for (Image image : oldImages) {
-            image.dispose();
+        if (oldImages != null) {
+            for (Image image : oldImages) {
+                image.dispose();
+            }
         }
     }
 
