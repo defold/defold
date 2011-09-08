@@ -47,5 +47,13 @@
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
+   <extension
+         point="org.eclipse.ui.navigator.navigatorContent">
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+   </extension>
 
 </plugin>
