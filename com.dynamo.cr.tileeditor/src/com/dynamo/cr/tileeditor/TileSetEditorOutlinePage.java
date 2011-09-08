@@ -18,7 +18,6 @@ import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.contexts.IContextService;
-import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
@@ -35,16 +34,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
     }
 
     @Override
-    public void init(IPageSite pageSite) {
-        super.init(pageSite);
-        //        IActionBars actionBars = pageSite.getActionBars();
-        //        String undoId = ActionFactory.UNDO.getId();
-        //        String redoId = ActionFactory.REDO.getId();
-        //        actionBars.setGlobalActionHandler(undoId, editor.getAction(undoId));
-        //        actionBars.setGlobalActionHandler(redoId, editor.getAction(redoId));
-    }
-
-    @Override
     public void dispose() {
         super.dispose();
         getSite().getPage().removeSelectionListener(this);
@@ -53,9 +42,10 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
     public void setInput(List<String> collisionGroups, List<Color> collisionGroupColors) {
         this.root.collisionGroups.collisionGroups = collisionGroups.toArray(new String[collisionGroups.size()]);
         this.root.collisionGroups.collisionGroupColors = collisionGroupColors.toArray(new Color[collisionGroupColors.size()]);
-        if (getTreeViewer() != null) {
-            getTreeViewer().setInput(this.root);
-            getTreeViewer().expandToLevel(2);
+        TreeViewer viewer = getTreeViewer();
+        if (viewer != null) {
+            viewer.setInput(this.root);
+            viewer.expandToLevel(2);
         }
     }
 

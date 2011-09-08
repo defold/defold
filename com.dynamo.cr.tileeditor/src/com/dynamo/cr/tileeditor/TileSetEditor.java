@@ -26,6 +26,7 @@ import org.eclipse.swt.events.MouseMoveListener;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
@@ -33,9 +34,13 @@ import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
+import org.eclipse.ui.operations.RedoActionHandler;
+import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
+import org.eclipse.ui.part.IPageSite;
 import org.eclipse.ui.progress.IProgressService;
 import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 
@@ -86,6 +91,25 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
         TileSetModel model = new TileSetModel(this.history, this.undoContext);
         this.presenter = new TileSetPresenter(model, this);
+
+        final String undoId = ActionFactory.UNDO.getId();
+        final UndoActionHandler undoHandler = new UndoActionHandler(this.getEditorSite(), undoContext);
+        final String redoId = ActionFactory.REDO.getId();
+        final RedoActionHandler redoHandler = new RedoActionHandler(this.getEditorSite(), undoContext);
+
+        IActionBars actionBars = site.getActionBars();
+        actionBars.setGlobalActionHandler(undoId, undoHandler);
+        actionBars.setGlobalActionHandler(redoId, redoHandler);
+
+        this.outlinePage = new TileSetEditorOutlinePage(this.presenter) {
+            @Override
+            public void init(IPageSite pageSite) {
+                super.init(pageSite);
+                IActionBars actionBars = pageSite.getActionBars();
+                actionBars.setGlobalActionHandler(undoId, undoHandler);
+                actionBars.setGlobalActionHandler(redoId, redoHandler);
+            }
+        };
 
         IProgressService service = PlatformUI.getWorkbench()
                 .getProgressService();
@@ -314,9 +338,7 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void setCollisionGroups(List<String> collisionGroups, List<Color> colors) {
-        if (this.outlinePage != null) {
-            outlinePage.setInput(collisionGroups, colors);
-        }
+        outlinePage.setInput(collisionGroups, colors);
     }
 
     @Override
