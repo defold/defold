@@ -16,13 +16,16 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupOperation;
-import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupOperation;
+import com.dynamo.cr.tileeditor.operations.SetConvexHullCollisionGroupsOperation;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetPresenter implements TaggedPropertyListener {
     private final TileSetModel model;
     private final ITileSetView view;
     private List<Color> collisionGroupColors;
+    // Used for painting collision groups onto tiles (convex hulls)
+    String[] oldCollisionGroups;
+    String currentCollisionGroup;
 
     public TileSetPresenter(TileSetModel model, ITileSetView view) {
         this.model = model;
@@ -43,8 +46,35 @@ public class TileSetPresenter implements TaggedPropertyListener {
         return this.model;
     }
 
-    public void setConvexHullCollisionGroup(int index, String collisionGroup) {
-        this.model.executeOperation(new SetConvexHullCollisionGroupOperation(this.model, index, collisionGroup));
+    public void beginSetConvexHullCollisionGroup(String collisionGroup) {
+        int n = this.model.getConvexHulls().size();
+        if (n > 0) {
+            if (this.oldCollisionGroups == null || this.oldCollisionGroups.length != n) {
+                this.oldCollisionGroups = new String[n];
+            } else {
+                for (int i = 0; i < n; ++i) {
+                    this.oldCollisionGroups[i] = null;
+                }
+            }
+            this.currentCollisionGroup = collisionGroup;
+        }
+    }
+
+    public void endSetConvexHullCollisionGroup() {
+        if (this.currentCollisionGroup != null) {
+            this.model.executeOperation(new SetConvexHullCollisionGroupsOperation(this.model, this.oldCollisionGroups, this.currentCollisionGroup));
+            this.currentCollisionGroup = null;
+        }
+    }
+
+    public void setConvexHullCollisionGroup(int index) {
+        if (this.oldCollisionGroups != null && this.currentCollisionGroup != null) {
+            TileSetModel.ConvexHull convexHull = this.model.getConvexHulls().get(index);
+            if (this.oldCollisionGroups[index] == null) {
+                this.oldCollisionGroups[index] = convexHull.getCollisionGroup();
+            }
+            convexHull.setCollisionGroup(currentCollisionGroup);
+        }
     }
 
     public void addCollisionGroup(String collisionGroup) {

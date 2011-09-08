@@ -264,16 +264,30 @@ public class TileSetTest {
         // paint tiles
 
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
+        assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
         verify(this.view, never()).setTileHullColor(eq(1), any(Color.class));
-        this.presenter.setConvexHullCollisionGroup(1, "hazad");
+        verify(this.view, never()).setTileHullColor(eq(2), any(Color.class));
+        // simulate painting
+        this.presenter.beginSetConvexHullCollisionGroup("hazad");
+        this.presenter.setConvexHullCollisionGroup(1);
+        this.presenter.setConvexHullCollisionGroup(1);
+        this.presenter.setConvexHullCollisionGroup(2);
+        this.presenter.setConvexHullCollisionGroup(2);
+        this.presenter.endSetConvexHullCollisionGroup();
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
+        assertEquals("hazad", this.model.getConvexHulls().get(2).getCollisionGroup());
         verify(this.view, times(1)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(1)).setTileHullColor(eq(2), any(Color.class));
         this.history.undo(this.undoContext, null, null);
         assertEquals("", this.model.getConvexHulls().get(1).getCollisionGroup());
+        assertEquals("", this.model.getConvexHulls().get(2).getCollisionGroup());
         verify(this.view, times(2)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(2)).setTileHullColor(eq(2), any(Color.class));
         this.history.redo(this.undoContext, null, null);
         assertEquals("hazad", this.model.getConvexHulls().get(1).getCollisionGroup());
+        assertEquals("hazad", this.model.getConvexHulls().get(2).getCollisionGroup());
         verify(this.view, times(3)).setTileHullColor(eq(1), any(Color.class));
+        verify(this.view, times(3)).setTileHullColor(eq(2), any(Color.class));
     }
 
     /**
@@ -325,13 +339,17 @@ public class TileSetTest {
         this.presenter.addCollisionGroup("obstruction");
 
         // paint
-        this.presenter.setConvexHullCollisionGroup(2, "obstruction");
+        this.presenter.beginSetConvexHullCollisionGroup("obstruction");
+        this.presenter.setConvexHullCollisionGroup(2);
+        this.presenter.endSetConvexHullCollisionGroup();
 
         // add another group
         this.presenter.addCollisionGroup("obstuction");
 
         // paint
-        this.presenter.setConvexHullCollisionGroup(3, "obstuction");
+        this.presenter.beginSetConvexHullCollisionGroup("obstuction");
+        this.presenter.setConvexHullCollisionGroup(3);
+        this.presenter.endSetConvexHullCollisionGroup();
 
         // preconditions
         assertEquals(3, this.model.getCollisionGroups().size());
