@@ -8,7 +8,7 @@
             contributorClass="com.dynamo.cr.tileeditor.TileSetEditorActionBarContributor"
             default="false"
             extensions="tileset"
-            icon="icons/small_tiles.png"
+            icon="icons/tile_set.png"
             id="com.dynamo.cr.tileeditor.TileSetEditor"
             name="Tile Set Editor">
       </editor>
@@ -34,7 +34,7 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard"
-            icon="icons/small_tiles.png"
+            icon="icons/tile_set.png"
             id="com.dynamo.cr.tileeditor.wizards.TileSetNewWizard"
             name="Tile Set">
       </wizard>
