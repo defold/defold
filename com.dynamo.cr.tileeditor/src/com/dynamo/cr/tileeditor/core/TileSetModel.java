@@ -78,7 +78,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     private IPropertySource propertySource;
 
     public class ConvexHull {
-        String collisionGroup = null;
+        String collisionGroup = "";
         int index = 0;
         int count = 0;
 
@@ -340,7 +340,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     public void addCollisionGroup(String collisionGroup) {
         if (this.collisionGroups.contains(collisionGroup)) {
-            // TODO: Report error
+            Activator.logException(new IllegalArgumentException(collisionGroup));
         } else {
             List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
             this.collisionGroups.add(collisionGroup);
@@ -351,7 +351,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
 
     public void removeCollisionGroup(String collisionGroup) {
         if (!this.collisionGroups.contains(collisionGroup)) {
-            // TODO: Report error
+            Activator.logException(new IllegalArgumentException(collisionGroup));
         } else {
             List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
             this.collisionGroups.remove(collisionGroup);
@@ -360,18 +360,14 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     }
 
     public void renameCollisionGroup(String collisionGroup, String newCollisionGroup) {
-        if (this.collisionGroups.contains(newCollisionGroup)) {
-            // TODO: Report error
-        } else {
+        if (this.collisionGroups.contains(collisionGroup)) {
             List<String> oldCollisionGroups = new ArrayList<String>(this.collisionGroups);
-            this.collisionGroups.set(this.collisionGroups.indexOf(collisionGroup), newCollisionGroup);
+            this.collisionGroups.remove(collisionGroup);
+            if (!this.collisionGroups.contains(newCollisionGroup)) {
+                this.collisionGroups.add(newCollisionGroup);
+            }
             Collections.sort(this.collisionGroups);
             firePropertyChangeEvent(new PropertyChangeEvent(this, "collisionGroups", oldCollisionGroups, this.collisionGroups));
-            for (ConvexHull convexHull : this.convexHulls) {
-                if (convexHull.getCollisionGroup().equals(collisionGroup)) {
-                    convexHull.setCollisionGroup(newCollisionGroup);
-                }
-            }
         }
     }
 
@@ -564,9 +560,7 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 newTiles.add(this.convexHulls.get(i));
             }
             for (; i < tileCount; ++i) {
-                TileSetModel.ConvexHull tile = new ConvexHull();
-                tile.setCollisionGroup("tile");
-                newTiles.add(tile);
+                newTiles.add(new ConvexHull());
             }
             setConvexHulls(newTiles);
         }
