@@ -44,6 +44,7 @@
       <plugin id="com.dynamo.cr.properties"/>
       <plugin id="com.dynamo.cr.protobind"/>
       <plugin id="com.dynamo.cr.scene"/>
+      <plugin id="com.dynamo.cr.tileeditor"/>
       <plugin id="com.google.common"/>
       <plugin id="com.ibm.icu"/>
       <plugin id="javax.media.opengl"/>
