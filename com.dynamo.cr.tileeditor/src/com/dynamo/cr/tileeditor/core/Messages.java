@@ -13,6 +13,8 @@ public class Messages extends NLS {
     public static String TileSetModel_TAG_7;
     public static String TileSetModel_TAG_8;
     public static String TileSetModel_TAG_9;
+    public static String TileSetModel_TAG_10;
+    public static String TileSetModel_TAG_11;
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

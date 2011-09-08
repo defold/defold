@@ -23,7 +23,11 @@ public interface ITileSetView {
 
     void setTileMarginProperty(int tileMargin);
 
+    void setTileMarginTags(List<Tag> tags);
+
     void setTileSpacingProperty(int tileSpacing);
+
+    void setTileSpacingTags(List<Tag> tags);
 
     void setCollisionProperty(String newValue);
 

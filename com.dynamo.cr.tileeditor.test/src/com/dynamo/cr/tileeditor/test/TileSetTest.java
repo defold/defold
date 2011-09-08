@@ -619,7 +619,7 @@ public class TileSetTest {
     }
 
     /**
-     * Message 1.7 - Tile width is greater than image width
+     * Message 1.7 - Total tile width is greater than image width
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
@@ -632,24 +632,41 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
 
-        String message = NLS.bind(TileSetModel.TAG_7.getMessage(), 84);
+        String message = NLS.bind(TileSetModel.TAG_7.getMessage(), new Object[] {86, 84});
         propertySource.setPropertyValue("tileWidth", 85);
+        propertySource.setPropertyValue("tileMargin", 1);
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_7).getMessage());
-        verify(this.view, times(3)).setImageTags(any(List.class));
+        verify(this.view, times(4)).setImageTags(any(List.class));
         assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
         assertEquals(message, this.model.getPropertyTag("tileWidth", TileSetModel.TAG_7).getMessage());
-        verify(this.view, times(1)).setTileWidthTags(any(List.class));
+        verify(this.view, times(2)).setTileWidthTags(any(List.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
+        assertEquals(message, this.model.getPropertyTag("tileMargin", TileSetModel.TAG_7).getMessage());
+        verify(this.view, times(1)).setTileMarginTags(any(List.class));
+
+        message = NLS.bind(TileSetModel.TAG_7.getMessage(), new Object[] {85, 84});
+        propertySource.setPropertyValue("tileMargin", 0);
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
+        assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_7).getMessage());
+        verify(this.view, times(5)).setImageTags(any(List.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
+        assertEquals(message, this.model.getPropertyTag("tileWidth", TileSetModel.TAG_7).getMessage());
+        verify(this.view, times(3)).setTileWidthTags(any(List.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
+        verify(this.view, times(2)).setTileMarginTags(any(List.class));
 
         propertySource.setPropertyValue("tileWidth", 16);
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_7));
-        verify(this.view, times(4)).setImageTags(any(List.class));
+        verify(this.view, times(6)).setImageTags(any(List.class));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_7));
-        verify(this.view, times(2)).setTileWidthTags(any(List.class));
+        verify(this.view, times(4)).setTileWidthTags(any(List.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_7));
+        verify(this.view, times(2)).setTileMarginTags(any(List.class));
     }
 
     /**
-     * Message 1.8 - Tile height is greater than image height
+     * Message 1.8 - Total tile height is greater than image height
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
@@ -662,20 +679,37 @@ public class TileSetTest {
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertTrue(!this.model.hasPropertyAnnotation("tileWidth", TileSetModel.TAG_8));
 
-        String message = NLS.bind(TileSetModel.TAG_8.getMessage(), 67);
+        String message = NLS.bind(TileSetModel.TAG_8.getMessage(), new Object[] {69, 67});
         propertySource.setPropertyValue("tileHeight", 68);
+        propertySource.setPropertyValue("tileMargin", 1);
         assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
         assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_8).getMessage());
-        verify(this.view, times(3)).setImageTags(any(List.class));
+        verify(this.view, times(4)).setImageTags(any(List.class));
         assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
         assertEquals(message, this.model.getPropertyTag("tileHeight", TileSetModel.TAG_8).getMessage());
-        verify(this.view, times(1)).setTileHeightTags(any(List.class));
+        verify(this.view, times(2)).setTileHeightTags(any(List.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
+        assertEquals(message, this.model.getPropertyTag("tileMargin", TileSetModel.TAG_8).getMessage());
+        verify(this.view, times(1)).setTileMarginTags(any(List.class));
+
+        message = NLS.bind(TileSetModel.TAG_8.getMessage(), new Object[] {68, 67});
+        propertySource.setPropertyValue("tileMargin", 0);
+        assertTrue(this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
+        assertEquals(message, this.model.getPropertyTag("image", TileSetModel.TAG_8).getMessage());
+        verify(this.view, times(5)).setImageTags(any(List.class));
+        assertTrue(this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
+        assertEquals(message, this.model.getPropertyTag("tileHeight", TileSetModel.TAG_8).getMessage());
+        verify(this.view, times(3)).setTileHeightTags(any(List.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
+        verify(this.view, times(2)).setTileMarginTags(any(List.class));
 
         propertySource.setPropertyValue("tileHeight", 16);
         assertTrue(!this.model.hasPropertyAnnotation("image", TileSetModel.TAG_8));
-        verify(this.view, times(4)).setImageTags(any(List.class));
+        verify(this.view, times(6)).setImageTags(any(List.class));
         assertTrue(!this.model.hasPropertyAnnotation("tileHeight", TileSetModel.TAG_8));
-        verify(this.view, times(2)).setTileHeightTags(any(List.class));
+        verify(this.view, times(4)).setTileHeightTags(any(List.class));
+        assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_8));
+        verify(this.view, times(2)).setTileMarginTags(any(List.class));
     }
 
     /**
@@ -700,6 +734,48 @@ public class TileSetTest {
     }
 
     /**
+     * Message 1.10 - Invalid tile margin
+     * @throws IOException
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testMessage110() throws IOException {
+        loadEmptyFile();
+
+        assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
+
+        propertySource.setPropertyValue("tileMargin", -1);
+        assertTrue(this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
+        assertEquals(TileSetModel.TAG_10.getMessage(), this.model.getPropertyTag("tileMargin", TileSetModel.TAG_10).getMessage());
+        verify(this.view, times(1)).setTileMarginTags(any(List.class));
+
+        propertySource.setPropertyValue("tileMargin", 0);
+        assertTrue(!this.model.hasPropertyAnnotation("tileMargin", TileSetModel.TAG_10));
+        verify(this.view, times(2)).setTileMarginTags(any(List.class));
+    }
+
+    /**
+     * Message 1.11 - Invalid tile spacing
+     * @throws IOException
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testMessage111() throws IOException {
+        loadEmptyFile();
+
+        assertTrue(!this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
+
+        propertySource.setPropertyValue("tileSpacing", -1);
+        assertTrue(this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
+        assertEquals(TileSetModel.TAG_11.getMessage(), this.model.getPropertyTag("tileSpacing", TileSetModel.TAG_11).getMessage());
+        verify(this.view, times(1)).setTileSpacingTags(any(List.class));
+
+        propertySource.setPropertyValue("tileSpacing", 0);
+        assertTrue(!this.model.hasPropertyAnnotation("tileSpacing", TileSetModel.TAG_11));
+        verify(this.view, times(2)).setTileSpacingTags(any(List.class));
+    }
+
+    /**
      * Refresh
      * @throws IOException
      */
@@ -716,7 +792,9 @@ public class TileSetTest {
         verify(this.view, times(5)).setTileHeightProperty(anyInt());
         verify(this.view, never()).setTileHeightTags(any(List.class));
         verify(this.view, times(4)).setTileMarginProperty(anyInt());
+        verify(this.view, never()).setTileMarginTags(any(List.class));
         verify(this.view, times(3)).setTileSpacingProperty(anyInt());
+        verify(this.view, never()).setTileSpacingTags(any(List.class));
         verify(this.view, times(4)).setCollisionProperty(any(String.class));
         verify(this.view, never()).setCollisionTags(any(List.class));
         verify(this.view, times(5)).setMaterialTagProperty(any(String.class));
@@ -735,7 +813,9 @@ public class TileSetTest {
         verify(this.view, times(6)).setTileHeightProperty(anyInt());
         verify(this.view, times(1)).setTileHeightTags(any(List.class));
         verify(this.view, times(5)).setTileMarginProperty(anyInt());
+        verify(this.view, times(1)).setTileMarginTags(any(List.class));
         verify(this.view, times(4)).setTileSpacingProperty(anyInt());
+        verify(this.view, times(1)).setTileSpacingTags(any(List.class));
         verify(this.view, times(5)).setCollisionProperty(any(String.class));
         verify(this.view, times(1)).setCollisionTags(any(List.class));
         verify(this.view, times(6)).setMaterialTagProperty(any(String.class));

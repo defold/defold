@@ -97,7 +97,9 @@ public class TileSetPresenter implements TaggedPropertyListener {
         this.view.setTileHeightProperty(this.model.getTileHeight());
         this.view.setTileHeightTags(this.model.getPropertyTags("tileHeight"));
         this.view.setTileMarginProperty(this.model.getTileMargin());
+        this.view.setTileMarginTags(this.model.getPropertyTags("tileMargin"));
         this.view.setTileSpacingProperty(this.model.getTileSpacing());
+        this.view.setTileSpacingTags(this.model.getPropertyTags("tileSpacing"));
         this.view.setCollisionProperty(this.model.getCollision());
         this.view.setCollisionTags(this.model.getPropertyTags("collision"));
         this.view.setMaterialTagProperty(this.model.getMaterialTag());
@@ -145,6 +147,10 @@ public class TileSetPresenter implements TaggedPropertyListener {
                 this.view.setTileWidthTags(evt.getTags());
             } else if (evt.getPropertyName().equals("tileHeight")) {
                 this.view.setTileHeightTags(evt.getTags());
+            } else if (evt.getPropertyName().equals("tileMargin")) {
+                this.view.setTileMarginTags(evt.getTags());
+            } else if (evt.getPropertyName().equals("tileSpacing")) {
+                this.view.setTileSpacingTags(evt.getTags());
             } else if (evt.getPropertyName().equals("collision")) {
                 this.view.setCollisionTags(evt.getTags());
             } else if (evt.getPropertyName().equals("materialTag")) {

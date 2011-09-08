@@ -49,6 +49,8 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
     public static final Tag TAG_7 = new Tag("7", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_7);
     public static final Tag TAG_8 = new Tag("8", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_8);
     public static final Tag TAG_9 = new Tag("9", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_9);
+    public static final Tag TAG_10 = new Tag("10", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_10);
+    public static final Tag TAG_11 = new Tag("11", Tag.TYPE_ERROR, Messages.TileSetModel_TAG_11);
 
     @Property(commandFactory = UndoableCommandFactory.class, isResource = true)
     String image;
@@ -221,6 +223,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             int oldTileMargin = this.tileMargin;
             this.tileMargin = tileMargin;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileMargin", new Integer(oldTileMargin), new Integer(tileMargin)));
+            if (tileMargin >= 0) {
+                clearPropertyTag("tileMargin", TAG_10);
+            } else {
+                setPropertyTag("tileMargin", TAG_10);
+            }
             updateConvexHulls();
         }
     }
@@ -234,6 +241,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             int oldTileSpacing = this.tileSpacing;
             this.tileSpacing = tileSpacing;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSpacing", new Integer(oldTileSpacing), new Integer(tileSpacing)));
+            if (tileSpacing >= 0) {
+                clearPropertyTag("tileSpacing", TAG_11);
+            } else {
+                setPropertyTag("tileSpacing", TAG_11);
+            }
             updateConvexHulls();
         }
     }
@@ -500,33 +512,47 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
                 imageWidth = this.loadedCollision.getWidth();
                 imageHeight = this.loadedCollision.getHeight();
             }
-            if (this.tileWidth > imageWidth) {
-                Tag tag = Tag.bind(TAG_7, imageWidth);
+            int totalTileWidth = this.tileWidth + this.tileMargin;
+            if (totalTileWidth > imageWidth) {
+                Tag tag = Tag.bind(TAG_7, new Object[] {totalTileWidth, imageWidth});
                 if (this.loadedImage != null) {
                     setPropertyTag("image", tag);
                 } else {
                     setPropertyTag("collision", tag);
                 }
                 setPropertyTag("tileWidth", tag);
+                if (this.tileMargin > 0) {
+                    setPropertyTag("tileMargin", tag);
+                } else {
+                    clearPropertyTag("tileMargin", tag);
+                }
                 result = false;
             } else {
                 clearPropertyTag("image", TAG_7);
                 clearPropertyTag("collision", TAG_7);
                 clearPropertyTag("tileWidth", TAG_7);
+                clearPropertyTag("tileMargin", TAG_7);
             }
-            if (this.tileHeight > imageHeight) {
-                Tag tag = Tag.bind(TAG_8, imageHeight);
+            int totalTileHeight = this.tileHeight + this.tileMargin;
+            if (totalTileHeight > imageHeight) {
+                Tag tag = Tag.bind(TAG_8, new Object[] {totalTileHeight, imageHeight});
                 if (this.loadedImage != null) {
                     setPropertyTag("image", tag);
                 } else {
                     setPropertyTag("collision", tag);
                 }
                 setPropertyTag("tileHeight", tag);
+                if (this.tileMargin > 0) {
+                    setPropertyTag("tileMargin", tag);
+                } else {
+                    clearPropertyTag("tileMargin", tag);
+                }
                 result = false;
             } else {
                 clearPropertyTag("image", TAG_8);
                 clearPropertyTag("collision", TAG_8);
                 clearPropertyTag("tileHeight", TAG_8);
+                clearPropertyTag("tileMargin", TAG_8);
             }
         }
         return result;
@@ -633,10 +659,11 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
             tags = new ArrayList<Tag>();
             propertyTags.put(property, tags);
         }
-        if (!tags.contains(tag)) {
-            tags.add(tag);
-            firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
+        if (tags.contains(tag)) {
+            tags.remove(tag);
         }
+        tags.add(tag);
+        firePropertyTagEvent(new PropertyTagEvent(this, property, tags));
     }
 
     private void clearPropertyTag(String property, Tag tag) {

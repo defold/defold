@@ -271,7 +271,19 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     }
 
     @Override
+    public void setTileMarginTags(List<Tag> tags) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
     public void setTileSpacingProperty(int tileSpacing) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void setTileSpacingTags(List<Tag> tags) {
         // TODO Auto-generated method stub
 
     }
