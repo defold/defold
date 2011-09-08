@@ -33,9 +33,11 @@ import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.operations.LinearUndoViolationUserApprover;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.progress.IProgressService;
+import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
@@ -50,8 +52,8 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     private IContainer contentRoot;
     private IOperationHistory history;
     private UndoContext undoContext;
-    private TileSetModel model;
     private TileSetPresenter presenter;
+    private TileSetEditorOutlinePage outlinePage;
 
     // EditorPart
 
@@ -82,8 +84,8 @@ ISelectionListener, KeyListener, IResourceChangeListener {
                 this.undoContext, this);
         this.history.addOperationApprover(approver);
 
-        this.model = new TileSetModel(this.history, this.undoContext);
-        this.presenter = new TileSetPresenter(this.model, this);
+        TileSetModel model = new TileSetModel(this.history, this.undoContext);
+        this.presenter = new TileSetPresenter(model, this);
 
         IProgressService service = PlatformUI.getWorkbench()
                 .getProgressService();
@@ -114,6 +116,10 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void createPartControl(Composite parent) {
+        IContextService contextService = (IContextService) getSite()
+                .getService(IContextService.class);
+        contextService
+        .activateContext("com.dynamo.cr.tileseteditor.contexts.TileSetEditor");
     }
 
     @Override
@@ -295,10 +301,10 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     }
 
     @Override
-    public void setCollisionGroups(List<String> collisionGroups,
-            List<Color> colors) {
-        // TODO Auto-generated method stub
-
+    public void setCollisionGroups(List<String> collisionGroups, List<Color> colors) {
+        if (this.outlinePage != null) {
+            outlinePage.setInput(collisionGroups, colors);
+        }
     }
 
     @Override
@@ -322,7 +328,11 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        // TODO Auto-generated method stub
+        if (adapter == IContentOutlinePage.class) {
+            if (this.outlinePage == null)
+                this.outlinePage = new TileSetEditorOutlinePage(this.presenter);
+            return this.outlinePage;
+        }
 
         return super.getAdapter(adapter);
     }

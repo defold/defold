@@ -55,5 +55,12 @@
          <enablement></enablement>
       </commonWizard>
    </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.tileseteditor.contexts.TileSetEditor"
+            name="Tile Set Editor">
+      </context>
+   </extension>
 
 </plugin>

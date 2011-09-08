@@ -89,6 +89,23 @@ public class TileSetPresenter implements TaggedPropertyListener {
         this.model.executeOperation(new RenameCollisionGroupOperation(this.model, collisionGroup, newCollisionGroup));
     }
 
+    public void refresh() {
+        this.view.setImageProperty(this.model.getImage());
+        this.view.setImageTags(this.model.getPropertyTags("image"));
+        this.view.setTileWidthProperty(this.model.getTileWidth());
+        this.view.setTileWidthTags(this.model.getPropertyTags("tileWidth"));
+        this.view.setTileHeightProperty(this.model.getTileHeight());
+        this.view.setTileHeightTags(this.model.getPropertyTags("tileHeight"));
+        this.view.setTileMarginProperty(this.model.getTileMargin());
+        this.view.setTileSpacingProperty(this.model.getTileSpacing());
+        this.view.setCollisionProperty(this.model.getCollision());
+        this.view.setCollisionTags(this.model.getPropertyTags("collision"));
+        this.view.setMaterialTagProperty(this.model.getMaterialTag());
+        this.view.setMaterialTagTags(this.model.getPropertyTags("materialTag"));
+        setViewCollisionGroups(this.model.getCollisionGroups());
+        setViewTiles(this.model.getConvexHulls());
+    }
+
     @SuppressWarnings({ "unchecked" })
     @Override
     public void propertyChange(PropertyChangeEvent evt) {

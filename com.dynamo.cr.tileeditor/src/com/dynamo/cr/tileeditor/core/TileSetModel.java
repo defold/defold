@@ -614,6 +614,10 @@ public class TileSetModel extends Model implements IPropertyObjectWorld, IAdapta
         return false;
     }
 
+    public List<Tag> getPropertyTags(String property) {
+        return propertyTags.get(property);
+    }
+
     public Tag getPropertyTag(String property, Tag tag) {
         List<Tag> tags = propertyTags.get(property);
         if (tags != null && !tags.isEmpty()) {

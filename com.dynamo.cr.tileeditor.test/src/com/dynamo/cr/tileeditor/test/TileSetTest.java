@@ -11,12 +11,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.List;
+
+import javax.vecmath.Vector3f;
 
 import org.eclipse.core.commands.operations.DefaultOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistory;
@@ -696,4 +699,50 @@ public class TileSetTest {
         verify(this.view, times(2)).setMaterialTagTags(any(List.class));
     }
 
+    /**
+     * Refresh
+     * @throws IOException
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testRefresh() throws Exception {
+        // requirement
+        testUseCase114();
+
+        verify(this.view, times(4)).setImageProperty(any(String.class));
+        verify(this.view, times(4)).setImageTags(any(List.class));
+        verify(this.view, times(5)).setTileWidthProperty(anyInt());
+        verify(this.view, never()).setTileWidthTags(any(List.class));
+        verify(this.view, times(5)).setTileHeightProperty(anyInt());
+        verify(this.view, never()).setTileHeightTags(any(List.class));
+        verify(this.view, times(4)).setTileMarginProperty(anyInt());
+        verify(this.view, times(3)).setTileSpacingProperty(anyInt());
+        verify(this.view, times(4)).setCollisionProperty(any(String.class));
+        verify(this.view, never()).setCollisionTags(any(List.class));
+        verify(this.view, times(5)).setMaterialTagProperty(any(String.class));
+        verify(this.view, never()).setMaterialTagTags(any(List.class));
+        verify(this.view, times(4)).setCollisionGroups(any(List.class), any(List.class));
+        verify(this.view, times(13)).setTiles(any(BufferedImage.class), any(float[].class), any(int[].class), any(int[].class), any(Color[].class), any(Vector3f.class));
+        verify(this.view, never()).clearTiles();
+        verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
+
+        this.presenter.refresh();
+
+        verify(this.view, times(5)).setImageProperty(any(String.class));
+        verify(this.view, times(5)).setImageTags(any(List.class));
+        verify(this.view, times(6)).setTileWidthProperty(anyInt());
+        verify(this.view, times(1)).setTileWidthTags(any(List.class));
+        verify(this.view, times(6)).setTileHeightProperty(anyInt());
+        verify(this.view, times(1)).setTileHeightTags(any(List.class));
+        verify(this.view, times(5)).setTileMarginProperty(anyInt());
+        verify(this.view, times(4)).setTileSpacingProperty(anyInt());
+        verify(this.view, times(5)).setCollisionProperty(any(String.class));
+        verify(this.view, times(1)).setCollisionTags(any(List.class));
+        verify(this.view, times(6)).setMaterialTagProperty(any(String.class));
+        verify(this.view, times(1)).setMaterialTagTags(any(List.class));
+        verify(this.view, times(5)).setCollisionGroups(any(List.class), any(List.class));
+        verify(this.view, times(14)).setTiles(any(BufferedImage.class), any(float[].class), any(int[].class), any(int[].class), any(Color[].class), any(Vector3f.class));
+        verify(this.view, never()).clearTiles();
+        verify(this.view, times(6)).setTileHullColor(anyInt(), any(Color.class));
+    }
 }
