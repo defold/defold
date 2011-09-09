@@ -30,7 +30,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
     private final TileSetPresenter presenter;
     private final RootItem root;
     private final Image collisionGroupImage;
-    private Image[] collisionGroupImages;
 
     public TileSetEditorOutlinePage(TileSetPresenter presenter) {
         this.presenter = presenter;
@@ -46,23 +45,40 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
     public void dispose() {
         super.dispose();
         getSite().getPage().removeSelectionListener(this);
-        for (Image image : this.collisionGroupImages) {
-            image.dispose();
+        if (this.root.collisionGroups.items != null) {
+            for (CollisionGroupItem item : this.root.collisionGroups.items) {
+                item.image.dispose();
+            }
         }
     }
 
     public void setInput(List<String> collisionGroups, List<Color> collisionGroupColors) {
-        this.root.collisionGroups.collisionGroups = collisionGroups.toArray(new String[collisionGroups.size()]);
-        this.root.collisionGroups.collisionGroupColors = collisionGroupColors.toArray(new Color[collisionGroupColors.size()]);
+        int n = collisionGroups.size();
+        CollisionGroupItem[] items = new CollisionGroupItem[n];
+        for (int i = 0; i < n; ++i) {
+            items[i] = new CollisionGroupItem();
+            items[i].group = collisionGroups.get(i);
+        }
         TreeViewer viewer = getTreeViewer();
         if (viewer != null) {
-            updateCollisionGroupImages();
+            updateCollisionGroupImages(items, collisionGroupColors.toArray(new Color[collisionGroupColors.size()]));
+        }
+        CollisionGroupItem[] oldItems = this.root.collisionGroups.items;
+        this.root.collisionGroups.items = items;
+        if (oldItems != null) {
+            for (CollisionGroupItem item : oldItems) {
+                if (item.image != null) {
+                    item.image.dispose();
+                }
+            }
+        }
+        if (viewer != null) {
             viewer.setInput(this.root);
             viewer.expandToLevel(2);
         }
     }
 
-    static class RootItem {
+    public static class RootItem {
         public CollisionGroupsItem collisionGroups;
 
         public RootItem() {
@@ -70,9 +86,14 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         }
     }
 
-    static class CollisionGroupsItem {
-        public String[] collisionGroups;
-        public Color[] collisionGroupColors;
+    public static class CollisionGroupsItem {
+        public CollisionGroupItem[] items;
+    }
+
+    public static class CollisionGroupItem
+    {
+        public String group;
+        public Image image;
     }
 
     class OutlineContentProvider implements ITreeContentProvider {
@@ -89,7 +110,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
             if (inputElement instanceof RootItem) {
                 return new Object[] { ((RootItem)inputElement).collisionGroups };
             } else if (inputElement instanceof CollisionGroupsItem) {
-                return ((CollisionGroupsItem)inputElement).collisionGroups;
+                return ((CollisionGroupsItem)inputElement).items;
             }
             return null;
         }
@@ -105,7 +126,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
                 return null;
             } else if (element instanceof CollisionGroupsItem) {
                 return root;
-            } else if (element instanceof String) {
+            } else if (element instanceof CollisionGroupItem) {
                 return root.collisionGroups;
             }
             return null;
@@ -117,7 +138,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
                 return true;
             } else if (element instanceof CollisionGroupsItem) {
                 CollisionGroupsItem item = (CollisionGroupsItem)element;
-                return item.collisionGroups != null && item.collisionGroups.length > 0;
+                return item.items != null && item.items.length > 0;
             }
             return false;
         }
@@ -140,17 +161,12 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
                 image = this.registry.getImageDescriptor(".tileset").createImage();
             } else if (element instanceof CollisionGroupsItem) {
                 image = sharedImages.getImage(ISharedImages.IMG_OBJ_FOLDER);
-            } else if (element instanceof String) {
-                int n = root.collisionGroups.collisionGroups.length;
-                if (collisionGroupImages != null && collisionGroupImages.length == n) {
-                    for (int i = 0; i < n; ++i) {
-                        if (root.collisionGroups.collisionGroups[i].equals(element)) {
-                            image = collisionGroupImages[i];
-                            break;
-                        }
-                    }
+            } else if (element instanceof CollisionGroupItem) {
+                CollisionGroupItem item = (CollisionGroupItem)element;
+                if (item.image != null) {
+                    return item.image;
                 } else {
-                    image = collisionGroupImage;
+                    return collisionGroupImage;
                 }
             }
 
@@ -166,8 +182,8 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
                 return "Tile Set";
             } else if (element instanceof CollisionGroupsItem) {
                 return "Collision Groups";
-            } else if (element instanceof String) {
-                return (String)element;
+            } else if (element instanceof CollisionGroupItem) {
+                return ((CollisionGroupItem)element).group;
             } else {
                 return super.getText(element);
             }
@@ -205,10 +221,8 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         }
     }
 
-    private void updateCollisionGroupImages() {
-        int n = this.root.collisionGroups.collisionGroups.length;
-        Color[] colors = this.root.collisionGroups.collisionGroupColors;
-        Image[] images = new Image[n];
+    private void updateCollisionGroupImages(CollisionGroupItem[] items, Color[] colors) {
+        int n = items.length;
         float f = 1.0f / 255.0f;
         for (int i = 0; i < n; ++i) {
             ImageData data = this.collisionGroupImage.getImageData();
@@ -233,14 +247,7 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
                     data.data[p * 3 + 2] = (byte)(t_b * 255.0f);
                 }
             }
-            images[i] = new Image(getSite().getShell().getDisplay(), data);
-        }
-        Image[] oldImages = this.collisionGroupImages;
-        this.collisionGroupImages = images;
-        if (oldImages != null) {
-            for (Image image : oldImages) {
-                image.dispose();
-            }
+            items[i].image = new Image(getSite().getShell().getDisplay(), data);
         }
     }
 

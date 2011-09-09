@@ -108,6 +108,24 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.RenameCollisionGroup"
+            commandId="org.eclipse.ui.edit.rename">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.RemoveCollisionGroup"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
