@@ -19,6 +19,7 @@ import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
@@ -187,6 +188,11 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         viewer.expandToLevel(2);
 
         getSite().getPage().addSelectionListener(this);
+
+        // This makes sure the context will be active while this component is
+        IContextService contextService = (IContextService) getSite()
+                .getService(IContextService.class);
+        contextService.activateContext(Activator.CONTEXT_ID);
 
         this.presenter.refresh();
     }

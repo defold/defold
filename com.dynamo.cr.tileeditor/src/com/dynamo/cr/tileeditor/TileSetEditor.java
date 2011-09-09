@@ -141,10 +141,10 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void createPartControl(Composite parent) {
+        // This makes sure the context will be active while this component is
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
-        contextService
-        .activateContext("com.dynamo.cr.tileeditor.contexts.TileSetEditor");
+        contextService.activateContext(Activator.CONTEXT_ID);
     }
 
     public TileSetPresenter getPresenter() {

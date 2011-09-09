@@ -77,7 +77,7 @@
             commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
             contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="i">
+            sequence="I">
       </key>
    </extension>
    <extension
@@ -102,29 +102,11 @@
       <handler
             class="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
             commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup">
-         <enabledWhen>
+         <activeWhen>
             <reference
                   definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
             </reference>
-         </enabledWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.tileeditor.commands.RenameCollisionGroup"
-            commandId="org.eclipse.ui.edit.rename">
-         <enabledWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
-            </reference>
-         </enabledWhen>
-      </handler>
-      <handler
-            class="com.dynamo.cr.tileeditor.commands.RemoveCollisionGroup"
-            commandId="org.eclipse.ui.edit.delete">
-         <enabledWhen>
-            <reference
-                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
-            </reference>
-         </enabledWhen>
+         </activeWhen>
       </handler>
    </extension>
    <extension

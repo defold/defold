@@ -15,8 +15,11 @@ public class Activator extends AbstractUIPlugin {
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.tileeditor"; //$NON-NLS-1$
 
+    // Context ID
+    public static final String CONTEXT_ID = "com.dynamo.cr.tileeditor.contexts.TileSetEditor"; //$NON-NLS-1$
+
     // Image ids
-    public static final String COLLISION_GROUP_IMAGE_ID = "COLLISION_GROUP";
+    public static final String COLLISION_GROUP_IMAGE_ID = "COLLISION_GROUP"; //$NON-NLS-1$
 
     // The shared instance
     private static Activator plugin;
