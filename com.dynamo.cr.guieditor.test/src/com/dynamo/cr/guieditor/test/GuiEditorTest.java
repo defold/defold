@@ -20,7 +20,6 @@ import java.util.Enumeration;
 import java.util.HashMap;
 
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -249,12 +248,12 @@ public class GuiEditorTest {
 
         IPropertyAccessor<?, ? extends IPropertyObjectWorld> tmp = new BeanPropertyAccessor();
         IPropertyAccessor<Object, GuiScene> accessor = (IPropertyAccessor<Object, GuiScene>) tmp;
-        SetPropertiesOperation<Vector4d> operation = new SetPropertiesOperation<Vector4d>(node, "position", accessor, new Vector4d(), new Vector4d(1,2,3,0), editor.getScene());;
+        SetPropertiesOperation<Vector3d> operation = new SetPropertiesOperation<Vector3d>(node, "position", accessor, new Vector3d(), new Vector3d(1,2,3), editor.getScene());;
         editor.executeOperation(operation);
-        assertEquals(node.getPosition(), new Vector4d(1,2,3,0));
+        assertEquals(node.getPosition(), new Vector3d(1,2,3));
 
         history.undo(undoContext, new NullProgressMonitor(), null);
-        assertEquals(node.getPosition(), new Vector4d(0,0,0,0));
+        assertEquals(node.getPosition(), new Vector3d(0,0,0));
     }
 
     @SuppressWarnings("unchecked")
