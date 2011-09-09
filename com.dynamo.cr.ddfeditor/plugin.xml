@@ -675,6 +675,7 @@
             allPopups="false"
             locationURI="menu:com.dynamo.cr.editor.menus.tools?after=com.dynamo.cr.editor.menus.launch">
          <menu
+               id="com.dynamo.cr.ddfeditor.menus.GameObject"
                label="Game Object">
             <command
                   commandId="com.dynamo.cr.ddfeditor.commands.addResourceComponent"

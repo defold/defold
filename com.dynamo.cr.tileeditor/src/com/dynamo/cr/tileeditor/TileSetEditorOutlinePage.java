@@ -19,7 +19,6 @@ import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.contexts.IContextService;
 import org.eclipse.ui.views.contentoutline.ContentOutline;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
@@ -186,10 +185,6 @@ public class TileSetEditorOutlinePage extends ContentOutlinePage implements ISel
         viewer.setLabelProvider(new OutlineColumnLabelProvider());
         viewer.setInput(this.root);
         viewer.expandToLevel(2);
-
-        IContextService contextService = (IContextService) getSite()
-                .getService(IContextService.class);
-        contextService.activateContext("com.dynamo.cr.tileseteditor.contexts.TileSetEditor");
 
         getSite().getPage().addSelectionListener(this);
 

@@ -59,6 +59,7 @@ ISelectionListener, KeyListener, IResourceChangeListener {
     private UndoContext undoContext;
     private TileSetPresenter presenter;
     private TileSetEditorOutlinePage outlinePage;
+    private List<String> collisionGroups;
 
     // EditorPart
 
@@ -143,7 +144,15 @@ ISelectionListener, KeyListener, IResourceChangeListener {
         IContextService contextService = (IContextService) getSite()
                 .getService(IContextService.class);
         contextService
-        .activateContext("com.dynamo.cr.tileseteditor.contexts.TileSetEditor");
+        .activateContext("com.dynamo.cr.tileeditor.contexts.TileSetEditor");
+    }
+
+    public TileSetPresenter getPresenter() {
+        return this.presenter;
+    }
+
+    public List<String> getCollisionGroups() {
+        return this.collisionGroups;
     }
 
     @Override
@@ -338,6 +347,7 @@ ISelectionListener, KeyListener, IResourceChangeListener {
 
     @Override
     public void setCollisionGroups(List<String> collisionGroups, List<Color> colors) {
+        this.collisionGroups = collisionGroups;
         outlinePage.setInput(collisionGroups, colors);
     }
 

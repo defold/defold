@@ -59,9 +59,89 @@
    <extension
          point="org.eclipse.ui.contexts">
       <context
-            id="com.dynamo.cr.tileseteditor.contexts.TileSetEditor"
+            id="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
             name="Tile Set Editor">
       </context>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            description="Adds a collision group"
+            id="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
+            name="Add Collision Group">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.TileSetEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="i">
+      </key>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:com.dynamo.cr.editor.menus.tools?after=com.dynamo.cr.ddfeditor.menus.GameObject">
+         <menu
+               id="com.dynamo.cr.tileeditor.menus.TileSet"
+               label="Tile Set">
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
+                  icon="icons/collision_group.png"
+                  label="Add Collision Group"
+                  style="push">
+            </command>
+         </menu>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.AddCollisionGroup"
+            commandId="com.dynamo.cr.tileeditor.commands.AddCollisionGroup">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.RenameCollisionGroup"
+            commandId="org.eclipse.ui.edit.rename">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.commands.RemoveCollisionGroup"
+            commandId="org.eclipse.ui.edit.delete">
+         <enabledWhen>
+            <reference
+                  definitionId="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+            </reference>
+         </enabledWhen>
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.definitions">
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.tileSetEditorActive">
+         <with
+               variable="activeContexts">
+            <iterate
+                  ifEmpty="false"
+                  operator="or">
+               <equals
+                     value="com.dynamo.cr.tileeditor.contexts.TileSetEditor">
+               </equals>
+            </iterate>
+         </with>
+      </definition>
    </extension>
 
 </plugin>
